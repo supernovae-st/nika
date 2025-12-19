@@ -100,7 +100,7 @@ connections:
 
     // Create valid workflow
     fs::write(
-        workflow_dir.join("test.wf.yaml"),
+        workflow_dir.join("test.nika.yaml"),
         r#"
 mainAgent:
   model: "claude-sonnet-4-5"
@@ -185,7 +185,7 @@ connections:
 
     // Create invalid workflow (isolated -> context)
     fs::write(
-        workflow_dir.join("invalid.wf.yaml"),
+        workflow_dir.join("invalid.nika.yaml"),
         r#"
 mainAgent:
   model: "claude-sonnet-4-5"
@@ -220,7 +220,7 @@ edges:
 fn test_validate_json_output() {
     let temp_dir = TempDir::new().unwrap();
     let rules_dir = temp_dir.path().join("rules");
-    let workflow_file = temp_dir.path().join("test.wf.yaml");
+    let workflow_file = temp_dir.path().join("test.nika.yaml");
 
     fs::create_dir_all(&rules_dir).unwrap();
 
@@ -298,7 +298,7 @@ fn test_validate_invalid_isolated_to_context() {
     nika_cmd()
         .args([
             "validate",
-            "../spec/examples/invalid-isolated-to-context.wf.yaml",
+            "../spec/examples/invalid-isolated-to-context.nika.yaml",
             "--rules",
             "../spec/validation",
         ])
@@ -313,7 +313,7 @@ fn test_validate_valid_bridge_pattern() {
     nika_cmd()
         .args([
             "validate",
-            "../spec/examples/valid-bridge-pattern.wf.yaml",
+            "../spec/examples/valid-bridge-pattern.nika.yaml",
             "--rules",
             "../spec/validation",
         ])
@@ -328,7 +328,7 @@ fn test_validate_all_paradigms() {
     nika_cmd()
         .args([
             "validate",
-            "../spec/examples/all-paradigms.wf.yaml",
+            "../spec/examples/all-paradigms.nika.yaml",
             "--rules",
             "../spec/validation",
         ])

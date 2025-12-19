@@ -29,7 +29,7 @@ cargo build --release
 ## Commands
 
 ```bash
-nika run <workflow>      # Run a .wf.yaml workflow
+nika run <workflow>      # Run a .nika.yaml workflow
 nika validate [path]     # Validate workflow files
 nika init [name]         # Initialize new .nika project
 nika add <package>       # Install community package

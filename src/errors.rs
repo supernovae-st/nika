@@ -309,7 +309,7 @@ mod tests {
 
     #[test]
     fn test_validation_result() {
-        let mut result = ValidationResult::new("test.wf.yaml");
+        let mut result = ValidationResult::new("test.nika.yaml");
         assert!(result.is_valid());
         assert!(!result.has_warnings());
 

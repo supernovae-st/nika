@@ -1,13 +1,13 @@
 //! Core workflow types for Nika
 //!
-//! These types represent the structure of a .wf.yaml workflow file.
+//! These types represent the structure of a .nika.yaml workflow file.
 //! They are designed to match the YAML structure exactly for easy parsing.
 
 use serde::Deserialize;
 use std::collections::HashMap;
 
 /// Main workflow structure
-/// Represents the root of a .wf.yaml file
+/// Represents the root of a .nika.yaml file
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Workflow {

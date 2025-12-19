@@ -164,7 +164,7 @@ main() {
   printf "Get started:\n"
   printf "  ${GREEN}nika init my-project${NC}     # Create new project\n"
   printf "  ${GREEN}nika validate${NC}            # Validate workflows\n"
-  printf "  ${GREEN}nika run workflow.wf.yaml${NC} # Run a workflow\n"
+  printf "  ${GREEN}nika run workflow.nika.yaml${NC} # Run a workflow\n"
   printf "\n"
   printf "Documentation: ${BLUE}https://nika.sh/docs${NC}\n"
   printf "\n"

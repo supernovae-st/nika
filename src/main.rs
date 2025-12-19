@@ -26,7 +26,7 @@ struct Cli {
 enum Commands {
     /// Run a workflow file
     Run {
-        /// Path to workflow file (.wf.yaml)
+        /// Path to workflow file (.nika.yaml)
         workflow: String,
     },
     /// Validate workflow files
@@ -99,7 +99,7 @@ fn main() {
             println!("Running workflow: {}", workflow);
             println!();
             println!("⚠️  Not implemented yet.");
-            println!("    This will parse the .wf.yaml and call Claude SDK via subprocess.");
+            println!("    This will parse the .nika.yaml and call Claude SDK via subprocess.");
         }
         Some(Commands::Validate {
             path,
@@ -174,7 +174,7 @@ fn main() {
     nika <command> [options]
 
   COMMANDS:
-    run <workflow>     Run a .wf.yaml workflow
+    run <workflow>     Run a .nika.yaml workflow
     validate [path]    Validate workflow files
     init [name]        Initialize new .nika project
     install <package>  Install community package
@@ -183,12 +183,12 @@ fn main() {
     publish <path>     Publish package to registry
 
   EXAMPLES:
-    nika run support.wf.yaml
+    nika run support.nika.yaml
     nika validate
     nika init my-project
     nika install @nika/support-template
     nika auth login
-    nika publish .nika/workflows/my-workflow.wf.yaml
+    nika publish .nika/workflows/my-workflow.nika.yaml
 
   DOCS:
     https://nika.sh/docs
@@ -359,14 +359,14 @@ fn find_workflow_files(path: &Path) -> anyhow::Result<Vec<std::path::PathBuf>> {
         // Single file
         files.push(path.to_path_buf());
     } else if path.is_dir() {
-        // Directory - find all .wf.yaml, .node.yaml, .nika.yaml files
+        // Directory - find all .nika.yaml, .node.yaml, .nika.yaml files
         for entry in walkdir::WalkDir::new(path)
             .follow_links(true)
             .into_iter()
             .filter_map(|e| e.ok())
         {
             let name = entry.file_name().to_string_lossy();
-            if name.ends_with(".wf.yaml")
+            if name.ends_with(".nika.yaml")
                 || name.ends_with(".node.yaml")
                 || name.ends_with(".nika.yaml")
             {

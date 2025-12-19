@@ -207,7 +207,7 @@ edges:
         )
         .unwrap();
 
-        let result = validator.validate(&workflow, "test.wf.yaml");
+        let result = validator.validate(&workflow, "test.nika.yaml");
         assert!(
             result.is_valid(),
             "Expected valid workflow: {:?}",
@@ -237,7 +237,7 @@ edges:
         )
         .unwrap();
 
-        let result = validator.validate(&workflow, "test.wf.yaml");
+        let result = validator.validate(&workflow, "test.nika.yaml");
         assert!(!result.is_valid(), "Expected invalid workflow");
         assert!(
             result
@@ -272,7 +272,7 @@ edges:
         )
         .unwrap();
 
-        let result = validator.validate(&workflow, "test.wf.yaml");
+        let result = validator.validate(&workflow, "test.nika.yaml");
         assert!(
             result.is_valid(),
             "Bridge pattern should be valid: {:?}",
@@ -300,7 +300,7 @@ edges:
         )
         .unwrap();
 
-        let result = validator.validate(&workflow, "test.wf.yaml");
+        let result = validator.validate(&workflow, "test.nika.yaml");
         assert!(!result.is_valid());
         // Should have: invalid ID format, unknown node type, missing edge source
         assert!(
@@ -328,7 +328,7 @@ edges: []
         )
         .unwrap();
 
-        let result = validator.validate(&workflow, "test.wf.yaml");
+        let result = validator.validate(&workflow, "test.nika.yaml");
         // Both nodes are orphans (no edges), but workflow is technically "valid" (no errors)
         assert!(result.has_warnings());
     }

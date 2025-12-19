@@ -30,7 +30,7 @@ fn test_custom_node_discovery_in_examples() {
 #[test]
 fn test_workflow_file_exists_in_examples() {
     let examples_path = get_examples_path();
-    let workflow_path = examples_path.join("workflow.wf.yaml");
+    let workflow_path = examples_path.join("workflow.nika.yaml");
 
     assert!(
         workflow_path.exists(),
@@ -61,9 +61,9 @@ fn test_custom_node_files_are_valid_yaml() {
 #[test]
 fn test_workflow_file_has_required_sections() {
     let examples_path = get_examples_path();
-    let workflow_path = examples_path.join("workflow.wf.yaml");
+    let workflow_path = examples_path.join("workflow.nika.yaml");
 
-    let workflow_content = fs::read_to_string(workflow_path).expect("Should read workflow.wf.yaml");
+    let workflow_content = fs::read_to_string(workflow_path).expect("Should read workflow.nika.yaml");
 
     assert!(workflow_content.contains("mainAgent"));
     assert!(workflow_content.contains("nodes"));
