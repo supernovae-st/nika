@@ -1,0 +1,60 @@
+[package]
+name = "nika"
+version = "0.1.0"
+edition = "2021"
+authors = ["SuperNovae Studio"]
+description = "CLI for Nika workflow orchestration"
+license = "LicenseRef-Proprietary"
+repository = "https://github.com/supernovae-studio/nika-cli"
+keywords = ["ai", "workflow", "claude", "orchestration", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "nika"
+path = "src/main.rs"
+
+[dependencies]
+# CLI framework
+clap = { version = "4.5", features = ["derive"] }
+
+# TUI (Ratatui)
+ratatui = "0.29"
+crossterm = "0.28"
+
+# YAML parsing
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+
+# JSON Schema validation
+jsonschema = "0.18"
+serde_json = "1.0"
+
+# Async runtime (for Claude SDK subprocess)
+tokio = { version = "1.40", features = ["full"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Regex for ID validation
+regex = "1.10"
+
+# Colors and formatting
+colored = "2.1"
+
+# Directory traversal
+walkdir = "2.5"
+
+# Glob pattern matching
+glob = "0.3"
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.1"
+tempfile = "3.14"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
