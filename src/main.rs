@@ -366,10 +366,7 @@ fn find_workflow_files(path: &Path) -> anyhow::Result<Vec<std::path::PathBuf>> {
             .filter_map(|e| e.ok())
         {
             let name = entry.file_name().to_string_lossy();
-            if name.ends_with(".nika.yaml")
-                || name.ends_with(".node.yaml")
-                || name.ends_with(".nika.yaml")
-            {
+            if name.ends_with(".nika.yaml") || name.ends_with(".node.yaml") {
                 files.push(entry.path().to_path_buf());
             }
         }
