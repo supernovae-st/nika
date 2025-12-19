@@ -1,6 +1,6 @@
 #!/bin/bash
 # Nika CLI Installer
-# Usage: curl -fsSL https://nika.dev/install.sh | bash
+# Usage: curl -fsSL https://nika.sh/install.sh | bash
 #
 # Environment variables:
 #   NIKA_INSTALL_DIR - Installation directory (default: /usr/local/bin or ~/.local/bin)
@@ -160,7 +160,7 @@ main() {
   printf "  ${GREEN}nika validate${NC}            # Validate workflows\n"
   printf "  ${GREEN}nika run workflow.wf.yaml${NC} # Run a workflow\n"
   printf "\n"
-  printf "Documentation: ${BLUE}https://nika.dev/docs${NC}\n"
+  printf "Documentation: ${BLUE}https://nika.sh/docs${NC}\n"
   printf "\n"
 }
 

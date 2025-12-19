@@ -66,7 +66,7 @@ src/
 ## Related
 
 - [Nika Specification](https://github.com/supernovae-studio/nika) (Apache 2.0)
-- [Documentation](https://nika.dev/docs)
+- [Documentation](https://nika.sh/docs)
 
 ## License
 

@@ -16,7 +16,7 @@ pub fn publish(path: &Path) -> Result<()> {
     eprintln!("  1. Validate package structure");
     eprintln!("  2. Check authentication status");
     eprintln!("  3. Create package tarball");
-    eprintln!("  4. Upload to registry.nika.dev");
+    eprintln!("  4. Upload to registry.nika.sh");
     eprintln!("  5. Report success with package URL");
     Ok(())
 }

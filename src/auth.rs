@@ -12,7 +12,7 @@ pub fn login() -> Result<()> {
     eprintln!("What will happen when implemented:");
     eprintln!("  1. Open browser for OAuth flow");
     eprintln!("  2. Store credentials in ~/.nika/auth.json");
-    eprintln!("  3. Enable publishing to registry.nika.dev");
+    eprintln!("  3. Enable publishing to registry.nika.sh");
     Ok(())
 }
 
