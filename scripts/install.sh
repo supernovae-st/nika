@@ -1,10 +1,16 @@
 #!/bin/bash
-# Nika CLI Installer
-# Usage: curl -fsSL https://nika.sh/install.sh | bash
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  NIKA CLI INSTALLER                                                       ║
+# ║  Native Intelligence Kernel for Agents                                    ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+#
+# Usage:
+#   curl nika.sh | bash              # Quick install (recommended)
+#   curl -fsSL nika.sh | bash        # Silent install
 #
 # Environment variables:
-#   NIKA_INSTALL_DIR - Installation directory (default: /usr/local/bin or ~/.local/bin)
-#   NIKA_VERSION     - Specific version to install (default: latest)
+#   NIKA_INSTALL_DIR  Installation directory (default: /usr/local/bin)
+#   NIKA_VERSION      Specific version (default: latest)
 
 set -euo pipefail
 
