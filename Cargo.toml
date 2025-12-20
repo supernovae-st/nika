@@ -20,6 +20,12 @@ clap = { version = "4.5", features = ["derive"] }
 # TUI (Ratatui)
 ratatui = "0.29"
 crossterm = "0.28"
+tachyonfx = "0.7"          # TUI animations
+
+# Async streams
+tokio-stream = "0.1"
+async-trait = "0.1"
+futures = "0.3"
 
 # YAML parsing
 serde = { version = "1.0", features = ["derive"] }

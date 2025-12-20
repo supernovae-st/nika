@@ -1,6 +1,7 @@
-//! Integration tests for the Nika CLI
+//! Integration tests for the Nika CLI (v3)
 //!
 //! These tests run the actual CLI binary and verify output.
+//! Architecture v3: 2 task types (agent + action) with scope attribute.
 
 use assert_cmd::Command;
 use predicates::prelude::*;
@@ -20,7 +21,8 @@ fn test_no_args_shows_banner() {
         .stdout(predicate::str::contains(
             "Native Intelligence Kernel for Agents",
         ))
-        .stdout(predicate::str::contains("v0.1.0"));
+        .stdout(predicate::str::contains("v0.1.0"))
+        .stdout(predicate::str::contains("Architecture v3"));
 }
 
 #[test]
@@ -41,230 +43,266 @@ fn test_validate_help() {
         .assert()
         .success()
         .stdout(predicate::str::contains("--format"))
-        .stdout(predicate::str::contains("--rules"));
+        .stdout(predicate::str::contains("--verbose"));
 }
 
+// ============================================================================
+// v3 Workflow Validation Tests
+// ============================================================================
+
 #[test]
-fn test_validate_valid_workflow() {
-    // Create temp directory with test files
+fn test_validate_valid_hello_world() {
     let temp_dir = TempDir::new().unwrap();
-    let rules_dir = temp_dir.path().join("rules");
-    let workflow_dir = temp_dir.path().join("workflows");
+    let workflow_file = temp_dir.path().join("hello.nika.yaml");
 
-    fs::create_dir_all(&rules_dir).unwrap();
-    fs::create_dir_all(&workflow_dir).unwrap();
-
-    // Create minimal rule files
+    // v3 hello world workflow
     fs::write(
-        rules_dir.join("node-types.yaml"),
-        r#"
-version: "1.0"
-description: "Test types"
-lookup:
-  context: context
-  nika/transform: data
-"#,
-    )
-    .unwrap();
-
-    fs::write(
-        rules_dir.join("paradigm-matrix.yaml"),
-        r#"
-version: "1.0"
-description: "Test matrix"
-paradigms:
-  context:
-    symbol: "🧠"
-    description: "Context"
-    color: "violet"
-    border: "solid"
-    sdk_mapping: "query()"
-    token_cost: "500+"
-  data:
-    symbol: "⚡"
-    description: "Data"
-    color: "cyan"
-    border: "thin"
-    sdk_mapping: "@tool"
-    token_cost: "0"
-connections:
-  context:
-    context: true
-    data: true
-  data:
-    context: true
-    data: true
-"#,
-    )
-    .unwrap();
-
-    // Create valid workflow
-    fs::write(
-        workflow_dir.join("test.nika.yaml"),
+        &workflow_file,
         r#"
 mainAgent:
-  model: "claude-sonnet-4-5"
-  systemPrompt: "Test"
-nodes:
-  - id: prompt1
-    type: context
-  - id: transform1
-    type: nika/transform
-edges:
-  - source: prompt1
-    target: transform1
+  model: claude-sonnet-4-5
+  systemPrompt: "You are a helpful assistant."
+
+tasks:
+  - id: greet
+    type: agent
+    prompt: "Say hello in French."
+
+flows: []
 "#,
     )
     .unwrap();
 
     nika_cmd()
-        .args([
-            "validate",
-            workflow_dir.to_str().unwrap(),
-            "--rules",
-            rules_dir.to_str().unwrap(),
-        ])
+        .args(["validate", workflow_file.to_str().unwrap()])
         .assert()
         .success()
-        .stdout(predicate::str::contains("✅"))
-        .stdout(predicate::str::contains("2 nodes"));
+        .stdout(predicate::str::contains("1 tasks"));
 }
 
 #[test]
-fn test_validate_invalid_workflow() {
+fn test_validate_agent_main_to_action() {
     let temp_dir = TempDir::new().unwrap();
-    let rules_dir = temp_dir.path().join("rules");
-    let workflow_dir = temp_dir.path().join("workflows");
-
-    fs::create_dir_all(&rules_dir).unwrap();
-    fs::create_dir_all(&workflow_dir).unwrap();
-
-    // Create rule files with isolated paradigm
-    fs::write(
-        rules_dir.join("node-types.yaml"),
-        r#"
-version: "1.0"
-description: "Test types"
-lookup:
-  context: context
-  isolated: isolated
-"#,
-    )
-    .unwrap();
-
-    fs::write(
-        rules_dir.join("paradigm-matrix.yaml"),
-        r#"
-version: "1.0"
-description: "Test matrix"
-paradigms:
-  context:
-    symbol: "🧠"
-    description: "Context"
-    color: "violet"
-    border: "solid"
-    sdk_mapping: "query()"
-    token_cost: "500+"
-  isolated:
-    symbol: "🤖"
-    description: "Isolated"
-    color: "amber"
-    border: "dashed"
-    sdk_mapping: "agents"
-    token_cost: "8000+"
-connections:
-  context:
-    context: true
-    isolated: true
-  isolated:
-    context: false
-    isolated: false
-"#,
-    )
-    .unwrap();
-
-    // Create invalid workflow (isolated -> context)
-    fs::write(
-        workflow_dir.join("invalid.nika.yaml"),
-        r#"
-mainAgent:
-  model: "claude-sonnet-4-5"
-  systemPrompt: "Test"
-nodes:
-  - id: expert1
-    type: isolated
-  - id: prompt1
-    type: context
-edges:
-  - source: expert1
-    target: prompt1
-"#,
-    )
-    .unwrap();
-
-    nika_cmd()
-        .args([
-            "validate",
-            workflow_dir.to_str().unwrap(),
-            "--rules",
-            rules_dir.to_str().unwrap(),
-        ])
-        .assert()
-        .failure()
-        .stdout(predicate::str::contains("❌"))
-        .stdout(predicate::str::contains("Invalid connection"))
-        .stdout(predicate::str::contains("bridge pattern"));
-}
-
-#[test]
-fn test_validate_json_output() {
-    let temp_dir = TempDir::new().unwrap();
-    let rules_dir = temp_dir.path().join("rules");
     let workflow_file = temp_dir.path().join("test.nika.yaml");
-
-    fs::create_dir_all(&rules_dir).unwrap();
-
-    fs::write(
-        rules_dir.join("node-types.yaml"),
-        r#"
-version: "1.0"
-description: "Test"
-lookup:
-  context: context
-"#,
-    )
-    .unwrap();
-
-    fs::write(
-        rules_dir.join("paradigm-matrix.yaml"),
-        r#"
-version: "1.0"
-description: "Test"
-paradigms:
-  context:
-    symbol: "🧠"
-    description: "Context"
-    color: "violet"
-    border: "solid"
-    sdk_mapping: "query()"
-    token_cost: "500+"
-connections:
-  context:
-    context: true
-"#,
-    )
-    .unwrap();
 
     fs::write(
         &workflow_file,
         r#"
 mainAgent:
-  model: "claude-sonnet-4-5"
+  model: claude-sonnet-4-5
   systemPrompt: "Test"
-nodes:
-  - id: prompt1
-    type: context
-edges: []
+
+tasks:
+  - id: analyze
+    type: agent
+    prompt: "Analyze the code."
+  - id: save
+    type: action
+    run: Write
+    file: "output.txt"
+
+flows:
+  - source: analyze
+    target: save
+"#,
+    )
+    .unwrap();
+
+    nika_cmd()
+        .args(["validate", workflow_file.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("2 tasks"));
+}
+
+#[test]
+fn test_validate_bridge_pattern() {
+    let temp_dir = TempDir::new().unwrap();
+    let workflow_file = temp_dir.path().join("bridge.nika.yaml");
+
+    // v3 bridge pattern: agent(isolated) -> action -> agent(main)
+    fs::write(
+        &workflow_file,
+        r#"
+mainAgent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Orchestrator"
+
+tasks:
+  - id: worker
+    type: agent
+    scope: isolated
+    prompt: "Do deep work."
+  - id: bridge
+    type: action
+    run: aggregate
+  - id: router
+    type: agent
+    prompt: "Route results."
+
+flows:
+  - source: worker
+    target: bridge
+  - source: bridge
+    target: router
+"#,
+    )
+    .unwrap();
+
+    nika_cmd()
+        .args(["validate", workflow_file.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("3 tasks"));
+}
+
+#[test]
+fn test_validate_invalid_isolated_to_main() {
+    let temp_dir = TempDir::new().unwrap();
+    let workflow_file = temp_dir.path().join("invalid.nika.yaml");
+
+    // v3 invalid: agent(isolated) -> agent(main) is BLOCKED
+    fs::write(
+        &workflow_file,
+        r#"
+mainAgent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+
+tasks:
+  - id: worker
+    type: agent
+    scope: isolated
+    prompt: "Work"
+  - id: router
+    type: agent
+    prompt: "Route"
+
+flows:
+  - source: worker
+    target: router
+"#,
+    )
+    .unwrap();
+
+    nika_cmd()
+        .args(["validate", workflow_file.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Connection blocked"));
+}
+
+#[test]
+fn test_validate_invalid_isolated_to_isolated() {
+    let temp_dir = TempDir::new().unwrap();
+    let workflow_file = temp_dir.path().join("invalid.nika.yaml");
+
+    // v3 invalid: agent(isolated) -> agent(isolated) is BLOCKED
+    fs::write(
+        &workflow_file,
+        r#"
+mainAgent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+
+tasks:
+  - id: sub1
+    type: agent
+    scope: isolated
+    prompt: "Sub1"
+  - id: sub2
+    type: agent
+    scope: isolated
+    prompt: "Sub2"
+
+flows:
+  - source: sub1
+    target: sub2
+"#,
+    )
+    .unwrap();
+
+    nika_cmd()
+        .args(["validate", workflow_file.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Connection blocked"));
+}
+
+#[test]
+fn test_validate_agent_missing_prompt() {
+    let temp_dir = TempDir::new().unwrap();
+    let workflow_file = temp_dir.path().join("bad.nika.yaml");
+
+    fs::write(
+        &workflow_file,
+        r#"
+mainAgent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+
+tasks:
+  - id: bad-agent
+    type: agent
+
+flows: []
+"#,
+    )
+    .unwrap();
+
+    nika_cmd()
+        .args(["validate", workflow_file.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("requires 'prompt'"));
+}
+
+#[test]
+fn test_validate_action_missing_run() {
+    let temp_dir = TempDir::new().unwrap();
+    let workflow_file = temp_dir.path().join("bad.nika.yaml");
+
+    fs::write(
+        &workflow_file,
+        r#"
+mainAgent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+
+tasks:
+  - id: bad-action
+    type: action
+
+flows: []
+"#,
+    )
+    .unwrap();
+
+    nika_cmd()
+        .args(["validate", workflow_file.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("requires 'run'"));
+}
+
+#[test]
+fn test_validate_json_output() {
+    let temp_dir = TempDir::new().unwrap();
+    let workflow_file = temp_dir.path().join("test.nika.yaml");
+
+    fs::write(
+        &workflow_file,
+        r#"
+mainAgent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+
+tasks:
+  - id: greet
+    type: agent
+    prompt: "Hello"
+
+flows: []
 "#,
     )
     .unwrap();
@@ -273,67 +311,165 @@ edges: []
         .args([
             "validate",
             workflow_file.to_str().unwrap(),
-            "--rules",
-            rules_dir.to_str().unwrap(),
             "--format",
             "json",
         ])
         .assert()
         .success()
         .stdout(predicate::str::contains("\"valid\": true"))
-        .stdout(predicate::str::contains("\"node_count\": 1"));
+        .stdout(predicate::str::contains("\"task_count\": 1"));
 }
 
 #[test]
-fn test_validate_missing_rules() {
-    nika_cmd()
-        .args(["validate", ".", "--rules", "/nonexistent/path"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("Failed to load"));
-}
+fn test_validate_compact_output() {
+    let temp_dir = TempDir::new().unwrap();
+    let workflow_file = temp_dir.path().join("test.nika.yaml");
 
-#[test]
-fn test_validate_invalid_isolated_to_context() {
-    nika_cmd()
-        .args([
-            "validate",
-            "../spec/examples/invalid-isolated-to-context.nika.yaml",
-            "--rules",
-            "../spec/validation",
-        ])
-        .assert()
-        .failure()
-        .stdout(predicate::str::contains("❌"))
-        .stdout(predicate::str::contains("Invalid connection"));
-}
+    fs::write(
+        &workflow_file,
+        r#"
+mainAgent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
 
-#[test]
-fn test_validate_valid_bridge_pattern() {
-    nika_cmd()
-        .args([
-            "validate",
-            "../spec/examples/valid-bridge-pattern.nika.yaml",
-            "--rules",
-            "../spec/validation",
-        ])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("✅"))
-        .stdout(predicate::str::contains("3 nodes"));
-}
+tasks:
+  - id: a
+    type: agent
+    prompt: "A"
+  - id: b
+    type: action
+    run: Read
 
-#[test]
-fn test_validate_all_paradigms() {
+flows:
+  - source: a
+    target: b
+"#,
+    )
+    .unwrap();
+
     nika_cmd()
         .args([
             "validate",
-            "../spec/examples/all-paradigms.nika.yaml",
-            "--rules",
-            "../spec/validation",
+            workflow_file.to_str().unwrap(),
+            "--format",
+            "compact",
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("✅"))
-        .stdout(predicate::str::contains("9 nodes"));
+        .stdout(predicate::str::contains("2t"))
+        .stdout(predicate::str::contains("1f"));
+}
+
+#[test]
+fn test_validate_verbose() {
+    let temp_dir = TempDir::new().unwrap();
+    let workflow_file = temp_dir.path().join("test.nika.yaml");
+
+    fs::write(
+        &workflow_file,
+        r#"
+mainAgent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+
+tasks:
+  - id: greet
+    type: agent
+    prompt: "Hello"
+
+flows: []
+"#,
+    )
+    .unwrap();
+
+    nika_cmd()
+        .args([
+            "validate",
+            workflow_file.to_str().unwrap(),
+            "--verbose",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Architecture v3"));
+}
+
+#[test]
+fn test_validate_no_workflows_found() {
+    let temp_dir = TempDir::new().unwrap();
+
+    nika_cmd()
+        .args(["validate", temp_dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No workflow files found"));
+}
+
+#[test]
+fn test_validate_directory_recursive() {
+    let temp_dir = TempDir::new().unwrap();
+    let sub_dir = temp_dir.path().join("workflows");
+    fs::create_dir_all(&sub_dir).unwrap();
+
+    // Create two workflows
+    fs::write(
+        sub_dir.join("a.nika.yaml"),
+        r#"
+mainAgent:
+  model: claude-sonnet-4-5
+  systemPrompt: "A"
+tasks:
+  - id: a
+    type: agent
+    prompt: "A"
+flows: []
+"#,
+    )
+    .unwrap();
+
+    fs::write(
+        sub_dir.join("b.nika.yaml"),
+        r#"
+mainAgent:
+  model: claude-sonnet-4-5
+  systemPrompt: "B"
+tasks:
+  - id: b
+    type: agent
+    prompt: "B"
+flows: []
+"#,
+    )
+    .unwrap();
+
+    nika_cmd()
+        .args(["validate", temp_dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("2 workflow file(s)"));
+}
+
+#[test]
+fn test_run_workflow() {
+    nika_cmd()
+        .args(["run", "spec/examples/hello-world.nika.yaml"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Nika Runner"))
+        .stdout(predicate::str::contains("Completed"));
+}
+
+#[test]
+fn test_init_project() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    nika_cmd()
+        .current_dir(temp_dir.path())
+        .args(["init", "test-project"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Project initialized"));
+
+    // Verify files were created
+    assert!(temp_dir.path().join("test-project/.nika").exists());
+    assert!(temp_dir.path().join("test-project/main.nika.yaml").exists());
+    assert!(temp_dir.path().join("test-project/nika.yaml").exists());
 }
