@@ -218,7 +218,9 @@ impl std::fmt::Display for TaskKeyword {
     }
 }
 
-/// Task category (v4.5)
+/// Task category (v4.5) - unified connection key for validation
+///
+/// Replaces the old ConnectionKey enum. Used for connection matrix validation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TaskCategory {
     /// LLM reasoning with shared context (agent:)
@@ -235,6 +237,16 @@ impl From<TaskKeyword> for TaskCategory {
             TaskKeyword::Agent => TaskCategory::Context,
             TaskKeyword::Subagent => TaskCategory::Isolated,
             _ => TaskCategory::Tool,
+        }
+    }
+}
+
+impl std::fmt::Display for TaskCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TaskCategory::Context => write!(f, "agent:"),
+            TaskCategory::Isolated => write!(f, "subagent:"),
+            TaskCategory::Tool => write!(f, "tool"),
         }
     }
 }
@@ -273,31 +285,6 @@ pub struct Flow {
     /// Optional condition expression
     #[serde(default)]
     pub condition: Option<String>,
-}
-
-// ============================================================================
-// CONNECTION KEY (for validation)
-// ============================================================================
-
-/// Connection key for matrix lookup (v4.5)
-#[derive(Debug, Clone, PartialEq)]
-pub enum ConnectionKey {
-    /// agent: (Main Agent, shared context)
-    Agent,
-    /// subagent: (Subagent, isolated context)
-    Subagent,
-    /// Any tool keyword (shell, http, mcp, function, llm)
-    Tool,
-}
-
-impl std::fmt::Display for ConnectionKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConnectionKey::Agent => write!(f, "agent:"),
-            ConnectionKey::Subagent => write!(f, "subagent:"),
-            ConnectionKey::Tool => write!(f, "tool"),
-        }
-    }
 }
 
 impl Task {
@@ -342,13 +329,29 @@ impl Task {
     }
 
     /// Get the connection key for this task (v4.5)
-    pub fn connection_key(&self) -> ConnectionKey {
-        match self.keyword() {
-            Some(TaskKeyword::Agent) => ConnectionKey::Agent,
-            Some(TaskKeyword::Subagent) => ConnectionKey::Subagent,
-            Some(_) => ConnectionKey::Tool, // All tool keywords
-            None => ConnectionKey::Tool,    // Default fallback
-        }
+    ///
+    /// Returns the TaskCategory which is used for connection matrix validation.
+    pub fn connection_key(&self) -> TaskCategory {
+        self.keyword().map(TaskCategory::from).unwrap_or(TaskCategory::Tool)
+    }
+
+    /// Get the prompt/value for this task's keyword
+    ///
+    /// Returns the string value of whichever keyword is set:
+    /// - agent/subagent/llm: the prompt text
+    /// - shell: the command
+    /// - http: the URL
+    /// - mcp/function: the server::tool or path::fn reference
+    pub fn prompt(&self) -> Option<&str> {
+        self.keyword().and_then(|kw| match kw {
+            TaskKeyword::Agent => self.agent.as_deref(),
+            TaskKeyword::Subagent => self.subagent.as_deref(),
+            TaskKeyword::Shell => self.shell.as_deref(),
+            TaskKeyword::Http => self.http.as_deref(),
+            TaskKeyword::Mcp => self.mcp.as_deref(),
+            TaskKeyword::Function => self.function.as_deref(),
+            TaskKeyword::Llm => self.llm.as_deref(),
+        })
     }
 }
 
@@ -393,7 +396,7 @@ flows: []
         assert_eq!(workflow.agent.model, "claude-sonnet-4-5");
         assert_eq!(workflow.tasks.len(), 1);
         assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Agent));
-        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Agent);
+        assert_eq!(workflow.tasks[0].connection_key(), TaskCategory::Context);
     }
 
     #[test]
@@ -414,7 +417,7 @@ flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Subagent));
-        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Subagent);
+        assert_eq!(workflow.tasks[0].connection_key(), TaskCategory::Isolated);
         assert_eq!(workflow.tasks[0].subagent, Some("Research deeply.".to_string()));
         assert_eq!(workflow.tasks[0].max_turns, Some(20));
     }
@@ -435,7 +438,7 @@ flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Shell));
-        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Tool);
+        assert_eq!(workflow.tasks[0].connection_key(), TaskCategory::Tool);
         assert_eq!(workflow.tasks[0].shell, Some("npm test --coverage".to_string()));
         assert_eq!(workflow.tasks[0].cwd, Some("./app".to_string()));
     }
@@ -456,7 +459,7 @@ flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Http));
-        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Tool);
+        assert_eq!(workflow.tasks[0].connection_key(), TaskCategory::Tool);
         assert_eq!(workflow.tasks[0].http, Some("https://api.slack.com/webhook".to_string()));
     }
 
@@ -475,7 +478,7 @@ flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Mcp));
-        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Tool);
+        assert_eq!(workflow.tasks[0].connection_key(), TaskCategory::Tool);
     }
 
     #[test]
@@ -493,7 +496,7 @@ flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Function));
-        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Tool);
+        assert_eq!(workflow.tasks[0].connection_key(), TaskCategory::Tool);
     }
 
     #[test]
@@ -512,7 +515,7 @@ flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Llm));
-        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Tool);
+        assert_eq!(workflow.tasks[0].connection_key(), TaskCategory::Tool);
     }
 
     #[test]
@@ -653,9 +656,44 @@ flows:
     target: router
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Subagent);
-        assert_eq!(workflow.tasks[1].connection_key(), ConnectionKey::Tool);
-        assert_eq!(workflow.tasks[2].connection_key(), ConnectionKey::Agent);
+        assert_eq!(workflow.tasks[0].connection_key(), TaskCategory::Isolated);
+        assert_eq!(workflow.tasks[1].connection_key(), TaskCategory::Tool);
+        assert_eq!(workflow.tasks[2].connection_key(), TaskCategory::Context);
+    }
+
+    #[test]
+    fn test_task_prompt() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+
+tasks:
+  - id: t1
+    agent: "Analyze the code"
+  - id: t2
+    subagent: "Research deeply"
+  - id: t3
+    shell: "npm test"
+  - id: t4
+    http: "https://api.example.com"
+  - id: t5
+    mcp: "filesystem::read"
+  - id: t6
+    function: "utils::transform"
+  - id: t7
+    llm: "Classify this"
+
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(workflow.tasks[0].prompt(), Some("Analyze the code"));
+        assert_eq!(workflow.tasks[1].prompt(), Some("Research deeply"));
+        assert_eq!(workflow.tasks[2].prompt(), Some("npm test"));
+        assert_eq!(workflow.tasks[3].prompt(), Some("https://api.example.com"));
+        assert_eq!(workflow.tasks[4].prompt(), Some("filesystem::read"));
+        assert_eq!(workflow.tasks[5].prompt(), Some("utils::transform"));
+        assert_eq!(workflow.tasks[6].prompt(), Some("Classify this"));
     }
 
 }

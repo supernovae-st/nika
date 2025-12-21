@@ -15,7 +15,7 @@ pub use init::{init_project, InitResult};
 pub use runner::{RunResult, Runner, TaskResult};
 pub use validator::{ValidationError, ValidationResult, Validator};
 pub use workflow::{
-    Agent, ConnectionKey, ExecutionMode, Flow, Task, TaskCategory, TaskConfig, TaskKeyword, Workflow,
+    Agent, ExecutionMode, Flow, Task, TaskCategory, TaskConfig, TaskKeyword, Workflow,
 };
 
 #[cfg(test)]

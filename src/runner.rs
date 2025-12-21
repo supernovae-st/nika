@@ -157,6 +157,38 @@ impl ExecutionContext {
 // TEMPLATE RESOLUTION
 // ============================================================================
 
+/// Generic pattern resolver - DRY helper for template substitution
+///
+/// Applies a regex pattern to the input string and replaces matches using
+/// the provided resolver function. If the resolver returns None, the original
+/// match is preserved.
+fn resolve_pattern<F>(input: &str, pattern: &Regex, resolver: F) -> String
+where
+    F: Fn(&regex::Captures) -> Option<String>,
+{
+    let mut result = input.to_string();
+    for cap in pattern.captures_iter(input) {
+        let full_match = cap.get(0).unwrap().as_str();
+        if let Some(replacement) = resolver(&cap) {
+            result = result.replace(full_match, &replacement);
+        }
+    }
+    result
+}
+
+/// Resolve task args (YAML → String with template resolution)
+///
+/// Used by mcp: and function: tasks to serialize and resolve their args.
+fn resolve_args(args: Option<&serde_yaml::Value>, ctx: &ExecutionContext) -> Result<String> {
+    match args {
+        Some(args) => {
+            let raw_args = serde_yaml::to_string(args).unwrap_or_default();
+            resolve_templates(&raw_args, ctx)
+        }
+        None => Ok(String::new()),
+    }
+}
+
 /// Resolve templates in a string using the execution context
 ///
 /// Supported formats:
@@ -165,52 +197,39 @@ impl ExecutionContext {
 /// - ${input.name} - Reference input parameter
 /// - ${env.NAME} - Reference environment variable
 pub fn resolve_templates(template: &str, ctx: &ExecutionContext) -> Result<String> {
-    let mut result = template.to_string();
-
-    // Replace all {{...}} patterns using precompiled regex
-    for cap in TASK_REF_PATTERN.captures_iter(template) {
-        let full_match = cap.get(0).unwrap().as_str();
+    // 1. Resolve {{task_id}} and {{task_id.field}} patterns
+    let result = resolve_pattern(template, &TASK_REF_PATTERN, |cap| {
         let task_id = cap.get(1).unwrap().as_str();
         let field = cap.get(2).map(|m| m.as_str());
 
-        let replacement = if let Some(field_name) = field {
-            // {{task_id.field}}
+        Some(if let Some(field_name) = field {
             ctx.get_field(task_id, field_name)
                 .unwrap_or_else(|| format!("{{{{{}:{}}}}}", task_id, field_name))
         } else {
-            // {{task_id}}
             ctx.get_output(task_id)
                 .cloned()
                 .unwrap_or_else(|| format!("{{{{{}}}}}", task_id))
-        };
+        })
+    });
 
-        result = result.replace(full_match, &replacement);
-    }
-
-    // Replace ${input.name} patterns
-    for cap in INPUT_PATTERN.captures_iter(template) {
-        let full_match = cap.get(0).unwrap().as_str();
+    // 2. Resolve ${input.name} patterns
+    let result = resolve_pattern(&result, &INPUT_PATTERN, |cap| {
         let input_name = cap.get(1).unwrap().as_str();
+        Some(
+            ctx.get_input(input_name)
+                .cloned()
+                .unwrap_or_else(|| format!("${{input.{}}}", input_name)),
+        )
+    });
 
-        let replacement = ctx
-            .get_input(input_name)
-            .cloned()
-            .unwrap_or_else(|| format!("${{input.{}}}", input_name));
-
-        result = result.replace(full_match, &replacement);
-    }
-
-    // Replace ${env.NAME} patterns
-    for cap in ENV_PATTERN.captures_iter(template) {
-        let full_match = cap.get(0).unwrap().as_str();
+    // 3. Resolve ${env.NAME} patterns
+    let result = resolve_pattern(&result, &ENV_PATTERN, |cap| {
         let env_name = cap.get(1).unwrap().as_str();
-
-        let replacement = ctx
-            .get_env(env_name)
-            .unwrap_or_else(|| format!("${{env.{}}}", env_name));
-
-        result = result.replace(full_match, &replacement);
-    }
+        Some(
+            ctx.get_env(env_name)
+                .unwrap_or_else(|| format!("${{env.{}}}", env_name)),
+        )
+    });
 
     Ok(result)
 }
@@ -429,10 +448,7 @@ impl Runner {
         workflow: &Workflow,
         ctx: &ExecutionContext,
     ) -> Result<TaskResult> {
-        let raw_prompt = task.agent.as_deref().unwrap_or("");
-
-        // Resolve templates in the prompt
-        let prompt = resolve_templates(raw_prompt, ctx)?;
+        let prompt = resolve_templates(task.prompt().unwrap_or(""), ctx)?;
 
         match self.provider.as_str() {
             "claude" => self.execute_claude_prompt(task, &prompt, false, workflow, ctx),
@@ -462,10 +478,7 @@ impl Runner {
         workflow: &Workflow,
         ctx: &ExecutionContext,
     ) -> Result<TaskResult> {
-        let raw_prompt = task.subagent.as_deref().unwrap_or("");
-
-        // Resolve templates in the prompt
-        let prompt = resolve_templates(raw_prompt, ctx)?;
+        let prompt = resolve_templates(task.prompt().unwrap_or(""), ctx)?;
 
         match self.provider.as_str() {
             "claude" => self.execute_claude_prompt(task, &prompt, true, workflow, ctx),
@@ -553,8 +566,7 @@ impl Runner {
 
     /// Execute shell: task
     fn execute_shell(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
-        let raw_cmd = task.shell.as_deref().unwrap_or("echo 'no command'");
-        let cmd = resolve_templates(raw_cmd, ctx)?;
+        let cmd = resolve_templates(task.prompt().unwrap_or("echo 'no command'"), ctx)?;
 
         Ok(TaskResult::success(
             &task.id,
@@ -565,9 +577,8 @@ impl Runner {
 
     /// Execute http: task
     fn execute_http(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
-        let raw_url = task.http.as_deref().unwrap_or("(no url)");
+        let url = resolve_templates(task.prompt().unwrap_or("(no url)"), ctx)?;
         let method = task.method.as_deref().unwrap_or("GET");
-        let url = resolve_templates(raw_url, ctx)?;
 
         Ok(TaskResult::success(
             &task.id,
@@ -578,13 +589,8 @@ impl Runner {
 
     /// Execute mcp: task
     fn execute_mcp(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
-        let mcp = task.mcp.as_deref().unwrap_or("unknown::unknown");
-        let args_str = if let Some(args) = &task.args {
-            let raw_args = serde_yaml::to_string(args).unwrap_or_default();
-            resolve_templates(&raw_args, ctx)?
-        } else {
-            String::new()
-        };
+        let mcp = task.prompt().unwrap_or("unknown::unknown");
+        let args_str = resolve_args(task.args.as_ref(), ctx)?;
 
         Ok(TaskResult::success(
             &task.id,
@@ -595,13 +601,8 @@ impl Runner {
 
     /// Execute function: task
     fn execute_function(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
-        let func = task.function.as_deref().unwrap_or("unknown::unknown");
-        let args_str = if let Some(args) = &task.args {
-            let raw_args = serde_yaml::to_string(args).unwrap_or_default();
-            resolve_templates(&raw_args, ctx)?
-        } else {
-            String::new()
-        };
+        let func = task.prompt().unwrap_or("unknown::unknown");
+        let args_str = resolve_args(task.args.as_ref(), ctx)?;
 
         Ok(TaskResult::success(
             &task.id,
@@ -612,8 +613,7 @@ impl Runner {
 
     /// Execute llm: task (one-shot, stateless)
     fn execute_llm(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
-        let raw_prompt = task.llm.as_deref().unwrap_or("");
-        let prompt = resolve_templates(raw_prompt, ctx)?;
+        let prompt = resolve_templates(task.prompt().unwrap_or(""), ctx)?;
 
         Ok(TaskResult::success(
             &task.id,

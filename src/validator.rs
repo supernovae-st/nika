@@ -4,7 +4,7 @@
 //! Rules are embedded - no external YAML files needed.
 //! Validates 7 keywords: agent, subagent, shell, http, mcp, function, llm.
 
-use crate::workflow::{ConnectionKey, Task, TaskKeyword, Workflow};
+use crate::workflow::{Task, TaskCategory, TaskKeyword, Workflow};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
@@ -44,9 +44,9 @@ pub enum ValidationError {
     #[error("[L4] Connection blocked: {from_task} ({from_key}) → {to_task} ({to_key})")]
     ConnectionBlocked {
         from_task: String,
-        from_key: ConnectionKey,
+        from_key: TaskCategory,
         to_task: String,
-        to_key: ConnectionKey,
+        to_key: TaskCategory,
     },
 
     // Layer 5: Graph (warnings)
@@ -107,38 +107,17 @@ impl ValidationResult {
 
 /// Check if a connection is allowed (v4.5 rules)
 ///
-/// ```text
-/// SOURCE              │ TARGET              │ OK?
-/// ─────────────────────────────────────────────────
-/// agent:              │ agent:              │ ✅  Context enrichment
-/// agent:              │ subagent:           │ ✅  Spawn subagent
-/// agent:              │ tool                │ ✅  Execute tool
-/// subagent:           │ agent:              │ ❌  NEEDS BRIDGE
-/// subagent:           │ subagent:           │ ❌  Can't spawn from sub
-/// subagent:           │ tool                │ ✅  THIS IS THE BRIDGE
-/// tool                │ agent:              │ ✅  Feed data to context
-/// tool                │ subagent:           │ ✅  Trigger subagent
-/// tool                │ tool                │ ✅  Chain tools
-/// ```
-pub fn is_connection_allowed(source: &ConnectionKey, target: &ConnectionKey) -> bool {
-    use ConnectionKey::*;
-
-    match (source, target) {
-        // agent: can connect to anything
-        (Agent, Agent) => true,
-        (Agent, Subagent) => true,
-        (Agent, Tool) => true,
-
-        // subagent: can ONLY connect to tool (bridge)
-        (Subagent, Agent) => false,
-        (Subagent, Subagent) => false,
-        (Subagent, Tool) => true,
-
-        // tool can connect to anything
-        (Tool, Agent) => true,
-        (Tool, Subagent) => true,
-        (Tool, Tool) => true,
-    }
+/// Only 2 connections are blocked - everything else is allowed:
+/// - Isolated → Context: subagent cannot directly feed main agent (NEEDS BRIDGE)
+/// - Isolated → Isolated: subagent cannot spawn another subagent
+///
+/// The bridge pattern: Isolated → Tool → Context (tool acts as bridge)
+pub fn is_connection_allowed(source: TaskCategory, target: TaskCategory) -> bool {
+    // Only Isolated (subagent:) has restrictions - can only connect to Tool
+    !matches!(
+        (source, target),
+        (TaskCategory::Isolated, TaskCategory::Context | TaskCategory::Isolated)
+    )
 }
 
 /// Generate fix suggestion for blocked connections (v4.5)
@@ -146,15 +125,15 @@ pub fn bridge_suggestion(source: &Task, target: &Task) -> String {
     let source_key = source.connection_key();
     let target_key = target.connection_key();
 
-    match (&source_key, &target_key) {
-        (ConnectionKey::Subagent, ConnectionKey::Agent) => {
+    match (source_key, target_key) {
+        (TaskCategory::Isolated, TaskCategory::Context) => {
             format!(
                 "\n   💡 Add a tool between them (bridge pattern):\n      \
                  {} (subagent:) → [function:] → {} (agent:)",
                 source.id, target.id
             )
         }
-        (ConnectionKey::Subagent, ConnectionKey::Subagent) => {
+        (TaskCategory::Isolated, TaskCategory::Isolated) => {
             format!(
                 "\n   💡 subagent: cannot directly spawn another subagent:.\n      \
                  Route through agent: (Main Agent):\n      \
@@ -502,7 +481,7 @@ impl Validator {
                 let source_key = source_task.connection_key();
                 let target_key = target_task.connection_key();
 
-                if !is_connection_allowed(&source_key, &target_key) {
+                if !is_connection_allowed(source_key, target_key) {
                     result.add_error(ValidationError::ConnectionBlocked {
                         from_task: flow.source.clone(),
                         from_key: source_key,
