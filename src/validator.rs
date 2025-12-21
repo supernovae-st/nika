@@ -1,9 +1,10 @@
-//! Nika Validator (v3)
+//! Nika Validator (v4.5)
 //!
 //! 5-layer validation pipeline for .nika.yaml workflows.
 //! Rules are embedded - no external YAML files needed.
+//! Validates 7 keywords: agent, subagent, shell, http, mcp, function, llm.
 
-use crate::workflow::{ConnectionKey, Task, TaskType, Workflow};
+use crate::workflow::{ConnectionKey, Task, TaskKeyword, Workflow};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
@@ -14,10 +15,10 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum ValidationError {
     // Layer 1: Schema
-    #[error("[L1] Missing mainAgent.model")]
+    #[error("[L1] Missing agent.model")]
     MissingModel,
 
-    #[error("[L1] Missing mainAgent.systemPrompt or systemPromptFile")]
+    #[error("[L1] Missing agent.systemPrompt or systemPromptFile")]
     MissingSystemPrompt,
 
     // Layer 2: Tasks
@@ -26,6 +27,10 @@ pub enum ValidationError {
 
     #[error("[L2] Duplicate task ID: '{task_id}'")]
     DuplicateTaskId { task_id: String },
+
+    // Layer 2.5: Tool Access
+    #[error("[L2.5] Task '{task_id}': {message}")]
+    ToolAccessError { task_id: String, message: String },
 
     // Layer 3: Flows
     #[error("[L3] Flow '{from_task}' → '{to_task}': {message}")]
@@ -97,63 +102,63 @@ impl ValidationResult {
 }
 
 // ============================================================================
-// CONNECTION MATRIX (v3)
+// CONNECTION MATRIX (v4)
 // ============================================================================
 
-/// Check if a connection is allowed (v3 rules)
+/// Check if a connection is allowed (v4.5 rules)
 ///
 /// ```text
 /// SOURCE              │ TARGET              │ OK?
 /// ─────────────────────────────────────────────────
-/// agent (main)        │ agent (main)        │ ✅
-/// agent (main)        │ agent (isolated)    │ ✅
-/// agent (main)        │ action              │ ✅
-/// agent (isolated)    │ agent (main)        │ ❌  NEEDS BRIDGE
-/// agent (isolated)    │ agent (isolated)    │ ❌  Can't spawn from sub
-/// agent (isolated)    │ action              │ ✅  THIS IS THE BRIDGE
-/// action              │ agent (main)        │ ✅
-/// action              │ agent (isolated)    │ ✅
-/// action              │ action              │ ✅
+/// agent:              │ agent:              │ ✅  Context enrichment
+/// agent:              │ subagent:           │ ✅  Spawn subagent
+/// agent:              │ tool                │ ✅  Execute tool
+/// subagent:           │ agent:              │ ❌  NEEDS BRIDGE
+/// subagent:           │ subagent:           │ ❌  Can't spawn from sub
+/// subagent:           │ tool                │ ✅  THIS IS THE BRIDGE
+/// tool                │ agent:              │ ✅  Feed data to context
+/// tool                │ subagent:           │ ✅  Trigger subagent
+/// tool                │ tool                │ ✅  Chain tools
 /// ```
 pub fn is_connection_allowed(source: &ConnectionKey, target: &ConnectionKey) -> bool {
     use ConnectionKey::*;
 
     match (source, target) {
-        // agent(main) can connect to anything
-        (AgentMain, AgentMain) => true,
-        (AgentMain, AgentIsolated) => true,
-        (AgentMain, Action) => true,
+        // agent: can connect to anything
+        (Agent, Agent) => true,
+        (Agent, Subagent) => true,
+        (Agent, Tool) => true,
 
-        // agent(isolated) can ONLY connect to action (bridge)
-        (AgentIsolated, AgentMain) => false,
-        (AgentIsolated, AgentIsolated) => false,
-        (AgentIsolated, Action) => true,
+        // subagent: can ONLY connect to tool (bridge)
+        (Subagent, Agent) => false,
+        (Subagent, Subagent) => false,
+        (Subagent, Tool) => true,
 
-        // action can connect to anything
-        (Action, AgentMain) => true,
-        (Action, AgentIsolated) => true,
-        (Action, Action) => true,
+        // tool can connect to anything
+        (Tool, Agent) => true,
+        (Tool, Subagent) => true,
+        (Tool, Tool) => true,
     }
 }
 
-/// Generate fix suggestion for blocked connections
+/// Generate fix suggestion for blocked connections (v4.5)
 pub fn bridge_suggestion(source: &Task, target: &Task) -> String {
     let source_key = source.connection_key();
     let target_key = target.connection_key();
 
     match (&source_key, &target_key) {
-        (ConnectionKey::AgentIsolated, ConnectionKey::AgentMain) => {
+        (ConnectionKey::Subagent, ConnectionKey::Agent) => {
             format!(
-                "\n   💡 Add an action between them (bridge pattern):\n      \
-                 {} (isolated) → [action] → {} (main)",
+                "\n   💡 Add a tool between them (bridge pattern):\n      \
+                 {} (subagent:) → [function:] → {} (agent:)",
                 source.id, target.id
             )
         }
-        (ConnectionKey::AgentIsolated, ConnectionKey::AgentIsolated) => {
+        (ConnectionKey::Subagent, ConnectionKey::Subagent) => {
             format!(
-                "\n   💡 Isolated agents cannot spawn other isolated agents.\n      \
-                 Route through Main Agent:\n      \
-                 {} → action → agent(main) → {}",
+                "\n   💡 subagent: cannot directly spawn another subagent:.\n      \
+                 Route through agent: (Main Agent):\n      \
+                 {} → function: → agent: → {}",
                 source.id, target.id
             )
         }
@@ -184,6 +189,9 @@ impl Validator {
         // Layer 2: Tasks
         let task_map = self.validate_tasks(workflow, &mut result);
 
+        // Layer 2.5: Tool Access (NEW!)
+        self.validate_tool_access(workflow, &mut result);
+
         // Layer 3: Flows
         self.validate_flows(workflow, &task_map, &mut result);
 
@@ -199,12 +207,12 @@ impl Validator {
     // ========== Layer 1: Schema ==========
 
     fn validate_schema(&self, workflow: &Workflow, result: &mut ValidationResult) {
-        if workflow.main_agent.model.is_empty() {
+        if workflow.agent.model.is_empty() {
             result.add_error(ValidationError::MissingModel);
         }
 
-        if workflow.main_agent.system_prompt.is_none()
-            && workflow.main_agent.system_prompt_file.is_none()
+        if workflow.agent.system_prompt.is_none()
+            && workflow.agent.system_prompt_file.is_none()
         {
             result.add_error(ValidationError::MissingSystemPrompt);
         }
@@ -236,45 +244,61 @@ impl Validator {
                 });
             }
 
-            // Type-specific validation
-            match task.task_type {
-                TaskType::Agent => {
-                    // Agent requires prompt
-                    if task.prompt.is_none() {
-                        result.add_error(ValidationError::TaskError {
-                            task_id: task.id.clone(),
-                            message: "Agent task requires 'prompt'".into(),
-                        });
+            // v4.5: Validate keyword presence (exactly one required)
+            let keyword_count = task.keyword_count();
+            if keyword_count == 0 {
+                result.add_error(ValidationError::TaskError {
+                    task_id: task.id.clone(),
+                    message: "Task must have exactly one keyword (agent, subagent, shell, http, mcp, function, or llm)".into(),
+                });
+            } else if keyword_count > 1 {
+                result.add_error(ValidationError::TaskError {
+                    task_id: task.id.clone(),
+                    message: format!("Task has {} keywords but must have exactly one", keyword_count),
+                });
+            }
+
+            // Keyword-specific validation
+            if let Some(keyword) = task.keyword() {
+                match keyword {
+                    TaskKeyword::Agent | TaskKeyword::Subagent => {
+                        // Agent keywords are valid (agent/subagent value is the instruction)
                     }
-                    // Agent should not have run
-                    if task.run.is_some() {
-                        result.add_error(ValidationError::TaskError {
-                            task_id: task.id.clone(),
-                            message: "'run' is not valid on agent type".into(),
-                        });
+                    TaskKeyword::Mcp => {
+                        // mcp: must use :: separator
+                        if let Some(mcp) = &task.mcp {
+                            if !mcp.contains("::") {
+                                result.add_error(ValidationError::TaskError {
+                                    task_id: task.id.clone(),
+                                    message: "mcp: must use '::' separator (e.g., 'filesystem::read_file')".into(),
+                                });
+                            }
+                        }
                     }
-                }
-                TaskType::Action => {
-                    // Action requires run
-                    if task.run.is_none() {
-                        result.add_error(ValidationError::TaskError {
-                            task_id: task.id.clone(),
-                            message: "Action task requires 'run'".into(),
-                        });
+                    TaskKeyword::Function => {
+                        // function: must use :: separator
+                        if let Some(func) = &task.function {
+                            if !func.contains("::") {
+                                result.add_error(ValidationError::TaskError {
+                                    task_id: task.id.clone(),
+                                    message: "function: must use '::' separator (e.g., 'path::functionName')".into(),
+                                });
+                            }
+                        }
                     }
-                    // Action should not have scope
-                    if task.scope.is_some() {
-                        result.add_error(ValidationError::TaskError {
-                            task_id: task.id.clone(),
-                            message: "'scope' is not valid on action type".into(),
-                        });
+                    TaskKeyword::Http => {
+                        // http: should be a valid URL pattern
+                        if let Some(url) = &task.http {
+                            if !url.starts_with("http://") && !url.starts_with("https://") && !url.starts_with("${") {
+                                result.add_error(ValidationError::TaskError {
+                                    task_id: task.id.clone(),
+                                    message: "http: must be a valid URL (http:// or https://)".into(),
+                                });
+                            }
+                        }
                     }
-                    // Action should not have prompt
-                    if task.prompt.is_some() {
-                        result.add_error(ValidationError::TaskError {
-                            task_id: task.id.clone(),
-                            message: "'prompt' is not valid on action type".into(),
-                        });
+                    _ => {
+                        // shell, llm - no special validation needed
                     }
                 }
             }
@@ -290,6 +314,138 @@ impl Validator {
                 .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
             && !id.starts_with('-')
             && !id.starts_with('_')
+    }
+
+    // ========== Layer 2.5: Tool Access ==========
+
+    /// Validate tool access rules (v4.5)
+    ///
+    /// Rules:
+    /// 1. agent: tasks can only use tools from the config pool (subset restriction)
+    /// 2. subagent: tasks can have independent tool access (sandboxed)
+    /// 3. tool tasks (shell, http, mcp, function, llm) cannot have allowedTools
+    /// 4. allowedTools and disallowedTools cannot overlap
+    fn validate_tool_access(&self, workflow: &Workflow, result: &mut ValidationResult) {
+        // Get the config-level allowed tools (the pool)
+        let config_tools: HashSet<&str> = workflow
+            .agent
+            .allowed_tools
+            .as_ref()
+            .map(|v| v.iter().map(|s| s.as_str()).collect())
+            .unwrap_or_default();
+
+        let has_config_pool = workflow.agent.allowed_tools.is_some();
+
+        for task in &workflow.tasks {
+            let keyword = task.keyword();
+
+            match keyword {
+                // Rule 1: agent: tasks can only RESTRICT from config pool
+                Some(TaskKeyword::Agent) => {
+                    if let Some(ref task_tools) = task.allowed_tools {
+                        // If config has a pool, agent tasks must use subset
+                        if has_config_pool {
+                            for tool in task_tools {
+                                if !config_tools.contains(tool.as_str()) {
+                                    result.add_error(ValidationError::ToolAccessError {
+                                        task_id: task.id.clone(),
+                                        message: format!(
+                                            "'{}' not in agent.allowedTools pool. \
+                                            agent: tasks can only restrict, not expand tool access",
+                                            tool
+                                        ),
+                                    });
+                                }
+                            }
+                        }
+                        // If config has no pool, agent tasks defining tools is fine
+                        // (they're defining their own restrictions)
+                    }
+
+                    // Check allowedTools and disallowedTools don't overlap
+                    self.check_tool_overlap(task, result);
+                }
+
+                // Rule 2: subagent: tasks can have independent tool access (OK)
+                Some(TaskKeyword::Subagent) => {
+                    // Subagent can have any tools - it's sandboxed
+                    // Just check for overlap
+                    self.check_tool_overlap(task, result);
+                }
+
+                // Rule 3: tool tasks cannot have allowedTools/disallowedTools
+                Some(TaskKeyword::Shell)
+                | Some(TaskKeyword::Http)
+                | Some(TaskKeyword::Mcp)
+                | Some(TaskKeyword::Function)
+                | Some(TaskKeyword::Llm) => {
+                    if task.allowed_tools.is_some() {
+                        result.add_error(ValidationError::ToolAccessError {
+                            task_id: task.id.clone(),
+                            message: "Tool tasks cannot have 'allowedTools'. \
+                                Only agent: and subagent: tasks can restrict tool access"
+                                .to_string(),
+                        });
+                    }
+                    // Note: We don't check disallowed_tools on task struct since
+                    // the workflow.rs doesn't have that field per-task, only at config level
+                }
+
+                None => {
+                    // Already handled in Layer 2
+                }
+            }
+        }
+
+        // Check config-level overlap
+        if let (Some(ref allowed), Some(ref disallowed)) = (
+            &workflow.agent.allowed_tools,
+            &workflow.agent.disallowed_tools,
+        ) {
+            let allowed_set: HashSet<&str> = allowed.iter().map(|s| s.as_str()).collect();
+            let disallowed_set: HashSet<&str> = disallowed.iter().map(|s| s.as_str()).collect();
+
+            let overlap: Vec<&str> = allowed_set.intersection(&disallowed_set).copied().collect();
+            if !overlap.is_empty() {
+                result.add_error(ValidationError::ToolAccessError {
+                    task_id: "agent".to_string(),
+                    message: format!(
+                        "agent.allowedTools and agent.disallowedTools overlap: [{}]",
+                        overlap.join(", ")
+                    ),
+                });
+            }
+        }
+    }
+
+    /// Check that allowedTools and disallowedTools don't overlap on a task
+    fn check_tool_overlap(&self, task: &Task, result: &mut ValidationResult) {
+        // Note: Task struct doesn't have disallowed_tools, but if it did:
+        // We would check overlap here. For now, this is a placeholder
+        // that validates the allowed_tools field exists and is reasonable.
+
+        if let Some(ref tools) = task.allowed_tools {
+            // Check for duplicates within allowedTools
+            let mut seen: HashSet<&str> = HashSet::new();
+            for tool in tools {
+                if !seen.insert(tool.as_str()) {
+                    result.add_error(ValidationError::ToolAccessError {
+                        task_id: task.id.clone(),
+                        message: format!("Duplicate tool in allowedTools: '{}'", tool),
+                    });
+                }
+            }
+
+            // Check for empty tool names
+            for tool in tools {
+                if tool.trim().is_empty() {
+                    result.add_error(ValidationError::ToolAccessError {
+                        task_id: task.id.clone(),
+                        message: "Empty tool name in allowedTools".to_string(),
+                    });
+                }
+            }
+        }
     }
 
     // ========== Layer 3: Flows ==========
@@ -466,7 +622,7 @@ impl Default for Validator {
 }
 
 // ============================================================================
-// TESTS
+// TESTS (v4.5 - keyword syntax)
 // ============================================================================
 
 #[cfg(test)]
@@ -478,94 +634,80 @@ mod tests {
         Validator::new().validate(&workflow, "test.nika.yaml")
     }
 
-    // ========== Connection Matrix Tests (9 rules) ==========
+    // ========== Connection Matrix Tests (9 rules) - v4.5 ==========
 
     #[test]
-    fn test_agent_main_to_agent_main() {
+    fn test_agent_to_agent() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
   - id: a
-    type: agent
-    prompt: "A"
+    agent: "A"
   - id: b
-    type: agent
-    prompt: "B"
+    agent: "B"
 flows:
   - source: a
     target: b
 "#,
         );
-        assert!(result.is_valid(), "agent(main) → agent(main) should be valid");
+        assert!(result.is_valid(), "agent: → agent: should be valid");
     }
 
     #[test]
-    fn test_agent_main_to_agent_isolated() {
+    fn test_agent_to_subagent() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
   - id: main
-    type: agent
-    prompt: "Main"
+    agent: "Main"
   - id: sub
-    type: agent
-    scope: isolated
-    prompt: "Sub"
+    subagent: "Sub"
 flows:
   - source: main
     target: sub
 "#,
         );
-        assert!(
-            result.is_valid(),
-            "agent(main) → agent(isolated) should be valid"
-        );
+        assert!(result.is_valid(), "agent: → subagent: should be valid");
     }
 
     #[test]
-    fn test_agent_main_to_action() {
+    fn test_agent_to_tool() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
   - id: analyze
-    type: agent
-    prompt: "Analyze"
+    agent: "Analyze"
   - id: save
-    type: action
-    run: Write
-    file: "output.txt"
+    shell: "echo done"
 flows:
   - source: analyze
     target: save
 "#,
         );
-        assert!(result.is_valid(), "agent(main) → action should be valid");
+        assert!(result.is_valid(), "agent: → tool should be valid");
     }
 
     #[test]
-    fn test_agent_isolated_to_agent_main_blocked() {
+    fn test_subagent_to_agent_blocked() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
   - id: worker
-    type: agent
-    scope: isolated
-    prompt: "Work"
+    subagent: "Work"
   - id: router
-    type: agent
-    prompt: "Route"
+    agent: "Route"
 flows:
   - source: worker
     target: router
@@ -573,7 +715,7 @@ flows:
         );
         assert!(
             !result.is_valid(),
-            "agent(isolated) → agent(main) should be BLOCKED"
+            "subagent: → agent: should be BLOCKED"
         );
         assert!(result.errors.iter().any(|e| matches!(
             e,
@@ -582,21 +724,17 @@ flows:
     }
 
     #[test]
-    fn test_agent_isolated_to_agent_isolated_blocked() {
+    fn test_subagent_to_subagent_blocked() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
   - id: sub1
-    type: agent
-    scope: isolated
-    prompt: "Sub1"
+    subagent: "Sub1"
   - id: sub2
-    type: agent
-    scope: isolated
-    prompt: "Sub2"
+    subagent: "Sub2"
 flows:
   - source: sub1
     target: sub2
@@ -604,25 +742,22 @@ flows:
         );
         assert!(
             !result.is_valid(),
-            "agent(isolated) → agent(isolated) should be BLOCKED"
+            "subagent: → subagent: should be BLOCKED"
         );
     }
 
     #[test]
-    fn test_agent_isolated_to_action_valid() {
+    fn test_subagent_to_tool_valid() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
   - id: worker
-    type: agent
-    scope: isolated
-    prompt: "Work"
+    subagent: "Work"
   - id: collect
-    type: action
-    run: aggregate
+    function: aggregate::collect
 flows:
   - source: worker
     target: collect
@@ -630,103 +765,86 @@ flows:
         );
         assert!(
             result.is_valid(),
-            "agent(isolated) → action should be valid (BRIDGE)"
+            "subagent: → tool should be valid (BRIDGE)"
         );
     }
 
     #[test]
-    fn test_action_to_agent_main() {
+    fn test_tool_to_agent() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
   - id: read
-    type: action
-    run: Read
-    file: "input.txt"
+    mcp: "filesystem::read_file"
   - id: analyze
-    type: agent
-    prompt: "Analyze"
+    agent: "Analyze"
 flows:
   - source: read
     target: analyze
 "#,
         );
-        assert!(result.is_valid(), "action → agent(main) should be valid");
+        assert!(result.is_valid(), "tool → agent: should be valid");
     }
 
     #[test]
-    fn test_action_to_agent_isolated() {
+    fn test_tool_to_subagent() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
   - id: read
-    type: action
-    run: Read
-    file: "input.txt"
+    mcp: "filesystem::read_file"
   - id: worker
-    type: agent
-    scope: isolated
-    prompt: "Work"
+    subagent: "Work"
 flows:
   - source: read
     target: worker
 "#,
         );
-        assert!(
-            result.is_valid(),
-            "action → agent(isolated) should be valid"
-        );
+        assert!(result.is_valid(), "tool → subagent: should be valid");
     }
 
     #[test]
-    fn test_action_to_action() {
+    fn test_tool_to_tool() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
   - id: read
-    type: action
-    run: Read
-    file: "input.txt"
+    mcp: "filesystem::read_file"
   - id: transform
-    type: action
-    run: transform
+    function: transform::json
 flows:
   - source: read
     target: transform
 "#,
         );
-        assert!(result.is_valid(), "action → action should be valid");
+        assert!(result.is_valid(), "tool → tool should be valid");
     }
 
-    // ========== Bridge Pattern Test ==========
+    // ========== Bridge Pattern Test (v4.5) ==========
 
     #[test]
-    fn test_bridge_pattern() {
+    fn test_bridge_pattern_v45() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
   - id: worker
-    type: agent
-    scope: isolated
-    prompt: "Work"
+    subagent: "Work"
   - id: bridge
-    type: action
-    run: aggregate
+    function: aggregate::collect
   - id: router
-    type: agent
-    prompt: "Route"
+    agent: "Route"
 flows:
   - source: worker
     target: bridge
@@ -736,72 +854,105 @@ flows:
         );
         assert!(
             result.is_valid(),
-            "Bridge pattern (isolated → action → main) should be valid"
+            "Bridge pattern (subagent: → function: → agent:) should be valid"
         );
     }
 
-    // ========== Task Validation Tests ==========
+    // ========== Keyword Validation Tests (v4.5) ==========
 
     #[test]
-    fn test_agent_missing_prompt() {
+    fn test_missing_keyword() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
-  - id: bad-agent
-    type: agent
+  - id: bad-task
 flows: []
 "#,
         );
         assert!(!result.is_valid());
         assert!(result.errors.iter().any(|e| matches!(
             e,
-            ValidationError::TaskError { message, .. } if message.contains("prompt")
+            ValidationError::TaskError { message, .. } if message.contains("exactly one keyword")
         )));
     }
 
     #[test]
-    fn test_action_missing_run() {
+    fn test_mcp_missing_separator() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
-  - id: bad-action
-    type: action
+  - id: bad-mcp
+    mcp: "filesystem_read_file"
 flows: []
 "#,
         );
         assert!(!result.is_valid());
         assert!(result.errors.iter().any(|e| matches!(
             e,
-            ValidationError::TaskError { message, .. } if message.contains("run")
+            ValidationError::TaskError { message, .. } if message.contains("::")
         )));
     }
 
     #[test]
-    fn test_action_with_scope_invalid() {
+    fn test_function_missing_separator() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
-  - id: bad-action
-    type: action
-    run: Read
-    scope: isolated
+  - id: bad-func
+    function: "transform_json"
 flows: []
 "#,
         );
         assert!(!result.is_valid());
         assert!(result.errors.iter().any(|e| matches!(
             e,
-            ValidationError::TaskError { message, .. } if message.contains("scope")
+            ValidationError::TaskError { message, .. } if message.contains("::")
         )));
+    }
+
+    #[test]
+    fn test_http_invalid_url() {
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: bad-http
+    http: "not-a-url"
+flows: []
+"#,
+        );
+        assert!(!result.is_valid());
+        assert!(result.errors.iter().any(|e| matches!(
+            e,
+            ValidationError::TaskError { message, .. } if message.contains("URL")
+        )));
+    }
+
+    #[test]
+    fn test_http_with_variable_valid() {
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: webhook
+    http: "${secrets.WEBHOOK_URL}"
+flows: []
+"#,
+        );
+        assert!(result.is_valid(), "http: with variable should be valid");
     }
 
     // ========== Flow Validation Tests ==========
@@ -810,13 +961,12 @@ flows: []
     fn test_flow_missing_source() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
   - id: a
-    type: agent
-    prompt: "A"
+    agent: "A"
 flows:
   - source: nonexistent
     target: a
@@ -833,13 +983,12 @@ flows:
     fn test_flow_self_loop() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
   - id: a
-    type: agent
-    prompt: "A"
+    agent: "A"
 flows:
   - source: a
     target: a
@@ -858,20 +1007,341 @@ flows:
     fn test_orphan_task_warning() {
         let result = validate_yaml(
             r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 tasks:
   - id: connected
-    type: agent
-    prompt: "Connected"
+    agent: "Connected"
   - id: orphan
-    type: agent
-    prompt: "Orphan"
+    agent: "Orphan"
 flows: []
 "#,
         );
         assert!(result.is_valid()); // Warnings don't fail validation
         assert!(result.has_warnings());
+    }
+
+    // ========== All 7 Keywords Valid ==========
+
+    #[test]
+    fn test_all_7_keywords_valid() {
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: t1
+    agent: "Main agent"
+  - id: t2
+    subagent: "Subagent"
+  - id: t3
+    shell: "npm test"
+  - id: t4
+    http: "https://api.example.com"
+  - id: t5
+    mcp: "filesystem::read"
+  - id: t6
+    function: "tools::transform"
+  - id: t7
+    llm: "Classify this"
+flows: []
+"#,
+        );
+        // Should only have orphan warnings, no errors
+        assert!(result.is_valid(), "All 7 keywords should be valid");
+    }
+
+    // ========== Layer 2.5: Tool Access Tests ==========
+
+    #[test]
+    fn test_agent_task_subset_of_config_valid() {
+        // agent: task uses subset of config tools - should pass
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+  allowedTools: [Read, Write, Glob, Grep]
+tasks:
+  - id: reader
+    agent: "Read files"
+    allowedTools: [Read, Glob]  # Subset of config
+flows: []
+"#,
+        );
+        assert!(
+            result.is_valid(),
+            "agent: with subset of config tools should be valid"
+        );
+    }
+
+    #[test]
+    fn test_agent_task_not_in_pool_error() {
+        // agent: task uses tool not in config pool - should fail
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+  allowedTools: [Read, Write]
+tasks:
+  - id: hacker
+    agent: "Do stuff"
+    allowedTools: [Read, Bash]  # Bash not in pool!
+flows: []
+"#,
+        );
+        assert!(!result.is_valid());
+        assert!(result.errors.iter().any(|e| matches!(
+            e,
+            ValidationError::ToolAccessError { message, .. }
+            if message.contains("Bash") && message.contains("not in agent.allowedTools")
+        )));
+    }
+
+    #[test]
+    fn test_agent_task_no_config_pool_ok() {
+        // agent: task defines tools when config has no pool - should pass
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+  # No allowedTools at config level
+tasks:
+  - id: worker
+    agent: "Work"
+    allowedTools: [Read, Write, Bash]  # Fine - no pool to restrict
+flows: []
+"#,
+        );
+        assert!(
+            result.is_valid(),
+            "agent: can define tools when config has no pool"
+        );
+    }
+
+    #[test]
+    fn test_subagent_independent_tools_ok() {
+        // subagent: can have any tools - sandboxed
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+  allowedTools: [Read]  # Limited config
+tasks:
+  - id: researcher
+    subagent: "Deep research"
+    allowedTools: [Read, Write, WebSearch, Bash]  # Completely different - OK!
+flows: []
+"#,
+        );
+        assert!(
+            result.is_valid(),
+            "subagent: can have independent tool access"
+        );
+    }
+
+    #[test]
+    fn test_tool_task_with_allowed_tools_error() {
+        // shell: task with allowedTools - should fail
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: runner
+    shell: "npm test"
+    allowedTools: [Read]  # ERROR: tool tasks can't have this
+flows: []
+"#,
+        );
+        assert!(!result.is_valid());
+        assert!(result.errors.iter().any(|e| matches!(
+            e,
+            ValidationError::ToolAccessError { message, .. }
+            if message.contains("Tool tasks cannot have")
+        )));
+    }
+
+    #[test]
+    fn test_mcp_task_with_allowed_tools_error() {
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: reader
+    mcp: "filesystem::read"
+    allowedTools: [Glob]  # ERROR
+flows: []
+"#,
+        );
+        assert!(!result.is_valid());
+        assert!(result.errors.iter().any(|e| matches!(
+            e,
+            ValidationError::ToolAccessError { task_id, .. } if task_id == "reader"
+        )));
+    }
+
+    #[test]
+    fn test_function_task_with_allowed_tools_error() {
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: transform
+    function: "utils::process"
+    allowedTools: [Read]  # ERROR
+flows: []
+"#,
+        );
+        assert!(!result.is_valid());
+    }
+
+    #[test]
+    fn test_http_task_with_allowed_tools_error() {
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: webhook
+    http: "https://api.example.com"
+    allowedTools: [Read]  # ERROR
+flows: []
+"#,
+        );
+        assert!(!result.is_valid());
+    }
+
+    #[test]
+    fn test_llm_task_with_allowed_tools_error() {
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: classify
+    llm: "Classify this"
+    allowedTools: [Read]  # ERROR
+flows: []
+"#,
+        );
+        assert!(!result.is_valid());
+    }
+
+    #[test]
+    fn test_config_allowed_disallowed_overlap_error() {
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+  allowedTools: [Read, Write, Bash]
+  disallowedTools: [Bash, Execute]  # Bash overlaps!
+tasks:
+  - id: work
+    agent: "Work"
+flows: []
+"#,
+        );
+        assert!(!result.is_valid());
+        assert!(result.errors.iter().any(|e| matches!(
+            e,
+            ValidationError::ToolAccessError { message, .. }
+            if message.contains("overlap") && message.contains("Bash")
+        )));
+    }
+
+    #[test]
+    fn test_duplicate_tool_in_allowed_tools_error() {
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: work
+    agent: "Work"
+    allowedTools: [Read, Write, Read]  # Duplicate Read!
+flows: []
+"#,
+        );
+        assert!(!result.is_valid());
+        assert!(result.errors.iter().any(|e| matches!(
+            e,
+            ValidationError::ToolAccessError { message, .. }
+            if message.contains("Duplicate") && message.contains("Read")
+        )));
+    }
+
+    #[test]
+    fn test_empty_tool_name_error() {
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: work
+    agent: "Work"
+    allowedTools: [Read, "", Write]  # Empty tool name!
+flows: []
+"#,
+        );
+        assert!(!result.is_valid());
+        assert!(result.errors.iter().any(|e| matches!(
+            e,
+            ValidationError::ToolAccessError { message, .. }
+            if message.contains("Empty tool name")
+        )));
+    }
+
+    #[test]
+    fn test_complex_tool_access_valid() {
+        // Complex scenario: config pool, agent restricts, subagent independent
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Orchestrator"
+  allowedTools: [Read, Write, Glob, Grep]
+tasks:
+  - id: analyze
+    agent: "Analyze code"
+    allowedTools: [Read, Grep]  # Subset - OK
+
+  - id: deep-research
+    subagent: "Deep security audit"
+    allowedTools: [Read, WebSearch, Bash]  # Independent - OK
+
+  - id: save
+    function: "output::save"
+    # No allowedTools - OK for tool task
+
+  - id: notify
+    http: "https://webhook.example.com"
+    # No allowedTools - OK for tool task
+
+flows:
+  - source: analyze
+    target: deep-research
+  - source: deep-research
+    target: save
+  - source: save
+    target: notify
+"#,
+        );
+        assert!(result.is_valid(), "Complex tool access scenario should pass");
     }
 }

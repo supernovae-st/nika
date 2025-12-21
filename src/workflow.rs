@@ -1,7 +1,7 @@
-//! Nika Workflow Types (v3)
+//! Nika Workflow Types (v4.5)
 //!
 //! Core types for .nika.yaml workflow files.
-//! Architecture v3: 2 task types (agent + action) with scope attribute.
+//! Architecture v4.5: 7 keywords with type inference (agent, subagent, shell, http, mcp, function, llm).
 
 use serde::Deserialize;
 
@@ -13,7 +13,7 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Workflow {
-    pub main_agent: MainAgent,
+    pub agent: Agent,
     #[serde(default)]
     pub tasks: Vec<Task>,
     #[serde(default)]
@@ -21,13 +21,13 @@ pub struct Workflow {
 }
 
 // ============================================================================
-// MAIN AGENT
+// AGENT CONFIG
 // ============================================================================
 
-/// Main Agent configuration - the invisible orchestrator
+/// Agent configuration - the invisible orchestrator
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MainAgent {
+pub struct Agent {
     /// LLM model (required)
     pub model: String,
 
@@ -73,25 +73,48 @@ pub enum ExecutionMode {
 // TASK
 // ============================================================================
 
-/// A workflow task - either agent or action
+/// A workflow task - type inferred from keyword (v4.5)
+///
+/// Exactly ONE of the 7 keywords must be present:
+/// - Agent: agent, subagent
+/// - Tool: shell, http, mcp, function, llm
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Task {
     /// Unique identifier (required)
     pub id: String,
 
-    /// Task type: agent or action (required)
-    #[serde(rename = "type")]
-    pub task_type: TaskType,
+    // ========== 7 KEYWORDS (v4.5) - exactly one required ==========
+
+    /// agent: Main Agent works (shared context)
+    #[serde(default)]
+    pub agent: Option<String>,
+
+    /// subagent: Subagent (isolated 200K context)
+    #[serde(default)]
+    pub subagent: Option<String>,
+
+    /// shell: Execute shell command
+    #[serde(default)]
+    pub shell: Option<String>,
+
+    /// http: HTTP request URL
+    #[serde(default)]
+    pub http: Option<String>,
+
+    /// mcp: MCP server::tool
+    #[serde(default)]
+    pub mcp: Option<String>,
+
+    /// function: path::functionName
+    #[serde(default)]
+    pub function: Option<String>,
+
+    /// llm: One-shot LLM (stateless)
+    #[serde(default)]
+    pub llm: Option<String>,
 
     // ========== Agent-specific fields ==========
-    /// Scope: main (default) or isolated (agent only)
-    #[serde(default)]
-    pub scope: Option<Scope>,
-
-    /// LLM prompt (required for agent)
-    #[serde(default)]
-    pub prompt: Option<String>,
 
     /// Override model for this task
     #[serde(default)]
@@ -103,68 +126,117 @@ pub struct Task {
     #[serde(default)]
     pub system_prompt_file: Option<String>,
 
-    /// Tool access for this agent
+    /// Tool access for agent (agent inherits from config, subagent is independent)
     #[serde(default)]
     pub allowed_tools: Option<Vec<String>>,
 
-    // ========== Action-specific fields ==========
-    /// Tool/package to run (required for action)
+    /// Skills to inject
     #[serde(default)]
-    pub run: Option<String>,
+    pub skills: Option<Vec<String>>,
 
-    // ========== Common action parameters (flat) ==========
-    /// File path (for Read/Write actions)
+    /// Max turns for subagent
     #[serde(default)]
-    pub file: Option<String>,
+    pub max_turns: Option<u32>,
 
-    /// URL (for http action)
-    #[serde(default)]
-    pub url: Option<String>,
+    // ========== Tool-specific fields ==========
 
-    /// HTTP method
+    /// HTTP method (for http:)
     #[serde(default)]
     pub method: Option<String>,
 
-    /// Command (for Bash action)
+    /// HTTP headers (for http:)
     #[serde(default)]
-    pub command: Option<String>,
+    pub headers: Option<serde_yaml::Value>,
 
-    /// Format (for transform/aggregate)
+    /// HTTP body (for http:)
     #[serde(default)]
-    pub format: Option<String>,
+    pub body: Option<serde_yaml::Value>,
 
-    /// Channel (for slack/notifications)
+    /// Args for function/mcp
     #[serde(default)]
-    pub channel: Option<String>,
+    pub args: Option<serde_yaml::Value>,
 
-    /// Message (for notifications)
+    /// Working directory (for shell:)
     #[serde(default)]
-    pub message: Option<String>,
+    pub cwd: Option<String>,
 
     // ========== Config block ==========
     #[serde(default)]
     pub config: Option<TaskConfig>,
 }
 
-/// Task type enum (v3)
-#[derive(Debug, Deserialize, Clone, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum TaskType {
-    /// LLM reasoning task
-    Agent,
-    /// Deterministic function execution
-    Action,
+/// Task keyword type (v4.5) - inferred from which keyword is present
+///
+/// 7 variants = 1 byte with repr(u8), Copy is zero-cost
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum TaskKeyword {
+    /// agent: Main Agent (shared context)
+    Agent = 0,
+    /// subagent: Subagent (isolated 200K context)
+    Subagent = 1,
+    /// shell: Execute shell command
+    Shell = 2,
+    /// http: HTTP request
+    Http = 3,
+    /// mcp: MCP server::tool
+    Mcp = 4,
+    /// function: path::fn
+    Function = 5,
+    /// llm: One-shot LLM (stateless)
+    Llm = 6,
 }
 
-/// Scope for agent tasks
-#[derive(Debug, Deserialize, Clone, PartialEq, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum Scope {
-    /// Visible to Main Agent, enriches shared context
-    #[default]
-    Main,
-    /// Separate 200K context, passthrough
+impl TaskKeyword {
+    /// Get the category for this keyword
+    pub fn category(self) -> TaskCategory {
+        TaskCategory::from(self)
+    }
+
+    /// Check if this is an isolated context (subagent)
+    pub fn is_isolated(self) -> bool {
+        matches!(self, TaskKeyword::Subagent)
+    }
+
+    /// Check if this is a tool keyword (not agent/subagent)
+    pub fn is_tool(self) -> bool {
+        !matches!(self, TaskKeyword::Agent | TaskKeyword::Subagent)
+    }
+}
+
+impl std::fmt::Display for TaskKeyword {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TaskKeyword::Agent => write!(f, "agent"),
+            TaskKeyword::Subagent => write!(f, "subagent"),
+            TaskKeyword::Shell => write!(f, "shell"),
+            TaskKeyword::Http => write!(f, "http"),
+            TaskKeyword::Mcp => write!(f, "mcp"),
+            TaskKeyword::Function => write!(f, "function"),
+            TaskKeyword::Llm => write!(f, "llm"),
+        }
+    }
+}
+
+/// Task category (v4.5)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TaskCategory {
+    /// LLM reasoning with shared context (agent:)
+    Context,
+    /// LLM reasoning with isolated context (subagent:)
     Isolated,
+    /// Deterministic execution (shell, http, mcp, function, llm)
+    Tool,
+}
+
+impl From<TaskKeyword> for TaskCategory {
+    fn from(keyword: TaskKeyword) -> Self {
+        match keyword {
+            TaskKeyword::Agent => TaskCategory::Context,
+            TaskKeyword::Subagent => TaskCategory::Isolated,
+            _ => TaskCategory::Tool,
+        }
+    }
 }
 
 /// Task configuration
@@ -191,7 +263,7 @@ pub struct RetryConfig {
 // FLOW
 // ============================================================================
 
-/// A flow connecting two tasks (v3 - no handles)
+/// A flow connecting two tasks (v4.3)
 #[derive(Debug, Deserialize)]
 pub struct Flow {
     /// Source task ID
@@ -207,36 +279,75 @@ pub struct Flow {
 // CONNECTION KEY (for validation)
 // ============================================================================
 
-/// Connection key for matrix lookup
+/// Connection key for matrix lookup (v4.5)
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConnectionKey {
-    AgentMain,
-    AgentIsolated,
-    Action,
+    /// agent: (Main Agent, shared context)
+    Agent,
+    /// subagent: (Subagent, isolated context)
+    Subagent,
+    /// Any tool keyword (shell, http, mcp, function, llm)
+    Tool,
 }
 
 impl std::fmt::Display for ConnectionKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ConnectionKey::AgentMain => write!(f, "agent(main)"),
-            ConnectionKey::AgentIsolated => write!(f, "agent(isolated)"),
-            ConnectionKey::Action => write!(f, "action"),
+            ConnectionKey::Agent => write!(f, "agent:"),
+            ConnectionKey::Subagent => write!(f, "subagent:"),
+            ConnectionKey::Tool => write!(f, "tool"),
         }
     }
 }
 
 impl Task {
-    /// Get the connection key for this task
+    /// Infer the keyword type from which field is Some (v4.5)
+    ///
+    /// Priority order (spec section 7):
+    /// shell > http > mcp > function > llm > subagent > agent
+    pub fn keyword(&self) -> Option<TaskKeyword> {
+        if self.shell.is_some() {
+            Some(TaskKeyword::Shell)
+        } else if self.http.is_some() {
+            Some(TaskKeyword::Http)
+        } else if self.mcp.is_some() {
+            Some(TaskKeyword::Mcp)
+        } else if self.function.is_some() {
+            Some(TaskKeyword::Function)
+        } else if self.llm.is_some() {
+            Some(TaskKeyword::Llm)
+        } else if self.subagent.is_some() {
+            Some(TaskKeyword::Subagent)
+        } else if self.agent.is_some() {
+            Some(TaskKeyword::Agent)
+        } else {
+            None
+        }
+    }
+
+    /// Count how many keywords are set (should be exactly 1)
+    pub fn keyword_count(&self) -> usize {
+        [
+            self.agent.is_some(),
+            self.subagent.is_some(),
+            self.shell.is_some(),
+            self.http.is_some(),
+            self.mcp.is_some(),
+            self.function.is_some(),
+            self.llm.is_some(),
+        ]
+        .iter()
+        .filter(|&&x| x)
+        .count()
+    }
+
+    /// Get the connection key for this task (v4.5)
     pub fn connection_key(&self) -> ConnectionKey {
-        match self.task_type {
-            TaskType::Agent => {
-                let scope = self.scope.clone().unwrap_or_default();
-                match scope {
-                    Scope::Main => ConnectionKey::AgentMain,
-                    Scope::Isolated => ConnectionKey::AgentIsolated,
-                }
-            }
-            TaskType::Action => ConnectionKey::Action,
+        match self.keyword() {
+            Some(TaskKeyword::Agent) => ConnectionKey::Agent,
+            Some(TaskKeyword::Subagent) => ConnectionKey::Subagent,
+            Some(_) => ConnectionKey::Tool, // All tool keywords
+            None => ConnectionKey::Tool,    // Default fallback
         }
     }
 }
@@ -258,7 +369,7 @@ impl Workflow {
 }
 
 // ============================================================================
-// TESTS
+// TESTS (v4.5 - keyword syntax)
 // ============================================================================
 
 #[cfg(test)]
@@ -266,84 +377,156 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_hello_world() {
+    fn test_parse_hello_world_v45() {
         let yaml = r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "You are a helpful assistant."
 
 tasks:
   - id: greet
-    type: agent
-    prompt: "Say hello in French."
+    agent: "Say hello in French."
 
 flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(workflow.main_agent.model, "claude-sonnet-4-5");
+        assert_eq!(workflow.agent.model, "claude-sonnet-4-5");
         assert_eq!(workflow.tasks.len(), 1);
-        assert_eq!(workflow.tasks[0].task_type, TaskType::Agent);
+        assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Agent));
+        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Agent);
     }
 
     #[test]
-    fn test_parse_agent_isolated() {
+    fn test_parse_subagent_v45() {
         let yaml = r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 
 tasks:
   - id: researcher
-    type: agent
-    scope: isolated
-    prompt: "Research deeply."
+    subagent: "Research deeply."
+    model: claude-opus-4
+    allowedTools: [Read, Grep]
+    maxTurns: 20
 
 flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(workflow.tasks[0].scope, Some(Scope::Isolated));
-        assert_eq!(
-            workflow.tasks[0].connection_key(),
-            ConnectionKey::AgentIsolated
-        );
+        assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Subagent));
+        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Subagent);
+        assert_eq!(workflow.tasks[0].subagent, Some("Research deeply.".to_string()));
+        assert_eq!(workflow.tasks[0].max_turns, Some(20));
     }
 
     #[test]
-    fn test_parse_action() {
+    fn test_parse_shell_v45() {
         let yaml = r#"
-mainAgent:
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+
+tasks:
+  - id: test
+    shell: "npm test --coverage"
+    cwd: "./app"
+
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Shell));
+        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Tool);
+        assert_eq!(workflow.tasks[0].shell, Some("npm test --coverage".to_string()));
+        assert_eq!(workflow.tasks[0].cwd, Some("./app".to_string()));
+    }
+
+    #[test]
+    fn test_parse_http_v45() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+
+tasks:
+  - id: webhook
+    http: "https://api.slack.com/webhook"
+    method: POST
+
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Http));
+        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Tool);
+        assert_eq!(workflow.tasks[0].http, Some("https://api.slack.com/webhook".to_string()));
+    }
+
+    #[test]
+    fn test_parse_mcp_v45() {
+        let yaml = r#"
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 
 tasks:
   - id: read-file
-    type: action
-    run: Read
-    file: "source.txt"
+    mcp: "filesystem::read_file"
 
 flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(workflow.tasks[0].task_type, TaskType::Action);
-        assert_eq!(workflow.tasks[0].run, Some("Read".to_string()));
-        assert_eq!(workflow.tasks[0].file, Some("source.txt".to_string()));
-        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Action);
+        assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Mcp));
+        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Tool);
     }
 
     #[test]
-    fn test_parse_flow_no_handles() {
+    fn test_parse_function_v45() {
         let yaml = r#"
-mainAgent:
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+
+tasks:
+  - id: transform
+    function: "./tools/transform.js::processData"
+
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Function));
+        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Tool);
+    }
+
+    #[test]
+    fn test_parse_llm_v45() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+
+tasks:
+  - id: classify
+    llm: "Classify as: bug | feature | question"
+    model: claude-haiku
+
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Llm));
+        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Tool);
+    }
+
+    #[test]
+    fn test_parse_flow_v45() {
+        let yaml = r#"
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 
 tasks:
   - id: a
-    type: agent
-    prompt: "A"
+    agent: "A"
   - id: b
-    type: agent
-    prompt: "B"
+    agent: "B"
 
 flows:
   - source: a
@@ -356,20 +539,18 @@ flows:
     }
 
     #[test]
-    fn test_parse_conditional_flow() {
+    fn test_parse_conditional_flow_v45() {
         let yaml = r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 
 tasks:
   - id: validate
-    type: agent
-    prompt: "Validate"
+    agent: "Validate"
   - id: publish
-    type: action
-    run: http
-    url: "https://api.example.com"
+    http: "https://api.example.com"
+    method: POST
 
 flows:
   - source: validate
@@ -386,7 +567,7 @@ flows:
     #[test]
     fn test_execution_mode() {
         let yaml = r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
   mode: agentic
@@ -395,30 +576,86 @@ tasks: []
 flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(workflow.main_agent.mode, ExecutionMode::Agentic);
+        assert_eq!(workflow.agent.mode, ExecutionMode::Agentic);
     }
 
     #[test]
-    fn test_connection_key_default_scope() {
-        let task = Task {
-            id: "test".to_string(),
-            task_type: TaskType::Agent,
-            scope: None, // Should default to Main
-            prompt: Some("test".to_string()),
-            model: None,
-            system_prompt: None,
-            system_prompt_file: None,
-            allowed_tools: None,
-            run: None,
-            file: None,
-            url: None,
-            method: None,
-            command: None,
-            format: None,
-            channel: None,
-            message: None,
-            config: None,
-        };
-        assert_eq!(task.connection_key(), ConnectionKey::AgentMain);
+    fn test_keyword_count() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+
+tasks:
+  - id: valid
+    agent: "Just one keyword"
+  - id: none
+    # No keyword - invalid
+
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(workflow.tasks[0].keyword_count(), 1);
+        assert_eq!(workflow.tasks[1].keyword_count(), 0);
     }
+
+    #[test]
+    fn test_keyword_category() {
+        // Context keywords
+        assert_eq!(TaskKeyword::Agent.category(), TaskCategory::Context);
+        assert_eq!(TaskKeyword::Subagent.category(), TaskCategory::Isolated);
+        // Tool keywords
+        assert_eq!(TaskKeyword::Shell.category(), TaskCategory::Tool);
+        assert_eq!(TaskKeyword::Http.category(), TaskCategory::Tool);
+        assert_eq!(TaskKeyword::Mcp.category(), TaskCategory::Tool);
+        assert_eq!(TaskKeyword::Function.category(), TaskCategory::Tool);
+        assert_eq!(TaskKeyword::Llm.category(), TaskCategory::Tool);
+    }
+
+    #[test]
+    fn test_keyword_from_trait() {
+        // Test From<TaskKeyword> for TaskCategory
+        assert_eq!(TaskCategory::from(TaskKeyword::Agent), TaskCategory::Context);
+        assert_eq!(TaskCategory::from(TaskKeyword::Subagent), TaskCategory::Isolated);
+        assert_eq!(TaskCategory::from(TaskKeyword::Shell), TaskCategory::Tool);
+    }
+
+    #[test]
+    fn test_keyword_is_tool() {
+        assert!(!TaskKeyword::Agent.is_tool());
+        assert!(!TaskKeyword::Subagent.is_tool());
+        assert!(TaskKeyword::Shell.is_tool());
+        assert!(TaskKeyword::Http.is_tool());
+        assert!(TaskKeyword::Mcp.is_tool());
+        assert!(TaskKeyword::Function.is_tool());
+        assert!(TaskKeyword::Llm.is_tool());
+    }
+
+    #[test]
+    fn test_bridge_pattern_v45() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+
+tasks:
+  - id: worker
+    subagent: "Work in isolation"
+  - id: bridge
+    function: aggregate::collect
+  - id: router
+    agent: "Route the results"
+
+flows:
+  - source: worker
+    target: bridge
+  - source: bridge
+    target: router
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(workflow.tasks[0].connection_key(), ConnectionKey::Subagent);
+        assert_eq!(workflow.tasks[1].connection_key(), ConnectionKey::Tool);
+        assert_eq!(workflow.tasks[2].connection_key(), ConnectionKey::Agent);
+    }
+
 }

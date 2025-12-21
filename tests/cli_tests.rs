@@ -1,7 +1,7 @@
-//! Integration tests for the Nika CLI (v3)
+//! Integration tests for the Nika CLI (v4.5)
 //!
 //! These tests run the actual CLI binary and verify output.
-//! Architecture v3: 2 task types (agent + action) with scope attribute.
+//! Architecture v4.5: 7 keywords with type inference (agent, subagent, shell, http, mcp, function, llm).
 
 use assert_cmd::Command;
 use predicates::prelude::*;
@@ -22,7 +22,7 @@ fn test_no_args_shows_banner() {
             "Native Intelligence Kernel for Agents",
         ))
         .stdout(predicate::str::contains("v0.1.0"))
-        .stdout(predicate::str::contains("Architecture v3"));
+        .stdout(predicate::str::contains("Architecture v4.5"));
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn test_validate_help() {
 }
 
 // ============================================================================
-// v3 Workflow Validation Tests
+// v4.5 Workflow Validation Tests
 // ============================================================================
 
 #[test]
@@ -55,18 +55,17 @@ fn test_validate_valid_hello_world() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("hello.nika.yaml");
 
-    // v3 hello world workflow
+    // v4.5 hello world workflow
     fs::write(
         &workflow_file,
         r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "You are a helpful assistant."
 
 tasks:
   - id: greet
-    type: agent
-    prompt: "Say hello in French."
+    agent: "Say hello in French."
 
 flows: []
 "#,
@@ -81,25 +80,23 @@ flows: []
 }
 
 #[test]
-fn test_validate_agent_main_to_action() {
+fn test_validate_agent_to_tool() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("test.nika.yaml");
 
+    // v4.5: agent: -> shell: is valid
     fs::write(
         &workflow_file,
         r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 
 tasks:
   - id: analyze
-    type: agent
-    prompt: "Analyze the code."
+    agent: "Analyze the code."
   - id: save
-    type: action
-    run: Write
-    file: "output.txt"
+    shell: "echo done > output.txt"
 
 flows:
   - source: analyze
@@ -120,25 +117,21 @@ fn test_validate_bridge_pattern() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("bridge.nika.yaml");
 
-    // v3 bridge pattern: agent(isolated) -> action -> agent(main)
+    // v4.5 bridge pattern: subagent: -> function: -> agent:
     fs::write(
         &workflow_file,
         r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Orchestrator"
 
 tasks:
   - id: worker
-    type: agent
-    scope: isolated
-    prompt: "Do deep work."
+    subagent: "Do deep work."
   - id: bridge
-    type: action
-    run: aggregate
+    function: aggregate::collect
   - id: router
-    type: agent
-    prompt: "Route results."
+    agent: "Route results."
 
 flows:
   - source: worker
@@ -157,26 +150,23 @@ flows:
 }
 
 #[test]
-fn test_validate_invalid_isolated_to_main() {
+fn test_validate_invalid_subagent_to_agent() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("invalid.nika.yaml");
 
-    // v3 invalid: agent(isolated) -> agent(main) is BLOCKED
+    // v4.5 invalid: subagent: -> agent: is BLOCKED (needs bridge)
     fs::write(
         &workflow_file,
         r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 
 tasks:
   - id: worker
-    type: agent
-    scope: isolated
-    prompt: "Work"
+    subagent: "Work"
   - id: router
-    type: agent
-    prompt: "Route"
+    agent: "Route"
 
 flows:
   - source: worker
@@ -193,27 +183,23 @@ flows:
 }
 
 #[test]
-fn test_validate_invalid_isolated_to_isolated() {
+fn test_validate_invalid_subagent_to_subagent() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("invalid.nika.yaml");
 
-    // v3 invalid: agent(isolated) -> agent(isolated) is BLOCKED
+    // v4.5 invalid: subagent: -> subagent: is BLOCKED
     fs::write(
         &workflow_file,
         r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 
 tasks:
   - id: sub1
-    type: agent
-    scope: isolated
-    prompt: "Sub1"
+    subagent: "Sub1"
   - id: sub2
-    type: agent
-    scope: isolated
-    prompt: "Sub2"
+    subagent: "Sub2"
 
 flows:
   - source: sub1
@@ -230,20 +216,20 @@ flows:
 }
 
 #[test]
-fn test_validate_agent_missing_prompt() {
+fn test_validate_missing_keyword() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("bad.nika.yaml");
 
+    // v4.5: task must have exactly one keyword
     fs::write(
         &workflow_file,
         r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 
 tasks:
-  - id: bad-agent
-    type: agent
+  - id: bad-task
 
 flows: []
 "#,
@@ -254,24 +240,25 @@ flows: []
         .args(["validate", workflow_file.to_str().unwrap()])
         .assert()
         .failure()
-        .stdout(predicate::str::contains("requires 'prompt'"));
+        .stdout(predicate::str::contains("exactly one keyword"));
 }
 
 #[test]
-fn test_validate_action_missing_run() {
+fn test_validate_mcp_missing_separator() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("bad.nika.yaml");
 
+    // v4.5: mcp must use :: separator
     fs::write(
         &workflow_file,
         r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 
 tasks:
-  - id: bad-action
-    type: action
+  - id: bad-mcp
+    mcp: "filesystem_read"
 
 flows: []
 "#,
@@ -282,7 +269,7 @@ flows: []
         .args(["validate", workflow_file.to_str().unwrap()])
         .assert()
         .failure()
-        .stdout(predicate::str::contains("requires 'run'"));
+        .stdout(predicate::str::contains("'::'"));
 }
 
 #[test]
@@ -293,14 +280,13 @@ fn test_validate_json_output() {
     fs::write(
         &workflow_file,
         r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 
 tasks:
   - id: greet
-    type: agent
-    prompt: "Hello"
+    agent: "Hello"
 
 flows: []
 "#,
@@ -328,17 +314,15 @@ fn test_validate_compact_output() {
     fs::write(
         &workflow_file,
         r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 
 tasks:
   - id: a
-    type: agent
-    prompt: "A"
+    agent: "A"
   - id: b
-    type: action
-    run: Read
+    mcp: "filesystem::read"
 
 flows:
   - source: a
@@ -368,14 +352,13 @@ fn test_validate_verbose() {
     fs::write(
         &workflow_file,
         r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "Test"
 
 tasks:
   - id: greet
-    type: agent
-    prompt: "Hello"
+    agent: "Hello"
 
 flows: []
 "#,
@@ -390,7 +373,7 @@ flows: []
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Architecture v3"));
+        .stdout(predicate::str::contains("Architecture v4.5"));
 }
 
 #[test]
@@ -410,17 +393,16 @@ fn test_validate_directory_recursive() {
     let sub_dir = temp_dir.path().join("workflows");
     fs::create_dir_all(&sub_dir).unwrap();
 
-    // Create two workflows
+    // Create two v4.5 workflows
     fs::write(
         sub_dir.join("a.nika.yaml"),
         r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "A"
 tasks:
   - id: a
-    type: agent
-    prompt: "A"
+    agent: "A"
 flows: []
 "#,
     )
@@ -429,13 +411,12 @@ flows: []
     fs::write(
         sub_dir.join("b.nika.yaml"),
         r#"
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: "B"
 tasks:
   - id: b
-    type: agent
-    prompt: "B"
+    agent: "B"
 flows: []
 "#,
     )
@@ -472,4 +453,45 @@ fn test_init_project() {
     assert!(temp_dir.path().join("test-project/.nika").exists());
     assert!(temp_dir.path().join("test-project/main.nika.yaml").exists());
     assert!(temp_dir.path().join("test-project/nika.yaml").exists());
+}
+
+#[test]
+fn test_all_7_keywords_valid() {
+    let temp_dir = TempDir::new().unwrap();
+    let workflow_file = temp_dir.path().join("all-keywords.nika.yaml");
+
+    // v4.5: all 7 keywords in one workflow
+    fs::write(
+        &workflow_file,
+        r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test all keywords"
+
+tasks:
+  - id: t1
+    agent: "Main agent task"
+  - id: t2
+    subagent: "Subagent task"
+  - id: t3
+    shell: "npm test"
+  - id: t4
+    http: "https://api.example.com"
+  - id: t5
+    mcp: "filesystem::read_file"
+  - id: t6
+    function: "tools::transform"
+  - id: t7
+    llm: "Classify this text"
+
+flows: []
+"#,
+    )
+    .unwrap();
+
+    nika_cmd()
+        .args(["validate", workflow_file.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("7 tasks"));
 }
