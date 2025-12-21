@@ -5,12 +5,22 @@
 //!
 //! Key feature: ExecutionContext for passing data between tasks.
 
+use crate::provider::{create_provider, PromptRequest, Provider, TokenUsage};
 use crate::workflow::{Task, TaskKeyword, Workflow};
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
 use std::process::Command;
+use std::time::Duration;
+use wait_timeout::ChildExt;
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/// Default timeout for shell commands (30 seconds)
+const DEFAULT_SHELL_TIMEOUT: Duration = Duration::from_secs(30);
 
 // ============================================================================
 // LAZY REGEX PATTERNS (compiled once)
@@ -25,6 +35,49 @@ static INPUT_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"\$\{input\.(\w+)\}
 
 /// Pattern for ${env.NAME} references
 static ENV_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"\$\{env\.(\w+)\}").unwrap());
+
+// ============================================================================
+// TIMEOUT PARSING
+// ============================================================================
+
+/// Parse a duration string like "30s", "5m", "1h" into a Duration
+///
+/// Supported formats:
+/// - "30" or "30s" -> 30 seconds
+/// - "5m" -> 5 minutes
+/// - "1h" -> 1 hour
+/// - "500ms" -> 500 milliseconds
+fn parse_duration(duration_str: &str) -> Option<Duration> {
+    let s = duration_str.trim();
+    if s.is_empty() {
+        return None;
+    }
+
+    // Try to parse with suffix
+    if let Some(ms) = s.strip_suffix("ms") {
+        return ms.parse::<u64>().ok().map(Duration::from_millis);
+    }
+    if let Some(secs) = s.strip_suffix('s') {
+        return secs.parse::<u64>().ok().map(Duration::from_secs);
+    }
+    if let Some(mins) = s.strip_suffix('m') {
+        return mins.parse::<u64>().ok().map(|m| Duration::from_secs(m * 60));
+    }
+    if let Some(hours) = s.strip_suffix('h') {
+        return hours.parse::<u64>().ok().map(|h| Duration::from_secs(h * 3600));
+    }
+
+    // No suffix: assume seconds
+    s.parse::<u64>().ok().map(Duration::from_secs)
+}
+
+/// Alias for backwards compatibility
+fn parse_timeout(timeout_str: &str) -> Option<Duration> {
+    parse_duration(timeout_str)
+}
+
+/// Default backoff for retries (1 second)
+const DEFAULT_RETRY_BACKOFF: Duration = Duration::from_secs(1);
 
 // ============================================================================
 // EXECUTION CONTEXT
@@ -238,6 +291,34 @@ pub fn resolve_templates(template: &str, ctx: &ExecutionContext) -> Result<Strin
 // TASK RESULT
 // ============================================================================
 
+/// Error context for failed tasks
+#[derive(Debug, Clone, Default)]
+pub struct ErrorContext {
+    /// The task keyword (shell, http, agent, etc.)
+    pub keyword: Option<String>,
+    /// Error category for structured handling
+    pub category: Option<ErrorCategory>,
+    /// Additional diagnostic info
+    pub details: Option<String>,
+}
+
+/// Error categories for structured error handling
+#[derive(Debug, Clone, PartialEq)]
+pub enum ErrorCategory {
+    /// Command/process timeout
+    Timeout,
+    /// Network or connectivity issue
+    Network,
+    /// Provider/model error
+    Provider,
+    /// Template resolution failure
+    Template,
+    /// Task configuration error
+    Config,
+    /// General execution error
+    Execution,
+}
+
 /// Execution result for a task
 #[derive(Debug, Clone)]
 pub struct TaskResult {
@@ -245,6 +326,8 @@ pub struct TaskResult {
     pub success: bool,
     pub output: String,
     pub tokens_used: Option<u32>,
+    /// Error context for failed tasks (None if success)
+    pub error_context: Option<ErrorContext>,
 }
 
 impl TaskResult {
@@ -255,6 +338,7 @@ impl TaskResult {
             success: true,
             output: output.into(),
             tokens_used: tokens,
+            error_context: None,
         }
     }
 
@@ -265,7 +349,50 @@ impl TaskResult {
             success: false,
             output: error.into(),
             tokens_used: None,
+            error_context: None,
         }
+    }
+
+    /// Create a failed task result with context
+    pub fn failure_with_context(
+        id: impl Into<String>,
+        error: impl Into<String>,
+        keyword: impl Into<String>,
+        category: ErrorCategory,
+    ) -> Self {
+        Self {
+            task_id: id.into(),
+            success: false,
+            output: error.into(),
+            tokens_used: None,
+            error_context: Some(ErrorContext {
+                keyword: Some(keyword.into()),
+                category: Some(category),
+                details: None,
+            }),
+        }
+    }
+
+    /// Add details to error context
+    pub fn with_details(mut self, details: impl Into<String>) -> Self {
+        if let Some(ref mut ctx) = self.error_context {
+            ctx.details = Some(details.into());
+        } else {
+            self.error_context = Some(ErrorContext {
+                keyword: None,
+                category: None,
+                details: Some(details.into()),
+            });
+        }
+        self
+    }
+
+    /// Check if error is a timeout
+    pub fn is_timeout(&self) -> bool {
+        self.error_context
+            .as_ref()
+            .and_then(|c| c.category.as_ref())
+            .is_some_and(|cat| *cat == ErrorCategory::Timeout)
     }
 
     /// Try to parse the output as JSON
@@ -296,18 +423,25 @@ pub struct RunResult {
 
 /// Workflow runner with context management
 pub struct Runner {
-    /// Provider to use (claude, openai, ollama, mock)
-    provider: String,
+    /// Provider instance for LLM execution
+    provider: Box<dyn Provider>,
     /// Verbose output
     verbose: bool,
 }
 
 impl Runner {
-    pub fn new(provider: &str) -> Self {
-        Self {
-            provider: provider.to_string(),
+    /// Create a new runner with the specified provider
+    ///
+    /// # Arguments
+    /// * `provider_name` - Name of the provider ("claude", "mock", etc.)
+    ///
+    /// # Errors
+    /// Returns an error if the provider is unknown
+    pub fn new(provider_name: &str) -> Result<Self> {
+        Ok(Self {
+            provider: create_provider(provider_name)?,
             verbose: false,
-        }
+        })
     }
 
     pub fn verbose(mut self, v: bool) -> Self {
@@ -343,7 +477,9 @@ impl Runner {
             workflow.tasks.iter().map(|t| (t.id.as_str(), t)).collect();
 
         // Get execution order (topological sort)
-        let order = self.topological_sort(workflow)?;
+        let order = self
+            .topological_sort(workflow)
+            .context("Failed to determine task execution order")?;
 
         if self.verbose {
             println!("Execution order: {:?}", order);
@@ -363,8 +499,16 @@ impl Runner {
                 println!("\n→ Executing: {} ({})", task_id, keyword);
             }
 
-            // Execute task with context
-            let result = self.execute_task(task, workflow, &mut ctx)?;
+            // Execute task with context and retry logic
+            let result = self
+                .execute_task_with_retry(task, workflow, &mut ctx)
+                .with_context(|| {
+                    format!(
+                        "Failed to execute task '{}' ({:?})",
+                        task_id,
+                        task.keyword()
+                    )
+                })?;
 
             if let Some(tokens) = result.tokens_used {
                 total_tokens += tokens;
@@ -422,6 +566,62 @@ impl Runner {
         })
     }
 
+    /// Execute a single task with retry logic
+    ///
+    /// Respects `config.retry.max` and `config.retry.backoff` settings.
+    /// Retries only on failure, not on errors (Result::Err).
+    fn execute_task_with_retry(
+        &self,
+        task: &Task,
+        workflow: &Workflow,
+        ctx: &mut ExecutionContext,
+    ) -> Result<TaskResult> {
+        // Get retry config
+        let max_attempts = task
+            .config
+            .as_ref()
+            .and_then(|c| c.retry.as_ref())
+            .map(|r| r.max)
+            .unwrap_or(1); // Default: no retries (1 attempt)
+
+        let backoff = task
+            .config
+            .as_ref()
+            .and_then(|c| c.retry.as_ref())
+            .and_then(|r| r.backoff.as_ref())
+            .and_then(|b| parse_duration(b))
+            .unwrap_or(DEFAULT_RETRY_BACKOFF);
+
+        let mut last_result = None;
+
+        for attempt in 1..=max_attempts {
+            let result = self.execute_task(task, workflow, ctx)?;
+
+            if result.success {
+                return Ok(result);
+            }
+
+            // Task failed
+            last_result = Some(result);
+
+            // If we have more attempts, wait before retrying
+            if attempt < max_attempts {
+                if self.verbose {
+                    println!(
+                        "  ⟳ Retry {}/{} for task '{}' after {:?}",
+                        attempt, max_attempts, task.id, backoff
+                    );
+                }
+                std::thread::sleep(backoff);
+            }
+        }
+
+        // All attempts exhausted, return last failure
+        Ok(last_result.unwrap_or_else(|| {
+            TaskResult::failure(&task.id, "Task failed with no result")
+        }))
+    }
+
     /// Execute a single task with context (v4.5 - keyword based)
     fn execute_task(
         &self,
@@ -448,26 +648,45 @@ impl Runner {
         workflow: &Workflow,
         ctx: &ExecutionContext,
     ) -> Result<TaskResult> {
-        let prompt = resolve_templates(task.prompt().unwrap_or(""), ctx)?;
+        let prompt = resolve_templates(task.prompt().unwrap_or(""), ctx)
+            .with_context(|| format!("Failed to resolve templates for agent task '{}'", task.id))?;
 
-        match self.provider.as_str() {
-            "claude" => self.execute_claude_prompt(task, &prompt, false, workflow, ctx),
-            "openai" => Ok(TaskResult::success(
+        // Build request with shared context (agent: tasks share history)
+        let request = PromptRequest::new(&prompt, &workflow.agent.model)
+            .with_system_prompt(workflow.agent.system_prompt.as_deref().unwrap_or(""))
+            .with_history(
+                ctx.agent_history()
+                    .iter()
+                    .map(|m| AgentMessage {
+                        role: m.role.clone(),
+                        content: m.content.clone(),
+                    })
+                    .collect(),
+            )
+            .with_tools(task.allowed_tools.clone().unwrap_or_default());
+
+        // Execute via provider
+        let response = self.provider.execute(request)?;
+
+        if response.success {
+            Ok(TaskResult::success(
                 &task.id,
-                format!("[OpenAI] Would execute prompt: {}", prompt),
-                Some(500),
-            )),
-            "ollama" => Ok(TaskResult::success(
+                response.content,
+                Some(response.usage.total_tokens),
+            ))
+        } else {
+            // Detect timeout errors from provider
+            let category = if response.content.contains("timed out") {
+                ErrorCategory::Timeout
+            } else {
+                ErrorCategory::Provider
+            };
+            Ok(TaskResult::failure_with_context(
                 &task.id,
-                format!("[Ollama] Would execute prompt: {}", prompt),
-                Some(500),
-            )),
-            "mock" => Ok(TaskResult::success(
-                &task.id,
-                format!("[Mock] Executed prompt: {}", prompt),
-                Some(100),
-            )),
-            _ => Err(anyhow!("Unknown provider: {}", self.provider)),
+                &response.content,
+                "agent",
+                category,
+            ))
         }
     }
 
@@ -478,106 +697,146 @@ impl Runner {
         workflow: &Workflow,
         ctx: &ExecutionContext,
     ) -> Result<TaskResult> {
-        let prompt = resolve_templates(task.prompt().unwrap_or(""), ctx)?;
+        let prompt = resolve_templates(task.prompt().unwrap_or(""), ctx)
+            .with_context(|| format!("Failed to resolve templates for subagent task '{}'", task.id))?;
 
-        match self.provider.as_str() {
-            "claude" => self.execute_claude_prompt(task, &prompt, true, workflow, ctx),
-            "mock" => Ok(TaskResult::success(
+        // Build request in isolated mode (subagent: tasks don't share history)
+        let request = PromptRequest::new(&prompt, &workflow.agent.model)
+            .with_system_prompt(
+                task.system_prompt
+                    .as_deref()
+                    .or(workflow.agent.system_prompt.as_deref())
+                    .unwrap_or(""),
+            )
+            .with_tools(task.allowed_tools.clone().unwrap_or_default())
+            .isolated();
+
+        // Execute via provider
+        let response = self.provider.execute(request)?;
+
+        if response.success {
+            Ok(TaskResult::success(
                 &task.id,
-                format!("[Mock] Spawned subagent: {}", prompt),
-                Some(200),
-            )),
-            _ => Ok(TaskResult::success(
-                &task.id,
-                format!("[{}] Would spawn: {}", self.provider, prompt),
-                Some(500),
-            )),
-        }
-    }
-
-    /// Execute agent task using Claude CLI
-    fn execute_claude_prompt(
-        &self,
-        task: &Task,
-        prompt: &str,
-        is_isolated: bool,
-        _workflow: &Workflow,
-        ctx: &ExecutionContext,
-    ) -> Result<TaskResult> {
-        // Check if claude CLI is available
-        let claude_check = Command::new("which").arg("claude").output();
-
-        if claude_check.is_err() || !claude_check.unwrap().status.success() {
-            return Ok(TaskResult::success(
-                &task.id,
-                format!(
-                    "[Claude CLI not found] Would execute {} task: {}",
-                    if is_isolated { "subagent" } else { "agent" },
-                    prompt
-                ),
-                Some(0),
-            ));
-        }
-
-        // Build claude command: claude -p "prompt"
-        let mut cmd = Command::new("claude");
-        cmd.arg("-p"); // Print mode (non-interactive)
-
-        // For non-isolated (agent:) tasks, inject conversation history
-        if !is_isolated && ctx.has_history() {
-            // Build context-aware prompt
-            let context_prompt = format!(
-                "Previous conversation:\n{}\n\nCurrent task:\n{}",
-                ctx.format_agent_history(),
-                prompt
-            );
-            cmd.arg(&context_prompt);
+                response.content,
+                Some(response.usage.total_tokens),
+            ))
         } else {
-            cmd.arg(prompt);
-        }
-
-        // Add system prompt for isolated scope (subagent)
-        if is_isolated {
-            if let Some(sys_prompt) = &task.system_prompt {
-                cmd.arg("--system-prompt").arg(sys_prompt);
-            }
-        }
-
-        // Skip permissions for automated execution
-        cmd.arg("--dangerously-skip-permissions");
-
-        // Execute
-        match cmd.output() {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-                if output.status.success() {
-                    Ok(TaskResult::success(&task.id, stdout, Some(500)))
-                } else {
-                    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-                    Ok(TaskResult::failure(&task.id, stderr))
-                }
-            }
-            Err(e) => Ok(TaskResult::failure(
+            // Detect timeout errors from provider
+            let category = if response.content.contains("timed out") {
+                ErrorCategory::Timeout
+            } else {
+                ErrorCategory::Provider
+            };
+            Ok(TaskResult::failure_with_context(
                 &task.id,
-                format!("Failed to execute claude: {}", e),
-            )),
+                &response.content,
+                "subagent",
+                category,
+            ))
         }
     }
 
     /// Execute shell: task
+    ///
+    /// Runs the command through the system shell (sh -c on Unix).
+    /// Captures stdout/stderr and returns them as the task result.
+    /// Supports timeout configuration via `config.timeout` (e.g., "30s", "5m").
     fn execute_shell(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
-        let cmd = resolve_templates(task.prompt().unwrap_or("echo 'no command'"), ctx)?;
+        let cmd_str = resolve_templates(task.prompt().unwrap_or("echo 'no command'"), ctx)
+            .with_context(|| format!("Failed to resolve templates for shell task '{}'", task.id))?;
 
-        Ok(TaskResult::success(
-            &task.id,
-            format!("[shell] Would execute: {}", cmd),
-            Some(0),
-        ))
+        // Get timeout from task config, or use default
+        let timeout = task
+            .config
+            .as_ref()
+            .and_then(|c| c.timeout.as_ref())
+            .and_then(|t| parse_timeout(t))
+            .unwrap_or(DEFAULT_SHELL_TIMEOUT);
+
+        // Spawn the process (non-blocking)
+        let mut child = Command::new("sh")
+            .arg("-c")
+            .arg(&cmd_str)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .with_context(|| format!("Failed to spawn shell command: {}", cmd_str))?;
+
+        // Wait with timeout
+        match child.wait_timeout(timeout)? {
+            Some(status) => {
+                // Process completed within timeout
+                let stdout = child
+                    .stdout
+                    .take()
+                    .map(|mut s| {
+                        let mut buf = String::new();
+                        std::io::Read::read_to_string(&mut s, &mut buf).ok();
+                        buf
+                    })
+                    .unwrap_or_default();
+
+                let stderr = child
+                    .stderr
+                    .take()
+                    .map(|mut s| {
+                        let mut buf = String::new();
+                        std::io::Read::read_to_string(&mut s, &mut buf).ok();
+                        buf
+                    })
+                    .unwrap_or_default();
+
+                if status.success() {
+                    // Return stdout, or stderr if stdout is empty
+                    let result = if stdout.trim().is_empty() && !stderr.trim().is_empty() {
+                        stderr.trim().to_string()
+                    } else {
+                        stdout.trim().to_string()
+                    };
+
+                    // Estimate tokens based on command + output length
+                    let tokens = TokenUsage::estimate(cmd_str.len(), result.len());
+
+                    Ok(TaskResult::success(&task.id, result, Some(tokens.total_tokens)))
+                } else {
+                    // Command failed - return stderr or exit code info
+                    let error_msg = if stderr.trim().is_empty() {
+                        format!("Command exited with code: {}", status.code().unwrap_or(-1))
+                    } else {
+                        stderr.trim().to_string()
+                    };
+                    Ok(TaskResult::failure_with_context(
+                        &task.id,
+                        error_msg,
+                        "shell",
+                        ErrorCategory::Execution,
+                    )
+                    .with_details(format!("command: {}", cmd_str)))
+                }
+            }
+            None => {
+                // Timeout! Kill the process
+                let _ = child.kill();
+                let _ = child.wait(); // Reap the zombie
+
+                let error_msg = format!(
+                    "Shell command timed out after {:?}: {}",
+                    timeout, cmd_str
+                );
+                Ok(TaskResult::failure_with_context(
+                    &task.id,
+                    error_msg,
+                    "shell",
+                    ErrorCategory::Timeout,
+                ))
+            }
+        }
     }
 
     /// Execute http: task
     fn execute_http(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
-        let url = resolve_templates(task.prompt().unwrap_or("(no url)"), ctx)?;
+        let url = resolve_templates(task.prompt().unwrap_or("(no url)"), ctx)
+            .with_context(|| format!("Failed to resolve URL for http task '{}'", task.id))?;
         let method = task.method.as_deref().unwrap_or("GET");
 
         Ok(TaskResult::success(
@@ -590,7 +849,8 @@ impl Runner {
     /// Execute mcp: task
     fn execute_mcp(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
         let mcp = task.prompt().unwrap_or("unknown::unknown");
-        let args_str = resolve_args(task.args.as_ref(), ctx)?;
+        let args_str = resolve_args(task.args.as_ref(), ctx)
+            .with_context(|| format!("Failed to resolve args for mcp task '{}'", task.id))?;
 
         Ok(TaskResult::success(
             &task.id,
@@ -602,7 +862,8 @@ impl Runner {
     /// Execute function: task
     fn execute_function(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
         let func = task.prompt().unwrap_or("unknown::unknown");
-        let args_str = resolve_args(task.args.as_ref(), ctx)?;
+        let args_str = resolve_args(task.args.as_ref(), ctx)
+            .with_context(|| format!("Failed to resolve args for function task '{}'", task.id))?;
 
         Ok(TaskResult::success(
             &task.id,
@@ -613,7 +874,8 @@ impl Runner {
 
     /// Execute llm: task (one-shot, stateless)
     fn execute_llm(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
-        let prompt = resolve_templates(task.prompt().unwrap_or(""), ctx)?;
+        let prompt = resolve_templates(task.prompt().unwrap_or(""), ctx)
+            .with_context(|| format!("Failed to resolve templates for llm task '{}'", task.id))?;
 
         Ok(TaskResult::success(
             &task.id,
@@ -833,7 +1095,7 @@ flows:
     #[test]
     fn test_topological_sort_v45() {
         let workflow = make_workflow_v45();
-        let runner = Runner::new("claude");
+        let runner = Runner::new("claude").unwrap();
         let order = runner.topological_sort(&workflow).unwrap();
         assert_eq!(order, vec!["step1", "step2"]);
     }
@@ -841,7 +1103,7 @@ flows:
     #[test]
     fn test_run_workflow_v45() {
         let workflow = make_workflow_v45();
-        let runner = Runner::new("mock");
+        let runner = Runner::new("mock").unwrap();
         let result = runner.run(&workflow).unwrap();
 
         assert_eq!(result.tasks_completed, 2, "Should complete 2 tasks");
@@ -871,7 +1133,7 @@ flows: []
         let mut inputs = HashMap::new();
         inputs.insert("file".to_string(), "README.md".to_string());
 
-        let runner = Runner::new("mock");
+        let runner = Runner::new("mock").unwrap();
         let result = runner.run_with_inputs(&workflow, inputs).unwrap();
 
         // The prompt should have been resolved
@@ -898,7 +1160,7 @@ flows:
     target: step2
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let runner = Runner::new("mock");
+        let runner = Runner::new("mock").unwrap();
         let result = runner.run(&workflow).unwrap();
 
         // step2 should have received step1's output in its prompt
@@ -933,7 +1195,7 @@ tasks:
 flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let runner = Runner::new("mock");
+        let runner = Runner::new("mock").unwrap();
         let result = runner.run(&workflow).unwrap();
 
         assert_eq!(result.tasks_completed, 7, "All 7 tasks should complete");
@@ -966,7 +1228,7 @@ flows:
     target: followup
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let runner = Runner::new("mock");
+        let runner = Runner::new("mock").unwrap();
         let result = runner.run(&workflow).unwrap();
 
         // Should have 4 messages: 2 user prompts + 2 assistant responses
@@ -1001,7 +1263,7 @@ flows:
     target: summarize
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let runner = Runner::new("mock");
+        let runner = Runner::new("mock").unwrap();
         let result = runner.run(&workflow).unwrap();
 
         assert_eq!(result.tasks_completed, 2);
@@ -1051,7 +1313,7 @@ flows:
         ctx.set_output("generate-user", r#"{"name":"Alice","email":"alice@example.com"}"#.to_string());
 
         // Test template resolution directly (runner not used)
-        let _runner = Runner::new("mock");
+        let _runner = Runner::new("mock").unwrap();
 
         // Use resolve_templates directly to test field resolution
         let template = "Process user: {{generate-user.name}} with email: {{generate-user.email}}";
@@ -1085,7 +1347,7 @@ flows:
     target: step-c
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let runner = Runner::new("mock");
+        let runner = Runner::new("mock").unwrap();
         let result = runner.run(&workflow).unwrap();
 
         assert_eq!(result.tasks_completed, 3);
@@ -1126,7 +1388,7 @@ flows:
     target: follow-task
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let runner = Runner::new("mock");
+        let runner = Runner::new("mock").unwrap();
         let result = runner.run(&workflow).unwrap();
 
         assert_eq!(result.tasks_completed, 3);
@@ -1177,7 +1439,7 @@ flows:
     target: merge
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let runner = Runner::new("mock");
+        let runner = Runner::new("mock").unwrap();
         let result = runner.run(&workflow).unwrap();
 
         assert_eq!(result.tasks_completed, 4);
@@ -1205,7 +1467,7 @@ tasks:
 flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let runner = Runner::new("mock");
+        let runner = Runner::new("mock").unwrap();
         let result = runner.run(&workflow).unwrap();
 
         let output = result.context.get_output("use-env").unwrap();
@@ -1232,10 +1494,208 @@ flows: []
         let mut inputs = HashMap::new();
         inputs.insert("filename".to_string(), "config.yaml".to_string());
 
-        let runner = Runner::new("mock");
+        let runner = Runner::new("mock").unwrap();
         let result = runner.run_with_inputs(&workflow, inputs).unwrap();
 
         let output = result.context.get_output("process").unwrap();
         assert!(output.contains("config.yaml"));
+    }
+
+    // ========== P0.1: Shell Timeout Tests ==========
+
+    #[test]
+    fn test_shell_command_with_default_timeout() {
+        // A quick command should complete successfully
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Shell test"
+
+tasks:
+  - id: quick-cmd
+    shell: "echo 'hello'"
+
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let runner = Runner::new("mock").unwrap();
+        let result = runner.run(&workflow).unwrap();
+
+        assert_eq!(result.tasks_completed, 1);
+        let output = result.context.get_output("quick-cmd").unwrap();
+        assert!(output.contains("hello"));
+    }
+
+    #[test]
+    fn test_shell_command_timeout_returns_error() {
+        // A command that would hang should timeout and return an error
+        // Using sleep 60 but with a 1-second timeout configured
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Shell timeout test"
+
+tasks:
+  - id: slow-cmd
+    shell: "sleep 60"
+    config:
+      timeout: "1s"
+
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let runner = Runner::new("mock").unwrap();
+        let result = runner.run(&workflow).unwrap();
+
+        // The task should have failed due to timeout
+        assert_eq!(result.tasks_failed, 1);
+
+        // Check the error message in results
+        let task_result = result.results.iter().find(|r| r.task_id == "slow-cmd").unwrap();
+        assert!(!task_result.success, "Task should have failed");
+        assert!(
+            task_result.output.contains("timed out"),
+            "Error should mention timeout, got: {}",
+            task_result.output
+        );
+
+        // Check error context is set correctly
+        assert!(task_result.is_timeout(), "Error should be categorized as timeout");
+        let ctx = task_result.error_context.as_ref().unwrap();
+        assert_eq!(ctx.keyword.as_deref(), Some("shell"));
+        assert_eq!(ctx.category, Some(ErrorCategory::Timeout));
+    }
+
+    // ========== P0.3: Error Context Tests ==========
+
+    #[test]
+    fn test_shell_failure_has_error_context() {
+        // A command that fails (non-zero exit) should have execution error context
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Error context test"
+
+tasks:
+  - id: fail-cmd
+    shell: "exit 1"
+
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let runner = Runner::new("mock").unwrap();
+        let result = runner.run(&workflow).unwrap();
+
+        assert_eq!(result.tasks_failed, 1);
+
+        let task_result = result.results.iter().find(|r| r.task_id == "fail-cmd").unwrap();
+        assert!(!task_result.success);
+
+        // Check error context
+        let ctx = task_result.error_context.as_ref().unwrap();
+        assert_eq!(ctx.keyword.as_deref(), Some("shell"));
+        assert_eq!(ctx.category, Some(ErrorCategory::Execution));
+        assert!(ctx.details.as_ref().unwrap().contains("exit 1"));
+    }
+
+    // ========== P0.4: Shell Token Estimation Tests ==========
+
+    #[test]
+    fn test_shell_task_estimates_tokens() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Token test"
+
+tasks:
+  - id: echo-cmd
+    shell: "echo 'This is a test output with some content'"
+
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let runner = Runner::new("mock").unwrap();
+        let result = runner.run(&workflow).unwrap();
+
+        // Token count should be > 0 (not hardcoded to 0)
+        assert!(result.total_tokens > 0, "Shell tasks should estimate token usage, got {}", result.total_tokens);
+    }
+
+    // ========== P1.2: Retry Logic Tests ==========
+
+    #[test]
+    fn test_retry_succeeds_on_second_attempt() {
+        // Use a shell command with a state file to track attempts
+        // First call fails, second succeeds
+        let temp_dir = std::env::temp_dir();
+        let state_file = temp_dir.join("nika_retry_test_state");
+        let _ = std::fs::remove_file(&state_file); // Clean up from previous runs
+
+        let yaml = format!(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Retry test"
+
+tasks:
+  - id: flaky-cmd
+    shell: |
+      if [ -f "{state}" ]; then
+        echo "success on retry"
+      else
+        touch "{state}"
+        exit 1
+      fi
+    config:
+      retry:
+        max: 2
+
+flows: []
+"#,
+            state = state_file.display()
+        );
+
+        let workflow: Workflow = serde_yaml::from_str(&yaml).unwrap();
+        let runner = Runner::new("mock").unwrap();
+        let result = runner.run(&workflow).unwrap();
+
+        // Clean up
+        let _ = std::fs::remove_file(&state_file);
+
+        // Task should succeed after retry
+        assert_eq!(result.tasks_completed, 1, "Task should complete after retry");
+        assert_eq!(result.tasks_failed, 0, "No tasks should fail");
+
+        let task_result = result.results.iter().find(|r| r.task_id == "flaky-cmd").unwrap();
+        assert!(task_result.success);
+        assert!(task_result.output.contains("success on retry"));
+    }
+
+    #[test]
+    fn test_retry_exhausted_returns_failure() {
+        // Command that always fails - retry should be exhausted
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Retry exhausted test"
+
+tasks:
+  - id: always-fail
+    shell: "exit 1"
+    config:
+      retry:
+        max: 2
+
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let runner = Runner::new("mock").unwrap();
+        let result = runner.run(&workflow).unwrap();
+
+        // Task should fail after all retries exhausted
+        assert_eq!(result.tasks_failed, 1);
+
+        let task_result = result.results.iter().find(|r| r.task_id == "always-fail").unwrap();
+        assert!(!task_result.success);
     }
 }

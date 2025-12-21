@@ -5,7 +5,16 @@
 
 use super::{PromptRequest, PromptResponse, Provider, TokenUsage};
 use anyhow::{Context, Result};
-use std::process::Command;
+use std::io::Read;
+use std::process::{Command, Stdio};
+use std::time::Duration;
+use wait_timeout::ChildExt;
+
+/// Default timeout for Claude CLI execution (5 minutes)
+const DEFAULT_EXECUTE_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// Timeout for CLI availability check
+const CLI_CHECK_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Claude provider that uses the Claude CLI
 pub struct ClaudeProvider {
@@ -13,6 +22,8 @@ pub struct ClaudeProvider {
     cli_path: String,
     /// Whether to print output format as JSON
     json_output: bool,
+    /// Execution timeout
+    execute_timeout: Duration,
 }
 
 impl ClaudeProvider {
@@ -21,6 +32,7 @@ impl ClaudeProvider {
         Self {
             cli_path: "claude".to_string(),
             json_output: false,
+            execute_timeout: DEFAULT_EXECUTE_TIMEOUT,
         }
     }
 
@@ -33,6 +45,12 @@ impl ClaudeProvider {
     /// Enable JSON output mode
     pub fn with_json_output(mut self) -> Self {
         self.json_output = true;
+        self
+    }
+
+    /// Set execution timeout
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.execute_timeout = timeout;
         self
     }
 
@@ -65,12 +83,21 @@ impl ClaudeProvider {
         full_prompt
     }
 
-    /// Check if claude CLI is installed
+    /// Check if claude CLI is installed (with 5s timeout)
     fn check_cli(&self) -> bool {
         Command::new(&self.cli_path)
             .arg("--version")
-            .output()
-            .map(|o| o.status.success())
+            .spawn()
+            .and_then(|mut child| {
+                match child.wait_timeout(CLI_CHECK_TIMEOUT)? {
+                    Some(status) => Ok(status.success()),
+                    None => {
+                        // Timeout - kill the process
+                        let _ = child.kill();
+                        Ok(false)
+                    }
+                }
+            })
             .unwrap_or(false)
     }
 }
@@ -89,9 +116,12 @@ impl Provider for ClaudeProvider {
     fn execute(&self, request: PromptRequest) -> Result<PromptResponse> {
         let full_prompt = self.build_prompt(&request);
 
-        // Build command
+        // Build command with piped stdio for capture
         let mut cmd = Command::new(&self.cli_path);
-        cmd.arg("-p").arg(&full_prompt);
+        cmd.arg("-p")
+            .arg(&full_prompt)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         // Add model if specified
         if !request.model.is_empty() {
@@ -104,19 +134,54 @@ impl Provider for ClaudeProvider {
                 .arg(request.allowed_tools.join(","));
         }
 
-        // Execute
-        let output = cmd
-            .output()
-            .context("Failed to execute claude CLI. Is it installed?")?;
+        // Spawn the process (non-blocking)
+        let mut child = cmd
+            .spawn()
+            .context("Failed to spawn claude CLI. Is it installed?")?;
 
-        if output.status.success() {
-            let content = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            let usage = TokenUsage::estimate(full_prompt.len(), content.len());
+        // Wait with timeout
+        match child.wait_timeout(self.execute_timeout)? {
+            Some(status) => {
+                // Process completed within timeout - read outputs
+                let stdout = child
+                    .stdout
+                    .take()
+                    .map(|mut s| {
+                        let mut buf = String::new();
+                        s.read_to_string(&mut buf).ok();
+                        buf
+                    })
+                    .unwrap_or_default();
 
-            Ok(PromptResponse::success(content).with_usage(usage))
-        } else {
-            let error = String::from_utf8_lossy(&output.stderr).to_string();
-            Ok(PromptResponse::failure(error))
+                let stderr = child
+                    .stderr
+                    .take()
+                    .map(|mut s| {
+                        let mut buf = String::new();
+                        s.read_to_string(&mut buf).ok();
+                        buf
+                    })
+                    .unwrap_or_default();
+
+                if status.success() {
+                    let content = stdout.trim().to_string();
+                    let usage = TokenUsage::estimate(full_prompt.len(), content.len());
+                    Ok(PromptResponse::success(content).with_usage(usage))
+                } else {
+                    Ok(PromptResponse::failure(stderr))
+                }
+            }
+            None => {
+                // Timeout! Kill the process
+                let _ = child.kill();
+                let _ = child.wait(); // Reap the zombie
+
+                let error_msg = format!(
+                    "Claude CLI execution timed out after {:?}",
+                    self.execute_timeout
+                );
+                Ok(PromptResponse::failure(error_msg))
+            }
         }
     }
 
@@ -210,6 +275,18 @@ mod tests {
     fn test_custom_cli_path() {
         let provider = ClaudeProvider::new().with_cli_path("/custom/path/claude");
         assert_eq!(provider.cli_path, "/custom/path/claude");
+    }
+
+    #[test]
+    fn test_custom_timeout() {
+        let provider = ClaudeProvider::new().with_timeout(Duration::from_secs(60));
+        assert_eq!(provider.execute_timeout, Duration::from_secs(60));
+    }
+
+    #[test]
+    fn test_default_timeout_is_5_minutes() {
+        let provider = ClaudeProvider::new();
+        assert_eq!(provider.execute_timeout, Duration::from_secs(300));
     }
 
     // Note: Actual CLI execution tests would require mocking or integration tests
