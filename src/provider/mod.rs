@@ -1,10 +1,79 @@
-//! Provider abstraction layer for Nika runtime
+//! # Provider Abstraction Layer
 //!
-//! This module defines the trait that all LLM providers must implement,
-//! enabling Nika to work with Claude, OpenAI, Ollama, and others.
+//! Trait and implementations for LLM providers.
+//!
+//! ## Overview
+//!
+//! The provider module defines how Nika communicates with LLM backends:
+//!
+//! - [`Provider`] - Core trait for executing prompts
+//! - [`ClaudeProvider`] - Production provider using Claude CLI
+//! - [`MockProvider`] - Test provider with configurable responses
+//!
+//! ## Provider Trait
+//!
+//! All providers implement the `Provider` trait:
+//!
+//! ```rust,ignore
+//! pub trait Provider: Send + Sync {
+//!     fn name(&self) -> &str;
+//!     fn execute(&self, request: PromptRequest) -> Result<PromptResponse>;
+//!     fn supports_tools(&self) -> bool;
+//!     fn is_available(&self) -> bool;
+//! }
+//! ```
+//!
+//! ## Available Providers
+//!
+//! | Provider | Use Case | Features |
+//! |----------|----------|----------|
+//! | `claude` | Production | Real API, tool support |
+//! | `mock` | Testing | Configurable responses, failure simulation |
+//!
+//! ## Creating Providers
+//!
+//! Use [`create_provider`] to instantiate a provider by name:
+//!
+//! ```rust
+//! use nika::provider::create_provider;
+//!
+//! let claude = create_provider("claude");
+//! assert!(claude.is_ok());
+//!
+//! let mock = create_provider("mock");
+//! assert!(mock.is_ok());
+//!
+//! let unknown = create_provider("invalid");
+//! assert!(unknown.is_err());
+//! ```
+//!
+//! ## Token Estimation
+//!
+//! Providers estimate token usage for cost tracking:
+//!
+//! ```rust
+//! use nika::provider::TokenUsage;
+//!
+//! let usage = TokenUsage::estimate(1000, 500); // 1000 char prompt, 500 char response
+//! println!("Estimated {} total tokens", usage.total_tokens);
+//! ```
 
 mod claude;
 mod mock;
+
+// ============================================================================
+// TOKEN ESTIMATION CONSTANTS
+// ============================================================================
+
+/// Average characters per token for mixed content (prose + code)
+/// More accurate than the naive 4 chars/token estimate.
+const CHARS_PER_TOKEN_MIXED: f32 = 3.0;
+
+/// Characters per token for primarily English prose
+const CHARS_PER_TOKEN_PROSE: f32 = 3.5;
+
+/// Characters per token for primarily code content
+const CHARS_PER_TOKEN_CODE: f32 = 2.5;
 
 pub use claude::ClaudeProvider;
 pub use mock::MockProvider;
@@ -183,11 +252,28 @@ impl TokenUsage {
         }
     }
 
-    /// Estimate usage (when actual counts aren't available)
+    /// Estimate usage for mixed content (when actual counts aren't available)
+    ///
+    /// Uses CHARS_PER_TOKEN_MIXED which is more accurate than the naive 4 chars/token.
+    /// This is a reasonable default for English prose mixed with code.
     pub fn estimate(prompt_len: usize, response_len: usize) -> Self {
-        // Rough estimate: ~4 chars per token
-        let prompt_tokens = (prompt_len / 4) as u32;
-        let completion_tokens = (response_len / 4) as u32;
+        Self::estimate_with_ratio(prompt_len, response_len, CHARS_PER_TOKEN_MIXED)
+    }
+
+    /// Estimate usage for primarily English prose
+    pub fn estimate_prose(prompt_len: usize, response_len: usize) -> Self {
+        Self::estimate_with_ratio(prompt_len, response_len, CHARS_PER_TOKEN_PROSE)
+    }
+
+    /// Estimate usage for primarily code content
+    pub fn estimate_code(prompt_len: usize, response_len: usize) -> Self {
+        Self::estimate_with_ratio(prompt_len, response_len, CHARS_PER_TOKEN_CODE)
+    }
+
+    /// Estimate with a custom chars-per-token ratio
+    fn estimate_with_ratio(prompt_len: usize, response_len: usize, chars_per_token: f32) -> Self {
+        let prompt_tokens = (prompt_len as f32 / chars_per_token).ceil() as u32;
+        let completion_tokens = (response_len as f32 / chars_per_token).ceil() as u32;
         Self::new(prompt_tokens, completion_tokens)
     }
 }
@@ -238,7 +324,28 @@ mod tests {
 
     #[test]
     fn test_token_usage_estimate() {
-        let usage = TokenUsage::estimate(400, 200); // ~100 + ~50 tokens
+        // With ratio 3.0: 300/3 = 100, 150/3 = 50
+        let usage = TokenUsage::estimate(300, 150);
+
+        assert_eq!(usage.prompt_tokens, 100);
+        assert_eq!(usage.completion_tokens, 50);
+        assert_eq!(usage.total_tokens, 150);
+    }
+
+    #[test]
+    fn test_token_usage_estimate_prose() {
+        // With ratio 3.5: 350/3.5 = 100, 175/3.5 = 50
+        let usage = TokenUsage::estimate_prose(350, 175);
+
+        assert_eq!(usage.prompt_tokens, 100);
+        assert_eq!(usage.completion_tokens, 50);
+        assert_eq!(usage.total_tokens, 150);
+    }
+
+    #[test]
+    fn test_token_usage_estimate_code() {
+        // With ratio 2.5: 250/2.5 = 100, 125/2.5 = 50
+        let usage = TokenUsage::estimate_code(250, 125);
 
         assert_eq!(usage.prompt_tokens, 100);
         assert_eq!(usage.completion_tokens, 50);

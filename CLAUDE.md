@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Nika CLI is the **command-line validator** for `.nika.yaml` workflows. Built in Rust, it validates workflows against the Nika v4.3 specification.
+Nika CLI is the **command-line validator** for `.nika.yaml` workflows. Built in Rust, it validates workflows against the Nika v4.5 specification.
 
 - **Language**: Rust
 - **License**: BSL-1.1 (converts to Apache 2.0 on 2029-01-01)
@@ -33,28 +33,32 @@ cargo run -- validate ./examples/
 cargo run -- init my-project
 ```
 
-## Nika v4.3 Architecture
+## Nika v4.5 Architecture
 
 **7 Keywords (type-inferring):**
 
 | Keyword | Category | Description |
 |---------|----------|-------------|
-| `prompt:` | agent | Main Agent (shared context) |
-| `spawn:` | agent | Subagent (isolated 200K context) |
+| `agent:` | context | Main Agent (shared context) |
+| `subagent:` | isolated | Subagent (isolated 200K context) |
 | `shell:` | tool | Execute shell command |
 | `http:` | tool | Make HTTP request |
 | `mcp:` | tool | MCP server::tool (:: separator) |
 | `function:` | tool | path::fn (:: separator) |
 | `llm:` | tool | One-shot LLM (stateless) |
 
-**Example (v4.3):**
+**Example (v4.5):**
 ```yaml
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "You are a helpful assistant."
+
 tasks:
   - id: analyze
-    prompt: "Analyze this code"
+    agent: "Analyze this code"
 
   - id: deep-research
-    spawn: "Security audit"
+    subagent: "Security audit"
     allowedTools: [Read, Grep]
 
   - id: bridge
@@ -62,6 +66,10 @@ tasks:
 
   - id: test
     shell: "npm test"
+
+flows:
+  - source: analyze
+    target: deep-research
 ```
 
 **13 Registry Types:**
@@ -80,13 +88,13 @@ CONNECT:    adapters/, memory/, schemas/
 ## Connection Rules
 
 ```
-prompt: → prompt:/spawn:/tools   OK
-spawn: → prompt:                 NO (needs bridge)
-spawn: → spawn:                  NO (can't spawn from spawn)
-spawn: → tools                   OK (this is the bridge)
-tools → prompt:/spawn:/tools     OK
+agent: → agent:/subagent:/tools   OK
+subagent: → agent:                 NO (needs bridge)
+subagent: → subagent:              NO (can't spawn from subagent)
+subagent: → tools                  OK (this is the bridge)
+tools → agent:/subagent:/tools     OK
 
-Bridge pattern: spawn: → function: → prompt: OK
+Bridge pattern: subagent: → function: → agent: OK
 ```
 
 ## 5-Layer Validation
@@ -123,10 +131,11 @@ nika-cli/
 ├── src/
 │   ├── main.rs           # CLI entry point (clap)
 │   ├── lib.rs            # Public API
-│   ├── commands/         # Subcommand implementations
-│   ├── validator/        # 5-layer validation
-│   ├── parser/           # YAML parsing
-│   └── output/           # Result formatting
+│   ├── workflow.rs       # Core data structures
+│   ├── validator.rs      # 5-layer validation
+│   ├── runner.rs         # Workflow execution
+│   ├── init.rs           # Project initialization
+│   └── tui/              # Terminal UI (ratatui)
 └── tests/
     └── fixtures/         # Test workflow files
 ```

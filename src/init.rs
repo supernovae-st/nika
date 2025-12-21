@@ -68,10 +68,10 @@ pub struct InitResult {
     pub files_created: Vec<String>,
 }
 
-const MAIN_WORKFLOW_TEMPLATE: &str = r#"# Main Workflow
+const MAIN_WORKFLOW_TEMPLATE: &str = r#"# Main Workflow (v4.5)
 # Run with: nika run main.nika.yaml
 
-mainAgent:
+agent:
   model: claude-sonnet-4-5
   systemPrompt: |
     You are a helpful assistant.
@@ -79,8 +79,7 @@ mainAgent:
 
 tasks:
   - id: start
-    type: agent
-    prompt: "Greet the user and ask how you can help."
+    agent: "Greet the user and ask how you can help."
 
 flows: []
 "#;

@@ -1,9 +1,76 @@
-//! Nika Workflow Runner (v4.5)
+//! # Nika Workflow Runner (v4.5)
 //!
-//! Executes workflows using Claude CLI as the provider.
-//! Architecture v4.5: 7 keywords with type inference.
+//! Executes workflows using providers (Claude CLI, mock).
 //!
-//! Key feature: ExecutionContext for passing data between tasks.
+//! ## Overview
+//!
+//! The runner is responsible for:
+//!
+//! - **Task execution** - Running each task based on its keyword type
+//! - **Context passing** - Sharing data between tasks via templates
+//! - **Topological sorting** - Determining execution order from flows
+//! - **Retry logic** - Handling transient failures with backoff
+//!
+//! ## Execution Flow
+//!
+//! 1. Parse workflow and compute execution order (topological sort)
+//! 2. For each task in order:
+//!    - Resolve templates (`{{task_id}}`, `${env.VAR}`, `${input.field}`)
+//!    - Execute based on keyword type (agent, shell, http, etc.)
+//!    - Store output in context for downstream tasks
+//!
+//! ## Template Resolution
+//!
+//! Templates are resolved in this order:
+//!
+//! | Pattern | Source | Example |
+//! |---------|--------|---------|
+//! | `${input.field}` | Input parameters | `${input.file_path}` |
+//! | `${env.VAR}` | Environment variables | `${env.API_KEY}` |
+//! | `{{task_id}}` | Previous task output | `{{analyze}}` |
+//! | `{{task_id.field}}` | Structured output field | `{{analyze.summary}}` |
+//!
+//! ## Keyword Execution
+//!
+//! Each keyword type has specific execution behavior:
+//!
+//! - **agent/subagent/llm** → Provider (Claude CLI or mock)
+//! - **shell** → Subprocess with timeout
+//! - **http** → HTTP request (placeholder for now)
+//! - **mcp/function** → External tool call (placeholder)
+//!
+//! ## Example
+//!
+//! ```rust,no_run
+//! use nika::{Workflow, Runner};
+//!
+//! let yaml = r#"
+//! agent:
+//!   model: claude-sonnet-4-5
+//!   systemPrompt: "You are helpful."
+//! tasks:
+//!   - id: greet
+//!     agent: "Say hello"
+//! flows: []
+//! "#;
+//!
+//! let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+//! let runner = Runner::new("mock")?;  // "mock" for testing, "claude" for production
+//! let result = runner.run(&workflow)?;
+//!
+//! println!("Completed: {}/{}", result.tasks_completed, result.tasks_completed + result.tasks_failed);
+//! for task_result in &result.results {
+//!     println!("  {}: {}", task_result.task_id, task_result.success);
+//! }
+//! # Ok::<(), anyhow::Error>(())
+//! ```
+//!
+//! ## Key Types
+//!
+//! - [`Runner`] - Main executor, holds provider and configuration
+//! - [`RunResult`] - Workflow execution summary
+//! - [`TaskResult`] - Individual task execution result
+//! - [`ExecutionContext`] - Data passed between tasks
 
 use crate::provider::{create_provider, PromptRequest, Provider, TokenUsage};
 use crate::workflow::{Task, TaskKeyword, Workflow};
@@ -1068,6 +1135,150 @@ mod tests {
         // Unmatched templates should be preserved
         let result = resolve_templates("Missing: {{unknown}}", &ctx).unwrap();
         assert_eq!(result, "Missing: {{unknown}}");
+    }
+
+    // ========== Template Edge Case Tests ==========
+
+    #[test]
+    fn test_template_empty_string() {
+        let ctx = ExecutionContext::new();
+        let result = resolve_templates("", &ctx).unwrap();
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_template_no_placeholders() {
+        let ctx = ExecutionContext::new();
+        let result = resolve_templates("Plain text without templates", &ctx).unwrap();
+        assert_eq!(result, "Plain text without templates");
+    }
+
+    #[test]
+    fn test_template_multiple_same_placeholder() {
+        let mut ctx = ExecutionContext::new();
+        ctx.set_output("name", "Alice".to_string());
+
+        let result = resolve_templates("Hello {{name}}, {{name}} is great!", &ctx).unwrap();
+        assert_eq!(result, "Hello Alice, Alice is great!");
+    }
+
+    #[test]
+    fn test_template_adjacent_placeholders() {
+        let mut ctx = ExecutionContext::new();
+        ctx.set_output("a", "X".to_string());
+        ctx.set_output("b", "Y".to_string());
+
+        let result = resolve_templates("{{a}}{{b}}", &ctx).unwrap();
+        assert_eq!(result, "XY");
+    }
+
+    #[test]
+    fn test_template_nested_braces_not_supported() {
+        let mut ctx = ExecutionContext::new();
+        ctx.set_output("outer", "{{inner}}".to_string());
+
+        // Nested templates are NOT resolved - they're treated as literal output
+        let result = resolve_templates("Result: {{outer}}", &ctx).unwrap();
+        assert_eq!(result, "Result: {{inner}}");
+    }
+
+    #[test]
+    fn test_template_special_characters_in_output() {
+        let mut ctx = ExecutionContext::new();
+        ctx.set_output("data", r#"{"key": "value", "arr": [1,2,3]}"#.to_string());
+
+        let result = resolve_templates("JSON: {{data}}", &ctx).unwrap();
+        assert_eq!(result, r#"JSON: {"key": "value", "arr": [1,2,3]}"#);
+    }
+
+    #[test]
+    fn test_template_multiline_output() {
+        let mut ctx = ExecutionContext::new();
+        ctx.set_output("code", "line1\nline2\nline3".to_string());
+
+        let result = resolve_templates("Code:\n{{code}}", &ctx).unwrap();
+        assert_eq!(result, "Code:\nline1\nline2\nline3");
+    }
+
+    #[test]
+    fn test_template_unicode_content() {
+        let mut ctx = ExecutionContext::new();
+        ctx.set_output("greeting", "Bonjour 你好 🎉".to_string());
+
+        let result = resolve_templates("Say: {{greeting}}", &ctx).unwrap();
+        assert_eq!(result, "Say: Bonjour 你好 🎉");
+    }
+
+    #[test]
+    fn test_template_empty_output_value() {
+        let mut ctx = ExecutionContext::new();
+        ctx.set_output("empty", "".to_string());
+
+        let result = resolve_templates("Value: [{{empty}}]", &ctx).unwrap();
+        assert_eq!(result, "Value: []");
+    }
+
+    #[test]
+    fn test_template_missing_field_in_structured() {
+        let mut ctx = ExecutionContext::new();
+        ctx.set_structured_output("user", serde_json::json!({"name": "Bob"}));
+
+        // Missing field should preserve the template pattern
+        let result = resolve_templates("Email: {{user.email}}", &ctx).unwrap();
+        assert_eq!(result, "Email: {{user:email}}");
+    }
+
+    #[test]
+    fn test_template_deeply_nested_field() {
+        let mut ctx = ExecutionContext::new();
+        ctx.set_structured_output(
+            "response",
+            serde_json::json!({
+                "data": {
+                    "user": {
+                        "profile": {
+                            "name": "Deep"
+                        }
+                    }
+                }
+            }),
+        );
+
+        // Only single level field access is supported
+        // data.user.profile.name won't work - only direct fields
+        let result = resolve_templates("Name: {{response.data}}", &ctx).unwrap();
+        // data is an object, will be serialized as JSON
+        assert!(result.contains("user"));
+    }
+
+    #[test]
+    fn test_template_input_with_special_chars() {
+        let mut inputs = HashMap::new();
+        inputs.insert("path".to_string(), "/path/to/file with spaces.txt".to_string());
+
+        let ctx = ExecutionContext::with_inputs(inputs);
+        let result = resolve_templates("File: ${input.path}", &ctx).unwrap();
+        assert_eq!(result, "File: /path/to/file with spaces.txt");
+    }
+
+    #[test]
+    fn test_template_env_missing_var() {
+        let ctx = ExecutionContext::new();
+
+        // Missing env var should preserve the pattern
+        let result =
+            resolve_templates("Value: ${env.NIKA_DEFINITELY_NOT_SET_12345}", &ctx).unwrap();
+        assert_eq!(result, "Value: ${env.NIKA_DEFINITELY_NOT_SET_12345}");
+    }
+
+    #[test]
+    fn test_template_mixed_resolved_and_unresolved() {
+        let mut ctx = ExecutionContext::new();
+        ctx.set_output("found", "yes".to_string());
+
+        let result =
+            resolve_templates("Found: {{found}}, Missing: {{missing}}", &ctx).unwrap();
+        assert_eq!(result, "Found: yes, Missing: {{missing}}");
     }
 
     // ========== Runner Tests ==========

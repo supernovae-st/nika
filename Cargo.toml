@@ -57,6 +57,9 @@ walkdir = "2.5"
 # Glob pattern matching
 glob = "0.3"
 
+# Process timeout (for CLI availability checks)
+wait-timeout = "0.2"
+
 [dev-dependencies]
 assert_cmd = "2.0"
 predicates = "3.1"

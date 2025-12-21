@@ -1,4 +1,7 @@
-//! Nika CLI - Workflow orchestration for Claude Agent SDK (v3)
+//! Nika CLI - Workflow orchestration for Claude Agent SDK (v4.5)
+//!
+//! Architecture v4.5: 7 keywords with type inference
+//! (agent, subagent, shell, http, mcp, function, llm)
 //!
 //! Usage:
 //!   nika validate [path]    Validate workflow files
@@ -16,7 +19,7 @@ use walkdir::WalkDir;
 #[command(name = "nika")]
 #[command(author = "SuperNovae Studio")]
 #[command(version = "0.1.0")]
-#[command(about = "CLI for Nika workflow orchestration (v3)", long_about = None)]
+#[command(about = "CLI for Nika workflow orchestration (v4.5)", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -122,7 +125,7 @@ fn print_banner() {
   ╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
 
   Native Intelligence Kernel for Agents
-  v0.1.0 (Architecture v3)
+  v0.1.0 (Architecture v4.5)
 
   USAGE:
     nika <command> [options]
@@ -139,9 +142,9 @@ fn print_banner() {
     nika run support.nika.yaml
     nika init my-project
 
-  Architecture v3:
-    - 2 task types: agent + action
-    - Scope attribute: main | isolated
+  Architecture v4.5:
+    - 7 keywords: agent, subagent, shell, http, mcp, function, llm
+    - Type inference from keyword
     - Connection matrix with bridge pattern
 
   DOCS:
@@ -152,7 +155,7 @@ fn print_banner() {
     );
 }
 
-/// Run the validate command (v3)
+/// Run the validate command (v4.5)
 fn run_validate(path: &str, format: &OutputFormat, verbose: bool) -> anyhow::Result<()> {
     let start_time = std::time::Instant::now();
 
@@ -161,7 +164,7 @@ fn run_validate(path: &str, format: &OutputFormat, verbose: bool) -> anyhow::Res
     println!();
 
     if verbose {
-        println!("{}", "Architecture v3: 2 task types (agent + action)".dimmed());
+        println!("{}", "Architecture v4.5: 7 keywords with type inference".dimmed());
         println!("{}", "Rules embedded - no external files needed".dimmed());
         println!();
     }
@@ -184,7 +187,7 @@ fn run_validate(path: &str, format: &OutputFormat, verbose: bool) -> anyhow::Res
     );
     println!();
 
-    // Create validator (v3 - no external rules)
+    // Create validator (v4.5 - no external rules)
     let validator = Validator::new();
 
     // Validate each file
@@ -276,7 +279,7 @@ fn run_workflow(workflow_path: &str, provider: &str, verbose: bool) -> anyhow::R
     println!();
 
     // Run workflow
-    let runner = Runner::new(provider).verbose(verbose);
+    let runner = Runner::new(provider)?.verbose(verbose);
     let result = runner.run(&workflow)?;
 
     // Output results
@@ -423,7 +426,7 @@ fn print_validation_item(error: &ValidationError) {
 /// Compact output format
 fn output_compact(results: &[ValidationResult]) {
     for result in results {
-        let status = if result.is_valid() { "" } else { "" };
+        let status = if result.is_valid() { "OK" } else { "ERR" };
         println!(
             "{} {} ({}t, {}f, {}e, {}w)",
             status,

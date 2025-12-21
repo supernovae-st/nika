@@ -1,12 +1,103 @@
-//! Nika Validator (v4.5)
+//! # Nika Validator (v4.5)
 //!
-//! 5-layer validation pipeline for .nika.yaml workflows.
-//! Rules are embedded - no external YAML files needed.
-//! Validates 7 keywords: agent, subagent, shell, http, mcp, function, llm.
+//! 5-layer validation pipeline for `.nika.yaml` workflows.
+//!
+//! ## Overview
+//!
+//! The validator performs comprehensive checks on workflow files:
+//!
+//! 1. **Layer 1: Schema** - Required fields (model, systemPrompt)
+//! 2. **Layer 2: Tasks** - ID format, keyword presence, keyword-specific rules
+//! 3. **Layer 2.5: Tool Access** - allowedTools/disallowedTools validation
+//! 4. **Layer 3: Flows** - Source/target existence, self-loop detection
+//! 5. **Layer 4: Connections** - Connection matrix (subagent restrictions)
+//! 6. **Layer 5: Graph** - Orphan tasks, cycle detection (warnings)
+//!
+//! ## Error Codes
+//!
+//! All errors use standardized NIKA-XXX codes for easy troubleshooting:
+//!
+//! | Code | Layer | Description |
+//! |------|-------|-------------|
+//! | NIKA-001 | L1 | Missing agent.model |
+//! | NIKA-002 | L1 | Missing systemPrompt |
+//! | NIKA-010 | L2 | Task validation error |
+//! | NIKA-011 | L2 | Duplicate task ID |
+//! | NIKA-015 | L2.5 | Tool access violation |
+//! | NIKA-020 | L3 | Flow validation error |
+//! | NIKA-030 | L4 | Connection blocked |
+//! | NIKA-040 | L5 | Graph warning |
+//!
+//! ## Connection Matrix (v4.5)
+//!
+//! Only 2 connections are blocked:
+//!
+//! - `subagent: → agent:` - Subagent cannot feed main agent directly
+//! - `subagent: → subagent:` - Subagent cannot spawn another subagent
+//!
+//! Use the **bridge pattern** to route around restrictions:
+//! `subagent: → function: → agent:` ✓
+//!
+//! ## Example
+//!
+//! ```rust
+//! use nika::{Workflow, Validator, ValidationError};
+//!
+//! let yaml = r#"
+//! agent:
+//!   model: claude-sonnet-4-5
+//!   systemPrompt: "Test"
+//! tasks:
+//!   - id: worker
+//!     subagent: "Work"
+//!   - id: router
+//!     agent: "Route"
+//! flows:
+//!   - source: worker
+//!     target: router
+//! "#;
+//!
+//! let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+//! let result = Validator::new().validate(&workflow, "test.nika.yaml");
+//!
+//! // This should fail: subagent → agent is blocked
+//! assert!(!result.is_valid());
+//! assert!(result.errors.iter().any(|e| {
+//!     matches!(e, ValidationError::ConnectionBlocked { .. })
+//! }));
+//! ```
 
 use crate::workflow::{Task, TaskCategory, TaskKeyword, Workflow};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
+
+// ============================================================================
+// ERROR CODES
+// ============================================================================
+
+/// Error code prefix for all Nika errors (used in documentation)
+#[allow(dead_code)]
+const ERROR_PREFIX: &str = "NIKA";
+
+// Layer 1: Schema errors (001-009)
+const CODE_MISSING_MODEL: &str = "NIKA-001";
+const CODE_MISSING_SYSTEM_PROMPT: &str = "NIKA-002";
+
+// Layer 2: Task errors (010-019)
+const CODE_TASK_ERROR: &str = "NIKA-010";
+const CODE_DUPLICATE_TASK_ID: &str = "NIKA-011";
+
+// Layer 2.5: Tool access errors (015-019)
+const CODE_TOOL_ACCESS: &str = "NIKA-015";
+
+// Layer 3: Flow errors (020-029)
+const CODE_FLOW_ERROR: &str = "NIKA-020";
+
+// Layer 4: Connection errors (030-039)
+const CODE_CONNECTION_BLOCKED: &str = "NIKA-030";
+
+// Layer 5: Graph warnings (040-049)
+const CODE_GRAPH_WARNING: &str = "NIKA-040";
 
 // ============================================================================
 // ERRORS
@@ -15,25 +106,25 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum ValidationError {
     // Layer 1: Schema
-    #[error("[L1] Missing agent.model")]
+    #[error("[{CODE_MISSING_MODEL}] Missing agent.model")]
     MissingModel,
 
-    #[error("[L1] Missing agent.systemPrompt or systemPromptFile")]
+    #[error("[{CODE_MISSING_SYSTEM_PROMPT}] Missing agent.systemPrompt or systemPromptFile")]
     MissingSystemPrompt,
 
     // Layer 2: Tasks
-    #[error("[L2] Task '{task_id}': {message}")]
+    #[error("[{CODE_TASK_ERROR}] Task '{task_id}': {message}")]
     TaskError { task_id: String, message: String },
 
-    #[error("[L2] Duplicate task ID: '{task_id}'")]
+    #[error("[{CODE_DUPLICATE_TASK_ID}] Duplicate task ID: '{task_id}'")]
     DuplicateTaskId { task_id: String },
 
     // Layer 2.5: Tool Access
-    #[error("[L2.5] Task '{task_id}': {message}")]
+    #[error("[{CODE_TOOL_ACCESS}] Task '{task_id}': {message}")]
     ToolAccessError { task_id: String, message: String },
 
     // Layer 3: Flows
-    #[error("[L3] Flow '{from_task}' → '{to_task}': {message}")]
+    #[error("[{CODE_FLOW_ERROR}] Flow '{from_task}' → '{to_task}': {message}")]
     FlowError {
         from_task: String,
         to_task: String,
@@ -41,7 +132,7 @@ pub enum ValidationError {
     },
 
     // Layer 4: Connections
-    #[error("[L4] Connection blocked: {from_task} ({from_key}) → {to_task} ({to_key})")]
+    #[error("[{CODE_CONNECTION_BLOCKED}] Connection blocked: {from_task} ({from_key}) → {to_task} ({to_key})")]
     ConnectionBlocked {
         from_task: String,
         from_key: TaskCategory,
@@ -50,7 +141,7 @@ pub enum ValidationError {
     },
 
     // Layer 5: Graph (warnings)
-    #[error("[L5] Warning: {message}")]
+    #[error("[{CODE_GRAPH_WARNING}] Warning: {message}")]
     GraphWarning { message: String },
 }
 
@@ -1322,5 +1413,533 @@ flows:
 "#,
         );
         assert!(result.is_valid(), "Complex tool access scenario should pass");
+    }
+
+    // ==========================================================================
+    // ERROR MESSAGE FORMATTING TESTS
+    // ==========================================================================
+
+    #[test]
+    fn test_error_message_contains_code() {
+        // All error messages should start with [NIKA-XXX]
+        let error = ValidationError::MissingModel;
+        let msg = error.to_string();
+        assert!(
+            msg.starts_with("[NIKA-001]"),
+            "Error message should start with code: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn test_error_message_missing_system_prompt() {
+        let error = ValidationError::MissingSystemPrompt;
+        let msg = error.to_string();
+        assert!(msg.starts_with("[NIKA-002]"));
+        assert!(msg.contains("systemPrompt"));
+    }
+
+    #[test]
+    fn test_error_message_task_error_format() {
+        let error = ValidationError::TaskError {
+            task_id: "my-task".to_string(),
+            message: "Invalid configuration".to_string(),
+        };
+        let msg = error.to_string();
+        assert!(msg.starts_with("[NIKA-010]"));
+        assert!(msg.contains("my-task"));
+        assert!(msg.contains("Invalid configuration"));
+    }
+
+    #[test]
+    fn test_error_message_duplicate_id_format() {
+        let error = ValidationError::DuplicateTaskId {
+            task_id: "duplicate".to_string(),
+        };
+        let msg = error.to_string();
+        assert!(msg.starts_with("[NIKA-011]"));
+        assert!(msg.contains("duplicate"));
+    }
+
+    #[test]
+    fn test_error_message_tool_access_format() {
+        let error = ValidationError::ToolAccessError {
+            task_id: "worker".to_string(),
+            message: "Tool not allowed".to_string(),
+        };
+        let msg = error.to_string();
+        assert!(msg.starts_with("[NIKA-015]"));
+        assert!(msg.contains("worker"));
+    }
+
+    #[test]
+    fn test_error_message_flow_error_format() {
+        let error = ValidationError::FlowError {
+            from_task: "source".to_string(),
+            to_task: "target".to_string(),
+            message: "Connection problem".to_string(),
+        };
+        let msg = error.to_string();
+        assert!(msg.starts_with("[NIKA-020]"));
+        assert!(msg.contains("source"));
+        assert!(msg.contains("target"));
+        assert!(msg.contains("→")); // Arrow symbol
+    }
+
+    #[test]
+    fn test_error_message_connection_blocked_format() {
+        let error = ValidationError::ConnectionBlocked {
+            from_task: "worker".to_string(),
+            from_key: TaskCategory::Isolated,
+            to_task: "router".to_string(),
+            to_key: TaskCategory::Context,
+        };
+        let msg = error.to_string();
+        assert!(msg.starts_with("[NIKA-030]"));
+        assert!(msg.contains("worker"));
+        assert!(msg.contains("router"));
+        assert!(msg.contains("subagent:")); // from_key display
+        assert!(msg.contains("agent:")); // to_key display
+    }
+
+    #[test]
+    fn test_error_message_warning_format() {
+        let error = ValidationError::GraphWarning {
+            message: "Orphan task detected".to_string(),
+        };
+        let msg = error.to_string();
+        assert!(msg.starts_with("[NIKA-040]"));
+        assert!(msg.contains("Warning"));
+        assert!(msg.contains("Orphan"));
+    }
+
+    #[test]
+    fn test_validation_result_is_valid() {
+        let mut result = ValidationResult::new("test.nika.yaml");
+        assert!(result.is_valid()); // Empty = valid
+
+        result.add_error(ValidationError::GraphWarning {
+            message: "Just a warning".to_string(),
+        });
+        assert!(result.is_valid()); // Warnings don't invalidate
+
+        result.add_error(ValidationError::MissingModel);
+        assert!(!result.is_valid()); // Real error invalidates
+    }
+
+    #[test]
+    fn test_validation_result_error_and_warning_counts() {
+        let mut result = ValidationResult::new("test.nika.yaml");
+
+        result.add_error(ValidationError::MissingModel);
+        result.add_error(ValidationError::MissingSystemPrompt);
+        result.add_error(ValidationError::GraphWarning {
+            message: "W1".to_string(),
+        });
+        result.add_error(ValidationError::GraphWarning {
+            message: "W2".to_string(),
+        });
+        result.add_error(ValidationError::GraphWarning {
+            message: "W3".to_string(),
+        });
+
+        assert_eq!(result.error_count(), 2);
+        assert_eq!(result.warning_count(), 3);
+        assert_eq!(result.errors.len(), 5);
+    }
+
+    #[test]
+    fn test_validation_result_has_warnings() {
+        let mut result = ValidationResult::new("test.nika.yaml");
+        assert!(!result.has_warnings());
+
+        result.add_error(ValidationError::MissingModel);
+        assert!(!result.has_warnings()); // Error is not a warning
+
+        result.add_error(ValidationError::GraphWarning {
+            message: "Test".to_string(),
+        });
+        assert!(result.has_warnings());
+    }
+
+    #[test]
+    fn test_is_warning_method() {
+        assert!(ValidationError::GraphWarning {
+            message: "Test".to_string()
+        }
+        .is_warning());
+        assert!(!ValidationError::MissingModel.is_warning());
+        assert!(!ValidationError::MissingSystemPrompt.is_warning());
+        assert!(!ValidationError::TaskError {
+            task_id: "t".to_string(),
+            message: "m".to_string()
+        }
+        .is_warning());
+        assert!(!ValidationError::DuplicateTaskId {
+            task_id: "t".to_string()
+        }
+        .is_warning());
+        assert!(!ValidationError::ToolAccessError {
+            task_id: "t".to_string(),
+            message: "m".to_string()
+        }
+        .is_warning());
+        assert!(!ValidationError::FlowError {
+            from_task: "a".to_string(),
+            to_task: "b".to_string(),
+            message: "m".to_string()
+        }
+        .is_warning());
+        assert!(!ValidationError::ConnectionBlocked {
+            from_task: "a".to_string(),
+            from_key: TaskCategory::Tool,
+            to_task: "b".to_string(),
+            to_key: TaskCategory::Tool
+        }
+        .is_warning());
+    }
+
+    #[test]
+    fn test_bridge_suggestion_isolated_to_context() {
+        let source = Task {
+            id: "worker".to_string(),
+            subagent: Some("Work".to_string()),
+            agent: None,
+            shell: None,
+            http: None,
+            mcp: None,
+            function: None,
+            llm: None,
+            model: None,
+            system_prompt: None,
+            system_prompt_file: None,
+            allowed_tools: None,
+            skills: None,
+            max_turns: None,
+            method: None,
+            headers: None,
+            body: None,
+            args: None,
+            cwd: None,
+            config: None,
+        };
+        let target = Task {
+            id: "router".to_string(),
+            agent: Some("Route".to_string()),
+            subagent: None,
+            shell: None,
+            http: None,
+            mcp: None,
+            function: None,
+            llm: None,
+            model: None,
+            system_prompt: None,
+            system_prompt_file: None,
+            allowed_tools: None,
+            skills: None,
+            max_turns: None,
+            method: None,
+            headers: None,
+            body: None,
+            args: None,
+            cwd: None,
+            config: None,
+        };
+
+        let suggestion = bridge_suggestion(&source, &target);
+        assert!(suggestion.contains("💡"));
+        assert!(suggestion.contains("bridge pattern"));
+        assert!(suggestion.contains("worker"));
+        assert!(suggestion.contains("router"));
+    }
+
+    #[test]
+    fn test_bridge_suggestion_isolated_to_isolated() {
+        let source = Task {
+            id: "sub1".to_string(),
+            subagent: Some("Sub1".to_string()),
+            agent: None,
+            shell: None,
+            http: None,
+            mcp: None,
+            function: None,
+            llm: None,
+            model: None,
+            system_prompt: None,
+            system_prompt_file: None,
+            allowed_tools: None,
+            skills: None,
+            max_turns: None,
+            method: None,
+            headers: None,
+            body: None,
+            args: None,
+            cwd: None,
+            config: None,
+        };
+        let target = Task {
+            id: "sub2".to_string(),
+            subagent: Some("Sub2".to_string()),
+            agent: None,
+            shell: None,
+            http: None,
+            mcp: None,
+            function: None,
+            llm: None,
+            model: None,
+            system_prompt: None,
+            system_prompt_file: None,
+            allowed_tools: None,
+            skills: None,
+            max_turns: None,
+            method: None,
+            headers: None,
+            body: None,
+            args: None,
+            cwd: None,
+            config: None,
+        };
+
+        let suggestion = bridge_suggestion(&source, &target);
+        assert!(suggestion.contains("💡"));
+        assert!(suggestion.contains("cannot directly spawn"));
+    }
+
+    #[test]
+    fn test_bridge_suggestion_allowed_returns_empty() {
+        let source = Task {
+            id: "reader".to_string(),
+            mcp: Some("filesystem::read".to_string()),
+            agent: None,
+            subagent: None,
+            shell: None,
+            http: None,
+            function: None,
+            llm: None,
+            model: None,
+            system_prompt: None,
+            system_prompt_file: None,
+            allowed_tools: None,
+            skills: None,
+            max_turns: None,
+            method: None,
+            headers: None,
+            body: None,
+            args: None,
+            cwd: None,
+            config: None,
+        };
+        let target = Task {
+            id: "analyzer".to_string(),
+            agent: Some("Analyze".to_string()),
+            subagent: None,
+            shell: None,
+            http: None,
+            mcp: None,
+            function: None,
+            llm: None,
+            model: None,
+            system_prompt: None,
+            system_prompt_file: None,
+            allowed_tools: None,
+            skills: None,
+            max_turns: None,
+            method: None,
+            headers: None,
+            body: None,
+            args: None,
+            cwd: None,
+            config: None,
+        };
+
+        let suggestion = bridge_suggestion(&source, &target);
+        assert!(suggestion.is_empty(), "Allowed connection should return empty suggestion");
+    }
+
+    #[test]
+    fn test_is_connection_allowed_all_combinations() {
+        // Test all 9 combinations of the connection matrix
+        use TaskCategory::*;
+
+        // Context (agent:) can connect to anything
+        assert!(is_connection_allowed(Context, Context));
+        assert!(is_connection_allowed(Context, Isolated));
+        assert!(is_connection_allowed(Context, Tool));
+
+        // Isolated (subagent:) can ONLY connect to Tool
+        assert!(!is_connection_allowed(Isolated, Context)); // BLOCKED
+        assert!(!is_connection_allowed(Isolated, Isolated)); // BLOCKED
+        assert!(is_connection_allowed(Isolated, Tool)); // OK (bridge)
+
+        // Tool can connect to anything
+        assert!(is_connection_allowed(Tool, Context));
+        assert!(is_connection_allowed(Tool, Isolated));
+        assert!(is_connection_allowed(Tool, Tool));
+    }
+
+    #[test]
+    fn test_validation_result_file_path() {
+        let result = ValidationResult::new("workflows/my-flow.nika.yaml");
+        assert_eq!(result.file_path, "workflows/my-flow.nika.yaml");
+    }
+
+    #[test]
+    fn test_validation_result_task_and_flow_counts() {
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: a
+    agent: "A"
+  - id: b
+    agent: "B"
+  - id: c
+    agent: "C"
+flows:
+  - source: a
+    target: b
+  - source: b
+    target: c
+"#,
+        );
+        assert_eq!(result.task_count, 3);
+        assert_eq!(result.flow_count, 2);
+    }
+
+    #[test]
+    fn test_is_valid_id_edge_cases() {
+        assert!(Validator::is_valid_id("task1"));
+        assert!(Validator::is_valid_id("my-task"));
+        assert!(Validator::is_valid_id("my_task"));
+        assert!(Validator::is_valid_id("Task123"));
+        assert!(Validator::is_valid_id("a"));
+        assert!(Validator::is_valid_id("A"));
+
+        // Invalid cases
+        assert!(!Validator::is_valid_id("")); // Empty
+        assert!(!Validator::is_valid_id("-task")); // Starts with hyphen
+        assert!(!Validator::is_valid_id("_task")); // Starts with underscore
+        assert!(!Validator::is_valid_id("task@1")); // Special char
+        assert!(!Validator::is_valid_id("task 1")); // Space
+        assert!(!Validator::is_valid_id("task.1")); // Dot
+    }
+
+    #[test]
+    fn test_validator_default() {
+        let validator = Validator::default();
+        // Just verify it can be created via Default
+        let result = validator.validate(
+            &serde_yaml::from_str::<Workflow>(
+                r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks: []
+flows: []
+"#,
+            )
+            .unwrap(),
+            "test.yaml",
+        );
+        assert!(result.is_valid());
+    }
+
+    #[test]
+    fn test_cycle_detection() {
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: a
+    agent: "A"
+  - id: b
+    agent: "B"
+  - id: c
+    agent: "C"
+flows:
+  - source: a
+    target: b
+  - source: b
+    target: c
+  - source: c
+    target: a
+"#,
+        );
+        assert!(result.has_warnings());
+        assert!(result.errors.iter().any(|e| {
+            if let ValidationError::GraphWarning { message } = e {
+                message.contains("Cycle")
+            } else {
+                false
+            }
+        }));
+    }
+
+    #[test]
+    fn test_multiple_errors_accumulated() {
+        // Test that multiple errors are accumulated, not just the first one
+        let result = validate_yaml(
+            r#"
+agent:
+  model: ""
+  # Missing systemPrompt
+tasks:
+  - id: a
+    # No keyword
+  - id: a
+    agent: "Duplicate"
+  - id: -bad-id
+    agent: "Bad ID"
+flows:
+  - source: nonexistent
+    target: also-nonexistent
+"#,
+        );
+
+        // Should have multiple errors
+        assert!(!result.is_valid());
+        assert!(
+            result.error_count() >= 4,
+            "Expected at least 4 errors, got {}",
+            result.error_count()
+        );
+    }
+
+    #[test]
+    fn test_empty_workflow_valid() {
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Empty but valid workflow"
+tasks: []
+flows: []
+"#,
+        );
+        assert!(result.is_valid());
+        assert_eq!(result.task_count, 0);
+        assert_eq!(result.flow_count, 0);
+    }
+
+    #[test]
+    fn test_single_task_no_orphan_warning() {
+        // Single task should NOT trigger orphan warning
+        let result = validate_yaml(
+            r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Single task workflow"
+tasks:
+  - id: only-task
+    agent: "Do the thing"
+flows: []
+"#,
+        );
+        assert!(result.is_valid());
+        assert!(!result.has_warnings(), "Single task should not be orphan warning");
     }
 }

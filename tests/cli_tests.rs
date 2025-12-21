@@ -9,6 +9,7 @@ use std::fs;
 use tempfile::TempDir;
 
 /// Get the binary to test
+#[allow(deprecated)] // cargo_bin works fine, deprecation is for edge case with custom build-dir
 fn nika_cmd() -> Command {
     Command::cargo_bin("nika").unwrap()
 }

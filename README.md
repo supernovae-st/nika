@@ -1,27 +1,33 @@
 # Nika CLI
 
-> ⚠️ **Private Repository** - Proprietary closed-source CLI for Nika workflow orchestration.
+> **Private Repository** - Proprietary closed-source CLI for Nika workflow orchestration.
 
 The [Nika Specification](https://github.com/supernovae-studio/nika) is open source (Apache 2.0).
 This CLI is closed source and distributed as a binary.
 
-## Architecture v3
+## Architecture v4.5
 
-**2 task types with scope:**
+**7 Keywords with Type Inference:**
 
-| Type | Scope | Token Cost | Description |
-|------|-------|------------|-------------|
-| `agent` | `main` | 500+ | LLM reasoning, shares context |
-| `agent` | `isolated` | 8000+ | Separate 200K context |
-| `action` | - | 0 | Deterministic operations |
+| Keyword | Category | Context | Description |
+|---------|----------|---------|-------------|
+| `agent:` | agent | main | Main Agent (shared context) |
+| `subagent:` | agent | isolated | Subagent (isolated 200K context) |
+| `shell:` | tool | - | Execute shell command |
+| `http:` | tool | - | HTTP request |
+| `mcp:` | tool | - | MCP server::tool |
+| `function:` | tool | - | path::functionName |
+| `llm:` | tool | - | Stateless LLM call |
 
 **Connection Matrix:**
 ```
-agent(main) → agent(main) ✅    agent(main) → action ✅    agent(main) → agent(isolated) ✅
-agent(isolated) → agent(main) ❌    agent(isolated) → action ✅    agent(isolated) → agent(isolated) ❌
-action → agent(main) ✅    action → action ✅    action → agent(isolated) ✅
+agent: -> agent:/subagent:/tool  OK
+subagent: -> agent:              NO (needs bridge)
+subagent: -> subagent:           NO (can't spawn from subagent)
+subagent: -> tool                OK (this is the bridge)
+tool -> agent:/subagent:/tool    OK
 
-Bridge: agent(isolated) → action → agent(main) ✅
+Bridge: subagent: -> tool -> agent: OK
 ```
 
 ## Requirements
@@ -46,13 +52,13 @@ brew install supernovae-studio/tap/nika
 
 | Command | Status | Description |
 |---------|--------|-------------|
-| `nika validate [path]` | ✅ | Validate .nika.yaml workflow files |
-| `nika run <workflow>` | ✅ | Run a workflow with provider |
-| `nika init [name]` | ✅ | Initialize new .nika project |
-| `nika tui` | ✅ | Launch TUI dashboard |
-| `nika add <package>` | ⏳ | Install community package |
-| `nika publish <file>` | ⏳ | Publish to registry |
-| `nika auth login` | ⏳ | Authenticate with registry |
+| `nika validate [path]` | OK | Validate .nika.yaml workflow files |
+| `nika run <workflow>` | OK | Run a workflow with provider |
+| `nika init [name]` | OK | Initialize new .nika project |
+| `nika tui` | OK | Launch TUI dashboard |
+| `nika add <package>` | Soon | Install community package |
+| `nika publish <file>` | Soon | Publish to registry |
+| `nika auth login` | Soon | Authenticate with registry |
 
 ## Usage
 
@@ -169,19 +175,19 @@ src/
 ## Workflow Example
 
 ```yaml
+# v4.5 keyword syntax
 mainAgent:
   model: claude-sonnet-4-5
   systemPrompt: "You are a helpful assistant."
 
 tasks:
   - id: analyze
-    type: agent
-    prompt: "Analyze the input."
+    agent: "Analyze the input."
 
   - id: save
-    type: action
-    run: Write
-    file: "output.txt"
+    mcp: filesystem::write_file
+    args:
+      path: "output.txt"
 
 flows:
   - source: analyze
@@ -191,9 +197,9 @@ flows:
 ## Test Coverage
 
 ```
-✓ 47 unit tests (lib)
-✓ 17 integration tests (CLI)
-✓ 64 total tests passing
+OK 47 unit tests (lib)
+OK 17 integration tests (CLI)
+OK 64 total tests passing
 ```
 
 ## Related
@@ -203,4 +209,4 @@ flows:
 
 ## License
 
-Proprietary - © 2025 SuperNovae Studio. All rights reserved.
+Proprietary - (c) 2025 SuperNovae Studio. All rights reserved.

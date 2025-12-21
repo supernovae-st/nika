@@ -1,0 +1,31 @@
+# MVP Demo: Context Passing Between Agent Tasks
+#
+# This workflow demonstrates:
+# 1. agent: task reads a file (simulated)
+# 2. agent: task summarizes the output of task 1 using {{task1}}
+# 3. ExecutionContext passes data between tasks
+# 4. agent_history accumulates for shared context
+
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: |
+    You are a helpful assistant that processes files and summarizes content.
+    Be concise and direct.
+
+tasks:
+  - id: read-file
+    agent: |
+      Simulate reading a configuration file.
+      Return the following JSON as if you read it from disk:
+      {"name": "nika", "version": "0.1.0", "features": ["validation", "execution", "providers"]}
+
+  - id: summarize
+    agent: |
+      Here is the content from the previous task:
+      {{read-file}}
+
+      Please summarize this in one sentence, highlighting the key information.
+
+flows:
+  - source: read-file
+    target: summarize

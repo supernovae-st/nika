@@ -1,11 +1,12 @@
 //! AppState - Domain Layer
 //!
 //! Central state management with selectors for deriving view state.
+//! Updated for v4.5 architecture with 7 keywords.
 
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 
-use crate::workflow::{Scope, TaskType, Workflow};
+use crate::workflow::{TaskKeyword, Workflow};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Core State
@@ -75,24 +76,31 @@ impl Default for AppState {
 impl AppState {
     /// Create new state with a workflow
     pub fn with_workflow(workflow: &Workflow, path: &str) -> Self {
-        let mut state = Self::default();
-        // v3: Use path as workflow name (no name field in Workflow)
-        state.workflow_name = std::path::Path::new(path)
+        // Extract workflow name from path
+        let workflow_name = std::path::Path::new(path)
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or(path)
             .to_string();
-        state.workflow_path = Some(path.to_string());
 
-        // Initialize tasks
+        let mut state = Self {
+            workflow_name,
+            workflow_path: Some(path.to_string()),
+            ..Self::default()
+        };
+
+        // Initialize tasks (v4.5 - keyword-based)
         for task in &workflow.tasks {
             state.task_order.push(task.id.clone());
+            let keyword = task.keyword();
+            let task_type_str = keyword.as_ref().map(|k| format!("{}", k)).unwrap_or_else(|| "unknown".to_string());
+            let paradigm = Paradigm::from_keyword(keyword.as_ref());
             state.tasks.insert(
                 task.id.clone(),
                 TaskState {
                     id: task.id.clone(),
-                    task_type: format!("{:?}", task.task_type).to_lowercase(),
-                    paradigm: Paradigm::from_task_type(&task.task_type, task.scope.as_ref()),
+                    task_type: task_type_str,
+                    paradigm,
                     status: TaskStatus::Pending,
                     progress: 0.0,
                     output: None,
@@ -209,26 +217,22 @@ pub enum Paradigm {
 }
 
 impl Paradigm {
-    /// Determine paradigm from v3 task type and scope
-    pub fn from_task_type(task_type: &TaskType, scope: Option<&Scope>) -> Self {
-        match task_type {
-            TaskType::Agent => {
-                // Agent paradigm depends on scope
-                match scope.unwrap_or(&Scope::Main) {
-                    Scope::Main => Self::Context,    // 🧠 Main context
-                    Scope::Isolated => Self::Isolated, // 🤖 Separate context
-                }
-            }
-            TaskType::Action => Self::Pure, // ⚡ Deterministic
+    /// Determine paradigm from v4.5 keyword
+    pub fn from_keyword(keyword: Option<&TaskKeyword>) -> Self {
+        match keyword {
+            Some(TaskKeyword::Agent) => Self::Context,    // 🧠 Main context
+            Some(TaskKeyword::Subagent) => Self::Isolated, // 🤖 Separate context
+            Some(_) => Self::Pure,                         // ⚡ All tool keywords
+            None => Self::Unknown,
         }
     }
 
     /// Determine paradigm from task type string (legacy/extended types)
     pub fn from_type(task_type: &str) -> Self {
         match task_type {
-            "context" | "agent" => Self::Context,
-            "isolated" => Self::Isolated,
-            "pure" | "data" | "action" => Self::Pure,
+            "agent" | "prompt" | "context" => Self::Context,
+            "subagent" | "spawn" | "isolated" => Self::Isolated,
+            "shell" | "http" | "mcp" | "function" | "llm" | "pure" | "data" | "action" | "tool" => Self::Pure,
             t if t.starts_with("nika/") => {
                 // Extended types - check known mappings
                 match t {

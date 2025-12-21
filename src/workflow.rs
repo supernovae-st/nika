@@ -1,7 +1,74 @@
-//! Nika Workflow Types (v4.5)
+//! # Nika Workflow Types (v4.5)
 //!
-//! Core types for .nika.yaml workflow files.
-//! Architecture v4.5: 7 keywords with type inference (agent, subagent, shell, http, mcp, function, llm).
+//! Core types for `.nika.yaml` workflow files.
+//!
+//! ## Overview
+//!
+//! This module defines the data structures for Nika workflow files:
+//!
+//! - [`Workflow`] - Root structure containing agent config, tasks, and flows
+//! - [`Agent`] - Agent configuration (model, system prompt, limits)
+//! - [`Task`] - Individual workflow task with one of 7 keywords
+//! - [`Flow`] - Connection between tasks with optional conditions
+//!
+//! ## The 7 Keywords (v4.5)
+//!
+//! Each task must have exactly **one** keyword that determines its type:
+//!
+//! ```yaml
+//! # Agent keywords (LLM reasoning)
+//! - id: analyze
+//!   agent: "Analyze the code"           # Main Agent (shared context)
+//!
+//! - id: research
+//!   subagent: "Research deeply"          # Subagent (isolated 200K context)
+//!
+//! # Tool keywords (deterministic execution)
+//! - id: run-tests
+//!   shell: "npm test"                    # Execute shell command
+//!
+//! - id: webhook
+//!   http: "https://api.example.com"      # HTTP request
+//!
+//! - id: read-file
+//!   mcp: "filesystem::read_file"         # MCP server::tool
+//!
+//! - id: transform
+//!   function: "utils::processData"       # path::functionName
+//!
+//! - id: classify
+//!   llm: "Classify: bug | feature"       # One-shot stateless LLM
+//! ```
+//!
+//! ## Task Categories
+//!
+//! Keywords are grouped into categories for connection validation:
+//!
+//! - **Context** (`agent:`) - Shared main agent context
+//! - **Isolated** (`subagent:`) - Sandboxed 200K context
+//! - **Tool** (all others) - Deterministic execution
+//!
+//! ## Example
+//!
+//! ```rust
+//! use nika::{Workflow, TaskKeyword, TaskCategory};
+//!
+//! let yaml = r#"
+//! agent:
+//!   model: claude-sonnet-4-5
+//!   systemPrompt: "You are a helpful assistant."
+//! tasks:
+//!   - id: greet
+//!     agent: "Say hello"
+//! flows: []
+//! "#;
+//!
+//! let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+//! let task = &workflow.tasks[0];
+//!
+//! assert_eq!(task.keyword(), Some(TaskKeyword::Agent));
+//! assert_eq!(task.connection_key(), TaskCategory::Context);
+//! ```
 
 use serde::Deserialize;
 
@@ -694,6 +761,483 @@ flows: []
         assert_eq!(workflow.tasks[4].prompt(), Some("filesystem::read"));
         assert_eq!(workflow.tasks[5].prompt(), Some("utils::transform"));
         assert_eq!(workflow.tasks[6].prompt(), Some("Classify this"));
+    }
+
+    // ==========================================================================
+    // EDGE CASE TESTS - Config Parsing
+    // ==========================================================================
+
+    #[test]
+    fn test_parse_invalid_yaml_syntax() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+  invalid indentation
+tasks: []
+"#;
+        let result: Result<Workflow, _> = serde_yaml::from_str(yaml);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_missing_agent() {
+        let yaml = r#"
+tasks:
+  - id: test
+    agent: "Hello"
+flows: []
+"#;
+        let result: Result<Workflow, _> = serde_yaml::from_str(yaml);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_missing_model() {
+        let yaml = r#"
+agent:
+  systemPrompt: "Test"
+tasks: []
+flows: []
+"#;
+        let result: Result<Workflow, _> = serde_yaml::from_str(yaml);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_invalid_execution_mode() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+  mode: invalid_mode
+tasks: []
+flows: []
+"#;
+        let result: Result<Workflow, _> = serde_yaml::from_str(yaml);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_default_mode_is_strict() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks: []
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(workflow.agent.mode, ExecutionMode::Strict);
+    }
+
+    #[test]
+    fn test_parse_empty_tasks_and_flows() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks: []
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert!(workflow.tasks.is_empty());
+        assert!(workflow.flows.is_empty());
+    }
+
+    #[test]
+    fn test_parse_unicode_content() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "日本語システムプロンプト 🚀"
+
+tasks:
+  - id: unicode_task
+    agent: "Привет мир 你好世界"
+
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert!(workflow.agent.system_prompt.as_ref().unwrap().contains("日本語"));
+        assert!(workflow.tasks[0].agent.as_ref().unwrap().contains("Привет"));
+    }
+
+    #[test]
+    fn test_parse_multiline_prompts() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: |
+    This is a multiline
+    system prompt with
+    multiple lines.
+
+tasks:
+  - id: multi
+    agent: |
+      Line 1
+      Line 2
+      Line 3
+
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert!(workflow.agent.system_prompt.as_ref().unwrap().contains("multiline"));
+        assert!(workflow.tasks[0].agent.as_ref().unwrap().contains("Line 2"));
+    }
+
+    #[test]
+    fn test_parse_extra_unknown_fields_ignored() {
+        // serde by default ignores unknown fields (no deny_unknown_fields)
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+  unknownField: "ignored"
+  anotherUnknown: 42
+
+tasks: []
+flows: []
+"#;
+        let result: Result<Workflow, _> = serde_yaml::from_str(yaml);
+        // By default serde ignores unknown fields
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_empty_string_model() {
+        let yaml = r#"
+agent:
+  model: ""
+  systemPrompt: "Test"
+tasks: []
+flows: []
+"#;
+        // Parsing succeeds but validation should catch empty model
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert!(workflow.agent.model.is_empty());
+    }
+
+    #[test]
+    fn test_parse_task_missing_id() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - agent: "No ID provided"
+flows: []
+"#;
+        let result: Result<Workflow, _> = serde_yaml::from_str(yaml);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_flow_missing_source() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: a
+    agent: "A"
+flows:
+  - target: a
+"#;
+        let result: Result<Workflow, _> = serde_yaml::from_str(yaml);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_flow_missing_target() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: a
+    agent: "A"
+flows:
+  - source: a
+"#;
+        let result: Result<Workflow, _> = serde_yaml::from_str(yaml);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_allowed_tools_list() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+  allowedTools:
+    - Read
+    - Write
+    - Bash
+tasks: []
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let tools = workflow.agent.allowed_tools.unwrap();
+        assert_eq!(tools.len(), 3);
+        assert!(tools.contains(&"Read".to_string()));
+    }
+
+    #[test]
+    fn test_parse_disallowed_tools_list() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+  disallowedTools:
+    - Bash
+    - Write
+tasks: []
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let tools = workflow.agent.disallowed_tools.unwrap();
+        assert_eq!(tools.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_retry_config() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: flaky
+    shell: "flaky-command"
+    config:
+      retry:
+        max: 3
+        backoff: exponential
+      timeout: "30s"
+      onError: continue
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let config = workflow.tasks[0].config.as_ref().unwrap();
+        let retry = config.retry.as_ref().unwrap();
+        assert_eq!(retry.max, 3);
+        assert_eq!(retry.backoff, Some("exponential".to_string()));
+        assert_eq!(config.timeout, Some("30s".to_string()));
+        assert_eq!(config.on_error, Some("continue".to_string()));
+    }
+
+    #[test]
+    fn test_parse_budget_and_turns() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+  maxTurns: 100
+  maxBudgetUsd: 5.50
+tasks: []
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(workflow.agent.max_turns, Some(100));
+        assert!((workflow.agent.max_budget_usd.unwrap() - 5.50).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_parse_http_with_headers_and_body() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: api-call
+    http: "https://api.example.com/data"
+    method: POST
+    headers:
+      Content-Type: application/json
+      Authorization: Bearer token123
+    body:
+      key: value
+      nested:
+        inner: data
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let task = &workflow.tasks[0];
+        assert_eq!(task.method, Some("POST".to_string()));
+        assert!(task.headers.is_some());
+        assert!(task.body.is_some());
+    }
+
+    #[test]
+    fn test_parse_mcp_with_args() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: mcp-call
+    mcp: "server::tool"
+    args:
+      param1: value1
+      param2: 42
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let task = &workflow.tasks[0];
+        assert!(task.args.is_some());
+    }
+
+    #[test]
+    fn test_parse_system_prompt_file() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPromptFile: "./prompts/system.md"
+tasks: []
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(
+            workflow.agent.system_prompt_file,
+            Some("./prompts/system.md".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_task_with_skills() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: skilled
+    subagent: "Use your skills"
+    skills:
+      - code-review
+      - testing
+      - documentation
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let skills = workflow.tasks[0].skills.as_ref().unwrap();
+        assert_eq!(skills.len(), 3);
+        assert!(skills.contains(&"code-review".to_string()));
+    }
+
+    #[test]
+    fn test_parse_output_task() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+  output: final_result
+tasks:
+  - id: final_result
+    agent: "Generate output"
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(workflow.agent.output, Some("final_result".to_string()));
+    }
+
+    #[test]
+    fn test_workflow_get_task() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: task_a
+    agent: "A"
+  - id: task_b
+    shell: "echo B"
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert!(workflow.get_task("task_a").is_some());
+        assert!(workflow.get_task("task_b").is_some());
+        assert!(workflow.get_task("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_workflow_task_ids() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: first
+    agent: "First"
+  - id: second
+    agent: "Second"
+  - id: third
+    agent: "Third"
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let ids: Vec<&str> = workflow.task_ids().collect();
+        assert_eq!(ids, vec!["first", "second", "third"]);
+    }
+
+    #[test]
+    fn test_task_keyword_display() {
+        assert_eq!(format!("{}", TaskKeyword::Agent), "agent");
+        assert_eq!(format!("{}", TaskKeyword::Subagent), "subagent");
+        assert_eq!(format!("{}", TaskKeyword::Shell), "shell");
+        assert_eq!(format!("{}", TaskKeyword::Http), "http");
+        assert_eq!(format!("{}", TaskKeyword::Mcp), "mcp");
+        assert_eq!(format!("{}", TaskKeyword::Function), "function");
+        assert_eq!(format!("{}", TaskKeyword::Llm), "llm");
+    }
+
+    #[test]
+    fn test_task_category_display() {
+        assert_eq!(format!("{}", TaskCategory::Context), "agent:");
+        assert_eq!(format!("{}", TaskCategory::Isolated), "subagent:");
+        assert_eq!(format!("{}", TaskCategory::Tool), "tool");
+    }
+
+    #[test]
+    fn test_task_keyword_is_isolated() {
+        assert!(!TaskKeyword::Agent.is_isolated());
+        assert!(TaskKeyword::Subagent.is_isolated());
+        assert!(!TaskKeyword::Shell.is_isolated());
+        assert!(!TaskKeyword::Http.is_isolated());
+        assert!(!TaskKeyword::Mcp.is_isolated());
+        assert!(!TaskKeyword::Function.is_isolated());
+        assert!(!TaskKeyword::Llm.is_isolated());
+    }
+
+    #[test]
+    fn test_task_without_keyword_returns_none() {
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: empty
+    # No keyword set
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(workflow.tasks[0].keyword(), None);
+        assert_eq!(workflow.tasks[0].prompt(), None);
+    }
+
+    #[test]
+    fn test_task_connection_key_default() {
+        // When keyword is None, connection_key defaults to Tool
+        let yaml = r#"
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Test"
+tasks:
+  - id: empty
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(workflow.tasks[0].connection_key(), TaskCategory::Tool);
     }
 
 }

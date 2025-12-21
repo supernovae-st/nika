@@ -22,11 +22,24 @@
 pub mod utils {
     use ratatui::style::Color;
 
+    /// Seconds per hour (for time formatting)
+    const SECONDS_PER_HOUR: u64 = 3600;
+    /// Seconds per minute (for time formatting)
+    const SECONDS_PER_MINUTE: u64 = 60;
+
+    /// Gradient threshold for "medium" level
+    const GRADIENT_MID_THRESHOLD: f32 = 50.0;
+    /// Gradient threshold for "high" level
+    const GRADIENT_HIGH_THRESHOLD: f32 = 80.0;
+
+    /// Ellipsis suffix length
+    const ELLIPSIS_LEN: usize = 3;
+
     /// Create a gradient color based on percentage
     pub fn gradient_color(percent: f32, low: Color, mid: Color, high: Color) -> Color {
-        if percent < 50.0 {
+        if percent < GRADIENT_MID_THRESHOLD {
             low
-        } else if percent < 80.0 {
+        } else if percent < GRADIENT_HIGH_THRESHOLD {
             mid
         } else {
             high
@@ -37,9 +50,9 @@ pub mod utils {
     pub fn format_duration(secs: u64) -> String {
         format!(
             "{:02}:{:02}:{:02}",
-            secs / 3600,
-            (secs % 3600) / 60,
-            secs % 60
+            secs / SECONDS_PER_HOUR,
+            (secs % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE,
+            secs % SECONDS_PER_MINUTE
         )
     }
 
@@ -47,10 +60,10 @@ pub mod utils {
     pub fn truncate(s: &str, max_len: usize) -> String {
         if s.len() <= max_len {
             s.to_string()
-        } else if max_len <= 3 {
+        } else if max_len <= ELLIPSIS_LEN {
             s[..max_len].to_string()
         } else {
-            format!("{}...", &s[..max_len - 3])
+            format!("{}...", &s[..max_len - ELLIPSIS_LEN])
         }
     }
 }

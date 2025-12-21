@@ -1,7 +1,88 @@
-//! Nika CLI Library (v4.5)
+//! # Nika CLI Library (v4.5)
 //!
 //! Workflow validation and execution for the Nika specification.
-//! Architecture v4.5: 7 keywords with type inference (agent, subagent, shell, http, mcp, function, llm).
+//!
+//! ## Overview
+//!
+//! Nika is a YAML-based workflow orchestration system designed for AI agent pipelines.
+//! This library provides:
+//!
+//! - **Parsing**: Load and deserialize `.nika.yaml` workflow files
+//! - **Validation**: 5-layer validation pipeline with error codes
+//! - **Execution**: Run workflows with provider abstraction (Claude, mock)
+//! - **TUI**: Terminal interface for workflow visualization
+//!
+//! ## Architecture v4.5
+//!
+//! The v4.5 architecture uses **7 keywords** with type inference:
+//!
+//! | Keyword | Category | Description |
+//! |---------|----------|-------------|
+//! | `agent:` | Context | Main agent (shared context) |
+//! | `subagent:` | Isolated | Subagent (isolated 200K context) |
+//! | `shell:` | Tool | Execute shell command |
+//! | `http:` | Tool | HTTP request |
+//! | `mcp:` | Tool | MCP server::tool call |
+//! | `function:` | Tool | path::functionName call |
+//! | `llm:` | Tool | One-shot stateless LLM call |
+//!
+//! ### Connection Matrix
+//!
+//! Only 2 connections are blocked (everything else is allowed):
+//!
+//! - `subagent: → agent:` - BLOCKED (needs bridge via tool)
+//! - `subagent: → subagent:` - BLOCKED (cannot spawn from sub)
+//!
+//! The **bridge pattern** routes data through a tool:
+//! `subagent: → function: → agent:` ✓
+//!
+//! ## Quick Start
+//!
+//! ```rust,no_run
+//! use nika::{Workflow, Validator, Runner};
+//!
+//! // Parse workflow
+//! let yaml = std::fs::read_to_string("workflow.nika.yaml")?;
+//! let workflow: Workflow = serde_yaml::from_str(&yaml)?;
+//!
+//! // Validate
+//! let validator = Validator::new();
+//! let result = validator.validate(&workflow, "workflow.nika.yaml");
+//! if !result.is_valid() {
+//!     for error in &result.errors {
+//!         eprintln!("{}", error);
+//!     }
+//!     return Err(anyhow::anyhow!("Validation failed"));
+//! }
+//!
+//! // Execute (uses "mock" provider for testing, "claude" for production)
+//! let runner = Runner::new("mock")?;
+//! let run_result = runner.run(&workflow)?;
+//! println!("Completed {} tasks", run_result.tasks_completed);
+//! # Ok::<(), anyhow::Error>(())
+//! ```
+//!
+//! ## Modules
+//!
+//! - [`workflow`] - Core types: Workflow, Task, Flow, TaskKeyword
+//! - [`validator`] - 5-layer validation with error codes (NIKA-001 to NIKA-040)
+//! - [`runner`] - Workflow execution with context passing
+//! - [`provider`] - Provider abstraction (Claude CLI, mock)
+//! - [`tui`] - Terminal UI with Ratatui
+//! - [`init`] - Project initialization (scaffold new workflow)
+//!
+//! ## Error Codes
+//!
+//! All errors use standardized codes for easy troubleshooting:
+//!
+//! | Range | Layer | Example |
+//! |-------|-------|---------|
+//! | NIKA-001..009 | Schema | Missing model |
+//! | NIKA-010..019 | Task | Invalid keyword |
+//! | NIKA-015..019 | Tool Access | Tool not in pool |
+//! | NIKA-020..029 | Flow | Missing source/target |
+//! | NIKA-030..039 | Connection | Blocked connection |
+//! | NIKA-040..049 | Graph | Cycle detected (warning) |
 
 pub mod init;
 pub mod provider;

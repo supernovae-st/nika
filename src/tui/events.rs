@@ -151,8 +151,10 @@ mod tests {
 
     #[test]
     fn test_pause_resume() {
-        let mut state = AppState::default();
-        state.status = WorkflowStatus::Running;
+        let mut state = AppState {
+            status: WorkflowStatus::Running,
+            ..AppState::default()
+        };
 
         let key = KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE);
         let action = handle_key_event(key, &mut state);
