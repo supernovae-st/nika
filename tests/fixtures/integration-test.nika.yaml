@@ -1,0 +1,32 @@
+# Integration test for 3 quick wins
+# Tests: shell, http, llm keywords
+
+agent:
+  model: claude-sonnet-4-5
+  systemPrompt: "Integration test orchestrator"
+
+tasks:
+  # Test 1: Shell command (async with spawn_blocking)
+  - id: shell-test
+    shell:
+      command: "echo 'Hello from shell!' && date +%Y-%m-%d"
+
+  # Test 2: HTTP request (with SSRF protection)
+  - id: http-test
+    http:
+      url: "https://httpbin.org/get"
+      method: GET
+      headers:
+        X-Test-Header: "nika-integration-test"
+
+  # Test 3: LLM one-shot (stateless)
+  - id: llm-test
+    llm:
+      prompt: "Say 'Integration test successful' in exactly 3 words"
+      model: claude-haiku
+
+flows:
+  - source: shell-test
+    target: http-test
+  - source: http-test
+    target: llm-test

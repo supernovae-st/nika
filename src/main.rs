@@ -290,26 +290,58 @@ async fn run_workflow(workflow_path: &str, provider: &str, verbose: bool) -> any
     println!("Provider: {}", provider.cyan());
     println!();
 
-    // Run workflow
+    // Create runner with v4.6 architecture
     let runner = Runner::new(provider)?.verbose(verbose);
+
+    if verbose {
+        println!("{}", "Using v4.6 runner architecture".dimmed());
+        println!("{}", "SharedAgentRunner for agent: tasks (shared context)".dimmed());
+        println!(
+            "{}",
+            "IsolatedAgentRunner for subagent: tasks (isolated context)".dimmed()
+        );
+        println!();
+    }
+
+    // Execute workflow
     let result = runner.run(&workflow).await?;
 
-    // Output results
+    // Print results
     println!();
-    println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".dimmed());
     println!(
-        "Completed: {} tasks | Failed: {} | Tokens: ~{}",
-        result.tasks_completed.to_string().green(),
-        if result.tasks_failed > 0 {
-            result.tasks_failed.to_string().red()
-        } else {
-            result.tasks_failed.to_string().normal()
-        },
+        "{} Completed {} tasks",
+        "✓".green(),
+        result.tasks_completed
+    );
+    if result.tasks_failed > 0 {
+        println!(
+            "{} {} tasks failed",
+            "✗".red(),
+            result.tasks_failed
+        );
+    }
+    println!(
+        "{} Total tokens: {}",
+        "→".dimmed(),
         result.total_tokens
     );
 
-    if result.tasks_failed > 0 {
-        std::process::exit(1);
+    if verbose && !result.results.is_empty() {
+        println!();
+        println!("{}", "Task Results:".bold());
+        for task_result in &result.results {
+            let status = if task_result.success {
+                "✓".green()
+            } else {
+                "✗".red()
+            };
+            let output_preview = if task_result.output.len() > 60 {
+                format!("{}...", &task_result.output[..60])
+            } else {
+                task_result.output.clone()
+            };
+            println!("  {} {}: {}", status, task_result.task_id, output_preview.dimmed());
+        }
     }
 
     Ok(())

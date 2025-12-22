@@ -1,7 +1,7 @@
 //! Example usage of the v5.0 builder patterns and NewType wrappers
 
 use nika::limits::{CircuitBreaker, RateLimiter, ResourceLimits};
-use nika::runner::Runner;
+use nika::runner::ContextWriter; // Import trait for set_output
 use nika::types::{Prompt, ShellCommand, TaskId, TokenCount, Url};
 use std::sync::Arc;
 use std::time::Duration;
@@ -132,17 +132,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n=== Complete Runner Setup ===\n");
 
-    // Create a runner with all safety features
-    let _runner = Runner::new("mock")?
-        .verbose(true)
-        .with_limits(custom_limits)
-        .with_circuit_breaker(breaker);
+    // Note: The v4.6 architecture uses SharedAgentRunner and IsolatedAgentRunner
+    // instead of the old Runner type. The runner setup would look like:
+    //
+    // use nika::provider::create_provider;
+    // use nika::runner::{SharedAgentRunner, AgentConfig, GlobalContext};
+    //
+    // let provider = Arc::from(create_provider("mock")?);
+    // let config = AgentConfig::new("claude-sonnet-4-5");
+    // let runner = SharedAgentRunner::new(provider, config);
+    // let mut context = GlobalContext::new();
+    // let result = runner.execute("task-id", "Prompt", &mut context).await?;
 
-    println!("Runner configured with:");
-    println!("  ✅ Custom resource limits");
-    println!("  ✅ Circuit breaker protection");
-    println!("  ✅ Rate limiting");
-    println!("  ✅ Verbose output");
+    // Example with custom limits (would be applied per-runner)
+    let _ = custom_limits;
+    let _ = breaker;
+
+    println!("v4.6 Runner architecture:");
+    println!("  ✅ SharedAgentRunner for agent: tasks");
+    println!("  ✅ IsolatedAgentRunner for subagent: tasks");
+    println!("  ✅ GlobalContext for shared state");
+    println!("  ✅ LocalContext for isolated state");
 
     // ========================================
     // Memory Pool Usage

@@ -5,6 +5,7 @@
 //! - Performs single-pass resolution instead of 3 regex passes
 //! - Uses Arc for zero-copy sharing of tokenized templates
 
+use crate::runner::context::ContextReader;
 use crate::runner::ExecutionContext;
 use anyhow::Result;
 use dashmap::DashMap;

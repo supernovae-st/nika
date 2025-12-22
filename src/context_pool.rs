@@ -96,6 +96,7 @@ pub fn warm_pool(count: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runner::context::{ContextReader, ContextWriter};
 
     #[test]
     fn test_pool_reuse() {
@@ -144,6 +145,8 @@ mod tests {
 
     #[test]
     fn test_global_pool() {
+        use crate::runner::context::ContextReader;
+
         // Use global pool functions
         warm_pool(2);
 

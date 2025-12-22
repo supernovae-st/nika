@@ -1,6 +1,6 @@
 //! Quick benchmark to verify template resolution performance
 
-use nika::runner::ExecutionContext;
+use nika::{ContextWriter, ExecutionContext};
 use nika::template::resolve_templates;
 use std::time::Instant;
 
