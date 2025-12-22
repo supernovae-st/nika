@@ -15,19 +15,13 @@ use crate::tui::state::Paradigm;
 /// Mock runtime that generates fake events for demo/testing
 pub struct MockRuntime {
     tx: mpsc::Sender<RuntimeEvent>,
-    #[allow(dead_code)]
-    rx: Option<mpsc::Receiver<RuntimeEvent>>,
     workflow: Option<WorkflowInfo>,
 }
 
 impl MockRuntime {
     pub fn new() -> Self {
-        let (tx, rx) = mpsc::channel(100);
-        Self {
-            tx,
-            rx: Some(rx),
-            workflow: None,
-        }
+        let (tx, _rx) = mpsc::channel(100);
+        Self { tx, workflow: None }
     }
 
     /// Generate a demo workflow

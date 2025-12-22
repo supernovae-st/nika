@@ -76,10 +76,6 @@ use thiserror::Error;
 // ERROR CODES
 // ============================================================================
 
-/// Error code prefix for all Nika errors (used in documentation)
-#[allow(dead_code)]
-const ERROR_PREFIX: &str = "NIKA";
-
 // Layer 1: Schema errors (001-009)
 const CODE_MISSING_MODEL: &str = "NIKA-001";
 const CODE_MISSING_SYSTEM_PROMPT: &str = "NIKA-002";

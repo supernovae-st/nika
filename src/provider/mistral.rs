@@ -12,9 +12,8 @@ use super::{Capabilities, PromptRequest, PromptResponse, Provider, TokenUsage};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 
-/// Mistral API endpoint
-#[allow(dead_code)]
-const MISTRAL_API_URL: &str = "https://api.mistral.ai/v1/chat/completions";
+/// Mistral API endpoint (for future implementation)
+const _MISTRAL_API_URL: &str = "https://api.mistral.ai/v1/chat/completions";
 
 /// Default model
 const DEFAULT_MODEL: &str = "mistral-large-latest";

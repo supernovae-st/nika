@@ -178,10 +178,8 @@ impl HyperspaceTheme {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// UI Icons used throughout the TUI
-#[allow(dead_code)]
 pub mod icons {
     // Paradigm icons
-    pub const PURE: &str = "⚡";
     pub const CONTEXT: &str = "🧠";
     pub const ISOLATED: &str = "🤖";
 
@@ -190,21 +188,11 @@ pub mod icons {
     pub const SUBAGENT: &str = "○";
     pub const SKILL: &str = "◆";
     pub const MCP: &str = "▣";
-    pub const TOOL: &str = "⚙";
     pub const PORTAL: &str = "◎";
-
-    // Status icons
-    pub const SUCCESS: &str = "✅";
-    pub const ERROR: &str = "❌";
-    pub const WARNING: &str = "⚠️";
-    pub const PENDING: &str = "⏳";
-    pub const RUNNING: &str = "▶️";
-    pub const PAUSED: &str = "⏸️";
 
     // Activity bar characters
     pub const BAR_FULL: char = '█';
     pub const BAR_EMPTY: char = '░';
-    pub const BAR_OFFLINE: char = '╳';
 }
 
 #[cfg(test)]

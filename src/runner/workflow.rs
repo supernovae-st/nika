@@ -32,6 +32,18 @@ const DEFAULT_SHELL_TIMEOUT: Duration = Duration::from_secs(30);
 /// Default backoff for retries (1 second)
 const DEFAULT_RETRY_BACKOFF: Duration = Duration::from_secs(1);
 
+/// Dangerous shell metacharacters that could enable command injection
+const DANGEROUS_SHELL_CHARS: &[char] = &[';', '|', '&', '`', '$', '>', '<', '\n', '\r'];
+
+/// Dangerous command patterns that should be blocked
+const DANGEROUS_PATTERNS: &[&str] = &[
+    "rm -rf /",
+    "rm -rf /*",
+    "mkfs",
+    "dd if=",
+    ":(){ :|:& };:", // Fork bomb
+];
+
 // ============================================================================
 // DURATION PARSING
 // ============================================================================
@@ -67,6 +79,57 @@ fn parse_duration(duration_str: &str) -> Option<Duration> {
 
 fn parse_timeout(timeout_str: &str) -> Option<Duration> {
     parse_duration(timeout_str)
+}
+
+// ============================================================================
+// SHELL COMMAND VALIDATION
+// ============================================================================
+
+/// Validate shell command for security (injection prevention)
+///
+/// Blocks:
+/// - Shell metacharacters (;, |, &, `, $, >, <, newlines)
+/// - Dangerous patterns (rm -rf /, mkfs, dd if=, fork bombs)
+///
+/// # Security
+///
+/// This function prevents command injection attacks by blocking shell
+/// metacharacters that could be used to chain commands or redirect output.
+pub fn validate_shell_command(cmd: &str) -> Result<(), String> {
+    // Check for dangerous shell metacharacters
+    for ch in DANGEROUS_SHELL_CHARS {
+        if cmd.contains(*ch) {
+            let display = match *ch {
+                '\n' => "\\n",
+                '\r' => "\\r",
+                ';' => ";",
+                '|' => "|",
+                '&' => "&",
+                '`' => "`",
+                '$' => "$",
+                '>' => ">",
+                '<' => "<",
+                _ => "?",
+            };
+            return Err(format!(
+                "Shell command contains dangerous character '{}'. Use individual commands instead of chaining.",
+                display
+            ));
+        }
+    }
+
+    // Check for dangerous patterns
+    let cmd_lower = cmd.to_lowercase();
+    for pattern in DANGEROUS_PATTERNS {
+        if cmd_lower.contains(pattern) {
+            return Err(format!(
+                "Shell command contains dangerous pattern '{}'. This operation is blocked for safety.",
+                pattern
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 // ============================================================================
@@ -682,6 +745,14 @@ impl Runner {
 
         let cmd_str = resolve_templates(&shell_def.command, ctx)
             .with_context(|| format!("Failed to resolve templates for shell task '{}'", task.id))?;
+
+        // SECURITY: Validate shell command for injection attacks
+        if let Err(e) = validate_shell_command(&cmd_str) {
+            return Ok(TaskResult::failure(
+                &task.id,
+                format!("Shell command validation failed: {}", e),
+            ));
+        }
 
         let timeout = task
             .config
