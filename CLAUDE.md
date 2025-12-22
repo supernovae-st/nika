@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Nika CLI is the **command-line validator and executor** for `.nika.yaml` workflows. Built in Rust, it validates workflows against the Nika v4.6 specification and executes them via multiple LLM providers.
+Nika CLI is the **command-line validator and executor** for `.nika.yaml` workflows. Built in Rust, it validates workflows against the Nika v4.7.1 specification and executes them via multiple LLM providers.
 
 - **Language**: Rust (async with tokio)
 - **License**: BSL-1.1 (converts to Apache 2.0 on 2029-01-01)
@@ -52,7 +52,7 @@ cargo run -- validate ./examples/
 cargo run -- init my-project
 ```
 
-## Nika v4.6 Architecture
+## Nika v4.7.1 Architecture
 
 **7 Keywords (type-inferring):**
 
@@ -91,7 +91,7 @@ flows:
     target: deep-research
 ```
 
-## v4.6 Performance Optimizations
+## v4.7.1 Performance Optimizations
 
 | Component | File | Optimization |
 |-----------|------|--------------|
@@ -100,16 +100,16 @@ flows:
 | Context Sharing | `src/runner.rs` | Arc<str> zero-copy (96% faster) |
 | Memory Pool | `src/context_pool.rs` | Reusable ExecutionContext (70% less alloc) |
 
-## Connection Rules
+## Connection Rules (v4.7.1)
 
 ```
 agent: → agent:/subagent:/tools   OK
-subagent: → agent:                 NO (needs bridge)
+subagent: → agent:                 OK (via WorkflowRunner auto-write)
 subagent: → subagent:              NO (can't spawn from subagent)
-subagent: → tools                  OK (this is the bridge)
+subagent: → tools                  OK (returns data)
 tools → agent:/subagent:/tools     OK
 
-Bridge pattern: subagent: → function: → agent: OK
+Bridge pattern: subagent: → function: → agent: OPTIONAL (for transformation)
 ```
 
 ## 5-Layer Validation
