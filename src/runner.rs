@@ -1,6 +1,13 @@
-//! # Nika Workflow Runner (v4.5)
+//! # Nika Workflow Runner (v4.6)
 //!
 //! Executes workflows using providers (Claude CLI, mock).
+//!
+//! ## v4.6 Performance Optimizations
+//!
+//! - Single-pass template resolution (template.rs)
+//! - SmartString for task IDs (inline ≤31 chars)
+//! - Arc<str> for zero-copy context sharing
+//! - Memory pool for ExecutionContext reuse
 //!
 //! ## Overview
 //!
@@ -50,7 +57,8 @@
 //!   systemPrompt: "You are helpful."
 //! tasks:
 //!   - id: greet
-//!     agent: "Say hello"
+//!     agent:
+//!       prompt: "Say hello"
 //! flows: []
 //! "#;
 //!
@@ -72,14 +80,15 @@
 //! - [`TaskResult`] - Individual task execution result
 //! - [`ExecutionContext`] - Data passed between tasks
 
+use crate::limits::{CircuitBreaker, ResourceLimits};
 use crate::provider::{create_provider, PromptRequest, Provider, TokenUsage};
+use crate::smart_string::SmartString;
 use crate::workflow::{Task, TaskKeyword, Workflow};
 use anyhow::{anyhow, Context, Result};
-use once_cell::sync::Lazy;
-use regex::Regex;
 use std::collections::HashMap;
 use std::process::Command;
-use std::time::Duration;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use wait_timeout::ChildExt;
 
 // ============================================================================
@@ -93,15 +102,7 @@ const DEFAULT_SHELL_TIMEOUT: Duration = Duration::from_secs(30);
 // LAZY REGEX PATTERNS (compiled once)
 // ============================================================================
 
-/// Pattern for {{task_id}} or {{task_id.field}} references
-static TASK_REF_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"\{\{([\w-]+)(?:\.([\w-]+))?\}\}").unwrap());
-
-/// Pattern for ${input.name} references
-static INPUT_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"\$\{input\.(\w+)\}").unwrap());
-
-/// Pattern for ${env.NAME} references
-static ENV_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"\$\{env\.(\w+)\}").unwrap());
+// Regex patterns removed - now using single-pass template resolver in template.rs
 
 // ============================================================================
 // TIMEOUT PARSING
@@ -156,36 +157,48 @@ const DEFAULT_RETRY_BACKOFF: Duration = Duration::from_secs(1);
 /// - Task output references: {{task_id}} or {{task_id.field}}
 /// - Shared agent conversation history
 /// - Environment and secrets access
+///
+/// Uses Arc<str> for zero-copy sharing of immutable strings
+/// Uses SmartString for task IDs to avoid heap allocation for short IDs
 #[derive(Debug, Default, Clone)]
 pub struct ExecutionContext {
     /// Outputs from completed tasks (task_id -> output string)
-    outputs: HashMap<String, String>,
+    /// SmartString keys for efficient task ID storage
+    /// Arc<str> values for zero-copy sharing since outputs are immutable once set
+    outputs: HashMap<SmartString, Arc<str>>,
 
     /// Structured outputs for field access (task_id -> JSON value)
-    structured_outputs: HashMap<String, serde_json::Value>,
+    /// SmartString keys for efficient task ID storage
+    structured_outputs: HashMap<SmartString, serde_json::Value>,
 
     /// Main agent conversation history (for context sharing between agent: tasks)
     agent_history: Vec<AgentMessage>,
 
     /// Input parameters passed to the workflow
-    inputs: HashMap<String, String>,
+    /// Arc<str> since inputs are set once and never modified
+    inputs: HashMap<String, Arc<str>>,
 
     /// Environment variables snapshot
-    env_vars: HashMap<String, String>,
+    /// Arc<str> since env vars are read-only during execution
+    env_vars: HashMap<String, Arc<str>>,
 }
 
 /// A message in the agent conversation history
+///
+/// Uses Arc<str> for zero-copy sharing of message content
 #[derive(Debug, Clone)]
 pub struct AgentMessage {
     pub role: MessageRole,
-    pub content: String,
+    pub content: Arc<str>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+/// Role for agent messages (1 byte with Copy)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum MessageRole {
-    User,
-    Assistant,
-    System,
+    User = 0,
+    Assistant = 1,
+    System = 2,
 }
 
 impl ExecutionContext {
@@ -196,6 +209,11 @@ impl ExecutionContext {
 
     /// Create context with input parameters
     pub fn with_inputs(inputs: HashMap<String, String>) -> Self {
+        // Convert String to Arc<str>
+        let inputs = inputs
+            .into_iter()
+            .map(|(k, v)| (k, Arc::from(v)))
+            .collect();
         Self {
             inputs,
             ..Default::default()
@@ -204,17 +222,44 @@ impl ExecutionContext {
 
     /// Store a task's output
     pub fn set_output(&mut self, task_id: &str, output: String) {
-        self.outputs.insert(task_id.to_string(), output);
+        self.outputs.insert(SmartString::from(task_id), Arc::from(output));
+    }
+
+    /// Store multiple outputs at once (batch operation)
+    pub fn set_outputs_batch<I, K, V>(&mut self, outputs: I)
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<str>,
+        V: Into<String>,
+    {
+        self.outputs.extend(
+            outputs
+                .into_iter()
+                .map(|(k, v)| (SmartString::from(k.as_ref()), Arc::from(v.into()))),
+        );
     }
 
     /// Store a structured output (for field access)
     pub fn set_structured_output(&mut self, task_id: &str, value: serde_json::Value) {
-        self.structured_outputs.insert(task_id.to_string(), value);
+        self.structured_outputs.insert(SmartString::from(task_id), value);
+    }
+
+    /// Store multiple structured outputs at once (batch operation)
+    pub fn set_structured_outputs_batch<I, K>(&mut self, outputs: I)
+    where
+        I: IntoIterator<Item = (K, serde_json::Value)>,
+        K: AsRef<str>,
+    {
+        self.structured_outputs.extend(
+            outputs
+                .into_iter()
+                .map(|(k, v)| (SmartString::from(k.as_ref()), v)),
+        );
     }
 
     /// Get a task's output
-    pub fn get_output(&self, task_id: &str) -> Option<&String> {
-        self.outputs.get(task_id)
+    pub fn get_output(&self, task_id: &str) -> Option<&str> {
+        self.outputs.get(task_id).map(|arc| arc.as_ref())
     }
 
     /// Get a field from a structured output
@@ -229,26 +274,50 @@ impl ExecutionContext {
     }
 
     /// Get an input parameter
-    pub fn get_input(&self, name: &str) -> Option<&String> {
-        self.inputs.get(name)
+    pub fn get_input(&self, name: &str) -> Option<&str> {
+        self.inputs.get(name).map(|arc| arc.as_ref())
     }
 
     /// Get an environment variable
     pub fn get_env(&self, name: &str) -> Option<String> {
         self.env_vars
             .get(name)
-            .cloned()
+            .map(|arc| arc.to_string())
             .or_else(|| std::env::var(name).ok())
     }
 
     /// Add a message to the agent conversation history
     pub fn add_agent_message(&mut self, role: MessageRole, content: String) {
-        self.agent_history.push(AgentMessage { role, content });
+        self.agent_history.push(AgentMessage {
+            role,
+            content: Arc::from(content),
+        });
+    }
+
+    /// Add multiple messages to the agent conversation history (batch operation)
+    pub fn add_agent_messages_batch<I, S>(&mut self, messages: I)
+    where
+        I: IntoIterator<Item = (MessageRole, S)>,
+        S: Into<String>,
+    {
+        self.agent_history.extend(messages.into_iter().map(|(role, content)| AgentMessage {
+            role,
+            content: Arc::from(content.into()),
+        }));
     }
 
     /// Get the agent conversation history
     pub fn agent_history(&self) -> &[AgentMessage] {
         &self.agent_history
+    }
+
+    /// Clear all data from the context (for reuse in memory pool)
+    pub fn clear(&mut self) {
+        self.outputs.clear();
+        self.structured_outputs.clear();
+        self.agent_history.clear();
+        self.inputs.clear();
+        self.env_vars.clear();
     }
 
     /// Get conversation history as a formatted string for context injection
@@ -277,32 +346,15 @@ impl ExecutionContext {
 // TEMPLATE RESOLUTION
 // ============================================================================
 
-/// Generic pattern resolver - DRY helper for template substitution
-///
-/// Applies a regex pattern to the input string and replaces matches using
-/// the provided resolver function. If the resolver returns None, the original
-/// match is preserved.
-fn resolve_pattern<F>(input: &str, pattern: &Regex, resolver: F) -> String
-where
-    F: Fn(&regex::Captures) -> Option<String>,
-{
-    let mut result = input.to_string();
-    for cap in pattern.captures_iter(input) {
-        let full_match = cap.get(0).unwrap().as_str();
-        if let Some(replacement) = resolver(&cap) {
-            result = result.replace(full_match, &replacement);
-        }
-    }
-    result
-}
+// Pattern resolver removed - now using single-pass template resolver in template.rs
 
 /// Resolve task args (YAML → String with template resolution)
 ///
 /// Used by mcp: and function: tasks to serialize and resolve their args.
-fn resolve_args(args: Option<&serde_yaml::Value>, ctx: &ExecutionContext) -> Result<String> {
+fn resolve_args(args: Option<&serde_json::Value>, ctx: &ExecutionContext) -> Result<String> {
     match args {
         Some(args) => {
-            let raw_args = serde_yaml::to_string(args).unwrap_or_default();
+            let raw_args = serde_json::to_string(args).unwrap_or_default();
             resolve_templates(&raw_args, ctx)
         }
         None => Ok(String::new()),
@@ -316,42 +368,11 @@ fn resolve_args(args: Option<&serde_yaml::Value>, ctx: &ExecutionContext) -> Res
 /// - {{task_id.field}} - Reference field from structured output
 /// - ${input.name} - Reference input parameter
 /// - ${env.NAME} - Reference environment variable
+///
+/// Uses single-pass tokenization and caching for optimal performance
 pub fn resolve_templates(template: &str, ctx: &ExecutionContext) -> Result<String> {
-    // 1. Resolve {{task_id}} and {{task_id.field}} patterns
-    let result = resolve_pattern(template, &TASK_REF_PATTERN, |cap| {
-        let task_id = cap.get(1).unwrap().as_str();
-        let field = cap.get(2).map(|m| m.as_str());
-
-        Some(if let Some(field_name) = field {
-            ctx.get_field(task_id, field_name)
-                .unwrap_or_else(|| format!("{{{{{}:{}}}}}", task_id, field_name))
-        } else {
-            ctx.get_output(task_id)
-                .cloned()
-                .unwrap_or_else(|| format!("{{{{{}}}}}", task_id))
-        })
-    });
-
-    // 2. Resolve ${input.name} patterns
-    let result = resolve_pattern(&result, &INPUT_PATTERN, |cap| {
-        let input_name = cap.get(1).unwrap().as_str();
-        Some(
-            ctx.get_input(input_name)
-                .cloned()
-                .unwrap_or_else(|| format!("${{input.{}}}", input_name)),
-        )
-    });
-
-    // 3. Resolve ${env.NAME} patterns
-    let result = resolve_pattern(&result, &ENV_PATTERN, |cap| {
-        let env_name = cap.get(1).unwrap().as_str();
-        Some(
-            ctx.get_env(env_name)
-                .unwrap_or_else(|| format!("${{env.{}}}", env_name)),
-        )
-    });
-
-    Ok(result)
+    // Use the new single-pass template resolver with caching
+    crate::template::resolve_templates(template, ctx)
 }
 
 // ============================================================================
@@ -386,6 +407,19 @@ pub enum ErrorCategory {
     Execution,
 }
 
+impl From<&str> for ErrorCategory {
+    fn from(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "timeout" => ErrorCategory::Timeout,
+            "network" => ErrorCategory::Network,
+            "provider" => ErrorCategory::Provider,
+            "template" => ErrorCategory::Template,
+            "config" => ErrorCategory::Config,
+            _ => ErrorCategory::Execution,
+        }
+    }
+}
+
 /// Execution result for a task
 #[derive(Debug, Clone)]
 pub struct TaskResult {
@@ -409,6 +443,12 @@ impl TaskResult {
         }
     }
 
+    /// Short alias for success
+    #[inline(always)]
+    pub fn ok(id: impl Into<String>, output: impl Into<String>, tokens: u32) -> Self {
+        Self::success(id, output, Some(tokens))
+    }
+
     /// Create a failed task result
     pub fn failure(id: impl Into<String>, error: impl Into<String>) -> Self {
         Self {
@@ -418,6 +458,12 @@ impl TaskResult {
             tokens_used: None,
             error_context: None,
         }
+    }
+
+    /// Short alias for failure with category
+    #[inline(always)]
+    pub fn err(id: impl Into<String>, msg: impl Into<String>, cat: ErrorCategory) -> Self {
+        Self::failure_with_context(id, msg, "", cat)
     }
 
     /// Create a failed task result with context
@@ -492,6 +538,10 @@ pub struct RunResult {
 pub struct Runner {
     /// Provider instance for LLM execution
     provider: Box<dyn Provider>,
+    /// Resource limits for safe execution
+    limits: ResourceLimits,
+    /// Circuit breaker for external services
+    circuit_breaker: Option<Arc<CircuitBreaker>>,
     /// Verbose output
     verbose: bool,
 }
@@ -507,12 +557,26 @@ impl Runner {
     pub fn new(provider_name: &str) -> Result<Self> {
         Ok(Self {
             provider: create_provider(provider_name)?,
+            limits: ResourceLimits::default(),
+            circuit_breaker: None,
             verbose: false,
         })
     }
 
     pub fn verbose(mut self, v: bool) -> Self {
         self.verbose = v;
+        self
+    }
+
+    /// Set resource limits
+    pub fn with_limits(mut self, limits: ResourceLimits) -> Self {
+        self.limits = limits;
+        self
+    }
+
+    /// Add a circuit breaker for external services
+    pub fn with_circuit_breaker(mut self, breaker: Arc<CircuitBreaker>) -> Self {
+        self.circuit_breaker = Some(breaker);
         self
     }
 
@@ -536,6 +600,7 @@ impl Runner {
         workflow: &Workflow,
         mut ctx: ExecutionContext,
     ) -> Result<RunResult> {
+        let workflow_start = Instant::now();
         let mut results = Vec::new();
         let mut total_tokens = 0u32;
 
@@ -554,15 +619,20 @@ impl Runner {
 
         // Execute tasks in order
         for task_id in &order {
+            // Check workflow timeout
+            if workflow_start.elapsed() > self.limits.max_workflow_duration {
+                return Err(anyhow!(
+                    "Workflow timeout exceeded ({:?})",
+                    self.limits.max_workflow_duration
+                ));
+            }
+
             let task = task_map
                 .get(task_id.as_str())
                 .ok_or_else(|| anyhow!("Task not found: {}", task_id))?;
 
             if self.verbose {
-                let keyword = task
-                    .keyword()
-                    .map(|k| format!("{}", k))
-                    .unwrap_or_else(|| "unknown".to_string());
+                let keyword = task.keyword();
                 println!("\n→ Executing: {} ({})", task_id, keyword);
             }
 
@@ -581,6 +651,16 @@ impl Runner {
                 total_tokens += tokens;
             }
 
+            // Check output size limit
+            if result.output.len() > self.limits.max_output_size {
+                return Err(anyhow!(
+                    "Task '{}' output exceeds size limit ({} > {})",
+                    task_id,
+                    result.output.len(),
+                    self.limits.max_output_size
+                ));
+            }
+
             // Store output in context for downstream tasks
             ctx.set_output(&result.task_id, result.output.clone());
 
@@ -590,11 +670,10 @@ impl Runner {
             }
 
             // For agent: tasks, add to conversation history
-            if task.keyword() == Some(TaskKeyword::Agent) {
+            if task.keyword() == TaskKeyword::Agent {
                 // Add the prompt as user message
-                if let Some(prompt) = &task.agent {
-                    ctx.add_agent_message(MessageRole::User, prompt.clone());
-                }
+                let prompt = task.prompt();
+                ctx.add_agent_message(MessageRole::User, prompt.to_string());
                 // Add the response as assistant message
                 ctx.add_agent_message(MessageRole::Assistant, result.output.clone());
             }
@@ -689,7 +768,7 @@ impl Runner {
         }))
     }
 
-    /// Execute a single task with context (v4.5 - keyword based)
+    /// Execute a single task with context (v4.6 - keyword based)
     fn execute_task(
         &self,
         task: &Task,
@@ -697,14 +776,13 @@ impl Runner {
         ctx: &mut ExecutionContext,
     ) -> Result<TaskResult> {
         match task.keyword() {
-            Some(TaskKeyword::Agent) => self.execute_agent(task, workflow, ctx),
-            Some(TaskKeyword::Subagent) => self.execute_subagent(task, workflow, ctx),
-            Some(TaskKeyword::Shell) => self.execute_shell(task, ctx),
-            Some(TaskKeyword::Http) => self.execute_http(task, ctx),
-            Some(TaskKeyword::Mcp) => self.execute_mcp(task, ctx),
-            Some(TaskKeyword::Function) => self.execute_function(task, ctx),
-            Some(TaskKeyword::Llm) => self.execute_llm(task, ctx),
-            None => Ok(TaskResult::failure(&task.id, "Task has no keyword")),
+            TaskKeyword::Agent => self.execute_agent(task, workflow, ctx),
+            TaskKeyword::Subagent => self.execute_subagent(task, workflow, ctx),
+            TaskKeyword::Shell => self.execute_shell(task, ctx),
+            TaskKeyword::Http => self.execute_http(task, ctx),
+            TaskKeyword::Mcp => self.execute_mcp(task, ctx),
+            TaskKeyword::Function => self.execute_function(task, ctx),
+            TaskKeyword::Llm => self.execute_llm(task, ctx),
         }
     }
 
@@ -715,22 +793,37 @@ impl Runner {
         workflow: &Workflow,
         ctx: &ExecutionContext,
     ) -> Result<TaskResult> {
-        let prompt = resolve_templates(task.prompt().unwrap_or(""), ctx)
+        use crate::task::TaskAction;
+
+        // Extract agent definition from the TaskAction enum
+        let agent_def = match &task.action {
+            TaskAction::Agent { agent } => agent,
+            _ => return Ok(TaskResult::failure(&task.id, "Expected agent task")),
+        };
+
+        let prompt = resolve_templates(&agent_def.prompt, ctx)
             .with_context(|| format!("Failed to resolve templates for agent task '{}'", task.id))?;
 
         // Build request with shared context (agent: tasks share history)
-        let request = PromptRequest::new(&prompt, &workflow.agent.model)
-            .with_system_prompt(workflow.agent.system_prompt.as_deref().unwrap_or(""))
+        let request = PromptRequest::new(
+            &prompt,
+            agent_def.model.as_deref().unwrap_or(&workflow.agent.model)
+        )
+            .with_system_prompt(
+                agent_def.system_prompt.as_deref()
+                    .or(workflow.agent.system_prompt.as_deref())
+                    .unwrap_or("")
+            )
             .with_history(
                 ctx.agent_history()
                     .iter()
                     .map(|m| AgentMessage {
-                        role: m.role.clone(),
+                        role: m.role,
                         content: m.content.clone(),
                     })
                     .collect(),
             )
-            .with_tools(task.allowed_tools.clone().unwrap_or_default());
+            .with_tools(agent_def.allowed_tools.clone().unwrap_or_default());
 
         // Execute via provider
         let response = self.provider.execute(request)?;
@@ -764,18 +857,28 @@ impl Runner {
         workflow: &Workflow,
         ctx: &ExecutionContext,
     ) -> Result<TaskResult> {
-        let prompt = resolve_templates(task.prompt().unwrap_or(""), ctx)
+        use crate::task::TaskAction;
+
+        // Extract subagent definition from the TaskAction enum
+        let subagent_def = match &task.action {
+            TaskAction::Subagent { subagent } => subagent,
+            _ => return Ok(TaskResult::failure(&task.id, "Expected subagent task")),
+        };
+
+        let prompt = resolve_templates(&subagent_def.prompt, ctx)
             .with_context(|| format!("Failed to resolve templates for subagent task '{}'", task.id))?;
 
         // Build request in isolated mode (subagent: tasks don't share history)
-        let request = PromptRequest::new(&prompt, &workflow.agent.model)
+        let request = PromptRequest::new(
+            &prompt,
+            subagent_def.model.as_deref().unwrap_or(&workflow.agent.model)
+        )
             .with_system_prompt(
-                task.system_prompt
-                    .as_deref()
+                subagent_def.system_prompt.as_deref()
                     .or(workflow.agent.system_prompt.as_deref())
                     .unwrap_or(""),
             )
-            .with_tools(task.allowed_tools.clone().unwrap_or_default())
+            .with_tools(subagent_def.allowed_tools.clone().unwrap_or_default())
             .isolated();
 
         // Execute via provider
@@ -809,7 +912,15 @@ impl Runner {
     /// Captures stdout/stderr and returns them as the task result.
     /// Supports timeout configuration via `config.timeout` (e.g., "30s", "5m").
     fn execute_shell(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
-        let cmd_str = resolve_templates(task.prompt().unwrap_or("echo 'no command'"), ctx)
+        use crate::task::TaskAction;
+
+        // Extract shell definition from the TaskAction enum
+        let shell_def = match &task.action {
+            TaskAction::Shell { shell } => shell,
+            _ => return Ok(TaskResult::failure(&task.id, "Expected shell task")),
+        };
+
+        let cmd_str = resolve_templates(&shell_def.command, ctx)
             .with_context(|| format!("Failed to resolve templates for shell task '{}'", task.id))?;
 
         // Get timeout from task config, or use default
@@ -902,46 +1013,77 @@ impl Runner {
 
     /// Execute http: task
     fn execute_http(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
-        let url = resolve_templates(task.prompt().unwrap_or("(no url)"), ctx)
+        use crate::task::TaskAction;
+
+        // Extract HTTP definition from the TaskAction enum
+        let http_def = match &task.action {
+            TaskAction::Http { http } => http,
+            _ => return Ok(TaskResult::failure(&task.id, "Expected http task")),
+        };
+
+        let resolved_url = resolve_templates(&http_def.url, ctx)
             .with_context(|| format!("Failed to resolve URL for http task '{}'", task.id))?;
-        let method = task.method.as_deref().unwrap_or("GET");
+
+        let method = http_def.method.as_deref().unwrap_or("GET");
 
         Ok(TaskResult::success(
             &task.id,
-            format!("[http] Would {} {}", method, url),
+            format!("[http] Would {} {}", method, resolved_url),
             Some(0),
         ))
     }
 
     /// Execute mcp: task
     fn execute_mcp(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
-        let mcp = task.prompt().unwrap_or("unknown::unknown");
-        let args_str = resolve_args(task.args.as_ref(), ctx)
+        use crate::task::TaskAction;
+
+        // Extract MCP definition from the TaskAction enum
+        let mcp_def = match &task.action {
+            TaskAction::Mcp { mcp } => mcp,
+            _ => return Ok(TaskResult::failure(&task.id, "Expected mcp task")),
+        };
+
+        let args_str = resolve_args(mcp_def.args.as_ref(), ctx)
             .with_context(|| format!("Failed to resolve args for mcp task '{}'", task.id))?;
 
         Ok(TaskResult::success(
             &task.id,
-            format!("[mcp] Would call {} with args: {}", mcp, args_str),
+            format!("[mcp] Would call {} with args: {}", mcp_def.reference, args_str),
             Some(0),
         ))
     }
 
     /// Execute function: task
     fn execute_function(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
-        let func = task.prompt().unwrap_or("unknown::unknown");
-        let args_str = resolve_args(task.args.as_ref(), ctx)
+        use crate::task::TaskAction;
+
+        // Extract function definition from the TaskAction enum
+        let func_def = match &task.action {
+            TaskAction::Function { function } => function,
+            _ => return Ok(TaskResult::failure(&task.id, "Expected function task")),
+        };
+
+        let args_str = resolve_args(func_def.args.as_ref(), ctx)
             .with_context(|| format!("Failed to resolve args for function task '{}'", task.id))?;
 
         Ok(TaskResult::success(
             &task.id,
-            format!("[function] Would call {} with args: {}", func, args_str),
+            format!("[function] Would call {} with args: {}", func_def.reference, args_str),
             Some(0),
         ))
     }
 
     /// Execute llm: task (one-shot, stateless)
     fn execute_llm(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
-        let prompt = resolve_templates(task.prompt().unwrap_or(""), ctx)
+        use crate::task::TaskAction;
+
+        // Extract LLM definition from the TaskAction enum
+        let llm_def = match &task.action {
+            TaskAction::Llm { llm } => llm,
+            _ => return Ok(TaskResult::failure(&task.id, "Expected llm task")),
+        };
+
+        let prompt = resolve_templates(&llm_def.prompt, ctx)
             .with_context(|| format!("Failed to resolve templates for llm task '{}'", task.id))?;
 
         Ok(TaskResult::success(
@@ -953,13 +1095,15 @@ impl Runner {
 
     /// Topological sort for execution order
     fn topological_sort(&self, workflow: &Workflow) -> Result<Vec<String>> {
-        let mut in_degree: HashMap<&str, usize> = HashMap::new();
-        let mut adjacency: HashMap<&str, Vec<&str>> = HashMap::new();
+        // Pre-allocate with known size
+        let task_count = workflow.tasks.len();
+        let mut in_degree: HashMap<&str, usize> = HashMap::with_capacity(task_count);
+        let mut adjacency: HashMap<&str, Vec<&str>> = HashMap::with_capacity(task_count);
 
         // Initialize
         for task in &workflow.tasks {
             in_degree.insert(&task.id, 0);
-            adjacency.insert(&task.id, Vec::new());
+            adjacency.insert(&task.id, Vec::with_capacity(2)); // Most tasks have 0-2 outputs
         }
 
         // Build graph
@@ -979,7 +1123,7 @@ impl Runner {
             .map(|(&id, _)| id)
             .collect();
 
-        let mut result = Vec::new();
+        let mut result = Vec::with_capacity(task_count);
 
         while let Some(node) = queue.pop() {
             result.push(node.to_string());
@@ -1019,8 +1163,40 @@ mod tests {
         let mut ctx = ExecutionContext::new();
         ctx.set_output("task1", "Hello World".to_string());
 
-        assert_eq!(ctx.get_output("task1"), Some(&"Hello World".to_string()));
+        assert_eq!(ctx.get_output("task1"), Some("Hello World"));
         assert_eq!(ctx.get_output("nonexistent"), None);
+    }
+
+    #[test]
+    fn test_batch_outputs() {
+        let mut ctx = ExecutionContext::new();
+
+        // Batch set outputs
+        ctx.set_outputs_batch([
+            ("task1", "output1"),
+            ("task2", "output2"),
+            ("task3", "output3"),
+        ]);
+
+        assert_eq!(ctx.get_output("task1"), Some("output1"));
+        assert_eq!(ctx.get_output("task2"), Some("output2"));
+        assert_eq!(ctx.get_output("task3"), Some("output3"));
+    }
+
+    #[test]
+    fn test_batch_messages() {
+        let mut ctx = ExecutionContext::new();
+
+        // Batch add messages
+        ctx.add_agent_messages_batch([
+            (MessageRole::User, "Question 1"),
+            (MessageRole::Assistant, "Answer 1"),
+            (MessageRole::User, "Question 2"),
+        ]);
+
+        assert_eq!(ctx.agent_history().len(), 3);
+        assert_eq!(ctx.agent_history()[0].role, MessageRole::User);
+        assert_eq!(ctx.agent_history()[1].role, MessageRole::Assistant);
     }
 
     #[test]
@@ -1046,7 +1222,7 @@ mod tests {
 
         let ctx = ExecutionContext::with_inputs(inputs);
 
-        assert_eq!(ctx.get_input("file"), Some(&"src/main.rs".to_string()));
+        assert_eq!(ctx.get_input("file"), Some("src/main.rs"));
         assert_eq!(ctx.get_input("missing"), None);
     }
 
@@ -1121,7 +1297,10 @@ mod tests {
 
         let mut inputs = HashMap::new();
         inputs.insert("target".to_string(), "src/".to_string());
-        ctx.inputs = inputs;
+        ctx.inputs = inputs
+            .into_iter()
+            .map(|(k, v)| (k, Arc::from(v)))
+            .collect();
 
         let template = "Analyzed ${input.target}: {{analyze}}";
         let result = resolve_templates(template, &ctx).unwrap();
@@ -1291,10 +1470,13 @@ agent:
 
 tasks:
   - id: step1
-    agent: "Analyze this"
+    agent:
+      prompt: "Analyze this"
 
   - id: step2
-    function: transform::uppercase
+    function:
+
+      reference: "transform::uppercase"
 
 flows:
   - source: step1
@@ -1335,7 +1517,8 @@ agent:
 
 tasks:
   - id: process
-    agent: "Process file: ${input.file}"
+    agent:
+      prompt: "Process file: ${input.file}"
 
 flows: []
 "#;
@@ -1361,10 +1544,12 @@ agent:
 
 tasks:
   - id: step1
-    agent: "Generate data"
+    agent:
+      prompt: "Generate data"
 
   - id: step2
-    agent: "Process: {{step1}}"
+    agent:
+      prompt: "Process: {{step1}}"
 
 flows:
   - source: step1
@@ -1389,19 +1574,26 @@ agent:
 
 tasks:
   - id: t1
-    agent: "agent task"
+    agent:
+      prompt: "agent task"
   - id: t2
-    subagent: "subagent task"
+    subagent:
+      prompt: "subagent task"
   - id: t3
-    shell: "echo test"
+    shell:
+      command: "echo test"
   - id: t4
-    http: "https://example.com"
+    http:
+      url: "https://example.com"
   - id: t5
-    mcp: "fs::read"
+    mcp:
+      reference: "fs::read"
   - id: t6
-    function: "tools::fn"
+    function:
+      reference: "tools::fn"
   - id: t7
-    llm: "classify"
+    llm:
+      prompt: "classify"
 
 flows: []
 "#;
@@ -1430,9 +1622,11 @@ agent:
 
 tasks:
   - id: ask
-    agent: "What is Rust?"
+    agent:
+      prompt: "What is Rust?"
   - id: followup
-    agent: "Tell me more about its memory safety"
+    agent:
+      prompt: "Tell me more about its memory safety"
 
 flows:
   - source: ask
@@ -1459,15 +1653,17 @@ agent:
 
 tasks:
   - id: read-file
-    agent: |
-      Simulate reading a configuration file.
-      Return JSON: {"name": "nika", "version": "0.1.0"}
+    agent:
+      prompt: |
+        Simulate reading a configuration file.
+        Return JSON: {"name": "nika", "version": "0.1.0"}
 
   - id: summarize
-    agent: |
-      Here is the content from the previous task:
-      {{read-file}}
-      Please summarize this in one sentence.
+    agent:
+      prompt: |
+        Here is the content from the previous task:
+        {{read-file}}
+        Please summarize this in one sentence.
 
 flows:
   - source: read-file
@@ -1501,10 +1697,12 @@ agent:
 
 tasks:
   - id: generate-user
-    agent: "Return user data"
+    agent:
+      prompt: "Return user data"
 
   - id: use-field
-    agent: "Process user: {{generate-user.name}} with email: {{generate-user.email}}"
+    agent:
+      prompt: "Process user: {{generate-user.name}} with email: {{generate-user.email}}"
 
 flows:
   - source: generate-user
@@ -1543,13 +1741,16 @@ agent:
 
 tasks:
   - id: step-a
-    agent: "Generate initial data"
+    agent:
+      prompt: "Generate initial data"
 
   - id: step-b
-    agent: "Transform: {{step-a}}"
+    agent:
+      prompt: "Transform: {{step-a}}"
 
   - id: step-c
-    agent: "Final: {{step-b}} and original: {{step-a}}"
+    agent:
+      prompt: "Final: {{step-b}} and original: {{step-a}}"
 
 flows:
   - source: step-a
@@ -1584,13 +1785,16 @@ agent:
 
 tasks:
   - id: main-task
-    agent: "Main agent task"
+    agent:
+      prompt: "Main agent task"
 
   - id: isolated-task
-    subagent: "Isolated subagent task"
+    subagent:
+      prompt: "Isolated subagent task"
 
   - id: follow-task
-    agent: "Follow up agent task"
+    agent:
+      prompt: "Follow up agent task"
 
 flows:
   - source: main-task
@@ -1628,16 +1832,20 @@ agent:
 
 tasks:
   - id: source
-    agent: "Source data"
+    agent:
+      prompt: "Source data"
 
   - id: branch-1
-    subagent: "Process branch 1"
+    subagent:
+      prompt: "Process branch 1"
 
   - id: branch-2
-    subagent: "Process branch 2"
+    subagent:
+      prompt: "Process branch 2"
 
   - id: merge
-    agent: "Merge: {{branch-1}} and {{branch-2}}"
+    agent:
+      prompt: "Merge: {{branch-1}} and {{branch-2}}"
 
 flows:
   - source: source
@@ -1673,7 +1881,8 @@ agent:
 
 tasks:
   - id: use-env
-    agent: "Environment value: ${env.NIKA_E2E_TEST}"
+    agent:
+      prompt: "Environment value: ${env.NIKA_E2E_TEST}"
 
 flows: []
 "#;
@@ -1696,7 +1905,8 @@ agent:
 
 tasks:
   - id: process
-    agent: "Processing file: ${input.filename}"
+    agent:
+      prompt: "Processing file: ${input.filename}"
 
 flows: []
 "#;
@@ -1724,7 +1934,8 @@ agent:
 
 tasks:
   - id: quick-cmd
-    shell: "echo 'hello'"
+    shell:
+      command: "echo 'hello'"
 
 flows: []
 "#;
@@ -1748,7 +1959,8 @@ agent:
 
 tasks:
   - id: slow-cmd
-    shell: "sleep 60"
+    shell:
+      command: "sleep 60"
     config:
       timeout: "1s"
 
@@ -1789,7 +2001,8 @@ agent:
 
 tasks:
   - id: fail-cmd
-    shell: "exit 1"
+    shell:
+      command: "exit 1"
 
 flows: []
 "#;
@@ -1820,7 +2033,8 @@ agent:
 
 tasks:
   - id: echo-cmd
-    shell: "echo 'This is a test output with some content'"
+    shell:
+      command: "echo 'This is a test output with some content'"
 
 flows: []
 "#;
@@ -1850,13 +2064,14 @@ agent:
 
 tasks:
   - id: flaky-cmd
-    shell: |
-      if [ -f "{state}" ]; then
-        echo "success on retry"
-      else
-        touch "{state}"
-        exit 1
-      fi
+    shell:
+      command: |
+        if [ -f "{state}" ]; then
+          echo "success on retry"
+        else
+          touch "{state}"
+          exit 1
+        fi
     config:
       retry:
         max: 2
@@ -1892,7 +2107,8 @@ agent:
 
 tasks:
   - id: always-fail
-    shell: "exit 1"
+    shell:
+      command: "exit 1"
     config:
       retry:
         max: 2

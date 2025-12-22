@@ -10,6 +10,9 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 use wait_timeout::ChildExt;
 
+#[cfg(test)]
+use std::sync::Arc;
+
 /// Default timeout for Claude CLI execution (5 minutes)
 const DEFAULT_EXECUTE_TIMEOUT: Duration = Duration::from_secs(300);
 
@@ -237,11 +240,11 @@ mod tests {
         let history = vec![
             AgentMessage {
                 role: MessageRole::User,
-                content: "What is 2+2?".to_string(),
+                content: Arc::from("What is 2+2?"),
             },
             AgentMessage {
                 role: MessageRole::Assistant,
-                content: "4".to_string(),
+                content: Arc::from("4"),
             },
         ];
         let request = PromptRequest::new("And 3+3?", "claude-sonnet-4-5").with_history(history);
@@ -258,7 +261,7 @@ mod tests {
         let provider = ClaudeProvider::new();
         let history = vec![AgentMessage {
             role: MessageRole::User,
-            content: "Previous context".to_string(),
+            content: Arc::from("Previous context"),
         }];
         let request = PromptRequest::new("New isolated task", "claude-sonnet-4-5")
             .with_history(history)

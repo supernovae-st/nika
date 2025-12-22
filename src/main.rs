@@ -1,6 +1,6 @@
-//! Nika CLI - Workflow orchestration for Claude Agent SDK (v4.5)
+//! Nika CLI - Workflow orchestration for Claude Agent SDK (v4.6)
 //!
-//! Architecture v4.5: 7 keywords with type inference
+//! Architecture v4.6: 7 keywords with type inference
 //! (agent, subagent, shell, http, mcp, function, llm)
 //!
 //! Usage:
@@ -19,7 +19,7 @@ use walkdir::WalkDir;
 #[command(name = "nika")]
 #[command(author = "SuperNovae Studio")]
 #[command(version = "0.1.0")]
-#[command(about = "CLI for Nika workflow orchestration (v4.5)", long_about = None)]
+#[command(about = "CLI for Nika workflow orchestration (v4.6)", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -125,7 +125,7 @@ fn print_banner() {
   ╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
 
   Native Intelligence Kernel for Agents
-  v0.1.0 (Architecture v4.5)
+  v0.1.0 (Architecture v4.6)
 
   USAGE:
     nika <command> [options]
@@ -142,7 +142,7 @@ fn print_banner() {
     nika run support.nika.yaml
     nika init my-project
 
-  Architecture v4.5:
+  Architecture v4.6:
     - 7 keywords: agent, subagent, shell, http, mcp, function, llm
     - Type inference from keyword
     - Connection matrix with bridge pattern
@@ -155,7 +155,7 @@ fn print_banner() {
     );
 }
 
-/// Run the validate command (v4.5)
+/// Run the validate command (v4.6)
 fn run_validate(path: &str, format: &OutputFormat, verbose: bool) -> anyhow::Result<()> {
     let start_time = std::time::Instant::now();
 
@@ -164,7 +164,7 @@ fn run_validate(path: &str, format: &OutputFormat, verbose: bool) -> anyhow::Res
     println!();
 
     if verbose {
-        println!("{}", "Architecture v4.5: 7 keywords with type inference".dimmed());
+        println!("{}", "Architecture v4.6: 7 keywords with type inference".dimmed());
         println!("{}", "Rules embedded - no external files needed".dimmed());
         println!();
     }
@@ -187,7 +187,7 @@ fn run_validate(path: &str, format: &OutputFormat, verbose: bool) -> anyhow::Res
     );
     println!();
 
-    // Create validator (v4.5 - no external rules)
+    // Create validator (v4.6 - no external rules)
     let validator = Validator::new();
 
     // Validate each file

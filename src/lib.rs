@@ -1,4 +1,4 @@
-//! # Nika CLI Library (v4.5)
+//! # Nika CLI Library (v4.6)
 //!
 //! Workflow validation and execution for the Nika specification.
 //!
@@ -12,9 +12,9 @@
 //! - **Execution**: Run workflows with provider abstraction (Claude, mock)
 //! - **TUI**: Terminal interface for workflow visualization
 //!
-//! ## Architecture v4.5
+//! ## Architecture v4.6
 //!
-//! The v4.5 architecture uses **7 keywords** with type inference:
+//! The v4.6 architecture uses **7 keywords** with type inference and performance optimizations:
 //!
 //! | Keyword | Category | Description |
 //! |---------|----------|-------------|
@@ -84,10 +84,17 @@
 //! | NIKA-030..039 | Connection | Blocked connection |
 //! | NIKA-040..049 | Graph | Cycle detected (warning) |
 
+pub mod builders;
+pub mod context_pool;
 pub mod init;
+pub mod limits;
 pub mod provider;
 pub mod runner;
+pub mod smart_string;
+pub mod task;
+pub mod template;
 pub mod tui;
+pub mod types;
 pub mod validator;
 pub mod workflow;
 
@@ -95,16 +102,17 @@ pub mod workflow;
 pub use init::{init_project, InitResult};
 pub use runner::{RunResult, Runner, TaskResult};
 pub use validator::{ValidationError, ValidationResult, Validator};
-pub use workflow::{
-    Agent, ExecutionMode, Flow, Task, TaskCategory, TaskConfig, TaskKeyword, Workflow,
-};
+// Re-export Task types from task
+pub use task::{Task, TaskAction, TaskCategory, TaskConfig, TaskKeyword};
+// Re-export workflow types
+pub use workflow::{Agent, ExecutionMode, Flow, Workflow};
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_hello_world_v45() {
+    fn test_parse_hello_world_v6() {
         let yaml = r#"
 agent:
   model: claude-sonnet-4-5
@@ -112,19 +120,20 @@ agent:
 
 tasks:
   - id: greet
-    agent: "Say hello in French."
+    agent:
+      prompt: "Say hello in French."
 
 flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(workflow.agent.model, "claude-sonnet-4-5");
         assert_eq!(workflow.tasks.len(), 1);
-        assert_eq!(workflow.tasks[0].keyword(), Some(TaskKeyword::Agent));
-        assert_eq!(workflow.tasks[0].agent, Some("Say hello in French.".into()));
+        assert_eq!(workflow.tasks[0].keyword(), TaskKeyword::Agent);
+        assert_eq!(workflow.tasks[0].prompt(), "Say hello in French.");
     }
 
     #[test]
-    fn test_validate_hello_world_v45() {
+    fn test_validate_hello_world_v6() {
         let yaml = r#"
 agent:
   model: claude-sonnet-4-5
@@ -132,7 +141,8 @@ agent:
 
 tasks:
   - id: greet
-    agent: "Say hello in French."
+    agent:
+      prompt: "Say hello in French."
 
 flows: []
 "#;
@@ -142,7 +152,7 @@ flows: []
     }
 
     #[test]
-    fn test_translation_pipeline_v45() {
+    fn test_translation_pipeline_v6() {
         let yaml = r#"
 agent:
   model: claude-sonnet-4-5
@@ -151,19 +161,24 @@ agent:
 
 tasks:
   - id: read-source
-    mcp: "filesystem::read_file"
+    mcp:
+      reference: "filesystem::read_file"
 
   - id: translate-fr
-    subagent: "Translate to French."
+    subagent:
+      prompt: "Translate to French."
 
   - id: translate-es
-    subagent: "Translate to Spanish."
+    subagent:
+      prompt: "Translate to Spanish."
 
   - id: collect
-    function: aggregate::merge
+    function:
+      reference: "aggregate::merge"
 
   - id: validate
-    agent: "Review translations."
+    agent:
+      prompt: "Review translations."
 
 flows:
   - source: read-source

@@ -1,7 +1,7 @@
-//! Integration tests for the Nika CLI (v4.5)
+//! Integration tests for the Nika CLI (v4.6)
 //!
 //! These tests run the actual CLI binary and verify output.
-//! Architecture v4.5: 7 keywords with type inference (agent, subagent, shell, http, mcp, function, llm).
+//! Architecture v4.6: 7 keywords with type inference (agent, subagent, shell, http, mcp, function, llm).
 
 use assert_cmd::Command;
 use predicates::prelude::*;
@@ -23,7 +23,7 @@ fn test_no_args_shows_banner() {
             "Native Intelligence Kernel for Agents",
         ))
         .stdout(predicate::str::contains("v0.1.0"))
-        .stdout(predicate::str::contains("Architecture v4.5"));
+        .stdout(predicate::str::contains("Architecture v4.6"));
 }
 
 #[test]
@@ -48,7 +48,7 @@ fn test_validate_help() {
 }
 
 // ============================================================================
-// v4.5 Workflow Validation Tests
+// v4.6 Workflow Validation Tests
 // ============================================================================
 
 #[test]
@@ -56,7 +56,7 @@ fn test_validate_valid_hello_world() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("hello.nika.yaml");
 
-    // v4.5 hello world workflow
+    // v4.6 hello world workflow
     fs::write(
         &workflow_file,
         r#"
@@ -66,7 +66,8 @@ agent:
 
 tasks:
   - id: greet
-    agent: "Say hello in French."
+    agent:
+      prompt: "Say hello in French."
 
 flows: []
 "#,
@@ -85,7 +86,7 @@ fn test_validate_agent_to_tool() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("test.nika.yaml");
 
-    // v4.5: agent: -> shell: is valid
+    // v4.6: agent: -> shell: is valid
     fs::write(
         &workflow_file,
         r#"
@@ -95,9 +96,11 @@ agent:
 
 tasks:
   - id: analyze
-    agent: "Analyze the code."
+    agent:
+      prompt: "Analyze the code."
   - id: save
-    shell: "echo done > output.txt"
+    shell:
+      command: "echo done > output.txt"
 
 flows:
   - source: analyze
@@ -118,7 +121,7 @@ fn test_validate_bridge_pattern() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("bridge.nika.yaml");
 
-    // v4.5 bridge pattern: subagent: -> function: -> agent:
+    // v4.6 bridge pattern: subagent: -> function: -> agent:
     fs::write(
         &workflow_file,
         r#"
@@ -128,11 +131,15 @@ agent:
 
 tasks:
   - id: worker
-    subagent: "Do deep work."
+    subagent:
+      prompt: "Do deep work."
   - id: bridge
-    function: aggregate::collect
+    function:
+
+      reference: "aggregate::collect"
   - id: router
-    agent: "Route results."
+    agent:
+      prompt: "Route results."
 
 flows:
   - source: worker
@@ -155,7 +162,7 @@ fn test_validate_invalid_subagent_to_agent() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("invalid.nika.yaml");
 
-    // v4.5 invalid: subagent: -> agent: is BLOCKED (needs bridge)
+    // v4.6 invalid: subagent: -> agent: is BLOCKED (needs bridge)
     fs::write(
         &workflow_file,
         r#"
@@ -165,9 +172,11 @@ agent:
 
 tasks:
   - id: worker
-    subagent: "Work"
+    subagent:
+      prompt: "Work"
   - id: router
-    agent: "Route"
+    agent:
+      prompt: "Route"
 
 flows:
   - source: worker
@@ -188,7 +197,7 @@ fn test_validate_invalid_subagent_to_subagent() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("invalid.nika.yaml");
 
-    // v4.5 invalid: subagent: -> subagent: is BLOCKED
+    // v4.6 invalid: subagent: -> subagent: is BLOCKED
     fs::write(
         &workflow_file,
         r#"
@@ -198,9 +207,11 @@ agent:
 
 tasks:
   - id: sub1
-    subagent: "Sub1"
+    subagent:
+      prompt: "Sub1"
   - id: sub2
-    subagent: "Sub2"
+    subagent:
+      prompt: "Sub2"
 
 flows:
   - source: sub1
@@ -221,7 +232,7 @@ fn test_validate_missing_keyword() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("bad.nika.yaml");
 
-    // v4.5: task must have exactly one keyword
+    // v4.6: task must have exactly one keyword
     fs::write(
         &workflow_file,
         r#"
@@ -237,11 +248,13 @@ flows: []
     )
     .unwrap();
 
+    // v4.6: Missing keyword is a parse error, not validation error
+    // CLI continues batch processing (returns 0) but prints error to stderr
     nika_cmd()
         .args(["validate", workflow_file.to_str().unwrap()])
         .assert()
-        .failure()
-        .stdout(predicate::str::contains("exactly one keyword"));
+        .success()
+        .stderr(predicate::str::contains("Failed to parse"));
 }
 
 #[test]
@@ -249,7 +262,7 @@ fn test_validate_mcp_missing_separator() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("bad.nika.yaml");
 
-    // v4.5: mcp must use :: separator
+    // v4.6: mcp must use :: separator
     fs::write(
         &workflow_file,
         r#"
@@ -259,7 +272,8 @@ agent:
 
 tasks:
   - id: bad-mcp
-    mcp: "filesystem_read"
+    mcp:
+      reference: "filesystem_read"
 
 flows: []
 "#,
@@ -287,7 +301,8 @@ agent:
 
 tasks:
   - id: greet
-    agent: "Hello"
+    agent:
+      prompt: "Hello"
 
 flows: []
 "#,
@@ -321,9 +336,11 @@ agent:
 
 tasks:
   - id: a
-    agent: "A"
+    agent:
+      prompt: "A"
   - id: b
-    mcp: "filesystem::read"
+    mcp:
+      reference: "filesystem::read"
 
 flows:
   - source: a
@@ -359,7 +376,8 @@ agent:
 
 tasks:
   - id: greet
-    agent: "Hello"
+    agent:
+      prompt: "Hello"
 
 flows: []
 "#,
@@ -374,7 +392,7 @@ flows: []
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Architecture v4.5"));
+        .stdout(predicate::str::contains("Architecture v4.6"));
 }
 
 #[test]
@@ -394,7 +412,7 @@ fn test_validate_directory_recursive() {
     let sub_dir = temp_dir.path().join("workflows");
     fs::create_dir_all(&sub_dir).unwrap();
 
-    // Create two v4.5 workflows
+    // Create two v4.6 workflows
     fs::write(
         sub_dir.join("a.nika.yaml"),
         r#"
@@ -403,7 +421,8 @@ agent:
   systemPrompt: "A"
 tasks:
   - id: a
-    agent: "A"
+    agent:
+      prompt: "A"
 flows: []
 "#,
     )
@@ -417,7 +436,8 @@ agent:
   systemPrompt: "B"
 tasks:
   - id: b
-    agent: "B"
+    agent:
+      prompt: "B"
 flows: []
 "#,
     )
@@ -461,7 +481,7 @@ fn test_all_7_keywords_valid() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("all-keywords.nika.yaml");
 
-    // v4.5: all 7 keywords in one workflow
+    // v4.6: all 7 keywords in one workflow
     fs::write(
         &workflow_file,
         r#"
@@ -471,19 +491,27 @@ agent:
 
 tasks:
   - id: t1
-    agent: "Main agent task"
+    agent:
+      prompt: "Main agent task"
   - id: t2
-    subagent: "Subagent task"
+    subagent:
+      prompt: "Subagent task"
   - id: t3
-    shell: "npm test"
+    shell:
+      command: "npm test"
   - id: t4
-    http: "https://api.example.com"
+    http:
+      url: "https://api.example.com"
   - id: t5
-    mcp: "filesystem::read_file"
+    mcp:
+      reference: "filesystem::read_file"
   - id: t6
-    function: "tools::transform"
+    function:
+
+      reference: "tools::transform"
   - id: t7
-    llm: "Classify this text"
+    llm:
+      prompt: "Classify this text"
 
 flows: []
 "#,

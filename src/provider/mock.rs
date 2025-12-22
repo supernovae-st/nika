@@ -40,16 +40,16 @@ impl From<String> for MockResponse {
 pub struct MockProvider {
     /// Queue of responses to return (FIFO)
     responses: Arc<Mutex<Vec<MockResponse>>>,
-    /// Default response when queue is empty
-    default_response: String,
+    /// Default response when queue is empty (Arc for no-clone sharing)
+    default_response: Arc<str>,
     /// Track all requests made (for assertions)
     requests: Arc<Mutex<Vec<PromptRequest>>>,
     /// Number of calls before automatic failure (0 = never fail)
     fail_after: AtomicUsize,
     /// Current call count
     call_count: AtomicUsize,
-    /// Error message to use when failing
-    failure_message: String,
+    /// Error message to use when failing (Arc for no-clone sharing)
+    failure_message: Arc<str>,
 }
 
 impl MockProvider {
@@ -60,11 +60,11 @@ impl MockProvider {
     pub fn new() -> Self {
         Self {
             responses: Arc::new(Mutex::new(vec![])),
-            default_response: String::new(), // Empty means echo mode
+            default_response: Arc::from(""), // Empty means echo mode
             requests: Arc::new(Mutex::new(vec![])),
             fail_after: AtomicUsize::new(0),
             call_count: AtomicUsize::new(0),
-            failure_message: "Mock failure".to_string(),
+            failure_message: Arc::from("Mock failure"),
         }
     }
 
@@ -76,11 +76,11 @@ impl MockProvider {
             responses: Arc::new(Mutex::new(
                 responses.into_iter().map(MockResponse::Success).collect(),
             )),
-            default_response: String::new(), // Empty means echo mode
+            default_response: Arc::from(""), // Empty means echo mode
             requests: Arc::new(Mutex::new(vec![])),
             fail_after: AtomicUsize::new(0),
             call_count: AtomicUsize::new(0),
-            failure_message: "Mock failure".to_string(),
+            failure_message: Arc::from("Mock failure"),
         }
     }
 
@@ -88,17 +88,17 @@ impl MockProvider {
     pub fn with_mock_responses(responses: Vec<MockResponse>) -> Self {
         Self {
             responses: Arc::new(Mutex::new(responses)),
-            default_response: String::new(),
+            default_response: Arc::from(""),
             requests: Arc::new(Mutex::new(vec![])),
             fail_after: AtomicUsize::new(0),
             call_count: AtomicUsize::new(0),
-            failure_message: "Mock failure".to_string(),
+            failure_message: Arc::from("Mock failure"),
         }
     }
 
     /// Set the default response when queue is empty
     pub fn with_default(mut self, response: impl Into<String>) -> Self {
-        self.default_response = response.into();
+        self.default_response = Arc::from(response.into().as_str());
         self
     }
 
@@ -112,7 +112,7 @@ impl MockProvider {
 
     /// Set custom failure message
     pub fn with_failure_message(mut self, message: impl Into<String>) -> Self {
-        self.failure_message = message.into();
+        self.failure_message = Arc::from(message.into().as_str());
         self
     }
 
@@ -181,7 +181,7 @@ impl Provider for MockProvider {
         let fail_after = self.fail_after.load(Ordering::SeqCst);
         if fail_after > 0 && current_count > fail_after {
             let usage = TokenUsage::estimate(request.prompt.len(), self.failure_message.len());
-            return Ok(PromptResponse::failure(&self.failure_message).with_usage(usage));
+            return Ok(PromptResponse::failure(self.failure_message.as_ref()).with_usage(usage));
         }
 
         // Get response from queue, or use default/echo
@@ -193,7 +193,7 @@ impl Provider for MockProvider {
                 // Echo mode: return prompt prefixed with [Mock]
                 MockResponse::Success(format!("[Mock] Executed prompt: {}", request.prompt))
             } else {
-                MockResponse::Success(self.default_response.clone())
+                MockResponse::Success(self.default_response.to_string())
             }
         };
 

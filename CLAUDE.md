@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Nika CLI is the **command-line validator** for `.nika.yaml` workflows. Built in Rust, it validates workflows against the Nika v4.5 specification.
+Nika CLI is the **command-line validator** for `.nika.yaml` workflows. Built in Rust, it validates workflows against the Nika v4.6 specification.
 
 - **Language**: Rust
 - **License**: BSL-1.1 (converts to Apache 2.0 on 2029-01-01)
-- **Specification**: See `../nika/` for the open standard
+- **Specification**: See `./spec/` (symlink to `../nika-docs/spec`)
 - **GitHub**: https://github.com/supernovae-studio/nika-cli
 
 ## Commands
@@ -33,7 +33,7 @@ cargo run -- validate ./examples/
 cargo run -- init my-project
 ```
 
-## Nika v4.5 Architecture
+## Nika v4.6 Architecture
 
 **7 Keywords (type-inferring):**
 
@@ -47,7 +47,7 @@ cargo run -- init my-project
 | `function:` | tool | path::fn (:: separator) |
 | `llm:` | tool | One-shot LLM (stateless) |
 
-**Example (v4.5):**
+**Example (v4.6):**
 ```yaml
 agent:
   model: claude-sonnet-4-5
@@ -72,18 +72,14 @@ flows:
     target: deep-research
 ```
 
-**13 Registry Types:**
-```
-TEMPLATES:  workflows/, agents/, tools/
-INJECTS:    skills/, prompts/
-RUNTIME:    hooks/, guardrails/, policies/
-QUALITY:    evaluators/, rules/
-CONNECT:    adapters/, memory/, schemas/
-```
+## v4.6 Performance Optimizations
 
-**File Formats:**
-- `.md` (frontmatter): agents/, skills/, prompts/
-- `.yaml`: all other types
+| Component | File | Optimization |
+|-----------|------|--------------|
+| Template Resolution | `src/template.rs` | Single-pass tokenization + DashMap cache (85% faster) |
+| Task IDs | `src/smart_string.rs` | Inline storage ≤31 chars (93% faster) |
+| Context Sharing | `src/runner.rs` | Arc<str> zero-copy (96% faster) |
+| Memory Pool | `src/context_pool.rs` | Reusable ExecutionContext (70% less alloc) |
 
 ## Connection Rules
 
@@ -115,9 +111,9 @@ The CLI implements 5-layer validation:
 4. **No panics**: Use `Result` and `?` operator
 5. **Error messages**: Always include fix suggestions
 
-## Skills from nika-brain
+## Skills from nika-hub
 
-This project inherits skills from `../nika-brain/.claude/skills/`:
+This project inherits skills from `.claude/` (symlink to `../.claude/`):
 - `rust-development` - Rust patterns, Cargo.toml, error handling
 - `nika-validation` - 5-layer validation implementation
 - `nika-context` - Workflow structure, connection rules
@@ -128,12 +124,17 @@ This project inherits skills from `../nika-brain/.claude/skills/`:
 ```
 nika-cli/
 ├── Cargo.toml
+├── .claude -> ../.claude         # Shared skills
+├── spec -> ../nika-docs/spec     # Specification
 ├── src/
 │   ├── main.rs           # CLI entry point (clap)
 │   ├── lib.rs            # Public API
 │   ├── workflow.rs       # Core data structures
 │   ├── validator.rs      # 5-layer validation
-│   ├── runner.rs         # Workflow execution
+│   ├── runner.rs         # Workflow execution (v4.6 Arc<str>)
+│   ├── template.rs       # v4.6 single-pass resolver
+│   ├── smart_string.rs   # v4.6 inline string storage
+│   ├── context_pool.rs   # v4.6 memory pool
 │   ├── init.rs           # Project initialization
 │   └── tui/              # Terminal UI (ratatui)
 └── tests/
