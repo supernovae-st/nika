@@ -66,6 +66,9 @@ wait-timeout = "0.2"
 # HTTP client for API providers (OpenAI, Mistral, etc.)
 reqwest = { version = "0.12", features = ["json"] }
 
+# URL parsing (for SSRF validation)
+url = "2.5"
+
 # Structured logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

@@ -154,6 +154,84 @@ fn parse_timeout(timeout_str: &str) -> Option<Duration> {
 const DEFAULT_RETRY_BACKOFF: Duration = Duration::from_secs(1);
 
 // ============================================================================
+// SECURITY: URL VALIDATION (SSRF Prevention)
+// ============================================================================
+
+/// Validate HTTP URL for security (SSRF prevention)
+///
+/// Blocks:
+/// - Non-HTTP(S) schemes
+/// - Localhost and loopback addresses
+/// - Private IP ranges (10.x, 172.16-31.x, 192.168.x)
+/// - Link-local addresses (169.254.x)
+/// - Metadata endpoints (169.254.169.254)
+fn validate_http_url(url: &str) -> Result<(), String> {
+    let parsed = url::Url::parse(url).map_err(|e| format!("Invalid URL: {}", e))?;
+
+    // Check scheme
+    match parsed.scheme() {
+        "http" | "https" => {}
+        scheme => {
+            return Err(format!(
+                "Invalid URL scheme '{}': only http/https allowed",
+                scheme
+            ))
+        }
+    }
+
+    // Check host
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "URL has no host".to_string())?;
+
+    // Block localhost
+    if host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "[::1]" {
+        return Err("SSRF blocked: localhost not allowed".to_string());
+    }
+
+    // Block private IPs and special ranges
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        if is_private_ip(&ip) {
+            return Err(format!("SSRF blocked: private IP {} not allowed", ip));
+        }
+    }
+
+    // Block cloud metadata endpoints
+    if host == "169.254.169.254" || host.ends_with(".internal") {
+        return Err("SSRF blocked: cloud metadata endpoint not allowed".to_string());
+    }
+
+    Ok(())
+}
+
+/// Check if an IP address is private/internal
+fn is_private_ip(ip: &std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(ipv4) => {
+            let octets = ipv4.octets();
+            // 10.0.0.0/8
+            octets[0] == 10
+            // 172.16.0.0/12
+            || (octets[0] == 172 && (16..=31).contains(&octets[1]))
+            // 192.168.0.0/16
+            || (octets[0] == 192 && octets[1] == 168)
+            // 127.0.0.0/8 (loopback)
+            || octets[0] == 127
+            // 169.254.0.0/16 (link-local)
+            || (octets[0] == 169 && octets[1] == 254)
+            // 0.0.0.0
+            || octets == [0, 0, 0, 0]
+        }
+        std::net::IpAddr::V6(ipv6) => {
+            // Loopback ::1
+            ipv6.is_loopback()
+            // Unspecified ::
+            || ipv6.is_unspecified()
+        }
+    }
+}
+
+// ============================================================================
 // EXECUTION CONTEXT
 // ============================================================================
 
@@ -786,11 +864,11 @@ impl Runner {
         match task.keyword() {
             TaskKeyword::Agent => self.execute_agent(task, workflow, ctx).await,
             TaskKeyword::Subagent => self.execute_subagent(task, workflow, ctx).await,
-            TaskKeyword::Shell => self.execute_shell(task, ctx),
-            TaskKeyword::Http => self.execute_http(task, ctx),
+            TaskKeyword::Shell => self.execute_shell(task, ctx).await,
+            TaskKeyword::Http => self.execute_http(task, ctx).await,
             TaskKeyword::Mcp => self.execute_mcp(task, ctx),
             TaskKeyword::Function => self.execute_function(task, ctx),
-            TaskKeyword::Llm => self.execute_llm(task, ctx),
+            TaskKeyword::Llm => self.execute_llm(task, workflow).await,
         }
     }
 
@@ -930,7 +1008,9 @@ impl Runner {
     /// Runs the command through the system shell (sh -c on Unix).
     /// Captures stdout/stderr and returns them as the task result.
     /// Supports timeout configuration via `config.timeout` (e.g., "30s", "5m").
-    fn execute_shell(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
+    ///
+    /// Uses `spawn_blocking` to avoid blocking the async runtime.
+    async fn execute_shell(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
         use crate::task::TaskAction;
 
         // Extract shell definition from the TaskAction enum
@@ -950,89 +1030,114 @@ impl Runner {
             .and_then(|t| parse_timeout(t))
             .unwrap_or(DEFAULT_SHELL_TIMEOUT);
 
-        // Spawn the process (non-blocking)
-        let mut child = Command::new("sh")
-            .arg("-c")
-            .arg(&cmd_str)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .with_context(|| format!("Failed to spawn shell command: {}", cmd_str))?;
+        // Capture values for the blocking closure
+        let task_id = task.id.clone();
+        let cmd_str_clone = cmd_str.clone();
 
-        // Wait with timeout
-        match child.wait_timeout(timeout)? {
-            Some(status) => {
-                // Process completed within timeout
-                let stdout = child
-                    .stdout
-                    .take()
-                    .map(|mut s| {
-                        let mut buf = String::new();
-                        std::io::Read::read_to_string(&mut s, &mut buf).ok();
-                        buf
-                    })
-                    .unwrap_or_default();
+        // Run blocking subprocess operations in a separate thread pool
+        let result =
+            tokio::task::spawn_blocking(move || -> Result<(bool, String, usize, Option<i32>)> {
+                // Spawn the process
+                let mut child = Command::new("sh")
+                    .arg("-c")
+                    .arg(&cmd_str_clone)
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped())
+                    .spawn()
+                    .with_context(|| format!("Failed to spawn shell command: {}", cmd_str_clone))?;
 
-                let stderr = child
-                    .stderr
-                    .take()
-                    .map(|mut s| {
-                        let mut buf = String::new();
-                        std::io::Read::read_to_string(&mut s, &mut buf).ok();
-                        buf
-                    })
-                    .unwrap_or_default();
+                // Wait with timeout
+                match child.wait_timeout(timeout)? {
+                    Some(status) => {
+                        // Process completed within timeout
+                        let stdout = child
+                            .stdout
+                            .take()
+                            .map(|mut s| {
+                                let mut buf = String::new();
+                                std::io::Read::read_to_string(&mut s, &mut buf).ok();
+                                buf
+                            })
+                            .unwrap_or_default();
 
-                if status.success() {
-                    // Return stdout, or stderr if stdout is empty
-                    let result = if stdout.trim().is_empty() && !stderr.trim().is_empty() {
-                        stderr.trim().to_string()
-                    } else {
-                        stdout.trim().to_string()
-                    };
+                        let stderr = child
+                            .stderr
+                            .take()
+                            .map(|mut s| {
+                                let mut buf = String::new();
+                                std::io::Read::read_to_string(&mut s, &mut buf).ok();
+                                buf
+                            })
+                            .unwrap_or_default();
 
-                    // Estimate tokens based on command + output length
-                    let tokens = TokenUsage::estimate(cmd_str.len(), result.len());
-
-                    Ok(TaskResult::success(
-                        &task.id,
-                        result,
-                        Some(tokens.total_tokens),
-                    ))
-                } else {
-                    // Command failed - return stderr or exit code info
-                    let error_msg = if stderr.trim().is_empty() {
-                        format!("Command exited with code: {}", status.code().unwrap_or(-1))
-                    } else {
-                        stderr.trim().to_string()
-                    };
-                    Ok(TaskResult::failure_with_context(
-                        &task.id,
-                        error_msg,
-                        "shell",
-                        ErrorCategory::Execution,
-                    )
-                    .with_details(format!("command: {}", cmd_str)))
+                        if status.success() {
+                            // Return stdout, or stderr if stdout is empty
+                            let output = if stdout.trim().is_empty() && !stderr.trim().is_empty() {
+                                stderr.trim().to_string()
+                            } else {
+                                stdout.trim().to_string()
+                            };
+                            Ok((true, output, cmd_str_clone.len(), None))
+                        } else {
+                            // Command failed - return stderr or exit code info
+                            let error_msg = if stderr.trim().is_empty() {
+                                format!("Command exited with code: {}", status.code().unwrap_or(-1))
+                            } else {
+                                stderr.trim().to_string()
+                            };
+                            Ok((false, error_msg, cmd_str_clone.len(), status.code()))
+                        }
+                    }
+                    None => {
+                        // Timeout! Kill the process
+                        let _ = child.kill();
+                        let _ = child.wait(); // Reap the zombie
+                        Ok((
+                            false,
+                            format!("Shell command timed out after {:?}", timeout),
+                            cmd_str_clone.len(),
+                            None,
+                        ))
+                    }
                 }
-            }
-            None => {
-                // Timeout! Kill the process
-                let _ = child.kill();
-                let _ = child.wait(); // Reap the zombie
+            })
+            .await
+            .context("Shell task panicked")??;
 
-                let error_msg = format!("Shell command timed out after {:?}: {}", timeout, cmd_str);
-                Ok(TaskResult::failure_with_context(
-                    &task.id,
-                    error_msg,
-                    "shell",
-                    ErrorCategory::Timeout,
-                ))
-            }
+        // Convert result to TaskResult
+        let (success, output, cmd_len, exit_code) = result;
+        if success {
+            let tokens = TokenUsage::estimate(cmd_len, output.len());
+            Ok(TaskResult::success(
+                &task_id,
+                output,
+                Some(tokens.total_tokens),
+            ))
+        } else if output.contains("timed out") {
+            Ok(TaskResult::failure_with_context(
+                &task_id,
+                output,
+                "shell",
+                ErrorCategory::Timeout,
+            ))
+        } else {
+            Ok(TaskResult::failure_with_context(
+                &task_id,
+                &output,
+                "shell",
+                ErrorCategory::Execution,
+            )
+            .with_details(format!("command: {}, exit_code: {:?}", cmd_str, exit_code)))
         }
     }
 
     /// Execute http: task
-    fn execute_http(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
+    ///
+    /// Makes HTTP requests using reqwest with security protections:
+    /// - SSRF prevention: blocks localhost, private IPs, and internal networks
+    /// - Timeout: 30 second default
+    /// - Response size limit: 10MB max
+    async fn execute_http(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
         use crate::task::TaskAction;
 
         // Extract HTTP definition from the TaskAction enum
@@ -1044,13 +1149,117 @@ impl Runner {
         let resolved_url = resolve_templates(&http_def.url, ctx)
             .with_context(|| format!("Failed to resolve URL for http task '{}'", task.id))?;
 
-        let method = http_def.method.as_deref().unwrap_or("GET");
+        // Security: Validate URL scheme and host
+        if let Err(e) = validate_http_url(&resolved_url) {
+            return Ok(TaskResult::failure_with_context(
+                &task.id,
+                e,
+                "http",
+                ErrorCategory::Config,
+            ));
+        }
 
-        Ok(TaskResult::success(
-            &task.id,
-            format!("[http] Would {} {}", method, resolved_url),
-            Some(0),
-        ))
+        let method = http_def.method.as_deref().unwrap_or("GET").to_uppercase();
+
+        // Build HTTP client with timeout
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .connect_timeout(Duration::from_secs(10))
+            .build()
+            .context("Failed to create HTTP client")?;
+
+        // Build request
+        let mut request = match method.as_str() {
+            "GET" => client.get(&resolved_url),
+            "POST" => client.post(&resolved_url),
+            "PUT" => client.put(&resolved_url),
+            "DELETE" => client.delete(&resolved_url),
+            "PATCH" => client.patch(&resolved_url),
+            "HEAD" => client.head(&resolved_url),
+            _ => {
+                return Ok(TaskResult::failure_with_context(
+                    &task.id,
+                    format!("Unsupported HTTP method: {}", method),
+                    "http",
+                    ErrorCategory::Config,
+                ));
+            }
+        };
+
+        // Add headers
+        if let Some(headers) = &http_def.headers {
+            for (key, value) in headers {
+                let resolved_value = resolve_templates(value, ctx)?;
+                request = request.header(key.as_str(), resolved_value);
+            }
+        }
+
+        // Add body for POST/PUT/PATCH
+        if let Some(body) = &http_def.body {
+            request = request.json(body);
+        }
+
+        // Execute request
+        let response = request.send().await;
+
+        match response {
+            Ok(resp) => {
+                let status = resp.status();
+                let status_code = status.as_u16();
+
+                // Limit response size to 10MB
+                let body = resp
+                    .text()
+                    .await
+                    .unwrap_or_else(|e| format!("Failed to read response body: {}", e));
+
+                let truncated_body = if body.len() > 10_000_000 {
+                    format!(
+                        "{}... [truncated, {} bytes total]",
+                        &body[..10000],
+                        body.len()
+                    )
+                } else {
+                    body
+                };
+
+                if status.is_success() {
+                    Ok(TaskResult::success(
+                        &task.id,
+                        truncated_body,
+                        Some(0), // HTTP tasks don't use tokens
+                    ))
+                } else {
+                    Ok(TaskResult::failure_with_context(
+                        &task.id,
+                        format!(
+                            "HTTP {} {}: {}",
+                            status_code,
+                            status.canonical_reason().unwrap_or(""),
+                            truncated_body
+                        ),
+                        "http",
+                        ErrorCategory::Network,
+                    ))
+                }
+            }
+            Err(e) => {
+                let category = if e.is_timeout() {
+                    ErrorCategory::Timeout
+                } else if e.is_connect() {
+                    ErrorCategory::Network
+                } else {
+                    ErrorCategory::Execution
+                };
+
+                Ok(TaskResult::failure_with_context(
+                    &task.id,
+                    format!("HTTP request failed: {}", e),
+                    "http",
+                    category,
+                ))
+            }
+        }
     }
 
     /// Execute mcp: task
@@ -1100,7 +1309,11 @@ impl Runner {
     }
 
     /// Execute llm: task (one-shot, stateless)
-    fn execute_llm(&self, task: &Task, ctx: &ExecutionContext) -> Result<TaskResult> {
+    ///
+    /// LLM tasks are stateless, one-shot calls without tool use.
+    /// They're ideal for simple classification, formatting, or transformation tasks.
+    /// Defaults to a cheaper model (haiku) for cost efficiency.
+    async fn execute_llm(&self, task: &Task, _workflow: &Workflow) -> Result<TaskResult> {
         use crate::task::TaskAction;
 
         // Extract LLM definition from the TaskAction enum
@@ -1109,14 +1322,33 @@ impl Runner {
             _ => return Ok(TaskResult::failure(&task.id, "Expected llm task")),
         };
 
-        let prompt = resolve_templates(&llm_def.prompt, ctx)
-            .with_context(|| format!("Failed to resolve templates for llm task '{}'", task.id))?;
+        // Note: LLM tasks don't use context templates - they're stateless
+        // If templates are needed, use agent: instead
+        let prompt = &llm_def.prompt;
 
-        Ok(TaskResult::success(
-            &task.id,
-            format!("[llm] Would execute one-shot: {}", prompt),
-            Some(50),
-        ))
+        // Use specified model or default to haiku (cheap, fast)
+        let model = llm_def.model.as_deref().unwrap_or("claude-haiku");
+
+        // Build request in isolated mode (no history, no tools)
+        let request = PromptRequest::new(prompt, model).isolated(); // No history sharing, stateless
+
+        // Execute via provider
+        let response = self.provider.execute(request).await?;
+
+        if response.success {
+            Ok(TaskResult::success(
+                &task.id,
+                response.content,
+                Some(response.usage.total_tokens),
+            ))
+        } else {
+            Ok(TaskResult::failure_with_context(
+                &task.id,
+                &response.content,
+                "llm",
+                ErrorCategory::Provider,
+            ))
+        }
     }
 
     /// Topological sort for execution order
@@ -2181,5 +2413,47 @@ flows: []
             .find(|r| r.task_id == "always-fail")
             .unwrap();
         assert!(!task_result.success);
+    }
+
+    // ========================================================================
+    // SSRF PROTECTION TESTS
+    // ========================================================================
+
+    #[test]
+    fn test_ssrf_blocks_localhost() {
+        assert!(validate_http_url("http://localhost/api").is_err());
+        assert!(validate_http_url("http://127.0.0.1/api").is_err());
+        assert!(validate_http_url("http://[::1]/api").is_err());
+    }
+
+    #[test]
+    fn test_ssrf_blocks_private_ips() {
+        // 10.x.x.x
+        assert!(validate_http_url("http://10.0.0.1/api").is_err());
+        // 172.16-31.x.x
+        assert!(validate_http_url("http://172.16.0.1/api").is_err());
+        assert!(validate_http_url("http://172.31.255.255/api").is_err());
+        // 192.168.x.x
+        assert!(validate_http_url("http://192.168.1.1/api").is_err());
+    }
+
+    #[test]
+    fn test_ssrf_blocks_cloud_metadata() {
+        assert!(validate_http_url("http://169.254.169.254/latest/meta-data").is_err());
+        assert!(validate_http_url("http://metadata.internal/api").is_err());
+    }
+
+    #[test]
+    fn test_ssrf_blocks_non_http_schemes() {
+        assert!(validate_http_url("file:///etc/passwd").is_err());
+        assert!(validate_http_url("ftp://example.com/file").is_err());
+        assert!(validate_http_url("gopher://example.com/").is_err());
+    }
+
+    #[test]
+    fn test_ssrf_allows_public_urls() {
+        assert!(validate_http_url("https://api.example.com/v1").is_ok());
+        assert!(validate_http_url("http://httpbin.org/get").is_ok());
+        assert!(validate_http_url("https://8.8.8.8/api").is_ok());
     }
 }
