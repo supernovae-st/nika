@@ -112,7 +112,7 @@ fn parse_task_ref(
     None
 }
 
-/// Parse ${env.NAME} or ${input.name}
+/// Parse ${env.NAME}, ${input.name}, or ${task-id.output}
 fn parse_dollar_ref(
     chars: &mut std::iter::Peekable<std::str::CharIndices>,
     start_pos: usize,
@@ -135,6 +135,20 @@ fn parse_dollar_ref(
             return Some((Token::EnvVar(env_name.to_string()), end_pos + 1));
         } else if let Some(input_name) = content.strip_prefix("input.") {
             return Some((Token::Input(input_name.to_string()), end_pos + 1));
+        } else if content.contains('.') {
+            // Support ${task-id.output} syntax (v4.7.1)
+            let parts: Vec<&str> = content.splitn(2, '.').collect();
+            if parts.len() == 2 {
+                let task_id = parts[0].to_string();
+                let field = parts[1].to_string();
+                return Some((
+                    Token::TaskRef {
+                        task_id,
+                        field: Some(field),
+                    },
+                    end_pos + 1,
+                ));
+            }
         }
     }
 
@@ -157,11 +171,19 @@ pub fn resolve_templates(template: &str, ctx: &ExecutionContext) -> Result<Strin
             }
             Token::TaskRef { task_id, field } => {
                 if let Some(field_name) = field {
-                    if let Some(value) = ctx.get_field(task_id, field_name) {
+                    // Special case: "output" field means get the task output
+                    if field_name == "output" {
+                        if let Some(output) = ctx.get_output(task_id) {
+                            result.push_str(output);
+                        } else {
+                            // Keep original template if not found
+                            result.push_str(&format!("${{{}.output}}", task_id));
+                        }
+                    } else if let Some(value) = ctx.get_field(task_id, field_name) {
                         result.push_str(&value);
                     } else {
                         // Keep original template if not found
-                        result.push_str(&format!("{{{{{}:{}}}}}", task_id, field_name));
+                        result.push_str(&format!("${{{}.{}}}", task_id, field_name));
                     }
                 } else if let Some(output) = ctx.get_output(task_id) {
                     result.push_str(output);
@@ -251,5 +273,24 @@ mod tests {
         let tokens = tokenize("no templates here at all");
         assert_eq!(tokens.len(), 1);
         assert!(matches!(&tokens[0], Token::Literal(range) if range.start == 0 && range.end == 24));
+    }
+
+    #[test]
+    fn test_tokenize_dollar_task_output() {
+        // v4.7.1: Support ${task-id.output} syntax
+        let tokens = tokenize("Result: ${get-time.output}");
+        assert_eq!(tokens.len(), 2);
+        assert!(matches!(&tokens[0], Token::Literal(_)));
+        assert!(matches!(&tokens[1], Token::TaskRef { task_id, field }
+            if task_id == "get-time" && field.as_deref() == Some("output")));
+    }
+
+    #[test]
+    fn test_tokenize_dollar_task_field() {
+        // v4.7.1: Support ${task-id.field} syntax
+        let tokens = tokenize("Name: ${user.name}");
+        assert_eq!(tokens.len(), 2);
+        assert!(matches!(&tokens[1], Token::TaskRef { task_id, field }
+            if task_id == "user" && field.as_deref() == Some("name")));
     }
 }

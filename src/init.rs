@@ -68,7 +68,7 @@ pub struct InitResult {
     pub files_created: Vec<String>,
 }
 
-const MAIN_WORKFLOW_TEMPLATE: &str = r#"# Main Workflow (v4.6)
+const MAIN_WORKFLOW_TEMPLATE: &str = r#"# Main Workflow (v4.7.1)
 # Run with: nika run main.nika.yaml
 
 agent:

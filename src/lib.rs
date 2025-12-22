@@ -1,4 +1,4 @@
-//! # Nika CLI Library (v4.6)
+//! # Nika CLI Library (v4.7.1)
 //!
 //! Workflow validation and execution for the Nika specification.
 //!
@@ -12,9 +12,9 @@
 //! - **Execution**: Run workflows with provider abstraction (Claude, mock)
 //! - **TUI**: Terminal interface for workflow visualization
 //!
-//! ## Architecture v4.6
+//! ## Architecture v4.7.1
 //!
-//! The v4.6 architecture uses **7 keywords** with type inference and performance optimizations:
+//! The v4.7.1 architecture uses **7 keywords** with type inference and performance optimizations:
 //!
 //! | Keyword | Category | Description |
 //! |---------|----------|-------------|
@@ -26,15 +26,14 @@
 //! | `function:` | Tool | path::functionName call |
 //! | `llm:` | Tool | One-shot stateless LLM call |
 //!
-//! ### Connection Matrix
+//! ### Connection Matrix (v4.7.1)
 //!
-//! Only 2 connections are blocked (everything else is allowed):
+//! Only 1 connection is blocked (everything else is allowed):
 //!
-//! - `subagent: → agent:` - BLOCKED (needs bridge via tool)
-//! - `subagent: → subagent:` - BLOCKED (cannot spawn from sub)
+//! - `subagent: → subagent:` - BLOCKED (cannot spawn from subagent)
 //!
-//! The **bridge pattern** routes data through a tool:
-//! `subagent: → function: → agent:` ✓
+//! v4.7.1 change: `subagent: → agent:` is NOW ALLOWED (WorkflowRunner auto-writes output).
+//! The bridge pattern is OPTIONAL (only needed for transformation).
 //!
 //! ## Quick Start
 //!
@@ -99,7 +98,7 @@ pub mod types;
 pub mod validator;
 pub mod workflow;
 
-// Re-export main types from runner module (v4.6 architecture)
+// Re-export main types from runner module (v4.7.1 architecture)
 pub use init::{init_project, InitResult};
 pub use runner::{
     // Agent core

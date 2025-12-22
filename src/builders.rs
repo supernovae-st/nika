@@ -1,4 +1,4 @@
-//! Builder patterns for ergonomic workflow construction (v4.6)
+//! Builder patterns for ergonomic workflow construction (v4.7.1)
 //!
 //! Provides fluent APIs for building complex workflows programmatically.
 
@@ -118,6 +118,7 @@ impl WorkflowBuilder {
             agent,
             tasks: self.tasks,
             flows: self.flows,
+            mcp: std::collections::HashMap::new(),
         })
     }
 }

@@ -1,4 +1,4 @@
-//! # Shared Agent Runner (v4.6)
+//! # Shared Agent Runner (v4.7.1)
 //!
 //! Runner for `agent:` tasks with shared context access.
 //!

@@ -1,4 +1,4 @@
-//! # Nika Workflow Runner (v4.6)
+//! # Nika Workflow Runner (v4.7.1)
 //!
 //! Executes workflows using providers (Claude CLI, mock, etc.).
 //!
@@ -11,7 +11,7 @@
 //! - [`shared`] - SharedAgentRunner for agent: tasks
 //! - [`isolated`] - IsolatedAgentRunner for subagent: tasks
 //!
-//! ## v4.6 Performance Optimizations
+//! ## v4.7.1 Performance Optimizations
 //!
 //! - Single-pass template resolution (template.rs)
 //! - SmartString for task IDs (inline <= 31 chars)
@@ -84,7 +84,9 @@
 
 pub mod context;
 pub mod core;
+pub mod function;
 pub mod isolated;
+pub mod mcp;
 pub mod shared;
 pub mod workflow;
 
@@ -98,6 +100,12 @@ pub use shared::SharedAgentRunner;
 
 // Re-export workflow runner types
 pub use workflow::{ErrorCategory, ErrorContext, RunResult, Runner, TaskResult};
+
+// Re-export MCP types
+pub use mcp::{McpClient, McpReference};
+
+// Re-export Function types
+pub use function::{FunctionReference, FunctionRegistry, FunctionResult};
 
 // ============================================================================
 // BACKWARD COMPATIBILITY

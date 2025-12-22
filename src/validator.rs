@@ -305,7 +305,7 @@ impl Validator {
                 });
             }
 
-            // v4.6: Validate keyword presence (exactly one required)
+            // v4.7.1: Validate keyword presence (exactly one required)
             let keyword_count = task.keyword_count();
             if keyword_count == 0 {
                 result.add_error(ValidationError::TaskError {
@@ -381,7 +381,7 @@ impl Validator {
 
     // ========== Layer 2.5: Tool Access ==========
 
-    /// Validate tool access rules (v4.6)
+    /// Validate tool access rules (v4.7.1)
     ///
     /// Rules:
     /// 1. agent: tasks can only use tools from the config pool (subset restriction)
@@ -708,7 +708,7 @@ impl Default for Validator {
 }
 
 // ============================================================================
-// TESTS (v4.6 - keyword syntax)
+// TESTS (v4.7.1 - keyword syntax)
 // ============================================================================
 
 #[cfg(test)]
@@ -720,7 +720,7 @@ mod tests {
         Validator::new().validate(&workflow, "test.nika.yaml")
     }
 
-    // ========== Connection Matrix Tests (9 rules) - v4.6 ==========
+    // ========== Connection Matrix Tests (9 rules) - v4.7.1 ==========
 
     #[test]
     fn test_agent_to_agent() {
@@ -971,7 +971,7 @@ flows:
 
     #[test]
     fn test_missing_keyword_fails_parsing() {
-        // In v4.6, a task without a keyword fails at parse time (not validation)
+        // In v4.7.1, a task without a keyword fails at parse time (not validation)
         let yaml = r#"
 agent:
   model: claude-sonnet-4-5
@@ -1269,7 +1269,7 @@ flows: []
         );
     }
 
-    // NOTE: In v4.6, tool tasks (shell/mcp/function/http/llm) CANNOT have allowedTools
+    // NOTE: In v4.7.1, tool tasks (shell/mcp/function/http/llm) CANNOT have allowedTools
     // structurally - the field only exists in AgentDef and SubagentDef.
     // Unknown fields are ignored by serde, so these tests are removed.
 

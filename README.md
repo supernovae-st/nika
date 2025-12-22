@@ -5,7 +5,7 @@
 The [Nika Specification](https://github.com/supernovae-studio/nika) is open source (Apache 2.0).
 This CLI is closed source and distributed as a binary.
 
-## Architecture v4.5
+## Architecture v4.7.1
 
 **7 Keywords with Type Inference:**
 
@@ -19,15 +19,15 @@ This CLI is closed source and distributed as a binary.
 | `function:` | tool | - | path::functionName |
 | `llm:` | tool | - | Stateless LLM call |
 
-**Connection Matrix:**
+**Connection Matrix (v4.7.1):**
 ```
 agent: -> agent:/subagent:/tool  OK
-subagent: -> agent:              NO (needs bridge)
+subagent: -> agent:              OK (v4.7.1: WorkflowRunner auto-writes)
 subagent: -> subagent:           NO (can't spawn from subagent)
-subagent: -> tool                OK (this is the bridge)
+subagent: -> tool                OK
 tool -> agent:/subagent:/tool    OK
 
-Bridge: subagent: -> tool -> agent: OK
+Bridge: subagent: -> function: -> agent: OPTIONAL (for transformation only)
 ```
 
 ## Requirements

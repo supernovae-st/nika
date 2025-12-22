@@ -1,4 +1,4 @@
-//! # Workflow Runner (v4.6)
+//! # Workflow Runner (v4.7.1)
 //!
 //! Main workflow execution orchestrator using SharedAgentRunner and IsolatedAgentRunner.
 //!
@@ -12,9 +12,11 @@ use crate::limits::{CircuitBreaker, ResourceLimits};
 use crate::provider::{create_provider, Provider, TokenUsage};
 use crate::runner::context::{ContextWriter, GlobalContext};
 use crate::runner::core::AgentConfig;
+use crate::runner::function::FunctionRegistry;
 use crate::runner::isolated::IsolatedAgentRunner;
+use crate::runner::mcp::McpClient;
 use crate::runner::shared::SharedAgentRunner;
-use crate::workflow::{Task, TaskKeyword, Workflow};
+use crate::workflow::{McpServerConfig, Task, TaskKeyword, Workflow};
 use anyhow::{anyhow, Context, Result};
 use std::collections::HashMap;
 use std::process::Command;
@@ -408,6 +410,10 @@ pub struct Runner {
     shared_runner: SharedAgentRunner,
     /// Runner for subagent: tasks (isolated context)
     isolated_runner: IsolatedAgentRunner,
+    /// MCP client for mcp: tasks
+    mcp_client: McpClient,
+    /// Function registry for function: tasks
+    function_registry: FunctionRegistry,
 }
 
 impl Runner {
@@ -423,7 +429,15 @@ impl Runner {
             verbose: false,
             shared_runner: SharedAgentRunner::new(provider.clone(), config.clone()),
             isolated_runner: IsolatedAgentRunner::new(provider, config),
+            mcp_client: McpClient::empty(),
+            function_registry: FunctionRegistry::new(),
         })
+    }
+
+    /// Configure MCP servers from workflow configuration
+    pub fn with_mcp_servers(mut self, servers: HashMap<String, McpServerConfig>) -> Self {
+        self.mcp_client = McpClient::new(servers);
+        self
     }
 
     pub fn verbose(mut self, v: bool) -> Self {
@@ -617,7 +631,7 @@ impl Runner {
             TaskKeyword::Subagent => self.execute_subagent(task, workflow, ctx).await,
             TaskKeyword::Shell => self.execute_shell(task, ctx).await,
             TaskKeyword::Http => self.execute_http(task, ctx).await,
-            TaskKeyword::Mcp => self.execute_mcp(task, ctx),
+            TaskKeyword::Mcp => self.execute_mcp(task, ctx).await,
             TaskKeyword::Function => self.execute_function(task, ctx),
             TaskKeyword::Llm => self.execute_llm(task, workflow).await,
         }
@@ -974,7 +988,7 @@ impl Runner {
         }
     }
 
-    fn execute_mcp(&self, task: &Task, ctx: &GlobalContext) -> Result<TaskResult> {
+    async fn execute_mcp(&self, task: &Task, ctx: &GlobalContext) -> Result<TaskResult> {
         use crate::task::TaskAction;
 
         let mcp_def = match &task.action {
@@ -982,17 +996,67 @@ impl Runner {
             _ => return Ok(TaskResult::failure(&task.id, "Expected mcp task")),
         };
 
-        let args_str = resolve_args(mcp_def.args.as_ref(), ctx)
-            .with_context(|| format!("Failed to resolve args for mcp task '{}'", task.id))?;
+        // Resolve template variables in args
+        let resolved_args = if let Some(args) = &mcp_def.args {
+            let args_str = serde_json::to_string(args)?;
+            let resolved_str = crate::template::resolve_templates(&args_str, ctx)?;
+            Some(serde_json::from_str(&resolved_str)?)
+        } else {
+            None
+        };
 
-        Ok(TaskResult::success(
-            &task.id,
-            format!(
-                "[mcp] Would call {} with args: {}",
-                mcp_def.reference, args_str
-            ),
-            Some(0),
-        ))
+        // Check if server is configured
+        let reference = &mcp_def.reference;
+        let parts: Vec<&str> = reference.split("::").collect();
+        if parts.len() != 2 {
+            return Ok(TaskResult::failure(
+                &task.id,
+                format!(
+                    "Invalid MCP reference '{}': expected 'server::tool' format",
+                    reference
+                ),
+            ));
+        }
+        let server_name = parts[0];
+
+        if !self.mcp_client.has_server(server_name) {
+            // No server configured - return a stub result (useful for testing/dry-run)
+            // In production, users should configure MCP servers in the workflow
+            let args_str = resolved_args
+                .as_ref()
+                .map(|v| serde_json::to_string(v).unwrap_or_default())
+                .unwrap_or_else(|| "{}".to_string());
+
+            return Ok(TaskResult::success(
+                &task.id,
+                format!(
+                    "[mcp stub] Would call {} with args: {} (server not configured)",
+                    reference, args_str
+                ),
+                Some(0),
+            ));
+        }
+
+        // Call the MCP tool
+        match self.mcp_client.call_tool(reference, resolved_args).await {
+            Ok(result) => {
+                let output = serde_json::to_string_pretty(&result)?;
+                let is_error = result
+                    .get("isError")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+
+                if is_error {
+                    Ok(TaskResult::failure(&task.id, output))
+                } else {
+                    Ok(TaskResult::success(&task.id, output, Some(0)))
+                }
+            }
+            Err(e) => Ok(TaskResult::failure(
+                &task.id,
+                format!("MCP call failed: {}", e),
+            )),
+        }
     }
 
     fn execute_function(&self, task: &Task, ctx: &GlobalContext) -> Result<TaskResult> {
@@ -1003,17 +1067,37 @@ impl Runner {
             _ => return Ok(TaskResult::failure(&task.id, "Expected function task")),
         };
 
-        let args_str = resolve_args(func_def.args.as_ref(), ctx)
-            .with_context(|| format!("Failed to resolve args for function task '{}'", task.id))?;
+        // Resolve template variables in args
+        let resolved_args = if let Some(args) = &func_def.args {
+            let args_str = serde_json::to_string(args)?;
+            let resolved_str = crate::template::resolve_templates(&args_str, ctx)?;
+            serde_json::from_str(&resolved_str)?
+        } else {
+            serde_json::json!({})
+        };
 
-        Ok(TaskResult::success(
-            &task.id,
-            format!(
-                "[function] Would call {} with args: {}",
-                func_def.reference, args_str
-            ),
-            Some(0),
-        ))
+        // Call the function via registry
+        let reference = &func_def.reference;
+        match self.function_registry.call(reference, resolved_args) {
+            Ok(result) => {
+                let output = serde_json::to_string_pretty(&result.output)?;
+                let message = if let Some(msg) = result.message {
+                    format!("{}\n{}", msg, output)
+                } else {
+                    output
+                };
+
+                if result.success {
+                    Ok(TaskResult::success(&task.id, message, Some(0)))
+                } else {
+                    Ok(TaskResult::failure(&task.id, message))
+                }
+            }
+            Err(e) => Ok(TaskResult::failure(
+                &task.id,
+                format!("Function call failed: {}", e),
+            )),
+        }
     }
 
     async fn execute_llm(&self, task: &Task, _workflow: &Workflow) -> Result<TaskResult> {
@@ -1107,6 +1191,7 @@ pub fn resolve_templates(template: &str, ctx: &GlobalContext) -> Result<String> 
 }
 
 /// Resolve task args (YAML -> String with template resolution)
+#[allow(dead_code)]
 fn resolve_args(args: Option<&serde_json::Value>, ctx: &GlobalContext) -> Result<String> {
     match args {
         Some(args) => {

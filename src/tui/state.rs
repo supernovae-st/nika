@@ -1,7 +1,7 @@
 //! AppState - Domain Layer
 //!
 //! Central state management with selectors for deriving view state.
-//! Updated for v4.6 architecture with 7 keywords.
+//! Updated for v4.7.1 architecture with 7 keywords.
 
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
@@ -89,7 +89,7 @@ impl AppState {
             ..Self::default()
         };
 
-        // Initialize tasks (v4.6 - keyword-based)
+        // Initialize tasks (v4.7.1 - keyword-based)
         for task in &workflow.tasks {
             state.task_order.push(task.id.clone());
             let keyword = task.keyword();
@@ -217,7 +217,7 @@ pub enum Paradigm {
 }
 
 impl Paradigm {
-    /// Determine paradigm from v4.6 keyword
+    /// Determine paradigm from v4.7.1 keyword
     pub fn from_keyword(keyword: Option<&TaskKeyword>) -> Self {
         match keyword {
             Some(TaskKeyword::Agent) => Self::Context, // 🧠 Main context

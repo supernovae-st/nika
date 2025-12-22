@@ -1,4 +1,4 @@
-//! # Isolated Agent Runner (v4.6)
+//! # Isolated Agent Runner (v4.7.1)
 //!
 //! Runner for `subagent:` tasks with isolated context.
 //!

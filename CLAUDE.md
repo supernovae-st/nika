@@ -66,7 +66,7 @@ cargo run -- init my-project
 | `function:` | tool | path::fn (:: separator) |
 | `llm:` | tool | One-shot LLM (stateless) |
 
-**Example (v4.6):**
+**Example (v4.7.1):**
 ```yaml
 agent:
   model: claude-sonnet-4-5
@@ -151,9 +151,9 @@ nika-cli/
 │   ├── workflow.rs       # Core data structures
 │   ├── validator.rs      # 5-layer validation
 │   ├── runner.rs         # Workflow execution (async, Arc<str>)
-│   ├── template.rs       # v4.6 single-pass resolver
-│   ├── smart_string.rs   # v4.6 inline string storage
-│   ├── context_pool.rs   # v4.6 memory pool
+│   ├── template.rs       # v4.7.1 single-pass resolver
+│   ├── smart_string.rs   # v4.7.1 inline string storage
+│   ├── context_pool.rs   # v4.7.1 memory pool
 │   ├── init.rs           # Project initialization
 │   ├── provider/         # Multi-provider support
 │   │   ├── mod.rs        # Provider trait + factory

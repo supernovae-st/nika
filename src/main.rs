@@ -1,6 +1,6 @@
-//! Nika CLI - Workflow orchestration for Claude Agent SDK (v4.6)
+//! Nika CLI - Workflow orchestration for Claude Agent SDK (v4.7.1)
 //!
-//! Architecture v4.6: 7 keywords with type inference
+//! Architecture v4.7.1: 7 keywords with type inference
 //! (agent, subagent, shell, http, mcp, function, llm)
 //!
 //! Usage:
@@ -19,7 +19,7 @@ use walkdir::WalkDir;
 #[command(name = "nika")]
 #[command(author = "SuperNovae Studio")]
 #[command(version = "0.1.0")]
-#[command(about = "CLI for Nika workflow orchestration (v4.6)", long_about = None)]
+#[command(about = "CLI for Nika workflow orchestration (v4.7.1)", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -43,12 +43,20 @@ enum Commands {
     },
     /// Run a workflow file
     Run {
-        /// Path to workflow file (.nika.yaml)
-        workflow: String,
+        /// Path to workflow file (optional, uses nika.yaml main: if not specified)
+        workflow: Option<String>,
 
         /// LLM provider (claude, openai, ollama)
         #[arg(short, long, default_value = "claude")]
         provider: String,
+
+        /// Input parameters (can be repeated: --input key=value)
+        #[arg(short, long = "input", value_name = "KEY=VALUE")]
+        inputs: Vec<String>,
+
+        /// Config file with inputs (YAML format)
+        #[arg(short, long, value_name = "FILE")]
+        config: Option<String>,
 
         /// Show verbose output
         #[arg(short, long)]
@@ -88,10 +96,38 @@ fn main() {
         Some(Commands::Run {
             workflow,
             provider,
+            inputs,
+            config,
             verbose,
         }) => {
+            // Resolve workflow path: use provided or find from nika.yaml
+            let workflow_path = match workflow {
+                Some(path) => path.clone(),
+                None => match resolve_main_workflow() {
+                    Ok(path) => path,
+                    Err(e) => {
+                        eprintln!("{} {}", "Error:".red().bold(), e);
+                        std::process::exit(1);
+                    }
+                },
+            };
+
+            // Parse inputs from --input args and --config file
+            let parsed_inputs = match parse_inputs(inputs, config.as_deref()) {
+                Ok(i) => i,
+                Err(e) => {
+                    eprintln!("{} {}", "Error:".red().bold(), e);
+                    std::process::exit(1);
+                }
+            };
+
             let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-            if let Err(e) = rt.block_on(run_workflow(workflow, provider, *verbose)) {
+            if let Err(e) = rt.block_on(run_workflow(
+                &workflow_path,
+                provider,
+                parsed_inputs,
+                *verbose,
+            )) {
                 eprintln!("{} {}", "Error:".red().bold(), e);
                 std::process::exit(1);
             }
@@ -126,7 +162,7 @@ fn print_banner() {
   ╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
 
   Native Intelligence Kernel for Agents
-  v0.1.0 (Architecture v4.6)
+  v0.1.0 (Architecture v4.7.1)
 
   USAGE:
     nika <command> [options]
@@ -143,7 +179,7 @@ fn print_banner() {
     nika run support.nika.yaml
     nika init my-project
 
-  Architecture v4.6:
+  Architecture v4.7.1:
     - 7 keywords: agent, subagent, shell, http, mcp, function, llm
     - Type inference from keyword
     - Connection matrix with bridge pattern
@@ -156,7 +192,93 @@ fn print_banner() {
     );
 }
 
-/// Run the validate command (v4.6)
+/// Project manifest (nika.yaml)
+#[derive(serde::Deserialize)]
+struct ProjectManifest {
+    main: Option<String>,
+}
+
+/// Config file structure for --config
+#[derive(serde::Deserialize, Default)]
+struct ConfigFile {
+    #[serde(flatten)]
+    inputs: std::collections::HashMap<String, serde_yaml::Value>,
+}
+
+/// Parse inputs from --input args and --config file
+fn parse_inputs(
+    args: &[String],
+    config_path: Option<&str>,
+) -> anyhow::Result<std::collections::HashMap<String, String>> {
+    let mut inputs = std::collections::HashMap::new();
+
+    // First, load from config file if provided
+    if let Some(path) = config_path {
+        let content = std::fs::read_to_string(path)
+            .with_context(|| format!("Failed to read config file: {}", path))?;
+        let config: ConfigFile = serde_yaml::from_str(&content)
+            .with_context(|| format!("Failed to parse config file: {}", path))?;
+
+        for (key, value) in config.inputs {
+            // Skip special keys like 'secrets'
+            if key == "secrets" {
+                continue;
+            }
+            let string_value = match value {
+                serde_yaml::Value::String(s) => s,
+                serde_yaml::Value::Number(n) => n.to_string(),
+                serde_yaml::Value::Bool(b) => b.to_string(),
+                _ => serde_yaml::to_string(&value)?,
+            };
+            inputs.insert(key, string_value);
+        }
+    }
+
+    // Then, override with --input args (they take precedence)
+    for arg in args {
+        let parts: Vec<&str> = arg.splitn(2, '=').collect();
+        if parts.len() != 2 {
+            anyhow::bail!("Invalid input format '{}': expected KEY=VALUE", arg);
+        }
+        inputs.insert(parts[0].to_string(), parts[1].to_string());
+    }
+
+    Ok(inputs)
+}
+
+use anyhow::Context;
+
+/// Resolve the main workflow from nika.yaml
+fn resolve_main_workflow() -> anyhow::Result<String> {
+    let manifest_path = Path::new("nika.yaml");
+
+    if !manifest_path.exists() {
+        anyhow::bail!(
+            "No workflow specified and no nika.yaml found.\n\
+             Usage: nika run <workflow.nika.yaml>\n\
+             Or create a project with: nika init"
+        );
+    }
+
+    let content = std::fs::read_to_string(manifest_path)?;
+    let manifest: ProjectManifest = serde_yaml::from_str(&content)?;
+
+    match manifest.main {
+        Some(main) => {
+            let main_path = Path::new(&main);
+            if !main_path.exists() {
+                anyhow::bail!("Main workflow '{}' not found (defined in nika.yaml)", main);
+            }
+            Ok(main)
+        }
+        None => anyhow::bail!(
+            "No 'main' field in nika.yaml.\n\
+             Add: main: your-workflow.nika.yaml"
+        ),
+    }
+}
+
+/// Run the validate command (v4.7.1)
 fn run_validate(path: &str, format: &OutputFormat, verbose: bool) -> anyhow::Result<()> {
     let start_time = std::time::Instant::now();
 
@@ -167,7 +289,7 @@ fn run_validate(path: &str, format: &OutputFormat, verbose: bool) -> anyhow::Res
     if verbose {
         println!(
             "{}",
-            "Architecture v4.6: 7 keywords with type inference".dimmed()
+            "Architecture v4.7.1: 7 keywords with type inference".dimmed()
         );
         println!("{}", "Rules embedded - no external files needed".dimmed());
         println!();
@@ -191,7 +313,7 @@ fn run_validate(path: &str, format: &OutputFormat, verbose: bool) -> anyhow::Res
     );
     println!();
 
-    // Create validator (v4.6 - no external rules)
+    // Create validator (v4.7.1 - no external rules)
     let validator = Validator::new();
 
     // Validate each file
@@ -252,7 +374,12 @@ fn run_validate(path: &str, format: &OutputFormat, verbose: bool) -> anyhow::Res
 }
 
 /// Run a workflow
-async fn run_workflow(workflow_path: &str, provider: &str, verbose: bool) -> anyhow::Result<()> {
+async fn run_workflow(
+    workflow_path: &str,
+    provider: &str,
+    inputs: std::collections::HashMap<String, String>,
+    verbose: bool,
+) -> anyhow::Result<()> {
     println!("{}", "Nika Runner v0.1.0".cyan().bold());
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".dimmed());
     println!();
@@ -288,13 +415,25 @@ async fn run_workflow(workflow_path: &str, provider: &str, verbose: bool) -> any
         workflow.flows.len()
     );
     println!("Provider: {}", provider.cyan());
+
+    // Show inputs if any
+    if !inputs.is_empty() {
+        println!("Inputs: {}", format!("{:?}", inputs).dimmed());
+    }
+
+    // Print DAG visualization
+    println!();
+    println!("{}", "────────────────────────────────────────".dimmed());
+    println!("{}", "DAG:".bold());
+    print_dag(&workflow);
+    println!("{}", "────────────────────────────────────────".dimmed());
     println!();
 
-    // Create runner with v4.6 architecture
+    // Create runner with v4.7.1 architecture
     let runner = Runner::new(provider)?.verbose(verbose);
 
     if verbose {
-        println!("{}", "Using v4.6 runner architecture".dimmed());
+        println!("{}", "Using v4.7.1 runner architecture".dimmed());
         println!(
             "{}",
             "SharedAgentRunner for agent: tasks (shared context)".dimmed()
@@ -306,41 +445,182 @@ async fn run_workflow(workflow_path: &str, provider: &str, verbose: bool) -> any
         println!();
     }
 
-    // Execute workflow
-    let result = runner.run(&workflow).await?;
+    // Execute workflow with inputs
+    let result = runner.run_with_inputs(&workflow, inputs).await?;
 
-    // Print results
+    // Print execution results
     println!();
-    println!("{} Completed {} tasks", "✓".green(), result.tasks_completed);
-    if result.tasks_failed > 0 {
-        println!("{} {} tasks failed", "✗".red(), result.tasks_failed);
+    println!("{}", "────────────────────────────────────────".dimmed());
+    println!("{}", "Execution:".bold());
+    let failed_tasks: Vec<_> = result.results.iter().filter(|r| !r.success).collect();
+    for task_result in &result.results {
+        let status = if task_result.success {
+            "✓".green()
+        } else {
+            "✗".red()
+        };
+        println!("  {} {}", status, task_result.task_id);
     }
-    println!("{} Total tokens: {}", "→".dimmed(), result.total_tokens);
+    println!();
+    println!(
+        "  {} {} tasks | {} tokens",
+        "→".dimmed(),
+        result.tasks_completed,
+        result.total_tokens
+    );
+    println!();
+    if failed_tasks.is_empty() {
+        println!("  {} Completed", "✓".green().bold());
+    } else {
+        println!("  {} {} tasks failed", "✗".red().bold(), failed_tasks.len());
+    }
+    println!("{}", "────────────────────────────────────────".dimmed());
 
-    if verbose && !result.results.is_empty() {
-        println!();
-        println!("{}", "Task Results:".bold());
-        for task_result in &result.results {
-            let status = if task_result.success {
-                "✓".green()
-            } else {
-                "✗".red()
-            };
-            let output_preview = if task_result.output.len() > 60 {
-                format!("{}...", &task_result.output[..60])
-            } else {
-                task_result.output.clone()
-            };
-            println!(
-                "  {} {}: {}",
-                status,
-                task_result.task_id,
-                output_preview.dimmed()
-            );
+    // Print final output
+    let output_task_id = workflow.agent.output.as_deref();
+    if let Some(output_id) = output_task_id {
+        if let Some(final_result) = result.results.iter().find(|r| r.task_id == output_id) {
+            println!();
+            println!("{}", "════════════════════════════════════════".yellow());
+            println!("{}", format!("OUTPUT ({})", output_id).yellow().bold());
+            println!("{}", "════════════════════════════════════════".yellow());
+            println!();
+            println!("{}", final_result.output);
+            println!();
+            println!("{}", "════════════════════════════════════════".yellow());
         }
+    } else if let Some(last_result) = result.results.last() {
+        // Fallback to last task if no output specified
+        println!();
+        println!("{}", "════════════════════════════════════════".yellow());
+        println!(
+            "{}",
+            format!("OUTPUT ({})", last_result.task_id).yellow().bold()
+        );
+        println!("{}", "════════════════════════════════════════".yellow());
+        println!();
+        println!("{}", last_result.output);
+        println!();
+        println!("{}", "════════════════════════════════════════".yellow());
     }
 
     Ok(())
+}
+
+/// Print DAG visualization
+fn print_dag(workflow: &Workflow) {
+    use std::collections::{HashMap, HashSet};
+
+    // Build dependency graph
+    let mut deps: HashMap<&str, Vec<&str>> = HashMap::new();
+    let mut all_tasks: HashSet<&str> = HashSet::new();
+
+    for task in &workflow.tasks {
+        all_tasks.insert(&task.id);
+        deps.entry(&task.id).or_default();
+    }
+
+    for flow in &workflow.flows {
+        deps.entry(&flow.target).or_default().push(&flow.source);
+    }
+
+    // Find tasks with no dependencies (roots)
+    let roots: Vec<&str> = workflow
+        .tasks
+        .iter()
+        .filter(|t| deps.get(t.id.as_str()).is_none_or(|d| d.is_empty()))
+        .map(|t| t.id.as_str())
+        .collect();
+
+    // Compute layers (topological levels)
+    let mut layers: Vec<Vec<&str>> = Vec::new();
+    let mut assigned: HashSet<&str> = HashSet::new();
+
+    // Layer 0: roots
+    if !roots.is_empty() {
+        layers.push(roots.clone());
+        for r in &roots {
+            assigned.insert(r);
+        }
+    }
+
+    // Build remaining layers
+    loop {
+        let mut next_layer: Vec<&str> = Vec::new();
+        for task in &workflow.tasks {
+            if assigned.contains(task.id.as_str()) {
+                continue;
+            }
+            // Check if all dependencies are assigned
+            let task_deps = deps.get(task.id.as_str()).map_or(&[][..], |v| v.as_slice());
+            if task_deps.iter().all(|d| assigned.contains(d)) {
+                next_layer.push(&task.id);
+            }
+        }
+        if next_layer.is_empty() {
+            break;
+        }
+        for t in &next_layer {
+            assigned.insert(t);
+        }
+        layers.push(next_layer);
+    }
+
+    // Get task type icon
+    let get_icon = |task_id: &str| -> &str {
+        if let Some(task) = workflow.tasks.iter().find(|t| t.id == task_id) {
+            match task.keyword() {
+                nika::TaskKeyword::Agent => "🤖",
+                nika::TaskKeyword::Subagent => "🧠",
+                nika::TaskKeyword::Shell => "🔧",
+                nika::TaskKeyword::Http => "🌐",
+                nika::TaskKeyword::Mcp => "🔌",
+                nika::TaskKeyword::Function => "ƒ ",
+                nika::TaskKeyword::Llm => "⚡",
+            }
+        } else {
+            "• "
+        }
+    };
+
+    // Get task type name
+    let get_type = |task_id: &str| -> &str {
+        if let Some(task) = workflow.tasks.iter().find(|t| t.id == task_id) {
+            match task.keyword() {
+                nika::TaskKeyword::Agent => "agent",
+                nika::TaskKeyword::Subagent => "subagent",
+                nika::TaskKeyword::Shell => "shell",
+                nika::TaskKeyword::Http => "http",
+                nika::TaskKeyword::Mcp => "mcp",
+                nika::TaskKeyword::Function => "function",
+                nika::TaskKeyword::Llm => "llm",
+            }
+        } else {
+            "?"
+        }
+    };
+
+    // Print layers
+    for (i, layer) in layers.iter().enumerate() {
+        println!("  {} Layer {}:", if i == 0 { "┌" } else { "├" }, i);
+        for (j, task_id) in layer.iter().enumerate() {
+            let is_last = j == layer.len() - 1;
+            let branch = if is_last { "└" } else { "├" };
+            let icon = get_icon(task_id);
+            let task_type = get_type(task_id);
+            println!(
+                "  │   {} {} {} ({})",
+                branch,
+                icon,
+                task_id,
+                task_type.dimmed()
+            );
+        }
+        if i < layers.len() - 1 {
+            println!("  │   ↓");
+        }
+    }
+    println!("  └");
 }
 
 /// Initialize a new project

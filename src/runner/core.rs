@@ -1,4 +1,4 @@
-//! # Agent Core (v4.6)
+//! # Agent Core (v4.7.1)
 //!
 //! Shared execution logic for agent: and subagent: tasks.
 //!

@@ -1,7 +1,7 @@
-//! Integration tests for the Nika CLI (v4.6)
+//! Integration tests for the Nika CLI (v4.7.1)
 //!
 //! These tests run the actual CLI binary and verify output.
-//! Architecture v4.6: 7 keywords with type inference (agent, subagent, shell, http, mcp, function, llm).
+//! Architecture v4.7.1: 7 keywords with type inference (agent, subagent, shell, http, mcp, function, llm).
 
 use assert_cmd::Command;
 use predicates::prelude::*;
@@ -23,7 +23,7 @@ fn test_no_args_shows_banner() {
             "Native Intelligence Kernel for Agents",
         ))
         .stdout(predicate::str::contains("v0.1.0"))
-        .stdout(predicate::str::contains("Architecture v4.6"));
+        .stdout(predicate::str::contains("Architecture v4.7.1"));
 }
 
 #[test]
@@ -48,7 +48,7 @@ fn test_validate_help() {
 }
 
 // ============================================================================
-// v4.6 Workflow Validation Tests
+// v4.7.1 Workflow Validation Tests
 // ============================================================================
 
 #[test]
@@ -56,7 +56,7 @@ fn test_validate_valid_hello_world() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("hello.nika.yaml");
 
-    // v4.6 hello world workflow
+    // v4.7.1 hello world workflow
     fs::write(
         &workflow_file,
         r#"
@@ -86,7 +86,7 @@ fn test_validate_agent_to_tool() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("test.nika.yaml");
 
-    // v4.6: agent: -> shell: is valid
+    // v4.7.1: agent: -> shell: is valid
     fs::write(
         &workflow_file,
         r#"
@@ -121,7 +121,7 @@ fn test_validate_bridge_pattern() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("bridge.nika.yaml");
 
-    // v4.6 bridge pattern: subagent: -> function: -> agent:
+    // v4.7.1 bridge pattern: subagent: -> function: -> agent:
     fs::write(
         &workflow_file,
         r#"
@@ -197,7 +197,7 @@ fn test_validate_invalid_subagent_to_subagent() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("invalid.nika.yaml");
 
-    // v4.6 invalid: subagent: -> subagent: is BLOCKED
+    // v4.7.1 invalid: subagent: -> subagent: is BLOCKED
     fs::write(
         &workflow_file,
         r#"
@@ -232,7 +232,7 @@ fn test_validate_missing_keyword() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("bad.nika.yaml");
 
-    // v4.6: task must have exactly one keyword
+    // v4.7.1: task must have exactly one keyword
     fs::write(
         &workflow_file,
         r#"
@@ -248,7 +248,7 @@ flows: []
     )
     .unwrap();
 
-    // v4.6: Missing keyword is a parse error, not validation error
+    // v4.7.1: Missing keyword is a parse error, not validation error
     // CLI continues batch processing (returns 0) but prints error to stderr
     nika_cmd()
         .args(["validate", workflow_file.to_str().unwrap()])
@@ -262,7 +262,7 @@ fn test_validate_mcp_missing_separator() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("bad.nika.yaml");
 
-    // v4.6: mcp must use :: separator
+    // v4.7.1: mcp must use :: separator
     fs::write(
         &workflow_file,
         r#"
@@ -388,7 +388,7 @@ flows: []
         .args(["validate", workflow_file.to_str().unwrap(), "--verbose"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Architecture v4.6"));
+        .stdout(predicate::str::contains("Architecture v4.7.1"));
 }
 
 #[test]
@@ -408,7 +408,7 @@ fn test_validate_directory_recursive() {
     let sub_dir = temp_dir.path().join("workflows");
     fs::create_dir_all(&sub_dir).unwrap();
 
-    // Create two v4.6 workflows
+    // Create two v4.7.1 workflows
     fs::write(
         sub_dir.join("a.nika.yaml"),
         r#"
@@ -477,7 +477,7 @@ fn test_all_7_keywords_valid() {
     let temp_dir = TempDir::new().unwrap();
     let workflow_file = temp_dir.path().join("all-keywords.nika.yaml");
 
-    // v4.6: all 7 keywords in one workflow
+    // v4.7.1: all 7 keywords in one workflow
     fs::write(
         &workflow_file,
         r#"

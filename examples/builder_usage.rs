@@ -132,7 +132,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n=== Complete Runner Setup ===\n");
 
-    // Note: The v4.6 architecture uses SharedAgentRunner and IsolatedAgentRunner
+    // Note: The v4.7.1 architecture uses SharedAgentRunner and IsolatedAgentRunner
     // instead of the old Runner type. The runner setup would look like:
     //
     // use nika::provider::create_provider;
@@ -148,7 +148,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = custom_limits;
     let _ = breaker;
 
-    println!("v4.6 Runner architecture:");
+    println!("v4.7.1 Runner architecture:");
     println!("  ✅ SharedAgentRunner for agent: tasks");
     println!("  ✅ IsolatedAgentRunner for subagent: tasks");
     println!("  ✅ GlobalContext for shared state");
@@ -180,7 +180,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n=== Performance Improvements ===\n");
 
-    println!("v4.6 Performance:");
+    println!("v4.7.1 Performance:");
     println!("  • Template resolution: 3x faster (single-pass)");
     println!("  • String allocations: 50% reduction (Arc<str>)");
     println!("  • Task IDs: 95% stack-allocated (SmartString)");

@@ -1,4 +1,4 @@
-//! # Nika Workflow Types (v4.6)
+//! # Nika Workflow Types (v4.7.1)
 //!
 //! Core types for `.nika.yaml` workflow files with TaskAction enum.
 //!
@@ -8,10 +8,10 @@
 //!
 //! - [`Workflow`] - Root structure containing agent config, tasks, and flows
 //! - [`Agent`] - Agent configuration (model, system prompt, limits)
-//! - [`Task`] - Individual workflow task with TaskAction enum (v4.6)
+//! - [`Task`] - Individual workflow task with TaskAction enum (v4.7.1)
 //! - [`Flow`] - Connection between tasks with optional conditions
 //!
-//! ## The 7 Keywords (v4.6)
+//! ## The 7 Keywords (v4.7.1)
 //!
 //! Each task must have exactly **one** keyword that determines its type:
 //!
@@ -79,9 +79,29 @@
 //! ```
 
 use serde::Deserialize;
+use std::collections::HashMap;
 
 // Import the new Task structure from task
 pub use crate::task::{RetryConfig, Task, TaskAction, TaskCategory, TaskConfig, TaskKeyword};
+
+// ============================================================================
+// MCP SERVER CONFIG (for workflow-level MCP configuration)
+// ============================================================================
+
+/// MCP server configuration (used in workflow YAML)
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct McpServerConfig {
+    /// Command to run (e.g., "npx", "uvx", "node")
+    pub command: String,
+
+    /// Arguments to pass to the command
+    #[serde(default)]
+    pub args: Vec<String>,
+
+    /// Environment variables
+    #[serde(default)]
+    pub env: HashMap<String, String>,
+}
 
 // ============================================================================
 // WORKFLOW ROOT
@@ -96,6 +116,11 @@ pub struct Workflow {
     pub tasks: Vec<Task>,
     #[serde(default)]
     pub flows: Vec<Flow>,
+
+    /// MCP server configuration (optional)
+    /// Maps server name to server config
+    #[serde(default)]
+    pub mcp: HashMap<String, McpServerConfig>,
 }
 
 // ============================================================================
@@ -157,7 +182,7 @@ pub enum ExecutionMode {
 // FLOW
 // ============================================================================
 
-/// A flow connecting two tasks (v4.6)
+/// A flow connecting two tasks (v4.7.1)
 #[derive(Debug, Clone, Deserialize)]
 pub struct Flow {
     /// Source task ID
@@ -188,7 +213,7 @@ impl Workflow {
 }
 
 // ============================================================================
-// TESTS (v4.6 - TaskAction enum)
+// TESTS (v4.7.1 - TaskAction enum)
 // ============================================================================
 
 #[cfg(test)]
@@ -196,7 +221,7 @@ mod tests {
     use super::*;
 
     // ==========================================================================
-    // WORKFLOW PARSING - v4.6 nested format
+    // WORKFLOW PARSING - v4.7.1 nested format
     // ==========================================================================
 
     #[test]

@@ -45,6 +45,9 @@ wait-timeout = "0.2"
 reqwest = { version = "0.12", features = ["json"] }
 url = "2.5"
 
+# MCP SDK (Model Context Protocol)
+rmcp = { version = "0.12", features = ["client", "transport-child-process"] }
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
