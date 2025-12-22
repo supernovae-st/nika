@@ -158,11 +158,11 @@ flows:
 }
 
 #[test]
-fn test_validate_invalid_subagent_to_agent() {
+fn test_validate_subagent_to_agent_allowed_v471() {
     let temp_dir = TempDir::new().unwrap();
-    let workflow_file = temp_dir.path().join("invalid.nika.yaml");
+    let workflow_file = temp_dir.path().join("valid.nika.yaml");
 
-    // v4.6 invalid: subagent: -> agent: is BLOCKED (needs bridge)
+    // v4.7.1: subagent: -> agent: is NOW ALLOWED (WorkflowRunner auto-writes)
     fs::write(
         &workflow_file,
         r#"
@@ -188,8 +188,8 @@ flows:
     nika_cmd()
         .args(["validate", workflow_file.to_str().unwrap()])
         .assert()
-        .failure()
-        .stdout(predicate::str::contains("Connection blocked"));
+        .success()
+        .stdout(predicate::str::contains("2 tasks"));
 }
 
 #[test]

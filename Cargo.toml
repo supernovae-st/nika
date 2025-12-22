@@ -45,11 +45,8 @@ thiserror = "1.0"
 # Regex for ID validation
 regex = "1.10"
 
-# Lazy statics (for precompiled regex)
+# Lazy statics (for precompiled regex, context pool)
 once_cell = "1.19"
-
-# Concurrent hashmap for template cache
-dashmap = "6.1"
 
 # Colors and formatting
 colored = "2.1"

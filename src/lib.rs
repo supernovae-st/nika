@@ -86,6 +86,7 @@
 
 pub mod builders;
 pub mod context_pool;
+pub mod error;
 pub mod init;
 pub mod limits;
 pub mod provider;
@@ -99,19 +100,35 @@ pub mod validator;
 pub mod workflow;
 
 // Re-export main types from runner module (v4.6 architecture)
-pub use runner::{
-    // Context types
-    AgentMessage, ContextReader, ContextWriter, GlobalContext, LocalContext, MessageRole,
-    ExecutionContext,
-    // Agent core
-    AgentConfig, AgentCore, AgentError, AgentOutput,
-    // Runners and results
-    SharedAgentRunner, IsolatedAgentRunner, TaskResult, SubagentResult,
-    // Workflow runner
-    Runner, RunResult, ErrorCategory, ErrorContext,
-};
 pub use init::{init_project, InitResult};
+pub use runner::{
+    // Agent core
+    AgentConfig,
+    AgentCore,
+    AgentError,
+    // Context types
+    AgentMessage,
+    AgentOutput,
+    ContextReader,
+    ContextWriter,
+    ErrorCategory,
+    ErrorContext,
+    ExecutionContext,
+    GlobalContext,
+    IsolatedAgentRunner,
+    LocalContext,
+    MessageRole,
+    RunResult,
+    // Workflow runner
+    Runner,
+    // Runners and results
+    SharedAgentRunner,
+    SubagentResult,
+    TaskResult,
+};
 pub use validator::{ValidationError, ValidationResult, Validator};
+// Re-export error types
+pub use error::{FixSuggestion, NikaError};
 // Re-export Task types from task
 pub use task::{Task, TaskAction, TaskCategory, TaskConfig, TaskKeyword};
 // Re-export workflow types

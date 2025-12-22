@@ -1,4 +1,4 @@
-//! # Global and Local Context (v4.6)
+//! # Global and Local Context (v4.7.1)
 //!
 //! Context management for workflow execution with compile-time safety.
 //!
@@ -7,6 +7,16 @@
 //! - `GlobalContext`: Mutable context for agent: tasks (shared history)
 //! - `LocalContext`: Immutable snapshot for subagent: tasks (isolated)
 //! - Traits enforce compile-time safety via borrow rules
+//!
+//! ## v4.7.1 Performance Optimization
+//!
+//! `snapshot()` now uses `Arc<HashMap>` for zero-copy sharing:
+//! - Before: O(n) deep clone of all HashMaps
+//! - After: O(1) Arc clone (just increment refcount)
+//!
+//! This is safe because LocalContext only needs read access to the snapshot.
+//! Copy-on-write semantics ensure GlobalContext can continue to mutate its
+//! data without affecting existing snapshots.
 
 use crate::smart_string::SmartString;
 use std::collections::HashMap;
@@ -169,22 +179,46 @@ pub trait ContextWriter: ContextReader {
 /// GlobalContext is !Send + !Sync by design. It should only be used
 /// from a single task executor. Use Arc<Mutex<GlobalContext>> if needed
 /// for concurrent access (not recommended for performance).
-#[derive(Debug, Default, Clone)]
+///
+/// ## v4.7.1 Copy-on-Write Architecture
+///
+/// HashMaps are wrapped in `Arc` for efficient `snapshot()`:
+/// - `snapshot()` is O(1) - just clones the Arc (refcount increment)
+/// - On mutation, we use `Arc::make_mut` for copy-on-write
+/// - This avoids deep cloning all entries on every subagent spawn
+#[derive(Debug, Clone)]
 pub struct GlobalContext {
     /// Outputs from completed tasks (task_id -> output string)
-    outputs: HashMap<SmartString, Arc<str>>,
+    /// Wrapped in Arc for copy-on-write snapshot()
+    outputs: Arc<HashMap<SmartString, Arc<str>>>,
 
     /// Structured outputs for field access (task_id -> JSON value)
-    structured_outputs: HashMap<SmartString, serde_json::Value>,
+    /// Wrapped in Arc for copy-on-write snapshot()
+    structured_outputs: Arc<HashMap<SmartString, serde_json::Value>>,
 
     /// Main agent conversation history (for context sharing between agent: tasks)
+    /// NOT wrapped in Arc - subagents get fresh history anyway
     agent_history: Vec<AgentMessage>,
 
     /// Input parameters passed to the workflow
-    inputs: HashMap<String, Arc<str>>,
+    /// Wrapped in Arc for copy-on-write snapshot()
+    inputs: Arc<HashMap<String, Arc<str>>>,
 
     /// Environment variables snapshot
-    env_vars: HashMap<String, Arc<str>>,
+    /// Wrapped in Arc for copy-on-write snapshot()
+    env_vars: Arc<HashMap<String, Arc<str>>>,
+}
+
+impl Default for GlobalContext {
+    fn default() -> Self {
+        Self {
+            outputs: Arc::new(HashMap::new()),
+            structured_outputs: Arc::new(HashMap::new()),
+            agent_history: Vec::new(),
+            inputs: Arc::new(HashMap::new()),
+            env_vars: Arc::new(HashMap::new()),
+        }
+    }
 }
 
 impl GlobalContext {
@@ -195,24 +229,34 @@ impl GlobalContext {
 
     /// Create context with input parameters
     pub fn with_inputs(inputs: HashMap<String, String>) -> Self {
-        let inputs = inputs.into_iter().map(|(k, v)| (k, Arc::from(v))).collect();
+        let inputs: HashMap<String, Arc<str>> =
+            inputs.into_iter().map(|(k, v)| (k, Arc::from(v))).collect();
         Self {
-            inputs,
+            inputs: Arc::new(inputs),
             ..Default::default()
         }
     }
 
-    /// Create a read-only snapshot for isolated execution
+    /// Create a read-only snapshot for isolated execution (v4.7.1 optimized)
     ///
     /// This creates a LocalContext that captures the current state
     /// but cannot modify the GlobalContext.
+    ///
+    /// ## Performance (v4.7.1)
+    ///
+    /// This is now O(1) instead of O(n):
+    /// - Just clones the Arc pointers (refcount increment)
+    /// - No deep copy of HashMap contents
+    /// - Copy-on-write: GlobalContext mutations don't affect snapshots
+    #[inline]
     pub fn snapshot(&self) -> LocalContext {
         LocalContext {
-            outputs: self.outputs.clone(),
-            structured_outputs: self.structured_outputs.clone(),
-            inputs: self.inputs.clone(),
-            env_vars: self.env_vars.clone(),
-            // Note: agent_history is NOT copied - subagents get fresh history
+            // O(1) Arc clone - just refcount increment
+            outputs: Arc::clone(&self.outputs),
+            structured_outputs: Arc::clone(&self.structured_outputs),
+            inputs: Arc::clone(&self.inputs),
+            env_vars: Arc::clone(&self.env_vars),
+            // Note: agent_history is NOT shared - subagents get fresh history
             local_outputs: HashMap::new(),
             local_structured_outputs: HashMap::new(),
             local_history: Vec::new(),
@@ -220,13 +264,16 @@ impl GlobalContext {
     }
 
     /// Store multiple outputs at once (batch operation)
+    ///
+    /// Uses `Arc::make_mut` for copy-on-write semantics.
     pub fn set_outputs_batch<I, K, V>(&mut self, outputs: I)
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<str>,
         V: Into<String>,
     {
-        self.outputs.extend(
+        // Copy-on-write: only clones if there are other Arc references
+        Arc::make_mut(&mut self.outputs).extend(
             outputs
                 .into_iter()
                 .map(|(k, v)| (SmartString::from(k.as_ref()), Arc::from(v.into()))),
@@ -234,12 +281,15 @@ impl GlobalContext {
     }
 
     /// Store multiple structured outputs at once (batch operation)
+    ///
+    /// Uses `Arc::make_mut` for copy-on-write semantics.
     pub fn set_structured_outputs_batch<I, K>(&mut self, outputs: I)
     where
         I: IntoIterator<Item = (K, serde_json::Value)>,
         K: AsRef<str>,
     {
-        self.structured_outputs.extend(
+        // Copy-on-write: only clones if there are other Arc references
+        Arc::make_mut(&mut self.structured_outputs).extend(
             outputs
                 .into_iter()
                 .map(|(k, v)| (SmartString::from(k.as_ref()), v)),
@@ -260,12 +310,15 @@ impl GlobalContext {
     }
 
     /// Clear all data from the context (for reuse in memory pool)
+    ///
+    /// Uses `Arc::make_mut` for copy-on-write semantics.
     pub fn clear(&mut self) {
-        self.outputs.clear();
-        self.structured_outputs.clear();
+        // Copy-on-write: only clones if there are other Arc references
+        Arc::make_mut(&mut self.outputs).clear();
+        Arc::make_mut(&mut self.structured_outputs).clear();
         self.agent_history.clear();
-        self.inputs.clear();
-        self.env_vars.clear();
+        Arc::make_mut(&mut self.inputs).clear();
+        Arc::make_mut(&mut self.env_vars).clear();
     }
 }
 
@@ -311,13 +364,13 @@ impl ContextReader for GlobalContext {
 
 impl ContextWriter for GlobalContext {
     fn set_output(&mut self, task_id: &str, output: String) {
-        self.outputs
-            .insert(SmartString::from(task_id), Arc::from(output));
+        // Copy-on-write: only clones if there are other Arc references
+        Arc::make_mut(&mut self.outputs).insert(SmartString::from(task_id), Arc::from(output));
     }
 
     fn set_structured_output(&mut self, task_id: &str, value: serde_json::Value) {
-        self.structured_outputs
-            .insert(SmartString::from(task_id), value);
+        // Copy-on-write: only clones if there are other Arc references
+        Arc::make_mut(&mut self.structured_outputs).insert(SmartString::from(task_id), value);
     }
 
     fn add_agent_message(&mut self, role: MessageRole, content: String) {
@@ -340,23 +393,30 @@ impl ContextWriter for GlobalContext {
 ///
 /// ## Isolation Guarantees
 ///
-/// - Subagents get a COPY of outputs/inputs (read-only view of main context)
+/// - Subagents get a SHARED reference to outputs/inputs (via Arc)
 /// - Subagents get EMPTY agent_history (fresh context)
 /// - Subagent writes go to local_* fields only
 /// - Changes are NOT reflected back to GlobalContext automatically
+///
+/// ## v4.7.1 Performance
+///
+/// The snapshot fields are now `Arc<HashMap>` instead of `HashMap`:
+/// - O(1) snapshot creation (just Arc refcount increment)
+/// - Zero-copy read access to parent context data
+/// - Local writes still go to separate HashMap (no Arc overhead)
 #[derive(Debug, Clone)]
 pub struct LocalContext {
-    /// Snapshot of global outputs (read-only)
-    outputs: HashMap<SmartString, Arc<str>>,
+    /// Snapshot of global outputs (read-only, shared via Arc)
+    outputs: Arc<HashMap<SmartString, Arc<str>>>,
 
-    /// Snapshot of global structured outputs (read-only)
-    structured_outputs: HashMap<SmartString, serde_json::Value>,
+    /// Snapshot of global structured outputs (read-only, shared via Arc)
+    structured_outputs: Arc<HashMap<SmartString, serde_json::Value>>,
 
-    /// Snapshot of inputs (read-only)
-    inputs: HashMap<String, Arc<str>>,
+    /// Snapshot of inputs (read-only, shared via Arc)
+    inputs: Arc<HashMap<String, Arc<str>>>,
 
-    /// Snapshot of env vars (read-only)
-    env_vars: HashMap<String, Arc<str>>,
+    /// Snapshot of env vars (read-only, shared via Arc)
+    env_vars: Arc<HashMap<String, Arc<str>>>,
 
     /// Local outputs from this subagent (write goes here)
     local_outputs: HashMap<SmartString, Arc<str>>,
@@ -585,6 +645,95 @@ mod tests {
         ctx.add_agent_messages_batch([(MessageRole::User, "Q1"), (MessageRole::Assistant, "A1")]);
 
         assert_eq!(ctx.agent_history().len(), 2);
+    }
+
+    // ========================================================================
+    // v4.7.1 COPY-ON-WRITE TESTS
+    // ========================================================================
+
+    #[test]
+    fn test_snapshot_is_zero_copy() {
+        let mut global = GlobalContext::new();
+
+        // Add many outputs to make deep clone expensive
+        for i in 0..100 {
+            global.set_output(&format!("task{}", i), format!("output{}", i));
+        }
+
+        // Take a snapshot - this should be O(1) now
+        let local = global.snapshot();
+
+        // Both should see the same outputs (shared via Arc)
+        assert_eq!(local.get_output("task0"), Some("output0"));
+        assert_eq!(local.get_output("task99"), Some("output99"));
+
+        // Verify Arc is shared (same pointer)
+        assert!(Arc::ptr_eq(&global.outputs, &local.outputs));
+    }
+
+    #[test]
+    fn test_copy_on_write_after_snapshot() {
+        let mut global = GlobalContext::new();
+        global.set_output("task1", "original".to_string());
+
+        // Take snapshot
+        let local = global.snapshot();
+
+        // Both share the same Arc initially
+        assert!(Arc::ptr_eq(&global.outputs, &local.outputs));
+
+        // Mutate global - this triggers copy-on-write
+        global.set_output("task2", "new".to_string());
+
+        // Now they should have different Arcs
+        assert!(!Arc::ptr_eq(&global.outputs, &local.outputs));
+
+        // Local still sees original data
+        assert_eq!(local.get_output("task1"), Some("original"));
+        assert_eq!(local.get_output("task2"), None);
+
+        // Global sees new data
+        assert_eq!(global.get_output("task1"), Some("original"));
+        assert_eq!(global.get_output("task2"), Some("new"));
+    }
+
+    #[test]
+    fn test_multiple_snapshots_share_data() {
+        let mut global = GlobalContext::new();
+        global.set_output("shared", "data".to_string());
+
+        // Take multiple snapshots
+        let local1 = global.snapshot();
+        let local2 = global.snapshot();
+        let local3 = global.snapshot();
+
+        // All share the same Arc
+        assert!(Arc::ptr_eq(&global.outputs, &local1.outputs));
+        assert!(Arc::ptr_eq(&local1.outputs, &local2.outputs));
+        assert!(Arc::ptr_eq(&local2.outputs, &local3.outputs));
+
+        // All see the same data
+        assert_eq!(local1.get_output("shared"), Some("data"));
+        assert_eq!(local2.get_output("shared"), Some("data"));
+        assert_eq!(local3.get_output("shared"), Some("data"));
+    }
+
+    #[test]
+    fn test_clear_with_active_snapshots() {
+        let mut global = GlobalContext::new();
+        global.set_output("task1", "value1".to_string());
+
+        // Take snapshot
+        let local = global.snapshot();
+
+        // Clear global - should copy-on-write
+        global.clear();
+
+        // Global is empty
+        assert_eq!(global.get_output("task1"), None);
+
+        // Local still has original data
+        assert_eq!(local.get_output("task1"), Some("value1"));
     }
 
     // ========================================================================

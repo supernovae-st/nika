@@ -1,8 +1,8 @@
 //! Stress tests for resource limits and safety features
 
 use nika::limits::{CircuitBreaker, RateLimiter, ResourceLimits};
-use nika::{ContextWriter, Runner};
 use nika::workflow::Workflow;
+use nika::{ContextWriter, Runner};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};

@@ -1,4 +1,4 @@
-//! # Nika Validator (v4.6)
+//! # Nika Validator (v4.7.1)
 //!
 //! 5-layer validation pipeline for `.nika.yaml` workflows.
 //!
@@ -28,21 +28,22 @@
 //! | NIKA-030 | L4 | Connection blocked |
 //! | NIKA-040 | L5 | Graph warning |
 //!
-//! ## Connection Matrix (v4.6)
+//! ## Connection Matrix (v4.7.1)
 //!
-//! Only 2 connections are blocked:
+//! Only 1 connection is blocked (v4.7.1 change):
 //!
-//! - `subagent: → agent:` - Subagent cannot feed main agent directly
 //! - `subagent: → subagent:` - Subagent cannot spawn another subagent
 //!
-//! Use the **bridge pattern** to route around restrictions:
-//! `subagent: → function: → agent:` ✓
+//! v4.7.1: `subagent: → agent:` is NOW ALLOWED (WorkflowRunner auto-writes output)
+//! Bridge pattern is OPTIONAL (only for output transformation):
+//! `subagent: → function: → agent:` (optional)
 //!
 //! ## Example
 //!
 //! ```rust
 //! use nika::{Workflow, Validator, ValidationError};
 //!
+//! // v4.7.1: subagent → agent is allowed
 //! let yaml = r#"
 //! agent:
 //!   model: claude-sonnet-4-5
@@ -62,11 +63,8 @@
 //! let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
 //! let result = Validator::new().validate(&workflow, "test.nika.yaml");
 //!
-//! // This should fail: subagent → agent is blocked
-//! assert!(!result.is_valid());
-//! assert!(result.errors.iter().any(|e| {
-//!     matches!(e, ValidationError::ConnectionBlocked { .. })
-//! }));
+//! // v4.7.1: This passes! subagent → agent is allowed (WorkflowRunner auto-writes)
+//! assert!(result.is_valid());
 //! ```
 
 use crate::workflow::Workflow;
@@ -199,37 +197,30 @@ impl ValidationResult {
 // CONNECTION MATRIX (v4)
 // ============================================================================
 
-/// Check if a connection is allowed (v4.6 rules)
+/// Check if a connection is allowed (v4.7.1 rules)
 ///
-/// Only 2 connections are blocked - everything else is allowed:
-/// - Isolated → Context: subagent cannot directly feed main agent (NEEDS BRIDGE)
+/// v4.7.1 Change: Only 1 connection is blocked - everything else is allowed:
 /// - Isolated → Isolated: subagent cannot spawn another subagent
 ///
-/// The bridge pattern: Isolated → Tool → Context (tool acts as bridge)
+/// v4.7.1: subagent → agent is NOW ALLOWED (WorkflowRunner auto-writes output)
+/// Bridge pattern is OPTIONAL (only needed for output transformation)
 pub fn is_connection_allowed(source: TaskCategory, target: TaskCategory) -> bool {
-    // Only Isolated (subagent:) has restrictions - can only connect to Tool
+    // v4.7.1: Only subagent → subagent is blocked
+    // subagent → agent is now allowed (WorkflowRunner auto-writes)
     !matches!(
         (source, target),
-        (
-            TaskCategory::Isolated,
-            TaskCategory::Context | TaskCategory::Isolated
-        )
+        (TaskCategory::Isolated, TaskCategory::Isolated)
     )
 }
 
-/// Generate fix suggestion for blocked connections (v4.6)
+/// Generate fix suggestion for blocked connections (v4.7.1)
+///
+/// v4.7.1: Only subagent → subagent is blocked
 pub fn bridge_suggestion(source: &Task, target: &Task) -> String {
     let source_key = source.connection_key();
     let target_key = target.connection_key();
 
     match (source_key, target_key) {
-        (TaskCategory::Isolated, TaskCategory::Context) => {
-            format!(
-                "\n   💡 Add a tool between them (bridge pattern):\n      \
-                 {} (subagent:) → [function:] → {} (agent:)",
-                source.id, target.id
-            )
-        }
         (TaskCategory::Isolated, TaskCategory::Isolated) => {
             format!(
                 "\n   💡 subagent: cannot directly spawn another subagent:.\n      \
@@ -802,7 +793,8 @@ flows:
     }
 
     #[test]
-    fn test_subagent_to_agent_blocked() {
+    fn test_subagent_to_agent_allowed_v471() {
+        // v4.7.1: subagent → agent is NOW ALLOWED (WorkflowRunner auto-writes output)
         let result = validate_yaml(
             r#"
 agent:
@@ -820,11 +812,10 @@ flows:
     target: router
 "#,
         );
-        assert!(!result.is_valid(), "subagent: → agent: should be BLOCKED");
-        assert!(result
-            .errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::ConnectionBlocked { .. })));
+        assert!(
+            result.is_valid(),
+            "v4.7.1: subagent: → agent: should be ALLOWED (WorkflowRunner auto-writes)"
+        );
     }
 
     #[test]
@@ -945,10 +936,12 @@ flows:
         assert!(result.is_valid(), "tool → tool should be valid");
     }
 
-    // ========== Bridge Pattern Test (v4.6) ==========
+    // ========== Bridge Pattern Test (v4.7.1) ==========
 
     #[test]
-    fn test_bridge_pattern_v45() {
+    fn test_bridge_pattern_optional_v471() {
+        // v4.7.1: Bridge pattern is OPTIONAL (only for output transformation)
+        // Direct subagent → agent is now allowed, but bridge still works
         let result = validate_yaml(
             r#"
 agent:
@@ -974,11 +967,11 @@ flows:
         );
         assert!(
             result.is_valid(),
-            "Bridge pattern (subagent: → function: → agent:) should be valid"
+            "Bridge pattern (subagent: → function: → agent:) should still be valid in v4.7.1"
         );
     }
 
-    // ========== Keyword Validation Tests (v4.6) ==========
+    // ========== Keyword Validation Tests (v4.7.1) ==========
 
     #[test]
     fn test_missing_keyword_fails_parsing() {
@@ -1584,8 +1577,8 @@ flows:
     }
 
     #[test]
-    fn test_bridge_suggestion_isolated_to_context() {
-        // Parse tasks from YAML (v4.6 nested format)
+    fn test_bridge_suggestion_isolated_to_context_v471() {
+        // v4.7.1: subagent → agent is NOW ALLOWED, so no bridge suggestion
         let source: Task = serde_yaml::from_str(
             r#"
 id: worker
@@ -1604,10 +1597,11 @@ agent:
         .unwrap();
 
         let suggestion = bridge_suggestion(&source, &target);
-        assert!(suggestion.contains("💡"));
-        assert!(suggestion.contains("bridge pattern"));
-        assert!(suggestion.contains("worker"));
-        assert!(suggestion.contains("router"));
+        // v4.7.1: No suggestion needed - connection is allowed
+        assert!(
+            suggestion.is_empty(),
+            "v4.7.1: subagent → agent is allowed, no bridge suggestion needed"
+        );
     }
 
     #[test]
@@ -1662,7 +1656,7 @@ agent:
 
     #[test]
     fn test_is_connection_allowed_all_combinations() {
-        // Test all 9 combinations of the connection matrix
+        // Test all 9 combinations of the connection matrix (v4.7.1)
         use TaskCategory::*;
 
         // Context (agent:) can connect to anything
@@ -1670,10 +1664,10 @@ agent:
         assert!(is_connection_allowed(Context, Isolated));
         assert!(is_connection_allowed(Context, Tool));
 
-        // Isolated (subagent:) can ONLY connect to Tool
-        assert!(!is_connection_allowed(Isolated, Context)); // BLOCKED
-        assert!(!is_connection_allowed(Isolated, Isolated)); // BLOCKED
-        assert!(is_connection_allowed(Isolated, Tool)); // OK (bridge)
+        // v4.7.1: Isolated (subagent:) can connect to Context and Tool, but NOT Isolated
+        assert!(is_connection_allowed(Isolated, Context)); // v4.7.1: NOW ALLOWED (WorkflowRunner auto-writes)
+        assert!(!is_connection_allowed(Isolated, Isolated)); // STILL BLOCKED (can't spawn from sub)
+        assert!(is_connection_allowed(Isolated, Tool)); // OK
 
         // Tool can connect to anything
         assert!(is_connection_allowed(Tool, Context));

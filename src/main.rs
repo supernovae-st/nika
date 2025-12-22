@@ -295,7 +295,10 @@ async fn run_workflow(workflow_path: &str, provider: &str, verbose: bool) -> any
 
     if verbose {
         println!("{}", "Using v4.6 runner architecture".dimmed());
-        println!("{}", "SharedAgentRunner for agent: tasks (shared context)".dimmed());
+        println!(
+            "{}",
+            "SharedAgentRunner for agent: tasks (shared context)".dimmed()
+        );
         println!(
             "{}",
             "IsolatedAgentRunner for subagent: tasks (isolated context)".dimmed()
@@ -308,23 +311,11 @@ async fn run_workflow(workflow_path: &str, provider: &str, verbose: bool) -> any
 
     // Print results
     println!();
-    println!(
-        "{} Completed {} tasks",
-        "✓".green(),
-        result.tasks_completed
-    );
+    println!("{} Completed {} tasks", "✓".green(), result.tasks_completed);
     if result.tasks_failed > 0 {
-        println!(
-            "{} {} tasks failed",
-            "✗".red(),
-            result.tasks_failed
-        );
+        println!("{} {} tasks failed", "✗".red(), result.tasks_failed);
     }
-    println!(
-        "{} Total tokens: {}",
-        "→".dimmed(),
-        result.total_tokens
-    );
+    println!("{} Total tokens: {}", "→".dimmed(), result.total_tokens);
 
     if verbose && !result.results.is_empty() {
         println!();
@@ -340,7 +331,12 @@ async fn run_workflow(workflow_path: &str, provider: &str, verbose: bool) -> any
             } else {
                 task_result.output.clone()
             };
-            println!("  {} {}: {}", status, task_result.task_id, output_preview.dimmed());
+            println!(
+                "  {} {}: {}",
+                status,
+                task_result.task_id,
+                output_preview.dimmed()
+            );
         }
     }
 
