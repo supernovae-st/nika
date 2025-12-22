@@ -1,1 +1,1 @@
-../nika/spec
+../nika-docs/spec

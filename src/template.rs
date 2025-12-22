@@ -20,7 +20,7 @@ pub enum Token {
     /// Task reference: {{task_id}} or {{task_id.field}}
     TaskRef {
         task_id: String,
-        field: Option<String>
+        field: Option<String>,
     },
     /// Environment variable: ${env.NAME}
     EnvVar(String),
@@ -70,7 +70,9 @@ impl TemplateResolver {
                     chars.next(); // consume second '{'
 
                     // Parse {{task_id}} or {{task_id.field}}
-                    if let Some((task_id, field, end_pos)) = self.parse_task_ref(&mut chars, i + 2, template) {
+                    if let Some((task_id, field, end_pos)) =
+                        self.parse_task_ref(&mut chars, i + 2, template)
+                    {
                         tokens.push(Token::TaskRef { task_id, field });
                         current_literal_start = end_pos;
                     }
@@ -83,7 +85,9 @@ impl TemplateResolver {
                     chars.next(); // consume '{'
 
                     // Parse ${env.NAME} or ${input.name}
-                    if let Some((token, end_pos)) = self.parse_dollar_ref(&mut chars, i + 2, template) {
+                    if let Some((token, end_pos)) =
+                        self.parse_dollar_ref(&mut chars, i + 2, template)
+                    {
                         tokens.push(token);
                         current_literal_start = end_pos;
                     }

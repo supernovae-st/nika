@@ -28,21 +28,21 @@ impl Default for HyperspaceTheme {
     fn default() -> Self {
         Self {
             // Primary palette
-            space_violet: Color::Rgb(138, 43, 226),  // #8A2BE2
-            amber_gold: Color::Rgb(255, 191, 0),     // #FFBF00
-            cyan_teal: Color::Rgb(0, 255, 255),      // #00FFFF
-            deep_space: Color::Rgb(13, 17, 23),      // #0D1117
-            star_white: Color::Rgb(230, 237, 243),   // #E6EDF3
+            space_violet: Color::Rgb(138, 43, 226), // #8A2BE2
+            amber_gold: Color::Rgb(255, 191, 0),    // #FFBF00
+            cyan_teal: Color::Rgb(0, 255, 255),     // #00FFFF
+            deep_space: Color::Rgb(13, 17, 23),     // #0D1117
+            star_white: Color::Rgb(230, 237, 243),  // #E6EDF3
 
             // Status colors
-            success_green: Color::Rgb(63, 185, 80),  // #3FB950
+            success_green: Color::Rgb(63, 185, 80), // #3FB950
             warning_orange: Color::Rgb(210, 153, 34), // #D29922
-            error_red: Color::Rgb(248, 81, 73),      // #F85149
+            error_red: Color::Rgb(248, 81, 73),     // #F85149
 
             // Dimmed versions
-            dim_violet: Color::Rgb(88, 28, 143),     // Darker violet
-            dim_amber: Color::Rgb(153, 115, 0),      // Darker amber
-            dim_cyan: Color::Rgb(0, 153, 153),       // Darker cyan
+            dim_violet: Color::Rgb(88, 28, 143), // Darker violet
+            dim_amber: Color::Rgb(153, 115, 0),  // Darker amber
+            dim_cyan: Color::Rgb(0, 153, 153),   // Darker cyan
         }
     }
 }
@@ -150,11 +150,11 @@ impl HyperspaceTheme {
     /// Get color for activity bar based on percentage
     pub fn activity_color(&self, percent: f32) -> Color {
         match percent {
-            p if p >= 80.0 => self.amber_gold,      // HIGH - bright amber
-            p if p >= 60.0 => self.space_violet,   // MED - violet
-            p if p >= 40.0 => self.dim_violet,     // LOW - dim violet
-            p if p >= 20.0 => self.error_red,      // CRIT - red
-            _ => Color::Rgb(64, 64, 64),           // EMPTY - gray
+            p if p >= 80.0 => self.amber_gold,   // HIGH - bright amber
+            p if p >= 60.0 => self.space_violet, // MED - violet
+            p if p >= 40.0 => self.dim_violet,   // LOW - dim violet
+            p if p >= 20.0 => self.error_red,    // CRIT - red
+            _ => Color::Rgb(64, 64, 64),         // EMPTY - gray
         }
     }
 
@@ -165,10 +165,10 @@ impl HyperspaceTheme {
     /// Get color for context temperature based on usage percentage
     pub fn temperature_color(&self, percent: f32) -> Color {
         match percent {
-            p if p >= 90.0 => self.error_red,       // Critical
-            p if p >= 75.0 => self.warning_orange,  // Warning
-            p if p >= 50.0 => self.amber_gold,      // Medium
-            _ => self.success_green,                // Safe
+            p if p >= 90.0 => self.error_red,      // Critical
+            p if p >= 75.0 => self.warning_orange, // Warning
+            p if p >= 50.0 => self.amber_gold,     // Medium
+            _ => self.success_green,               // Safe
         }
     }
 }

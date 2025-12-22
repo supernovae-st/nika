@@ -7,9 +7,9 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-#[test]
+#[tokio::test]
 #[ignore] // Run with: cargo test stress_test --ignored
-fn test_workflow_timeout() {
+async fn test_workflow_timeout() {
     let yaml = r#"
 agent:
   model: claude-sonnet-4-5
@@ -32,12 +32,10 @@ flows: []
         ..ResourceLimits::default()
     };
 
-    let runner = Runner::new("mock")
-        .unwrap()
-        .with_limits(limits);
+    let runner = Runner::new("mock").unwrap().with_limits(limits);
 
     let start = Instant::now();
-    let result = runner.run(&workflow);
+    let result = runner.run(&workflow).await;
     let elapsed = start.elapsed();
 
     // Should fail due to timeout
@@ -46,9 +44,9 @@ flows: []
     assert!(elapsed < Duration::from_secs(2)); // Should fail fast
 }
 
-#[test]
+#[tokio::test]
 #[ignore]
-fn test_output_size_limit() {
+async fn test_output_size_limit() {
     let yaml = r#"
 agent:
   model: claude-sonnet-4-5
@@ -71,15 +69,16 @@ flows: []
         ..ResourceLimits::default()
     };
 
-    let runner = Runner::new("mock")
-        .unwrap()
-        .with_limits(limits);
+    let runner = Runner::new("mock").unwrap().with_limits(limits);
 
-    let result = runner.run(&workflow);
+    let result = runner.run(&workflow).await;
 
     // Should fail due to output size
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("output exceeds size limit"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("output exceeds size limit"));
 }
 
 #[test]
@@ -138,8 +137,8 @@ fn test_circuit_breaker_stress() {
     assert!(breaker.can_proceed());
 }
 
-#[test]
-fn test_concurrent_workflow_limit() {
+#[tokio::test]
+async fn test_concurrent_workflow_limit() {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
 
@@ -163,11 +162,7 @@ flows: []
         ..ResourceLimits::testing()
     };
 
-    let runner = Arc::new(
-        Runner::new("mock")
-            .unwrap()
-            .with_limits(limits)
-    );
+    let runner = Arc::new(Runner::new("mock").unwrap().with_limits(limits));
 
     let counter = Arc::new(AtomicUsize::new(0));
     let errors = Arc::new(Mutex::new(Vec::new()));
@@ -180,21 +175,21 @@ flows: []
             let c = Arc::clone(&counter);
             let e = Arc::clone(&errors);
 
-            thread::spawn(move || {
+            tokio::spawn(async move {
                 c.fetch_add(1, Ordering::SeqCst);
-                match r.run(&w) {
-                    Ok(_) => {},
+                match r.run(&w).await {
+                    Ok(_) => {}
                     Err(err) => {
-                        e.lock().unwrap().push(format!("Thread {}: {}", i, err));
+                        e.lock().unwrap().push(format!("Task {}: {}", i, err));
                     }
                 }
             })
         })
         .collect();
 
-    // Wait for all threads
+    // Wait for all tasks
     for handle in handles {
-        handle.join().unwrap();
+        handle.await.unwrap();
     }
 
     // Some should have succeeded, some may have failed due to limits
@@ -206,9 +201,9 @@ flows: []
     println!("Concurrent execution errors: {:?}", errs.len());
 }
 
-#[test]
+#[tokio::test]
 #[ignore]
-fn test_memory_pool_stress() {
+async fn test_memory_pool_stress() {
     use nika::context_pool::{get_context, return_context, warm_pool};
 
     // Pre-warm the pool
@@ -222,7 +217,7 @@ fn test_memory_pool_stress() {
 
         // Simulate some work
         if i % 100 == 0 {
-            thread::yield_now();
+            tokio::task::yield_now().await;
         }
 
         return_context(ctx);
@@ -233,8 +228,8 @@ fn test_memory_pool_stress() {
     assert!(elapsed < Duration::from_secs(1)); // Should be very fast
 }
 
-#[test]
-fn test_retry_limit() {
+#[tokio::test]
+async fn test_retry_limit() {
     // This test verifies that retry limits are respected
     let yaml = r#"
 agent:
@@ -265,7 +260,7 @@ flows: []
         .verbose(true);
 
     let start = Instant::now();
-    let result = runner.run(&workflow);
+    let result = runner.run(&workflow).await;
     let elapsed = start.elapsed();
 
     // Should fail after retries

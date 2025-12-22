@@ -220,9 +220,9 @@ impl Paradigm {
     /// Determine paradigm from v4.6 keyword
     pub fn from_keyword(keyword: Option<&TaskKeyword>) -> Self {
         match keyword {
-            Some(TaskKeyword::Agent) => Self::Context,    // 🧠 Main context
+            Some(TaskKeyword::Agent) => Self::Context, // 🧠 Main context
             Some(TaskKeyword::Subagent) => Self::Isolated, // 🤖 Separate context
-            Some(_) => Self::Pure,                         // ⚡ All tool keywords
+            Some(_) => Self::Pure,                     // ⚡ All tool keywords
             None => Self::Unknown,
         }
     }
@@ -232,7 +232,9 @@ impl Paradigm {
         match task_type {
             "agent" | "prompt" | "context" => Self::Context,
             "subagent" | "spawn" | "isolated" => Self::Isolated,
-            "shell" | "http" | "mcp" | "function" | "llm" | "pure" | "data" | "action" | "tool" => Self::Pure,
+            "shell" | "http" | "mcp" | "function" | "llm" | "pure" | "data" | "action" | "tool" => {
+                Self::Pure
+            }
             t if t.starts_with("nika/") => {
                 // Extended types - check known mappings
                 match t {

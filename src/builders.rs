@@ -37,7 +37,7 @@ impl WorkflowBuilder {
     pub fn name(mut self, name: impl TryInto<WorkflowName>) -> Result<Self, BuilderError> {
         self.name = Some(
             name.try_into()
-                .map_err(|_| BuilderError::InvalidName("Invalid workflow name".into()))?
+                .map_err(|_| BuilderError::InvalidName("Invalid workflow name".into()))?,
         );
         Ok(self)
     }
@@ -187,11 +187,11 @@ impl AgentBuilder {
             system_prompt: self.system_prompt,
             system_prompt_file: None, // Add missing field
             mode: self.mode.unwrap_or(ExecutionMode::Strict),
-            max_turns: None, // Add missing field
-            max_budget_usd: None, // Add missing field
-            allowed_tools: None, // Add missing field
+            max_turns: None,        // Add missing field
+            max_budget_usd: None,   // Add missing field
+            allowed_tools: None,    // Add missing field
             disallowed_tools: None, // Add missing field
-            output: None, // Add missing field
+            output: None,           // Add missing field
         })
     }
 }
@@ -260,8 +260,7 @@ impl TaskBuilder {
     pub fn shell(mut self, command: impl Into<String>) -> Result<Self, BuilderError> {
         let cmd = command.into();
         // Validate command safety
-        ShellCommand::new(&cmd)
-            .map_err(|e| BuilderError::UnsafeCommand(e.to_string()))?;
+        ShellCommand::new(&cmd).map_err(|e| BuilderError::UnsafeCommand(e.to_string()))?;
 
         self.shell = Some(cmd);
         Ok(self)
@@ -281,8 +280,7 @@ impl TaskBuilder {
     pub fn http(mut self, url: impl Into<String>) -> Result<Self, BuilderError> {
         let u = url.into();
         // Validate URL
-        Url::new(&u)
-            .map_err(|e| BuilderError::InvalidUrl(e.to_string()))?;
+        Url::new(&u).map_err(|e| BuilderError::InvalidUrl(e.to_string()))?;
 
         self.http = Some(u);
         Ok(self)
@@ -316,7 +314,8 @@ impl TaskBuilder {
     pub fn args(mut self, args: serde_yaml::Value) -> Self {
         // Convert serde_yaml::Value to serde_json::Value
         let json_str = serde_json::to_string(&args).unwrap_or_default();
-        let json_value: serde_json::Value = serde_json::from_str(&json_str).unwrap_or(serde_json::Value::Null);
+        let json_value: serde_json::Value =
+            serde_json::from_str(&json_str).unwrap_or(serde_json::Value::Null);
         self.args = Some(json_value);
         self
     }
@@ -345,7 +344,9 @@ impl TaskBuilder {
 
     /// Build the task
     pub fn build(self) -> Result<Task, BuilderError> {
-        use crate::task::{TaskAction, AgentDef, SubagentDef, ShellDef, HttpDef, McpDef, FunctionDef, LlmDef};
+        use crate::task::{
+            AgentDef, FunctionDef, HttpDef, LlmDef, McpDef, ShellDef, SubagentDef, TaskAction,
+        };
 
         // Ensure exactly one keyword is set
         let keyword_count = [
@@ -551,13 +552,9 @@ mod tests {
                     .system_prompt("You are helpful"))
             })
             .unwrap()
-            .with_task("greet", |t| {
-                Ok(t.agent("Say hello"))
-            })
+            .with_task("greet", |t| Ok(t.agent("Say hello")))
             .unwrap()
-            .with_task("translate", |t| {
-                Ok(t.subagent("Translate to French"))
-            })
+            .with_task("translate", |t| Ok(t.subagent("Translate to French")))
             .unwrap()
             .flow("greet", "translate")
             .build()
@@ -570,7 +567,7 @@ mod tests {
 
     #[test]
     fn test_task_builder_validation() {
-        use crate::task::{TaskAction, ShellDef};
+        use crate::task::{ShellDef, TaskAction};
 
         // Valid shell command
         let task = TaskBuilder::new("safe-cmd")
@@ -580,16 +577,16 @@ mod tests {
             .build()
             .unwrap();
         match &task.action {
-            TaskAction::Shell { shell: ShellDef { command, .. } } => {
+            TaskAction::Shell {
+                shell: ShellDef { command, .. },
+            } => {
                 assert_eq!(command, "ls -la");
             }
             _ => panic!("Expected Shell action"),
         }
 
         // Dangerous shell command
-        let result = TaskBuilder::new("danger")
-            .unwrap()
-            .shell("rm -rf /");
+        let result = TaskBuilder::new("danger").unwrap().shell("rm -rf /");
         assert!(result.is_err());
 
         // But can use unsafe
@@ -601,7 +598,9 @@ mod tests {
                 .unwrap()
         };
         match &task.action {
-            TaskAction::Shell { shell: ShellDef { command, .. } } => {
+            TaskAction::Shell {
+                shell: ShellDef { command, .. },
+            } => {
                 assert_eq!(command, "rm -rf /");
             }
             _ => panic!("Expected Shell action"),
@@ -629,11 +628,7 @@ mod tests {
         let task = TaskBuilder::new("configured")
             .unwrap()
             .agent("Do work")
-            .with_config(|c| {
-                c.timeout("30s")
-                    .retries(3)
-                    .retry_delay("1s")
-            })
+            .with_config(|c| c.timeout("30s").retries(3).retry_delay("1s"))
             .unwrap()
             .build()
             .unwrap();

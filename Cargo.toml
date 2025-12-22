@@ -63,6 +63,13 @@ glob = "0.3"
 # Process timeout (for CLI availability checks)
 wait-timeout = "0.2"
 
+# HTTP client for API providers (OpenAI, Mistral, etc.)
+reqwest = { version = "0.12", features = ["json"] }
+
+# Structured logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
 [dev-dependencies]
 assert_cmd = "2.0"
 predicates = "3.1"

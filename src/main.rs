@@ -90,7 +90,8 @@ fn main() {
             provider,
             verbose,
         }) => {
-            if let Err(e) = run_workflow(workflow, provider, *verbose) {
+            let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+            if let Err(e) = rt.block_on(run_workflow(workflow, provider, *verbose)) {
                 eprintln!("{} {}", "Error:".red().bold(), e);
                 std::process::exit(1);
             }
@@ -164,7 +165,10 @@ fn run_validate(path: &str, format: &OutputFormat, verbose: bool) -> anyhow::Res
     println!();
 
     if verbose {
-        println!("{}", "Architecture v4.6: 7 keywords with type inference".dimmed());
+        println!(
+            "{}",
+            "Architecture v4.6: 7 keywords with type inference".dimmed()
+        );
         println!("{}", "Rules embedded - no external files needed".dimmed());
         println!();
     }
@@ -211,7 +215,12 @@ fn run_validate(path: &str, format: &OutputFormat, verbose: bool) -> anyhow::Res
                 results.push(result);
             }
             Err(e) => {
-                eprintln!("{} Failed to parse {}: {}", "Error:".red(), file.display(), e);
+                eprintln!(
+                    "{} Failed to parse {}: {}",
+                    "Error:".red(),
+                    file.display(),
+                    e
+                );
             }
         }
     }
@@ -219,7 +228,10 @@ fn run_validate(path: &str, format: &OutputFormat, verbose: bool) -> anyhow::Res
     if verbose {
         let elapsed = start_time.elapsed();
         println!();
-        println!("{}", format!("Validation complete in {:?}", elapsed).dimmed());
+        println!(
+            "{}",
+            format!("Validation complete in {:?}", elapsed).dimmed()
+        );
     }
     println!();
 
@@ -240,7 +252,7 @@ fn run_validate(path: &str, format: &OutputFormat, verbose: bool) -> anyhow::Res
 }
 
 /// Run a workflow
-fn run_workflow(workflow_path: &str, provider: &str, verbose: bool) -> anyhow::Result<()> {
+async fn run_workflow(workflow_path: &str, provider: &str, verbose: bool) -> anyhow::Result<()> {
     println!("{}", "Nika Runner v0.1.0".cyan().bold());
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".dimmed());
     println!();
@@ -280,7 +292,7 @@ fn run_workflow(workflow_path: &str, provider: &str, verbose: bool) -> anyhow::R
 
     // Run workflow
     let runner = Runner::new(provider)?.verbose(verbose);
-    let result = runner.run(&workflow)?;
+    let result = runner.run(&workflow).await?;
 
     // Output results
     println!();
@@ -322,7 +334,11 @@ fn run_init(name: &str) -> anyhow::Result<()> {
     println!("Next steps:");
     println!("  {} Edit {}", "1.".dimmed(), "main.nika.yaml".cyan());
     println!("  {} Run  {}", "2.".dimmed(), "nika validate".cyan());
-    println!("  {} Run  {}", "3.".dimmed(), "nika run main.nika.yaml".cyan());
+    println!(
+        "  {} Run  {}",
+        "3.".dimmed(),
+        "nika run main.nika.yaml".cyan()
+    );
 
     Ok(())
 }

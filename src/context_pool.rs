@@ -29,11 +29,7 @@ impl ContextPool {
 
     /// Get a context from the pool or create a new one
     pub fn get(&self) -> ExecutionContext {
-        self.pool
-            .lock()
-            .unwrap()
-            .pop()
-            .unwrap_or_default()
+        self.pool.lock().unwrap().pop().unwrap_or_default()
     }
 
     /// Return a context to the pool for reuse

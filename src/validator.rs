@@ -69,8 +69,8 @@
 //! }));
 //! ```
 
-use crate::{Task, TaskAction, TaskCategory, TaskKeyword};
 use crate::workflow::Workflow;
+use crate::{Task, TaskAction, TaskCategory, TaskKeyword};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
@@ -210,7 +210,10 @@ pub fn is_connection_allowed(source: TaskCategory, target: TaskCategory) -> bool
     // Only Isolated (subagent:) has restrictions - can only connect to Tool
     !matches!(
         (source, target),
-        (TaskCategory::Isolated, TaskCategory::Context | TaskCategory::Isolated)
+        (
+            TaskCategory::Isolated,
+            TaskCategory::Context | TaskCategory::Isolated
+        )
     )
 }
 
@@ -284,9 +287,7 @@ impl Validator {
             result.add_error(ValidationError::MissingModel);
         }
 
-        if workflow.agent.system_prompt.is_none()
-            && workflow.agent.system_prompt_file.is_none()
-        {
+        if workflow.agent.system_prompt.is_none() && workflow.agent.system_prompt_file.is_none() {
             result.add_error(ValidationError::MissingSystemPrompt);
         }
     }
@@ -327,7 +328,10 @@ impl Validator {
             } else if keyword_count > 1 {
                 result.add_error(ValidationError::TaskError {
                     task_id: task.id.clone(),
-                    message: format!("Task has {} keywords but must have exactly one", keyword_count),
+                    message: format!(
+                        "Task has {} keywords but must have exactly one",
+                        keyword_count
+                    ),
                 });
             }
 
@@ -342,7 +346,8 @@ impl Validator {
                     if !mcp.reference.contains("::") {
                         result.add_error(ValidationError::TaskError {
                             task_id: task.id.clone(),
-                            message: "mcp: must use '::' separator (e.g., 'filesystem::read_file')".into(),
+                            message: "mcp: must use '::' separator (e.g., 'filesystem::read_file')"
+                                .into(),
                         });
                     }
                 }
@@ -351,13 +356,18 @@ impl Validator {
                     if !function.reference.contains("::") {
                         result.add_error(ValidationError::TaskError {
                             task_id: task.id.clone(),
-                            message: "function: must use '::' separator (e.g., 'path::functionName')".into(),
+                            message:
+                                "function: must use '::' separator (e.g., 'path::functionName')"
+                                    .into(),
                         });
                     }
                 }
                 TaskAction::Http { http } => {
                     // http: should be a valid URL pattern
-                    if !http.url.starts_with("http://") && !http.url.starts_with("https://") && !http.url.starts_with("${") {
+                    if !http.url.starts_with("http://")
+                        && !http.url.starts_with("https://")
+                        && !http.url.starts_with("${")
+                    {
                         result.add_error(ValidationError::TaskError {
                             task_id: task.id.clone(),
                             message: "http: must be a valid URL (http:// or https://)".into(),
@@ -432,27 +442,27 @@ impl Validator {
                         // Check allowedTools and disallowedTools don't overlap
                         self.check_tool_overlap_agent(agent, &task.id, result);
                     }
-                },
-
-            // Rule 2: subagent: tasks can have independent tool access (OK)
-            TaskKeyword::Subagent => {
-                if let TaskAction::Subagent { subagent } = &task.action {
-                    // Subagent can have any tools - it's sandboxed
-                    // Just check for overlap
-                    self.check_tool_overlap_subagent(subagent, &task.id, result);
                 }
-            },
 
-            // Rule 3: tool tasks cannot have allowedTools/disallowedTools
-            TaskKeyword::Shell
-            | TaskKeyword::Http
-            | TaskKeyword::Mcp
-            | TaskKeyword::Function
-            | TaskKeyword::Llm => {
-                // Tools cannot have allowed_tools - this is enforced at the structure level
-                // since tool definitions don't have allowed_tools field
+                // Rule 2: subagent: tasks can have independent tool access (OK)
+                TaskKeyword::Subagent => {
+                    if let TaskAction::Subagent { subagent } = &task.action {
+                        // Subagent can have any tools - it's sandboxed
+                        // Just check for overlap
+                        self.check_tool_overlap_subagent(subagent, &task.id, result);
+                    }
+                }
+
+                // Rule 3: tool tasks cannot have allowedTools/disallowedTools
+                TaskKeyword::Shell
+                | TaskKeyword::Http
+                | TaskKeyword::Mcp
+                | TaskKeyword::Function
+                | TaskKeyword::Llm => {
+                    // Tools cannot have allowed_tools - this is enforced at the structure level
+                    // since tool definitions don't have allowed_tools field
+                }
             }
-        }
         }
 
         // Check config-level overlap
@@ -477,7 +487,12 @@ impl Validator {
     }
 
     /// Check that allowedTools and disallowedTools don't overlap on a task
-    fn check_tool_overlap_agent(&self, agent: &crate::task::AgentDef, task_id: &str, result: &mut ValidationResult) {
+    fn check_tool_overlap_agent(
+        &self,
+        agent: &crate::task::AgentDef,
+        task_id: &str,
+        result: &mut ValidationResult,
+    ) {
         if let Some(ref tools) = agent.allowed_tools {
             // Check for duplicates within allowedTools
             let mut seen: HashSet<&str> = HashSet::new();
@@ -502,7 +517,12 @@ impl Validator {
         }
     }
 
-    fn check_tool_overlap_subagent(&self, subagent: &crate::task::SubagentDef, task_id: &str, result: &mut ValidationResult) {
+    fn check_tool_overlap_subagent(
+        &self,
+        subagent: &crate::task::SubagentDef,
+        task_id: &str,
+        result: &mut ValidationResult,
+    ) {
         if let Some(ref tools) = subagent.allowed_tools {
             // Check for duplicates within allowedTools
             let mut seen: HashSet<&str> = HashSet::new();
@@ -800,14 +820,11 @@ flows:
     target: router
 "#,
         );
-        assert!(
-            !result.is_valid(),
-            "subagent: → agent: should be BLOCKED"
-        );
-        assert!(result.errors.iter().any(|e| matches!(
-            e,
-            ValidationError::ConnectionBlocked { .. }
-        )));
+        assert!(!result.is_valid(), "subagent: → agent: should be BLOCKED");
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::ConnectionBlocked { .. })));
     }
 
     #[test]
@@ -1376,7 +1393,10 @@ flows:
     target: notify
 "#,
         );
-        assert!(result.is_valid(), "Complex tool access scenario should pass");
+        assert!(
+            result.is_valid(),
+            "Complex tool access scenario should pass"
+        );
     }
 
     // ==========================================================================
@@ -1566,16 +1586,22 @@ flows:
     #[test]
     fn test_bridge_suggestion_isolated_to_context() {
         // Parse tasks from YAML (v4.6 nested format)
-        let source: Task = serde_yaml::from_str(r#"
+        let source: Task = serde_yaml::from_str(
+            r#"
 id: worker
 subagent:
   prompt: "Work"
-"#).unwrap();
-        let target: Task = serde_yaml::from_str(r#"
+"#,
+        )
+        .unwrap();
+        let target: Task = serde_yaml::from_str(
+            r#"
 id: router
 agent:
   prompt: "Route"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let suggestion = bridge_suggestion(&source, &target);
         assert!(suggestion.contains("💡"));
@@ -1586,16 +1612,22 @@ agent:
 
     #[test]
     fn test_bridge_suggestion_isolated_to_isolated() {
-        let source: Task = serde_yaml::from_str(r#"
+        let source: Task = serde_yaml::from_str(
+            r#"
 id: sub1
 subagent:
   prompt: "Sub1"
-"#).unwrap();
-        let target: Task = serde_yaml::from_str(r#"
+"#,
+        )
+        .unwrap();
+        let target: Task = serde_yaml::from_str(
+            r#"
 id: sub2
 subagent:
   prompt: "Sub2"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let suggestion = bridge_suggestion(&source, &target);
         assert!(suggestion.contains("💡"));
@@ -1604,19 +1636,28 @@ subagent:
 
     #[test]
     fn test_bridge_suggestion_allowed_returns_empty() {
-        let source: Task = serde_yaml::from_str(r#"
+        let source: Task = serde_yaml::from_str(
+            r#"
 id: reader
 mcp:
   reference: "filesystem::read"
-"#).unwrap();
-        let target: Task = serde_yaml::from_str(r#"
+"#,
+        )
+        .unwrap();
+        let target: Task = serde_yaml::from_str(
+            r#"
 id: analyzer
 agent:
   prompt: "Analyze"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let suggestion = bridge_suggestion(&source, &target);
-        assert!(suggestion.is_empty(), "Allowed connection should return empty suggestion");
+        assert!(
+            suggestion.is_empty(),
+            "Allowed connection should return empty suggestion"
+        );
     }
 
     #[test]
@@ -1813,6 +1854,9 @@ flows: []
 "#,
         );
         assert!(result.is_valid());
-        assert!(!result.has_warnings(), "Single task should not be orphan warning");
+        assert!(
+            !result.has_warnings(),
+            "Single task should not be orphan warning"
+        );
     }
 }

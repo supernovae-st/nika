@@ -50,39 +50,25 @@ pub struct Task {
 #[serde(untagged)]
 pub enum TaskAction {
     /// agent: Main Agent with shared context
-    Agent {
-        agent: AgentDef,
-    },
+    Agent { agent: AgentDef },
 
     /// subagent: Isolated context (200K sandbox)
-    Subagent {
-        subagent: SubagentDef,
-    },
+    Subagent { subagent: SubagentDef },
 
     /// shell: Execute shell command
-    Shell {
-        shell: ShellDef,
-    },
+    Shell { shell: ShellDef },
 
     /// http: Make HTTP request
-    Http {
-        http: HttpDef,
-    },
+    Http { http: HttpDef },
 
     /// mcp: MCP server::tool call
-    Mcp {
-        mcp: McpDef,
-    },
+    Mcp { mcp: McpDef },
 
     /// function: Call path::functionName
-    Function {
-        function: FunctionDef,
-    },
+    Function { function: FunctionDef },
 
     /// llm: One-shot stateless LLM call
-    Llm {
-        llm: LlmDef,
-    },
+    Llm { llm: LlmDef },
 }
 
 // ============================================================================
@@ -290,7 +276,10 @@ impl Task {
 
     /// Check if tool (not agent/subagent)
     pub fn is_tool(&self) -> bool {
-        !matches!(self.action, TaskAction::Agent { .. } | TaskAction::Subagent { .. })
+        !matches!(
+            self.action,
+            TaskAction::Agent { .. } | TaskAction::Subagent { .. }
+        )
     }
 }
 
@@ -328,9 +317,9 @@ impl std::fmt::Display for TaskKeyword {
 /// Task category for connection matrix
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TaskCategory {
-    Context,   // agent:
-    Isolated,  // subagent:
-    Tool,      // all others
+    Context,  // agent:
+    Isolated, // subagent:
+    Tool,     // all others
 }
 
 impl From<TaskKeyword> for TaskCategory {

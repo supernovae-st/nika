@@ -61,6 +61,11 @@
 mod claude;
 mod mock;
 
+// New providers (Phase 3)
+mod mistral;
+mod ollama;
+mod openai;
+
 // ============================================================================
 // TOKEN ESTIMATION CONSTANTS
 // ============================================================================
@@ -76,22 +81,115 @@ const CHARS_PER_TOKEN_PROSE: f32 = 3.5;
 const CHARS_PER_TOKEN_CODE: f32 = 2.5;
 
 pub use claude::ClaudeProvider;
+pub use mistral::MistralProvider;
 pub use mock::MockProvider;
+pub use ollama::OllamaProvider;
+pub use openai::OpenAIProvider;
 
 use crate::runner::AgentMessage;
 use anyhow::Result;
+use async_trait::async_trait;
 
 // ============================================================================
-// PROVIDER TRAIT
+// CAPABILITIES
+// ============================================================================
+
+/// Capabilities that a provider may support
+#[derive(Debug, Clone, Default)]
+pub struct Capabilities {
+    /// Supports tool/function calling
+    pub tool_use: bool,
+    /// Supports image/vision input
+    pub vision: bool,
+    /// Supports streaming responses
+    pub streaming: bool,
+    /// Supports extended thinking (Claude)
+    pub extended_thinking: bool,
+    /// Supports JSON mode output
+    pub json_mode: bool,
+    /// Maximum context window size
+    pub max_context: usize,
+}
+
+impl Capabilities {
+    /// Claude capabilities
+    pub fn claude() -> Self {
+        Self {
+            tool_use: true,
+            vision: true,
+            streaming: true,
+            extended_thinking: true,
+            json_mode: true,
+            max_context: 200_000,
+        }
+    }
+
+    /// OpenAI GPT-4o capabilities
+    pub fn openai() -> Self {
+        Self {
+            tool_use: true,
+            vision: true,
+            streaming: true,
+            extended_thinking: false,
+            json_mode: true,
+            max_context: 128_000,
+        }
+    }
+
+    /// Ollama local model capabilities
+    pub fn ollama() -> Self {
+        Self {
+            tool_use: true,
+            vision: false,
+            streaming: true,
+            extended_thinking: false,
+            json_mode: true,
+            max_context: 8_192,
+        }
+    }
+
+    /// Mistral capabilities
+    pub fn mistral() -> Self {
+        Self {
+            tool_use: true,
+            vision: true,
+            streaming: true,
+            extended_thinking: false,
+            json_mode: true,
+            max_context: 128_000,
+        }
+    }
+
+    /// Mock provider capabilities (everything enabled)
+    pub fn mock() -> Self {
+        Self {
+            tool_use: true,
+            vision: true,
+            streaming: true,
+            extended_thinking: true,
+            json_mode: true,
+            max_context: 200_000,
+        }
+    }
+}
+
+// ============================================================================
+// PROVIDER TRAIT (ASYNC)
 // ============================================================================
 
 /// Core trait that all LLM providers must implement
 ///
 /// The Provider trait abstracts away the differences between various LLM APIs,
 /// allowing the Runner to execute tasks without knowing which provider is being used.
+///
+/// All methods are async to support HTTP-based API providers.
+#[async_trait]
 pub trait Provider: Send + Sync {
     /// Returns the provider name (e.g., "claude", "openai", "ollama")
     fn name(&self) -> &str;
+
+    /// Returns the provider's capabilities
+    fn capabilities(&self) -> Capabilities;
 
     /// Execute a prompt and return the response
     ///
@@ -101,11 +199,11 @@ pub trait Provider: Send + Sync {
     /// - Handling the conversation history for context
     /// - Managing tool execution loops (if applicable)
     /// - Returning a structured response
-    fn execute(&self, request: PromptRequest) -> Result<PromptResponse>;
+    async fn execute(&self, request: PromptRequest) -> Result<PromptResponse>;
 
     /// Check if this provider supports tool execution
     fn supports_tools(&self) -> bool {
-        false
+        self.capabilities().tool_use
     }
 
     /// Check if this provider is available (e.g., CLI installed, API key set)
@@ -283,11 +381,27 @@ impl TokenUsage {
 // ============================================================================
 
 /// Create a provider instance by name
+///
+/// # Supported Providers
+///
+/// | Name | Description | Requires |
+/// |------|-------------|----------|
+/// | `claude` | Claude CLI | `claude` CLI installed |
+/// | `openai` | OpenAI API | `OPENAI_API_KEY` env var |
+/// | `ollama` | Local Ollama | Ollama running locally |
+/// | `mistral` | Mistral AI | `MISTRAL_API_KEY` env var |
+/// | `mock` | Testing | Nothing |
 pub fn create_provider(name: &str) -> Result<Box<dyn Provider>> {
     match name.to_lowercase().as_str() {
         "claude" => Ok(Box::new(ClaudeProvider::new())),
+        "openai" => Ok(Box::new(OpenAIProvider::new()?)),
+        "ollama" => Ok(Box::new(OllamaProvider::new())),
+        "mistral" => Ok(Box::new(MistralProvider::new()?)),
         "mock" => Ok(Box::new(MockProvider::new())),
-        _ => anyhow::bail!("Unknown provider: {}", name),
+        _ => anyhow::bail!(
+            "Unknown provider: '{}'. Available: claude, openai, ollama, mistral, mock",
+            name
+        ),
     }
 }
 

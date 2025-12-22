@@ -1,8 +1,8 @@
 //! Example usage of the v5.0 builder patterns and NewType wrappers
 
-use nika::types::{TaskId, Prompt, ShellCommand, TokenCount, Url};
-use nika::limits::{ResourceLimits, CircuitBreaker, RateLimiter};
+use nika::limits::{CircuitBreaker, RateLimiter, ResourceLimits};
 use nika::runner::Runner;
+use nika::types::{Prompt, ShellCommand, TaskId, TokenCount, Url};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -38,7 +38,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // URL validation
     let secure_url = Url::new("https://api.example.com/data")?;
-    println!("URL: {} (secure: {})", secure_url.as_str(), secure_url.is_secure());
+    println!(
+        "URL: {} (secure: {})",
+        secure_url.as_str(),
+        secure_url.is_secure()
+    );
 
     // Token counting with type safety
     let tokens_a = TokenCount::new(1000);
@@ -55,9 +59,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Use predefined safety profiles
     let testing_limits = ResourceLimits::testing();
     println!("Testing limits:");
-    println!("  - Max workflow duration: {:?}", testing_limits.max_workflow_duration);
-    println!("  - Max task duration: {:?}", testing_limits.max_task_duration);
-    println!("  - Max output size: {} MB", testing_limits.max_output_size / 1_048_576);
+    println!(
+        "  - Max workflow duration: {:?}",
+        testing_limits.max_workflow_duration
+    );
+    println!(
+        "  - Max task duration: {:?}",
+        testing_limits.max_task_duration
+    );
+    println!(
+        "  - Max output size: {} MB",
+        testing_limits.max_output_size / 1_048_576
+    );
 
     // Custom limits for specific use case
     let custom_limits = ResourceLimits {
@@ -137,7 +150,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n=== Memory Pool Demo ===\n");
 
-    use nika::context_pool::{warm_pool, get_context, return_context};
+    use nika::context_pool::{get_context, return_context, warm_pool};
 
     // Pre-warm the pool for better performance
     warm_pool(5);

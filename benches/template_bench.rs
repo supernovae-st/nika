@@ -1,7 +1,6 @@
 //! Quick benchmark to verify template resolution performance
 
 use nika::runner::ExecutionContext;
-use nika::smart_string::SmartString;
 use nika::template::resolve_templates;
 use std::time::Instant;
 
@@ -47,6 +46,8 @@ fn main() {
     }
 
     // Test SmartString performance
+    use nika::smart_string::SmartString;
+
     println!("SmartString vs String Performance");
     println!("==================================\n");
 

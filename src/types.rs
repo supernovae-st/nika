@@ -36,7 +36,10 @@ impl TaskId {
         if id.len() > Self::MAX_LENGTH {
             return Err(TaskIdError::TooLong(id.len()));
         }
-        if !id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        if !id
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
             return Err(TaskIdError::InvalidCharacters(id.to_string()));
         }
 
@@ -224,7 +227,10 @@ impl ModelName {
         if name.is_empty() {
             return Err(ModelNameError::Empty);
         }
-        if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') {
+        if !name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
+        {
             return Err(ModelNameError::InvalidCharacters(name));
         }
 

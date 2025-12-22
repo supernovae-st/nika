@@ -10,8 +10,9 @@
 //! - **Request tracking**: Inspect all requests made
 //! - **Echo mode**: Default echoes prompt for template testing
 
-use super::{PromptRequest, PromptResponse, Provider, TokenUsage};
+use super::{Capabilities, PromptRequest, PromptResponse, Provider, TokenUsage};
 use anyhow::Result;
+use async_trait::async_trait;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -165,12 +166,17 @@ impl Default for MockProvider {
     }
 }
 
+#[async_trait]
 impl Provider for MockProvider {
     fn name(&self) -> &str {
         "mock"
     }
 
-    fn execute(&self, request: PromptRequest) -> Result<PromptResponse> {
+    fn capabilities(&self) -> Capabilities {
+        Capabilities::mock()
+    }
+
+    async fn execute(&self, request: PromptRequest) -> Result<PromptResponse> {
         // Record the request
         self.requests.lock().unwrap().push(request.clone());
 
@@ -209,34 +215,26 @@ impl Provider for MockProvider {
             }
         }
     }
-
-    fn supports_tools(&self) -> bool {
-        false
-    }
-
-    fn is_available(&self) -> bool {
-        true // Mock is always available
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_mock_default_response() {
+    #[tokio::test]
+    async fn test_mock_default_response() {
         let provider = MockProvider::new();
         let request = PromptRequest::new("Hello", "test-model");
 
-        let response = provider.execute(request).unwrap();
+        let response = provider.execute(request).await.unwrap();
 
         assert!(response.success);
         // By default, MockProvider echoes the prompt
         assert_eq!(response.content, "[Mock] Executed prompt: Hello");
     }
 
-    #[test]
-    fn test_mock_queued_responses() {
+    #[tokio::test]
+    async fn test_mock_queued_responses() {
         let provider = MockProvider::with_responses(vec![
             "First response".to_string(),
             "Second response".to_string(),
@@ -246,9 +244,9 @@ mod tests {
         let req2 = PromptRequest::new("World", "test-model");
         let req3 = PromptRequest::new("Extra", "test-model");
 
-        let resp1 = provider.execute(req1).unwrap();
-        let resp2 = provider.execute(req2).unwrap();
-        let resp3 = provider.execute(req3).unwrap();
+        let resp1 = provider.execute(req1).await.unwrap();
+        let resp2 = provider.execute(req2).await.unwrap();
+        let resp3 = provider.execute(req3).await.unwrap();
 
         assert_eq!(resp1.content, "First response");
         assert_eq!(resp2.content, "Second response");
@@ -256,15 +254,15 @@ mod tests {
         assert_eq!(resp3.content, "[Mock] Executed prompt: Extra");
     }
 
-    #[test]
-    fn test_mock_records_requests() {
+    #[tokio::test]
+    async fn test_mock_records_requests() {
         let provider = MockProvider::new();
 
         let req1 = PromptRequest::new("First prompt", "model-1");
         let req2 = PromptRequest::new("Second prompt", "model-2").isolated();
 
-        provider.execute(req1).unwrap();
-        provider.execute(req2).unwrap();
+        provider.execute(req1).await.unwrap();
+        provider.execute(req2).await.unwrap();
 
         let requests = provider.get_requests();
         assert_eq!(requests.len(), 2);
@@ -273,12 +271,12 @@ mod tests {
         assert!(requests[1].is_isolated);
     }
 
-    #[test]
-    fn test_mock_custom_default() {
+    #[tokio::test]
+    async fn test_mock_custom_default() {
         let provider = MockProvider::new().with_default("Custom default");
 
         let request = PromptRequest::new("Test", "model");
-        let response = provider.execute(request).unwrap();
+        let response = provider.execute(request).await.unwrap();
 
         assert_eq!(response.content, "Custom default");
     }
@@ -289,12 +287,12 @@ mod tests {
         assert!(provider.is_available());
     }
 
-    #[test]
-    fn test_mock_token_estimation() {
+    #[tokio::test]
+    async fn test_mock_token_estimation() {
         let provider = MockProvider::new().with_default("Short");
 
         let request = PromptRequest::new("A longer prompt with more tokens", "model");
-        let response = provider.execute(request).unwrap();
+        let response = provider.execute(request).await.unwrap();
 
         assert!(response.usage.prompt_tokens > 0);
         assert!(response.usage.completion_tokens > 0);
@@ -304,8 +302,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_mock_failure_after_n_calls() {
+    #[tokio::test]
+    async fn test_mock_failure_after_n_calls() {
         let provider = MockProvider::new()
             .with_default("Success")
             .with_failure_after(2)
@@ -314,23 +312,23 @@ mod tests {
         let req = PromptRequest::new("Test", "model");
 
         // First two should succeed
-        let resp1 = provider.execute(req.clone()).unwrap();
-        let resp2 = provider.execute(req.clone()).unwrap();
+        let resp1 = provider.execute(req.clone()).await.unwrap();
+        let resp2 = provider.execute(req.clone()).await.unwrap();
         assert!(resp1.success);
         assert!(resp2.success);
 
         // Third should fail
-        let resp3 = provider.execute(req.clone()).unwrap();
+        let resp3 = provider.execute(req.clone()).await.unwrap();
         assert!(!resp3.success);
         assert_eq!(resp3.content, "Simulated timeout");
 
         // Fourth should also fail
-        let resp4 = provider.execute(req).unwrap();
+        let resp4 = provider.execute(req).await.unwrap();
         assert!(!resp4.success);
     }
 
-    #[test]
-    fn test_mock_queue_failure_response() {
+    #[tokio::test]
+    async fn test_mock_queue_failure_response() {
         let provider = MockProvider::with_mock_responses(vec![
             MockResponse::Success("First works".to_string()),
             MockResponse::Failure("Network error".to_string()),
@@ -339,9 +337,9 @@ mod tests {
 
         let req = PromptRequest::new("Test", "model");
 
-        let resp1 = provider.execute(req.clone()).unwrap();
-        let resp2 = provider.execute(req.clone()).unwrap();
-        let resp3 = provider.execute(req).unwrap();
+        let resp1 = provider.execute(req.clone()).await.unwrap();
+        let resp2 = provider.execute(req.clone()).await.unwrap();
+        let resp3 = provider.execute(req).await.unwrap();
 
         assert!(resp1.success);
         assert_eq!(resp1.content, "First works");
@@ -353,28 +351,28 @@ mod tests {
         assert_eq!(resp3.content, "Third works");
     }
 
-    #[test]
-    fn test_mock_call_count() {
+    #[tokio::test]
+    async fn test_mock_call_count() {
         let provider = MockProvider::new();
 
         assert_eq!(provider.call_count(), 0);
 
         let req = PromptRequest::new("Test", "model");
-        provider.execute(req.clone()).unwrap();
+        provider.execute(req.clone()).await.unwrap();
         assert_eq!(provider.call_count(), 1);
 
-        provider.execute(req.clone()).unwrap();
-        provider.execute(req).unwrap();
+        provider.execute(req.clone()).await.unwrap();
+        provider.execute(req).await.unwrap();
         assert_eq!(provider.call_count(), 3);
     }
 
-    #[test]
-    fn test_mock_reset() {
+    #[tokio::test]
+    async fn test_mock_reset() {
         let provider = MockProvider::new();
         let req = PromptRequest::new("Test", "model");
 
-        provider.execute(req.clone()).unwrap();
-        provider.execute(req).unwrap();
+        provider.execute(req.clone()).await.unwrap();
+        provider.execute(req).await.unwrap();
 
         assert_eq!(provider.call_count(), 2);
         assert_eq!(provider.get_requests().len(), 2);
@@ -385,8 +383,8 @@ mod tests {
         assert_eq!(provider.get_requests().len(), 0);
     }
 
-    #[test]
-    fn test_mock_queue_failure_method() {
+    #[tokio::test]
+    async fn test_mock_queue_failure_method() {
         let provider = MockProvider::new();
 
         provider.queue_response("Success response");
@@ -394,8 +392,8 @@ mod tests {
 
         let req = PromptRequest::new("Test", "model");
 
-        let resp1 = provider.execute(req.clone()).unwrap();
-        let resp2 = provider.execute(req).unwrap();
+        let resp1 = provider.execute(req.clone()).await.unwrap();
+        let resp2 = provider.execute(req).await.unwrap();
 
         assert!(resp1.success);
         assert_eq!(resp1.content, "Success response");

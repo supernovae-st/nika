@@ -1,6 +1,6 @@
 //! Runtime Bridge - Connector Layer
 //!
-//! Abstracts communication with nika-runtime for workflow execution.
+//! Abstracts workflow execution for the TUI.
 
 mod mock;
 
@@ -16,7 +16,7 @@ use super::state::Paradigm;
 // Runtime Bridge Trait
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Bridge to nika-runtime for workflow execution
+/// Bridge trait for workflow execution
 #[async_trait]
 pub trait RuntimeBridge: Send + Sync {
     /// Load a workflow file
@@ -156,7 +156,9 @@ impl RuntimeEvent {
     pub fn description(&self) -> String {
         match self {
             Self::WorkflowStarted { name, .. } => format!("Workflow started: {}", name),
-            Self::WorkflowCompleted { tasks_completed, .. } => {
+            Self::WorkflowCompleted {
+                tasks_completed, ..
+            } => {
                 format!("Workflow completed ({} tasks)", tasks_completed)
             }
             Self::WorkflowError { error } => format!("Workflow error: {}", error),

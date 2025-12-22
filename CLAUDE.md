@@ -4,12 +4,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Nika CLI is the **command-line validator** for `.nika.yaml` workflows. Built in Rust, it validates workflows against the Nika v4.6 specification.
+Nika CLI is the **command-line validator and executor** for `.nika.yaml` workflows. Built in Rust, it validates workflows against the Nika v4.6 specification and executes them via multiple LLM providers.
 
-- **Language**: Rust
+- **Language**: Rust (async with tokio)
 - **License**: BSL-1.1 (converts to Apache 2.0 on 2029-01-01)
 - **Specification**: See `./spec/` (symlink to `../nika-docs/spec`)
 - **GitHub**: https://github.com/supernovae-studio/nika-cli
+
+## Multi-Provider Support
+
+Nika CLI supports multiple LLM providers:
+
+| Provider | Status | Environment Variable |
+|----------|--------|---------------------|
+| `claude` | Production | Uses Claude CLI |
+| `openai` | Production | `OPENAI_API_KEY` |
+| `ollama` | Stub | Local Ollama instance |
+| `mistral` | Stub | `MISTRAL_API_KEY` |
+| `mock` | Testing | None (configurable responses) |
+
+**Usage:**
+```bash
+nika run workflow.nika.yaml --provider claude    # Production (default)
+nika run workflow.nika.yaml --provider openai    # OpenAI API
+nika run workflow.nika.yaml --provider mock      # Testing
+```
 
 ## Commands
 
@@ -131,12 +150,20 @@ nika-cli/
 │   ├── lib.rs            # Public API
 │   ├── workflow.rs       # Core data structures
 │   ├── validator.rs      # 5-layer validation
-│   ├── runner.rs         # Workflow execution (v4.6 Arc<str>)
+│   ├── runner.rs         # Workflow execution (async, Arc<str>)
 │   ├── template.rs       # v4.6 single-pass resolver
 │   ├── smart_string.rs   # v4.6 inline string storage
 │   ├── context_pool.rs   # v4.6 memory pool
 │   ├── init.rs           # Project initialization
+│   ├── provider/         # Multi-provider support
+│   │   ├── mod.rs        # Provider trait + factory
+│   │   ├── claude.rs     # Claude CLI provider
+│   │   ├── openai.rs     # OpenAI API (real)
+│   │   ├── ollama.rs     # Ollama local (stub)
+│   │   ├── mistral.rs    # Mistral API (stub)
+│   │   └── mock.rs       # Mock provider for testing
 │   └── tui/              # Terminal UI (ratatui)
 └── tests/
-    └── fixtures/         # Test workflow files
+    ├── fixtures/         # Test workflow files
+    └── stress_test.rs    # Resource limits tests
 ```

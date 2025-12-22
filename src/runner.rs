@@ -48,7 +48,7 @@
 //!
 //! ## Example
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use nika::{Workflow, Runner};
 //!
 //! let yaml = r#"
@@ -64,7 +64,7 @@
 //!
 //! let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
 //! let runner = Runner::new("mock")?;  // "mock" for testing, "claude" for production
-//! let result = runner.run(&workflow)?;
+//! let result = runner.run(&workflow).await?;  // async execution
 //!
 //! println!("Completed: {}/{}", result.tasks_completed, result.tasks_completed + result.tasks_failed);
 //! for task_result in &result.results {
@@ -129,10 +129,16 @@ fn parse_duration(duration_str: &str) -> Option<Duration> {
         return secs.parse::<u64>().ok().map(Duration::from_secs);
     }
     if let Some(mins) = s.strip_suffix('m') {
-        return mins.parse::<u64>().ok().map(|m| Duration::from_secs(m * 60));
+        return mins
+            .parse::<u64>()
+            .ok()
+            .map(|m| Duration::from_secs(m * 60));
     }
     if let Some(hours) = s.strip_suffix('h') {
-        return hours.parse::<u64>().ok().map(|h| Duration::from_secs(h * 3600));
+        return hours
+            .parse::<u64>()
+            .ok()
+            .map(|h| Duration::from_secs(h * 3600));
     }
 
     // No suffix: assume seconds
@@ -210,10 +216,7 @@ impl ExecutionContext {
     /// Create context with input parameters
     pub fn with_inputs(inputs: HashMap<String, String>) -> Self {
         // Convert String to Arc<str>
-        let inputs = inputs
-            .into_iter()
-            .map(|(k, v)| (k, Arc::from(v)))
-            .collect();
+        let inputs = inputs.into_iter().map(|(k, v)| (k, Arc::from(v))).collect();
         Self {
             inputs,
             ..Default::default()
@@ -222,7 +225,8 @@ impl ExecutionContext {
 
     /// Store a task's output
     pub fn set_output(&mut self, task_id: &str, output: String) {
-        self.outputs.insert(SmartString::from(task_id), Arc::from(output));
+        self.outputs
+            .insert(SmartString::from(task_id), Arc::from(output));
     }
 
     /// Store multiple outputs at once (batch operation)
@@ -241,7 +245,8 @@ impl ExecutionContext {
 
     /// Store a structured output (for field access)
     pub fn set_structured_output(&mut self, task_id: &str, value: serde_json::Value) {
-        self.structured_outputs.insert(SmartString::from(task_id), value);
+        self.structured_outputs
+            .insert(SmartString::from(task_id), value);
     }
 
     /// Store multiple structured outputs at once (batch operation)
@@ -300,10 +305,11 @@ impl ExecutionContext {
         I: IntoIterator<Item = (MessageRole, S)>,
         S: Into<String>,
     {
-        self.agent_history.extend(messages.into_iter().map(|(role, content)| AgentMessage {
-            role,
-            content: Arc::from(content.into()),
-        }));
+        self.agent_history
+            .extend(messages.into_iter().map(|(role, content)| AgentMessage {
+                role,
+                content: Arc::from(content.into()),
+            }));
     }
 
     /// Get the agent conversation history
@@ -581,21 +587,23 @@ impl Runner {
     }
 
     /// Execute a workflow with default empty context
-    pub fn run(&self, workflow: &Workflow) -> Result<RunResult> {
+    pub async fn run(&self, workflow: &Workflow) -> Result<RunResult> {
         self.run_with_context(workflow, ExecutionContext::new())
+            .await
     }
 
     /// Execute a workflow with provided inputs
-    pub fn run_with_inputs(
+    pub async fn run_with_inputs(
         &self,
         workflow: &Workflow,
         inputs: HashMap<String, String>,
     ) -> Result<RunResult> {
         self.run_with_context(workflow, ExecutionContext::with_inputs(inputs))
+            .await
     }
 
     /// Execute a workflow with a pre-configured context
-    pub fn run_with_context(
+    pub async fn run_with_context(
         &self,
         workflow: &Workflow,
         mut ctx: ExecutionContext,
@@ -639,6 +647,7 @@ impl Runner {
             // Execute task with context and retry logic
             let result = self
                 .execute_task_with_retry(task, workflow, &mut ctx)
+                .await
                 .with_context(|| {
                     format!(
                         "Failed to execute task '{}' ({:?})",
@@ -716,7 +725,7 @@ impl Runner {
     ///
     /// Respects `config.retry.max` and `config.retry.backoff` settings.
     /// Retries only on failure, not on errors (Result::Err).
-    fn execute_task_with_retry(
+    async fn execute_task_with_retry(
         &self,
         task: &Task,
         workflow: &Workflow,
@@ -741,7 +750,7 @@ impl Runner {
         let mut last_result = None;
 
         for attempt in 1..=max_attempts {
-            let result = self.execute_task(task, workflow, ctx)?;
+            let result = self.execute_task(task, workflow, ctx).await?;
 
             if result.success {
                 return Ok(result);
@@ -758,26 +767,25 @@ impl Runner {
                         attempt, max_attempts, task.id, backoff
                     );
                 }
-                std::thread::sleep(backoff);
+                tokio::time::sleep(backoff).await;
             }
         }
 
         // All attempts exhausted, return last failure
-        Ok(last_result.unwrap_or_else(|| {
-            TaskResult::failure(&task.id, "Task failed with no result")
-        }))
+        Ok(last_result
+            .unwrap_or_else(|| TaskResult::failure(&task.id, "Task failed with no result")))
     }
 
     /// Execute a single task with context (v4.6 - keyword based)
-    fn execute_task(
+    async fn execute_task(
         &self,
         task: &Task,
         workflow: &Workflow,
         ctx: &mut ExecutionContext,
     ) -> Result<TaskResult> {
         match task.keyword() {
-            TaskKeyword::Agent => self.execute_agent(task, workflow, ctx),
-            TaskKeyword::Subagent => self.execute_subagent(task, workflow, ctx),
+            TaskKeyword::Agent => self.execute_agent(task, workflow, ctx).await,
+            TaskKeyword::Subagent => self.execute_subagent(task, workflow, ctx).await,
             TaskKeyword::Shell => self.execute_shell(task, ctx),
             TaskKeyword::Http => self.execute_http(task, ctx),
             TaskKeyword::Mcp => self.execute_mcp(task, ctx),
@@ -787,7 +795,7 @@ impl Runner {
     }
 
     /// Execute agent: task (Main Agent, shared context)
-    fn execute_agent(
+    async fn execute_agent(
         &self,
         task: &Task,
         workflow: &Workflow,
@@ -807,26 +815,28 @@ impl Runner {
         // Build request with shared context (agent: tasks share history)
         let request = PromptRequest::new(
             &prompt,
-            agent_def.model.as_deref().unwrap_or(&workflow.agent.model)
+            agent_def.model.as_deref().unwrap_or(&workflow.agent.model),
         )
-            .with_system_prompt(
-                agent_def.system_prompt.as_deref()
-                    .or(workflow.agent.system_prompt.as_deref())
-                    .unwrap_or("")
-            )
-            .with_history(
-                ctx.agent_history()
-                    .iter()
-                    .map(|m| AgentMessage {
-                        role: m.role,
-                        content: m.content.clone(),
-                    })
-                    .collect(),
-            )
-            .with_tools(agent_def.allowed_tools.clone().unwrap_or_default());
+        .with_system_prompt(
+            agent_def
+                .system_prompt
+                .as_deref()
+                .or(workflow.agent.system_prompt.as_deref())
+                .unwrap_or(""),
+        )
+        .with_history(
+            ctx.agent_history()
+                .iter()
+                .map(|m| AgentMessage {
+                    role: m.role,
+                    content: m.content.clone(),
+                })
+                .collect(),
+        )
+        .with_tools(agent_def.allowed_tools.clone().unwrap_or_default());
 
         // Execute via provider
-        let response = self.provider.execute(request)?;
+        let response = self.provider.execute(request).await?;
 
         if response.success {
             Ok(TaskResult::success(
@@ -851,7 +861,7 @@ impl Runner {
     }
 
     /// Execute subagent: task (Subagent, isolated 200K context)
-    fn execute_subagent(
+    async fn execute_subagent(
         &self,
         task: &Task,
         workflow: &Workflow,
@@ -865,24 +875,33 @@ impl Runner {
             _ => return Ok(TaskResult::failure(&task.id, "Expected subagent task")),
         };
 
-        let prompt = resolve_templates(&subagent_def.prompt, ctx)
-            .with_context(|| format!("Failed to resolve templates for subagent task '{}'", task.id))?;
+        let prompt = resolve_templates(&subagent_def.prompt, ctx).with_context(|| {
+            format!(
+                "Failed to resolve templates for subagent task '{}'",
+                task.id
+            )
+        })?;
 
         // Build request in isolated mode (subagent: tasks don't share history)
         let request = PromptRequest::new(
             &prompt,
-            subagent_def.model.as_deref().unwrap_or(&workflow.agent.model)
+            subagent_def
+                .model
+                .as_deref()
+                .unwrap_or(&workflow.agent.model),
         )
-            .with_system_prompt(
-                subagent_def.system_prompt.as_deref()
-                    .or(workflow.agent.system_prompt.as_deref())
-                    .unwrap_or(""),
-            )
-            .with_tools(subagent_def.allowed_tools.clone().unwrap_or_default())
-            .isolated();
+        .with_system_prompt(
+            subagent_def
+                .system_prompt
+                .as_deref()
+                .or(workflow.agent.system_prompt.as_deref())
+                .unwrap_or(""),
+        )
+        .with_tools(subagent_def.allowed_tools.clone().unwrap_or_default())
+        .isolated();
 
         // Execute via provider
-        let response = self.provider.execute(request)?;
+        let response = self.provider.execute(request).await?;
 
         if response.success {
             Ok(TaskResult::success(
@@ -975,7 +994,11 @@ impl Runner {
                     // Estimate tokens based on command + output length
                     let tokens = TokenUsage::estimate(cmd_str.len(), result.len());
 
-                    Ok(TaskResult::success(&task.id, result, Some(tokens.total_tokens)))
+                    Ok(TaskResult::success(
+                        &task.id,
+                        result,
+                        Some(tokens.total_tokens),
+                    ))
                 } else {
                     // Command failed - return stderr or exit code info
                     let error_msg = if stderr.trim().is_empty() {
@@ -997,10 +1020,7 @@ impl Runner {
                 let _ = child.kill();
                 let _ = child.wait(); // Reap the zombie
 
-                let error_msg = format!(
-                    "Shell command timed out after {:?}: {}",
-                    timeout, cmd_str
-                );
+                let error_msg = format!("Shell command timed out after {:?}: {}", timeout, cmd_str);
                 Ok(TaskResult::failure_with_context(
                     &task.id,
                     error_msg,
@@ -1048,7 +1068,10 @@ impl Runner {
 
         Ok(TaskResult::success(
             &task.id,
-            format!("[mcp] Would call {} with args: {}", mcp_def.reference, args_str),
+            format!(
+                "[mcp] Would call {} with args: {}",
+                mcp_def.reference, args_str
+            ),
             Some(0),
         ))
     }
@@ -1068,7 +1091,10 @@ impl Runner {
 
         Ok(TaskResult::success(
             &task.id,
-            format!("[function] Would call {} with args: {}", func_def.reference, args_str),
+            format!(
+                "[function] Would call {} with args: {}",
+                func_def.reference, args_str
+            ),
             Some(0),
         ))
     }
@@ -1297,10 +1323,7 @@ mod tests {
 
         let mut inputs = HashMap::new();
         inputs.insert("target".to_string(), "src/".to_string());
-        ctx.inputs = inputs
-            .into_iter()
-            .map(|(k, v)| (k, Arc::from(v)))
-            .collect();
+        ctx.inputs = inputs.into_iter().map(|(k, v)| (k, Arc::from(v))).collect();
 
         let template = "Analyzed ${input.target}: {{analyze}}";
         let result = resolve_templates(template, &ctx).unwrap();
@@ -1433,7 +1456,10 @@ mod tests {
     #[test]
     fn test_template_input_with_special_chars() {
         let mut inputs = HashMap::new();
-        inputs.insert("path".to_string(), "/path/to/file with spaces.txt".to_string());
+        inputs.insert(
+            "path".to_string(),
+            "/path/to/file with spaces.txt".to_string(),
+        );
 
         let ctx = ExecutionContext::with_inputs(inputs);
         let result = resolve_templates("File: ${input.path}", &ctx).unwrap();
@@ -1455,8 +1481,7 @@ mod tests {
         let mut ctx = ExecutionContext::new();
         ctx.set_output("found", "yes".to_string());
 
-        let result =
-            resolve_templates("Found: {{found}}, Missing: {{missing}}", &ctx).unwrap();
+        let result = resolve_templates("Found: {{found}}, Missing: {{missing}}", &ctx).unwrap();
         assert_eq!(result, "Found: yes, Missing: {{missing}}");
     }
 
@@ -1493,11 +1518,11 @@ flows:
         assert_eq!(order, vec!["step1", "step2"]);
     }
 
-    #[test]
-    fn test_run_workflow_v45() {
+    #[tokio::test]
+    async fn test_run_workflow_v45() {
         let workflow = make_workflow_v45();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         assert_eq!(result.tasks_completed, 2, "Should complete 2 tasks");
         assert_eq!(result.tasks_failed, 0, "No tasks should fail");
@@ -1508,8 +1533,8 @@ flows:
         assert!(result.context.get_output("step2").is_some());
     }
 
-    #[test]
-    fn test_run_with_inputs() {
+    #[tokio::test]
+    async fn test_run_with_inputs() {
         let yaml = r#"
 agent:
   model: claude-sonnet-4-5
@@ -1528,15 +1553,15 @@ flows: []
         inputs.insert("file".to_string(), "README.md".to_string());
 
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run_with_inputs(&workflow, inputs).unwrap();
+        let result = runner.run_with_inputs(&workflow, inputs).await.unwrap();
 
         // The prompt should have been resolved
         let output = result.context.get_output("process").unwrap();
         assert!(output.contains("README.md"));
     }
 
-    #[test]
-    fn test_context_passing_between_tasks() {
+    #[tokio::test]
+    async fn test_context_passing_between_tasks() {
         let yaml = r#"
 agent:
   model: claude-sonnet-4-5
@@ -1557,7 +1582,7 @@ flows:
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         // step2 should have received step1's output in its prompt
         let step2_output = result.context.get_output("step2").unwrap();
@@ -1565,8 +1590,8 @@ flows:
         assert!(step2_output.contains("[Mock] Executed prompt"));
     }
 
-    #[test]
-    fn test_all_7_keywords_execution() {
+    #[tokio::test]
+    async fn test_all_7_keywords_execution() {
         let yaml = r#"
 agent:
   model: claude-sonnet-4-5
@@ -1599,7 +1624,7 @@ flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         assert_eq!(result.tasks_completed, 7, "All 7 tasks should complete");
 
@@ -1613,8 +1638,8 @@ flows: []
         }
     }
 
-    #[test]
-    fn test_agent_history_accumulation() {
+    #[tokio::test]
+    async fn test_agent_history_accumulation() {
         let yaml = r#"
 agent:
   model: claude-sonnet-4-5
@@ -1634,7 +1659,7 @@ flows:
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         // Should have 4 messages: 2 user prompts + 2 assistant responses
         assert_eq!(result.context.agent_history().len(), 4);
@@ -1642,8 +1667,8 @@ flows:
 
     // ========== E2E Context Passing Tests ==========
 
-    #[test]
-    fn test_e2e_context_passing_simple_chain() {
+    #[tokio::test]
+    async fn test_e2e_context_passing_simple_chain() {
         // Simulates the mvp-context-demo.nika.yaml workflow
         let yaml = r#"
 agent:
@@ -1671,7 +1696,7 @@ flows:
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         assert_eq!(result.tasks_completed, 2);
         assert_eq!(result.tasks_failed, 0);
@@ -1719,7 +1744,10 @@ flows:
                 "email": "alice@example.com"
             }),
         );
-        ctx.set_output("generate-user", r#"{"name":"Alice","email":"alice@example.com"}"#.to_string());
+        ctx.set_output(
+            "generate-user",
+            r#"{"name":"Alice","email":"alice@example.com"}"#.to_string(),
+        );
 
         // Test template resolution directly (runner not used)
         let _runner = Runner::new("mock").unwrap();
@@ -1728,11 +1756,14 @@ flows:
         let template = "Process user: {{generate-user.name}} with email: {{generate-user.email}}";
         let resolved = resolve_templates(template, &ctx).unwrap();
 
-        assert_eq!(resolved, "Process user: Alice with email: alice@example.com");
+        assert_eq!(
+            resolved,
+            "Process user: Alice with email: alice@example.com"
+        );
     }
 
-    #[test]
-    fn test_e2e_context_passing_multi_hop() {
+    #[tokio::test]
+    async fn test_e2e_context_passing_multi_hop() {
         // A → B → C: context flows through all three
         let yaml = r#"
 agent:
@@ -1760,7 +1791,7 @@ flows:
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         assert_eq!(result.tasks_completed, 3);
 
@@ -1775,8 +1806,8 @@ flows:
         assert!(step_c_output.contains("original:"));
     }
 
-    #[test]
-    fn test_e2e_context_subagent_isolation() {
+    #[tokio::test]
+    async fn test_e2e_context_subagent_isolation() {
         // subagent: tasks should NOT accumulate into agent_history
         let yaml = r#"
 agent:
@@ -1804,7 +1835,7 @@ flows:
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         assert_eq!(result.tasks_completed, 3);
 
@@ -1821,8 +1852,8 @@ flows:
         assert!(!history_text.contains("Isolated subagent task"));
     }
 
-    #[test]
-    fn test_e2e_context_parallel_merge() {
+    #[tokio::test]
+    async fn test_e2e_context_parallel_merge() {
         // Parallel branches that merge: A → (B, C) → D
         // D should have access to both B and C outputs
         let yaml = r#"
@@ -1859,7 +1890,7 @@ flows:
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         assert_eq!(result.tasks_completed, 4);
 
@@ -1870,8 +1901,8 @@ flows:
         assert!(merge_output.contains("Merge:"));
     }
 
-    #[test]
-    fn test_e2e_context_with_environment() {
+    #[tokio::test]
+    async fn test_e2e_context_with_environment() {
         std::env::set_var("NIKA_E2E_TEST", "e2e_test_value");
 
         let yaml = r#"
@@ -1888,7 +1919,7 @@ flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         let output = result.context.get_output("use-env").unwrap();
         assert!(output.contains("e2e_test_value"));
@@ -1896,8 +1927,8 @@ flows: []
         std::env::remove_var("NIKA_E2E_TEST");
     }
 
-    #[test]
-    fn test_e2e_context_with_inputs() {
+    #[tokio::test]
+    async fn test_e2e_context_with_inputs() {
         let yaml = r#"
 agent:
   model: claude-sonnet-4-5
@@ -1916,7 +1947,7 @@ flows: []
         inputs.insert("filename".to_string(), "config.yaml".to_string());
 
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run_with_inputs(&workflow, inputs).unwrap();
+        let result = runner.run_with_inputs(&workflow, inputs).await.unwrap();
 
         let output = result.context.get_output("process").unwrap();
         assert!(output.contains("config.yaml"));
@@ -1924,8 +1955,8 @@ flows: []
 
     // ========== P0.1: Shell Timeout Tests ==========
 
-    #[test]
-    fn test_shell_command_with_default_timeout() {
+    #[tokio::test]
+    async fn test_shell_command_with_default_timeout() {
         // A quick command should complete successfully
         let yaml = r#"
 agent:
@@ -1941,15 +1972,15 @@ flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         assert_eq!(result.tasks_completed, 1);
         let output = result.context.get_output("quick-cmd").unwrap();
         assert!(output.contains("hello"));
     }
 
-    #[test]
-    fn test_shell_command_timeout_returns_error() {
+    #[tokio::test]
+    async fn test_shell_command_timeout_returns_error() {
         // A command that would hang should timeout and return an error
         // Using sleep 60 but with a 1-second timeout configured
         let yaml = r#"
@@ -1968,13 +1999,17 @@ flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         // The task should have failed due to timeout
         assert_eq!(result.tasks_failed, 1);
 
         // Check the error message in results
-        let task_result = result.results.iter().find(|r| r.task_id == "slow-cmd").unwrap();
+        let task_result = result
+            .results
+            .iter()
+            .find(|r| r.task_id == "slow-cmd")
+            .unwrap();
         assert!(!task_result.success, "Task should have failed");
         assert!(
             task_result.output.contains("timed out"),
@@ -1983,7 +2018,10 @@ flows: []
         );
 
         // Check error context is set correctly
-        assert!(task_result.is_timeout(), "Error should be categorized as timeout");
+        assert!(
+            task_result.is_timeout(),
+            "Error should be categorized as timeout"
+        );
         let ctx = task_result.error_context.as_ref().unwrap();
         assert_eq!(ctx.keyword.as_deref(), Some("shell"));
         assert_eq!(ctx.category, Some(ErrorCategory::Timeout));
@@ -1991,8 +2029,8 @@ flows: []
 
     // ========== P0.3: Error Context Tests ==========
 
-    #[test]
-    fn test_shell_failure_has_error_context() {
+    #[tokio::test]
+    async fn test_shell_failure_has_error_context() {
         // A command that fails (non-zero exit) should have execution error context
         let yaml = r#"
 agent:
@@ -2008,11 +2046,15 @@ flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         assert_eq!(result.tasks_failed, 1);
 
-        let task_result = result.results.iter().find(|r| r.task_id == "fail-cmd").unwrap();
+        let task_result = result
+            .results
+            .iter()
+            .find(|r| r.task_id == "fail-cmd")
+            .unwrap();
         assert!(!task_result.success);
 
         // Check error context
@@ -2024,8 +2066,8 @@ flows: []
 
     // ========== P0.4: Shell Token Estimation Tests ==========
 
-    #[test]
-    fn test_shell_task_estimates_tokens() {
+    #[tokio::test]
+    async fn test_shell_task_estimates_tokens() {
         let yaml = r#"
 agent:
   model: claude-sonnet-4-5
@@ -2040,16 +2082,20 @@ flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         // Token count should be > 0 (not hardcoded to 0)
-        assert!(result.total_tokens > 0, "Shell tasks should estimate token usage, got {}", result.total_tokens);
+        assert!(
+            result.total_tokens > 0,
+            "Shell tasks should estimate token usage, got {}",
+            result.total_tokens
+        );
     }
 
     // ========== P1.2: Retry Logic Tests ==========
 
-    #[test]
-    fn test_retry_succeeds_on_second_attempt() {
+    #[tokio::test]
+    async fn test_retry_succeeds_on_second_attempt() {
         // Use a shell command with a state file to track attempts
         // First call fails, second succeeds
         let temp_dir = std::env::temp_dir();
@@ -2083,22 +2129,29 @@ flows: []
 
         let workflow: Workflow = serde_yaml::from_str(&yaml).unwrap();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         // Clean up
         let _ = std::fs::remove_file(&state_file);
 
         // Task should succeed after retry
-        assert_eq!(result.tasks_completed, 1, "Task should complete after retry");
+        assert_eq!(
+            result.tasks_completed, 1,
+            "Task should complete after retry"
+        );
         assert_eq!(result.tasks_failed, 0, "No tasks should fail");
 
-        let task_result = result.results.iter().find(|r| r.task_id == "flaky-cmd").unwrap();
+        let task_result = result
+            .results
+            .iter()
+            .find(|r| r.task_id == "flaky-cmd")
+            .unwrap();
         assert!(task_result.success);
         assert!(task_result.output.contains("success on retry"));
     }
 
-    #[test]
-    fn test_retry_exhausted_returns_failure() {
+    #[tokio::test]
+    async fn test_retry_exhausted_returns_failure() {
         // Command that always fails - retry should be exhausted
         let yaml = r#"
 agent:
@@ -2117,12 +2170,16 @@ flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         let runner = Runner::new("mock").unwrap();
-        let result = runner.run(&workflow).unwrap();
+        let result = runner.run(&workflow).await.unwrap();
 
         // Task should fail after all retries exhausted
         assert_eq!(result.tasks_failed, 1);
 
-        let task_result = result.results.iter().find(|r| r.task_id == "always-fail").unwrap();
+        let task_result = result
+            .results
+            .iter()
+            .find(|r| r.task_id == "always-fail")
+            .unwrap();
         assert!(!task_result.success);
     }
 }

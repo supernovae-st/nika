@@ -38,7 +38,7 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use nika::{Workflow, Validator, Runner};
 //!
 //! // Parse workflow
@@ -55,9 +55,9 @@
 //!     return Err(anyhow::anyhow!("Validation failed"));
 //! }
 //!
-//! // Execute (uses "mock" provider for testing, "claude" for production)
+//! // Execute (async - uses "mock" provider for testing, "claude" for production)
 //! let runner = Runner::new("mock")?;
-//! let run_result = runner.run(&workflow)?;
+//! let run_result = runner.run(&workflow).await?;
 //! println!("Completed {} tasks", run_result.tasks_completed);
 //! # Ok::<(), anyhow::Error>(())
 //! ```
@@ -202,5 +202,4 @@ flows:
         assert_eq!(workflow.tasks.len(), 5);
         assert_eq!(workflow.flows.len(), 5);
     }
-
 }

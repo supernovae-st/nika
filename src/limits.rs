@@ -174,9 +174,9 @@ struct CircuitState {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BreakerState {
-    Closed,    // Normal operation
-    Open,      // Too many failures, rejecting requests
-    HalfOpen,  // Testing if service recovered
+    Closed,   // Normal operation
+    Open,     // Too many failures, rejecting requests
+    HalfOpen, // Testing if service recovered
 }
 
 impl CircuitBreaker {

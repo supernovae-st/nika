@@ -385,11 +385,7 @@ flows: []
     .unwrap();
 
     nika_cmd()
-        .args([
-            "validate",
-            workflow_file.to_str().unwrap(),
-            "--verbose",
-        ])
+        .args(["validate", workflow_file.to_str().unwrap(), "--verbose"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Architecture v4.6"));

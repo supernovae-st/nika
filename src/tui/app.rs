@@ -50,8 +50,10 @@ impl TuiApp {
 
         // Load demo workflow
         self.state.workflow_name = "demo-workflow".to_string();
-        self.state.push_event(ActivityEvent::info("TUI Dashboard started"));
-        self.state.push_event(ActivityEvent::info("Press 'q' to quit, Tab to navigate"));
+        self.state
+            .push_event(ActivityEvent::info("TUI Dashboard started"));
+        self.state
+            .push_event(ActivityEvent::info("Press 'q' to quit, Tab to navigate"));
 
         // Start the mock runtime
         self.runtime.start().await?;
@@ -132,10 +134,10 @@ impl TuiApp {
         let main_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),  // Header
-                Constraint::Min(10),    // Content
-                Constraint::Length(3),  // Context bar
-                Constraint::Length(1),  // Footer
+                Constraint::Length(3), // Header
+                Constraint::Min(10),   // Content
+                Constraint::Length(3), // Context bar
+                Constraint::Length(1), // Footer
             ])
             .split(area);
 
@@ -161,9 +163,9 @@ impl TuiApp {
         let right_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(7),  // Session stats
-                Constraint::Min(5),     // Subagents
-                Constraint::Length(6),  // Connections
+                Constraint::Length(7), // Session stats
+                Constraint::Min(5),    // Subagents
+                Constraint::Length(6), // Connections
             ])
             .split(content_chunks[1]);
 
@@ -237,12 +239,8 @@ impl TuiApp {
                 Span::raw(" ──► "),
                 Span::styled("[generate]", Style::default().fg(self.theme.space_violet)),
             ]),
-            Line::from(vec![
-                Span::raw("        │              │"),
-            ]),
-            Line::from(vec![
-                Span::raw("        ▼              ▼"),
-            ]),
+            Line::from(vec![Span::raw("        │              │")]),
+            Line::from(vec![Span::raw("        ▼              ▼")]),
             Line::from(vec![
                 Span::raw("    "),
                 Span::styled("[transform]", Style::default().fg(self.theme.amber_gold)),
@@ -322,7 +320,10 @@ impl TuiApp {
                 Span::raw("  "),
                 Span::styled(icons::MAIN_AGENT, self.theme.success()),
                 Span::raw(" analyzer  "),
-                Span::styled(self.make_progress_bar(80.0, 10), Style::default().fg(self.theme.space_violet)),
+                Span::styled(
+                    self.make_progress_bar(80.0, 10),
+                    Style::default().fg(self.theme.space_violet),
+                ),
                 Span::raw(" "),
                 Span::styled(icons::CONTEXT, self.theme.text()),
             ]),
@@ -330,7 +331,10 @@ impl TuiApp {
                 Span::raw("  "),
                 Span::styled(icons::SUBAGENT, self.theme.dimmed()),
                 Span::raw(" generator "),
-                Span::styled(self.make_progress_bar(45.0, 10), Style::default().fg(self.theme.space_violet)),
+                Span::styled(
+                    self.make_progress_bar(45.0, 10),
+                    Style::default().fg(self.theme.space_violet),
+                ),
                 Span::raw(" "),
                 Span::styled(icons::CONTEXT, self.theme.text()),
             ]),
@@ -338,7 +342,10 @@ impl TuiApp {
                 Span::raw("  "),
                 Span::styled(icons::SUBAGENT, self.theme.dimmed()),
                 Span::raw(" reviewer  "),
-                Span::styled(self.make_progress_bar(0.0, 10), Style::default().fg(self.theme.cyan_teal)),
+                Span::styled(
+                    self.make_progress_bar(0.0, 10),
+                    Style::default().fg(self.theme.cyan_teal),
+                ),
                 Span::raw(" "),
                 Span::styled(icons::ISOLATED, self.theme.text()),
             ]),
@@ -446,8 +453,8 @@ impl TuiApp {
             .borders(Borders::ALL)
             .border_style(Style::default().fg(color));
 
-        let paragraph = Paragraph::new(Line::from(Span::styled(bar, Style::default().fg(color))))
-            .block(block);
+        let paragraph =
+            Paragraph::new(Line::from(Span::styled(bar, Style::default().fg(color)))).block(block);
         frame.render_widget(paragraph, area);
     }
 

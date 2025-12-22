@@ -3,8 +3,9 @@
 //! Executes prompts via `claude -p "prompt"` command.
 //! Supports context passing through conversation history.
 
-use super::{PromptRequest, PromptResponse, Provider, TokenUsage};
+use super::{Capabilities, PromptRequest, PromptResponse, Provider, TokenUsage};
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use std::io::Read;
 use std::process::{Command, Stdio};
 use std::time::Duration;
@@ -111,85 +112,103 @@ impl Default for ClaudeProvider {
     }
 }
 
+#[async_trait]
 impl Provider for ClaudeProvider {
     fn name(&self) -> &str {
         "claude"
     }
 
-    fn execute(&self, request: PromptRequest) -> Result<PromptResponse> {
-        let full_prompt = self.build_prompt(&request);
-
-        // Build command with piped stdio for capture
-        let mut cmd = Command::new(&self.cli_path);
-        cmd.arg("-p")
-            .arg(&full_prompt)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        // Add model if specified
-        if !request.model.is_empty() {
-            cmd.arg("--model").arg(&request.model);
-        }
-
-        // Add allowed tools if any
-        if !request.allowed_tools.is_empty() {
-            cmd.arg("--allowedTools")
-                .arg(request.allowed_tools.join(","));
-        }
-
-        // Spawn the process (non-blocking)
-        let mut child = cmd
-            .spawn()
-            .context("Failed to spawn claude CLI. Is it installed?")?;
-
-        // Wait with timeout
-        match child.wait_timeout(self.execute_timeout)? {
-            Some(status) => {
-                // Process completed within timeout - read outputs
-                let stdout = child
-                    .stdout
-                    .take()
-                    .map(|mut s| {
-                        let mut buf = String::new();
-                        s.read_to_string(&mut buf).ok();
-                        buf
-                    })
-                    .unwrap_or_default();
-
-                let stderr = child
-                    .stderr
-                    .take()
-                    .map(|mut s| {
-                        let mut buf = String::new();
-                        s.read_to_string(&mut buf).ok();
-                        buf
-                    })
-                    .unwrap_or_default();
-
-                if status.success() {
-                    let content = stdout.trim().to_string();
-                    let usage = TokenUsage::estimate(full_prompt.len(), content.len());
-                    Ok(PromptResponse::success(content).with_usage(usage))
-                } else {
-                    Ok(PromptResponse::failure(stderr))
-                }
-            }
-            None => {
-                // Timeout! Kill the process
-                let _ = child.kill();
-                let _ = child.wait(); // Reap the zombie
-
-                let error_msg = format!(
-                    "Claude CLI execution timed out after {:?}",
-                    self.execute_timeout
-                );
-                Ok(PromptResponse::failure(error_msg))
-            }
-        }
+    fn capabilities(&self) -> Capabilities {
+        Capabilities::claude()
     }
 
-    fn supports_tools(&self) -> bool {
-        true // Claude CLI supports tool execution
+    async fn execute(&self, request: PromptRequest) -> Result<PromptResponse> {
+        let full_prompt = self.build_prompt(&request);
+        let prompt_len = full_prompt.len();
+
+        // Capture values for the blocking closure
+        let cli_path = self.cli_path.clone();
+        let model = request.model.clone();
+        let allowed_tools = request.allowed_tools.clone();
+        let execute_timeout = self.execute_timeout;
+
+        // Run blocking subprocess operations in a separate thread pool
+        let result = tokio::task::spawn_blocking(move || -> Result<(bool, String, usize)> {
+            // Build command with piped stdio for capture
+            let mut cmd = Command::new(&cli_path);
+            cmd.arg("-p")
+                .arg(&full_prompt)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+
+            // Add model if specified
+            if !model.is_empty() {
+                cmd.arg("--model").arg(&model);
+            }
+
+            // Add allowed tools if any
+            if !allowed_tools.is_empty() {
+                cmd.arg("--allowedTools").arg(allowed_tools.join(","));
+            }
+
+            // Spawn the process
+            let mut child = cmd
+                .spawn()
+                .context("Failed to spawn claude CLI. Is it installed?")?;
+
+            // Wait with timeout
+            match child.wait_timeout(execute_timeout)? {
+                Some(status) => {
+                    // Process completed within timeout - read outputs
+                    let stdout = child
+                        .stdout
+                        .take()
+                        .map(|mut s| {
+                            let mut buf = String::new();
+                            s.read_to_string(&mut buf).ok();
+                            buf
+                        })
+                        .unwrap_or_default();
+
+                    let stderr = child
+                        .stderr
+                        .take()
+                        .map(|mut s| {
+                            let mut buf = String::new();
+                            s.read_to_string(&mut buf).ok();
+                            buf
+                        })
+                        .unwrap_or_default();
+
+                    if status.success() {
+                        Ok((true, stdout, prompt_len))
+                    } else {
+                        Ok((false, stderr, prompt_len))
+                    }
+                }
+                None => {
+                    // Timeout! Kill the process
+                    let _ = child.kill();
+                    let _ = child.wait(); // Reap the zombie
+
+                    let error_msg =
+                        format!("Claude CLI execution timed out after {:?}", execute_timeout);
+                    Ok((false, error_msg, prompt_len))
+                }
+            }
+        })
+        .await
+        .context("Blocking task panicked")??;
+
+        // Convert result to PromptResponse
+        let (success, content, prompt_len) = result;
+        if success {
+            let trimmed = content.trim().to_string();
+            let usage = TokenUsage::estimate(prompt_len, trimmed.len());
+            Ok(PromptResponse::success(trimmed).with_usage(usage))
+        } else {
+            Ok(PromptResponse::failure(content))
+        }
     }
 
     fn is_available(&self) -> bool {
@@ -226,8 +245,8 @@ mod tests {
     #[test]
     fn test_build_prompt_with_system() {
         let provider = ClaudeProvider::new();
-        let request = PromptRequest::new("Hello", "claude-sonnet-4-5")
-            .with_system_prompt("You are helpful");
+        let request =
+            PromptRequest::new("Hello", "claude-sonnet-4-5").with_system_prompt("You are helpful");
 
         let prompt = provider.build_prompt(&request);
         assert!(prompt.contains("[System: You are helpful]"));

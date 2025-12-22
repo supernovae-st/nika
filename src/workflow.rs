@@ -81,10 +81,7 @@
 use serde::Deserialize;
 
 // Import the new Task structure from task
-pub use crate::task::{
-    Task, TaskAction, TaskKeyword, TaskCategory, TaskConfig,
-    RetryConfig
-};
+pub use crate::task::{RetryConfig, Task, TaskAction, TaskCategory, TaskConfig, TaskKeyword};
 
 // ============================================================================
 // WORKFLOW ROOT
@@ -269,12 +266,21 @@ flows: []
 
     #[test]
     fn test_task_categories_v46() {
-        assert_eq!(TaskCategory::from(TaskKeyword::Agent), TaskCategory::Context);
-        assert_eq!(TaskCategory::from(TaskKeyword::Subagent), TaskCategory::Isolated);
+        assert_eq!(
+            TaskCategory::from(TaskKeyword::Agent),
+            TaskCategory::Context
+        );
+        assert_eq!(
+            TaskCategory::from(TaskKeyword::Subagent),
+            TaskCategory::Isolated
+        );
         assert_eq!(TaskCategory::from(TaskKeyword::Shell), TaskCategory::Tool);
         assert_eq!(TaskCategory::from(TaskKeyword::Http), TaskCategory::Tool);
         assert_eq!(TaskCategory::from(TaskKeyword::Mcp), TaskCategory::Tool);
-        assert_eq!(TaskCategory::from(TaskKeyword::Function), TaskCategory::Tool);
+        assert_eq!(
+            TaskCategory::from(TaskKeyword::Function),
+            TaskCategory::Tool
+        );
         assert_eq!(TaskCategory::from(TaskKeyword::Llm), TaskCategory::Tool);
     }
 
