@@ -1,0 +1,63 @@
+# v0.1 Demo: use: block + output: policy
+#
+# DAG: weather + flights → recommend
+#
+schema: "nika/workflow@0.1"
+
+provider: mock
+model: gpt-4o-mini
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════
+  # Data sources with JSON output
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: weather
+    infer:
+      prompt: |
+        Return weather as JSON:
+        {"city": "Paris", "summary": "Sunny", "temp": 25}
+    output:
+      format: json
+
+  - id: flights
+    infer:
+      prompt: |
+        Return flights as JSON:
+        {"cheapest": {"price": 89, "airline": "Ryanair"}}
+    output:
+      format: json
+
+  # ═══════════════════════════════════════════════════════════════
+  # Recommendation using all 3 use: forms
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: recommend
+    use:
+      # Form 1: Single alias
+      forecast: weather.summary
+      city: weather.city
+
+      # Form 2: Batch extraction
+      flights.cheapest: [price, airline]
+
+      # Form 3: Advanced with pick
+      weather_brief:
+        weather:
+          pick: [temp]
+
+    infer:
+      prompt: |
+        # Travel to {{use.city}}
+
+        Weather: {{use.forecast}} ({{use.weather_brief}})
+        Flight: {{use.airline}} for ${{use.price}}
+
+        Create a recommendation.
+
+    output:
+      format: json
+
+flows:
+  - source: [weather, flights]
+    target: recommend

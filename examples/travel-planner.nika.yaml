@@ -1,0 +1,306 @@
+# Complex travel planner - multiple fan-in/fan-out patterns
+#
+# DAG STRUCTURE (18 tasks, 12 flows, 7 phases):
+#
+#   PHASE 1: Input (5 exec tasks)
+#   ┌─────────┬─────────────┬──────────┬────────┬───────────┐
+#   │get_date │ destination │ duration │ budget │ interests │
+#   └────┬────┴──────┬──────┴────┬─────┴───┬────┴─────┬─────┘
+#        │           │           │         │          │
+#        ▼           ▼           ▼         ▼          ▼
+#   PHASE 2: Research (fan-out)       PHASE 3: Activities (fan-out)
+#   ┌────────┬────────┬───────┬────┐  ┌───────────┬──────────┬──────┬────────┐
+#   │weather │flights │hotels │visa│  │food_spots │ cultural │ tech │nightlife│
+#   └───┬────┴───┬────┴───┬───┴──┬─┘  └─────┬─────┴────┬─────┴──┬───┴───┬────┘
+#       │        │        │      │          │          │        │       │
+#       └────────┴────────┴──────┘          └──────────┴────────┴───────┘
+#                    │                                  │
+#                    ▼                                  ▼
+#   PHASE 4: Consolidation (fan-in)
+#   ┌──────────────────┐                ┌────────────────────┐
+#   │ logistics_summary│                │ activities_summary │
+#   └────────┬─────────┘                └──────────┬─────────┘
+#            │                                     │
+#            ├─────────────────┬───────────────────┤
+#            ▼                 ▼                   ▼
+#   PHASE 5+6: Planning (parallel)
+#   ┌──────────────────┐      ┌──────────────────┐
+#   │ daily_itinerary  │      │ budget_breakdown │
+#   └────────┬─────────┘      └────────┬─────────┘
+#            │                         │
+#            └───────────┬─────────────┘
+#                        ▼
+#   PHASE 7: Final (fan-in)
+#   ┌──────────────────────────────────────┐
+#   │            final_report              │
+#   └──────────────────────────────────────┘
+#
+schema: "nika/workflow@0.1"
+
+provider: openai
+model: gpt-4o-mini
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 1: Input gathering (sequential)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: get_date
+    exec:
+      command: "date '+%Y-%m-%d'"
+
+  - id: destination
+    exec:
+      command: "echo 'Tokyo, Japan'"
+
+  - id: duration
+    exec:
+      command: "echo '5 days'"
+
+  - id: budget
+    exec:
+      command: "echo '2000 EUR'"
+
+  - id: interests
+    exec:
+      command: "echo 'food, temples, technology, nightlife'"
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 2: Parallel research (fan-out from destination)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: weather
+    infer:
+      prompt: |
+        Current date: {{ get_date.output }}
+        Destination: {{ destination.output }}
+        Duration: {{ duration.output }}
+
+        Provide a brief weather forecast for this trip.
+        Include: temperature range, rain probability, what to pack.
+        Keep it to 3-4 sentences.
+
+  - id: flights
+    infer:
+      prompt: |
+        Destination: {{ destination.output }}
+        Duration: {{ duration.output }}
+        Budget: {{ budget.output }}
+
+        Suggest flight options (economy class).
+        Include: typical price range, best airlines, flight duration.
+        Keep it to 3-4 sentences.
+
+  - id: hotels
+    infer:
+      prompt: |
+        Destination: {{ destination.output }}
+        Duration: {{ duration.output }}
+        Budget: {{ budget.output }}
+        Interests: {{ interests.output }}
+
+        Suggest 2-3 neighborhoods to stay in and hotel budget per night.
+        Keep it to 4-5 sentences.
+
+  - id: visa_info
+    infer:
+      prompt: |
+        Destination: {{ destination.output }}
+
+        Brief visa requirements for EU citizens.
+        Keep it to 2-3 sentences.
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 3: Activity planning (fan-out from interests)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: food_spots
+    infer:
+      prompt: |
+        Destination: {{ destination.output }}
+        Interest: Food & Cuisine
+        Budget: {{ budget.output }}
+
+        Recommend 5 must-try food experiences (mix of cheap eats and special dinners).
+        Keep it brief, one line per recommendation.
+
+  - id: cultural_sites
+    infer:
+      prompt: |
+        Destination: {{ destination.output }}
+        Interest: Temples & Culture
+
+        Recommend 5 must-visit temples and cultural sites.
+        Keep it brief, one line per recommendation.
+
+  - id: tech_attractions
+    infer:
+      prompt: |
+        Destination: {{ destination.output }}
+        Interest: Technology & Innovation
+
+        Recommend 5 tech-related attractions (robot restaurants, electronics districts, etc).
+        Keep it brief, one line per recommendation.
+
+  - id: nightlife
+    infer:
+      prompt: |
+        Destination: {{ destination.output }}
+        Interest: Nightlife
+
+        Recommend 5 nightlife spots (bars, clubs, entertainment districts).
+        Keep it brief, one line per recommendation.
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 4: Consolidation (fan-in)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: activities_summary
+    infer:
+      prompt: |
+        Combine these activity recommendations into a cohesive list:
+
+        FOOD:
+        {{ food_spots.output }}
+
+        CULTURE:
+        {{ cultural_sites.output }}
+
+        TECH:
+        {{ tech_attractions.output }}
+
+        NIGHTLIFE:
+        {{ nightlife.output }}
+
+        Create a TOP 10 must-do list, mixing categories. One line per item.
+
+  - id: logistics_summary
+    infer:
+      prompt: |
+        Summarize the travel logistics:
+
+        WEATHER:
+        {{ weather.output }}
+
+        FLIGHTS:
+        {{ flights.output }}
+
+        HOTELS:
+        {{ hotels.output }}
+
+        VISA:
+        {{ visa_info.output }}
+
+        Create a brief "Before You Go" checklist. Keep it to 5-6 bullet points.
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 5: Day-by-day planning (sequential from summaries)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: daily_itinerary
+    infer:
+      prompt: |
+        Create a day-by-day itinerary for this trip:
+
+        TRIP INFO:
+        - Destination: {{ destination.output }}
+        - Duration: {{ duration.output }}
+        - Budget: {{ budget.output }}
+
+        WEATHER CONSIDERATIONS:
+        {{ weather.output }}
+
+        TOP ACTIVITIES:
+        {{ activities_summary.output }}
+
+        Create a {{ duration.output }} itinerary with morning, afternoon, evening for each day.
+        Keep each day to 3-4 lines.
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 6: Budget breakdown (parallel with itinerary)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: budget_breakdown
+    infer:
+      prompt: |
+        Create a budget breakdown:
+
+        - Total budget: {{ budget.output }}
+        - Duration: {{ duration.output }}
+        - Destination: {{ destination.output }}
+
+        LOGISTICS:
+        {{ logistics_summary.output }}
+
+        Estimate costs for: flights, accommodation, food, activities, transport, misc.
+        Show daily average and total. Keep it brief.
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 7: Final report (fan-in of everything)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: final_report
+    infer:
+      prompt: |
+        Create the FINAL TRAVEL PLAN:
+
+        ═══════════════════════════════════════
+        TRIP: {{ destination.output }} | {{ duration.output }} | {{ budget.output }}
+        DATE: {{ get_date.output }}
+        ═══════════════════════════════════════
+
+        BEFORE YOU GO:
+        {{ logistics_summary.output }}
+
+        DAILY ITINERARY:
+        {{ daily_itinerary.output }}
+
+        BUDGET:
+        {{ budget_breakdown.output }}
+
+        Format this as a clean, professional travel plan.
+        Add a brief "Pro Tips" section at the end (3-4 tips).
+
+flows:
+  # Phase 1 → Phase 2 (fan-out: destination feeds 4 parallel research tasks)
+  - source: destination
+    target: [weather, flights, hotels, visa_info]
+
+  - source: get_date
+    target: weather
+
+  - source: duration
+    target: [weather, flights, hotels, daily_itinerary]
+
+  - source: budget
+    target: [flights, hotels, food_spots, budget_breakdown]
+
+  # Phase 1 → Phase 3 (fan-out: interests feeds 4 activity tasks)
+  - source: interests
+    target: [food_spots, cultural_sites, tech_attractions, nightlife]
+
+  - source: destination
+    target: [food_spots, cultural_sites, tech_attractions, nightlife]
+
+  # Phase 3 → Phase 4 (fan-in: activities consolidate)
+  - source: [food_spots, cultural_sites, tech_attractions, nightlife]
+    target: activities_summary
+
+  # Phase 2 → Phase 4 (fan-in: logistics consolidate)
+  - source: [weather, flights, hotels, visa_info]
+    target: logistics_summary
+
+  # Phase 4 → Phase 5 (sequential)
+  - source: [activities_summary, weather]
+    target: daily_itinerary
+
+  - source: destination
+    target: [daily_itinerary, budget_breakdown]
+
+  # Phase 4 → Phase 6 (parallel with Phase 5)
+  - source: logistics_summary
+    target: budget_breakdown
+
+  # Phase 5+6 → Phase 7 (final fan-in)
+  - source: [logistics_summary, daily_itinerary, budget_breakdown, get_date, destination, duration, budget]
+    target: final_report

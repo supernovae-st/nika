@@ -1,0 +1,41 @@
+# Multi-provider workflow - Claude + OpenAI
+schema: "nika/workflow@0.1"
+
+provider: openai
+model: gpt-4o-mini
+
+tasks:
+  - id: topic
+    exec:
+      command: "echo 'The future of AI assistants'"
+
+  - id: claude_view
+    infer:
+      prompt: |
+        Give a brief (2-3 sentences) perspective on: {{ topic.output }}
+      model: haiku
+
+  - id: openai_view
+    infer:
+      prompt: |
+        Give a brief (2-3 sentences) perspective on: {{ topic.output }}
+      provider: openai
+      model: gpt-4o-mini
+
+  - id: synthesis
+    infer:
+      prompt: |
+        Compare these two AI perspectives:
+
+        CLAUDE: {{ claude_view.output }}
+
+        GPT: {{ openai_view.output }}
+
+        What's similar? What's different? (2-3 sentences)
+
+flows:
+  - source: topic
+    target: [claude_view, openai_view]
+
+  - source: [claude_view, openai_view]
+    target: synthesis

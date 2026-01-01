@@ -1,0 +1,46 @@
+# Diamond pattern - fan-out + fan-in
+schema: "nika/workflow@0.1"
+
+provider: openai
+model: gpt-4o-mini
+
+tasks:
+  - id: read_code
+    exec:
+      command: "cat src/main.rs | head -50"
+
+  - id: security
+    infer:
+      prompt: |
+        Analyze this code for security issues:
+        {{ read_code.output }}
+
+        List any security concerns briefly.
+      model: haiku  # Fast/cheap
+
+  - id: quality
+    infer:
+      prompt: |
+        Analyze this code for quality issues:
+        {{ read_code.output }}
+
+        List any code quality concerns briefly.
+      model: haiku
+
+  - id: report
+    infer:
+      prompt: |
+        Create a brief code review summary:
+
+        SECURITY:
+        {{ security.output }}
+
+        QUALITY:
+        {{ quality.output }}
+
+flows:
+  - source: read_code
+    target: [security, quality]
+
+  - source: [security, quality]
+    target: report

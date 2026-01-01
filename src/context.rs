@@ -1,0 +1,345 @@
+//! Task execution context (v0.1)
+//!
+//! TaskContext holds resolved values from `use:` blocks for template resolution.
+//! Eliminates intermediate storage - values are resolved once and used inline.
+
+use serde_json::Value;
+use std::collections::HashMap;
+
+use crate::datastore::DataStore;
+use crate::error::NikaError;
+use crate::use_block::{UseAdvanced, UseBlock, UseEntry};
+
+/// Task execution context with resolved inputs
+#[derive(Debug, Clone, Default)]
+pub struct TaskContext {
+    /// Resolved alias → value mappings from use: block
+    resolved: HashMap<String, Value>,
+}
+
+impl TaskContext {
+    /// Create empty context
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Build context from use: block by resolving paths from datastore
+    ///
+    /// Returns empty context if use_block is None.
+    pub fn from_use_block(
+        use_block: Option<&UseBlock>,
+        datastore: &DataStore,
+    ) -> Result<Self, NikaError> {
+        let Some(block) = use_block else {
+            return Ok(Self::new());
+        };
+
+        let mut ctx = Self::new();
+
+        for (key, entry) in block {
+            match entry {
+                // Form 1: alias: task.path
+                UseEntry::Path(path) => {
+                    let value = datastore.resolve_path(path).ok_or_else(|| {
+                        NikaError::Template(format!(
+                            "NIKA-052: Path '{}' not found for alias '{}'",
+                            path, key
+                        ))
+                    })?;
+                    ctx.set(key, value);
+                }
+
+                // Form 2: task.path: [field1, field2]
+                UseEntry::Batch(fields) => {
+                    // The key IS the path in batch form
+                    let base_value = datastore.resolve_path(key).ok_or_else(|| {
+                        NikaError::Template(format!("NIKA-052: Path '{}' not found", key))
+                    })?;
+
+                    for field in fields {
+                        let field_value = base_value.get(field).cloned().ok_or_else(|| {
+                            NikaError::Template(format!(
+                                "NIKA-052: Field '{}' not found in '{}'",
+                                field, key
+                            ))
+                        })?;
+                        ctx.set(field, field_value);
+                    }
+                }
+
+                // Form 3: alias: { from: task, path: x.y, default: v }
+                UseEntry::Advanced(UseAdvanced { from, path, default }) => {
+                    // Build the full path: from + optional path
+                    let full_path = match path {
+                        Some(p) => format!("{}.{}", from, p),
+                        None => from.clone(),
+                    };
+
+                    let value = datastore.resolve_path(&full_path);
+
+                    match (value, default) {
+                        // Value found → use it
+                        (Some(v), _) => {
+                            // Check for null in strict mode (unless default provided)
+                            if v.is_null() {
+                                if let Some(def) = default {
+                                    ctx.set(key, def.clone());
+                                } else {
+                                    return Err(NikaError::NullValue {
+                                        path: full_path,
+                                        alias: key.clone(),
+                                    });
+                                }
+                            } else {
+                                ctx.set(key, v);
+                            }
+                        }
+                        // Not found but default exists → use default
+                        (None, Some(def)) => {
+                            ctx.set(key, def.clone());
+                        }
+                        // Not found and no default → error
+                        (None, None) => {
+                            return Err(NikaError::PathNotFound { path: full_path });
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(ctx)
+    }
+
+    /// Set a resolved value
+    pub fn set(&mut self, alias: impl Into<String>, value: Value) {
+        self.resolved.insert(alias.into(), value);
+    }
+
+    /// Get a resolved value
+    pub fn get(&self, alias: &str) -> Option<&Value> {
+        self.resolved.get(alias)
+    }
+
+    /// Check if context has any resolved values
+    #[allow(dead_code)] // Used in tests
+    pub fn is_empty(&self) -> bool {
+        self.resolved.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::datastore::TaskResult;
+    use crate::use_block::UseAdvanced;
+    use serde_json::json;
+    use std::time::Duration;
+
+    #[test]
+    fn set_and_get() {
+        let mut ctx = TaskContext::new();
+        ctx.set("forecast", json!("Sunny"));
+
+        assert_eq!(ctx.get("forecast"), Some(&json!("Sunny")));
+        assert_eq!(ctx.get("unknown"), None);
+    }
+
+    #[test]
+    fn is_empty() {
+        let mut ctx = TaskContext::new();
+        assert!(ctx.is_empty());
+
+        ctx.set("key", json!("value"));
+        assert!(!ctx.is_empty());
+    }
+
+    #[test]
+    fn from_use_block_none() {
+        let store = DataStore::new();
+        let ctx = TaskContext::from_use_block(None, &store).unwrap();
+        assert!(ctx.is_empty());
+    }
+
+    #[test]
+    fn from_use_block_path() {
+        let store = DataStore::new();
+        store.insert(
+            "weather",
+            TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)),
+        );
+
+        let mut block = UseBlock::new();
+        block.insert("forecast".to_string(), UseEntry::Path("weather.summary".to_string()));
+
+        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
+        assert_eq!(ctx.get("forecast"), Some(&json!("Sunny")));
+    }
+
+    #[test]
+    fn from_use_block_batch() {
+        let store = DataStore::new();
+        store.insert(
+            "flight",
+            TaskResult::success(
+                json!({"departure": "10:30", "gate": "A12"}),
+                Duration::from_secs(1),
+            ),
+        );
+
+        let mut block = UseBlock::new();
+        block.insert(
+            "flight".to_string(),
+            UseEntry::Batch(vec!["departure".to_string(), "gate".to_string()]),
+        );
+
+        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
+        assert_eq!(ctx.get("departure"), Some(&json!("10:30")));
+        assert_eq!(ctx.get("gate"), Some(&json!("A12")));
+    }
+
+    #[test]
+    fn from_use_block_path_not_found() {
+        let store = DataStore::new();
+
+        let mut block = UseBlock::new();
+        block.insert("x".to_string(), UseEntry::Path("missing.path".to_string()));
+
+        let result = TaskContext::from_use_block(Some(&block), &store);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-052"));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // v0.1: Advanced form tests
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn from_use_block_advanced_simple() {
+        let store = DataStore::new();
+        store.insert(
+            "weather",
+            TaskResult::success(json!({"summary": "Sunny", "temp": 25}), Duration::from_secs(1)),
+        );
+
+        let mut block = UseBlock::new();
+        block.insert(
+            "data".to_string(),
+            UseEntry::Advanced(UseAdvanced {
+                from: "weather".to_string(),
+                path: None,
+                default: None,
+            }),
+        );
+
+        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
+        assert_eq!(ctx.get("data"), Some(&json!({"summary": "Sunny", "temp": 25})));
+    }
+
+    #[test]
+    fn from_use_block_advanced_with_path() {
+        let store = DataStore::new();
+        store.insert(
+            "weather",
+            TaskResult::success(json!({"data": {"summary": "Rainy"}}), Duration::from_secs(1)),
+        );
+
+        let mut block = UseBlock::new();
+        block.insert(
+            "forecast".to_string(),
+            UseEntry::Advanced(UseAdvanced {
+                from: "weather".to_string(),
+                path: Some("data.summary".to_string()),
+                default: None,
+            }),
+        );
+
+        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
+        assert_eq!(ctx.get("forecast"), Some(&json!("Rainy")));
+    }
+
+    #[test]
+    fn from_use_block_advanced_default_on_missing() {
+        let store = DataStore::new();
+        // No weather task in store
+
+        let mut block = UseBlock::new();
+        block.insert(
+            "forecast".to_string(),
+            UseEntry::Advanced(UseAdvanced {
+                from: "weather".to_string(),
+                path: Some("summary".to_string()),
+                default: Some(json!("Unknown")),
+            }),
+        );
+
+        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
+        assert_eq!(ctx.get("forecast"), Some(&json!("Unknown")));
+    }
+
+    #[test]
+    fn from_use_block_advanced_default_on_null() {
+        let store = DataStore::new();
+        store.insert(
+            "weather",
+            TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
+        );
+
+        let mut block = UseBlock::new();
+        block.insert(
+            "forecast".to_string(),
+            UseEntry::Advanced(UseAdvanced {
+                from: "weather".to_string(),
+                path: Some("summary".to_string()),
+                default: Some(json!("N/A")),
+            }),
+        );
+
+        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
+        assert_eq!(ctx.get("forecast"), Some(&json!("N/A")));
+    }
+
+    #[test]
+    fn from_use_block_advanced_null_strict_error() {
+        let store = DataStore::new();
+        store.insert(
+            "weather",
+            TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
+        );
+
+        let mut block = UseBlock::new();
+        block.insert(
+            "forecast".to_string(),
+            UseEntry::Advanced(UseAdvanced {
+                from: "weather".to_string(),
+                path: Some("summary".to_string()),
+                default: None, // No default → strict mode
+            }),
+        );
+
+        let result = TaskContext::from_use_block(Some(&block), &store);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-072"));
+    }
+
+    #[test]
+    fn from_use_block_advanced_missing_no_default() {
+        let store = DataStore::new();
+        // No weather task
+
+        let mut block = UseBlock::new();
+        block.insert(
+            "forecast".to_string(),
+            UseEntry::Advanced(UseAdvanced {
+                from: "weather".to_string(),
+                path: None,
+                default: None,
+            }),
+        );
+
+        let result = TaskContext::from_use_block(Some(&block), &store);
+        assert!(result.is_err());
+        // Should be PathNotFound error
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("NIKA-052") || err_msg.contains("not found"));
+    }
+}

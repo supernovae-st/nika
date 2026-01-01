@@ -1,0 +1,19 @@
+# Exec-only workflow - no LLM needed
+schema: "nika/workflow@0.1"
+
+tasks:
+  - id: list_files
+    exec:
+      command: "ls -la"
+
+  - id: show_date
+    exec:
+      command: "date"
+
+  - id: combine
+    exec:
+      command: "echo 'Files:' && echo '{{ list_files.output }}' && echo 'Date: {{ show_date.output }}'"
+
+flows:
+  - source: [list_files, show_date]
+    target: combine

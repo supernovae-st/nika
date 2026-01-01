@@ -1,0 +1,105 @@
+//! Error types with fix suggestions (v0.1)
+
+use thiserror::Error;
+
+/// Trait for errors that provide fix suggestions
+pub trait FixSuggestion {
+    fn fix_suggestion(&self) -> Option<&str>;
+}
+
+#[derive(Error, Debug)]
+#[allow(dead_code)] // Variants reserved for v0.1+ validation
+pub enum NikaError {
+    #[error("YAML parse error: {0}")]
+    YamlParse(#[from] serde_yaml::Error),
+
+    #[error("Template error: {0}")]
+    Template(String),
+
+    #[error("Provider error: {0}")]
+    Provider(String),
+
+    #[error("Execution error: {0}")]
+    Execution(String),
+
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+
+    // ─────────────────────────────────────────────────────────────
+    // v0.1: Use block errors (NIKA-050 to NIKA-052)
+    // ─────────────────────────────────────────────────────────────
+
+    #[error("NIKA-050: Invalid path syntax: {path}")]
+    InvalidPath { path: String },
+
+    #[error("NIKA-051: Task '{task_id}' not found in datastore")]
+    TaskNotFound { task_id: String },
+
+    #[error("NIKA-052: Path '{path}' not found (task may not have JSON output)")]
+    PathNotFound { path: String },
+
+    // ─────────────────────────────────────────────────────────────
+    // v0.1: Output errors (NIKA-060 to NIKA-061)
+    // ─────────────────────────────────────────────────────────────
+
+    #[error("NIKA-060: Invalid JSON output: {details}")]
+    InvalidJson { details: String },
+
+    #[error("NIKA-061: Schema validation failed: {details}")]
+    SchemaFailed { details: String },
+
+    // ─────────────────────────────────────────────────────────────
+    // v0.1: Use block validation errors (NIKA-070 to NIKA-074)
+    // ─────────────────────────────────────────────────────────────
+
+    #[error("NIKA-070: Duplicate alias '{alias}' in use block")]
+    DuplicateAlias { alias: String },
+
+    #[error("NIKA-071: Unknown alias '{{{{use.{alias}}}}}' - not declared in use: block")]
+    UnknownAlias { alias: String, task_id: String },
+
+    #[error("NIKA-072: Null value at path '{path}' (strict mode)")]
+    NullValue { path: String, alias: String },
+
+    #[error("NIKA-073: Cannot traverse '{segment}' on {value_type} (expected object/array)")]
+    InvalidTraversal {
+        segment: String,
+        value_type: String,
+        full_path: String,
+    },
+
+    #[error("NIKA-074: Template parse error at position {position}: {details}")]
+    TemplateParse { position: usize, details: String },
+}
+
+impl FixSuggestion for NikaError {
+    fn fix_suggestion(&self) -> Option<&str> {
+        match self {
+            NikaError::YamlParse(_) => Some("Check YAML syntax: indentation and quoting"),
+            NikaError::Template(_) => Some("Use {{use.alias}} format with use: block"),
+            NikaError::Provider(_) => Some("Check API key env var is set (ANTHROPIC_API_KEY or OPENAI_API_KEY)"),
+            NikaError::Execution(_) => Some("Check command/URL is valid"),
+            NikaError::Io(_) => Some("Check file path and permissions"),
+
+            // v0.1 error suggestions
+            NikaError::InvalidPath { .. } => Some("Use format: task_id.field.subfield"),
+            NikaError::TaskNotFound { .. } => Some("Verify task_id exists and has run successfully"),
+            NikaError::PathNotFound { .. } => Some("Add default: value or ensure task outputs JSON with format: json"),
+            NikaError::InvalidJson { .. } => Some("Ensure output is valid JSON (try parsing with jq)"),
+            NikaError::SchemaFailed { .. } => Some("Fix output to match declared schema"),
+            NikaError::DuplicateAlias { .. } => Some("Use unique alias names in use: block"),
+            NikaError::UnknownAlias { .. } => {
+                Some("Declare the alias in use: block before referencing it in templates")
+            }
+            NikaError::NullValue { .. } => {
+                Some("Provide a default value or ensure upstream task returns non-null")
+            }
+            NikaError::InvalidTraversal { .. } => {
+                Some("Check the path - you're trying to access a field on a non-object value")
+            }
+            NikaError::TemplateParse { .. } => {
+                Some("Check template syntax: {{use.alias}} or {{use.alias.field}}")
+            }
+        }
+    }
+}

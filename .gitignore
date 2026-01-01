@@ -1,0 +1,21 @@
+# Build
+/target/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Build
+target/
+
+# Environment
+.env
+

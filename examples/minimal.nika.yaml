@@ -1,0 +1,10 @@
+# Minimal workflow - single task
+schema: "nika/workflow@0.1"
+
+provider: openai
+model: gpt-4o-mini
+
+tasks:
+  - id: greet
+    infer:
+      prompt: "Say hello in French | ouput"
