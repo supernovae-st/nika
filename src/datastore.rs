@@ -1,11 +1,14 @@
 //! Task output storage with DashMap (v0.1 optimized)
 //!
 //! Single HashMap design with lock-free concurrent access.
+//! Path resolution unified with jsonpath module.
 
 use dashmap::DashMap;
 use serde_json::Value;
 use std::sync::Arc;
 use std::time::Duration;
+
+use crate::jsonpath;
 
 /// Task execution status
 #[derive(Debug, Clone)]
@@ -113,21 +116,22 @@ impl DataStore {
     }
 
     /// Resolve a dot-separated path (e.g., "weather.summary")
+    ///
+    /// Uses jsonpath module internally for unified path resolution.
+    /// Supports both simple dot notation and array indices.
     pub fn resolve_path(&self, path: &str) -> Option<Value> {
-        let mut parts = path.split('.');
+        let mut parts = path.splitn(2, '.');
         let task_id = parts.next()?;
 
-        let result = self.results.get(task_id)?;
-        let mut value = result.output.clone();
+        let output = self.get_output(task_id)?;
 
-        for segment in parts {
-            value = if let Ok(idx) = segment.parse::<usize>() {
-                value.get(idx)?.clone()
-            } else {
-                value.get(segment)?.clone()
-            };
-        }
-        Some(value)
+        // If no remaining path, return the whole output
+        let Some(remaining) = parts.next() else {
+            return Some(output);
+        };
+
+        // Use jsonpath for path resolution (handles both dots and array indices)
+        jsonpath::resolve(&output, remaining).ok().flatten()
     }
 
 }

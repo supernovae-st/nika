@@ -51,7 +51,7 @@ pub fn parse(path: &str) -> Result<Vec<Segment>, NikaError> {
             });
         }
 
-        // Check for array index: field[0]
+        // Check for array index: field[0] or just [0]
         if let Some(bracket_pos) = part.find('[') {
             // Field before bracket
             let field = &part[..bracket_pos];
@@ -71,6 +71,9 @@ pub fn parse(path: &str) -> Result<Vec<Segment>, NikaError> {
                 path: path.to_string(),
             })?;
 
+            segments.push(Segment::Index(index));
+        } else if let Ok(index) = part.parse::<usize>() {
+            // Numeric segment treated as array index (e.g., "items.0")
             segments.push(Segment::Index(index));
         } else {
             segments.push(Segment::Field(part.to_string()));
@@ -191,5 +194,22 @@ mod tests {
         let value = json!({"price": {"currency": "EUR", "amount": 100}});
         let result = resolve(&value, "$.price.currency").unwrap();
         assert_eq!(result, Some(json!("EUR")));
+    }
+
+    #[test]
+    fn parse_numeric_index_as_dot() {
+        // Support "items.0" syntax (equivalent to "items[0]")
+        let segments = parse("items.0").unwrap();
+        assert_eq!(
+            segments,
+            vec![Segment::Field("items".to_string()), Segment::Index(0)]
+        );
+    }
+
+    #[test]
+    fn apply_numeric_index_as_dot() {
+        let value = json!({"items": ["first", "second"]});
+        let result = resolve(&value, "items.1").unwrap();
+        assert_eq!(result, Some(json!("second")));
     }
 }

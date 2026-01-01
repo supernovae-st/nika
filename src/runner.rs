@@ -9,6 +9,7 @@ use std::time::Instant;
 use colored::Colorize;
 use serde_json::Value;
 use tokio::task::JoinSet;
+use tracing::{info, instrument, warn};
 
 use crate::context::TaskContext;
 use crate::dag::DagAnalyzer;
@@ -16,6 +17,7 @@ use crate::datastore::{DataStore, TaskResult};
 use crate::error::NikaError;
 use crate::executor::TaskExecutor;
 use crate::output_policy::OutputFormat;
+use crate::validator;
 use crate::workflow::{Task, Workflow};
 
 /// DAG workflow runner
@@ -83,7 +85,13 @@ impl Runner {
     }
 
     /// Main execution loop
+    #[instrument(skip(self), fields(workflow_tasks = self.workflow.tasks.len()))]
     pub async fn run(&self) -> Result<String, NikaError> {
+        info!("Starting workflow execution");
+
+        // Validate use: blocks before execution (fail-fast)
+        validator::validate_use_blocks(&self.workflow, &self.dag)?;
+
         let total_tasks = self.workflow.tasks.len();
         let mut completed = 0;
 
@@ -189,6 +197,7 @@ impl Runner {
 }
 
 /// Convert execution output to TaskResult, parsing as JSON if output format is json
+/// Also validates against schema if declared.
 fn make_task_result(
     output: String,
     policy: Option<&crate::output_policy::OutputPolicy>,
@@ -196,10 +205,61 @@ fn make_task_result(
 ) -> TaskResult {
     if let Some(policy) = policy {
         if policy.format == OutputFormat::Json {
-            if let Ok(json_value) = serde_json::from_str::<Value>(&output) {
-                return TaskResult::success(json_value, duration);
+            // Parse as JSON
+            let json_value = match serde_json::from_str::<Value>(&output) {
+                Ok(v) => v,
+                Err(e) => {
+                    return TaskResult::failed(
+                        format!("NIKA-060: Invalid JSON output: {}", e),
+                        duration,
+                    );
+                }
+            };
+
+            // Validate against schema if declared
+            if let Some(schema_path) = &policy.schema {
+                if let Err(e) = validate_schema(&json_value, schema_path) {
+                    return TaskResult::failed(e.to_string(), duration);
+                }
             }
+
+            return TaskResult::success(json_value, duration);
         }
     }
     TaskResult::success_str(output, duration)
+}
+
+/// Validate JSON value against a JSON Schema file
+fn validate_schema(value: &Value, schema_path: &str) -> Result<(), NikaError> {
+    // Read schema file
+    let schema_str = std::fs::read_to_string(schema_path).map_err(|e| {
+        NikaError::SchemaFailed {
+            details: format!("Failed to read schema '{}': {}", schema_path, e),
+        }
+    })?;
+
+    // Parse schema
+    let schema: Value = serde_json::from_str(&schema_str).map_err(|e| {
+        NikaError::SchemaFailed {
+            details: format!("Invalid JSON in schema '{}': {}", schema_path, e),
+        }
+    })?;
+
+    // Compile and validate
+    let compiled = jsonschema::validator_for(&schema).map_err(|e| {
+        NikaError::SchemaFailed {
+            details: format!("Invalid schema '{}': {}", schema_path, e),
+        }
+    })?;
+
+    // Collect all validation errors
+    let errors: Vec<_> = compiled.iter_errors(value).collect();
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        let error_msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
+        Err(NikaError::SchemaFailed {
+            details: error_msgs.join("; "),
+        })
+    }
 }

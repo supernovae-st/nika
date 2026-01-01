@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dashmap::DashMap;
+use tracing::{debug, instrument};
 
 use crate::context::TaskContext;
 use crate::error::NikaError;
@@ -53,11 +54,13 @@ impl TaskExecutor {
     }
 
     /// Execute a task action with the given context
+    #[instrument(skip(self, context), fields(action_type = %action_type(action)))]
     pub async fn execute(
         &self,
         action: &TaskAction,
         context: &TaskContext,
     ) -> Result<String, NikaError> {
+        debug!("Executing task action");
         match action {
             TaskAction::Infer { infer } => self.execute_infer(infer, context).await,
             TaskAction::Exec { exec } => self.execute_exec(exec, context).await,
@@ -145,6 +148,7 @@ impl TaskExecutor {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     }
 
+    #[instrument(skip(self, context), fields(url = %fetch.url))]
     async fn execute_fetch(
         &self,
         fetch: &FetchDef,
@@ -184,6 +188,15 @@ impl TaskExecutor {
             .text()
             .await
             .map_err(|e| NikaError::Execution(format!("Failed to read response: {}", e)))
+    }
+}
+
+/// Get action type as string for tracing
+fn action_type(action: &TaskAction) -> &'static str {
+    match action {
+        TaskAction::Infer { .. } => "infer",
+        TaskAction::Exec { .. } => "exec",
+        TaskAction::Fetch { .. } => "fetch",
     }
 }
 
