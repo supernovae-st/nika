@@ -35,7 +35,7 @@ impl Runner {
         let dag = DagAnalyzer::from_workflow(&workflow);
         let datastore = DataStore::new();
         let event_log = EventLog::new();
-        let executor = TaskExecutor::new(&workflow.provider, workflow.model.as_deref());
+        let executor = TaskExecutor::new(&workflow.provider, workflow.model.as_deref(), event_log.clone());
 
         Self {
             workflow,
@@ -184,7 +184,7 @@ impl Runner {
                     });
 
                     // Execute via TaskExecutor
-                    let result = executor.execute(&task.action, &context).await;
+                    let result = executor.execute(&task_id, &task.action, &context).await;
                     let duration = start.elapsed();
 
                     // Convert result to TaskResult with output policy

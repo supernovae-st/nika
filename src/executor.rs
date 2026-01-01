@@ -11,6 +11,7 @@ use tracing::{debug, instrument};
 
 use crate::context::TaskContext;
 use crate::error::NikaError;
+use crate::event::{EventKind, EventLog};
 use crate::provider::{create_provider, Provider};
 use crate::task::{ExecDef, FetchDef, InferDef};
 use crate::template;
@@ -21,7 +22,7 @@ const EXEC_TIMEOUT: Duration = Duration::from_secs(60);
 /// Default timeout for HTTP requests (30 seconds)
 const FETCH_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Task executor with cached providers and shared HTTP client
+/// Task executor with cached providers, shared HTTP client, and event logging
 #[derive(Clone)]
 pub struct TaskExecutor {
     /// Shared HTTP client (connection pooling)
@@ -32,11 +33,13 @@ pub struct TaskExecutor {
     default_provider: Arc<str>,
     /// Default model
     default_model: Option<Arc<str>>,
+    /// Event log for fine-grained audit trail
+    event_log: EventLog,
 }
 
 impl TaskExecutor {
-    /// Create a new executor with default provider and model
-    pub fn new(provider: &str, model: Option<&str>) -> Self {
+    /// Create a new executor with default provider, model, and event log
+    pub fn new(provider: &str, model: Option<&str>, event_log: EventLog) -> Self {
         let http_client = reqwest::Client::builder()
             .timeout(FETCH_TIMEOUT)
             .connect_timeout(Duration::from_secs(10))
@@ -50,6 +53,7 @@ impl TaskExecutor {
             provider_cache: Arc::new(DashMap::new()),
             default_provider: provider.into(),
             default_model: model.map(Into::into),
+            event_log,
         }
     }
 
@@ -57,14 +61,15 @@ impl TaskExecutor {
     #[instrument(skip(self, context), fields(action_type = %action_type(action)))]
     pub async fn execute(
         &self,
+        task_id: &str,
         action: &TaskAction,
         context: &TaskContext,
     ) -> Result<String, NikaError> {
         debug!("Executing task action");
         match action {
-            TaskAction::Infer { infer } => self.execute_infer(infer, context).await,
-            TaskAction::Exec { exec } => self.execute_exec(exec, context).await,
-            TaskAction::Fetch { fetch } => self.execute_fetch(fetch, context).await,
+            TaskAction::Infer { infer } => self.execute_infer(task_id, infer, context).await,
+            TaskAction::Exec { exec } => self.execute_exec(task_id, exec, context).await,
+            TaskAction::Fetch { fetch } => self.execute_fetch(task_id, fetch, context).await,
         }
     }
 
@@ -87,11 +92,19 @@ impl TaskExecutor {
 
     async fn execute_infer(
         &self,
+        task_id: &str,
         infer: &InferDef,
         context: &TaskContext,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
         let prompt = template::resolve(&infer.prompt, context)?;
+
+        // EMIT: TemplateResolved
+        self.event_log.emit(EventKind::TemplateResolved {
+            task_id: task_id.to_string(),
+            template: infer.prompt.clone(),
+            result: prompt.to_string(),
+        });
 
         // Use task-level override or workflow default
         let provider_name = infer
@@ -109,19 +122,44 @@ impl TaskExecutor {
             .or(self.default_model.as_deref())
             .unwrap_or_else(|| provider.default_model());
 
-        provider
+        // EMIT: ProviderCalled
+        self.event_log.emit(EventKind::ProviderCalled {
+            task_id: task_id.to_string(),
+            provider: provider_name.to_string(),
+            model: model.to_string(),
+            prompt_len: prompt.len(),
+        });
+
+        let result = provider
             .infer(&prompt, model)
             .await
-            .map_err(|e| NikaError::Provider(e.to_string()))
+            .map_err(|e| NikaError::Provider(e.to_string()))?;
+
+        // EMIT: ProviderResponded
+        self.event_log.emit(EventKind::ProviderResponded {
+            task_id: task_id.to_string(),
+            output_len: result.len(),
+            tokens_used: None, // TODO: if provider returns token count
+        });
+
+        Ok(result)
     }
 
     async fn execute_exec(
         &self,
+        task_id: &str,
         exec: &ExecDef,
         context: &TaskContext,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
         let command = template::resolve(&exec.command, context)?;
+
+        // EMIT: TemplateResolved
+        self.event_log.emit(EventKind::TemplateResolved {
+            task_id: task_id.to_string(),
+            template: exec.command.clone(),
+            result: command.to_string(),
+        });
 
         // Execute with timeout
         let output = tokio::time::timeout(
@@ -151,11 +189,19 @@ impl TaskExecutor {
     #[instrument(skip(self, context), fields(url = %fetch.url))]
     async fn execute_fetch(
         &self,
+        task_id: &str,
         fetch: &FetchDef,
         context: &TaskContext,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
         let url = template::resolve(&fetch.url, context)?;
+
+        // EMIT: TemplateResolved
+        self.event_log.emit(EventKind::TemplateResolved {
+            task_id: task_id.to_string(),
+            template: fetch.url.clone(),
+            result: url.to_string(),
+        });
 
         let mut request = if fetch.method.eq_ignore_ascii_case("POST") {
             self.http_client.post(url.as_ref())
@@ -207,13 +253,13 @@ mod tests {
 
     #[test]
     fn executor_is_clone() {
-        let exec = TaskExecutor::new("mock", None);
+        let exec = TaskExecutor::new("mock", None, EventLog::new());
         let _cloned = exec.clone();
     }
 
     #[tokio::test]
     async fn execute_exec_echo() {
-        let exec = TaskExecutor::new("mock", None);
+        let exec = TaskExecutor::new("mock", None, EventLog::new());
         let ctx = TaskContext::new();
         let action = TaskAction::Exec {
             exec: ExecDef {
@@ -221,13 +267,13 @@ mod tests {
             },
         };
 
-        let result = exec.execute(&action, &ctx).await.unwrap();
+        let result = exec.execute("test_task", &action, &ctx).await.unwrap();
         assert_eq!(result, "hello");
     }
 
     #[tokio::test]
     async fn execute_exec_with_template() {
-        let exec = TaskExecutor::new("mock", None);
+        let exec = TaskExecutor::new("mock", None, EventLog::new());
         let mut ctx = TaskContext::new();
         ctx.set("name", json!("world"));
 
@@ -237,7 +283,37 @@ mod tests {
             },
         };
 
-        let result = exec.execute(&action, &ctx).await.unwrap();
+        let result = exec.execute("test_task", &action, &ctx).await.unwrap();
         assert_eq!(result, "world");
+    }
+
+    #[tokio::test]
+    async fn execute_emits_template_resolved() {
+        let event_log = EventLog::new();
+        let exec = TaskExecutor::new("mock", None, event_log.clone());
+        let mut ctx = TaskContext::new();
+        ctx.set("name", json!("Alice"));
+
+        let action = TaskAction::Exec {
+            exec: ExecDef {
+                command: "echo Hello {{use.name}}".to_string(),
+            },
+        };
+
+        exec.execute("greet", &action, &ctx).await.unwrap();
+
+        // Check TemplateResolved event was emitted
+        let events = event_log.filter_task("greet");
+        assert!(!events.is_empty());
+
+        let template_events: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e.kind, EventKind::TemplateResolved { .. }))
+            .collect();
+        assert_eq!(template_events.len(), 1);
+
+        if let EventKind::TemplateResolved { result, .. } = &template_events[0].kind {
+            assert_eq!(result, "echo Hello Alice");
+        }
     }
 }
