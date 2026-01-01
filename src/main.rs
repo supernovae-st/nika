@@ -8,6 +8,7 @@ mod context;
 mod dag;
 mod datastore;
 mod error;
+mod event;
 mod executor;
 mod jsonpath;
 mod output_policy;

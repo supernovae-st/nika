@@ -136,6 +136,14 @@ impl TaskContext {
     pub fn is_empty(&self) -> bool {
         self.resolved.is_empty()
     }
+
+    /// Serialize context to JSON Value for event logging
+    ///
+    /// Returns the full resolved inputs as a JSON object.
+    /// Used by EventLog for InputsResolved events.
+    pub fn to_value(&self) -> Value {
+        serde_json::to_value(&self.resolved).unwrap_or(Value::Null)
+    }
 }
 
 #[cfg(test)]
@@ -431,5 +439,33 @@ mod tests {
 
         let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
         assert_eq!(ctx.get("temp"), Some(&json!(25)));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // v0.1: to_value() for event logging
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn to_value_serializes_resolved_inputs() {
+        let mut ctx = TaskContext::new();
+        ctx.set("weather", json!("sunny"));
+        ctx.set("temp", json!(25));
+        ctx.set("nested", json!({"key": "value"}));
+
+        let value = ctx.to_value();
+
+        assert!(value.is_object());
+        assert_eq!(value["weather"], "sunny");
+        assert_eq!(value["temp"], 25);
+        assert_eq!(value["nested"]["key"], "value");
+    }
+
+    #[test]
+    fn to_value_empty_context() {
+        let ctx = TaskContext::new();
+        let value = ctx.to_value();
+
+        assert!(value.is_object());
+        assert!(value.as_object().unwrap().is_empty());
     }
 }

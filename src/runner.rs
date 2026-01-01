@@ -9,29 +9,32 @@ use std::time::Instant;
 use colored::Colorize;
 use serde_json::Value;
 use tokio::task::JoinSet;
-use tracing::{info, instrument, warn};
+use tracing::{info, instrument};
 
 use crate::context::TaskContext;
 use crate::dag::DagAnalyzer;
 use crate::datastore::{DataStore, TaskResult};
 use crate::error::NikaError;
+use crate::event::{EventKind, EventLog};
 use crate::executor::TaskExecutor;
 use crate::output_policy::OutputFormat;
 use crate::validator;
 use crate::workflow::{Task, Workflow};
 
-/// DAG workflow runner
+/// DAG workflow runner with event sourcing
 pub struct Runner {
     workflow: Workflow,
     dag: DagAnalyzer,
     datastore: DataStore,
     executor: TaskExecutor,
+    event_log: EventLog,
 }
 
 impl Runner {
     pub fn new(workflow: Workflow) -> Self {
         let dag = DagAnalyzer::from_workflow(&workflow);
         let datastore = DataStore::new();
+        let event_log = EventLog::new();
         let executor = TaskExecutor::new(&workflow.provider, workflow.model.as_deref());
 
         Self {
@@ -39,7 +42,13 @@ impl Runner {
             dag,
             datastore,
             executor,
+            event_log,
         }
+    }
+
+    /// Get the event log for inspection/export
+    pub fn event_log(&self) -> &EventLog {
+        &self.event_log
     }
 
     /// Get tasks that are ready to run (all dependencies satisfied)
@@ -87,6 +96,7 @@ impl Runner {
     /// Main execution loop
     #[instrument(skip(self), fields(workflow_tasks = self.workflow.tasks.len()))]
     pub async fn run(&self) -> Result<String, NikaError> {
+        let workflow_start = Instant::now();
         info!("Starting workflow execution");
 
         // Validate use: blocks before execution (fail-fast)
@@ -94,6 +104,9 @@ impl Runner {
 
         let total_tasks = self.workflow.tasks.len();
         let mut completed = 0;
+
+        // EMIT: WorkflowStarted
+        self.event_log.emit(EventKind::WorkflowStarted { task_count: total_tasks });
 
         println!(
             "{} Running workflow with {} tasks...\n",
@@ -109,6 +122,11 @@ impl Runner {
                 if self.all_done() {
                     break;
                 }
+                // EMIT: WorkflowFailed (deadlock)
+                self.event_log.emit(EventKind::WorkflowFailed {
+                    error: "Deadlock: no tasks ready but workflow not complete".to_string(),
+                    failed_task: None,
+                });
                 return Err(NikaError::Execution(
                     "Deadlock: no tasks ready but workflow not complete".to_string(),
                 ));
@@ -122,6 +140,14 @@ impl Runner {
                 let task_id = task.id.clone(); // Clone once, reuse in spawn
                 let datastore = self.datastore.clone();
                 let executor = self.executor.clone();
+                let event_log = self.event_log.clone();
+
+                // EMIT: TaskScheduled
+                let deps = self.dag.get_dependencies(&task.id);
+                self.event_log.emit(EventKind::TaskScheduled {
+                    task_id: task_id.clone(),
+                    dependencies: deps.into_iter().cloned().collect(),
+                });
 
                 println!("  {} {} {}", "[⟳]".yellow(), &task_id, "running...".dimmed());
 
@@ -136,9 +162,26 @@ impl Runner {
                         Ok(ctx) => ctx,
                         Err(e) => {
                             let duration = start.elapsed();
+                            // EMIT: TaskFailed (context build failed)
+                            event_log.emit(EventKind::TaskFailed {
+                                task_id: task_id.clone(),
+                                error: e.to_string(),
+                                duration_ms: duration.as_millis() as u64,
+                            });
                             return (task_id, TaskResult::failed(e.to_string(), duration));
                         }
                     };
+
+                    // EMIT: InputsResolved (the original request!)
+                    event_log.emit(EventKind::InputsResolved {
+                        task_id: task_id.clone(),
+                        inputs: context.to_value(),
+                    });
+
+                    // EMIT: TaskStarted
+                    event_log.emit(EventKind::TaskStarted {
+                        task_id: task_id.clone(),
+                    });
 
                     // Execute via TaskExecutor
                     let result = executor.execute(&task.action, &context).await;
@@ -146,8 +189,33 @@ impl Runner {
 
                     // Convert result to TaskResult with output policy
                     let task_result = match result {
-                        Ok(output) => make_task_result(output, task.output.as_ref(), duration),
-                        Err(e) => TaskResult::failed(e.to_string(), duration),
+                        Ok(output) => {
+                            let tr = make_task_result(output, task.output.as_ref(), duration);
+                            // EMIT: TaskCompleted or TaskFailed (based on result)
+                            if tr.is_success() {
+                                event_log.emit(EventKind::TaskCompleted {
+                                    task_id: task_id.clone(),
+                                    output: tr.output.clone(),
+                                    duration_ms: duration.as_millis() as u64,
+                                });
+                            } else {
+                                event_log.emit(EventKind::TaskFailed {
+                                    task_id: task_id.clone(),
+                                    error: tr.error().unwrap_or("Unknown error").to_string(),
+                                    duration_ms: duration.as_millis() as u64,
+                                });
+                            }
+                            tr
+                        }
+                        Err(e) => {
+                            // EMIT: TaskFailed
+                            event_log.emit(EventKind::TaskFailed {
+                                task_id: task_id.clone(),
+                                error: e.to_string(),
+                                duration_ms: duration.as_millis() as u64,
+                            });
+                            TaskResult::failed(e.to_string(), duration)
+                        }
                     };
 
                     (task_id, task_result)
@@ -181,6 +249,11 @@ impl Runner {
                         self.datastore.insert(&task_id, task_result);
                     }
                     Err(e) => {
+                        // EMIT: WorkflowFailed (task panic)
+                        self.event_log.emit(EventKind::WorkflowFailed {
+                            error: format!("Task panicked: {}", e),
+                            failed_task: None,
+                        });
                         return Err(NikaError::Execution(format!("Task panicked: {}", e)));
                     }
                 }
@@ -189,6 +262,12 @@ impl Runner {
 
         // Get final output
         let output = self.get_final_output().unwrap_or_default();
+
+        // EMIT: WorkflowCompleted
+        self.event_log.emit(EventKind::WorkflowCompleted {
+            final_output: Value::String(output.clone()),
+            total_duration_ms: workflow_start.elapsed().as_millis() as u64,
+        });
 
         println!("\n{} Done!\n", "✓".green());
 

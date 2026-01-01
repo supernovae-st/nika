@@ -1,6 +1,7 @@
 //! Nika - DAG workflow runner for AI tasks
 
 pub mod context;
+pub mod event;
 pub mod dag;
 pub mod datastore;
 pub mod error;
@@ -17,6 +18,7 @@ pub mod workflow;
 
 pub use context::TaskContext;
 pub use error::NikaError;
+pub use event::{Event, EventKind, EventLog};
 pub use executor::TaskExecutor;
 pub use output_policy::{OutputFormat, OutputPolicy};
 pub use runner::Runner;
