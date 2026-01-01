@@ -9,12 +9,14 @@ mod dag;
 mod datastore;
 mod error;
 mod executor;
+mod jsonpath;
 mod output_policy;
 mod provider;
 mod runner;
 mod task;
 mod template;
 mod use_block;
+mod validator;
 mod workflow;
 
 use error::{FixSuggestion, NikaError};

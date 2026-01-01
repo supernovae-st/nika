@@ -5,12 +5,14 @@ pub mod dag;
 pub mod datastore;
 pub mod error;
 pub mod executor;
+pub mod jsonpath;
 pub mod output_policy;
 pub mod provider;
 pub mod runner;
 pub mod task;
 pub mod template;
 pub mod use_block;
+pub mod validator;
 pub mod workflow;
 
 pub use context::TaskContext;

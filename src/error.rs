@@ -70,6 +70,32 @@ pub enum NikaError {
 
     #[error("NIKA-074: Template parse error at position {position}: {details}")]
     TemplateParse { position: usize, details: String },
+
+    // ─────────────────────────────────────────────────────────────
+    // v0.1: DAG validation errors (NIKA-080 to NIKA-082)
+    // ─────────────────────────────────────────────────────────────
+
+    #[error("NIKA-080: use.{alias}.from references unknown task '{from_task}'")]
+    UseUnknownTask { alias: String, from_task: String, task_id: String },
+
+    #[error("NIKA-081: use.{alias}.from='{from_task}' is not upstream of task '{task_id}'")]
+    UseNotUpstream { alias: String, from_task: String, task_id: String },
+
+    #[error("NIKA-082: use.{alias}.from='{from_task}' creates circular dependency with '{task_id}'")]
+    UseCircularDep { alias: String, from_task: String, task_id: String },
+
+    // ─────────────────────────────────────────────────────────────
+    // v0.1: JSONPath errors (NIKA-090 to NIKA-092)
+    // ─────────────────────────────────────────────────────────────
+
+    #[error("NIKA-090: JSONPath '{path}' is not supported in v0.1 (use $.a.b or $.a[0].b)")]
+    JsonPathUnsupported { path: String },
+
+    #[error("NIKA-091: JSONPath '{path}' matched nothing in output")]
+    JsonPathNoMatch { path: String, task_id: String },
+
+    #[error("NIKA-092: Cannot apply JSONPath to non-JSON output from task '{task_id}'")]
+    JsonPathNonJson { path: String, task_id: String },
 }
 
 impl FixSuggestion for NikaError {
@@ -99,6 +125,24 @@ impl FixSuggestion for NikaError {
             }
             NikaError::TemplateParse { .. } => {
                 Some("Check template syntax: {{use.alias}} or {{use.alias.field}}")
+            }
+            NikaError::UseUnknownTask { .. } => {
+                Some("Verify the task_id exists in your workflow")
+            }
+            NikaError::UseNotUpstream { .. } => {
+                Some("Add a flow from the source task to this task, or use a different source")
+            }
+            NikaError::UseCircularDep { .. } => {
+                Some("Remove the circular dependency - tasks cannot depend on themselves")
+            }
+            NikaError::JsonPathUnsupported { .. } => {
+                Some("Use simple paths like $.field.subfield or $.array[0].field")
+            }
+            NikaError::JsonPathNoMatch { .. } => {
+                Some("Check the path exists in the source task's output")
+            }
+            NikaError::JsonPathNonJson { .. } => {
+                Some("Ensure source task has output: { format: json }")
             }
         }
     }

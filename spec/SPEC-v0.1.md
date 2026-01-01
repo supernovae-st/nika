@@ -74,11 +74,24 @@ use:
 use:
   forecast:
     from: weather_task          # Source task (required)
-    path: data.summary          # Optional: path within output
+    path: $.data.summary        # Optional: JSONPath within output
     default: "Unknown"          # Optional: fallback if null/missing
+
+  first_item:
+    from: data_task
+    path: $.items[0].name       # Array index supported
 ```
 
-**Path syntax:** `task_id.field.subfield.0` (dot-separated, numeric = array index)
+**JSONPath syntax (v0.1 minimal):**
+
+| Syntax | Example | Description |
+|--------|---------|-------------|
+| `$.a.b` | `$.price.currency` | Dot notation |
+| `$.a[0]` | `$.items[0]` | Array index |
+| `$.a[0].b` | `$.items[0].name` | Combined |
+| `a.b` | `price.currency` | Without `$` prefix (also valid) |
+
+**Not supported in v0.1:** filters `[?(@.x)]`, wildcards `[*]`, slices `[0:5]`
 
 ---
 
@@ -189,6 +202,31 @@ flows:
 - No duplicate aliases
 - All `{{use.X}}` have corresponding `use:` entry
 - Referenced tasks exist in DAG
+- **DAG validation:** `from` task must exist AND be upstream of consuming task
+- **JSONPath syntax:** Only `$.a.b` and `$.a[0].b` patterns allowed
+
+### DAG Validation Rules
+
+The `use:` block declares data dependencies. These must respect the DAG:
+
+```yaml
+flows:
+  - source: weather
+    target: recommend
+
+tasks:
+  - id: recommend
+    use:
+      forecast:
+        from: weather      # OK: weather is upstream
+        path: summary
+      data:
+        from: other_task   # ERROR: other_task not upstream
+```
+
+**Rule:** Every `from: X` in a `use:` block must reference a task that:
+1. Exists in the workflow
+2. Has a path to the consuming task in the DAG
 
 ### Runtime
 - Paths resolve to actual values
@@ -211,6 +249,12 @@ flows:
 | NIKA-072 | Null value | Provide `default:` or ensure non-null |
 | NIKA-073 | Invalid traversal | Cannot access `.field` on primitive |
 | NIKA-074 | Template parse error | Check `{{use.alias}}` syntax |
+| NIKA-080 | Task not found in DAG | Check `from:` references existing task |
+| NIKA-081 | Task not upstream | Referenced task must be upstream in DAG |
+| NIKA-082 | Circular dependency | Check DAG for cycles |
+| NIKA-090 | JSONPath unsupported | Use `$.a.b` or `$.a[0].b` only |
+| NIKA-091 | JSONPath invalid index | Array index must be non-negative integer |
+| NIKA-092 | JSONPath empty | Path cannot be empty string |
 
 ---
 
@@ -283,4 +327,33 @@ pub fn validate_refs(
     declared_aliases: &HashSet<String>,
     task_id: &str,
 ) -> Result<(), NikaError>;
+```
+
+---
+
+## Appendix D: JSONPath (Minimal)
+
+```rust
+/// Path segment (field or array index)
+pub enum Segment {
+    Field(String),
+    Index(usize),
+}
+
+/// Parse JSONPath string into segments
+/// Supports: $.a.b, $.a[0].b, a.b (without $)
+pub fn parse(path: &str) -> Result<Vec<Segment>, NikaError>;
+
+/// Apply segments to JSON value
+pub fn apply(value: &Value, segments: &[Segment]) -> Option<Value>;
+
+/// Resolve path in one step (parse + apply)
+pub fn resolve(value: &Value, path: &str) -> Result<Option<Value>, NikaError>;
+```
+
+**Examples:**
+```
+$.price.currency  → [Field("price"), Field("currency")]
+$.items[0].name   → [Field("items"), Index(0), Field("name")]
+data.temp         → [Field("data"), Field("temp")]
 ```

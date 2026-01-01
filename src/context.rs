@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use crate::datastore::DataStore;
 use crate::error::NikaError;
+use crate::jsonpath;
 use crate::use_block::{UseAdvanced, UseBlock, UseEntry};
 
 /// Task execution context with resolved inputs
@@ -69,13 +70,23 @@ impl TaskContext {
 
                 // Form 3: alias: { from: task, path: x.y, default: v }
                 UseEntry::Advanced(UseAdvanced { from, path, default }) => {
-                    // Build the full path: from + optional path
-                    let full_path = match path {
+                    // Get the output from the source task
+                    let base_value = datastore.get_output(from);
+
+                    // Apply JSONPath if path is specified
+                    let value: Option<Value> = match (&base_value, path) {
+                        (Some(v), Some(p)) => {
+                            // Use JSONPath parser for $.a.b.c or a.b.c syntax
+                            jsonpath::resolve(v, p)?
+                        }
+                        (Some(v), None) => Some(v.clone()),
+                        (None, _) => None,
+                    };
+
+                    let display_path = match path {
                         Some(p) => format!("{}.{}", from, p),
                         None => from.clone(),
                     };
-
-                    let value = datastore.resolve_path(&full_path);
 
                     match (value, default) {
                         // Value found → use it
@@ -86,7 +97,7 @@ impl TaskContext {
                                     ctx.set(key, def.clone());
                                 } else {
                                     return Err(NikaError::NullValue {
-                                        path: full_path,
+                                        path: display_path,
                                         alias: key.clone(),
                                     });
                                 }
@@ -100,7 +111,7 @@ impl TaskContext {
                         }
                         // Not found and no default → error
                         (None, None) => {
-                            return Err(NikaError::PathNotFound { path: full_path });
+                            return Err(NikaError::PathNotFound { path: display_path });
                         }
                     }
                 }
@@ -341,5 +352,84 @@ mod tests {
         // Should be PathNotFound error
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("NIKA-052") || err_msg.contains("not found"));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // v0.1: JSONPath tests
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn from_use_block_advanced_jsonpath_dollar_syntax() {
+        let store = DataStore::new();
+        store.insert(
+            "flight",
+            TaskResult::success(
+                json!({"price": {"currency": "EUR", "amount": 100}}),
+                Duration::from_secs(1),
+            ),
+        );
+
+        let mut block = UseBlock::new();
+        block.insert(
+            "currency".to_string(),
+            UseEntry::Advanced(UseAdvanced {
+                from: "flight".to_string(),
+                path: Some("$.price.currency".to_string()), // JSONPath with $
+                default: None,
+            }),
+        );
+
+        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
+        assert_eq!(ctx.get("currency"), Some(&json!("EUR")));
+    }
+
+    #[test]
+    fn from_use_block_advanced_jsonpath_array_index() {
+        let store = DataStore::new();
+        store.insert(
+            "data",
+            TaskResult::success(
+                json!({"items": [{"name": "first"}, {"name": "second"}]}),
+                Duration::from_secs(1),
+            ),
+        );
+
+        let mut block = UseBlock::new();
+        block.insert(
+            "first_item".to_string(),
+            UseEntry::Advanced(UseAdvanced {
+                from: "data".to_string(),
+                path: Some("$.items[0].name".to_string()),
+                default: None,
+            }),
+        );
+
+        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
+        assert_eq!(ctx.get("first_item"), Some(&json!("first")));
+    }
+
+    #[test]
+    fn from_use_block_advanced_jsonpath_simple_dot() {
+        let store = DataStore::new();
+        store.insert(
+            "weather",
+            TaskResult::success(
+                json!({"data": {"temp": 25}}),
+                Duration::from_secs(1),
+            ),
+        );
+
+        let mut block = UseBlock::new();
+        block.insert(
+            "temp".to_string(),
+            UseEntry::Advanced(UseAdvanced {
+                from: "weather".to_string(),
+                path: Some("data.temp".to_string()), // Simple dot without $
+                default: None,
+            }),
+        );
+
+        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
+        assert_eq!(ctx.get("temp"), Some(&json!(25)));
     }
 }

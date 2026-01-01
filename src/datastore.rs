@@ -107,6 +107,11 @@ impl DataStore {
         self.get(task_id).map(|r| r.is_success()).unwrap_or(false)
     }
 
+    /// Get just the output Value for a task (for JSONPath resolution)
+    pub fn get_output(&self, task_id: &str) -> Option<Value> {
+        self.results.get(task_id).map(|r| r.output.clone())
+    }
+
     /// Resolve a dot-separated path (e.g., "weather.summary")
     pub fn resolve_path(&self, path: &str) -> Option<Value> {
         let mut parts = path.split('.');
