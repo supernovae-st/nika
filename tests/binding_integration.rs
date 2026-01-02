@@ -27,7 +27,10 @@ fn full_workflow_simple_path() {
     let store = DataStore::new();
     store.insert(
         Arc::from("weather"),
-        TaskResult::success(json!({"summary": "Sunny", "temp": 25}), Duration::from_secs(1)),
+        TaskResult::success(
+            json!({"summary": "Sunny", "temp": 25}),
+            Duration::from_secs(1),
+        ),
     );
 
     // 4. Resolve bindings
@@ -276,7 +279,10 @@ name: 'user.name ?? "Guest"'
     let store = DataStore::new();
     store.insert(
         Arc::from("weather"),
-        TaskResult::success(json!({"summary": "Rainy", "temp": 15}), Duration::from_secs(1)),
+        TaskResult::success(
+            json!({"summary": "Rainy", "temp": 15}),
+            Duration::from_secs(1),
+        ),
     );
     store.insert(
         Arc::from("user"),
@@ -319,7 +325,10 @@ fn edge_case_entire_task_output() {
     let store = DataStore::new();
     store.insert(
         Arc::from("weather"),
-        TaskResult::success(json!({"summary": "Sunny", "temp": 25}), Duration::from_secs(1)),
+        TaskResult::success(
+            json!({"summary": "Sunny", "temp": 25}),
+            Duration::from_secs(1),
+        ),
     );
 
     let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();

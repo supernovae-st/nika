@@ -80,12 +80,11 @@ pub fn parse_use_entry(s: &str) -> Result<UseEntry, NikaError> {
             }
 
             let default_str = s[idx + 2..].trim();
-            let default = serde_json::from_str(default_str).map_err(|e| {
-                NikaError::InvalidDefault {
+            let default =
+                serde_json::from_str(default_str).map_err(|e| NikaError::InvalidDefault {
                     raw: default_str.to_string(),
                     reason: e.to_string(),
-                }
-            })?;
+                })?;
 
             Ok(UseEntry {
                 path: path.to_string(),

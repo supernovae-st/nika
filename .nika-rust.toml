@@ -1,0 +1,32 @@
+# .nika-rust.toml - Configuration Rust pour ce projet
+
+[checks]
+# Checks BLOQUANTS (exit 1 si échec)
+blocking = ["fmt", "clippy", "tests", "audit-critical"]
+
+# Checks WARNING (continue mais affiche)
+warning = ["audit-medium", "geiger", "machete", "coverage-soft"]
+
+[coverage]
+# Seuil minimum (bloquant si en dessous)
+threshold = 80
+# Seuil warning (entre threshold et target)
+target = 90
+
+[tools]
+# Utiliser nextest si disponible
+prefer_nextest = true
+# Utiliser bacon pour watch mode
+prefer_bacon = true
+
+[geiger]
+# Seuil d'unsafe acceptable dans le projet (pas deps)
+max_unsafe_project = 10
+# Warning si deps ont trop d'unsafe
+warn_deps_unsafe = 50
+
+[audit]
+# Bloquer sur severité
+block_severity = ["critical", "high"]
+# Warning sur severité
+warn_severity = ["medium", "low"]

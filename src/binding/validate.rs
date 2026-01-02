@@ -30,34 +30,34 @@ use crate::error::NikaError;
 /// - Numbers first: `123task` (must start with letter)
 /// - Leading underscore: `_private` (not idiomatic)
 pub fn validate_task_id(id: &str) -> Result<(), NikaError> {
-  // Empty check
-  if id.is_empty() {
-    return Err(NikaError::InvalidTaskId {
-      id: id.to_string(),
-      reason: "cannot be empty".into(),
-    });
-  }
+    // Empty check
+    if id.is_empty() {
+        return Err(NikaError::InvalidTaskId {
+            id: id.to_string(),
+            reason: "cannot be empty".into(),
+        });
+    }
 
-  // First character: must be [a-z]
-  let first = id.as_bytes()[0];
-  if !first.is_ascii_lowercase() {
-    return Err(NikaError::InvalidTaskId {
+    // First character: must be [a-z]
+    let first = id.as_bytes()[0];
+    if !first.is_ascii_lowercase() {
+        return Err(NikaError::InvalidTaskId {
       id: id.to_string(),
       reason: "must start with lowercase letter (a-z), then lowercase letters, digits, or underscores".into(),
     });
-  }
+    }
 
-  // Remaining characters: must be [a-z0-9_]
-  for &byte in &id.as_bytes()[1..] {
-    if !byte.is_ascii_lowercase() && !byte.is_ascii_digit() && byte != b'_' {
-      return Err(NikaError::InvalidTaskId {
+    // Remaining characters: must be [a-z0-9_]
+    for &byte in &id.as_bytes()[1..] {
+        if !byte.is_ascii_lowercase() && !byte.is_ascii_digit() && byte != b'_' {
+            return Err(NikaError::InvalidTaskId {
         id: id.to_string(),
         reason: "must start with lowercase letter (a-z), then lowercase letters, digits, or underscores".into(),
       });
+        }
     }
-  }
 
-  Ok(())
+    Ok(())
 }
 
 #[cfg(test)]

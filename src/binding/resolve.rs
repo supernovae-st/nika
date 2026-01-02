@@ -107,12 +107,18 @@ fn resolve_entry(entry: &UseEntry, alias: &str, datastore: &DataStore) -> Result
     // Apply default if value is null or missing
     match value {
         Some(v) if !v.is_null() => Ok(v),
-        Some(_) => entry.default.as_ref().cloned()
+        Some(_) => entry
+            .default
+            .as_ref()
+            .cloned()
             .ok_or_else(|| NikaError::NullValue {
                 path: path.clone(),
                 alias: alias.to_string(),
             }),
-        None => entry.default.as_ref().cloned()
+        None => entry
+            .default
+            .as_ref()
+            .cloned()
             .ok_or_else(|| NikaError::PathNotFound { path: path.clone() }),
     }
 }
