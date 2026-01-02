@@ -196,7 +196,7 @@ impl Runner {
                             if tr.is_success() {
                                 event_log.emit(EventKind::TaskCompleted {
                                     task_id: Arc::clone(&task_id),
-                                    output: tr.output.clone(),
+                                    output: Arc::clone(&tr.output), // O(1) Arc clone
                                     duration_ms: duration.as_millis() as u64,
                                 });
                             } else {
@@ -269,7 +269,7 @@ impl Runner {
 
         // EMIT: WorkflowCompleted
         self.event_log.emit(EventKind::WorkflowCompleted {
-            final_output: Value::String(output.clone()),
+            final_output: Arc::new(Value::String(output.clone())),
             total_duration_ms: workflow_start.elapsed().as_millis() as u64,
         });
 

@@ -38,7 +38,7 @@ pub enum EventKind {
         task_count: usize,
     },
     WorkflowCompleted {
-        final_output: Value,
+        final_output: Arc<Value>,
         total_duration_ms: u64,
     },
     WorkflowFailed {
@@ -61,7 +61,7 @@ pub enum EventKind {
     },
     TaskCompleted {
         task_id: Arc<str>,
-        output: Value,
+        output: Arc<Value>,
         duration_ms: u64,
     },
     TaskFailed {
@@ -234,7 +234,7 @@ mod tests {
     fn eventkind_is_workflow_event() {
         assert!(EventKind::WorkflowStarted { task_count: 3 }.is_workflow_event());
         assert!(EventKind::WorkflowCompleted {
-            final_output: json!("done"),
+            final_output: Arc::new(json!("done")),
             total_duration_ms: 1000,
         }
         .is_workflow_event());
@@ -249,7 +249,7 @@ mod tests {
     fn eventkind_serializes_with_type_tag() {
         let kind = EventKind::TaskCompleted {
             task_id: "greet".into(),
-            output: json!({"message": "Hello"}),
+            output: Arc::new(json!({"message": "Hello"})),
             duration_ms: 150,
         };
 
@@ -337,7 +337,7 @@ mod tests {
         });
         log.emit(EventKind::TaskCompleted {
             task_id: "alpha".into(),
-            output: json!("result"),
+            output: Arc::new(json!("result")),
             duration_ms: 100,
         });
 
@@ -358,7 +358,7 @@ mod tests {
             inputs: json!({}),
         });
         log.emit(EventKind::WorkflowCompleted {
-            final_output: json!("done"),
+            final_output: Arc::new(json!("done")),
             total_duration_ms: 500,
         });
 

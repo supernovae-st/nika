@@ -168,7 +168,7 @@ mod tests {
         );
 
         let result = store.get("task1").unwrap();
-        assert_eq!(result.output, Value::String("hello".to_string()));
+        assert_eq!(*result.output, Value::String("hello".to_string()));
         assert_eq!(result.output_str(), "hello");
     }
 
