@@ -47,6 +47,7 @@ impl Runner {
     }
 
     /// Get the event log for inspection/export
+    #[allow(dead_code)] // Used in tests and future export
     pub fn event_log(&self) -> &EventLog {
         &self.event_log
     }
@@ -146,7 +147,7 @@ impl Runner {
                 let deps = self.flow_graph.get_dependencies(&task.id);
                 self.event_log.emit(EventKind::TaskScheduled {
                     task_id: Arc::clone(&task_id),
-                    dependencies: deps.iter().map(|s| Arc::from(s.as_str())).collect(),
+                    dependencies: deps.iter().cloned().collect(), // Arc::clone is O(1)
                 });
 
                 println!("  {} {} {}", "[⟳]".yellow(), &task_id, "running...".dimmed());

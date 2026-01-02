@@ -189,6 +189,7 @@ fn is_in_json_context(template: &str, pos: usize) -> bool {
 ///
 /// Returns a Vec of (alias, full_path) tuples.
 /// Example: "{{use.weather.temp}}" → vec![("weather", "weather.temp")]
+#[allow(dead_code)] // Used in tests and future static validation
 pub fn extract_refs(template: &str) -> Vec<(String, String)> {
     USE_RE
         .captures_iter(template)
@@ -204,6 +205,7 @@ pub fn extract_refs(template: &str) -> Vec<(String, String)> {
 ///
 /// This is called by `nika validate` before runtime.
 /// Returns Ok(()) if valid, Err with first unknown alias if not.
+#[allow(dead_code)] // Used in tests and future static validation
 pub fn validate_refs(
     template: &str,
     declared_aliases: &std::collections::HashSet<String>,

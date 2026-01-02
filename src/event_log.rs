@@ -93,6 +93,7 @@ pub enum EventKind {
 
 impl EventKind {
     /// Extract task_id if event is task-related
+    #[allow(dead_code)] // Used in tests and future replay
     pub fn task_id(&self) -> Option<&str> {
         match self {
             Self::TaskScheduled { task_id, .. }
@@ -109,6 +110,7 @@ impl EventKind {
     }
 
     /// Check if this is a workflow-level event
+    #[allow(dead_code)] // Used in tests and future replay
     pub fn is_workflow_event(&self) -> bool {
         matches!(
             self,
@@ -151,11 +153,13 @@ impl EventLog {
     }
 
     /// Get all events (cloned)
+    #[allow(dead_code)] // Used in tests and future export
     pub fn events(&self) -> Vec<Event> {
         self.events.read().clone()
     }
 
     /// Filter events by task ID
+    #[allow(dead_code)] // Used in tests and future debugging
     pub fn filter_task(&self, task_id: &str) -> Vec<Event> {
         self.events()
             .into_iter()
@@ -164,6 +168,7 @@ impl EventLog {
     }
 
     /// Filter workflow-level events only
+    #[allow(dead_code)] // Used in tests and future export
     pub fn workflow_events(&self) -> Vec<Event> {
         self.events()
             .into_iter()
@@ -172,16 +177,19 @@ impl EventLog {
     }
 
     /// Serialize to JSON for persistence/debugging
+    #[allow(dead_code)] // Used in tests and future export
     pub fn to_json(&self) -> Value {
         serde_json::to_value(self.events()).unwrap_or(Value::Null)
     }
 
     /// Number of events
+    #[allow(dead_code)] // Used in tests
     pub fn len(&self) -> usize {
         self.events.read().len()
     }
 
     /// Check if empty
+    #[allow(dead_code)] // Used in tests
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

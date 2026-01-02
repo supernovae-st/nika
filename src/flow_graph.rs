@@ -1,88 +1,118 @@
-//! Flow graph built from workflow flows:
+//! Flow graph built from workflow flows (Arc<str> optimized)
+//!
+//! Uses Arc<str> for zero-cost cloning of task IDs.
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::Arc;
+
 use crate::workflow::Workflow;
 
-/// Graph of task dependencies built from flows:
+/// Graph of task dependencies built from flows
+///
+/// Uses Arc<str> internally for zero-cost cloning.
 pub struct FlowGraph {
     /// task_id -> list of successor task_ids
-    adjacency: HashMap<String, Vec<String>>,
+    adjacency: HashMap<Arc<str>, Vec<Arc<str>>>,
     /// task_id -> list of predecessor task_ids (dependencies)
-    predecessors: HashMap<String, Vec<String>>,
-    /// All task IDs
-    task_ids: HashSet<String>,
+    predecessors: HashMap<Arc<str>, Vec<Arc<str>>>,
+    /// All task IDs (for iteration)
+    task_ids: Vec<Arc<str>>,
+    /// Quick lookup for task existence (used in from_workflow for Arc reuse)
+    #[allow(dead_code)] // Used in from_workflow for Arc<str> reuse
+    task_set: HashSet<Arc<str>>,
 }
 
 impl FlowGraph {
     pub fn from_workflow(workflow: &Workflow) -> Self {
         let capacity = workflow.tasks.len();
-        let mut adjacency: HashMap<String, Vec<String>> = HashMap::with_capacity(capacity);
-        let mut predecessors: HashMap<String, Vec<String>> = HashMap::with_capacity(capacity);
-        let mut task_ids: HashSet<String> = HashSet::with_capacity(capacity);
+        let mut adjacency: HashMap<Arc<str>, Vec<Arc<str>>> = HashMap::with_capacity(capacity);
+        let mut predecessors: HashMap<Arc<str>, Vec<Arc<str>>> = HashMap::with_capacity(capacity);
+        let mut task_ids: Vec<Arc<str>> = Vec::with_capacity(capacity);
+        let mut task_set: HashSet<Arc<str>> = HashSet::with_capacity(capacity);
 
-        // Initialize all tasks (single clone per task)
+        // Create Arc<str> once per task, reuse everywhere
         for task in &workflow.tasks {
-            let id = task.id.clone();
-            task_ids.insert(id.clone());
-            adjacency.insert(id.clone(), Vec::new());
+            let id: Arc<str> = Arc::from(task.id.as_str());
+            task_ids.push(Arc::clone(&id));
+            task_set.insert(Arc::clone(&id));
+            adjacency.insert(Arc::clone(&id), Vec::new());
             predecessors.insert(id, Vec::new());
         }
 
-        // Build from flows
+        // Build from flows (lookup Arc from set)
         for flow in &workflow.flows {
             let sources = flow.source.as_vec();
             let targets = flow.target.as_vec();
 
             for source in &sources {
                 for target in &targets {
+                    // Find existing Arc<str> or create new (shouldn't happen if task exists)
+                    let src_arc = task_set
+                        .get(*source)
+                        .cloned()
+                        .unwrap_or_else(|| Arc::from(*source));
+                    let tgt_arc = task_set
+                        .get(*target)
+                        .cloned()
+                        .unwrap_or_else(|| Arc::from(*target));
+
                     adjacency
-                        .entry(source.to_string())
+                        .entry(Arc::clone(&src_arc))
                         .or_default()
-                        .push(target.to_string());
+                        .push(Arc::clone(&tgt_arc));
                     predecessors
-                        .entry(target.to_string())
+                        .entry(tgt_arc)
                         .or_default()
-                        .push(source.to_string());
+                        .push(src_arc);
                 }
             }
         }
 
-        Self { adjacency, predecessors, task_ids }
+        Self { adjacency, predecessors, task_ids, task_set }
     }
 
-    /// Empty vec for when task has no dependencies
-    const EMPTY: &'static [String] = &[];
-
-    /// Get dependencies of a task (returns slice, no allocation)
+    /// Get dependencies of a task (returns Arc<str> slice)
     #[inline]
-    pub fn get_dependencies(&self, task_id: &str) -> &[String] {
+    pub fn get_dependencies(&self, task_id: &str) -> &[Arc<str>] {
+        static EMPTY: &[Arc<str>] = &[];
         self.predecessors
             .get(task_id)
             .map(|v| v.as_slice())
-            .unwrap_or(Self::EMPTY)
+            .unwrap_or(EMPTY)
     }
 
-    /// Get successors of a task (returns slice, no allocation)
+    /// Get successors of a task
     #[inline]
-    pub fn get_successors(&self, task_id: &str) -> &[String] {
+    #[allow(dead_code)] // Used for future DAG traversal
+    pub fn get_successors(&self, task_id: &str) -> &[Arc<str>] {
+        static EMPTY: &[Arc<str>] = &[];
         self.adjacency
             .get(task_id)
             .map(|v| v.as_slice())
-            .unwrap_or(Self::EMPTY)
+            .unwrap_or(EMPTY)
     }
 
     /// Find tasks with no successors (final tasks)
-    pub fn get_final_tasks(&self) -> Vec<String> {
+    ///
+    /// Returns Arc<str> for zero-cost cloning by caller.
+    pub fn get_final_tasks(&self) -> Vec<Arc<str>> {
         self.task_ids
             .iter()
             .filter(|id| {
                 self.adjacency
-                    .get(*id)
+                    .get(id.as_ref())
                     .map(|v| v.is_empty())
                     .unwrap_or(true)
             })
-            .cloned()
+            .cloned() // Arc::clone is O(1)
             .collect()
+    }
+
+    /// Check if task exists
+    #[inline]
+    #[allow(dead_code)] // Used for future validation
+    pub fn contains(&self, task_id: &str) -> bool {
+        self.task_set.contains(task_id)
     }
 
     /// Check if there's a path from `from` to `to` (BFS)
@@ -100,12 +130,12 @@ impl FlowGraph {
         while let Some(current) = queue.pop_front() {
             if let Some(neighbors) = self.adjacency.get(current) {
                 for neighbor in neighbors {
-                    if neighbor == to {
+                    if neighbor.as_ref() == to {
                         return true;
                     }
-                    if !visited.contains(neighbor.as_str()) {
-                        visited.insert(neighbor.as_str());
-                        queue.push_back(neighbor.as_str());
+                    if !visited.contains(neighbor.as_ref()) {
+                        visited.insert(neighbor.as_ref());
+                        queue.push_back(neighbor.as_ref());
                     }
                 }
             }
