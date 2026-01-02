@@ -10,6 +10,7 @@ mod event_log;
 mod flow_graph;
 mod interner;
 mod jsonpath;
+mod output;
 mod output_policy;
 mod provider;
 mod runner;

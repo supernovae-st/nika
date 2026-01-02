@@ -1,23 +1,36 @@
-//! Nika - DAG workflow runner for AI tasks
+//! Nika - DAG workflow runner for AI tasks (v0.1)
 //!
-//! ## Architecture
+//! ## Core Components
 //!
-//! - `workflow`: YAML parsing and task definitions
-//! - `runner`: DAG execution with tokio concurrency
-//! - `datastore`: Thread-safe task output storage (DashMap)
-//! - `flow_graph`: Dependency graph with FxHashMap optimization
-//! - `template`: Single-pass `{{use.alias}}` resolution
-//! - `use_bindings`: Resolved values from `use:` blocks
-//! - `use_wiring`: YAML parsing for `use:` block syntax
-//! - `validator`: Static workflow validation
-//! - `provider`: LLM provider abstraction (Claude, OpenAI)
-//! - `event_log`: Event sourcing for audit trail
-//! - `interner`: String interning for task IDs
-//! - `jsonpath`: Minimal JSONPath parser
-//! - `task_executor`: Task action execution
-//! - `task_action`: Task action type definitions
-//! - `output_policy`: Output format configuration
-//! - `error`: Error types with fix suggestions
+//! | Module | Responsibility |
+//! |--------|---------------|
+//! | [`workflow`] | YAML parsing → `Workflow`, `Task`, `Flow` |
+//! | [`runner`] | DAG execution with tokio concurrency |
+//! | [`task_executor`] | Individual task execution (infer, exec, fetch) |
+//! | [`datastore`] | Thread-safe task output storage (DashMap) |
+//! | [`flow_graph`] | Dependency graph with FxHashMap optimization |
+//!
+//! ## Use Block System (`use:`)
+//!
+//! | Module | Responsibility |
+//! |--------|---------------|
+//! | [`use_wiring`] | YAML spec for `use:` block (3 forms) |
+//! | [`use_bindings`] | Runtime resolution → `{{use.alias}}` values |
+//! | [`validator`] | DAG validation of use: references |
+//! | [`template`] | Single-pass `{{use.alias}}` substitution |
+//! | [`jsonpath`] | Minimal JSONPath parser ($.a.b, $.a[0]) |
+//!
+//! ## Infrastructure
+//!
+//! | Module | Responsibility |
+//! |--------|---------------|
+//! | [`provider`] | LLM abstraction (Claude, OpenAI, Mock) |
+//! | [`event_log`] | Event sourcing for audit trail |
+//! | [`interner`] | String interning for task IDs |
+//! | [`output`] | Output format handling |
+//! | [`output_policy`] | Output format configuration |
+//! | [`error`] | Error types with fix suggestions |
+//! | [`task_action`] | Task action type definitions |
 
 pub mod datastore;
 pub mod error;
@@ -25,6 +38,7 @@ pub mod event_log;
 pub mod flow_graph;
 pub mod interner;
 pub mod jsonpath;
+pub mod output;
 pub mod output_policy;
 pub mod provider;
 pub mod runner;
