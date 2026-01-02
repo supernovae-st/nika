@@ -105,6 +105,20 @@ pub fn resolve(value: &Value, path: &str) -> Result<Option<Value>, NikaError> {
     Ok(apply(value, &segments))
 }
 
+/// Validate JSONPath syntax without parsing (v0.1 minimal subset)
+///
+/// Supported:
+/// - `$.a.b.c` (dot notation)
+/// - `$.a[0].b` (array index)
+/// - `a.b.c` (without $ prefix)
+///
+/// Not supported: filters, wildcards, slices, unions
+pub fn validate(path: &str) -> Result<(), NikaError> {
+    // Parsing validates syntax - if it parses, it's valid
+    parse(path)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

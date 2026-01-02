@@ -1,4 +1,23 @@
 //! Nika - DAG workflow runner for AI tasks
+//!
+//! ## Architecture
+//!
+//! - `workflow`: YAML parsing and task definitions
+//! - `runner`: DAG execution with tokio concurrency
+//! - `datastore`: Thread-safe task output storage (DashMap)
+//! - `flow_graph`: Dependency graph with FxHashMap optimization
+//! - `template`: Single-pass `{{use.alias}}` resolution
+//! - `use_bindings`: Resolved values from `use:` blocks
+//! - `use_wiring`: YAML parsing for `use:` block syntax
+//! - `validator`: Static workflow validation
+//! - `provider`: LLM provider abstraction (Claude, OpenAI)
+//! - `event_log`: Event sourcing for audit trail
+//! - `interner`: String interning for task IDs
+//! - `jsonpath`: Minimal JSONPath parser
+//! - `task_executor`: Task action execution
+//! - `task_action`: Task action type definitions
+//! - `output_policy`: Output format configuration
+//! - `error`: Error types with fix suggestions
 
 pub mod datastore;
 pub mod error;

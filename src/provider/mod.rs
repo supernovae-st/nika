@@ -13,6 +13,18 @@ use async_trait::async_trait;
 pub const CLAUDE_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
 pub const OPENAI_DEFAULT_MODEL: &str = "gpt-4o";
 
+/// LLM provider abstraction for inference operations
+///
+/// Implementations:
+/// - [`ClaudeProvider`]: Anthropic Claude API
+/// - [`OpenAIProvider`]: OpenAI API
+/// - [`MockProvider`]: Testing mock (returns "Mock response")
+///
+/// # Example
+/// ```rust,ignore
+/// let provider = create_provider("claude")?;
+/// let response = provider.infer("Hello", "claude-sonnet-4-5").await?;
+/// ```
 #[async_trait]
 pub trait Provider: Send + Sync {
     /// Execute a prompt and return the response

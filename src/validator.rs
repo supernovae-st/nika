@@ -9,6 +9,7 @@ use rustc_hash::FxHashSet;
 
 use crate::error::NikaError;
 use crate::flow_graph::FlowGraph;
+use crate::jsonpath;
 use crate::use_wiring::{UseEntry, UseWiring};
 use crate::workflow::Workflow;
 
@@ -52,7 +53,7 @@ fn validate_wiring(
 
                 // Validate JSONPath syntax if present
                 if let Some(ref path) = adv.path {
-                    validate_jsonpath(path)?;
+                    jsonpath::validate(path)?;
                 }
             }
         }
@@ -99,137 +100,55 @@ fn validate_from_task(
     Ok(())
 }
 
-/// Validate JSONPath syntax (v0.1 minimal subset)
-///
-/// Supported:
-/// - $.a.b.c (dot notation)
-/// - $.a[0].b (array index)
-///
-/// Not supported:
-/// - Filters: $.a[?(@.x==1)]
-/// - Wildcards: $.a[*]
-/// - Slices: $.a[0:5]
-/// - Unions: $.a[0,1,2]
-pub fn validate_jsonpath(path: &str) -> Result<(), NikaError> {
-    // Must start with $ or be simple dot path
-    let path = if let Some(stripped) = path.strip_prefix("$.") {
-        stripped
-    } else if path.starts_with('$') {
-        return Err(NikaError::JsonPathUnsupported {
-            path: path.to_string(),
-        });
-    } else {
-        // Simple dot path without $. prefix is OK
-        path
-    };
-
-    // Check each segment
-    for segment in path.split('.') {
-        if segment.is_empty() {
-            return Err(NikaError::JsonPathUnsupported {
-                path: path.to_string(),
-            });
-        }
-
-        // Check for array index: field[0]
-        if segment.contains('[') {
-            if !is_valid_array_segment(segment) {
-                return Err(NikaError::JsonPathUnsupported {
-                    path: path.to_string(),
-                });
-            }
-        } else if !is_valid_identifier(segment) {
-            return Err(NikaError::JsonPathUnsupported {
-                path: path.to_string(),
-            });
-        }
-    }
-
-    Ok(())
-}
-
-/// Check if segment is valid identifier: [a-zA-Z_][a-zA-Z0-9_]*
-fn is_valid_identifier(s: &str) -> bool {
-    let mut chars = s.chars();
-    match chars.next() {
-        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
-        _ => return false,
-    }
-    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
-}
-
-/// Check if segment is valid array access: field[0] or field[123]
-fn is_valid_array_segment(s: &str) -> bool {
-    if let Some(bracket_pos) = s.find('[') {
-        // Must end with ]
-        if !s.ends_with(']') {
-            return false;
-        }
-
-        // Field part must be valid identifier
-        let field = &s[..bracket_pos];
-        if !field.is_empty() && !is_valid_identifier(field) {
-            return false;
-        }
-
-        // Index must be a number
-        let index = &s[bracket_pos + 1..s.len() - 1];
-        if index.is_empty() || !index.chars().all(|c| c.is_ascii_digit()) {
-            return false;
-        }
-
-        true
-    } else {
-        false
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     // ─────────────────────────────────────────────────────────────
-    // JSONPath validation tests
+    // JSONPath validation tests (delegated to jsonpath::validate)
     // ─────────────────────────────────────────────────────────────
 
     #[test]
     fn jsonpath_simple_dot() {
-        assert!(validate_jsonpath("$.a.b.c").is_ok());
-        assert!(validate_jsonpath("a.b.c").is_ok());
-        assert!(validate_jsonpath("field").is_ok());
+        assert!(jsonpath::validate("$.a.b.c").is_ok());
+        assert!(jsonpath::validate("a.b.c").is_ok());
+        assert!(jsonpath::validate("field").is_ok());
     }
 
     #[test]
     fn jsonpath_with_array_index() {
-        assert!(validate_jsonpath("$.items[0]").is_ok());
-        assert!(validate_jsonpath("$.data[0].name").is_ok());
-        assert!(validate_jsonpath("items[123].value").is_ok());
+        assert!(jsonpath::validate("$.items[0]").is_ok());
+        assert!(jsonpath::validate("$.data[0].name").is_ok());
+        assert!(jsonpath::validate("items[123].value").is_ok());
     }
 
     #[test]
     fn jsonpath_invalid_filter() {
-        assert!(validate_jsonpath("$.a[?(@.x==1)]").is_err());
+        assert!(jsonpath::validate("$.a[?(@.x==1)]").is_err());
     }
 
     #[test]
     fn jsonpath_invalid_wildcard() {
-        assert!(validate_jsonpath("$.a[*]").is_err());
+        assert!(jsonpath::validate("$.a[*]").is_err());
     }
 
     #[test]
     fn jsonpath_invalid_slice() {
-        assert!(validate_jsonpath("$.a[0:5]").is_err());
+        assert!(jsonpath::validate("$.a[0:5]").is_err());
     }
 
     #[test]
     fn jsonpath_empty_segment() {
-        assert!(validate_jsonpath("$.a..b").is_err());
-        assert!(validate_jsonpath("$..a").is_err());
+        assert!(jsonpath::validate("$.a..b").is_err());
+        assert!(jsonpath::validate("$..a").is_err());
     }
 
     #[test]
-    fn jsonpath_invalid_identifier() {
-        assert!(validate_jsonpath("$.123invalid").is_err());
-        assert!(validate_jsonpath("$.a-b").is_err());
+    fn jsonpath_field_names_are_permissive() {
+        // jsonpath parser accepts any non-empty string as field name
+        // (matches JSON which allows any string as object key)
+        assert!(jsonpath::validate("$.123invalid").is_ok());
+        assert!(jsonpath::validate("$.a-b").is_ok());
+        assert!(jsonpath::validate("$.some_field").is_ok());
     }
 }

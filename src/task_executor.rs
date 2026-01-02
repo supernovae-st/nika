@@ -138,7 +138,7 @@ impl TaskExecutor {
         self.event_log.emit(EventKind::ProviderResponded {
             task_id: Arc::clone(task_id),
             output_len: result.len(),
-            tokens_used: None, // TODO: if provider returns token count
+            tokens_used: None, // TODO(v0.2): Add token counting to Provider trait
         });
 
         Ok(result)

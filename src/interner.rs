@@ -40,10 +40,17 @@ impl Interner {
             return Arc::clone(existing.key());
         }
 
-        // Slow path: create Arc only if not found
+        // Slow path: use entry API for atomic get-or-insert
+        // (handles race between get and insert)
         let key: Arc<str> = Arc::from(s);
-        self.strings.insert(Arc::clone(&key), ());
-        key
+        use dashmap::mapref::entry::Entry;
+        match self.strings.entry(Arc::clone(&key)) {
+            Entry::Occupied(e) => Arc::clone(e.key()),
+            Entry::Vacant(e) => {
+                e.insert(());
+                key
+            }
+        }
     }
 
     /// Intern an already-Arc'd string
