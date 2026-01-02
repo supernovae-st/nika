@@ -152,34 +152,60 @@ impl EventLog {
         id
     }
 
-    /// Get all events (cloned)
+    /// Get all events (cloned - use `with_events` for zero-copy access)
     #[allow(dead_code)] // Used in tests and future export
     pub fn events(&self) -> Vec<Event> {
         self.events.read().clone()
     }
 
-    /// Filter events by task ID
-    #[allow(dead_code)] // Used in tests and future debugging
-    pub fn filter_task(&self, task_id: &str) -> Vec<Event> {
-        self.events()
-            .into_iter()
-            .filter(|e| e.kind.task_id() == Some(task_id))
-            .collect()
+    /// Zero-copy access to events via callback
+    ///
+    /// Holds read lock for duration of callback - keep it short.
+    /// Use this instead of `events()` when you don't need ownership.
+    #[allow(dead_code)] // Used in optimized filter methods
+    pub fn with_events<T>(&self, f: impl FnOnce(&[Event]) -> T) -> T {
+        f(&self.events.read())
     }
 
-    /// Filter workflow-level events only
+    /// Filter events by task ID (zero-copy filtering)
+    #[allow(dead_code)] // Used in tests and future debugging
+    pub fn filter_task(&self, task_id: &str) -> Vec<Event> {
+        self.with_events(|events| {
+            events
+                .iter()
+                .filter(|e| e.kind.task_id() == Some(task_id))
+                .cloned()
+                .collect()
+        })
+    }
+
+    /// Filter workflow-level events only (zero-copy filtering)
     #[allow(dead_code)] // Used in tests and future export
     pub fn workflow_events(&self) -> Vec<Event> {
-        self.events()
-            .into_iter()
-            .filter(|e| e.kind.is_workflow_event())
-            .collect()
+        self.with_events(|events| {
+            events
+                .iter()
+                .filter(|e| e.kind.is_workflow_event())
+                .cloned()
+                .collect()
+        })
+    }
+
+    /// Count events for a specific task (no allocation)
+    #[allow(dead_code)] // Used in tests and future metrics
+    pub fn count_task(&self, task_id: &str) -> usize {
+        self.with_events(|events| {
+            events
+                .iter()
+                .filter(|e| e.kind.task_id() == Some(task_id))
+                .count()
+        })
     }
 
     /// Serialize to JSON for persistence/debugging
     #[allow(dead_code)] // Used in tests and future export
     pub fn to_json(&self) -> Value {
-        serde_json::to_value(self.events()).unwrap_or(Value::Null)
+        self.with_events(|events| serde_json::to_value(events).unwrap_or(Value::Null))
     }
 
     /// Number of events

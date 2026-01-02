@@ -112,7 +112,7 @@ impl FlowGraph {
             .filter(|id| {
                 self.adjacency
                     .get(id.as_ref())
-                    .map_or(true, SmallVec::is_empty)
+                    .is_none_or(SmallVec::is_empty)
             })
             .cloned() // Arc::clone is O(1)
             .collect()

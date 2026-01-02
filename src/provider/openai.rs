@@ -1,10 +1,17 @@
 //! OpenAI provider using OpenAI API
 
+use std::time::Duration;
+
 use super::{Provider, OPENAI_DEFAULT_MODEL};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
+
+/// Timeout for LLM inference (2 minutes - LLMs can be slow)
+const INFER_TIMEOUT: Duration = Duration::from_secs(120);
+/// Connection timeout (10 seconds)
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct OpenAIProvider {
     api_key: String,
@@ -16,10 +23,14 @@ impl OpenAIProvider {
         let api_key = std::env::var("OPENAI_API_KEY")
             .context("OPENAI_API_KEY not set")?;
 
-        Ok(Self {
-            api_key,
-            client: Client::new(),
-        })
+        let client = Client::builder()
+            .timeout(INFER_TIMEOUT)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .user_agent("nika-cli/0.1")
+            .build()
+            .context("Failed to build HTTP client")?;
+
+        Ok(Self { api_key, client })
     }
 
     /// Map model names to valid OpenAI models

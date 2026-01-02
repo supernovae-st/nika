@@ -461,8 +461,8 @@ mod tests {
         let ids: Vec<u64> = events.iter().map(|e| e.id).collect();
 
         // Verify monotonic and sequential
-        for i in 0..ids.len() {
-            assert_eq!(ids[i], i as u64, "IDs should be sequential from 0");
+        for (i, &id) in ids.iter().enumerate() {
+            assert_eq!(id, i as u64, "IDs should be sequential from 0");
         }
     }
 
