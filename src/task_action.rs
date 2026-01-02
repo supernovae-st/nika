@@ -1,11 +1,13 @@
-//! Task verb definitions
+//! Task action definitions (v0.1)
+//!
+//! Defines the 3 action types: Infer, Exec, Fetch
 
 use serde::Deserialize;
 use std::collections::HashMap;
 
-/// Infer verb - one-shot LLM call
+/// Infer action - one-shot LLM call
 #[derive(Debug, Clone, Deserialize)]
-pub struct InferDef {
+pub struct InferParams {
     pub prompt: String,
     /// Override provider for this task
     #[serde(default)]
@@ -15,15 +17,15 @@ pub struct InferDef {
     pub model: Option<String>,
 }
 
-/// Exec verb - shell command
+/// Exec action - shell command
 #[derive(Debug, Clone, Deserialize)]
-pub struct ExecDef {
+pub struct ExecParams {
     pub command: String,
 }
 
-/// Fetch verb - HTTP request
+/// Fetch action - HTTP request
 #[derive(Debug, Clone, Deserialize)]
-pub struct FetchDef {
+pub struct FetchParams {
     pub url: String,
     #[serde(default = "default_method")]
     pub method: String,
@@ -34,4 +36,13 @@ pub struct FetchDef {
 
 fn default_method() -> String {
     "GET".to_string()
+}
+
+/// The 3 task action types (v0.1)
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum TaskAction {
+    Infer { infer: InferParams },
+    Exec { exec: ExecParams },
+    Fetch { fetch: FetchParams },
 }

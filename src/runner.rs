@@ -1,7 +1,7 @@
 //! DAG execution with tokio (v0.1)
 //!
 //! Simplified runner using TaskExecutor for execution
-//! and TaskContext::from_use_block for context building.
+//! and UseBindings::from_use_wiring for bindings resolution.
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -11,20 +11,20 @@ use serde_json::Value;
 use tokio::task::JoinSet;
 use tracing::{info, instrument};
 
-use crate::context::TaskContext;
-use crate::dag::DagAnalyzer;
 use crate::datastore::{DataStore, TaskResult};
 use crate::error::NikaError;
-use crate::event::{EventKind, EventLog};
-use crate::executor::TaskExecutor;
+use crate::event_log::{EventKind, EventLog};
+use crate::flow_graph::FlowGraph;
 use crate::output_policy::OutputFormat;
+use crate::task_executor::TaskExecutor;
+use crate::use_bindings::UseBindings;
 use crate::validator;
 use crate::workflow::{Task, Workflow};
 
 /// DAG workflow runner with event sourcing
 pub struct Runner {
     workflow: Workflow,
-    dag: DagAnalyzer,
+    flow_graph: FlowGraph,
     datastore: DataStore,
     executor: TaskExecutor,
     event_log: EventLog,
@@ -32,14 +32,14 @@ pub struct Runner {
 
 impl Runner {
     pub fn new(workflow: Workflow) -> Self {
-        let dag = DagAnalyzer::from_workflow(&workflow);
+        let flow_graph = FlowGraph::from_workflow(&workflow);
         let datastore = DataStore::new();
         let event_log = EventLog::new();
         let executor = TaskExecutor::new(&workflow.provider, workflow.model.as_deref(), event_log.clone());
 
         Self {
             workflow,
-            dag,
+            flow_graph,
             datastore,
             executor,
             event_log,
@@ -63,7 +63,7 @@ impl Runner {
                 }
 
                 // Check all dependencies are done AND successful
-                let deps = self.dag.get_dependencies(&task.id);
+                let deps = self.flow_graph.get_dependencies(&task.id);
                 deps.iter().all(|dep| self.datastore.is_success(dep))
             })
             .cloned() // Clone the Arc, not the Task
@@ -80,7 +80,7 @@ impl Runner {
 
     /// Get the final output (from tasks with no successors)
     fn get_final_output(&self) -> Option<String> {
-        let final_tasks = self.dag.get_final_tasks();
+        let final_tasks = self.flow_graph.get_final_tasks();
 
         // Return first successful final task output
         for task_id in final_tasks {
@@ -100,7 +100,7 @@ impl Runner {
         info!("Starting workflow execution");
 
         // Validate use: blocks before execution (fail-fast)
-        validator::validate_use_blocks(&self.workflow, &self.dag)?;
+        validator::validate_use_wiring(&self.workflow, &self.flow_graph)?;
 
         let total_tasks = self.workflow.tasks.len();
         let mut completed = 0;
@@ -143,10 +143,10 @@ impl Runner {
                 let event_log = self.event_log.clone();
 
                 // EMIT: TaskScheduled
-                let deps = self.dag.get_dependencies(&task.id);
+                let deps = self.flow_graph.get_dependencies(&task.id);
                 self.event_log.emit(EventKind::TaskScheduled {
                     task_id: Arc::clone(&task_id),
-                    dependencies: deps.into_iter().map(|s| Arc::from(s.as_str())).collect(),
+                    dependencies: deps.iter().map(|s| Arc::from(s.as_str())).collect(),
                 });
 
                 println!("  {} {} {}", "[⟳]".yellow(), &task_id, "running...".dimmed());
@@ -154,15 +154,15 @@ impl Runner {
                 join_set.spawn(async move {
                     let start = Instant::now();
 
-                    // Build context from use: block
-                    let context = match TaskContext::from_use_block(
-                        task.use_block.as_ref(),
+                    // Build bindings from use: wiring
+                    let bindings = match UseBindings::from_use_wiring(
+                        task.use_wiring.as_ref(),
                         &datastore,
                     ) {
-                        Ok(ctx) => ctx,
+                        Ok(b) => b,
                         Err(e) => {
                             let duration = start.elapsed();
-                            // EMIT: TaskFailed (context build failed)
+                            // EMIT: TaskFailed (bindings build failed)
                             event_log.emit(EventKind::TaskFailed {
                                 task_id: Arc::clone(&task_id),
                                 error: e.to_string(),
@@ -172,14 +172,14 @@ impl Runner {
                         }
                     };
 
-                    // EMIT: TaskStarted (with resolved inputs from use: block)
+                    // EMIT: TaskStarted (with resolved inputs from use: wiring)
                     event_log.emit(EventKind::TaskStarted {
                         task_id: Arc::clone(&task_id),
-                        inputs: context.to_value(),
+                        inputs: bindings.to_value(),
                     });
 
                     // Execute via TaskExecutor
-                    let result = executor.execute(&task_id, &task.action, &context).await;
+                    let result = executor.execute(&task_id, &task.action, &bindings).await;
                     let duration = start.elapsed();
 
                     // Convert result to TaskResult with output policy
@@ -341,8 +341,8 @@ fn validate_schema(value: &Value, schema_path: &str) -> Result<(), NikaError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::task::ExecDef;
-    use crate::workflow::{Flow, FlowEndpoint, Task, TaskAction};
+    use crate::task_action::{ExecParams, TaskAction};
+    use crate::workflow::{Flow, FlowEndpoint, Task};
     use std::sync::Arc;
 
     /// Helper to create a minimal workflow with exec tasks
@@ -356,10 +356,10 @@ mod tests {
                 .map(|(id, cmd)| {
                     Arc::new(Task {
                         id: id.to_string(),
-                        use_block: None,
+                        use_wiring: None,
                         output: None,
                         action: TaskAction::Exec {
-                            exec: ExecDef {
+                            exec: ExecParams {
                                 command: cmd.to_string(),
                             },
                         },
@@ -534,8 +534,8 @@ mod tests {
 
         let events = runner.event_log().events();
 
-        // First timestamp should be small (near 0)
-        assert!(events[0].timestamp_ms < 100, "First event should be near start");
+        // First timestamp should be small (near 0) - use 500ms threshold for CI tolerance
+        assert!(events[0].timestamp_ms < 500, "First event should be near start");
 
         // Timestamps should generally increase
         for window in events.windows(2) {

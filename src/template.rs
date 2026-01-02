@@ -9,8 +9,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use serde_json::Value;
 
-use crate::context::TaskContext;
 use crate::error::NikaError;
+use crate::use_bindings::UseBindings;
 
 /// Pre-compiled regex for {{use.alias}} or {{use.alias.field}} pattern
 static USE_RE: Lazy<Regex> = Lazy::new(|| {
@@ -36,14 +36,14 @@ fn escape_for_json(s: &str) -> String {
     result
 }
 
-/// Resolve all {{use.alias}} templates using task context
+/// Resolve all {{use.alias}} templates using bindings
 ///
 /// Returns Cow::Borrowed when no templates (zero allocation).
 /// Returns Cow::Owned with single-pass resolution when templates exist.
 ///
-/// Example: `{{use.forecast}}` → resolved value from context
+/// Example: `{{use.forecast}}` → resolved value from bindings
 /// Example: `{{use.flight_info.departure}}` → nested access
-pub fn resolve<'a>(template: &'a str, context: &TaskContext) -> Result<Cow<'a, str>, NikaError> {
+pub fn resolve<'a>(template: &'a str, bindings: &UseBindings) -> Result<Cow<'a, str>, NikaError> {
     // Early return with borrowed string (zero alloc)
     if !template.contains("{{use.") {
         return Ok(Cow::Borrowed(template));
@@ -66,7 +66,7 @@ pub fn resolve<'a>(template: &'a str, context: &TaskContext) -> Result<Cow<'a, s
         let alias = parts.next().unwrap();
 
         // Get the resolved value for this alias
-        match context.get(alias) {
+        match bindings.get(alias) {
             Some(base_value) => {
                 let mut value: Value = base_value.clone();
                 let mut traversed_path = alias.to_string();
@@ -229,74 +229,74 @@ mod tests {
 
     #[test]
     fn resolve_simple() {
-        let mut ctx = TaskContext::new();
-        ctx.set("forecast", json!("Sunny 25C"));
+        let mut bindings = UseBindings::new();
+        bindings.set("forecast", json!("Sunny 25C"));
 
-        let result = resolve("Weather: {{use.forecast}}", &ctx).unwrap();
+        let result = resolve("Weather: {{use.forecast}}", &bindings).unwrap();
         assert_eq!(result, "Weather: Sunny 25C");
     }
 
     #[test]
     fn resolve_number() {
-        let mut ctx = TaskContext::new();
-        ctx.set("price", json!(89));
+        let mut bindings = UseBindings::new();
+        bindings.set("price", json!(89));
 
-        let result = resolve("Price: ${{use.price}}", &ctx).unwrap();
+        let result = resolve("Price: ${{use.price}}", &bindings).unwrap();
         assert_eq!(result, "Price: $89");
     }
 
     #[test]
     fn resolve_nested() {
-        let mut ctx = TaskContext::new();
-        ctx.set("flight_info", json!({"departure": "10:30", "gate": "A12"}));
+        let mut bindings = UseBindings::new();
+        bindings.set("flight_info", json!({"departure": "10:30", "gate": "A12"}));
 
-        let result = resolve("Depart at {{use.flight_info.departure}}", &ctx).unwrap();
+        let result = resolve("Depart at {{use.flight_info.departure}}", &bindings).unwrap();
         assert_eq!(result, "Depart at 10:30");
     }
 
     #[test]
     fn resolve_multiple() {
-        let mut ctx = TaskContext::new();
-        ctx.set("a", json!("first"));
-        ctx.set("b", json!("second"));
+        let mut bindings = UseBindings::new();
+        bindings.set("a", json!("first"));
+        bindings.set("b", json!("second"));
 
-        let result = resolve("{{use.a}} and {{use.b}}", &ctx).unwrap();
+        let result = resolve("{{use.a}} and {{use.b}}", &bindings).unwrap();
         assert_eq!(result, "first and second");
     }
 
     #[test]
     fn resolve_object() {
-        let mut ctx = TaskContext::new();
-        ctx.set("data", json!({"x": 1, "y": 2}));
+        let mut bindings = UseBindings::new();
+        bindings.set("data", json!({"x": 1, "y": 2}));
 
-        let result = resolve("Full: {{use.data}}", &ctx).unwrap();
+        let result = resolve("Full: {{use.data}}", &bindings).unwrap();
         // Object is serialized as JSON
         assert!(result.contains("\"x\":1") || result.contains("\"x\": 1"));
     }
 
     #[test]
     fn resolve_alias_not_found() {
-        let mut ctx = TaskContext::new();
-        ctx.set("known", json!("value"));
+        let mut bindings = UseBindings::new();
+        bindings.set("known", json!("value"));
 
-        let result = resolve("{{use.unknown}}", &ctx);
+        let result = resolve("{{use.unknown}}", &bindings);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("unknown"));
     }
 
     #[test]
     fn resolve_path_not_found() {
-        let mut ctx = TaskContext::new();
-        ctx.set("data", json!({"a": 1}));
+        let mut bindings = UseBindings::new();
+        bindings.set("data", json!({"a": 1}));
 
-        let result = resolve("{{use.data.nonexistent}}", &ctx);
+        let result = resolve("{{use.data.nonexistent}}", &bindings);
         assert!(result.is_err());
     }
 
     #[test]
     fn resolve_no_templates() {
-        let ctx = TaskContext::new();
-        let result = resolve("No templates here", &ctx).unwrap();
+        let bindings = UseBindings::new();
+        let result = resolve("No templates here", &bindings).unwrap();
         assert_eq!(result, "No templates here");
         // Verify zero-alloc: should be Cow::Borrowed
         assert!(matches!(result, Cow::Borrowed(_)));
@@ -304,9 +304,9 @@ mod tests {
 
     #[test]
     fn resolve_with_templates_is_owned() {
-        let mut ctx = TaskContext::new();
-        ctx.set("x", json!("value"));
-        let result = resolve("Has {{use.x}} template", &ctx).unwrap();
+        let mut bindings = UseBindings::new();
+        bindings.set("x", json!("value"));
+        let result = resolve("Has {{use.x}} template", &bindings).unwrap();
         assert_eq!(result, "Has value template");
         // With templates: should be Cow::Owned
         assert!(matches!(result, Cow::Owned(_)));
@@ -314,10 +314,10 @@ mod tests {
 
     #[test]
     fn resolve_array_index() {
-        let mut ctx = TaskContext::new();
-        ctx.set("items", json!(["first", "second", "third"]));
+        let mut bindings = UseBindings::new();
+        bindings.set("items", json!(["first", "second", "third"]));
 
-        let result = resolve("Item: {{use.items.0}}", &ctx).unwrap();
+        let result = resolve("Item: {{use.items.0}}", &bindings).unwrap();
         assert_eq!(result, "Item: first");
     }
 
@@ -327,10 +327,10 @@ mod tests {
 
     #[test]
     fn resolve_null_is_error() {
-        let mut ctx = TaskContext::new();
-        ctx.set("data", json!(null));
+        let mut bindings = UseBindings::new();
+        bindings.set("data", json!(null));
 
-        let result = resolve("Value: {{use.data}}", &ctx);
+        let result = resolve("Value: {{use.data}}", &bindings);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-072"));
@@ -339,20 +339,20 @@ mod tests {
 
     #[test]
     fn resolve_nested_null_is_error() {
-        let mut ctx = TaskContext::new();
-        ctx.set("data", json!({"value": null}));
+        let mut bindings = UseBindings::new();
+        bindings.set("data", json!({"value": null}));
 
-        let result = resolve("Value: {{use.data.value}}", &ctx);
+        let result = resolve("Value: {{use.data.value}}", &bindings);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-072"));
     }
 
     #[test]
     fn resolve_invalid_traversal_on_string() {
-        let mut ctx = TaskContext::new();
-        ctx.set("data", json!("just a string"));
+        let mut bindings = UseBindings::new();
+        bindings.set("data", json!("just a string"));
 
-        let result = resolve("{{use.data.field}}", &ctx);
+        let result = resolve("{{use.data.field}}", &bindings);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-073"));
@@ -361,10 +361,10 @@ mod tests {
 
     #[test]
     fn resolve_invalid_traversal_on_number() {
-        let mut ctx = TaskContext::new();
-        ctx.set("price", json!(42));
+        let mut bindings = UseBindings::new();
+        bindings.set("price", json!(42));
 
-        let result = resolve("{{use.price.currency}}", &ctx);
+        let result = resolve("{{use.price.currency}}", &bindings);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-073"));

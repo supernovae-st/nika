@@ -1,10 +1,10 @@
-//! DAG analyzer with adjacency lists
+//! Flow graph built from workflow flows:
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use crate::workflow::Workflow;
 
-/// DAG analyzer - adjacency lists + BFS
-pub struct DagAnalyzer {
+/// Graph of task dependencies built from flows:
+pub struct FlowGraph {
     /// task_id -> list of successor task_ids
     adjacency: HashMap<String, Vec<String>>,
     /// task_id -> list of predecessor task_ids (dependencies)
@@ -13,7 +13,7 @@ pub struct DagAnalyzer {
     task_ids: HashSet<String>,
 }
 
-impl DagAnalyzer {
+impl FlowGraph {
     pub fn from_workflow(workflow: &Workflow) -> Self {
         let capacity = workflow.tasks.len();
         let mut adjacency: HashMap<String, Vec<String>> = HashMap::with_capacity(capacity);
@@ -64,7 +64,6 @@ impl DagAnalyzer {
 
     /// Get successors of a task (returns slice, no allocation)
     #[inline]
-    #[allow(dead_code)]
     pub fn get_successors(&self, task_id: &str) -> &[String] {
         self.adjacency
             .get(task_id)
@@ -87,7 +86,6 @@ impl DagAnalyzer {
     }
 
     /// Check if there's a path from `from` to `to` (BFS)
-    #[allow(dead_code)]
     pub fn has_path(&self, from: &str, to: &str) -> bool {
         if from == to {
             return true;

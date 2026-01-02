@@ -30,8 +30,8 @@ pub enum Segment {
 /// - "items[0].name" → [Field("items"), Index(0), Field("name")]
 pub fn parse(path: &str) -> Result<Vec<Segment>, NikaError> {
     // Remove $. prefix if present
-    let path = if path.starts_with("$.") {
-        &path[2..]
+    let path = if let Some(stripped) = path.strip_prefix("$.") {
+        stripped
     } else if path == "$" {
         return Ok(vec![]); // Root reference
     } else {
@@ -84,17 +84,19 @@ pub fn parse(path: &str) -> Result<Vec<Segment>, NikaError> {
 }
 
 /// Apply JSONPath segments to a JSON value
+///
+/// Uses references internally, only clones once at the end.
 pub fn apply(value: &Value, segments: &[Segment]) -> Option<Value> {
-    let mut current = value.clone();
+    let mut current = value;
 
     for segment in segments {
         current = match segment {
-            Segment::Field(name) => current.get(name)?.clone(),
-            Segment::Index(idx) => current.get(*idx)?.clone(),
+            Segment::Field(name) => current.get(name)?,
+            Segment::Index(idx) => current.get(*idx)?,
         };
     }
 
-    Some(current)
+    Some(current.clone()) // Single clone at the end
 }
 
 /// Parse and apply JSONPath in one step

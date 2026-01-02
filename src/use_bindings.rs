@@ -1,6 +1,6 @@
-//! Task execution context (v0.1)
+//! Use bindings - resolved values from use: blocks (v0.1)
 //!
-//! TaskContext holds resolved values from `use:` blocks for template resolution.
+//! UseBindings holds resolved values from `use:` blocks for template resolution.
 //! Eliminates intermediate storage - values are resolved once and used inline.
 
 use serde_json::Value;
@@ -9,35 +9,35 @@ use std::collections::HashMap;
 use crate::datastore::DataStore;
 use crate::error::NikaError;
 use crate::jsonpath;
-use crate::use_block::{UseAdvanced, UseBlock, UseEntry};
+use crate::use_wiring::{UseAdvanced, UseEntry, UseWiring};
 
-/// Task execution context with resolved inputs
+/// Resolved bindings from use: block (alias → value)
 #[derive(Debug, Clone, Default)]
-pub struct TaskContext {
+pub struct UseBindings {
     /// Resolved alias → value mappings from use: block
     resolved: HashMap<String, Value>,
 }
 
-impl TaskContext {
-    /// Create empty context
+impl UseBindings {
+    /// Create empty bindings
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Build context from use: block by resolving paths from datastore
+    /// Build bindings from use: wiring by resolving paths from datastore
     ///
-    /// Returns empty context if use_block is None.
-    pub fn from_use_block(
-        use_block: Option<&UseBlock>,
+    /// Returns empty bindings if use_wiring is None.
+    pub fn from_use_wiring(
+        use_wiring: Option<&UseWiring>,
         datastore: &DataStore,
     ) -> Result<Self, NikaError> {
-        let Some(block) = use_block else {
+        let Some(wiring) = use_wiring else {
             return Ok(Self::new());
         };
 
-        let mut ctx = Self::new();
+        let mut bindings = Self::new();
 
-        for (key, entry) in block {
+        for (key, entry) in wiring {
             match entry {
                 // Form 1: alias: task.path
                 UseEntry::Path(path) => {
@@ -47,7 +47,7 @@ impl TaskContext {
                             path, key
                         ))
                     })?;
-                    ctx.set(key, value);
+                    bindings.set(key, value);
                 }
 
                 // Form 2: task.path: [field1, field2]
@@ -64,7 +64,7 @@ impl TaskContext {
                                 field, key
                             ))
                         })?;
-                        ctx.set(field, field_value);
+                        bindings.set(field, field_value);
                     }
                 }
 
@@ -94,7 +94,7 @@ impl TaskContext {
                             // Check for null in strict mode (unless default provided)
                             if v.is_null() {
                                 if let Some(def) = default {
-                                    ctx.set(key, def.clone());
+                                    bindings.set(key, def.clone());
                                 } else {
                                     return Err(NikaError::NullValue {
                                         path: display_path,
@@ -102,12 +102,12 @@ impl TaskContext {
                                     });
                                 }
                             } else {
-                                ctx.set(key, v);
+                                bindings.set(key, v);
                             }
                         }
                         // Not found but default exists → use default
                         (None, Some(def)) => {
-                            ctx.set(key, def.clone());
+                            bindings.set(key, def.clone());
                         }
                         // Not found and no default → error
                         (None, None) => {
@@ -118,7 +118,7 @@ impl TaskContext {
             }
         }
 
-        Ok(ctx)
+        Ok(bindings)
     }
 
     /// Set a resolved value
@@ -150,53 +150,53 @@ impl TaskContext {
 mod tests {
     use super::*;
     use crate::datastore::TaskResult;
-    use crate::use_block::UseAdvanced;
+    use crate::use_wiring::UseAdvanced;
     use serde_json::json;
     use std::sync::Arc;
     use std::time::Duration;
 
     #[test]
     fn set_and_get() {
-        let mut ctx = TaskContext::new();
-        ctx.set("forecast", json!("Sunny"));
+        let mut bindings = UseBindings::new();
+        bindings.set("forecast", json!("Sunny"));
 
-        assert_eq!(ctx.get("forecast"), Some(&json!("Sunny")));
-        assert_eq!(ctx.get("unknown"), None);
+        assert_eq!(bindings.get("forecast"), Some(&json!("Sunny")));
+        assert_eq!(bindings.get("unknown"), None);
     }
 
     #[test]
     fn is_empty() {
-        let mut ctx = TaskContext::new();
-        assert!(ctx.is_empty());
+        let mut bindings = UseBindings::new();
+        assert!(bindings.is_empty());
 
-        ctx.set("key", json!("value"));
-        assert!(!ctx.is_empty());
+        bindings.set("key", json!("value"));
+        assert!(!bindings.is_empty());
     }
 
     #[test]
-    fn from_use_block_none() {
+    fn from_use_wiring_none() {
         let store = DataStore::new();
-        let ctx = TaskContext::from_use_block(None, &store).unwrap();
-        assert!(ctx.is_empty());
+        let bindings = UseBindings::from_use_wiring(None, &store).unwrap();
+        assert!(bindings.is_empty());
     }
 
     #[test]
-    fn from_use_block_path() {
+    fn from_use_wiring_path() {
         let store = DataStore::new();
         store.insert(
             Arc::from("weather"),
             TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)),
         );
 
-        let mut block = UseBlock::new();
-        block.insert("forecast".to_string(), UseEntry::Path("weather.summary".to_string()));
+        let mut wiring = UseWiring::new();
+        wiring.insert("forecast".to_string(), UseEntry::Path("weather.summary".to_string()));
 
-        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
-        assert_eq!(ctx.get("forecast"), Some(&json!("Sunny")));
+        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("forecast"), Some(&json!("Sunny")));
     }
 
     #[test]
-    fn from_use_block_batch() {
+    fn from_use_wiring_batch() {
         let store = DataStore::new();
         store.insert(
             Arc::from("flight"),
@@ -206,25 +206,25 @@ mod tests {
             ),
         );
 
-        let mut block = UseBlock::new();
-        block.insert(
+        let mut wiring = UseWiring::new();
+        wiring.insert(
             "flight".to_string(),
             UseEntry::Batch(vec!["departure".to_string(), "gate".to_string()]),
         );
 
-        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
-        assert_eq!(ctx.get("departure"), Some(&json!("10:30")));
-        assert_eq!(ctx.get("gate"), Some(&json!("A12")));
+        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("departure"), Some(&json!("10:30")));
+        assert_eq!(bindings.get("gate"), Some(&json!("A12")));
     }
 
     #[test]
-    fn from_use_block_path_not_found() {
+    fn from_use_wiring_path_not_found() {
         let store = DataStore::new();
 
-        let mut block = UseBlock::new();
-        block.insert("x".to_string(), UseEntry::Path("missing.path".to_string()));
+        let mut wiring = UseWiring::new();
+        wiring.insert("x".to_string(), UseEntry::Path("missing.path".to_string()));
 
-        let result = TaskContext::from_use_block(Some(&block), &store);
+        let result = UseBindings::from_use_wiring(Some(&wiring), &store);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-052"));
     }
@@ -234,15 +234,15 @@ mod tests {
     // ─────────────────────────────────────────────────────────────
 
     #[test]
-    fn from_use_block_advanced_simple() {
+    fn from_use_wiring_advanced_simple() {
         let store = DataStore::new();
         store.insert(
             Arc::from("weather"),
             TaskResult::success(json!({"summary": "Sunny", "temp": 25}), Duration::from_secs(1)),
         );
 
-        let mut block = UseBlock::new();
-        block.insert(
+        let mut wiring = UseWiring::new();
+        wiring.insert(
             "data".to_string(),
             UseEntry::Advanced(UseAdvanced {
                 from: "weather".to_string(),
@@ -251,20 +251,20 @@ mod tests {
             }),
         );
 
-        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
-        assert_eq!(ctx.get("data"), Some(&json!({"summary": "Sunny", "temp": 25})));
+        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("data"), Some(&json!({"summary": "Sunny", "temp": 25})));
     }
 
     #[test]
-    fn from_use_block_advanced_with_path() {
+    fn from_use_wiring_advanced_with_path() {
         let store = DataStore::new();
         store.insert(
             Arc::from("weather"),
             TaskResult::success(json!({"data": {"summary": "Rainy"}}), Duration::from_secs(1)),
         );
 
-        let mut block = UseBlock::new();
-        block.insert(
+        let mut wiring = UseWiring::new();
+        wiring.insert(
             "forecast".to_string(),
             UseEntry::Advanced(UseAdvanced {
                 from: "weather".to_string(),
@@ -273,17 +273,17 @@ mod tests {
             }),
         );
 
-        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
-        assert_eq!(ctx.get("forecast"), Some(&json!("Rainy")));
+        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("forecast"), Some(&json!("Rainy")));
     }
 
     #[test]
-    fn from_use_block_advanced_default_on_missing() {
+    fn from_use_wiring_advanced_default_on_missing() {
         let store = DataStore::new();
         // No weather task in store
 
-        let mut block = UseBlock::new();
-        block.insert(
+        let mut wiring = UseWiring::new();
+        wiring.insert(
             "forecast".to_string(),
             UseEntry::Advanced(UseAdvanced {
                 from: "weather".to_string(),
@@ -292,20 +292,20 @@ mod tests {
             }),
         );
 
-        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
-        assert_eq!(ctx.get("forecast"), Some(&json!("Unknown")));
+        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("forecast"), Some(&json!("Unknown")));
     }
 
     #[test]
-    fn from_use_block_advanced_default_on_null() {
+    fn from_use_wiring_advanced_default_on_null() {
         let store = DataStore::new();
         store.insert(
             Arc::from("weather"),
             TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
         );
 
-        let mut block = UseBlock::new();
-        block.insert(
+        let mut wiring = UseWiring::new();
+        wiring.insert(
             "forecast".to_string(),
             UseEntry::Advanced(UseAdvanced {
                 from: "weather".to_string(),
@@ -314,20 +314,20 @@ mod tests {
             }),
         );
 
-        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
-        assert_eq!(ctx.get("forecast"), Some(&json!("N/A")));
+        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("forecast"), Some(&json!("N/A")));
     }
 
     #[test]
-    fn from_use_block_advanced_null_strict_error() {
+    fn from_use_wiring_advanced_null_strict_error() {
         let store = DataStore::new();
         store.insert(
             Arc::from("weather"),
             TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
         );
 
-        let mut block = UseBlock::new();
-        block.insert(
+        let mut wiring = UseWiring::new();
+        wiring.insert(
             "forecast".to_string(),
             UseEntry::Advanced(UseAdvanced {
                 from: "weather".to_string(),
@@ -336,18 +336,18 @@ mod tests {
             }),
         );
 
-        let result = TaskContext::from_use_block(Some(&block), &store);
+        let result = UseBindings::from_use_wiring(Some(&wiring), &store);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-072"));
     }
 
     #[test]
-    fn from_use_block_advanced_missing_no_default() {
+    fn from_use_wiring_advanced_missing_no_default() {
         let store = DataStore::new();
         // No weather task
 
-        let mut block = UseBlock::new();
-        block.insert(
+        let mut wiring = UseWiring::new();
+        wiring.insert(
             "forecast".to_string(),
             UseEntry::Advanced(UseAdvanced {
                 from: "weather".to_string(),
@@ -356,7 +356,7 @@ mod tests {
             }),
         );
 
-        let result = TaskContext::from_use_block(Some(&block), &store);
+        let result = UseBindings::from_use_wiring(Some(&wiring), &store);
         assert!(result.is_err());
         // Should be PathNotFound error
         let err_msg = result.unwrap_err().to_string();
@@ -368,7 +368,7 @@ mod tests {
     // ─────────────────────────────────────────────────────────────
 
     #[test]
-    fn from_use_block_advanced_jsonpath_dollar_syntax() {
+    fn from_use_wiring_advanced_jsonpath_dollar_syntax() {
         let store = DataStore::new();
         store.insert(
             Arc::from("flight"),
@@ -378,8 +378,8 @@ mod tests {
             ),
         );
 
-        let mut block = UseBlock::new();
-        block.insert(
+        let mut wiring = UseWiring::new();
+        wiring.insert(
             "currency".to_string(),
             UseEntry::Advanced(UseAdvanced {
                 from: "flight".to_string(),
@@ -388,12 +388,12 @@ mod tests {
             }),
         );
 
-        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
-        assert_eq!(ctx.get("currency"), Some(&json!("EUR")));
+        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("currency"), Some(&json!("EUR")));
     }
 
     #[test]
-    fn from_use_block_advanced_jsonpath_array_index() {
+    fn from_use_wiring_advanced_jsonpath_array_index() {
         let store = DataStore::new();
         store.insert(
             Arc::from("data"),
@@ -403,8 +403,8 @@ mod tests {
             ),
         );
 
-        let mut block = UseBlock::new();
-        block.insert(
+        let mut wiring = UseWiring::new();
+        wiring.insert(
             "first_item".to_string(),
             UseEntry::Advanced(UseAdvanced {
                 from: "data".to_string(),
@@ -413,12 +413,12 @@ mod tests {
             }),
         );
 
-        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
-        assert_eq!(ctx.get("first_item"), Some(&json!("first")));
+        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("first_item"), Some(&json!("first")));
     }
 
     #[test]
-    fn from_use_block_advanced_jsonpath_simple_dot() {
+    fn from_use_wiring_advanced_jsonpath_simple_dot() {
         let store = DataStore::new();
         store.insert(
             Arc::from("weather"),
@@ -428,8 +428,8 @@ mod tests {
             ),
         );
 
-        let mut block = UseBlock::new();
-        block.insert(
+        let mut wiring = UseWiring::new();
+        wiring.insert(
             "temp".to_string(),
             UseEntry::Advanced(UseAdvanced {
                 from: "weather".to_string(),
@@ -438,8 +438,8 @@ mod tests {
             }),
         );
 
-        let ctx = TaskContext::from_use_block(Some(&block), &store).unwrap();
-        assert_eq!(ctx.get("temp"), Some(&json!(25)));
+        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("temp"), Some(&json!(25)));
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -448,12 +448,12 @@ mod tests {
 
     #[test]
     fn to_value_serializes_resolved_inputs() {
-        let mut ctx = TaskContext::new();
-        ctx.set("weather", json!("sunny"));
-        ctx.set("temp", json!(25));
-        ctx.set("nested", json!({"key": "value"}));
+        let mut bindings = UseBindings::new();
+        bindings.set("weather", json!("sunny"));
+        bindings.set("temp", json!(25));
+        bindings.set("nested", json!({"key": "value"}));
 
-        let value = ctx.to_value();
+        let value = bindings.to_value();
 
         assert!(value.is_object());
         assert_eq!(value["weather"], "sunny");
@@ -462,9 +462,9 @@ mod tests {
     }
 
     #[test]
-    fn to_value_empty_context() {
-        let ctx = TaskContext::new();
-        let value = ctx.to_value();
+    fn to_value_empty_bindings() {
+        let bindings = UseBindings::new();
+        let value = bindings.to_value();
 
         assert!(value.is_object());
         assert!(value.as_object().unwrap().is_empty());

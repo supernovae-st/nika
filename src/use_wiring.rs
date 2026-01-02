@@ -1,16 +1,16 @@
-//! Use block types for explicit data wiring (v0.1)
+//! Use wiring types for explicit data wiring (v0.1)
 //!
 //! Three forms supported:
-//! - Form 1: `alias: task.path` → single value (shorthand)
-//! - Form 2: `task.path: [field1, field2]` → batch extraction
-//! - Form 3: `alias: { from: task, path: field, default: value }` → advanced
+//! - Form 1: `alias: task.path` -> single value (shorthand)
+//! - Form 2: `task.path: [field1, field2]` -> batch extraction
+//! - Form 3: `alias: { from: task, path: field, default: value }` -> advanced
 
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 
-/// Use block - map of alias/path to entry
-pub type UseBlock = HashMap<String, UseEntry>;
+/// Use wiring - map of alias/path to entry
+pub type UseWiring = HashMap<String, UseEntry>;
 
 /// Three forms of use entry (serde auto-detects via untagged)
 ///
@@ -21,13 +21,13 @@ pub type UseBlock = HashMap<String, UseEntry>;
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum UseEntry {
-    /// Form 1: "alias: task.path" → String path
+    /// Form 1: "alias: task.path" -> String path
     Path(String),
 
-    /// Form 2: "task.path: [field1, field2]" → Batch extraction
+    /// Form 2: "task.path: [field1, field2]" -> Batch extraction
     Batch(Vec<String>),
 
-    /// Form 3: "alias: { from: task, path: x.y, default: v }" → Advanced
+    /// Form 3: "alias: { from: task, path: x.y, default: v }" -> Advanced
     Advanced(UseAdvanced),
 }
 
@@ -55,15 +55,15 @@ mod tests {
     #[test]
     fn parse_form1_path() {
         let yaml = "forecast: weather.summary";
-        let block: UseBlock = serde_yaml::from_str(yaml).unwrap();
-        assert!(matches!(block.get("forecast"), Some(UseEntry::Path(_))));
+        let wiring: UseWiring = serde_yaml::from_str(yaml).unwrap();
+        assert!(matches!(wiring.get("forecast"), Some(UseEntry::Path(_))));
     }
 
     #[test]
     fn parse_form2_batch() {
         let yaml = r#""flights.cheapest": [price, airline]"#;
-        let block: UseBlock = serde_yaml::from_str(yaml).unwrap();
-        match block.get("flights.cheapest") {
+        let wiring: UseWiring = serde_yaml::from_str(yaml).unwrap();
+        match wiring.get("flights.cheapest") {
             Some(UseEntry::Batch(fields)) => {
                 assert_eq!(fields, &["price", "airline"]);
             }
@@ -77,8 +77,8 @@ mod tests {
 weather:
   from: weather_task
 "#;
-        let block: UseBlock = serde_yaml::from_str(yaml).unwrap();
-        match block.get("weather") {
+        let wiring: UseWiring = serde_yaml::from_str(yaml).unwrap();
+        match wiring.get("weather") {
             Some(UseEntry::Advanced(adv)) => {
                 assert_eq!(adv.from, "weather_task");
                 assert!(adv.path.is_none());
@@ -95,8 +95,8 @@ summary:
   from: weather_task
   path: data.summary
 "#;
-        let block: UseBlock = serde_yaml::from_str(yaml).unwrap();
-        match block.get("summary") {
+        let wiring: UseWiring = serde_yaml::from_str(yaml).unwrap();
+        match wiring.get("summary") {
             Some(UseEntry::Advanced(adv)) => {
                 assert_eq!(adv.from, "weather_task");
                 assert_eq!(adv.path.as_deref(), Some("data.summary"));
@@ -113,8 +113,8 @@ price:
   path: price
   default: 0
 "#;
-        let block: UseBlock = serde_yaml::from_str(yaml).unwrap();
-        match block.get("price") {
+        let wiring: UseWiring = serde_yaml::from_str(yaml).unwrap();
+        match wiring.get("price") {
             Some(UseEntry::Advanced(adv)) => {
                 assert_eq!(adv.from, "flight_task");
                 assert_eq!(adv.path.as_deref(), Some("price"));
@@ -133,8 +133,8 @@ fallback:
     status: unknown
     code: -1
 "#;
-        let block: UseBlock = serde_yaml::from_str(yaml).unwrap();
-        match block.get("fallback") {
+        let wiring: UseWiring = serde_yaml::from_str(yaml).unwrap();
+        match wiring.get("fallback") {
             Some(UseEntry::Advanced(adv)) => {
                 assert_eq!(adv.default, Some(json!({"status": "unknown", "code": -1})));
             }

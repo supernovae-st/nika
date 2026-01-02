@@ -1,54 +1,54 @@
 //! Workflow validation (v0.1)
 //!
 //! Validates:
-//! - use: block references (task exists, is upstream)
+//! - use: wiring references (task exists, is upstream)
 //! - Template refs match use: declarations
 //! - JSONPath syntax (minimal subset)
 
 use std::collections::HashSet;
 
-use crate::dag::DagAnalyzer;
 use crate::error::NikaError;
-use crate::use_block::{UseBlock, UseEntry};
+use crate::flow_graph::FlowGraph;
+use crate::use_wiring::{UseEntry, UseWiring};
 use crate::workflow::Workflow;
 
-/// Validate a workflow's use: blocks against the DAG
-pub fn validate_use_blocks(workflow: &Workflow, dag: &DagAnalyzer) -> Result<(), NikaError> {
+/// Validate a workflow's use: wiring against the flow graph
+pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &FlowGraph) -> Result<(), NikaError> {
     let all_task_ids: HashSet<String> = workflow.tasks.iter().map(|t| t.id.clone()).collect();
 
     for task in &workflow.tasks {
-        if let Some(ref use_block) = task.use_block {
-            validate_use_block(&task.id, use_block, &all_task_ids, dag)?;
+        if let Some(ref wiring) = task.use_wiring {
+            validate_wiring(&task.id, wiring, &all_task_ids, flow_graph)?;
         }
     }
 
     Ok(())
 }
 
-/// Validate a single use: block
-fn validate_use_block(
+/// Validate a single use: wiring
+fn validate_wiring(
     task_id: &str,
-    use_block: &UseBlock,
+    wiring: &UseWiring,
     all_task_ids: &HashSet<String>,
-    dag: &DagAnalyzer,
+    flow_graph: &FlowGraph,
 ) -> Result<(), NikaError> {
-    for (alias, entry) in use_block {
+    for (alias, entry) in wiring {
         match entry {
             // Form 1: alias: task.path - extract task_id from path
             UseEntry::Path(path) => {
                 let from_task = path.split('.').next().unwrap_or(path);
-                validate_from_task(alias, from_task, task_id, all_task_ids, dag)?;
+                validate_from_task(alias, from_task, task_id, all_task_ids, flow_graph)?;
             }
 
             // Form 2: task.path: [fields] - the key is the path
             UseEntry::Batch(_) => {
                 let from_task = alias.split('.').next().unwrap_or(alias);
-                validate_from_task(from_task, from_task, task_id, all_task_ids, dag)?;
+                validate_from_task(from_task, from_task, task_id, all_task_ids, flow_graph)?;
             }
 
             // Form 3: alias: { from, path, default }
             UseEntry::Advanced(adv) => {
-                validate_from_task(alias, &adv.from, task_id, all_task_ids, dag)?;
+                validate_from_task(alias, &adv.from, task_id, all_task_ids, flow_graph)?;
 
                 // Validate JSONPath syntax if present
                 if let Some(ref path) = adv.path {
@@ -67,7 +67,7 @@ fn validate_from_task(
     from_task: &str,
     task_id: &str,
     all_task_ids: &HashSet<String>,
-    dag: &DagAnalyzer,
+    flow_graph: &FlowGraph,
 ) -> Result<(), NikaError> {
     // Check task exists
     if !all_task_ids.contains(from_task) {
@@ -88,7 +88,7 @@ fn validate_from_task(
     }
 
     // Check from_task is upstream (has path TO current task)
-    if !dag.has_path(from_task, task_id) {
+    if !flow_graph.has_path(from_task, task_id) {
         return Err(NikaError::UseNotUpstream {
             alias: alias.to_string(),
             from_task: from_task.to_string(),
@@ -112,8 +112,8 @@ fn validate_from_task(
 /// - Unions: $.a[0,1,2]
 pub fn validate_jsonpath(path: &str) -> Result<(), NikaError> {
     // Must start with $ or be simple dot path
-    let path = if path.starts_with("$.") {
-        &path[2..] // Skip "$."
+    let path = if let Some(stripped) = path.strip_prefix("$.") {
+        stripped
     } else if path.starts_with('$') {
         return Err(NikaError::JsonPathUnsupported {
             path: path.to_string(),

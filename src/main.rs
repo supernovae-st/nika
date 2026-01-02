@@ -4,19 +4,19 @@ use clap::{Parser, Subcommand};
 use colored::Colorize;
 use std::fs;
 
-mod context;
-mod dag;
 mod datastore;
 mod error;
-mod event;
-mod executor;
+mod event_log;
+mod flow_graph;
 mod jsonpath;
 mod output_policy;
 mod provider;
 mod runner;
-mod task;
+mod task_action;
+mod task_executor;
 mod template;
-mod use_block;
+mod use_bindings;
+mod use_wiring;
 mod validator;
 mod workflow;
 

@@ -9,13 +9,12 @@ use std::time::Duration;
 use dashmap::DashMap;
 use tracing::{debug, instrument};
 
-use crate::context::TaskContext;
 use crate::error::NikaError;
-use crate::event::{EventKind, EventLog};
+use crate::event_log::{EventKind, EventLog};
 use crate::provider::{create_provider, Provider};
-use crate::task::{ExecDef, FetchDef, InferDef};
+use crate::task_action::{ExecParams, FetchParams, InferParams, TaskAction};
 use crate::template;
-use crate::workflow::TaskAction;
+use crate::use_bindings::UseBindings;
 
 /// Default timeout for exec commands (60 seconds)
 const EXEC_TIMEOUT: Duration = Duration::from_secs(60);
@@ -57,19 +56,19 @@ impl TaskExecutor {
         }
     }
 
-    /// Execute a task action with the given context
-    #[instrument(skip(self, context), fields(action_type = %action_type(action)))]
+    /// Execute a task action with the given bindings
+    #[instrument(skip(self, bindings), fields(action_type = %action_type(action)))]
     pub async fn execute(
         &self,
         task_id: &Arc<str>,
         action: &TaskAction,
-        context: &TaskContext,
+        bindings: &UseBindings,
     ) -> Result<String, NikaError> {
         debug!("Executing task action");
         match action {
-            TaskAction::Infer { infer } => self.execute_infer(task_id, infer, context).await,
-            TaskAction::Exec { exec } => self.execute_exec(task_id, exec, context).await,
-            TaskAction::Fetch { fetch } => self.execute_fetch(task_id, fetch, context).await,
+            TaskAction::Infer { infer } => self.execute_infer(task_id, infer, bindings).await,
+            TaskAction::Exec { exec } => self.execute_exec(task_id, exec, bindings).await,
+            TaskAction::Fetch { fetch } => self.execute_fetch(task_id, fetch, bindings).await,
         }
     }
 
@@ -93,11 +92,11 @@ impl TaskExecutor {
     async fn execute_infer(
         &self,
         task_id: &Arc<str>,
-        infer: &InferDef,
-        context: &TaskContext,
+        infer: &InferParams,
+        bindings: &UseBindings,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
-        let prompt = template::resolve(&infer.prompt, context)?;
+        let prompt = template::resolve(&infer.prompt, bindings)?;
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
@@ -148,11 +147,11 @@ impl TaskExecutor {
     async fn execute_exec(
         &self,
         task_id: &Arc<str>,
-        exec: &ExecDef,
-        context: &TaskContext,
+        exec: &ExecParams,
+        bindings: &UseBindings,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
-        let command = template::resolve(&exec.command, context)?;
+        let command = template::resolve(&exec.command, bindings)?;
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
@@ -186,15 +185,15 @@ impl TaskExecutor {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     }
 
-    #[instrument(skip(self, context), fields(url = %fetch.url))]
+    #[instrument(skip(self, bindings), fields(url = %fetch.url))]
     async fn execute_fetch(
         &self,
         task_id: &Arc<str>,
-        fetch: &FetchDef,
-        context: &TaskContext,
+        fetch: &FetchParams,
+        bindings: &UseBindings,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
-        let url = template::resolve(&fetch.url, context)?;
+        let url = template::resolve(&fetch.url, bindings)?;
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
@@ -215,13 +214,13 @@ impl TaskExecutor {
 
         // Add headers
         for (key, value) in &fetch.headers {
-            let resolved_value = template::resolve(value, context)?;
+            let resolved_value = template::resolve(value, bindings)?;
             request = request.header(key, resolved_value.as_ref());
         }
 
         // Add body if present
         if let Some(body) = &fetch.body {
-            let resolved_body = template::resolve(body, context)?;
+            let resolved_body = template::resolve(body, bindings)?;
             request = request.body(resolved_body.into_owned());
         }
 
@@ -260,32 +259,32 @@ mod tests {
     #[tokio::test]
     async fn execute_exec_echo() {
         let exec = TaskExecutor::new("mock", None, EventLog::new());
-        let ctx = TaskContext::new();
+        let bindings = UseBindings::new();
         let action = TaskAction::Exec {
-            exec: ExecDef {
+            exec: ExecParams {
                 command: "echo hello".to_string(),
             },
         };
 
         let task_id: Arc<str> = Arc::from("test_task");
-        let result = exec.execute(&task_id, &action, &ctx).await.unwrap();
+        let result = exec.execute(&task_id, &action, &bindings).await.unwrap();
         assert_eq!(result, "hello");
     }
 
     #[tokio::test]
     async fn execute_exec_with_template() {
         let exec = TaskExecutor::new("mock", None, EventLog::new());
-        let mut ctx = TaskContext::new();
-        ctx.set("name", json!("world"));
+        let mut bindings = UseBindings::new();
+        bindings.set("name", json!("world"));
 
         let action = TaskAction::Exec {
-            exec: ExecDef {
+            exec: ExecParams {
                 command: "echo {{use.name}}".to_string(),
             },
         };
 
         let task_id: Arc<str> = Arc::from("test_task");
-        let result = exec.execute(&task_id, &action, &ctx).await.unwrap();
+        let result = exec.execute(&task_id, &action, &bindings).await.unwrap();
         assert_eq!(result, "world");
     }
 
@@ -293,17 +292,17 @@ mod tests {
     async fn execute_emits_template_resolved() {
         let event_log = EventLog::new();
         let exec = TaskExecutor::new("mock", None, event_log.clone());
-        let mut ctx = TaskContext::new();
-        ctx.set("name", json!("Alice"));
+        let mut bindings = UseBindings::new();
+        bindings.set("name", json!("Alice"));
 
         let action = TaskAction::Exec {
-            exec: ExecDef {
+            exec: ExecParams {
                 command: "echo Hello {{use.name}}".to_string(),
             },
         };
 
         let task_id: Arc<str> = Arc::from("greet");
-        exec.execute(&task_id, &action, &ctx).await.unwrap();
+        exec.execute(&task_id, &action, &bindings).await.unwrap();
 
         // Check TemplateResolved event was emitted
         let events = event_log.filter_task("greet");

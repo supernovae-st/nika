@@ -6,8 +6,10 @@
 //! - EventLog: thread-safe, append-only log
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Instant;
+
+use parking_lot::RwLock; // 2-3x faster than std::sync::RwLock
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -144,13 +146,13 @@ impl EventLog {
             kind,
         };
 
-        self.events.write().unwrap().push(event);
+        self.events.write().push(event); // parking_lot: no unwrap needed
         id
     }
 
     /// Get all events (cloned)
     pub fn events(&self) -> Vec<Event> {
-        self.events.read().unwrap().clone()
+        self.events.read().clone()
     }
 
     /// Filter events by task ID
@@ -176,7 +178,7 @@ impl EventLog {
 
     /// Number of events
     pub fn len(&self) -> usize {
-        self.events.read().unwrap().len()
+        self.events.read().len()
     }
 
     /// Check if empty

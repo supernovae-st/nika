@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 use serde::Deserialize;
-use crate::task::{InferDef, ExecDef, FetchDef};
-use crate::use_block::UseBlock;
+use crate::task_action::TaskAction;
+use crate::use_wiring::UseWiring;
 use crate::output_policy::OutputPolicy;
 
 /// Workflow parsed from YAML (raw)
@@ -54,21 +54,12 @@ pub struct Task {
     pub id: String,
     /// Explicit data wiring (v0.1)
     #[serde(default, rename = "use")]
-    pub use_block: Option<UseBlock>,
+    pub use_wiring: Option<UseWiring>,
     /// Output format and validation (v0.1)
     #[serde(default)]
     pub output: Option<OutputPolicy>,
     #[serde(flatten)]
     pub action: TaskAction,
-}
-
-/// The 3 MVP verbs - serde auto-detects which one
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub enum TaskAction {
-    Infer { infer: InferDef },
-    Exec { exec: ExecDef },
-    Fetch { fetch: FetchDef },
 }
 
 #[derive(Debug, Deserialize)]
