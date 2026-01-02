@@ -3,14 +3,13 @@
 //! Validates:
 //! - use: wiring references (task exists, is upstream)
 //! - Template refs match use: declarations
-//! - JSONPath syntax (minimal subset)
+//! - Task ID format (snake_case)
 
 use rustc_hash::FxHashSet;
 
 use crate::ast::Workflow;
+use crate::binding::{validate_task_id, UseWiring};
 use crate::error::NikaError;
-use crate::util::jsonpath;
-use crate::binding::{UseEntry, UseWiring};
 
 use super::flow::FlowGraph;
 
@@ -29,6 +28,8 @@ pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &FlowGraph) -> Resul
 }
 
 /// Validate a single use: wiring
+///
+/// Unified validation for new syntax: `alias: task.path [?? default]`
 fn validate_wiring(
     task_id: &str,
     wiring: &UseWiring,
@@ -36,29 +37,14 @@ fn validate_wiring(
     flow_graph: &FlowGraph,
 ) -> Result<(), NikaError> {
     for (alias, entry) in wiring {
-        match entry {
-            // Form 1: alias: task.path - extract task_id from path
-            UseEntry::Path(path) => {
-                let from_task = path.split('.').next().unwrap_or(path);
-                validate_from_task(alias, from_task, task_id, all_task_ids, flow_graph)?;
-            }
+        // Extract task_id from the path (first segment before '.')
+        let from_task = entry.task_id();
 
-            // Form 2: task.path: [fields] - the key is the path
-            UseEntry::Batch(_) => {
-                let from_task = alias.split('.').next().unwrap_or(alias);
-                validate_from_task(from_task, from_task, task_id, all_task_ids, flow_graph)?;
-            }
+        // Validate the source task ID format (snake_case)
+        validate_task_id(from_task)?;
 
-            // Form 3: alias: { from, path, default }
-            UseEntry::Advanced(adv) => {
-                validate_from_task(alias, &adv.from, task_id, all_task_ids, flow_graph)?;
-
-                // Validate JSONPath syntax if present
-                if let Some(ref path) = adv.path {
-                    jsonpath::validate(path)?;
-                }
-            }
-        }
+        // Validate that the source task exists and is upstream
+        validate_from_task(alias, from_task, task_id, all_task_ids, flow_graph)?;
     }
 
     Ok(())
@@ -104,53 +90,77 @@ fn validate_from_task(
 
 #[cfg(test)]
 mod tests {
-    use crate::util::jsonpath;
+    use super::*;
+    use crate::binding::UseEntry;
+    use serde_json::json;
 
-    // ─────────────────────────────────────────────────────────────
-    // JSONPath validation tests (delegated to jsonpath::validate)
-    // ─────────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════
+    // UseEntry.task_id() extraction tests
+    // ═══════════════════════════════════════════════════════════════
 
     #[test]
-    fn jsonpath_simple_dot() {
-        assert!(jsonpath::validate("$.a.b.c").is_ok());
-        assert!(jsonpath::validate("a.b.c").is_ok());
-        assert!(jsonpath::validate("field").is_ok());
+    fn entry_task_id_simple() {
+        let entry = UseEntry::new("weather");
+        assert_eq!(entry.task_id(), "weather");
     }
 
     #[test]
-    fn jsonpath_with_array_index() {
-        assert!(jsonpath::validate("$.items[0]").is_ok());
-        assert!(jsonpath::validate("$.data[0].name").is_ok());
-        assert!(jsonpath::validate("items[123].value").is_ok());
+    fn entry_task_id_with_path() {
+        let entry = UseEntry::new("weather.summary");
+        assert_eq!(entry.task_id(), "weather");
     }
 
     #[test]
-    fn jsonpath_invalid_filter() {
-        assert!(jsonpath::validate("$.a[?(@.x==1)]").is_err());
+    fn entry_task_id_nested_path() {
+        let entry = UseEntry::new("weather.data.temp.celsius");
+        assert_eq!(entry.task_id(), "weather");
     }
 
     #[test]
-    fn jsonpath_invalid_wildcard() {
-        assert!(jsonpath::validate("$.a[*]").is_err());
+    fn entry_task_id_with_default() {
+        let entry = UseEntry::with_default("weather.summary", json!("N/A"));
+        assert_eq!(entry.task_id(), "weather");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Task ID validation tests (snake_case)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn task_id_valid_simple() {
+        assert!(validate_task_id("weather").is_ok());
     }
 
     #[test]
-    fn jsonpath_invalid_slice() {
-        assert!(jsonpath::validate("$.a[0:5]").is_err());
+    fn task_id_valid_with_underscore() {
+        assert!(validate_task_id("get_weather").is_ok());
+        assert!(validate_task_id("fetch_api_data").is_ok());
     }
 
     #[test]
-    fn jsonpath_empty_segment() {
-        assert!(jsonpath::validate("$.a..b").is_err());
-        assert!(jsonpath::validate("$..a").is_err());
+    fn task_id_valid_with_numbers() {
+        assert!(validate_task_id("task123").is_ok());
+        assert!(validate_task_id("step2").is_ok());
     }
 
     #[test]
-    fn jsonpath_field_names_are_permissive() {
-        // jsonpath parser accepts any non-empty string as field name
-        // (matches JSON which allows any string as object key)
-        assert!(jsonpath::validate("$.123invalid").is_ok());
-        assert!(jsonpath::validate("$.a-b").is_ok());
-        assert!(jsonpath::validate("$.some_field").is_ok());
+    fn task_id_invalid_dash() {
+        let result = validate_task_id("fetch-api");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-055"));
+    }
+
+    #[test]
+    fn task_id_invalid_uppercase() {
+        let result = validate_task_id("myTask");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-055"));
+    }
+
+    #[test]
+    fn task_id_invalid_dot() {
+        let result = validate_task_id("weather.api");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-055"));
     }
 }

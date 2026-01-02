@@ -369,7 +369,9 @@ mod tests {
 
         let alpha_events = log.filter_task("alpha");
         assert_eq!(alpha_events.len(), 2); // Started + Completed
-        assert!(alpha_events.iter().all(|e| e.kind.task_id() == Some("alpha")));
+        assert!(alpha_events
+            .iter()
+            .all(|e| e.kind.task_id() == Some("alpha")));
 
         let beta_events = log.filter_task("beta");
         assert_eq!(beta_events.len(), 1);

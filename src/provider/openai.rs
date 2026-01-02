@@ -20,8 +20,7 @@ pub struct OpenAIProvider {
 
 impl OpenAIProvider {
     pub fn new() -> Result<Self> {
-        let api_key = std::env::var("OPENAI_API_KEY")
-            .context("OPENAI_API_KEY not set")?;
+        let api_key = std::env::var("OPENAI_API_KEY").context("OPENAI_API_KEY not set")?;
 
         let client = Client::builder()
             .timeout(INFER_TIMEOUT)
@@ -36,13 +35,27 @@ impl OpenAIProvider {
     /// Map model names to valid OpenAI models
     fn resolve_model(&self, model: &str) -> &'static str {
         // Direct OpenAI models - zero allocation exact matches
-        if model.eq_ignore_ascii_case("gpt-4o") { return "gpt-4o"; }
-        if model.eq_ignore_ascii_case("gpt-4o-mini") { return "gpt-4o-mini"; }
-        if model.eq_ignore_ascii_case("gpt-4-turbo") { return "gpt-4-turbo"; }
-        if model.eq_ignore_ascii_case("gpt-3.5-turbo") { return "gpt-3.5-turbo"; }
-        if model.eq_ignore_ascii_case("o1") { return "o1"; }
-        if model.eq_ignore_ascii_case("o1-mini") { return "o1-mini"; }
-        if model.eq_ignore_ascii_case("o1-preview") { return "o1-preview"; }
+        if model.eq_ignore_ascii_case("gpt-4o") {
+            return "gpt-4o";
+        }
+        if model.eq_ignore_ascii_case("gpt-4o-mini") {
+            return "gpt-4o-mini";
+        }
+        if model.eq_ignore_ascii_case("gpt-4-turbo") {
+            return "gpt-4-turbo";
+        }
+        if model.eq_ignore_ascii_case("gpt-3.5-turbo") {
+            return "gpt-3.5-turbo";
+        }
+        if model.eq_ignore_ascii_case("o1") {
+            return "o1";
+        }
+        if model.eq_ignore_ascii_case("o1-mini") {
+            return "o1-mini";
+        }
+        if model.eq_ignore_ascii_case("o1-preview") {
+            return "o1-preview";
+        }
 
         // Claude model fallback - single allocation for contains checks
         let model_lower = model.to_ascii_lowercase();
@@ -53,7 +66,10 @@ impl OpenAIProvider {
         }
 
         // Claude Sonnet/Opus → GPT-4o
-        if model_lower.contains("sonnet") || model_lower.contains("opus") || model_lower.contains("claude") {
+        if model_lower.contains("sonnet")
+            || model_lower.contains("opus")
+            || model_lower.contains("claude")
+        {
             return "gpt-4o";
         }
 
@@ -71,7 +87,8 @@ impl Provider for OpenAIProvider {
     async fn infer(&self, prompt: &str, model: &str) -> Result<String> {
         let resolved_model = self.resolve_model(model);
 
-        let response = self.client
+        let response = self
+            .client
             .post("https://api.openai.com/v1/chat/completions")
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")

@@ -1,6 +1,9 @@
 # v0.1 Demo: use: block + output: policy
 #
-# DAG: weather + flights → recommend
+# DAG: weather + flights -> recommend
+#
+# Unified use: syntax:
+#   alias: task.path [?? default]
 #
 schema: "nika/workflow@0.1"
 
@@ -8,9 +11,9 @@ provider: mock
 model: gpt-4o-mini
 
 tasks:
-  # ═══════════════════════════════════════════════════════════════
+  # =========================================================================
   # Data sources with JSON output
-  # ═══════════════════════════════════════════════════════════════
+  # =========================================================================
 
   - id: weather
     infer:
@@ -28,29 +31,34 @@ tasks:
     output:
       format: json
 
-  # ═══════════════════════════════════════════════════════════════
-  # Recommendation using all 3 use: forms
-  # ═══════════════════════════════════════════════════════════════
+  # =========================================================================
+  # Recommendation using unified use: syntax
+  # =========================================================================
 
   - id: recommend
     use:
-      # Form 1: Single alias
+      # Simple path
       forecast: weather.summary
       city: weather.city
+      temp: weather.temp
 
-      # Form 2: Batch extraction
-      flights.cheapest: [price, airline]
+      # Nested paths
+      price: flights.cheapest.price
+      airline: flights.cheapest.airline
 
-      # Form 3: Advanced with pick
-      weather_brief:
-        weather:
-          pick: [temp]
+      # With default values
+      rating: weather.rating ?? 5
+      notes: 'weather.notes ?? "No notes available"'
+      config: 'weather.config ?? {"debug": false}'
 
     infer:
       prompt: |
         # Travel to {{use.city}}
 
-        Weather: {{use.forecast}} ({{use.weather_brief}})
+        Weather: {{use.forecast}} ({{use.temp}} C)
+        Rating: {{use.rating}}/5
+        Notes: {{use.notes}}
+
         Flight: {{use.airline}} for ${{use.price}}
 
         Create a recommendation.

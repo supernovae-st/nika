@@ -31,9 +31,8 @@ pub enum NikaError {
     Io(#[from] std::io::Error),
 
     // ─────────────────────────────────────────────────────────────
-    // v0.1: Use block errors (NIKA-050 to NIKA-052)
+    // v0.1: Use block errors (NIKA-050 to NIKA-056)
     // ─────────────────────────────────────────────────────────────
-
     #[error("NIKA-050: Invalid path syntax: {path}")]
     InvalidPath { path: String },
 
@@ -43,10 +42,15 @@ pub enum NikaError {
     #[error("NIKA-052: Path '{path}' not found (task may not have JSON output)")]
     PathNotFound { path: String },
 
+    #[error("NIKA-055: Invalid task ID '{id}': {reason}")]
+    InvalidTaskId { id: String, reason: String },
+
+    #[error("NIKA-056: Invalid default value '{raw}': {reason}")]
+    InvalidDefault { raw: String, reason: String },
+
     // ─────────────────────────────────────────────────────────────
     // v0.1: Output errors (NIKA-060 to NIKA-061)
     // ─────────────────────────────────────────────────────────────
-
     #[error("NIKA-060: Invalid JSON output: {details}")]
     InvalidJson { details: String },
 
@@ -56,7 +60,6 @@ pub enum NikaError {
     // ─────────────────────────────────────────────────────────────
     // v0.1: Use block validation errors (NIKA-070 to NIKA-074)
     // ─────────────────────────────────────────────────────────────
-
     #[error("NIKA-070: Duplicate alias '{alias}' in use block")]
     DuplicateAlias { alias: String },
 
@@ -79,20 +82,32 @@ pub enum NikaError {
     // ─────────────────────────────────────────────────────────────
     // v0.1: DAG validation errors (NIKA-080 to NIKA-082)
     // ─────────────────────────────────────────────────────────────
-
     #[error("NIKA-080: use.{alias}.from references unknown task '{from_task}'")]
-    UseUnknownTask { alias: String, from_task: String, task_id: String },
+    UseUnknownTask {
+        alias: String,
+        from_task: String,
+        task_id: String,
+    },
 
     #[error("NIKA-081: use.{alias}.from='{from_task}' is not upstream of task '{task_id}'")]
-    UseNotUpstream { alias: String, from_task: String, task_id: String },
+    UseNotUpstream {
+        alias: String,
+        from_task: String,
+        task_id: String,
+    },
 
-    #[error("NIKA-082: use.{alias}.from='{from_task}' creates circular dependency with '{task_id}'")]
-    UseCircularDep { alias: String, from_task: String, task_id: String },
+    #[error(
+        "NIKA-082: use.{alias}.from='{from_task}' creates circular dependency with '{task_id}'"
+    )]
+    UseCircularDep {
+        alias: String,
+        from_task: String,
+        task_id: String,
+    },
 
     // ─────────────────────────────────────────────────────────────
     // v0.1: JSONPath errors (NIKA-090 to NIKA-092)
     // ─────────────────────────────────────────────────────────────
-
     #[error("NIKA-090: JSONPath '{path}' is not supported in v0.1 (use $.a.b or $.a[0].b)")]
     JsonPathUnsupported { path: String },
 
@@ -118,7 +133,13 @@ impl FixSuggestion for NikaError {
             // v0.1 error suggestions
             NikaError::InvalidPath { .. } => Some("Use format: task_id.field.subfield"),
             NikaError::TaskNotFound { .. } => Some("Verify task_id exists and has run successfully"),
-            NikaError::PathNotFound { .. } => Some("Add default: value or ensure task outputs JSON with format: json"),
+            NikaError::PathNotFound { .. } => Some("Add '?? default' or ensure task outputs JSON with format: json"),
+            NikaError::InvalidTaskId { .. } => {
+                Some("Task IDs must be snake_case: lowercase letters, digits, underscores only (e.g., 'my_task')")
+            }
+            NikaError::InvalidDefault { .. } => {
+                Some("Default values must be valid JSON. Strings must be quoted: 'name ?? \"Anonymous\"'")
+            }
             NikaError::InvalidJson { .. } => Some("Ensure output is valid JSON (try parsing with jq)"),
             NikaError::SchemaFailed { .. } => Some("Fix output to match declared schema"),
             NikaError::DuplicateAlias { .. } => Some("Use unique alias names in use: block"),

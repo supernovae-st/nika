@@ -3,6 +3,8 @@
 //! UseBindings holds resolved values from `use:` blocks for template resolution.
 //! Eliminates intermediate storage - values are resolved once and used inline.
 //!
+//! Unified syntax: `alias: task.path [?? default]`
+//!
 //! Uses FxHashMap for faster hashing (consistent with FlowGraph).
 
 use rustc_hash::FxHashMap;
@@ -12,14 +14,14 @@ use crate::error::NikaError;
 use crate::store::DataStore;
 use crate::util::jsonpath;
 
-use super::entry::{UseAdvanced, UseEntry, UseWiring};
+use super::entry::{UseEntry, UseWiring};
 
-/// Resolved bindings from use: block (alias → value)
+/// Resolved bindings from use: block (alias -> value)
 ///
 /// Uses FxHashMap for faster hashing on small string keys.
 #[derive(Debug, Clone, Default)]
 pub struct UseBindings {
-    /// Resolved alias → value mappings from use: block
+    /// Resolved alias -> value mappings from use: block
     resolved: FxHashMap<String, Value>,
 }
 
@@ -30,6 +32,8 @@ impl UseBindings {
     }
 
     /// Build bindings from use: wiring by resolving paths from datastore
+    ///
+    /// Unified resolution for the new syntax: `task.path [?? default]`
     ///
     /// Returns empty bindings if use_wiring is None.
     pub fn from_use_wiring(
@@ -42,82 +46,9 @@ impl UseBindings {
 
         let mut bindings = Self::new();
 
-        for (key, entry) in wiring {
-            match entry {
-                // Form 1: alias: task.path
-                UseEntry::Path(path) => {
-                    let value = datastore.resolve_path(path).ok_or_else(|| {
-                        NikaError::PathNotFound { path: path.clone() }
-                    })?;
-                    bindings.set(key, value);
-                }
-
-                // Form 2: task.path: [field1, field2]
-                UseEntry::Batch(fields) => {
-                    // The key IS the path in batch form
-                    let base_value = datastore.resolve_path(key).ok_or_else(|| {
-                        NikaError::PathNotFound { path: key.clone() }
-                    })?;
-
-                    for field in fields {
-                        let field_value = base_value.get(field).cloned().ok_or_else(|| {
-                            NikaError::PathNotFound {
-                                path: format!("{}.{}", key, field),
-                            }
-                        })?;
-                        bindings.set(field, field_value);
-                    }
-                }
-
-                // Form 3: alias: { from: task, path: x.y, default: v }
-                UseEntry::Advanced(UseAdvanced { from, path, default }) => {
-                    // Get the output from the source task (Arc<Value> for O(1) cloning)
-                    let base_value = datastore.get_output(from);
-
-                    // Apply JSONPath if path is specified
-                    let value: Option<Value> = match (&base_value, path) {
-                        (Some(v), Some(p)) => {
-                            // Use JSONPath parser for $.a.b.c or a.b.c syntax
-                            // Arc<Value> derefs to &Value, so this works
-                            jsonpath::resolve(v, p)?
-                        }
-                        (Some(v), None) => Some((**v).clone()), // Clone inner Value from Arc
-                        (None, _) => None,
-                    };
-
-                    let display_path = match path {
-                        Some(p) => format!("{}.{}", from, p),
-                        None => from.clone(),
-                    };
-
-                    match (value, default) {
-                        // Value found → use it
-                        (Some(v), _) => {
-                            // Check for null in strict mode (unless default provided)
-                            if v.is_null() {
-                                if let Some(def) = default {
-                                    bindings.set(key, def.clone());
-                                } else {
-                                    return Err(NikaError::NullValue {
-                                        path: display_path,
-                                        alias: key.clone(),
-                                    });
-                                }
-                            } else {
-                                bindings.set(key, v);
-                            }
-                        }
-                        // Not found but default exists → use default
-                        (None, Some(def)) => {
-                            bindings.set(key, def.clone());
-                        }
-                        // Not found and no default → error
-                        (None, None) => {
-                            return Err(NikaError::PathNotFound { path: display_path });
-                        }
-                    }
-                }
-            }
+        for (alias, entry) in wiring {
+            let value = resolve_entry(entry, alias, datastore)?;
+            bindings.set(alias, value);
         }
 
         Ok(bindings)
@@ -148,6 +79,74 @@ impl UseBindings {
     }
 }
 
+/// Resolve a single UseEntry to a Value
+///
+/// Unified resolution logic:
+/// 1. Extract task_id from path (first segment)
+/// 2. Get task output from datastore
+/// 3. Resolve remaining path within output
+/// 4. Apply default if value is null/missing
+fn resolve_entry(entry: &UseEntry, alias: &str, datastore: &DataStore) -> Result<Value, NikaError> {
+    let path = &entry.path;
+
+    // Split path into task_id and remaining path
+    let (task_id, field_path) = split_path(path);
+
+    // Get the task output
+    let task_output = datastore.get_output(task_id);
+
+    // Resolve the value
+    let value: Option<Value> = match task_output {
+        Some(output) => {
+            if let Some(fp) = field_path {
+                // Resolve field path within the output using JSONPath
+                jsonpath::resolve(&output, fp)?
+            } else {
+                // Return entire output (Arc<Value> derefs to Value)
+                Some((*output).clone())
+            }
+        }
+        None => None,
+    };
+
+    // Handle value/default logic
+    match (value, &entry.default) {
+        // Value found and not null -> use it
+        (Some(v), _) if !v.is_null() => Ok(v),
+
+        // Value is null but default provided -> use default
+        (Some(_), Some(def)) => Ok(def.clone()),
+
+        // Value is null, no default -> error
+        (Some(_), None) => Err(NikaError::NullValue {
+            path: path.clone(),
+            alias: alias.to_string(),
+        }),
+
+        // Value not found but default provided -> use default
+        (None, Some(def)) => Ok(def.clone()),
+
+        // Value not found, no default -> error
+        (None, None) => Err(NikaError::PathNotFound { path: path.clone() }),
+    }
+}
+
+/// Split a path into task_id and remaining field path
+///
+/// Examples:
+/// - "weather" -> ("weather", None)
+/// - "weather.summary" -> ("weather", Some("summary"))
+/// - "weather.data.temp" -> ("weather", Some("data.temp"))
+fn split_path(path: &str) -> (&str, Option<&str>) {
+    if let Some(dot_idx) = path.find('.') {
+        let task_id = &path[..dot_idx];
+        let field_path = &path[dot_idx + 1..];
+        (task_id, Some(field_path))
+    } else {
+        (path, None)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,6 +154,10 @@ mod tests {
     use serde_json::json;
     use std::sync::Arc;
     use std::time::Duration;
+
+    // ═══════════════════════════════════════════════════════════════
+    // Basic tests
+    // ═══════════════════════════════════════════════════════════════
 
     #[test]
     fn set_and_get() {
@@ -181,8 +184,12 @@ mod tests {
         assert!(bindings.is_empty());
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // Unified syntax tests
+    // ═══════════════════════════════════════════════════════════════
+
     #[test]
-    fn from_use_wiring_path() {
+    fn resolve_simple_path() {
         let store = DataStore::new();
         store.insert(
             Arc::from("weather"),
@@ -190,107 +197,63 @@ mod tests {
         );
 
         let mut wiring = UseWiring::default();
-        wiring.insert("forecast".to_string(), UseEntry::Path("weather.summary".to_string()));
+        wiring.insert("forecast".to_string(), UseEntry::new("weather.summary"));
 
         let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
         assert_eq!(bindings.get("forecast"), Some(&json!("Sunny")));
     }
 
     #[test]
-    fn from_use_wiring_batch() {
+    fn resolve_entire_task_output() {
         let store = DataStore::new();
         store.insert(
-            Arc::from("flight"),
+            Arc::from("weather"),
             TaskResult::success(
-                json!({"departure": "10:30", "gate": "A12"}),
+                json!({"summary": "Sunny", "temp": 25}),
+                Duration::from_secs(1),
+            ),
+        );
+
+        let mut wiring = UseWiring::default();
+        wiring.insert("data".to_string(), UseEntry::new("weather"));
+
+        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        assert_eq!(
+            bindings.get("data"),
+            Some(&json!({"summary": "Sunny", "temp": 25}))
+        );
+    }
+
+    #[test]
+    fn resolve_nested_path() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("weather"),
+            TaskResult::success(
+                json!({"data": {"temp": {"celsius": 25}}}),
                 Duration::from_secs(1),
             ),
         );
 
         let mut wiring = UseWiring::default();
         wiring.insert(
-            "flight".to_string(),
-            UseEntry::Batch(vec!["departure".to_string(), "gate".to_string()]),
+            "temp".to_string(),
+            UseEntry::new("weather.data.temp.celsius"),
         );
 
         let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
-        assert_eq!(bindings.get("departure"), Some(&json!("10:30")));
-        assert_eq!(bindings.get("gate"), Some(&json!("A12")));
+        assert_eq!(bindings.get("temp"), Some(&json!(25)));
     }
 
     #[test]
-    fn from_use_wiring_path_not_found() {
-        let store = DataStore::new();
-
-        let mut wiring = UseWiring::default();
-        wiring.insert("x".to_string(), UseEntry::Path("missing.path".to_string()));
-
-        let result = UseBindings::from_use_wiring(Some(&wiring), &store);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-052"));
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // v0.1: Advanced form tests
-    // ─────────────────────────────────────────────────────────────
-
-    #[test]
-    fn from_use_wiring_advanced_simple() {
-        let store = DataStore::new();
-        store.insert(
-            Arc::from("weather"),
-            TaskResult::success(json!({"summary": "Sunny", "temp": 25}), Duration::from_secs(1)),
-        );
-
-        let mut wiring = UseWiring::default();
-        wiring.insert(
-            "data".to_string(),
-            UseEntry::Advanced(UseAdvanced {
-                from: "weather".to_string(),
-                path: None,
-                default: None,
-            }),
-        );
-
-        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
-        assert_eq!(bindings.get("data"), Some(&json!({"summary": "Sunny", "temp": 25})));
-    }
-
-    #[test]
-    fn from_use_wiring_advanced_with_path() {
-        let store = DataStore::new();
-        store.insert(
-            Arc::from("weather"),
-            TaskResult::success(json!({"data": {"summary": "Rainy"}}), Duration::from_secs(1)),
-        );
-
-        let mut wiring = UseWiring::default();
-        wiring.insert(
-            "forecast".to_string(),
-            UseEntry::Advanced(UseAdvanced {
-                from: "weather".to_string(),
-                path: Some("data.summary".to_string()),
-                default: None,
-            }),
-        );
-
-        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
-        assert_eq!(bindings.get("forecast"), Some(&json!("Rainy")));
-    }
-
-    #[test]
-    fn from_use_wiring_advanced_default_on_missing() {
+    fn resolve_with_default_on_missing() {
         let store = DataStore::new();
         // No weather task in store
 
         let mut wiring = UseWiring::default();
         wiring.insert(
             "forecast".to_string(),
-            UseEntry::Advanced(UseAdvanced {
-                from: "weather".to_string(),
-                path: Some("summary".to_string()),
-                default: Some(json!("Unknown")),
-            }),
+            UseEntry::with_default("weather.summary", json!("Unknown")),
         );
 
         let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
@@ -298,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn from_use_wiring_advanced_default_on_null() {
+    fn resolve_with_default_on_null() {
         let store = DataStore::new();
         store.insert(
             Arc::from("weather"),
@@ -308,11 +271,7 @@ mod tests {
         let mut wiring = UseWiring::default();
         wiring.insert(
             "forecast".to_string(),
-            UseEntry::Advanced(UseAdvanced {
-                from: "weather".to_string(),
-                path: Some("summary".to_string()),
-                default: Some(json!("N/A")),
-            }),
+            UseEntry::with_default("weather.summary", json!("N/A")),
         );
 
         let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
@@ -320,7 +279,53 @@ mod tests {
     }
 
     #[test]
-    fn from_use_wiring_advanced_null_strict_error() {
+    fn resolve_with_default_object() {
+        let store = DataStore::new();
+        // No settings task
+
+        let mut wiring = UseWiring::default();
+        wiring.insert(
+            "cfg".to_string(),
+            UseEntry::with_default("settings", json!({"debug": false})),
+        );
+
+        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("cfg"), Some(&json!({"debug": false})));
+    }
+
+    #[test]
+    fn resolve_with_default_array() {
+        let store = DataStore::new();
+        // No meta task
+
+        let mut wiring = UseWiring::default();
+        wiring.insert(
+            "tags".to_string(),
+            UseEntry::with_default("meta.tags", json!(["default"])),
+        );
+
+        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("tags"), Some(&json!(["default"])));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Error cases
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn resolve_path_not_found_error() {
+        let store = DataStore::new();
+
+        let mut wiring = UseWiring::default();
+        wiring.insert("x".to_string(), UseEntry::new("missing.path"));
+
+        let result = UseBindings::from_use_wiring(Some(&wiring), &store);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-052"));
+    }
+
+    #[test]
+    fn resolve_null_strict_error() {
         let store = DataStore::new();
         store.insert(
             Arc::from("weather"),
@@ -328,73 +333,19 @@ mod tests {
         );
 
         let mut wiring = UseWiring::default();
-        wiring.insert(
-            "forecast".to_string(),
-            UseEntry::Advanced(UseAdvanced {
-                from: "weather".to_string(),
-                path: Some("summary".to_string()),
-                default: None, // No default → strict mode
-            }),
-        );
+        wiring.insert("forecast".to_string(), UseEntry::new("weather.summary"));
 
         let result = UseBindings::from_use_wiring(Some(&wiring), &store);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-072"));
     }
 
-    #[test]
-    fn from_use_wiring_advanced_missing_no_default() {
-        let store = DataStore::new();
-        // No weather task
-
-        let mut wiring = UseWiring::default();
-        wiring.insert(
-            "forecast".to_string(),
-            UseEntry::Advanced(UseAdvanced {
-                from: "weather".to_string(),
-                path: None,
-                default: None,
-            }),
-        );
-
-        let result = UseBindings::from_use_wiring(Some(&wiring), &store);
-        assert!(result.is_err());
-        // Should be PathNotFound error
-        let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("NIKA-052") || err_msg.contains("not found"));
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // v0.1: JSONPath tests
-    // ─────────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════
+    // JSONPath tests
+    // ═══════════════════════════════════════════════════════════════
 
     #[test]
-    fn from_use_wiring_advanced_jsonpath_dollar_syntax() {
-        let store = DataStore::new();
-        store.insert(
-            Arc::from("flight"),
-            TaskResult::success(
-                json!({"price": {"currency": "EUR", "amount": 100}}),
-                Duration::from_secs(1),
-            ),
-        );
-
-        let mut wiring = UseWiring::default();
-        wiring.insert(
-            "currency".to_string(),
-            UseEntry::Advanced(UseAdvanced {
-                from: "flight".to_string(),
-                path: Some("$.price.currency".to_string()), // JSONPath with $
-                default: None,
-            }),
-        );
-
-        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
-        assert_eq!(bindings.get("currency"), Some(&json!("EUR")));
-    }
-
-    #[test]
-    fn from_use_wiring_advanced_jsonpath_array_index() {
+    fn resolve_jsonpath_array_index() {
         let store = DataStore::new();
         store.insert(
             Arc::from("data"),
@@ -405,47 +356,40 @@ mod tests {
         );
 
         let mut wiring = UseWiring::default();
-        wiring.insert(
-            "first_item".to_string(),
-            UseEntry::Advanced(UseAdvanced {
-                from: "data".to_string(),
-                path: Some("$.items[0].name".to_string()),
-                default: None,
-            }),
-        );
+        wiring.insert("first".to_string(), UseEntry::new("data.items[0].name"));
 
         let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
-        assert_eq!(bindings.get("first_item"), Some(&json!("first")));
+        assert_eq!(bindings.get("first"), Some(&json!("first")));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // split_path() tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn split_path_task_only() {
+        let (task_id, field_path) = split_path("weather");
+        assert_eq!(task_id, "weather");
+        assert_eq!(field_path, None);
     }
 
     #[test]
-    fn from_use_wiring_advanced_jsonpath_simple_dot() {
-        let store = DataStore::new();
-        store.insert(
-            Arc::from("weather"),
-            TaskResult::success(
-                json!({"data": {"temp": 25}}),
-                Duration::from_secs(1),
-            ),
-        );
-
-        let mut wiring = UseWiring::default();
-        wiring.insert(
-            "temp".to_string(),
-            UseEntry::Advanced(UseAdvanced {
-                from: "weather".to_string(),
-                path: Some("data.temp".to_string()), // Simple dot without $
-                default: None,
-            }),
-        );
-
-        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
-        assert_eq!(bindings.get("temp"), Some(&json!(25)));
+    fn split_path_with_field() {
+        let (task_id, field_path) = split_path("weather.summary");
+        assert_eq!(task_id, "weather");
+        assert_eq!(field_path, Some("summary"));
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // v0.1: to_value() for event logging
-    // ─────────────────────────────────────────────────────────────
+    #[test]
+    fn split_path_nested() {
+        let (task_id, field_path) = split_path("weather.data.temp.celsius");
+        assert_eq!(task_id, "weather");
+        assert_eq!(field_path, Some("data.temp.celsius"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // to_value() for event logging
+    // ═══════════════════════════════════════════════════════════════
 
     #[test]
     fn to_value_serializes_resolved_inputs() {

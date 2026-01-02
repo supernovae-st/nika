@@ -209,7 +209,10 @@ mod tests {
         );
 
         assert_eq!(store.resolve_path("flights.cheapest.price").unwrap(), 89);
-        assert_eq!(store.resolve_path("flights.cheapest.airline").unwrap(), "AF");
+        assert_eq!(
+            store.resolve_path("flights.cheapest.airline").unwrap(),
+            "AF"
+        );
     }
 
     #[test]
@@ -217,7 +220,10 @@ mod tests {
         let store = DataStore::new();
         store.insert(
             Arc::from("data"),
-            TaskResult::success(json!({"items": ["first", "second"]}), Duration::from_secs(1)),
+            TaskResult::success(
+                json!({"items": ["first", "second"]}),
+                Duration::from_secs(1),
+            ),
         );
 
         assert_eq!(store.resolve_path("data.items.0").unwrap(), "first");

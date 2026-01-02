@@ -10,11 +10,11 @@ use std::sync::Arc;
 
 use serde::Deserialize;
 
-use crate::error::NikaError;
 use crate::binding::UseWiring;
+use crate::error::NikaError;
 
-use super::output::OutputPolicy;
 use super::action::TaskAction;
+use super::output::OutputPolicy;
 
 /// Expected schema version for v0.1 workflows
 pub const SCHEMA_V01: &str = "nika/workflow@0.1";

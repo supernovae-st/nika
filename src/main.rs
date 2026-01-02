@@ -6,8 +6,8 @@ use std::fs;
 
 // Import from lib modules
 use nika::ast::Workflow;
-use nika::runtime::Runner;
 use nika::error::{FixSuggestion, NikaError};
+use nika::runtime::Runner;
 
 #[derive(Parser)]
 #[command(name = "nika")]
@@ -57,9 +57,11 @@ async fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Run { file, provider, model } => {
-            run_workflow(&file, provider, model).await
-        }
+        Commands::Run {
+            file,
+            provider,
+            model,
+        } => run_workflow(&file, provider, model).await,
         Commands::Validate { file } => validate_workflow(&file),
     };
 
@@ -121,7 +123,10 @@ fn validate_workflow(file: &str) -> Result<(), NikaError> {
 
     println!("{} Workflow '{}' is valid", "✓".green(), file);
     println!("  Provider: {}", workflow.provider);
-    println!("  Model: {}", workflow.model.as_deref().unwrap_or("(default)"));
+    println!(
+        "  Model: {}",
+        workflow.model.as_deref().unwrap_or("(default)")
+    );
     println!("  Tasks: {}", workflow.tasks.len());
     println!("  Flows: {}", workflow.flows.len());
 

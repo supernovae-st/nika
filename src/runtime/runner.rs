@@ -14,12 +14,12 @@ use tokio::task::JoinSet;
 use tracing::{info, instrument};
 
 use crate::ast::{Task, Workflow};
+use crate::binding::UseBindings;
 use crate::dag::{validate_use_wiring, FlowGraph};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 use crate::store::{DataStore, TaskResult};
 use crate::util::intern;
-use crate::binding::UseBindings;
 
 use super::executor::TaskExecutor;
 use super::output::make_task_result;
@@ -38,8 +38,11 @@ impl Runner {
         let flow_graph = FlowGraph::from_workflow(&workflow);
         let datastore = DataStore::new();
         let event_log = EventLog::new();
-        let executor =
-            TaskExecutor::new(&workflow.provider, workflow.model.as_deref(), event_log.clone());
+        let executor = TaskExecutor::new(
+            &workflow.provider,
+            workflow.model.as_deref(),
+            event_log.clone(),
+        );
 
         Self {
             workflow,
@@ -111,8 +114,9 @@ impl Runner {
         let mut completed = 0;
 
         // EMIT: WorkflowStarted
-        self.event_log
-            .emit(EventKind::WorkflowStarted { task_count: total_tasks });
+        self.event_log.emit(EventKind::WorkflowStarted {
+            task_count: total_tasks,
+        });
 
         println!(
             "{} Running workflow with {} tasks...\n",
@@ -155,28 +159,31 @@ impl Runner {
                     dependencies: deps.to_vec(), // Arc::clone is O(1)
                 });
 
-                println!("  {} {} {}", "[⟳]".yellow(), &task_id, "running...".dimmed());
+                println!(
+                    "  {} {} {}",
+                    "[⟳]".yellow(),
+                    &task_id,
+                    "running...".dimmed()
+                );
 
                 join_set.spawn(async move {
                     let start = Instant::now();
 
                     // Build bindings from use: wiring
-                    let bindings = match UseBindings::from_use_wiring(
-                        task.use_wiring.as_ref(),
-                        &datastore,
-                    ) {
-                        Ok(b) => b,
-                        Err(e) => {
-                            let duration = start.elapsed();
-                            // EMIT: TaskFailed (bindings build failed)
-                            event_log.emit(EventKind::TaskFailed {
-                                task_id: Arc::clone(&task_id),
-                                error: e.to_string(),
-                                duration_ms: duration.as_millis() as u64,
-                            });
-                            return (task_id, TaskResult::failed(e.to_string(), duration));
-                        }
-                    };
+                    let bindings =
+                        match UseBindings::from_use_wiring(task.use_wiring.as_ref(), &datastore) {
+                            Ok(b) => b,
+                            Err(e) => {
+                                let duration = start.elapsed();
+                                // EMIT: TaskFailed (bindings build failed)
+                                event_log.emit(EventKind::TaskFailed {
+                                    task_id: Arc::clone(&task_id),
+                                    error: e.to_string(),
+                                    duration_ms: duration.as_millis() as u64,
+                                });
+                                return (task_id, TaskResult::failed(e.to_string(), duration));
+                            }
+                        };
 
                     // EMIT: TaskStarted (with resolved inputs from use: wiring)
                     event_log.emit(EventKind::TaskStarted {
@@ -237,7 +244,11 @@ impl Runner {
                         };
 
                         let symbol = if success { "✓" } else { "✗" };
-                        let symbol_colored = if success { symbol.green() } else { symbol.red() };
+                        let symbol_colored = if success {
+                            symbol.green()
+                        } else {
+                            symbol.red()
+                        };
                         let duration_str =
                             format!("({:.1}s)", task_result.duration.as_secs_f32()).dimmed();
 
@@ -525,7 +536,9 @@ mod tests {
 
         assert!(template_event.is_some(), "TemplateResolved event expected");
 
-        if let EventKind::TemplateResolved { template, result, .. } = &template_event.unwrap().kind
+        if let EventKind::TemplateResolved {
+            template, result, ..
+        } = &template_event.unwrap().kind
         {
             assert_eq!(template, "echo hello world");
             assert_eq!(result, "echo hello world");

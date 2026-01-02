@@ -59,17 +59,17 @@ pub async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), Nik
         Arc::clone(cached.value())
     } else {
         // Cache miss: read and parse schema
-        let schema_str = tokio::fs::read_to_string(schema_path).await.map_err(|e| {
-            NikaError::SchemaFailed {
-                details: format!("Failed to read schema '{}': {}", schema_path, e),
-            }
-        })?;
+        let schema_str =
+            tokio::fs::read_to_string(schema_path)
+                .await
+                .map_err(|e| NikaError::SchemaFailed {
+                    details: format!("Failed to read schema '{}': {}", schema_path, e),
+                })?;
 
-        let schema: Value = serde_json::from_str(&schema_str).map_err(|e| {
-            NikaError::SchemaFailed {
+        let schema: Value =
+            serde_json::from_str(&schema_str).map_err(|e| NikaError::SchemaFailed {
                 details: format!("Invalid JSON in schema '{}': {}", schema_path, e),
-            }
-        })?;
+            })?;
 
         // Store in cache
         let schema = Arc::new(schema);
@@ -78,10 +78,8 @@ pub async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), Nik
     };
 
     // Compile and validate (compilation is fast, validation needs fresh instance)
-    let compiled = jsonschema::validator_for(&schema).map_err(|e| {
-        NikaError::SchemaFailed {
-            details: format!("Invalid schema '{}': {}", schema_path, e),
-        }
+    let compiled = jsonschema::validator_for(&schema).map_err(|e| NikaError::SchemaFailed {
+        details: format!("Invalid schema '{}': {}", schema_path, e),
     })?;
 
     // Collect all validation errors
@@ -99,15 +97,19 @@ pub async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), Nik
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::time::Duration;
     use tempfile::NamedTempFile;
-    use std::io::Write;
 
     #[tokio::test]
     async fn schema_cache_works() {
         // Create a temp schema file
         let mut schema_file = NamedTempFile::new().unwrap();
-        writeln!(schema_file, r#"{{"type": "object", "properties": {{"name": {{"type": "string"}}}}}}"#).unwrap();
+        writeln!(
+            schema_file,
+            r#"{{"type": "object", "properties": {{"name": {{"type": "string"}}}}}}"#
+        )
+        .unwrap();
         let schema_path = schema_file.path().to_str().unwrap();
 
         // First validation - cache miss
@@ -154,7 +156,8 @@ mod tests {
             r#"{"key": "value"}"#.to_string(),
             Some(&policy),
             Duration::from_millis(100),
-        ).await;
+        )
+        .await;
         assert!(result.is_success());
 
         // Invalid JSON
@@ -162,7 +165,8 @@ mod tests {
             "not json".to_string(),
             Some(&policy),
             Duration::from_millis(100),
-        ).await;
+        )
+        .await;
         assert!(!result.is_success());
     }
 }

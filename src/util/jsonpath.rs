@@ -67,9 +67,11 @@ pub fn parse(path: &str) -> Result<Vec<Segment>, NikaError> {
             }
 
             let index_str = &part[bracket_pos + 1..part.len() - 1];
-            let index: usize = index_str.parse().map_err(|_| NikaError::JsonPathUnsupported {
-                path: path.to_string(),
-            })?;
+            let index: usize = index_str
+                .parse()
+                .map_err(|_| NikaError::JsonPathUnsupported {
+                    path: path.to_string(),
+                })?;
 
             segments.push(Segment::Index(index));
         } else if let Ok(index) = part.parse::<usize>() {

@@ -21,9 +21,8 @@ use crate::error::NikaError;
 use super::resolve::UseBindings;
 
 /// Pre-compiled regex for {{use.alias}} or {{use.alias.field}} pattern
-static USE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\{\{\s*use\.(\w+(?:\.\w+)*)\s*\}\}").unwrap()
-});
+static USE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\{\{\s*use\.(\w+(?:\.\w+)*)\s*\}\}").unwrap());
 
 /// Escape for JSON string context
 fn escape_for_json(s: &str) -> String {
@@ -421,7 +420,8 @@ mod tests {
 
     #[test]
     fn validate_refs_success() {
-        let declared: FxHashSet<String> = ["weather", "price"].iter().map(|s| s.to_string()).collect();
+        let declared: FxHashSet<String> =
+            ["weather", "price"].iter().map(|s| s.to_string()).collect();
         let result = validate_refs("{{use.weather}} costs {{use.price}}", &declared, "task1");
         assert!(result.is_ok());
     }

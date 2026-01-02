@@ -73,15 +73,17 @@ impl FlowGraph {
                         .entry(Arc::clone(&src_arc))
                         .or_default()
                         .push(Arc::clone(&tgt_arc));
-                    predecessors
-                        .entry(tgt_arc)
-                        .or_default()
-                        .push(src_arc);
+                    predecessors.entry(tgt_arc).or_default().push(src_arc);
                 }
             }
         }
 
-        Self { adjacency, predecessors, task_ids, task_set }
+        Self {
+            adjacency,
+            predecessors,
+            task_ids,
+            task_set,
+        }
     }
 
     /// Get dependencies of a task (returns Arc<str> slice)

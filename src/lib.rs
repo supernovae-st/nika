@@ -73,7 +73,10 @@ pub mod error;
 pub use error::NikaError;
 
 // AST types (Domain Model)
-pub use ast::{ExecParams, FetchParams, Flow, InferParams, OutputFormat, OutputPolicy, Task, TaskAction, Workflow};
+pub use ast::{
+    ExecParams, FetchParams, Flow, InferParams, OutputFormat, OutputPolicy, Task, TaskAction,
+    Workflow,
+};
 
 // Runtime types (Application Layer)
 pub use runtime::{Runner, TaskExecutor};
@@ -82,7 +85,7 @@ pub use runtime::{Runner, TaskExecutor};
 pub use dag::FlowGraph;
 
 // Binding types
-pub use binding::{UseAdvanced, UseBindings, UseEntry, UseWiring};
+pub use binding::{validate_task_id, UseBindings, UseEntry, UseWiring};
 
 // Event types
 pub use event::{Event, EventKind, EventLog};

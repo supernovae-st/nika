@@ -20,8 +20,7 @@ pub struct ClaudeProvider {
 
 impl ClaudeProvider {
     pub fn new() -> Result<Self> {
-        let api_key = std::env::var("ANTHROPIC_API_KEY")
-            .context("ANTHROPIC_API_KEY not set")?;
+        let api_key = std::env::var("ANTHROPIC_API_KEY").context("ANTHROPIC_API_KEY not set")?;
 
         let client = Client::builder()
             .timeout(INFER_TIMEOUT)
@@ -50,13 +49,15 @@ impl ClaudeProvider {
             "claude-opus-4-20250514"
         }
         // Haiku variants
-        else if model.eq_ignore_ascii_case("claude-haiku")
-            || model.eq_ignore_ascii_case("haiku")
+        else if model.eq_ignore_ascii_case("claude-haiku") || model.eq_ignore_ascii_case("haiku")
         {
             "claude-3-5-haiku-20241022"
         }
         // Pass through if already a full model ID (case-insensitive prefix check)
-        else if model.get(..7).is_some_and(|s| s.eq_ignore_ascii_case("claude-")) {
+        else if model
+            .get(..7)
+            .is_some_and(|s| s.eq_ignore_ascii_case("claude-"))
+        {
             model
         }
         // Default
@@ -75,7 +76,8 @@ impl Provider for ClaudeProvider {
     async fn infer(&self, prompt: &str, model: &str) -> Result<String> {
         let resolved_model = self.resolve_model(model);
 
-        let response = self.client
+        let response = self
+            .client
             .post("https://api.anthropic.com/v1/messages")
             .header("x-api-key", &self.api_key)
             .header("anthropic-version", "2023-06-01")

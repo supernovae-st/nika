@@ -10,10 +10,10 @@ use dashmap::DashMap;
 use tracing::{debug, instrument};
 
 use crate::ast::{ExecParams, FetchParams, InferParams, TaskAction};
+use crate::binding::{template_resolve, UseBindings};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 use crate::provider::{create_provider, Provider};
-use crate::binding::{template_resolve, UseBindings};
 
 /// Default timeout for exec commands (60 seconds)
 const EXEC_TIMEOUT: Duration = Duration::from_secs(60);
@@ -105,10 +105,7 @@ impl TaskExecutor {
         });
 
         // Use task-level override or workflow default
-        let provider_name = infer
-            .provider
-            .as_deref()
-            .unwrap_or(&self.default_provider);
+        let provider_name = infer.provider.as_deref().unwrap_or(&self.default_provider);
 
         // Get cached provider (or create and cache)
         let provider = self.get_provider(provider_name)?;

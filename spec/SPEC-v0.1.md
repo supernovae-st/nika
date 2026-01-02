@@ -10,12 +10,9 @@
 tasks:
   - id: analyze
     use:                                    # Explicit data wiring
-      summary: weather.forecast             # Form 1: alias: task.path
-      flights.cheapest: [price, airline]    # Form 2: batch extraction
-      fallback:                             # Form 3: advanced
-        from: weather
-        path: backup
-        default: "N/A"
+      summary: weather.forecast             # Simple path
+      price: flights.cheapest.price         # Nested path
+      fallback: weather.backup ?? "N/A"     # With default
     infer:
       prompt: "{{use.summary}} - ${{use.price}}"
     output:                                 # Output validation
@@ -50,48 +47,58 @@ Task A → DataStore.outputs["A"] → use: block → {{use.alias}} → Task B
 
 ## 2. The `use:` Block
 
-Three syntactic forms for different needs:
-
-### Form 1: Simple Path (String)
+**Unified syntax:** `alias: task.path [?? default]`
 
 ```yaml
 use:
-  weather: forecast.summary      # use.weather = "Sunny 25C"
-  price: flights.cheapest.price  # use.price = 89
+  # Simple path
+  forecast: weather.summary
+
+  # Nested path
+  price: flights.cheapest.price
+  airline: flights.cheapest.airline
+
+  # Array index
+  first_item: results.items[0].name
+
+  # Entire task output
+  raw_data: weather
+
+  # With default (number)
+  score: game.stats.score ?? 0
+
+  # With default (string - MUST be quoted as JSON)
+  name: user.profile.name ?? "Anonymous"
+
+  # With default (object - needs YAML quoting)
+  config: 'settings.options ?? {"debug": false}'
+
+  # With default (array)
+  tags: 'metadata.tags ?? ["untagged"]'
 ```
 
-### Form 2: Batch Extraction (Array)
+**Task ID rules:**
+- Pattern: `^[a-z][a-z0-9_]*$` (snake_case)
+- Valid: `weather`, `get_data`, `fetch_api`
+- Invalid: `fetch-api` (dash), `myTask` (uppercase), `weather.api` (dot)
 
-```yaml
-use:
-  flights.cheapest: [price, airline, departure]
-  # Creates: use.price, use.airline, use.departure
-```
+**Default value rules:**
+- Parsed as JSON literal
+- Strings MUST be quoted: `?? "Anonymous"` not `?? Anonymous`
+- Numbers, bools, null: `?? 0`, `?? true`, `?? null`
+- Objects/arrays: `?? {"a": 1}`, `?? ["x"]`
 
-### Form 3: Advanced (Object)
-
-```yaml
-use:
-  forecast:
-    from: weather_task          # Source task (required)
-    path: $.data.summary        # Optional: JSONPath within output
-    default: "Unknown"          # Optional: fallback if null/missing
-
-  first_item:
-    from: data_task
-    path: $.items[0].name       # Array index supported
-```
-
-**JSONPath syntax (v0.1 minimal):**
+**Path syntax (v0.1 minimal):**
 
 | Syntax | Example | Description |
 |--------|---------|-------------|
-| `$.a.b` | `$.price.currency` | Dot notation |
-| `$.a[0]` | `$.items[0]` | Array index |
-| `$.a[0].b` | `$.items[0].name` | Combined |
-| `a.b` | `price.currency` | Without `$` prefix (also valid) |
+| `task` | `weather` | Entire task output |
+| `task.field` | `weather.summary` | Direct field |
+| `task.a.b.c` | `weather.data.temp` | Nested path |
+| `task.a[0]` | `results.items[0]` | Array index |
+| `task.a[0].b` | `results.items[0].name` | Combined |
 
-**Not supported in v0.1:** filters `[?(@.x)]`, wildcards `[*]`, slices `[0:5]`
+**Not supported in v0.1:** filters `[?(@.x)]`, wildcards `[*]`, slices `[0:5]`, recursive `..`
 
 ---
 
@@ -101,18 +108,16 @@ Nika v0.1 uses **strict null handling** to prevent silent bugs:
 
 | Scenario | Behavior |
 |----------|----------|
-| Path resolves to `null` | Error NIKA-072 (unless `default:` provided) |
-| Path not found | Error NIKA-052 (unless `default:` provided) |
+| Path resolves to `null` | Error NIKA-072 (unless `??` default provided) |
+| Path not found | Error NIKA-052 (unless `??` default provided) |
 | Traverse non-object | Error NIKA-073 |
 | Unknown template alias | Error NIKA-071 |
 
-**With default:**
+**With default (`??` operator):**
 ```yaml
 use:
-  price:
-    from: flight
-    path: cost
-    default: 0        # Used if null or missing
+  price: flight.cost ?? 0           # Used if null or missing
+  name: user.name ?? "Anonymous"    # String default (quoted)
 ```
 
 ---
@@ -176,12 +181,24 @@ tasks:
 
   - id: recommend
     use:
+      # Simple paths
       forecast: weather.summary
-      flights.cheapest: [price, airline]
+      city: weather.city
+
+      # Nested paths
+      price: flights.cheapest.price
+      airline: flights.cheapest.airline
+
+      # With defaults
+      rating: weather.rating ?? 5
+      notes: 'weather.notes ?? "No notes"'
     infer:
       prompt: |
-        Weather: {{use.forecast}}
-        Best: {{use.airline}} for ${{use.price}}
+        Weather in {{use.city}}: {{use.forecast}}
+        Rating: {{use.rating}}/5
+        Notes: {{use.notes}}
+
+        Best flight: {{use.airline}} for ${{use.price}}
 
         Create a recommendation.
     output:
@@ -198,12 +215,13 @@ flows:
 ## 7. Validation
 
 ### Static (nika validate)
-- Path syntax valid
+- Path syntax valid (`task.field.subfield`)
+- Task IDs are snake_case (`^[a-z][a-z0-9_]*$`)
 - No duplicate aliases
 - All `{{use.X}}` have corresponding `use:` entry
 - Referenced tasks exist in DAG
-- **DAG validation:** `from` task must exist AND be upstream of consuming task
-- **JSONPath syntax:** Only `$.a.b` and `$.a[0].b` patterns allowed
+- **DAG validation:** Referenced task must exist AND be upstream of consuming task
+- **Default syntax:** JSON literal (strings quoted)
 
 ### DAG Validation Rules
 
@@ -217,16 +235,14 @@ flows:
 tasks:
   - id: recommend
     use:
-      forecast:
-        from: weather      # OK: weather is upstream
-        path: summary
-      data:
-        from: other_task   # ERROR: other_task not upstream
+      forecast: weather.summary    # OK: weather is upstream
+      data: other_task.value       # ERROR: other_task not upstream
 ```
 
-**Rule:** Every `from: X` in a `use:` block must reference a task that:
-1. Exists in the workflow
-2. Has a path to the consuming task in the DAG
+**Rule:** Every task referenced in a `use:` path must:
+1. Exist in the workflow
+2. Be upstream of the consuming task in the DAG
+3. Have a valid snake_case ID (`^[a-z][a-z0-9_]*$`)
 
 ### Runtime
 - Paths resolve to actual values
@@ -241,18 +257,20 @@ tasks:
 |------|-------|-----|
 | NIKA-050 | Invalid path syntax | Check format: `task.field.subfield` |
 | NIKA-051 | Task not found | Verify task_id exists |
-| NIKA-052 | Path not found | Add `default:` or fix output |
+| NIKA-052 | Path not found | Add `?? default` or fix output |
+| NIKA-055 | Invalid task ID | Use snake_case: `fetch_api` not `fetch-api` |
+| NIKA-056 | Invalid default JSON | Strings must be quoted: `?? "Anonymous"` |
 | NIKA-060 | Invalid JSON | Ensure valid JSON output |
 | NIKA-061 | Schema failed | Fix output to match schema |
 | NIKA-070 | Duplicate alias | Use unique names in `use:` |
 | NIKA-071 | Unknown alias | Declare in `use:` before referencing |
-| NIKA-072 | Null value | Provide `default:` or ensure non-null |
+| NIKA-072 | Null value | Add `?? default` or ensure non-null |
 | NIKA-073 | Invalid traversal | Cannot access `.field` on primitive |
 | NIKA-074 | Template parse error | Check `{{use.alias}}` syntax |
-| NIKA-080 | Task not found in DAG | Check `from:` references existing task |
+| NIKA-080 | Task not found in DAG | Check path references existing task |
 | NIKA-081 | Task not upstream | Referenced task must be upstream in DAG |
 | NIKA-082 | Circular dependency | Check DAG for cycles |
-| NIKA-090 | JSONPath unsupported | Use `$.a.b` or `$.a[0].b` only |
+| NIKA-090 | JSONPath unsupported | Use `a.b` or `a[0].b` only |
 | NIKA-091 | JSONPath invalid index | Array index must be non-negative integer |
 | NIKA-092 | JSONPath empty | Path cannot be empty string |
 
@@ -261,36 +279,35 @@ tasks:
 ## Appendix A: Rust Types
 
 ```rust
-use serde::Deserialize;
 use serde_json::Value;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 /// Use block - map of alias to entry
-pub type UseBlock = HashMap<String, UseEntry>;
+pub type UseWiring = FxHashMap<String, UseEntry>;
 
-/// Three forms (order matters for serde untagged)
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub enum UseEntry {
-    /// Form 1: "alias: task.path"
-    Path(String),
-    /// Form 2: "task.path: [field1, field2]"
-    Batch(Vec<String>),
-    /// Form 3: "alias: { from, path, default }"
-    Advanced(UseAdvanced),
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct UseAdvanced {
-    /// Source task ID (required)
-    pub from: String,
-    /// Optional path within output
-    #[serde(default)]
-    pub path: Option<String>,
-    /// Optional default if null/missing
-    #[serde(default)]
+/// Unified use entry
+///
+/// Syntax: `task.path [?? default]`
+/// - path: "task.field.subfield" or "task" for entire output
+/// - default: Optional JSON literal after ??
+#[derive(Debug, Clone)]
+pub struct UseEntry {
+    /// Full path: "task.field.subfield"
+    pub path: String,
+    /// Optional default value (JSON literal)
     pub default: Option<Value>,
 }
+
+impl UseEntry {
+    /// Extract the task ID from the path (first segment before '.')
+    pub fn task_id(&self) -> &str {
+        self.path.split('.').next().unwrap_or(&self.path)
+    }
+}
+
+/// Task ID validation
+/// Pattern: ^[a-z][a-z0-9_]*$ (snake_case)
+pub fn validate_task_id(id: &str) -> Result<(), NikaError>;
 ```
 
 ---
