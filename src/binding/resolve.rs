@@ -12,7 +12,7 @@ use crate::error::NikaError;
 use crate::store::DataStore;
 use crate::util::jsonpath;
 
-use super::spec::{UseAdvanced, UseEntry, UseWiring};
+use super::entry::{UseAdvanced, UseEntry, UseWiring};
 
 /// Resolved bindings from use: block (alias → value)
 ///

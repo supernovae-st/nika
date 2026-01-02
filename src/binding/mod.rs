@@ -18,11 +18,11 @@
 //!                    Resolved prompt
 //! ```
 
+mod entry;
 mod resolve;
-mod spec;
 mod template;
 
 // Re-export public types
+pub use entry::{UseAdvanced, UseEntry, UseWiring};
 pub use resolve::UseBindings;
-pub use spec::{UseAdvanced, UseEntry, UseWiring};
 pub use template::{extract_refs, resolve as template_resolve, validate_refs};
