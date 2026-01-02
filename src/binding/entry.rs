@@ -63,37 +63,39 @@ impl UseEntry {
 pub fn parse_use_entry(s: &str) -> Result<UseEntry, NikaError> {
     let s = s.trim();
 
-    if let Some(idx) = find_operator_outside_quotes(s, "??") {
-        let path = s[..idx].trim().to_string();
-        let default_str = s[idx + 2..].trim();
+    if s.is_empty() {
+        return Err(NikaError::InvalidPath {
+            path: String::new(),
+        });
+    }
 
-        if path.is_empty() {
-            return Err(NikaError::InvalidPath {
-                path: s.to_string(),
-            });
-        }
+    match find_operator_outside_quotes(s, "??") {
+        Some(idx) => {
+            let path = s[..idx].trim();
 
-        // Parse default as JSON literal
-        let default: Value =
-            serde_json::from_str(default_str).map_err(|e| NikaError::InvalidDefault {
-                raw: default_str.to_string(),
-                reason: e.to_string(),
+            if path.is_empty() {
+                return Err(NikaError::InvalidPath {
+                    path: s.to_string(),
+                });
+            }
+
+            let default_str = s[idx + 2..].trim();
+            let default = serde_json::from_str(default_str).map_err(|e| {
+                NikaError::InvalidDefault {
+                    raw: default_str.to_string(),
+                    reason: e.to_string(),
+                }
             })?;
 
-        Ok(UseEntry {
-            path,
-            default: Some(default),
-        })
-    } else {
-        if s.is_empty() {
-            return Err(NikaError::InvalidPath {
-                path: s.to_string(),
-            });
+            Ok(UseEntry {
+                path: path.to_string(),
+                default: Some(default),
+            })
         }
-        Ok(UseEntry {
+        None => Ok(UseEntry {
             path: s.to_string(),
             default: None,
-        })
+        }),
     }
 }
 
@@ -104,33 +106,22 @@ pub fn parse_use_entry(s: &str) -> Result<UseEntry, NikaError> {
 fn find_operator_outside_quotes(s: &str, op: &str) -> Option<usize> {
     let mut in_quotes = false;
     let mut escape_next = false;
-    let chars: Vec<char> = s.chars().collect();
+    let mut byte_pos = 0;
 
-    for i in 0..chars.len() {
-        let c = chars[i];
-
+    for ch in s.chars() {
         if escape_next {
             escape_next = false;
-            continue;
-        }
-
-        if c == '\\' {
+        } else if ch == '\\' {
             escape_next = true;
-            continue;
-        }
-
-        if c == '"' {
+        } else if ch == '"' {
             in_quotes = !in_quotes;
-            continue;
+        } else if !in_quotes && s[byte_pos..].starts_with(op) {
+            return Some(byte_pos);
         }
 
-        if !in_quotes {
-            // Check if operator starts at this position
-            if s[i..].starts_with(op) {
-                return Some(i);
-            }
-        }
+        byte_pos += ch.len_utf8();
     }
+
     None
 }
 

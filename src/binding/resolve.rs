@@ -92,42 +92,28 @@ fn resolve_entry(entry: &UseEntry, alias: &str, datastore: &DataStore) -> Result
     // Split path into task_id and remaining path
     let (task_id, field_path) = split_path(path);
 
-    // Get the task output
-    let task_output = datastore.get_output(task_id);
-
-    // Resolve the value
-    let value: Option<Value> = match task_output {
+    // Resolve the value from task output
+    let value = match datastore.get_output(task_id) {
         Some(output) => {
             if let Some(fp) = field_path {
-                // Resolve field path within the output using JSONPath
                 jsonpath::resolve(&output, fp)?
             } else {
-                // Return entire output (Arc<Value> derefs to Value)
                 Some((*output).clone())
             }
         }
         None => None,
     };
 
-    // Handle value/default logic
-    match (value, &entry.default) {
-        // Value found and not null -> use it
-        (Some(v), _) if !v.is_null() => Ok(v),
-
-        // Value is null but default provided -> use default
-        (Some(_), Some(def)) => Ok(def.clone()),
-
-        // Value is null, no default -> error
-        (Some(_), None) => Err(NikaError::NullValue {
-            path: path.clone(),
-            alias: alias.to_string(),
-        }),
-
-        // Value not found but default provided -> use default
-        (None, Some(def)) => Ok(def.clone()),
-
-        // Value not found, no default -> error
-        (None, None) => Err(NikaError::PathNotFound { path: path.clone() }),
+    // Apply default if value is null or missing
+    match value {
+        Some(v) if !v.is_null() => Ok(v),
+        Some(_) => entry.default.as_ref().cloned()
+            .ok_or_else(|| NikaError::NullValue {
+                path: path.clone(),
+                alias: alias.to_string(),
+            }),
+        None => entry.default.as_ref().cloned()
+            .ok_or_else(|| NikaError::PathNotFound { path: path.clone() }),
     }
 }
 
