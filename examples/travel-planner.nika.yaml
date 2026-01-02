@@ -70,42 +70,57 @@ tasks:
   # ═══════════════════════════════════════════════════════════════
 
   - id: weather
+    use:
+      date: get_date
+      dest: destination
+      days: duration
     infer:
       prompt: |
-        Current date: {{ get_date.output }}
-        Destination: {{ destination.output }}
-        Duration: {{ duration.output }}
+        Current date: {{use.date}}
+        Destination: {{use.dest}}
+        Duration: {{use.days}}
 
         Provide a brief weather forecast for this trip.
         Include: temperature range, rain probability, what to pack.
         Keep it to 3-4 sentences.
 
   - id: flights
+    use:
+      dest: destination
+      days: duration
+      money: budget
     infer:
       prompt: |
-        Destination: {{ destination.output }}
-        Duration: {{ duration.output }}
-        Budget: {{ budget.output }}
+        Destination: {{use.dest}}
+        Duration: {{use.days}}
+        Budget: {{use.money}}
 
         Suggest flight options (economy class).
         Include: typical price range, best airlines, flight duration.
         Keep it to 3-4 sentences.
 
   - id: hotels
+    use:
+      dest: destination
+      days: duration
+      money: budget
+      hobbies: interests
     infer:
       prompt: |
-        Destination: {{ destination.output }}
-        Duration: {{ duration.output }}
-        Budget: {{ budget.output }}
-        Interests: {{ interests.output }}
+        Destination: {{use.dest}}
+        Duration: {{use.days}}
+        Budget: {{use.money}}
+        Interests: {{use.hobbies}}
 
         Suggest 2-3 neighborhoods to stay in and hotel budget per night.
         Keep it to 4-5 sentences.
 
   - id: visa_info
+    use:
+      dest: destination
     infer:
       prompt: |
-        Destination: {{ destination.output }}
+        Destination: {{use.dest}}
 
         Brief visa requirements for EU citizens.
         Keep it to 2-3 sentences.
@@ -115,37 +130,46 @@ tasks:
   # ═══════════════════════════════════════════════════════════════
 
   - id: food_spots
+    use:
+      dest: destination
+      money: budget
     infer:
       prompt: |
-        Destination: {{ destination.output }}
+        Destination: {{use.dest}}
         Interest: Food & Cuisine
-        Budget: {{ budget.output }}
+        Budget: {{use.money}}
 
         Recommend 5 must-try food experiences (mix of cheap eats and special dinners).
         Keep it brief, one line per recommendation.
 
   - id: cultural_sites
+    use:
+      dest: destination
     infer:
       prompt: |
-        Destination: {{ destination.output }}
+        Destination: {{use.dest}}
         Interest: Temples & Culture
 
         Recommend 5 must-visit temples and cultural sites.
         Keep it brief, one line per recommendation.
 
   - id: tech_attractions
+    use:
+      dest: destination
     infer:
       prompt: |
-        Destination: {{ destination.output }}
+        Destination: {{use.dest}}
         Interest: Technology & Innovation
 
         Recommend 5 tech-related attractions (robot restaurants, electronics districts, etc).
         Keep it brief, one line per recommendation.
 
   - id: nightlife
+    use:
+      dest: destination
     infer:
       prompt: |
-        Destination: {{ destination.output }}
+        Destination: {{use.dest}}
         Interest: Nightlife
 
         Recommend 5 nightlife spots (bars, clubs, entertainment districts).
@@ -156,40 +180,50 @@ tasks:
   # ═══════════════════════════════════════════════════════════════
 
   - id: activities_summary
+    use:
+      food: food_spots
+      culture: cultural_sites
+      tech: tech_attractions
+      night: nightlife
     infer:
       prompt: |
         Combine these activity recommendations into a cohesive list:
 
         FOOD:
-        {{ food_spots.output }}
+        {{use.food}}
 
         CULTURE:
-        {{ cultural_sites.output }}
+        {{use.culture}}
 
         TECH:
-        {{ tech_attractions.output }}
+        {{use.tech}}
 
         NIGHTLIFE:
-        {{ nightlife.output }}
+        {{use.night}}
 
         Create a TOP 10 must-do list, mixing categories. One line per item.
 
   - id: logistics_summary
+    use:
+      weather_info: weather
+      flight_info: flights
+      hotel_info: hotels
+      visa: visa_info
     infer:
       prompt: |
         Summarize the travel logistics:
 
         WEATHER:
-        {{ weather.output }}
+        {{use.weather_info}}
 
         FLIGHTS:
-        {{ flights.output }}
+        {{use.flight_info}}
 
         HOTELS:
-        {{ hotels.output }}
+        {{use.hotel_info}}
 
         VISA:
-        {{ visa_info.output }}
+        {{use.visa}}
 
         Create a brief "Before You Go" checklist. Keep it to 5-6 bullet points.
 
@@ -198,22 +232,28 @@ tasks:
   # ═══════════════════════════════════════════════════════════════
 
   - id: daily_itinerary
+    use:
+      dest: destination
+      days: duration
+      money: budget
+      weather_info: weather
+      activities: activities_summary
     infer:
       prompt: |
         Create a day-by-day itinerary for this trip:
 
         TRIP INFO:
-        - Destination: {{ destination.output }}
-        - Duration: {{ duration.output }}
-        - Budget: {{ budget.output }}
+        - Destination: {{use.dest}}
+        - Duration: {{use.days}}
+        - Budget: {{use.money}}
 
         WEATHER CONSIDERATIONS:
-        {{ weather.output }}
+        {{use.weather_info}}
 
         TOP ACTIVITIES:
-        {{ activities_summary.output }}
+        {{use.activities}}
 
-        Create a {{ duration.output }} itinerary with morning, afternoon, evening for each day.
+        Create a {{use.days}} itinerary with morning, afternoon, evening for each day.
         Keep each day to 3-4 lines.
 
   # ═══════════════════════════════════════════════════════════════
@@ -221,16 +261,21 @@ tasks:
   # ═══════════════════════════════════════════════════════════════
 
   - id: budget_breakdown
+    use:
+      money: budget
+      days: duration
+      dest: destination
+      logistics: logistics_summary
     infer:
       prompt: |
         Create a budget breakdown:
 
-        - Total budget: {{ budget.output }}
-        - Duration: {{ duration.output }}
-        - Destination: {{ destination.output }}
+        - Total budget: {{use.money}}
+        - Duration: {{use.days}}
+        - Destination: {{use.dest}}
 
         LOGISTICS:
-        {{ logistics_summary.output }}
+        {{use.logistics}}
 
         Estimate costs for: flights, accommodation, food, activities, transport, misc.
         Show daily average and total. Keep it brief.
@@ -240,23 +285,31 @@ tasks:
   # ═══════════════════════════════════════════════════════════════
 
   - id: final_report
+    use:
+      dest: destination
+      days: duration
+      money: budget
+      date: get_date
+      logistics: logistics_summary
+      itinerary: daily_itinerary
+      costs: budget_breakdown
     infer:
       prompt: |
         Create the FINAL TRAVEL PLAN:
 
         ═══════════════════════════════════════
-        TRIP: {{ destination.output }} | {{ duration.output }} | {{ budget.output }}
-        DATE: {{ get_date.output }}
+        TRIP: {{use.dest}} | {{use.days}} | {{use.money}}
+        DATE: {{use.date}}
         ═══════════════════════════════════════
 
         BEFORE YOU GO:
-        {{ logistics_summary.output }}
+        {{use.logistics}}
 
         DAILY ITINERARY:
-        {{ daily_itinerary.output }}
+        {{use.itinerary}}
 
         BUDGET:
-        {{ budget_breakdown.output }}
+        {{use.costs}}
 
         Format this as a clean, professional travel plan.
         Add a brief "Pro Tips" section at the end (3-4 tips).

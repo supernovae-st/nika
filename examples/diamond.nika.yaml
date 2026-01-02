@@ -1,4 +1,7 @@
 # Diamond pattern - fan-out + fan-in
+#
+# DAG: read_code → [security, quality] → report
+#
 schema: "nika/workflow@0.1"
 
 provider: openai
@@ -10,33 +13,40 @@ tasks:
       command: "cat src/main.rs | head -50"
 
   - id: security
+    use:
+      code: read_code
     infer:
       prompt: |
         Analyze this code for security issues:
-        {{ read_code.output }}
+        {{use.code}}
 
         List any security concerns briefly.
       model: haiku  # Fast/cheap
 
   - id: quality
+    use:
+      code: read_code
     infer:
       prompt: |
         Analyze this code for quality issues:
-        {{ read_code.output }}
+        {{use.code}}
 
         List any code quality concerns briefly.
       model: haiku
 
   - id: report
+    use:
+      security_review: security
+      quality_review: quality
     infer:
       prompt: |
         Create a brief code review summary:
 
         SECURITY:
-        {{ security.output }}
+        {{use.security_review}}
 
         QUALITY:
-        {{ quality.output }}
+        {{use.quality_review}}
 
 flows:
   - source: read_code

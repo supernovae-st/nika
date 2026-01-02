@@ -1,4 +1,7 @@
 # Multi-provider workflow - Claude + OpenAI
+#
+# DAG: topic → [claude_view, openai_view] → synthesis
+#
 schema: "nika/workflow@0.1"
 
 provider: openai
@@ -10,26 +13,33 @@ tasks:
       command: "echo 'The future of AI assistants'"
 
   - id: claude_view
+    use:
+      subject: topic
     infer:
       prompt: |
-        Give a brief (2-3 sentences) perspective on: {{ topic.output }}
+        Give a brief (2-3 sentences) perspective on: {{use.subject}}
       model: haiku
 
   - id: openai_view
+    use:
+      subject: topic
     infer:
       prompt: |
-        Give a brief (2-3 sentences) perspective on: {{ topic.output }}
+        Give a brief (2-3 sentences) perspective on: {{use.subject}}
       provider: openai
       model: gpt-4o-mini
 
   - id: synthesis
+    use:
+      claude: claude_view
+      gpt: openai_view
     infer:
       prompt: |
         Compare these two AI perspectives:
 
-        CLAUDE: {{ claude_view.output }}
+        CLAUDE: {{use.claude}}
 
-        GPT: {{ openai_view.output }}
+        GPT: {{use.gpt}}
 
         What's similar? What's different? (2-3 sentences)
 

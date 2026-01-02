@@ -1,4 +1,7 @@
 # Exec-only workflow - no LLM needed
+#
+# DAG: [list_files, show_date] → combine
+#
 schema: "nika/workflow@0.1"
 
 tasks:
@@ -11,8 +14,11 @@ tasks:
       command: "date"
 
   - id: combine
+    use:
+      files: list_files
+      date: show_date
     exec:
-      command: "echo 'Files:' && echo '{{ list_files.output }}' && echo 'Date: {{ show_date.output }}'"
+      command: "echo 'Files:' && echo '{{use.files}}' && echo 'Date: {{use.date}}'"
 
 flows:
   - source: [list_files, show_date]
