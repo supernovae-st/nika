@@ -15,6 +15,9 @@ pub enum NikaError {
     #[error("YAML parse error: {0}")]
     YamlParse(#[from] serde_yaml::Error),
 
+    #[error("NIKA-010: Invalid schema version: expected '{expected}', got '{actual}'")]
+    InvalidSchema { expected: String, actual: String },
+
     #[error("Template error: {0}")]
     Template(String),
 
@@ -104,6 +107,9 @@ impl FixSuggestion for NikaError {
     fn fix_suggestion(&self) -> Option<&str> {
         match self {
             NikaError::YamlParse(_) => Some("Check YAML syntax: indentation and quoting"),
+            NikaError::InvalidSchema { .. } => {
+                Some("Use 'nika/workflow@0.1' as the schema version")
+            }
             NikaError::Template(_) => Some("Use {{use.alias}} format with use: block"),
             NikaError::Provider(_) => Some("Check API key env var is set (ANTHROPIC_API_KEY or OPENAI_API_KEY)"),
             NikaError::Execution(_) => Some("Check command/URL is valid"),

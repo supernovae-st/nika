@@ -3,7 +3,7 @@
 //! Defines the 3 action types: Infer, Exec, Fetch
 
 use serde::Deserialize;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 /// Infer action - one-shot LLM call
 #[derive(Debug, Clone, Deserialize)]
@@ -30,7 +30,7 @@ pub struct FetchParams {
     #[serde(default = "default_method")]
     pub method: String,
     #[serde(default)]
-    pub headers: HashMap<String, String>,
+    pub headers: FxHashMap<String, String>,
     pub body: Option<String>,
 }
 

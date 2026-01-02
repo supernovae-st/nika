@@ -6,6 +6,7 @@
 use std::borrow::Cow;
 
 use once_cell::sync::Lazy;
+use rustc_hash::FxHashSet;
 use regex::Regex;
 use serde_json::Value;
 
@@ -208,7 +209,7 @@ pub fn extract_refs(template: &str) -> Vec<(String, String)> {
 #[allow(dead_code)] // Used in tests and future static validation
 pub fn validate_refs(
     template: &str,
-    declared_aliases: &std::collections::HashSet<String>,
+    declared_aliases: &FxHashSet<String>,
     task_id: &str,
 ) -> Result<(), NikaError> {
     for (alias, _full_path) in extract_refs(template) {
@@ -226,7 +227,6 @@ pub fn validate_refs(
 mod tests {
     use super::*;
     use std::borrow::Cow;
-    use std::collections::HashSet;
     use serde_json::json;
 
     #[test]
@@ -407,14 +407,14 @@ mod tests {
 
     #[test]
     fn validate_refs_success() {
-        let declared: HashSet<String> = ["weather", "price"].iter().map(|s| s.to_string()).collect();
+        let declared: FxHashSet<String> = ["weather", "price"].iter().map(|s| s.to_string()).collect();
         let result = validate_refs("{{use.weather}} costs {{use.price}}", &declared, "task1");
         assert!(result.is_ok());
     }
 
     #[test]
     fn validate_refs_unknown_alias() {
-        let declared: HashSet<String> = ["weather"].iter().map(|s| s.to_string()).collect();
+        let declared: FxHashSet<String> = ["weather"].iter().map(|s| s.to_string()).collect();
         let result = validate_refs("{{use.weather}} and {{use.unknown}}", &declared, "task1");
         assert!(result.is_err());
         let err = result.unwrap_err();

@@ -7,10 +7,10 @@
 
 use serde::Deserialize;
 use serde_json::Value;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 /// Use wiring - map of alias/path to entry
-pub type UseWiring = HashMap<String, UseEntry>;
+pub type UseWiring = FxHashMap<String, UseEntry>;
 
 /// Three forms of use entry (serde auto-detects via untagged)
 ///

@@ -5,7 +5,7 @@
 //! - Template refs match use: declarations
 //! - JSONPath syntax (minimal subset)
 
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 
 use crate::error::NikaError;
 use crate::flow_graph::FlowGraph;
@@ -14,7 +14,7 @@ use crate::workflow::Workflow;
 
 /// Validate a workflow's use: wiring against the flow graph
 pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &FlowGraph) -> Result<(), NikaError> {
-    let all_task_ids: HashSet<String> = workflow.tasks.iter().map(|t| t.id.clone()).collect();
+    let all_task_ids: FxHashSet<String> = workflow.tasks.iter().map(|t| t.id.clone()).collect();
 
     for task in &workflow.tasks {
         if let Some(ref wiring) = task.use_wiring {
@@ -29,7 +29,7 @@ pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &FlowGraph) -> Resul
 fn validate_wiring(
     task_id: &str,
     wiring: &UseWiring,
-    all_task_ids: &HashSet<String>,
+    all_task_ids: &FxHashSet<String>,
     flow_graph: &FlowGraph,
 ) -> Result<(), NikaError> {
     for (alias, entry) in wiring {
@@ -66,7 +66,7 @@ fn validate_from_task(
     alias: &str,
     from_task: &str,
     task_id: &str,
-    all_task_ids: &HashSet<String>,
+    all_task_ids: &FxHashSet<String>,
     flow_graph: &FlowGraph,
 ) -> Result<(), NikaError> {
     // Check task exists

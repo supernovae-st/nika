@@ -188,7 +188,7 @@ mod tests {
             TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)),
         );
 
-        let mut wiring = UseWiring::new();
+        let mut wiring = UseWiring::default();
         wiring.insert("forecast".to_string(), UseEntry::Path("weather.summary".to_string()));
 
         let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
@@ -206,7 +206,7 @@ mod tests {
             ),
         );
 
-        let mut wiring = UseWiring::new();
+        let mut wiring = UseWiring::default();
         wiring.insert(
             "flight".to_string(),
             UseEntry::Batch(vec!["departure".to_string(), "gate".to_string()]),
@@ -221,7 +221,7 @@ mod tests {
     fn from_use_wiring_path_not_found() {
         let store = DataStore::new();
 
-        let mut wiring = UseWiring::new();
+        let mut wiring = UseWiring::default();
         wiring.insert("x".to_string(), UseEntry::Path("missing.path".to_string()));
 
         let result = UseBindings::from_use_wiring(Some(&wiring), &store);
@@ -241,7 +241,7 @@ mod tests {
             TaskResult::success(json!({"summary": "Sunny", "temp": 25}), Duration::from_secs(1)),
         );
 
-        let mut wiring = UseWiring::new();
+        let mut wiring = UseWiring::default();
         wiring.insert(
             "data".to_string(),
             UseEntry::Advanced(UseAdvanced {
@@ -263,7 +263,7 @@ mod tests {
             TaskResult::success(json!({"data": {"summary": "Rainy"}}), Duration::from_secs(1)),
         );
 
-        let mut wiring = UseWiring::new();
+        let mut wiring = UseWiring::default();
         wiring.insert(
             "forecast".to_string(),
             UseEntry::Advanced(UseAdvanced {
@@ -282,7 +282,7 @@ mod tests {
         let store = DataStore::new();
         // No weather task in store
 
-        let mut wiring = UseWiring::new();
+        let mut wiring = UseWiring::default();
         wiring.insert(
             "forecast".to_string(),
             UseEntry::Advanced(UseAdvanced {
@@ -304,7 +304,7 @@ mod tests {
             TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
         );
 
-        let mut wiring = UseWiring::new();
+        let mut wiring = UseWiring::default();
         wiring.insert(
             "forecast".to_string(),
             UseEntry::Advanced(UseAdvanced {
@@ -326,7 +326,7 @@ mod tests {
             TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
         );
 
-        let mut wiring = UseWiring::new();
+        let mut wiring = UseWiring::default();
         wiring.insert(
             "forecast".to_string(),
             UseEntry::Advanced(UseAdvanced {
@@ -346,7 +346,7 @@ mod tests {
         let store = DataStore::new();
         // No weather task
 
-        let mut wiring = UseWiring::new();
+        let mut wiring = UseWiring::default();
         wiring.insert(
             "forecast".to_string(),
             UseEntry::Advanced(UseAdvanced {
@@ -378,7 +378,7 @@ mod tests {
             ),
         );
 
-        let mut wiring = UseWiring::new();
+        let mut wiring = UseWiring::default();
         wiring.insert(
             "currency".to_string(),
             UseEntry::Advanced(UseAdvanced {
@@ -403,7 +403,7 @@ mod tests {
             ),
         );
 
-        let mut wiring = UseWiring::new();
+        let mut wiring = UseWiring::default();
         wiring.insert(
             "first_item".to_string(),
             UseEntry::Advanced(UseAdvanced {
@@ -428,7 +428,7 @@ mod tests {
             ),
         );
 
-        let mut wiring = UseWiring::new();
+        let mut wiring = UseWiring::default();
         wiring.insert(
             "temp".to_string(),
             UseEntry::Advanced(UseAdvanced {

@@ -57,10 +57,10 @@ impl Workflow {
     /// Returns error if schema doesn't match expected version.
     pub fn validate_schema(&self) -> Result<(), NikaError> {
         if self.schema != SCHEMA_V01 {
-            return Err(NikaError::Template(format!(
-                "Invalid schema: expected '{}', got '{}'",
-                SCHEMA_V01, self.schema
-            )));
+            return Err(NikaError::InvalidSchema {
+                expected: SCHEMA_V01.to_string(),
+                actual: self.schema.clone(),
+            });
         }
         Ok(())
     }
