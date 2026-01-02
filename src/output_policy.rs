@@ -9,9 +9,8 @@ pub struct OutputPolicy {
     #[serde(default)]
     pub format: OutputFormat,
 
-    /// Optional JSON Schema path for validation (reserved for v0.1+)
+    /// Optional JSON Schema path for validation
     #[serde(default)]
-    #[allow(dead_code)]
     pub schema: Option<String>,
 }
 

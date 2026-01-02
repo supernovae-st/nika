@@ -63,11 +63,11 @@ impl FlowGraph {
                     let src_arc = task_set
                         .get(*source)
                         .cloned()
-                        .unwrap_or_else(|| intern(*source));
+                        .unwrap_or_else(|| intern(source));
                     let tgt_arc = task_set
                         .get(*target)
                         .cloned()
-                        .unwrap_or_else(|| intern(*target));
+                        .unwrap_or_else(|| intern(target));
 
                     adjacency
                         .entry(Arc::clone(&src_arc))

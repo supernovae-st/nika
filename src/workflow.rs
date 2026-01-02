@@ -1,10 +1,16 @@
 //! Workflow parsing structures
 
 use std::sync::Arc;
+
 use serde::Deserialize;
+
+use crate::error::NikaError;
+use crate::output_policy::OutputPolicy;
 use crate::task_action::TaskAction;
 use crate::use_wiring::UseWiring;
-use crate::output_policy::OutputPolicy;
+
+/// Expected schema version for v0.1 workflows
+pub const SCHEMA_V01: &str = "nika/workflow@0.1";
 
 /// Workflow parsed from YAML (raw)
 #[derive(Debug, Deserialize)]
@@ -42,6 +48,21 @@ impl<'de> Deserialize<'de> for Workflow {
             tasks: raw.tasks.into_iter().map(Arc::new).collect(),
             flows: raw.flows,
         })
+    }
+}
+
+impl Workflow {
+    /// Validate the workflow schema version
+    ///
+    /// Returns error if schema doesn't match expected version.
+    pub fn validate_schema(&self) -> Result<(), NikaError> {
+        if self.schema != SCHEMA_V01 {
+            return Err(NikaError::Template(format!(
+                "Invalid schema: expected '{}', got '{}'",
+                SCHEMA_V01, self.schema
+            )));
+        }
+        Ok(())
     }
 }
 

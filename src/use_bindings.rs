@@ -2,9 +2,11 @@
 //!
 //! UseBindings holds resolved values from `use:` blocks for template resolution.
 //! Eliminates intermediate storage - values are resolved once and used inline.
+//!
+//! Uses FxHashMap for faster hashing (consistent with FlowGraph).
 
+use rustc_hash::FxHashMap;
 use serde_json::Value;
-use std::collections::HashMap;
 
 use crate::datastore::DataStore;
 use crate::error::NikaError;
@@ -12,10 +14,12 @@ use crate::jsonpath;
 use crate::use_wiring::{UseAdvanced, UseEntry, UseWiring};
 
 /// Resolved bindings from use: block (alias → value)
+///
+/// Uses FxHashMap for faster hashing on small string keys.
 #[derive(Debug, Clone, Default)]
 pub struct UseBindings {
     /// Resolved alias → value mappings from use: block
-    resolved: HashMap<String, Value>,
+    resolved: FxHashMap<String, Value>,
 }
 
 impl UseBindings {
@@ -42,10 +46,7 @@ impl UseBindings {
                 // Form 1: alias: task.path
                 UseEntry::Path(path) => {
                     let value = datastore.resolve_path(path).ok_or_else(|| {
-                        NikaError::Template(format!(
-                            "NIKA-052: Path '{}' not found for alias '{}'",
-                            path, key
-                        ))
+                        NikaError::PathNotFound { path: path.clone() }
                     })?;
                     bindings.set(key, value);
                 }
@@ -54,15 +55,14 @@ impl UseBindings {
                 UseEntry::Batch(fields) => {
                     // The key IS the path in batch form
                     let base_value = datastore.resolve_path(key).ok_or_else(|| {
-                        NikaError::Template(format!("NIKA-052: Path '{}' not found", key))
+                        NikaError::PathNotFound { path: key.clone() }
                     })?;
 
                     for field in fields {
                         let field_value = base_value.get(field).cloned().ok_or_else(|| {
-                            NikaError::Template(format!(
-                                "NIKA-052: Field '{}' not found in '{}'",
-                                field, key
-                            ))
+                            NikaError::PathNotFound {
+                                path: format!("{}.{}", key, field),
+                            }
                         })?;
                         bindings.set(field, field_value);
                     }

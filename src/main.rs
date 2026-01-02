@@ -98,12 +98,7 @@ async fn run_workflow(
     let mut workflow: Workflow = serde_yaml::from_str(&yaml)?;
 
     // Validate schema
-    if workflow.schema != "nika/workflow@0.1" {
-        return Err(NikaError::Template(format!(
-            "Invalid schema: expected 'nika/workflow@0.1', got '{}'",
-            workflow.schema
-        )));
-    }
+    workflow.validate_schema()?;
 
     // Apply CLI overrides
     if let Some(p) = provider_override {
@@ -138,12 +133,7 @@ fn validate_workflow(file: &str) -> Result<(), NikaError> {
     let workflow: Workflow = serde_yaml::from_str(&yaml)?;
 
     // Validate schema
-    if workflow.schema != "nika/workflow@0.1" {
-        return Err(NikaError::Template(format!(
-            "Invalid schema: expected 'nika/workflow@0.1', got '{}'",
-            workflow.schema
-        )));
-    }
+    workflow.validate_schema()?;
 
     println!("{} Workflow '{}' is valid", "✓".green(), file);
     println!("  Provider: {}", workflow.provider);

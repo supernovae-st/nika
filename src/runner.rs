@@ -165,7 +165,7 @@ impl Runner {
                 let deps = self.flow_graph.get_dependencies(&task.id);
                 self.event_log.emit(EventKind::TaskScheduled {
                     task_id: Arc::clone(&task_id),
-                    dependencies: deps.iter().cloned().collect(), // Arc::clone is O(1)
+                    dependencies: deps.to_vec(), // Arc::clone is O(1)
                 });
 
                 println!("  {} {} {}", "[⟳]".yellow(), &task_id, "running...".dimmed());
@@ -412,7 +412,7 @@ mod tests {
         // Expected sequence:
         // 1. WorkflowStarted
         // 2. TaskScheduled
-        // 3. TaskStarted (with inputs from TaskContext)
+        // 3. TaskStarted (with inputs from UseBindings)
         // 4. TemplateResolved (from executor)
         // 5. TaskCompleted
         // 6. WorkflowCompleted

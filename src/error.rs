@@ -7,8 +7,10 @@ pub trait FixSuggestion {
     fn fix_suggestion(&self) -> Option<&str>;
 }
 
+/// All error variants are part of the public API.
+/// Some variants are only constructed in library code/tests.
 #[derive(Error, Debug)]
-#[allow(dead_code)] // Variants reserved for v0.1+ validation
+#[allow(dead_code)] // Variants used in lib, not all in bin
 pub enum NikaError {
     #[error("YAML parse error: {0}")]
     YamlParse(#[from] serde_yaml::Error),
