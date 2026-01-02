@@ -4,7 +4,6 @@
 //! Uses DashMap for lock-free provider caching.
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use dashmap::DashMap;
 use tracing::{debug, instrument};
@@ -14,11 +13,7 @@ use crate::binding::{template_resolve, UseBindings};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 use crate::provider::{create_provider, Provider};
-
-/// Default timeout for exec commands (60 seconds)
-const EXEC_TIMEOUT: Duration = Duration::from_secs(60);
-/// Default timeout for HTTP requests (30 seconds)
-const FETCH_TIMEOUT: Duration = Duration::from_secs(30);
+use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
 
 /// Task executor with cached providers, shared HTTP client, and event logging
 #[derive(Clone)]
@@ -40,8 +35,8 @@ impl TaskExecutor {
     pub fn new(provider: &str, model: Option<&str>, event_log: EventLog) -> Self {
         let http_client = reqwest::Client::builder()
             .timeout(FETCH_TIMEOUT)
-            .connect_timeout(Duration::from_secs(10))
-            .redirect(reqwest::redirect::Policy::limited(5))
+            .connect_timeout(CONNECT_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::limited(REDIRECT_LIMIT))
             .user_agent("nika-cli/0.1")
             .build()
             .expect("Failed to build HTTP client");

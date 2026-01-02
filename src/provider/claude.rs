@@ -1,17 +1,11 @@
 //! Claude provider using Anthropic API
 
-use std::time::Duration;
-
 use super::{Provider, CLAUDE_DEFAULT_MODEL};
+use crate::util::{CONNECT_TIMEOUT, INFER_TIMEOUT};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
-
-/// Timeout for LLM inference (2 minutes - LLMs can be slow)
-const INFER_TIMEOUT: Duration = Duration::from_secs(120);
-/// Connection timeout (10 seconds)
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct ClaudeProvider {
     api_key: String,
