@@ -1,13 +1,13 @@
 //! Binding Module - Data binding between tasks (v0.1)
 //!
 //! Handles the `use:` block system for explicit data binding:
-//! - `spec`: YAML types (UseWiring, UseEntry, UseAdvanced)
+//! - `entry`: YAML types (UseWiring, UseEntry, UseAdvanced)
 //! - `resolve`: Runtime resolution (UseBindings)
 //! - `template`: Template substitution (`{{use.alias}}`)
 //!
 //! Data flow:
 //! ```text
-//! YAML `use:` block → UseWiring (spec)
+//! YAML `use:` block → UseWiring (entry)
 //!                          ↓
 //!                  Runtime resolution
 //!                          ↓

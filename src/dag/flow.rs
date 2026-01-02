@@ -90,8 +90,7 @@ impl FlowGraph {
         static EMPTY: &[Arc<str>] = &[];
         self.predecessors
             .get(task_id)
-            .map(|v| v.as_slice())
-            .unwrap_or(EMPTY)
+            .map_or(EMPTY, SmallVec::as_slice)
     }
 
     /// Get successors of a task
@@ -101,8 +100,7 @@ impl FlowGraph {
         static EMPTY: &[Arc<str>] = &[];
         self.adjacency
             .get(task_id)
-            .map(|v| v.as_slice())
-            .unwrap_or(EMPTY)
+            .map_or(EMPTY, SmallVec::as_slice)
     }
 
     /// Find tasks with no successors (final tasks)
@@ -114,8 +112,7 @@ impl FlowGraph {
             .filter(|id| {
                 self.adjacency
                     .get(id.as_ref())
-                    .map(|v| v.is_empty())
-                    .unwrap_or(true)
+                    .map_or(true, SmallVec::is_empty)
             })
             .cloned() // Arc::clone is O(1)
             .collect()

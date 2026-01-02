@@ -16,7 +16,8 @@ use super::flow::FlowGraph;
 
 /// Validate a workflow's use: wiring against the flow graph
 pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &FlowGraph) -> Result<(), NikaError> {
-    let all_task_ids: FxHashSet<String> = workflow.tasks.iter().map(|t| t.id.clone()).collect();
+    // Zero-clone: use &str references instead of owned Strings
+    let all_task_ids: FxHashSet<&str> = workflow.tasks.iter().map(|t| t.id.as_str()).collect();
 
     for task in &workflow.tasks {
         if let Some(ref wiring) = task.use_wiring {
@@ -31,7 +32,7 @@ pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &FlowGraph) -> Resul
 fn validate_wiring(
     task_id: &str,
     wiring: &UseWiring,
-    all_task_ids: &FxHashSet<String>,
+    all_task_ids: &FxHashSet<&str>,
     flow_graph: &FlowGraph,
 ) -> Result<(), NikaError> {
     for (alias, entry) in wiring {
@@ -68,7 +69,7 @@ fn validate_from_task(
     alias: &str,
     from_task: &str,
     task_id: &str,
-    all_task_ids: &FxHashSet<String>,
+    all_task_ids: &FxHashSet<&str>,
     flow_graph: &FlowGraph,
 ) -> Result<(), NikaError> {
     // Check task exists

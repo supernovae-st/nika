@@ -22,8 +22,8 @@ pub enum TaskStatus {
 /// Task execution result (unified storage)
 #[derive(Debug, Clone)]
 pub struct TaskResult {
-    /// Output as JSON Value (String content wrapped as Value::String)
-    pub output: Value,
+    /// Output as JSON Value (Arc for O(1) cloning of large JSON structures)
+    pub output: Arc<Value>,
     /// Execution duration
     pub duration: Duration,
     /// Success or failure status
@@ -34,7 +34,7 @@ impl TaskResult {
     /// Create a successful result
     pub fn success(output: impl Into<Value>, duration: Duration) -> Self {
         Self {
-            output: output.into(),
+            output: Arc::new(output.into()),
             duration,
             status: TaskStatus::Success,
         }
@@ -43,7 +43,7 @@ impl TaskResult {
     /// Create a successful result from string (converts to Value::String)
     pub fn success_str(output: impl Into<String>, duration: Duration) -> Self {
         Self {
-            output: Value::String(output.into()),
+            output: Arc::new(Value::String(output.into())),
             duration,
             status: TaskStatus::Success,
         }
@@ -52,7 +52,7 @@ impl TaskResult {
     /// Create a failed result
     pub fn failed(error: impl Into<String>, duration: Duration) -> Self {
         Self {
-            output: Value::Null,
+            output: Arc::new(Value::Null),
             duration,
             status: TaskStatus::Failed(error.into()),
         }
@@ -73,7 +73,7 @@ impl TaskResult {
 
     /// Get output as string (zero-copy for String values)
     pub fn output_str(&self) -> Cow<'_, str> {
-        match &self.output {
+        match &*self.output {
             Value::String(s) => Cow::Borrowed(s),
             other => Cow::Owned(other.to_string()),
         }
@@ -111,12 +111,13 @@ impl DataStore {
 
     /// Check if task succeeded
     pub fn is_success(&self, task_id: &str) -> bool {
-        self.get(task_id).map(|r| r.is_success()).unwrap_or(false)
+        self.get(task_id).is_some_and(|r| r.is_success())
     }
 
     /// Get just the output Value for a task (for JSONPath resolution)
-    pub fn get_output(&self, task_id: &str) -> Option<Value> {
-        self.results.get(task_id).map(|r| r.output.clone())
+    /// Returns Arc<Value> for O(1) cloning instead of deep copy
+    pub fn get_output(&self, task_id: &str) -> Option<Arc<Value>> {
+        self.results.get(task_id).map(|r| Arc::clone(&r.output))
     }
 
     /// Resolve a dot-separated path (e.g., "weather.summary")
@@ -129,12 +130,13 @@ impl DataStore {
 
         let output = self.get_output(task_id)?;
 
-        // If no remaining path, return the whole output
+        // If no remaining path, return the whole output (clone from Arc)
         let Some(remaining) = parts.next() else {
-            return Some(output);
+            return Some((*output).clone());
         };
 
         // Use jsonpath for path resolution (handles both dots and array indices)
+        // Arc<Value> derefs to &Value, so this works without changes
         jsonpath::resolve(&output, remaining).ok().flatten()
     }
 }

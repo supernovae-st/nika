@@ -891,7 +891,6 @@ dependencies = [
  "dashmap",
  "dotenvy",
  "jsonschema",
- "once_cell",
  "parking_lot",
  "regex",
  "reqwest",

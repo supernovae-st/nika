@@ -8,13 +8,12 @@
 //! - Comparison: Pointer equality instead of string comparison (O(1) vs O(n))
 //! - Cloning: Arc::clone is O(1), no string copy
 
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use dashmap::DashMap;
-use once_cell::sync::Lazy;
 
 /// Global string interner (thread-safe, lock-free)
-static INTERNER: Lazy<Interner> = Lazy::new(Interner::new);
+static INTERNER: LazyLock<Interner> = LazyLock::new(Interner::new);
 
 /// Thread-safe string interner using DashMap
 pub struct Interner {

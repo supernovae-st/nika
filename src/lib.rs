@@ -33,7 +33,7 @@
 //! | [`ast`] | YAML parsing → `Workflow`, `Task`, `TaskAction`, `OutputPolicy` |
 //! | [`runtime`] | DAG execution with tokio concurrency |
 //! | [`dag`] | Dependency graph with FxHashMap optimization |
-//! | [`binding`] | Use block system: spec, resolve, template |
+//! | [`binding`] | Use block system: entry, resolve, template |
 //! | [`store`] | Thread-safe task output storage (DashMap) |
 //! | [`event`] | Event sourcing for audit trail |
 //! | [`provider`] | LLM provider abstraction (Claude, OpenAI, Mock) |

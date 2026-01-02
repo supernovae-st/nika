@@ -2,20 +2,26 @@
 //!
 //! Single syntax: {{use.alias}} or {{use.alias.field}}
 //! True single-pass resolution with Cow<str> for zero-alloc when no templates.
+//!
+//! Performance optimizations:
+//! - Zero-clone traversal (references until final value)
+//! - SmallVec for error collection (stack-allocated)
+//! - Better capacity estimation for result string
 
 use std::borrow::Cow;
+use std::sync::LazyLock;
 
-use once_cell::sync::Lazy;
 use regex::Regex;
 use rustc_hash::FxHashSet;
 use serde_json::Value;
+use smallvec::SmallVec;
 
 use crate::error::NikaError;
 
 use super::resolve::UseBindings;
 
 /// Pre-compiled regex for {{use.alias}} or {{use.alias.field}} pattern
-static USE_RE: Lazy<Regex> = Lazy::new(|| {
+static USE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\{\{\s*use\.(\w+(?:\.\w+)*)\s*\}\}").unwrap()
 });
 
@@ -43,6 +49,8 @@ fn escape_for_json(s: &str) -> String {
 /// Returns Cow::Borrowed when no templates (zero allocation).
 /// Returns Cow::Owned with single-pass resolution when templates exist.
 ///
+/// Performance: Zero-clone traversal - uses references until final value_to_string.
+///
 /// Example: `{{use.forecast}}` → resolved value from bindings
 /// Example: `{{use.flight_info.departure}}` → nested access
 pub fn resolve<'a>(template: &'a str, bindings: &UseBindings) -> Result<Cow<'a, str>, NikaError> {
@@ -52,9 +60,12 @@ pub fn resolve<'a>(template: &'a str, bindings: &UseBindings) -> Result<Cow<'a, 
     }
 
     // Single-pass: build result by copying segments + inserting replacements
-    let mut result = String::with_capacity(template.len());
+    // Better capacity: template length + some extra for expansions
+    let mut result = String::with_capacity(template.len() + 64);
     let mut last_end = 0;
-    let mut errors = Vec::new();
+    // SmallVec: stack-allocated for up to 4 errors (common case: 0-1 errors)
+    // Note: must be String because alias borrows from cap which is dropped each iteration
+    let mut errors: SmallVec<[String; 4]> = SmallVec::new();
 
     for cap in USE_RE.captures_iter(template) {
         let m = cap.get(0).unwrap();
@@ -70,27 +81,27 @@ pub fn resolve<'a>(template: &'a str, bindings: &UseBindings) -> Result<Cow<'a, 
         // Get the resolved value for this alias
         match bindings.get(alias) {
             Some(base_value) => {
-                let mut value: Value = base_value.clone();
-                let mut traversed_path = alias.to_string();
+                // Zero-clone traversal: use references until we need the final value
+                let mut value_ref: &Value = base_value;
+                let mut traversed_segments: SmallVec<[&str; 8]> = SmallVec::new();
+                traversed_segments.push(alias);
 
-                // Traverse nested path if present
+                // Traverse nested path if present (all by reference)
                 for segment in parts {
-                    // Check if we can traverse this value
                     let next = if let Ok(idx) = segment.parse::<usize>() {
-                        value.get(idx).cloned()
+                        value_ref.get(idx)
                     } else {
-                        value.get(segment).cloned()
+                        value_ref.get(segment)
                     };
 
                     match next {
                         Some(v) => {
-                            traversed_path.push('.');
-                            traversed_path.push_str(segment);
-                            value = v;
+                            traversed_segments.push(segment);
+                            value_ref = v;
                         }
                         None => {
                             // Determine if it's an invalid traversal or missing field
-                            let value_type = match &value {
+                            let value_type = match value_ref {
                                 Value::Null => "null",
                                 Value::Bool(_) => "bool",
                                 Value::Number(_) => "number",
@@ -99,8 +110,9 @@ pub fn resolve<'a>(template: &'a str, bindings: &UseBindings) -> Result<Cow<'a, 
                                 Value::Object(_) => "object",
                             };
 
-                            if matches!(value, Value::Object(_) | Value::Array(_)) {
-                                // Field/index doesn't exist
+                            if matches!(value_ref, Value::Object(_) | Value::Array(_)) {
+                                // Field/index doesn't exist - build path for error
+                                let traversed_path = traversed_segments.join(".");
                                 return Err(NikaError::PathNotFound {
                                     path: format!("{}.{}", traversed_path, segment),
                                 });
@@ -117,7 +129,8 @@ pub fn resolve<'a>(template: &'a str, bindings: &UseBindings) -> Result<Cow<'a, 
                 }
 
                 // Convert Value to string (strict mode - null is error)
-                let replacement = value_to_string(&value, path, alias)?;
+                // This is the ONLY place we convert/allocate for the value
+                let replacement = value_to_string(value_ref, path, alias)?;
 
                 // Escape if we're in a JSON context
                 let replacement = if is_in_json_context(template, m.start()) {

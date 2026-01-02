@@ -107,8 +107,8 @@ pub enum FlowEndpoint {
 impl FlowEndpoint {
     pub fn as_vec(&self) -> Vec<&str> {
         match self {
-            FlowEndpoint::Single(s) => vec![s.as_str()],
-            FlowEndpoint::Multiple(v) => v.iter().map(|s| s.as_str()).collect(),
+            FlowEndpoint::Single(s) => vec![s],
+            FlowEndpoint::Multiple(v) => v.iter().map(String::as_str).collect(),
         }
     }
 }

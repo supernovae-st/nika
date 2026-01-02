@@ -71,16 +71,17 @@ impl UseBindings {
 
                 // Form 3: alias: { from: task, path: x.y, default: v }
                 UseEntry::Advanced(UseAdvanced { from, path, default }) => {
-                    // Get the output from the source task
+                    // Get the output from the source task (Arc<Value> for O(1) cloning)
                     let base_value = datastore.get_output(from);
 
                     // Apply JSONPath if path is specified
                     let value: Option<Value> = match (&base_value, path) {
                         (Some(v), Some(p)) => {
                             // Use JSONPath parser for $.a.b.c or a.b.c syntax
+                            // Arc<Value> derefs to &Value, so this works
                             jsonpath::resolve(v, p)?
                         }
-                        (Some(v), None) => Some(v.clone()),
+                        (Some(v), None) => Some((**v).clone()), // Clone inner Value from Arc
                         (None, _) => None,
                     };
 
