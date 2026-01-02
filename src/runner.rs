@@ -342,3 +342,273 @@ fn validate_schema(value: &Value, schema_path: &str) -> Result<(), NikaError> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::task::ExecDef;
+    use crate::workflow::{Flow, FlowEndpoint, Task, TaskAction};
+    use std::sync::Arc;
+
+    /// Helper to create a minimal workflow with exec tasks
+    fn create_exec_workflow(tasks: Vec<(&str, &str)>, flows: Vec<(&str, &str)>) -> Workflow {
+        Workflow {
+            schema: "nika/workflow@0.1".to_string(),
+            provider: "mock".to_string(),
+            model: None,
+            tasks: tasks
+                .into_iter()
+                .map(|(id, cmd)| {
+                    Arc::new(Task {
+                        id: id.to_string(),
+                        use_block: None,
+                        output: None,
+                        action: TaskAction::Exec {
+                            exec: ExecDef {
+                                command: cmd.to_string(),
+                            },
+                        },
+                    })
+                })
+                .collect(),
+            flows: flows
+                .into_iter()
+                .map(|(src, tgt)| Flow {
+                    source: FlowEndpoint::Single(src.to_string()),
+                    target: FlowEndpoint::Single(tgt.to_string()),
+                })
+                .collect(),
+        }
+    }
+
+    #[tokio::test]
+    async fn event_sequence_for_single_task() {
+        let workflow = create_exec_workflow(vec![("greet", "echo hello")], vec![]);
+        let runner = Runner::new(workflow);
+
+        let result = runner.run().await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "hello");
+
+        // Verify event sequence
+        let events = runner.event_log().events();
+
+        // Expected sequence:
+        // 1. WorkflowStarted
+        // 2. TaskScheduled
+        // 3. InputsResolved (from TaskContext)
+        // 4. TaskStarted
+        // 5. TemplateResolved (from executor)
+        // 6. TaskCompleted
+        // 7. WorkflowCompleted
+
+        assert!(events.len() >= 6, "Expected at least 6 events, got {}", events.len());
+
+        // First event should be WorkflowStarted
+        assert!(matches!(
+            &events[0].kind,
+            EventKind::WorkflowStarted { task_count: 1 }
+        ));
+
+        // Last event should be WorkflowCompleted
+        let last = events.last().unwrap();
+        assert!(matches!(&last.kind, EventKind::WorkflowCompleted { .. }));
+
+        // Verify task events exist
+        let task_events = runner.event_log().filter_task("greet");
+        assert!(task_events.len() >= 4, "Expected at least 4 task events");
+
+        // Verify TaskCompleted with correct output
+        let completed = task_events
+            .iter()
+            .find(|e| matches!(&e.kind, EventKind::TaskCompleted { .. }));
+        assert!(completed.is_some(), "TaskCompleted event not found");
+    }
+
+    #[tokio::test]
+    async fn event_sequence_for_chained_tasks() {
+        // Two tasks: greet -> shout (shout depends on greet)
+        let workflow = create_exec_workflow(
+            vec![("greet", "echo hello"), ("shout", "echo DONE")],
+            vec![("greet", "shout")],
+        );
+        let runner = Runner::new(workflow);
+
+        let result = runner.run().await;
+        assert!(result.is_ok());
+
+        let events = runner.event_log().events();
+
+        // Verify WorkflowStarted with correct task count
+        assert!(matches!(
+            &events[0].kind,
+            EventKind::WorkflowStarted { task_count: 2 }
+        ));
+
+        // Verify both tasks have complete event sequences
+        let greet_events = runner.event_log().filter_task("greet");
+        let shout_events = runner.event_log().filter_task("shout");
+
+        assert!(!greet_events.is_empty(), "greet task events missing");
+        assert!(!shout_events.is_empty(), "shout task events missing");
+
+        // Verify order: greet TaskCompleted must come before shout TaskStarted
+        let greet_completed_id = greet_events
+            .iter()
+            .find(|e| matches!(&e.kind, EventKind::TaskCompleted { .. }))
+            .map(|e| e.id);
+        let shout_started_id = shout_events
+            .iter()
+            .find(|e| matches!(&e.kind, EventKind::TaskStarted { .. }))
+            .map(|e| e.id);
+
+        assert!(greet_completed_id.is_some());
+        assert!(shout_started_id.is_some());
+        assert!(
+            greet_completed_id.unwrap() < shout_started_id.unwrap(),
+            "greet should complete before shout starts"
+        );
+    }
+
+    #[tokio::test]
+    async fn event_sequence_for_parallel_tasks() {
+        // Two independent tasks that can run in parallel
+        let workflow = create_exec_workflow(
+            vec![("task_a", "echo A"), ("task_b", "echo B")],
+            vec![], // No dependencies = parallel
+        );
+        let runner = Runner::new(workflow);
+
+        let result = runner.run().await;
+        assert!(result.is_ok());
+
+        let events = runner.event_log().events();
+
+        // Verify WorkflowStarted
+        assert!(matches!(
+            &events[0].kind,
+            EventKind::WorkflowStarted { task_count: 2 }
+        ));
+
+        // Both tasks should have been scheduled
+        let scheduled: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(&e.kind, EventKind::TaskScheduled { .. }))
+            .collect();
+        assert_eq!(scheduled.len(), 2, "Both tasks should be scheduled");
+
+        // Both tasks should complete
+        let completed: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(&e.kind, EventKind::TaskCompleted { .. }))
+            .collect();
+        assert_eq!(completed.len(), 2, "Both tasks should complete");
+
+        // WorkflowCompleted should be last
+        let last = events.last().unwrap();
+        assert!(matches!(&last.kind, EventKind::WorkflowCompleted { .. }));
+    }
+
+    #[tokio::test]
+    async fn event_ids_are_monotonic() {
+        let workflow = create_exec_workflow(
+            vec![("a", "echo 1"), ("b", "echo 2"), ("c", "echo 3")],
+            vec![("a", "b"), ("b", "c")],
+        );
+        let runner = Runner::new(workflow);
+
+        runner.run().await.unwrap();
+
+        let events = runner.event_log().events();
+        let ids: Vec<u64> = events.iter().map(|e| e.id).collect();
+
+        // Verify monotonic and sequential
+        for i in 0..ids.len() {
+            assert_eq!(ids[i], i as u64, "IDs should be sequential from 0");
+        }
+    }
+
+    #[tokio::test]
+    async fn timestamps_are_relative_and_increasing() {
+        let workflow = create_exec_workflow(
+            vec![("fast", "echo quick"), ("slow", "sleep 0.1 && echo done")],
+            vec![("fast", "slow")],
+        );
+        let runner = Runner::new(workflow);
+
+        runner.run().await.unwrap();
+
+        let events = runner.event_log().events();
+
+        // First timestamp should be small (near 0)
+        assert!(events[0].timestamp_ms < 100, "First event should be near start");
+
+        // Timestamps should generally increase
+        for window in events.windows(2) {
+            assert!(
+                window[1].timestamp_ms >= window[0].timestamp_ms,
+                "Timestamps should not decrease"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn failed_task_emits_task_failed_event() {
+        let workflow = create_exec_workflow(vec![("fail", "exit 1")], vec![]);
+        let runner = Runner::new(workflow);
+
+        let result = runner.run().await;
+        // Workflow completes but task failed
+        assert!(result.is_ok());
+
+        let events = runner.event_log().filter_task("fail");
+        let failed = events
+            .iter()
+            .find(|e| matches!(&e.kind, EventKind::TaskFailed { .. }));
+
+        assert!(failed.is_some(), "TaskFailed event should be emitted");
+    }
+
+    #[tokio::test]
+    async fn template_resolved_event_captures_before_and_after() {
+        // Create workflow with task that has a command
+        let workflow = create_exec_workflow(vec![("echo_test", "echo hello world")], vec![]);
+        let runner = Runner::new(workflow);
+
+        runner.run().await.unwrap();
+
+        let events = runner.event_log().filter_task("echo_test");
+        let template_event = events
+            .iter()
+            .find(|e| matches!(&e.kind, EventKind::TemplateResolved { .. }));
+
+        assert!(template_event.is_some(), "TemplateResolved event expected");
+
+        if let EventKind::TemplateResolved { template, result, .. } = &template_event.unwrap().kind
+        {
+            assert_eq!(template, "echo hello world");
+            assert_eq!(result, "echo hello world");
+        }
+    }
+
+    #[tokio::test]
+    async fn event_log_to_json_serializes_correctly() {
+        let workflow = create_exec_workflow(vec![("simple", "echo test")], vec![]);
+        let runner = Runner::new(workflow);
+
+        runner.run().await.unwrap();
+
+        let json = runner.event_log().to_json();
+        assert!(json.is_array());
+
+        let array = json.as_array().unwrap();
+        assert!(!array.is_empty());
+
+        // Verify structure of first event
+        let first = &array[0];
+        assert!(first.get("id").is_some());
+        assert!(first.get("timestamp_ms").is_some());
+        assert!(first.get("kind").is_some());
+        assert_eq!(first["kind"]["type"], "workflow_started");
+    }
+}
