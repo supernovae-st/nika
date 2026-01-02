@@ -8,6 +8,7 @@ mod datastore;
 mod error;
 mod event_log;
 mod flow_graph;
+mod interner;
 mod jsonpath;
 mod output_policy;
 mod provider;

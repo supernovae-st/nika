@@ -4,6 +4,7 @@ pub mod datastore;
 pub mod error;
 pub mod event_log;
 pub mod flow_graph;
+pub mod interner;
 pub mod jsonpath;
 pub mod output_policy;
 pub mod provider;

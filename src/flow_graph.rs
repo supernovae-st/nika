@@ -1,60 +1,73 @@
-//! Flow graph built from workflow flows (Arc<str> optimized)
+//! Flow graph built from workflow flows (optimized)
 //!
-//! Uses Arc<str> for zero-cost cloning of task IDs.
+//! Performance optimizations:
+//! - Arc<str> for zero-cost cloning of task IDs
+//! - FxHashMap for faster hashing (non-crypto, ~2x faster)
+//! - SmallVec for stack-allocated small dependency lists (0-4 items)
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::VecDeque;
 use std::sync::Arc;
 
+use rustc_hash::{FxHashMap, FxHashSet};
+use smallvec::SmallVec;
+
+use crate::interner::intern;
 use crate::workflow::Workflow;
+
+/// Stack-allocated deps: most tasks have 0-4 dependencies
+pub type DepVec = SmallVec<[Arc<str>; 4]>;
 
 /// Graph of task dependencies built from flows
 ///
-/// Uses Arc<str> internally for zero-cost cloning.
+/// Uses Arc<str> + FxHashMap + SmallVec for maximum performance.
 pub struct FlowGraph {
-    /// task_id -> list of successor task_ids
-    adjacency: HashMap<Arc<str>, Vec<Arc<str>>>,
-    /// task_id -> list of predecessor task_ids (dependencies)
-    predecessors: HashMap<Arc<str>, Vec<Arc<str>>>,
+    /// task_id -> list of successor task_ids (SmallVec: stack-allocated for ≤4)
+    adjacency: FxHashMap<Arc<str>, DepVec>,
+    /// task_id -> list of predecessor task_ids (SmallVec: stack-allocated for ≤4)
+    predecessors: FxHashMap<Arc<str>, DepVec>,
     /// All task IDs (for iteration)
     task_ids: Vec<Arc<str>>,
-    /// Quick lookup for task existence (used in from_workflow for Arc reuse)
+    /// Quick lookup for task existence (FxHashSet: faster hashing)
     #[allow(dead_code)] // Used in from_workflow for Arc<str> reuse
-    task_set: HashSet<Arc<str>>,
+    task_set: FxHashSet<Arc<str>>,
 }
 
 impl FlowGraph {
     pub fn from_workflow(workflow: &Workflow) -> Self {
         let capacity = workflow.tasks.len();
-        let mut adjacency: HashMap<Arc<str>, Vec<Arc<str>>> = HashMap::with_capacity(capacity);
-        let mut predecessors: HashMap<Arc<str>, Vec<Arc<str>>> = HashMap::with_capacity(capacity);
+        let mut adjacency: FxHashMap<Arc<str>, DepVec> =
+            FxHashMap::with_capacity_and_hasher(capacity, Default::default());
+        let mut predecessors: FxHashMap<Arc<str>, DepVec> =
+            FxHashMap::with_capacity_and_hasher(capacity, Default::default());
         let mut task_ids: Vec<Arc<str>> = Vec::with_capacity(capacity);
-        let mut task_set: HashSet<Arc<str>> = HashSet::with_capacity(capacity);
+        let mut task_set: FxHashSet<Arc<str>> =
+            FxHashSet::with_capacity_and_hasher(capacity, Default::default());
 
-        // Create Arc<str> once per task, reuse everywhere
+        // Intern task IDs once, reuse everywhere (single allocation per unique ID)
         for task in &workflow.tasks {
-            let id: Arc<str> = Arc::from(task.id.as_str());
+            let id = intern(&task.id); // Interned Arc<str>
             task_ids.push(Arc::clone(&id));
             task_set.insert(Arc::clone(&id));
-            adjacency.insert(Arc::clone(&id), Vec::new());
-            predecessors.insert(id, Vec::new());
+            adjacency.insert(Arc::clone(&id), DepVec::new());
+            predecessors.insert(id, DepVec::new());
         }
 
-        // Build from flows (lookup Arc from set)
+        // Build from flows (lookup Arc from set or intern)
         for flow in &workflow.flows {
             let sources = flow.source.as_vec();
             let targets = flow.target.as_vec();
 
             for source in &sources {
                 for target in &targets {
-                    // Find existing Arc<str> or create new (shouldn't happen if task exists)
+                    // Find existing Arc<str> or intern new (shouldn't happen if task exists)
                     let src_arc = task_set
                         .get(*source)
                         .cloned()
-                        .unwrap_or_else(|| Arc::from(*source));
+                        .unwrap_or_else(|| intern(*source));
                     let tgt_arc = task_set
                         .get(*target)
                         .cloned()
-                        .unwrap_or_else(|| Arc::from(*target));
+                        .unwrap_or_else(|| intern(*target));
 
                     adjacency
                         .entry(Arc::clone(&src_arc))
@@ -121,7 +134,8 @@ impl FlowGraph {
             return true;
         }
 
-        let mut visited: HashSet<&str> = HashSet::new();
+        // Use FxHashSet for faster visited checks
+        let mut visited: FxHashSet<&str> = FxHashSet::default();
         let mut queue: VecDeque<&str> = VecDeque::new();
 
         queue.push_back(from);

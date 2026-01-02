@@ -1,13 +1,16 @@
 //! DAG execution with tokio (v0.1)
 //!
-//! Simplified runner using TaskExecutor for execution
-//! and UseBindings::from_use_wiring for bindings resolution.
+//! Performance optimizations:
+//! - Semaphore for bounded concurrency (prevents resource exhaustion)
+//! - Arc for zero-cost task/context sharing
+//! - JoinSet for efficient parallel task collection
 
 use std::sync::Arc;
 use std::time::Instant;
 
 use colored::Colorize;
 use serde_json::Value;
+use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tracing::{info, instrument};
 
@@ -15,11 +18,15 @@ use crate::datastore::{DataStore, TaskResult};
 use crate::error::NikaError;
 use crate::event_log::{EventKind, EventLog};
 use crate::flow_graph::FlowGraph;
+use crate::interner::intern;
 use crate::output_policy::OutputFormat;
 use crate::task_executor::TaskExecutor;
 use crate::use_bindings::UseBindings;
 use crate::validator;
 use crate::workflow::{Task, Workflow};
+
+/// Default max concurrent tasks (prevents resource exhaustion)
+const DEFAULT_MAX_CONCURRENT: usize = 8;
 
 /// DAG workflow runner with event sourcing
 pub struct Runner {
@@ -28,14 +35,23 @@ pub struct Runner {
     datastore: DataStore,
     executor: TaskExecutor,
     event_log: EventLog,
+    /// Semaphore to limit concurrent task execution
+    concurrency_limiter: Arc<Semaphore>,
 }
 
 impl Runner {
     pub fn new(workflow: Workflow) -> Self {
+        Self::with_max_concurrent(workflow, DEFAULT_MAX_CONCURRENT)
+    }
+
+    /// Create runner with custom concurrency limit
+    #[allow(dead_code)] // Used in tests and future CLI option
+    pub fn with_max_concurrent(workflow: Workflow, max_concurrent: usize) -> Self {
         let flow_graph = FlowGraph::from_workflow(&workflow);
         let datastore = DataStore::new();
         let event_log = EventLog::new();
         let executor = TaskExecutor::new(&workflow.provider, workflow.model.as_deref(), event_log.clone());
+        let concurrency_limiter = Arc::new(Semaphore::new(max_concurrent));
 
         Self {
             workflow,
@@ -43,6 +59,7 @@ impl Runner {
             datastore,
             executor,
             event_log,
+            concurrency_limiter,
         }
     }
 
@@ -133,15 +150,16 @@ impl Runner {
                 ));
             }
 
-            // Spawn all ready tasks in parallel
+            // Spawn all ready tasks in parallel (bounded by semaphore)
             let mut join_set = JoinSet::new();
 
             for task in ready {
                 let task = Arc::clone(&task);
-                let task_id: Arc<str> = Arc::from(task.id.as_str()); // Arc<str> for zero-cost cloning
+                let task_id = intern(&task.id); // Interned Arc<str> for deduplication
                 let datastore = self.datastore.clone();
                 let executor = self.executor.clone();
                 let event_log = self.event_log.clone();
+                let semaphore = Arc::clone(&self.concurrency_limiter);
 
                 // EMIT: TaskScheduled
                 let deps = self.flow_graph.get_dependencies(&task.id);
@@ -153,6 +171,8 @@ impl Runner {
                 println!("  {} {} {}", "[⟳]".yellow(), &task_id, "running...".dimmed());
 
                 join_set.spawn(async move {
+                    // Acquire semaphore permit (waits if at capacity)
+                    let _permit = semaphore.acquire().await.expect("semaphore closed");
                     let start = Instant::now();
 
                     // Build bindings from use: wiring
