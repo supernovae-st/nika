@@ -61,7 +61,7 @@ impl TaskExecutor {
     #[instrument(skip(self, context), fields(action_type = %action_type(action)))]
     pub async fn execute(
         &self,
-        task_id: &str,
+        task_id: &Arc<str>,
         action: &TaskAction,
         context: &TaskContext,
     ) -> Result<String, NikaError> {
@@ -92,7 +92,7 @@ impl TaskExecutor {
 
     async fn execute_infer(
         &self,
-        task_id: &str,
+        task_id: &Arc<str>,
         infer: &InferDef,
         context: &TaskContext,
     ) -> Result<String, NikaError> {
@@ -101,7 +101,7 @@ impl TaskExecutor {
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
-            task_id: task_id.to_string(),
+            task_id: Arc::clone(task_id),
             template: infer.prompt.clone(),
             result: prompt.to_string(),
         });
@@ -124,7 +124,7 @@ impl TaskExecutor {
 
         // EMIT: ProviderCalled
         self.event_log.emit(EventKind::ProviderCalled {
-            task_id: task_id.to_string(),
+            task_id: Arc::clone(task_id),
             provider: provider_name.to_string(),
             model: model.to_string(),
             prompt_len: prompt.len(),
@@ -137,7 +137,7 @@ impl TaskExecutor {
 
         // EMIT: ProviderResponded
         self.event_log.emit(EventKind::ProviderResponded {
-            task_id: task_id.to_string(),
+            task_id: Arc::clone(task_id),
             output_len: result.len(),
             tokens_used: None, // TODO: if provider returns token count
         });
@@ -147,7 +147,7 @@ impl TaskExecutor {
 
     async fn execute_exec(
         &self,
-        task_id: &str,
+        task_id: &Arc<str>,
         exec: &ExecDef,
         context: &TaskContext,
     ) -> Result<String, NikaError> {
@@ -156,7 +156,7 @@ impl TaskExecutor {
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
-            task_id: task_id.to_string(),
+            task_id: Arc::clone(task_id),
             template: exec.command.clone(),
             result: command.to_string(),
         });
@@ -189,7 +189,7 @@ impl TaskExecutor {
     #[instrument(skip(self, context), fields(url = %fetch.url))]
     async fn execute_fetch(
         &self,
-        task_id: &str,
+        task_id: &Arc<str>,
         fetch: &FetchDef,
         context: &TaskContext,
     ) -> Result<String, NikaError> {
@@ -198,7 +198,7 @@ impl TaskExecutor {
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
-            task_id: task_id.to_string(),
+            task_id: Arc::clone(task_id),
             template: fetch.url.clone(),
             result: url.to_string(),
         });
@@ -267,7 +267,8 @@ mod tests {
             },
         };
 
-        let result = exec.execute("test_task", &action, &ctx).await.unwrap();
+        let task_id: Arc<str> = Arc::from("test_task");
+        let result = exec.execute(&task_id, &action, &ctx).await.unwrap();
         assert_eq!(result, "hello");
     }
 
@@ -283,7 +284,8 @@ mod tests {
             },
         };
 
-        let result = exec.execute("test_task", &action, &ctx).await.unwrap();
+        let task_id: Arc<str> = Arc::from("test_task");
+        let result = exec.execute(&task_id, &action, &ctx).await.unwrap();
         assert_eq!(result, "world");
     }
 
@@ -300,7 +302,8 @@ mod tests {
             },
         };
 
-        exec.execute("greet", &action, &ctx).await.unwrap();
+        let task_id: Arc<str> = Arc::from("greet");
+        exec.execute(&task_id, &action, &ctx).await.unwrap();
 
         // Check TemplateResolved event was emitted
         let events = event_log.filter_task("greet");

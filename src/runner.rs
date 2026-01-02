@@ -137,7 +137,7 @@ impl Runner {
 
             for task in ready {
                 let task = Arc::clone(&task);
-                let task_id = task.id.clone(); // Clone once, reuse in spawn
+                let task_id: Arc<str> = Arc::from(task.id.as_str()); // Arc<str> for zero-cost cloning
                 let datastore = self.datastore.clone();
                 let executor = self.executor.clone();
                 let event_log = self.event_log.clone();
@@ -145,8 +145,8 @@ impl Runner {
                 // EMIT: TaskScheduled
                 let deps = self.dag.get_dependencies(&task.id);
                 self.event_log.emit(EventKind::TaskScheduled {
-                    task_id: task_id.clone(),
-                    dependencies: deps.into_iter().cloned().collect(),
+                    task_id: Arc::clone(&task_id),
+                    dependencies: deps.into_iter().map(|s| Arc::from(s.as_str())).collect(),
                 });
 
                 println!("  {} {} {}", "[⟳]".yellow(), &task_id, "running...".dimmed());
@@ -164,7 +164,7 @@ impl Runner {
                             let duration = start.elapsed();
                             // EMIT: TaskFailed (context build failed)
                             event_log.emit(EventKind::TaskFailed {
-                                task_id: task_id.clone(),
+                                task_id: Arc::clone(&task_id),
                                 error: e.to_string(),
                                 duration_ms: duration.as_millis() as u64,
                             });
@@ -174,7 +174,7 @@ impl Runner {
 
                     // EMIT: TaskStarted (with resolved inputs from use: block)
                     event_log.emit(EventKind::TaskStarted {
-                        task_id: task_id.clone(),
+                        task_id: Arc::clone(&task_id),
                         inputs: context.to_value(),
                     });
 
@@ -189,13 +189,13 @@ impl Runner {
                             // EMIT: TaskCompleted or TaskFailed (based on result)
                             if tr.is_success() {
                                 event_log.emit(EventKind::TaskCompleted {
-                                    task_id: task_id.clone(),
+                                    task_id: Arc::clone(&task_id),
                                     output: tr.output.clone(),
                                     duration_ms: duration.as_millis() as u64,
                                 });
                             } else {
                                 event_log.emit(EventKind::TaskFailed {
-                                    task_id: task_id.clone(),
+                                    task_id: Arc::clone(&task_id),
                                     error: tr.error().unwrap_or("Unknown error").to_string(),
                                     duration_ms: duration.as_millis() as u64,
                                 });
@@ -205,7 +205,7 @@ impl Runner {
                         Err(e) => {
                             // EMIT: TaskFailed
                             event_log.emit(EventKind::TaskFailed {
-                                task_id: task_id.clone(),
+                                task_id: Arc::clone(&task_id),
                                 error: e.to_string(),
                                 duration_ms: duration.as_millis() as u64,
                             });
@@ -235,13 +235,13 @@ impl Runner {
                         let duration_str =
                             format!("({:.1}s)", task_result.duration.as_secs_f32()).dimmed();
 
-                        println!("  {} {} {} {}", status, task_id, symbol_colored, duration_str);
+                        println!("  {} {} {} {}", status, &*task_id, symbol_colored, duration_str);
 
                         if let Some(err) = task_result.error() {
                             println!("      {} {}", "Error:".red(), err);
                         }
 
-                        self.datastore.insert(&task_id, task_result);
+                        self.datastore.insert(task_id, task_result);
                     }
                     Err(e) => {
                         // EMIT: WorkflowFailed (task panic)

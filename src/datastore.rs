@@ -81,10 +81,12 @@ impl TaskResult {
 }
 
 /// Thread-safe storage for task results (lock-free)
+///
+/// Uses Arc<str> keys for zero-cost cloning with same Arc used in events.
 #[derive(Clone, Default)]
 pub struct DataStore {
     /// Task results: task_id → TaskResult
-    results: Arc<DashMap<String, TaskResult>>,
+    results: Arc<DashMap<Arc<str>, TaskResult>>,
 }
 
 impl DataStore {
@@ -92,9 +94,9 @@ impl DataStore {
         Self::default()
     }
 
-    /// Insert a task result
-    pub fn insert(&self, task_id: impl Into<String>, result: TaskResult) {
-        self.results.insert(task_id.into(), result);
+    /// Insert a task result (accepts Arc<str> for zero-cost key reuse)
+    pub fn insert(&self, task_id: Arc<str>, result: TaskResult) {
+        self.results.insert(task_id, result);
     }
 
     /// Get a task result
@@ -146,7 +148,7 @@ mod tests {
     #[test]
     fn insert_and_get_result() {
         let store = DataStore::new();
-        store.insert("task1", TaskResult::success(json!({"key": "value"}), Duration::from_secs(1)));
+        store.insert(Arc::from("task1"), TaskResult::success(json!({"key": "value"}), Duration::from_secs(1)));
 
         let result = store.get("task1").unwrap();
         assert!(result.is_success());
@@ -156,7 +158,7 @@ mod tests {
     #[test]
     fn success_str_converts_to_value() {
         let store = DataStore::new();
-        store.insert("task1", TaskResult::success_str("hello", Duration::from_secs(1)));
+        store.insert(Arc::from("task1"), TaskResult::success_str("hello", Duration::from_secs(1)));
 
         let result = store.get("task1").unwrap();
         assert_eq!(result.output, Value::String("hello".to_string()));
@@ -166,7 +168,7 @@ mod tests {
     #[test]
     fn failed_result() {
         let store = DataStore::new();
-        store.insert("task1", TaskResult::failed("oops", Duration::from_secs(1)));
+        store.insert(Arc::from("task1"), TaskResult::failed("oops", Duration::from_secs(1)));
 
         let result = store.get("task1").unwrap();
         assert!(!result.is_success());
@@ -176,7 +178,7 @@ mod tests {
     #[test]
     fn resolve_simple_path() {
         let store = DataStore::new();
-        store.insert("weather", TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)));
+        store.insert(Arc::from("weather"), TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)));
 
         let value = store.resolve_path("weather.summary").unwrap();
         assert_eq!(value, "Sunny");
@@ -185,7 +187,7 @@ mod tests {
     #[test]
     fn resolve_nested_path() {
         let store = DataStore::new();
-        store.insert("flights", TaskResult::success(
+        store.insert(Arc::from("flights"), TaskResult::success(
             json!({"cheapest": {"price": 89, "airline": "AF"}}),
             Duration::from_secs(1)
         ));
@@ -197,7 +199,7 @@ mod tests {
     #[test]
     fn resolve_array_index() {
         let store = DataStore::new();
-        store.insert("data", TaskResult::success(
+        store.insert(Arc::from("data"), TaskResult::success(
             json!({"items": ["first", "second"]}),
             Duration::from_secs(1)
         ));
@@ -209,7 +211,7 @@ mod tests {
     #[test]
     fn resolve_path_not_found() {
         let store = DataStore::new();
-        store.insert("task1", TaskResult::success(json!({"a": 1}), Duration::from_secs(1)));
+        store.insert(Arc::from("task1"), TaskResult::success(json!({"a": 1}), Duration::from_secs(1)));
 
         assert!(store.resolve_path("task1.nonexistent").is_none());
         assert!(store.resolve_path("unknown.field").is_none());

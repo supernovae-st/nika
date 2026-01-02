@@ -152,6 +152,7 @@ mod tests {
     use crate::datastore::TaskResult;
     use crate::use_block::UseAdvanced;
     use serde_json::json;
+    use std::sync::Arc;
     use std::time::Duration;
 
     #[test]
@@ -183,7 +184,7 @@ mod tests {
     fn from_use_block_path() {
         let store = DataStore::new();
         store.insert(
-            "weather",
+            Arc::from("weather"),
             TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)),
         );
 
@@ -198,7 +199,7 @@ mod tests {
     fn from_use_block_batch() {
         let store = DataStore::new();
         store.insert(
-            "flight",
+            Arc::from("flight"),
             TaskResult::success(
                 json!({"departure": "10:30", "gate": "A12"}),
                 Duration::from_secs(1),
@@ -236,7 +237,7 @@ mod tests {
     fn from_use_block_advanced_simple() {
         let store = DataStore::new();
         store.insert(
-            "weather",
+            Arc::from("weather"),
             TaskResult::success(json!({"summary": "Sunny", "temp": 25}), Duration::from_secs(1)),
         );
 
@@ -258,7 +259,7 @@ mod tests {
     fn from_use_block_advanced_with_path() {
         let store = DataStore::new();
         store.insert(
-            "weather",
+            Arc::from("weather"),
             TaskResult::success(json!({"data": {"summary": "Rainy"}}), Duration::from_secs(1)),
         );
 
@@ -299,7 +300,7 @@ mod tests {
     fn from_use_block_advanced_default_on_null() {
         let store = DataStore::new();
         store.insert(
-            "weather",
+            Arc::from("weather"),
             TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
         );
 
@@ -321,7 +322,7 @@ mod tests {
     fn from_use_block_advanced_null_strict_error() {
         let store = DataStore::new();
         store.insert(
-            "weather",
+            Arc::from("weather"),
             TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
         );
 
@@ -370,7 +371,7 @@ mod tests {
     fn from_use_block_advanced_jsonpath_dollar_syntax() {
         let store = DataStore::new();
         store.insert(
-            "flight",
+            Arc::from("flight"),
             TaskResult::success(
                 json!({"price": {"currency": "EUR", "amount": 100}}),
                 Duration::from_secs(1),
@@ -395,7 +396,7 @@ mod tests {
     fn from_use_block_advanced_jsonpath_array_index() {
         let store = DataStore::new();
         store.insert(
-            "data",
+            Arc::from("data"),
             TaskResult::success(
                 json!({"items": [{"name": "first"}, {"name": "second"}]}),
                 Duration::from_secs(1),
@@ -420,7 +421,7 @@ mod tests {
     fn from_use_block_advanced_jsonpath_simple_dot() {
         let store = DataStore::new();
         store.insert(
-            "weather",
+            Arc::from("weather"),
             TaskResult::success(
                 json!({"data": {"temp": 25}}),
                 Duration::from_secs(1),

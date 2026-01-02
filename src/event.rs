@@ -24,6 +24,8 @@ pub struct Event {
 }
 
 /// All possible event types (3 levels)
+///
+/// Uses Arc<str> for task_id fields to enable zero-cost cloning.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum EventKind {
@@ -39,29 +41,29 @@ pub enum EventKind {
     },
     WorkflowFailed {
         error: String,
-        failed_task: Option<String>,
+        failed_task: Option<Arc<str>>,
     },
 
     // ═══════════════════════════════════════════
     // TASK LEVEL
     // ═══════════════════════════════════════════
     TaskScheduled {
-        task_id: String,
-        dependencies: Vec<String>,
+        task_id: Arc<str>,
+        dependencies: Vec<Arc<str>>,
     },
     /// Task execution begins with resolved inputs from use: block
     TaskStarted {
-        task_id: String,
+        task_id: Arc<str>,
         /// Resolved inputs from TaskContext (what the task receives)
         inputs: Value,
     },
     TaskCompleted {
-        task_id: String,
+        task_id: Arc<str>,
         output: Value,
         duration_ms: u64,
     },
     TaskFailed {
-        task_id: String,
+        task_id: Arc<str>,
         error: String,
         duration_ms: u64,
     },
@@ -70,18 +72,18 @@ pub enum EventKind {
     // FINE-GRAINED (template/provider)
     // ═══════════════════════════════════════════
     TemplateResolved {
-        task_id: String,
+        task_id: Arc<str>,
         template: String,
         result: String,
     },
     ProviderCalled {
-        task_id: String,
+        task_id: Arc<str>,
         provider: String,
         model: String,
         prompt_len: usize,
     },
     ProviderResponded {
-        task_id: String,
+        task_id: Arc<str>,
         output_len: usize,
         tokens_used: Option<u32>,
     },
@@ -209,7 +211,7 @@ mod tests {
     #[test]
     fn eventkind_task_id_extraction() {
         let started = EventKind::TaskStarted {
-            task_id: "task1".to_string(),
+            task_id: "task1".into(),
             inputs: json!({}),
         };
         assert_eq!(started.task_id(), Some("task1"));
@@ -236,7 +238,7 @@ mod tests {
     #[test]
     fn eventkind_serializes_with_type_tag() {
         let kind = EventKind::TaskCompleted {
-            task_id: "greet".to_string(),
+            task_id: "greet".into(),
             output: json!({"message": "Hello"}),
             duration_ms: 150,
         };
@@ -259,7 +261,7 @@ mod tests {
         assert_eq!(
             kind,
             EventKind::TaskStarted {
-                task_id: "analyze".to_string(),
+                task_id: "analyze".into(),
                 inputs: json!({"weather": "sunny"}),
             }
         );
@@ -396,7 +398,7 @@ mod tests {
                 let log = log.clone();
                 thread::spawn(move || {
                     log.emit(EventKind::TaskStarted {
-                        task_id: format!("task{}", i),
+                        task_id: Arc::from(format!("task{}", i)),
                         inputs: json!({}),
                     })
                 })
