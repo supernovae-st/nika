@@ -140,7 +140,7 @@ impl TaskContext {
     /// Serialize context to JSON Value for event logging
     ///
     /// Returns the full resolved inputs as a JSON object.
-    /// Used by EventLog for InputsResolved events.
+    /// Used by EventLog for TaskStarted events (inputs field).
     pub fn to_value(&self) -> Value {
         serde_json::to_value(&self.resolved).unwrap_or(Value::Null)
     }

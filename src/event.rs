@@ -2,7 +2,7 @@
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 12 variants across 3 levels (workflow/task/fine-grained)
+//! - EventKind: 10 variants across 3 levels (workflow/task/fine-grained)
 //! - EventLog: thread-safe, append-only log
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -49,13 +49,11 @@ pub enum EventKind {
         task_id: String,
         dependencies: Vec<String>,
     },
-    /// CORE: What each task RECEIVES (the original request!)
-    InputsResolved {
-        task_id: String,
-        inputs: Value,
-    },
+    /// Task execution begins with resolved inputs from use: block
     TaskStarted {
         task_id: String,
+        /// Resolved inputs from TaskContext (what the task receives)
+        inputs: Value,
     },
     TaskCompleted {
         task_id: String,
@@ -69,7 +67,7 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
-    // FINE-GRAINED (template/provider/schema)
+    // FINE-GRAINED (template/provider)
     // ═══════════════════════════════════════════
     TemplateResolved {
         task_id: String,
@@ -87,11 +85,6 @@ pub enum EventKind {
         output_len: usize,
         tokens_used: Option<u32>,
     },
-    SchemaValidated {
-        task_id: String,
-        schema_path: String,
-        valid: bool,
-    },
 }
 
 impl EventKind {
@@ -99,14 +92,12 @@ impl EventKind {
     pub fn task_id(&self) -> Option<&str> {
         match self {
             Self::TaskScheduled { task_id, .. }
-            | Self::InputsResolved { task_id, .. }
-            | Self::TaskStarted { task_id }
+            | Self::TaskStarted { task_id, .. }
             | Self::TaskCompleted { task_id, .. }
             | Self::TaskFailed { task_id, .. }
             | Self::TemplateResolved { task_id, .. }
             | Self::ProviderCalled { task_id, .. }
-            | Self::ProviderResponded { task_id, .. }
-            | Self::SchemaValidated { task_id, .. } => Some(task_id),
+            | Self::ProviderResponded { task_id, .. } => Some(task_id),
             Self::WorkflowStarted { .. }
             | Self::WorkflowCompleted { .. }
             | Self::WorkflowFailed { .. } => None,
@@ -219,6 +210,7 @@ mod tests {
     fn eventkind_task_id_extraction() {
         let started = EventKind::TaskStarted {
             task_id: "task1".to_string(),
+            inputs: json!({}),
         };
         assert_eq!(started.task_id(), Some("task1"));
 
@@ -235,7 +227,8 @@ mod tests {
         }
         .is_workflow_event());
         assert!(!EventKind::TaskStarted {
-            task_id: "t1".into()
+            task_id: "t1".into(),
+            inputs: json!({}),
         }
         .is_workflow_event());
     }
@@ -257,7 +250,7 @@ mod tests {
     #[test]
     fn eventkind_deserializes_from_tagged_json() {
         let json = json!({
-            "type": "inputs_resolved",
+            "type": "task_started",
             "task_id": "analyze",
             "inputs": {"weather": "sunny"}
         });
@@ -265,7 +258,7 @@ mod tests {
         let kind: EventKind = serde_json::from_value(json).unwrap();
         assert_eq!(
             kind,
-            EventKind::InputsResolved {
+            EventKind::TaskStarted {
                 task_id: "analyze".to_string(),
                 inputs: json!({"weather": "sunny"}),
             }
@@ -290,9 +283,11 @@ mod tests {
         let id1 = log.emit(EventKind::WorkflowStarted { task_count: 3 });
         let id2 = log.emit(EventKind::TaskStarted {
             task_id: "t1".into(),
+            inputs: json!({}),
         });
         let id3 = log.emit(EventKind::TaskStarted {
             task_id: "t2".into(),
+            inputs: json!({}),
         });
 
         assert_eq!(id1, 0);
@@ -307,6 +302,7 @@ mod tests {
         log.emit(EventKind::WorkflowStarted { task_count: 2 });
         log.emit(EventKind::TaskStarted {
             task_id: "t1".into(),
+            inputs: json!({}),
         });
 
         let events = log.events();
@@ -321,9 +317,11 @@ mod tests {
         log.emit(EventKind::WorkflowStarted { task_count: 2 });
         log.emit(EventKind::TaskStarted {
             task_id: "alpha".into(),
+            inputs: json!({}),
         });
         log.emit(EventKind::TaskStarted {
             task_id: "beta".into(),
+            inputs: json!({}),
         });
         log.emit(EventKind::TaskCompleted {
             task_id: "alpha".into(),
@@ -345,6 +343,7 @@ mod tests {
         log.emit(EventKind::WorkflowStarted { task_count: 1 });
         log.emit(EventKind::TaskStarted {
             task_id: "t1".into(),
+            inputs: json!({}),
         });
         log.emit(EventKind::WorkflowCompleted {
             final_output: json!("done"),
@@ -361,6 +360,7 @@ mod tests {
         let log = EventLog::new();
         log.emit(EventKind::TaskStarted {
             task_id: "task1".into(),
+            inputs: json!({}),
         });
 
         let json = log.to_json();
@@ -380,6 +380,7 @@ mod tests {
         // Cloned shares the same underlying data (Arc)
         log.emit(EventKind::TaskStarted {
             task_id: "t1".into(),
+            inputs: json!({}),
         });
         assert_eq!(cloned.len(), 2);
     }
@@ -396,6 +397,7 @@ mod tests {
                 thread::spawn(move || {
                     log.emit(EventKind::TaskStarted {
                         task_id: format!("task{}", i),
+                        inputs: json!({}),
                     })
                 })
             })
@@ -426,6 +428,7 @@ mod tests {
 
         log.emit(EventKind::TaskStarted {
             task_id: "t1".into(),
+            inputs: json!({}),
         });
 
         let events = log.events();
@@ -433,11 +436,11 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // InputsResolved - the original request!
+    // TaskStarted captures resolved inputs
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
-    fn inputs_resolved_captures_full_context() {
+    fn task_started_captures_full_context() {
         let log = EventLog::new();
 
         let inputs = json!({
@@ -446,7 +449,7 @@ mod tests {
             "nested": {"key": "value"}
         });
 
-        log.emit(EventKind::InputsResolved {
+        log.emit(EventKind::TaskStarted {
             task_id: "analyze".into(),
             inputs: inputs.clone(),
         });
@@ -454,7 +457,7 @@ mod tests {
         let events = log.filter_task("analyze");
         assert_eq!(events.len(), 1);
 
-        if let EventKind::InputsResolved {
+        if let EventKind::TaskStarted {
             inputs: captured, ..
         } = &events[0].kind
         {
@@ -462,7 +465,7 @@ mod tests {
             assert_eq!(captured["weather"], "sunny");
             assert_eq!(captured["nested"]["key"], "value");
         } else {
-            panic!("Expected InputsResolved event");
+            panic!("Expected TaskStarted event");
         }
     }
 }

@@ -172,15 +172,10 @@ impl Runner {
                         }
                     };
 
-                    // EMIT: InputsResolved (the original request!)
-                    event_log.emit(EventKind::InputsResolved {
-                        task_id: task_id.clone(),
-                        inputs: context.to_value(),
-                    });
-
-                    // EMIT: TaskStarted
+                    // EMIT: TaskStarted (with resolved inputs from use: block)
                     event_log.emit(EventKind::TaskStarted {
                         task_id: task_id.clone(),
+                        inputs: context.to_value(),
                     });
 
                     // Execute via TaskExecutor
@@ -396,13 +391,12 @@ mod tests {
         // Expected sequence:
         // 1. WorkflowStarted
         // 2. TaskScheduled
-        // 3. InputsResolved (from TaskContext)
-        // 4. TaskStarted
-        // 5. TemplateResolved (from executor)
-        // 6. TaskCompleted
-        // 7. WorkflowCompleted
+        // 3. TaskStarted (with inputs from TaskContext)
+        // 4. TemplateResolved (from executor)
+        // 5. TaskCompleted
+        // 6. WorkflowCompleted
 
-        assert!(events.len() >= 6, "Expected at least 6 events, got {}", events.len());
+        assert!(events.len() >= 5, "Expected at least 5 events, got {}", events.len());
 
         // First event should be WorkflowStarted
         assert!(matches!(
@@ -416,7 +410,7 @@ mod tests {
 
         // Verify task events exist
         let task_events = runner.event_log().filter_task("greet");
-        assert!(task_events.len() >= 4, "Expected at least 4 task events");
+        assert!(task_events.len() >= 3, "Expected at least 3 task events");
 
         // Verify TaskCompleted with correct output
         let completed = task_events
