@@ -1,9 +1,12 @@
-//! Task action definitions (v0.1)
+//! Task Action Types - the 3 action verbs (v0.1)
 //!
-//! Defines the 3 action types: Infer, Exec, Fetch
+//! Defines the task action variants:
+//! - `InferParams`: One-shot LLM call
+//! - `ExecParams`: Shell command execution
+//! - `FetchParams`: HTTP request
 
-use serde::Deserialize;
 use rustc_hash::FxHashMap;
+use serde::Deserialize;
 
 /// Infer action - one-shot LLM call
 #[derive(Debug, Clone, Deserialize)]

@@ -1,4 +1,4 @@
-//! Use bindings - resolved values from use: blocks (v0.1)
+//! Use Bindings Resolver - runtime value resolution (v0.1)
 //!
 //! UseBindings holds resolved values from `use:` blocks for template resolution.
 //! Eliminates intermediate storage - values are resolved once and used inline.
@@ -8,10 +8,11 @@
 use rustc_hash::FxHashMap;
 use serde_json::Value;
 
-use crate::datastore::DataStore;
 use crate::error::NikaError;
-use crate::jsonpath;
-use crate::use_wiring::{UseAdvanced, UseEntry, UseWiring};
+use crate::store::DataStore;
+use crate::util::jsonpath;
+
+use super::spec::{UseAdvanced, UseEntry, UseWiring};
 
 /// Resolved bindings from use: block (alias → value)
 ///
@@ -149,8 +150,7 @@ impl UseBindings {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::datastore::TaskResult;
-    use crate::use_wiring::UseAdvanced;
+    use crate::store::TaskResult;
     use serde_json::json;
     use std::sync::Arc;
     use std::time::Duration;

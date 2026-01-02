@@ -1,4 +1,4 @@
-//! Minimal JSONPath parser (v0.1)
+//! JSONPath Parser - minimal subset (v0.1)
 //!
 //! Supports:
 //! - $.a.b.c (dot notation)

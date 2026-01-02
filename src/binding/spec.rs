@@ -1,13 +1,13 @@
-//! Use wiring types for explicit data wiring (v0.1)
+//! Use Wiring Spec - YAML types for explicit data wiring (v0.1)
 //!
 //! Three forms supported:
 //! - Form 1: `alias: task.path` -> single value (shorthand)
 //! - Form 2: `task.path: [field1, field2]` -> batch extraction
 //! - Form 3: `alias: { from: task, path: field, default: value }` -> advanced
 
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde_json::Value;
-use rustc_hash::FxHashMap;
 
 /// Use wiring - map of alias/path to entry
 pub type UseWiring = FxHashMap<String, UseEntry>;

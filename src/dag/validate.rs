@@ -1,4 +1,4 @@
-//! Workflow validation (v0.1)
+//! DAG Validation - use: wiring validation (v0.1)
 //!
 //! Validates:
 //! - use: wiring references (task exists, is upstream)
@@ -7,11 +7,12 @@
 
 use rustc_hash::FxHashSet;
 
+use crate::ast::Workflow;
 use crate::error::NikaError;
-use crate::flow_graph::FlowGraph;
-use crate::jsonpath;
-use crate::use_wiring::{UseEntry, UseWiring};
-use crate::workflow::Workflow;
+use crate::util::jsonpath;
+use crate::binding::{UseEntry, UseWiring};
+
+use super::flow::FlowGraph;
 
 /// Validate a workflow's use: wiring against the flow graph
 pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &FlowGraph) -> Result<(), NikaError> {
@@ -102,7 +103,7 @@ fn validate_from_task(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::util::jsonpath;
 
     // ─────────────────────────────────────────────────────────────
     // JSONPath validation tests (delegated to jsonpath::validate)

@@ -1,4 +1,4 @@
-//! Output handling for task results (v0.1)
+//! Output Handling - task result processing (v0.1)
 //!
 //! Extracted from runner.rs for cleaner separation:
 //! - `make_task_result`: Convert raw output to TaskResult with format handling
@@ -6,15 +6,15 @@
 
 use serde_json::Value;
 
-use crate::datastore::TaskResult;
+use crate::ast::OutputFormat;
 use crate::error::NikaError;
-use crate::output_policy::OutputFormat;
+use crate::store::TaskResult;
 
 /// Convert execution output to TaskResult, parsing as JSON if output format is json.
 /// Also validates against schema if declared.
-pub(crate) async fn make_task_result(
+pub async fn make_task_result(
     output: String,
-    policy: Option<&crate::output_policy::OutputPolicy>,
+    policy: Option<&crate::ast::OutputPolicy>,
     duration: std::time::Duration,
 ) -> TaskResult {
     if let Some(policy) = policy {
@@ -44,7 +44,7 @@ pub(crate) async fn make_task_result(
 }
 
 /// Validate JSON value against a JSON Schema file
-pub(crate) async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), NikaError> {
+pub async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), NikaError> {
     // Read schema file
     let schema_str = tokio::fs::read_to_string(schema_path).await.map_err(|e| {
         NikaError::SchemaFailed {

@@ -1,13 +1,20 @@
-//! Workflow parsing structures
+//! Workflow Types - main workflow structure (v0.1)
+//!
+//! Contains the core YAML-parsed types:
+//! - `Workflow`: Root workflow with tasks and flows
+//! - `Task`: Individual task definition
+//! - `Flow`: DAG edge between tasks
+//! - `FlowEndpoint`: Single or multiple task references
 
 use std::sync::Arc;
 
 use serde::Deserialize;
 
 use crate::error::NikaError;
-use crate::output_policy::OutputPolicy;
-use crate::task_action::TaskAction;
-use crate::use_wiring::UseWiring;
+use crate::binding::UseWiring;
+
+use super::output::OutputPolicy;
+use super::action::TaskAction;
 
 /// Expected schema version for v0.1 workflows
 pub const SCHEMA_V01: &str = "nika/workflow@0.1";

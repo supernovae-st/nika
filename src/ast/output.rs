@@ -1,4 +1,8 @@
-//! Output policy for format and validation (v0.1)
+//! Output Policy - format and validation configuration (v0.1)
+//!
+//! Defines how task output should be formatted and validated:
+//! - `OutputFormat`: Text (default) or JSON
+//! - `OutputPolicy`: Format + optional JSON Schema validation
 
 use serde::Deserialize;
 

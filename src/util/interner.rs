@@ -1,4 +1,4 @@
-//! String interning for recurring task IDs
+//! String Interning - deduplicated task ID storage
 //!
 //! Ensures each unique task_id string is stored only once in memory.
 //! Uses DashMap for lock-free concurrent access.
@@ -55,6 +55,7 @@ impl Interner {
 
     /// Intern an already-Arc'd string
     #[inline]
+    #[allow(dead_code)] // Used in tests and future optimization paths
     pub fn intern_arc(&self, s: Arc<str>) -> Arc<str> {
         if let Some(existing) = self.strings.get(&s) {
             return Arc::clone(existing.key());
@@ -166,8 +167,8 @@ mod tests {
 
     #[test]
     fn concurrent_same_string_returns_same_arc() {
-        use std::thread;
         use std::sync::mpsc;
+        use std::thread;
 
         let interner = Arc::new(Interner::new());
         let (tx, rx) = mpsc::channel();

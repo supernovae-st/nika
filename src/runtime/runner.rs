@@ -1,4 +1,4 @@
-//! DAG execution with tokio (v0.1)
+//! DAG Runner - workflow execution with tokio (v0.1)
 //!
 //! Performance optimizations:
 //! - Semaphore for bounded concurrency (prevents resource exhaustion)
@@ -14,16 +14,16 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tracing::{info, instrument};
 
-use crate::datastore::{DataStore, TaskResult};
+use crate::ast::{Task, Workflow};
+use crate::dag::{validate_use_wiring, FlowGraph};
 use crate::error::NikaError;
-use crate::event_log::{EventKind, EventLog};
-use crate::flow_graph::FlowGraph;
-use crate::interner::intern;
-use crate::output::make_task_result;
-use crate::task_executor::TaskExecutor;
-use crate::use_bindings::UseBindings;
-use crate::validator;
-use crate::workflow::{Task, Workflow};
+use crate::event::{EventKind, EventLog};
+use crate::store::{DataStore, TaskResult};
+use crate::util::intern;
+use crate::binding::UseBindings;
+
+use super::executor::TaskExecutor;
+use super::output::make_task_result;
 
 /// Default max concurrent tasks (prevents resource exhaustion)
 const DEFAULT_MAX_CONCURRENT: usize = 8;
@@ -50,7 +50,8 @@ impl Runner {
         let flow_graph = FlowGraph::from_workflow(&workflow);
         let datastore = DataStore::new();
         let event_log = EventLog::new();
-        let executor = TaskExecutor::new(&workflow.provider, workflow.model.as_deref(), event_log.clone());
+        let executor =
+            TaskExecutor::new(&workflow.provider, workflow.model.as_deref(), event_log.clone());
         let concurrency_limiter = Arc::new(Semaphore::new(max_concurrent));
 
         Self {
@@ -118,13 +119,14 @@ impl Runner {
         info!("Starting workflow execution");
 
         // Validate use: blocks before execution (fail-fast)
-        validator::validate_use_wiring(&self.workflow, &self.flow_graph)?;
+        validate_use_wiring(&self.workflow, &self.flow_graph)?;
 
         let total_tasks = self.workflow.tasks.len();
         let mut completed = 0;
 
         // EMIT: WorkflowStarted
-        self.event_log.emit(EventKind::WorkflowStarted { task_count: total_tasks });
+        self.event_log
+            .emit(EventKind::WorkflowStarted { task_count: total_tasks });
 
         println!(
             "{} Running workflow with {} tasks...\n",
@@ -256,7 +258,10 @@ impl Runner {
                         let duration_str =
                             format!("({:.1}s)", task_result.duration.as_secs_f32()).dimmed();
 
-                        println!("  {} {} {} {}", status, &*task_id, symbol_colored, duration_str);
+                        println!(
+                            "  {} {} {} {}",
+                            status, &*task_id, symbol_colored, duration_str
+                        );
 
                         if let Some(err) = task_result.error() {
                             println!("      {} {}", "Error:".red(), err);
@@ -291,13 +296,10 @@ impl Runner {
     }
 }
 
-// Output handling moved to crate::output module
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::task_action::{ExecParams, TaskAction};
-    use crate::workflow::{Flow, FlowEndpoint, Task};
+    use crate::ast::{ExecParams, Flow, FlowEndpoint, Task, TaskAction};
     use std::sync::Arc;
 
     /// Helper to create a minimal workflow with exec tasks
@@ -351,7 +353,11 @@ mod tests {
         // 5. TaskCompleted
         // 6. WorkflowCompleted
 
-        assert!(events.len() >= 5, "Expected at least 5 events, got {}", events.len());
+        assert!(
+            events.len() >= 5,
+            "Expected at least 5 events, got {}",
+            events.len()
+        );
 
         // First event should be WorkflowStarted
         assert!(matches!(
@@ -490,7 +496,10 @@ mod tests {
         let events = runner.event_log().events();
 
         // First timestamp should be small (near 0) - use 500ms threshold for CI tolerance
-        assert!(events[0].timestamp_ms < 500, "First event should be near start");
+        assert!(
+            events[0].timestamp_ms < 500,
+            "First event should be near start"
+        );
 
         // Timestamps should generally increase
         for window in events.windows(2) {

@@ -1,4 +1,4 @@
-//! Task executor with provider caching (v0.1)
+//! Task Executor - individual task execution (v0.1)
 //!
 //! Handles execution of individual tasks: infer, exec, fetch.
 //! Uses DashMap for lock-free provider caching.
@@ -9,12 +9,11 @@ use std::time::Duration;
 use dashmap::DashMap;
 use tracing::{debug, instrument};
 
+use crate::ast::{ExecParams, FetchParams, InferParams, TaskAction};
 use crate::error::NikaError;
-use crate::event_log::{EventKind, EventLog};
+use crate::event::{EventKind, EventLog};
 use crate::provider::{create_provider, Provider};
-use crate::task_action::{ExecParams, FetchParams, InferParams, TaskAction};
-use crate::template;
-use crate::use_bindings::UseBindings;
+use crate::binding::{template_resolve, UseBindings};
 
 /// Default timeout for exec commands (60 seconds)
 const EXEC_TIMEOUT: Duration = Duration::from_secs(60);
@@ -96,7 +95,7 @@ impl TaskExecutor {
         bindings: &UseBindings,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
-        let prompt = template::resolve(&infer.prompt, bindings)?;
+        let prompt = template_resolve(&infer.prompt, bindings)?;
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
@@ -151,7 +150,7 @@ impl TaskExecutor {
         bindings: &UseBindings,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
-        let command = template::resolve(&exec.command, bindings)?;
+        let command = template_resolve(&exec.command, bindings)?;
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
@@ -193,7 +192,7 @@ impl TaskExecutor {
         bindings: &UseBindings,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
-        let url = template::resolve(&fetch.url, bindings)?;
+        let url = template_resolve(&fetch.url, bindings)?;
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
@@ -214,13 +213,13 @@ impl TaskExecutor {
 
         // Add headers
         for (key, value) in &fetch.headers {
-            let resolved_value = template::resolve(value, bindings)?;
+            let resolved_value = template_resolve(value, bindings)?;
             request = request.header(key, resolved_value.as_ref());
         }
 
         // Add body if present
         if let Some(body) = &fetch.body {
-            let resolved_body = template::resolve(body, bindings)?;
+            let resolved_body = template_resolve(body, bindings)?;
             request = request.body(resolved_body.into_owned());
         }
 
@@ -248,6 +247,7 @@ fn action_type(action: &TaskAction) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::ExecParams;
     use serde_json::json;
 
     #[test]

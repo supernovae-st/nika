@@ -4,27 +4,10 @@ use clap::{Parser, Subcommand};
 use colored::Colorize;
 use std::fs;
 
-mod datastore;
-mod error;
-mod event_log;
-mod flow_graph;
-mod interner;
-mod jsonpath;
-mod output;
-mod output_policy;
-mod provider;
-mod runner;
-mod task_action;
-mod task_executor;
-mod template;
-mod use_bindings;
-mod use_wiring;
-mod validator;
-mod workflow;
-
-use error::{FixSuggestion, NikaError};
-use runner::Runner;
-use workflow::Workflow;
+// Import from lib modules
+use nika::ast::Workflow;
+use nika::runtime::Runner;
+use nika::error::{FixSuggestion, NikaError};
 
 #[derive(Parser)]
 #[command(name = "nika")]

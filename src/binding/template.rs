@@ -1,4 +1,4 @@
-//! Template resolution with security (v0.1)
+//! Template Resolution - `{{use.alias}}` substitution (v0.1)
 //!
 //! Single syntax: {{use.alias}} or {{use.alias.field}}
 //! True single-pass resolution with Cow<str> for zero-alloc when no templates.
@@ -6,12 +6,13 @@
 use std::borrow::Cow;
 
 use once_cell::sync::Lazy;
-use rustc_hash::FxHashSet;
 use regex::Regex;
+use rustc_hash::FxHashSet;
 use serde_json::Value;
 
 use crate::error::NikaError;
-use crate::use_bindings::UseBindings;
+
+use super::resolve::UseBindings;
 
 /// Pre-compiled regex for {{use.alias}} or {{use.alias.field}} pattern
 static USE_RE: Lazy<Regex> = Lazy::new(|| {
@@ -226,8 +227,8 @@ pub fn validate_refs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::borrow::Cow;
     use serde_json::json;
+    use std::borrow::Cow;
 
     #[test]
     fn resolve_simple() {

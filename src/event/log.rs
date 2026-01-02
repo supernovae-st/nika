@@ -1,4 +1,4 @@
-//! Event Sourcing for workflow execution (v0.1)
+//! EventLog - Event sourcing implementation (v0.1)
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind

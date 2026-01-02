@@ -1,4 +1,4 @@
-//! Flow graph built from workflow flows (optimized)
+//! FlowGraph - DAG structure built from workflow flows (optimized)
 //!
 //! Performance optimizations:
 //! - Arc<str> for zero-cost cloning of task IDs
@@ -11,8 +11,8 @@ use std::sync::Arc;
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
 
-use crate::interner::intern;
-use crate::workflow::Workflow;
+use crate::ast::Workflow;
+use crate::util::intern;
 
 /// Stack-allocated deps: most tasks have 0-4 dependencies
 pub type DepVec = SmallVec<[Arc<str>; 4]>;

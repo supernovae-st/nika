@@ -1,4 +1,4 @@
-//! Task output storage with DashMap (v0.1 optimized)
+//! DataStore - task output storage with DashMap (v0.1 optimized)
 //!
 //! Single HashMap design with lock-free concurrent access.
 //! Path resolution unified with jsonpath module.
@@ -10,7 +10,7 @@ use std::time::Duration;
 use dashmap::DashMap;
 use serde_json::Value;
 
-use crate::jsonpath;
+use crate::util::jsonpath;
 
 /// Task execution status
 #[derive(Debug, Clone)]
@@ -137,7 +137,6 @@ impl DataStore {
         // Use jsonpath for path resolution (handles both dots and array indices)
         jsonpath::resolve(&output, remaining).ok().flatten()
     }
-
 }
 
 #[cfg(test)]
@@ -148,7 +147,10 @@ mod tests {
     #[test]
     fn insert_and_get_result() {
         let store = DataStore::new();
-        store.insert(Arc::from("task1"), TaskResult::success(json!({"key": "value"}), Duration::from_secs(1)));
+        store.insert(
+            Arc::from("task1"),
+            TaskResult::success(json!({"key": "value"}), Duration::from_secs(1)),
+        );
 
         let result = store.get("task1").unwrap();
         assert!(result.is_success());
@@ -158,7 +160,10 @@ mod tests {
     #[test]
     fn success_str_converts_to_value() {
         let store = DataStore::new();
-        store.insert(Arc::from("task1"), TaskResult::success_str("hello", Duration::from_secs(1)));
+        store.insert(
+            Arc::from("task1"),
+            TaskResult::success_str("hello", Duration::from_secs(1)),
+        );
 
         let result = store.get("task1").unwrap();
         assert_eq!(result.output, Value::String("hello".to_string()));
@@ -168,7 +173,10 @@ mod tests {
     #[test]
     fn failed_result() {
         let store = DataStore::new();
-        store.insert(Arc::from("task1"), TaskResult::failed("oops", Duration::from_secs(1)));
+        store.insert(
+            Arc::from("task1"),
+            TaskResult::failed("oops", Duration::from_secs(1)),
+        );
 
         let result = store.get("task1").unwrap();
         assert!(!result.is_success());
@@ -178,7 +186,10 @@ mod tests {
     #[test]
     fn resolve_simple_path() {
         let store = DataStore::new();
-        store.insert(Arc::from("weather"), TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)));
+        store.insert(
+            Arc::from("weather"),
+            TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)),
+        );
 
         let value = store.resolve_path("weather.summary").unwrap();
         assert_eq!(value, "Sunny");
@@ -187,10 +198,13 @@ mod tests {
     #[test]
     fn resolve_nested_path() {
         let store = DataStore::new();
-        store.insert(Arc::from("flights"), TaskResult::success(
-            json!({"cheapest": {"price": 89, "airline": "AF"}}),
-            Duration::from_secs(1)
-        ));
+        store.insert(
+            Arc::from("flights"),
+            TaskResult::success(
+                json!({"cheapest": {"price": 89, "airline": "AF"}}),
+                Duration::from_secs(1),
+            ),
+        );
 
         assert_eq!(store.resolve_path("flights.cheapest.price").unwrap(), 89);
         assert_eq!(store.resolve_path("flights.cheapest.airline").unwrap(), "AF");
@@ -199,10 +213,10 @@ mod tests {
     #[test]
     fn resolve_array_index() {
         let store = DataStore::new();
-        store.insert(Arc::from("data"), TaskResult::success(
-            json!({"items": ["first", "second"]}),
-            Duration::from_secs(1)
-        ));
+        store.insert(
+            Arc::from("data"),
+            TaskResult::success(json!({"items": ["first", "second"]}), Duration::from_secs(1)),
+        );
 
         assert_eq!(store.resolve_path("data.items.0").unwrap(), "first");
         assert_eq!(store.resolve_path("data.items.1").unwrap(), "second");
@@ -211,10 +225,12 @@ mod tests {
     #[test]
     fn resolve_path_not_found() {
         let store = DataStore::new();
-        store.insert(Arc::from("task1"), TaskResult::success(json!({"a": 1}), Duration::from_secs(1)));
+        store.insert(
+            Arc::from("task1"),
+            TaskResult::success(json!({"a": 1}), Duration::from_secs(1)),
+        );
 
         assert!(store.resolve_path("task1.nonexistent").is_none());
         assert!(store.resolve_path("unknown.field").is_none());
     }
-
 }
