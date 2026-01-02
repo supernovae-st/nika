@@ -6,7 +6,7 @@
 //! - `output`: OutputPolicy, OutputFormat
 //!
 //! These types represent the "what" - static structure parsed from YAML.
-//! For runtime execution, see the `engine` module.
+//! For runtime execution, see the `runtime` module.
 
 mod action;
 mod output;

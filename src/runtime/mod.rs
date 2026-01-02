@@ -1,4 +1,4 @@
-//! Engine Module - Workflow execution (v0.1)
+//! Runtime Module - Workflow execution (v0.1)
 //!
 //! Contains the runtime execution components:
 //! - `runner`: DAG execution with tokio concurrency
