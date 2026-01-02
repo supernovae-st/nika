@@ -206,7 +206,7 @@ impl Runner {
                     // Convert result to TaskResult with output policy
                     let task_result = match result {
                         Ok(output) => {
-                            let tr = make_task_result(output, task.output.as_ref(), duration);
+                            let tr = make_task_result(output, task.output.as_ref(), duration).await;
                             // EMIT: TaskCompleted or TaskFailed (based on result)
                             if tr.is_success() {
                                 event_log.emit(EventKind::TaskCompleted {
@@ -293,7 +293,7 @@ impl Runner {
 
 /// Convert execution output to TaskResult, parsing as JSON if output format is json
 /// Also validates against schema if declared.
-fn make_task_result(
+async fn make_task_result(
     output: String,
     policy: Option<&crate::output_policy::OutputPolicy>,
     duration: std::time::Duration,
@@ -313,7 +313,7 @@ fn make_task_result(
 
             // Validate against schema if declared
             if let Some(schema_path) = &policy.schema {
-                if let Err(e) = validate_schema(&json_value, schema_path) {
+                if let Err(e) = validate_schema(&json_value, schema_path).await {
                     return TaskResult::failed(e.to_string(), duration);
                 }
             }
@@ -325,9 +325,9 @@ fn make_task_result(
 }
 
 /// Validate JSON value against a JSON Schema file
-fn validate_schema(value: &Value, schema_path: &str) -> Result<(), NikaError> {
+async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), NikaError> {
     // Read schema file
-    let schema_str = std::fs::read_to_string(schema_path).map_err(|e| {
+    let schema_str = tokio::fs::read_to_string(schema_path).await.map_err(|e| {
         NikaError::SchemaFailed {
             details: format!("Failed to read schema '{}': {}", schema_path, e),
         }

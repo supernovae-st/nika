@@ -101,7 +101,7 @@ impl DataStore {
 
     /// Get a task result
     pub fn get(&self, task_id: &str) -> Option<TaskResult> {
-        self.results.get(task_id).map(|r| r.clone())
+        self.results.get(task_id).map(|r| r.value().clone())
     }
 
     /// Check if task exists

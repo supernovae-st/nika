@@ -35,15 +35,13 @@ impl Interner {
     /// If the string was already interned, returns the existing Arc.
     /// Otherwise, creates a new Arc and stores it.
     pub fn intern(&self, s: &str) -> Arc<str> {
-        // Fast path: check if already interned
-        let key: Arc<str> = Arc::from(s);
-
-        // DashMap entry API: get_or_insert pattern
-        if let Some(existing) = self.strings.get(&key) {
+        // Fast path: check without allocation using &str (Borrow trait)
+        if let Some(existing) = self.strings.get(s) {
             return Arc::clone(existing.key());
         }
 
-        // Insert and return the Arc
+        // Slow path: create Arc only if not found
+        let key: Arc<str> = Arc::from(s);
         self.strings.insert(Arc::clone(&key), ());
         key
     }
