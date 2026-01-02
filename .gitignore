@@ -3,19 +3,30 @@
 
 # Environment
 .env
-.env.local
+.env.*
+!.env.example
 
 # IDE
 .idea/
 .vscode/
 *.swp
+*.swo
 
 # OS
 .DS_Store
+Thumbs.db
 
-# Build
-target/
+# Claude Code (private DX)
+.claude/
+.claude.local
+CLAUDE.md
 
-# Environment
-.env
+# Local dev
+*.local
+*.log
+.turbo/
+node_modules/
 
+# Test artifacts
+*.profraw
+coverage/
