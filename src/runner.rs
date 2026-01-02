@@ -86,7 +86,7 @@ impl Runner {
         for task_id in final_tasks {
             if let Some(result) = self.datastore.get(&task_id) {
                 if result.is_success() {
-                    return Some(result.output_str());
+                    return Some(result.output_str().into_owned());
                 }
             }
         }

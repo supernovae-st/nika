@@ -9,7 +9,6 @@ use std::collections::HashSet;
 
 use crate::dag::DagAnalyzer;
 use crate::error::NikaError;
-use crate::template;
 use crate::use_block::{UseBlock, UseEntry};
 use crate::workflow::Workflow;
 
@@ -185,45 +184,6 @@ fn is_valid_array_segment(s: &str) -> bool {
     }
 }
 
-/// Validate template references against declared use: aliases
-pub fn validate_template_refs(
-    template: &str,
-    use_block: Option<&UseBlock>,
-    task_id: &str,
-) -> Result<(), NikaError> {
-    let declared: HashSet<String> = use_block
-        .map(|b| extract_declared_aliases(b))
-        .unwrap_or_default();
-
-    template::validate_refs(template, &declared, task_id)
-}
-
-/// Extract all declared aliases from a use: block
-fn extract_declared_aliases(use_block: &UseBlock) -> HashSet<String> {
-    let mut aliases = HashSet::new();
-
-    for (key, entry) in use_block {
-        match entry {
-            // Form 1: alias is the key
-            UseEntry::Path(_) => {
-                aliases.insert(key.clone());
-            }
-            // Form 2: fields become aliases
-            UseEntry::Batch(fields) => {
-                for field in fields {
-                    aliases.insert(field.clone());
-                }
-            }
-            // Form 3: alias is the key
-            UseEntry::Advanced(_) => {
-                aliases.insert(key.clone());
-            }
-        }
-    }
-
-    aliases
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -271,52 +231,5 @@ mod tests {
     fn jsonpath_invalid_identifier() {
         assert!(validate_jsonpath("$.123invalid").is_err());
         assert!(validate_jsonpath("$.a-b").is_err());
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Declared aliases extraction tests
-    // ─────────────────────────────────────────────────────────────
-
-    #[test]
-    fn extract_aliases_path_form() {
-        let mut block = UseBlock::new();
-        block.insert("weather".to_string(), UseEntry::Path("forecast.summary".to_string()));
-
-        let aliases = extract_declared_aliases(&block);
-        assert!(aliases.contains("weather"));
-        assert_eq!(aliases.len(), 1);
-    }
-
-    #[test]
-    fn extract_aliases_batch_form() {
-        let mut block = UseBlock::new();
-        block.insert(
-            "flight".to_string(),
-            UseEntry::Batch(vec!["price".to_string(), "airline".to_string()]),
-        );
-
-        let aliases = extract_declared_aliases(&block);
-        assert!(aliases.contains("price"));
-        assert!(aliases.contains("airline"));
-        assert_eq!(aliases.len(), 2);
-    }
-
-    #[test]
-    fn extract_aliases_advanced_form() {
-        use crate::use_block::UseAdvanced;
-
-        let mut block = UseBlock::new();
-        block.insert(
-            "summary".to_string(),
-            UseEntry::Advanced(UseAdvanced {
-                from: "weather".to_string(),
-                path: Some("data.summary".to_string()),
-                default: None,
-            }),
-        );
-
-        let aliases = extract_declared_aliases(&block);
-        assert!(aliases.contains("summary"));
-        assert_eq!(aliases.len(), 1);
     }
 }

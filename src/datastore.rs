@@ -3,10 +3,12 @@
 //! Single HashMap design with lock-free concurrent access.
 //! Path resolution unified with jsonpath module.
 
-use dashmap::DashMap;
-use serde_json::Value;
+use std::borrow::Cow;
 use std::sync::Arc;
 use std::time::Duration;
+
+use dashmap::DashMap;
+use serde_json::Value;
 
 use crate::jsonpath;
 
@@ -69,11 +71,11 @@ impl TaskResult {
         }
     }
 
-    /// Get output as string
-    pub fn output_str(&self) -> String {
+    /// Get output as string (zero-copy for String values)
+    pub fn output_str(&self) -> Cow<'_, str> {
         match &self.output {
-            Value::String(s) => s.clone(),
-            other => other.to_string(),
+            Value::String(s) => Cow::Borrowed(s),
+            other => Cow::Owned(other.to_string()),
         }
     }
 }
