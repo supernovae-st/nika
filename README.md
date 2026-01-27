@@ -303,6 +303,6 @@ See [spec/SPEC.md](spec/SPEC.md) for full specification.
 
 **[SuperNovae Studio](https://supernovae.studio)**
 
-AGPL-3.0 License • Made with 🦀 in Rust
+Built with [Claude](https://claude.ai) | AGPL-3.0 License | Made with 🦀 in Rust
 
 </div>
