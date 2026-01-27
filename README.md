@@ -5,7 +5,7 @@
 **Native Intelligence Kernel Agent**
 
 [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg?logo=rust)](https://www.rust-lang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](CHANGELOG.md)
 
 *DAG workflow runner for AI tasks*
@@ -131,6 +131,6 @@ See [spec/SPEC.md](spec/SPEC.md) for full specification.
 
 **[SuperNovae Studio](https://supernovae.studio)**
 
-MIT License • Made with 🦀 in Rust
+AGPL-3.0 License • Made with 🦀 in Rust
 
 </div>
