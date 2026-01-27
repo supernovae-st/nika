@@ -1,8 +1,20 @@
-# Nika
+<div align="center">
 
-**Native Intelligence Kernel Agent** 🦀
+# 🦀 Nika
 
-> DAG workflow runner for AI tasks
+**Native Intelligence Kernel Agent**
+
+[![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg?logo=rust)](https://www.rust-lang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](CHANGELOG.md)
+
+*DAG workflow runner for AI tasks*
+
+[Installation](#installation) • [Quick Start](#quick-start) • [Documentation](#documentation)
+
+</div>
+
+---
 
 Nika executes YAML-defined workflows as directed acyclic graphs (DAGs). Supports LLM inference, shell commands, and HTTP requests with data flow between tasks.
 
@@ -32,10 +44,12 @@ nika run hello.nika.yaml
 
 ## Features
 
-- **3 actions**: `infer:` (LLM), `exec:` (shell), `fetch:` (HTTP)
-- **DAG execution**: Parallel when dependencies allow
-- **Data flow**: `use:` blocks + `{{use.alias}}` templates
-- **Providers**: Claude, OpenAI, Mock
+| Feature | Description |
+|---------|-------------|
+| **3 Actions** | `infer:` (LLM) • `exec:` (shell) • `fetch:` (HTTP) |
+| **DAG Execution** | Parallel processing when dependencies allow |
+| **Data Flow** | `use:` blocks + `{{use.alias}}` templates |
+| **Providers** | Claude, OpenAI, Mock |
 
 ## Example
 
@@ -103,7 +117,7 @@ fetch:
 ## Commands
 
 ```bash
-nika run <workflow.yaml>      # Execute
+nika run <workflow.yaml>      # Execute workflow
 nika validate <workflow.yaml> # Validate only
 ```
 
@@ -111,6 +125,12 @@ nika validate <workflow.yaml> # Validate only
 
 See [spec/SPEC.md](spec/SPEC.md) for full specification.
 
-## License
+---
 
-MIT - Built by [SuperNovae Studio](https://supernovae.studio)
+<div align="center">
+
+**[SuperNovae Studio](https://supernovae.studio)**
+
+MIT License • Made with 🦀 in Rust
+
+</div>
