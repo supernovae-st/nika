@@ -1,0 +1,19 @@
+schema: "nika/workflow@0.1"
+provider: mock
+
+tasks:
+  - id: greeting
+    infer:
+      prompt: "Say hello in French"
+    output:
+      format: text
+
+  - id: response
+    use:
+      msg: greeting
+    infer:
+      prompt: "Reply to: {{use.msg}}"
+
+flows:
+  - source: greeting
+    target: response

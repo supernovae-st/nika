@@ -1,0 +1,48 @@
+schema: "nika/workflow@0.1"
+provider: mock
+
+tasks:
+  - id: start
+    infer:
+      prompt: "Generate a topic for discussion"
+    output:
+      format: text
+
+  - id: analyst_a
+    use:
+      topic: start
+    infer:
+      prompt: "Analyze '{{use.topic}}' from economic perspective"
+
+  - id: analyst_b
+    use:
+      topic: start
+    infer:
+      prompt: "Analyze '{{use.topic}}' from social perspective"
+
+  - id: analyst_c
+    use:
+      topic: start
+    infer:
+      prompt: "Analyze '{{use.topic}}' from environmental perspective"
+
+  - id: synthesize
+    use:
+      economic: analyst_a
+      social: analyst_b
+      environmental: analyst_c
+    infer:
+      prompt: |
+        Combine these analyses:
+        - Economic: {{use.economic}}
+        - Social: {{use.social}}
+        - Environmental: {{use.environmental}}
+
+flows:
+  # Fan-out: start → [a, b, c]
+  - source: start
+    target: [analyst_a, analyst_b, analyst_c]
+
+  # Fan-in: [a, b, c] → synthesize
+  - source: [analyst_a, analyst_b, analyst_c]
+    target: synthesize

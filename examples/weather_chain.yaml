@@ -1,0 +1,26 @@
+schema: "nika/workflow@0.1"
+provider: mock
+
+tasks:
+  - id: get_weather
+    infer:
+      prompt: |
+        Return weather for Paris as JSON:
+        {"city": "Paris", "temp": 18, "condition": "sunny"}
+    output:
+      format: json
+
+  - id: recommend
+    use:
+      weather: get_weather
+      temp: get_weather.temp ?? 20
+    infer:
+      prompt: |
+        Weather: {{use.weather}}
+        Temperature: {{use.temp}}C
+
+        Recommend an activity for this weather.
+
+flows:
+  - source: get_weather
+    target: recommend
