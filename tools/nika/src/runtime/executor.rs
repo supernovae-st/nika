@@ -66,6 +66,19 @@ impl TaskExecutor {
         }
     }
 
+    /// Inject a mock MCP client for testing
+    ///
+    /// This allows tests to use mock clients without relying on automatic fallback.
+    /// Call this after creating the executor but before executing invoke actions.
+    #[cfg(test)]
+    pub fn inject_mock_mcp_client(&self, name: &str) {
+        let cell = Arc::new(OnceCell::new());
+        // Initialize the cell with a mock client
+        let mock = Arc::new(McpClient::mock(name));
+        cell.set(mock).expect("Cell should be empty");
+        self.mcp_client_cache.insert(name.to_string(), cell);
+    }
+
     /// Execute a task action with the given bindings
     #[instrument(skip(self, bindings), fields(action_type = %action_type(action)))]
     pub async fn execute(
@@ -468,9 +481,9 @@ impl TaskExecutor {
                         tracing::info!(mcp_server = %name_owned, "Connected to MCP server");
                         Ok(Arc::new(client))
                     } else {
-                        // Fall back to mock client for testing
-                        tracing::debug!(mcp_server = %name_owned, "Using mock MCP client (no config found)");
-                        Ok(Arc::new(McpClient::mock(&name_owned)))
+                        // No config found - this is an error in production
+                        tracing::error!(mcp_server = %name_owned, "MCP server not configured in workflow");
+                        Err(NikaError::McpNotConfigured { name: name_owned.clone() })
                     };
                 result
             })
@@ -574,6 +587,7 @@ mod tests {
     async fn execute_invoke_tool_call() {
         let event_log = EventLog::new();
         let exec = TaskExecutor::new("mock", None, None, event_log.clone());
+        exec.inject_mock_mcp_client("novanet"); // Explicit mock injection
         let bindings = UseBindings::new();
 
         let action = TaskAction::Invoke {
@@ -604,6 +618,7 @@ mod tests {
     async fn execute_invoke_resource_read() {
         let event_log = EventLog::new();
         let exec = TaskExecutor::new("mock", None, None, event_log.clone());
+        exec.inject_mock_mcp_client("novanet"); // Explicit mock injection
         let bindings = UseBindings::new();
 
         let action = TaskAction::Invoke {
@@ -634,6 +649,7 @@ mod tests {
     async fn execute_invoke_emits_mcp_events() {
         let event_log = EventLog::new();
         let exec = TaskExecutor::new("mock", None, None, event_log.clone());
+        exec.inject_mock_mcp_client("novanet"); // Explicit mock injection
         let bindings = UseBindings::new();
 
         let action = TaskAction::Invoke {
@@ -692,6 +708,34 @@ mod tests {
                 assert!(reason.contains("mutually exclusive"));
             }
             err => panic!("Expected ValidationError, got: {err:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn execute_invoke_mcp_not_configured_error() {
+        let event_log = EventLog::new();
+        let exec = TaskExecutor::new("mock", None, None, event_log);
+        // NOTE: No inject_mock_mcp_client() - should fail with McpNotConfigured
+        let bindings = UseBindings::new();
+
+        let action = TaskAction::Invoke {
+            invoke: InvokeParams {
+                mcp: "unknown_server".to_string(),
+                tool: Some("some_tool".to_string()),
+                params: None,
+                resource: None,
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("unconfigured_test");
+        let result = exec.execute(&task_id, &action, &bindings).await;
+
+        assert!(result.is_err(), "Should fail with McpNotConfigured");
+        match result.unwrap_err() {
+            NikaError::McpNotConfigured { name } => {
+                assert_eq!(name, "unknown_server");
+            }
+            err => panic!("Expected McpNotConfigured, got: {err:?}"),
         }
     }
 }

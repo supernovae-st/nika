@@ -210,6 +210,9 @@ pub enum NikaError {
     #[error("[NIKA-104] MCP protocol error: {reason}")]
     McpProtocolError { reason: String },
 
+    #[error("[NIKA-105] MCP server '{name}' not configured in workflow")]
+    McpNotConfigured { name: String },
+
     // ═══════════════════════════════════════════
     // AGENT ERRORS (110-119) - NEW v0.2
     // ═══════════════════════════════════════════
@@ -308,6 +311,7 @@ impl NikaError {
             Self::McpToolError { .. } => "NIKA-102",
             Self::McpResourceNotFound { .. } => "NIKA-103",
             Self::McpProtocolError { .. } => "NIKA-104",
+            Self::McpNotConfigured { .. } => "NIKA-105",
             // Agent errors
             Self::AgentMaxTurns { .. } => "NIKA-110",
             Self::AgentStopConditionFailed { .. } => "NIKA-111",
@@ -420,6 +424,9 @@ impl FixSuggestion for NikaError {
             NikaError::McpToolError { .. } => Some("Check tool parameters and MCP server logs"),
             NikaError::McpResourceNotFound { .. } => Some("Verify the resource URI exists"),
             NikaError::McpProtocolError { .. } => Some("Check MCP server compatibility"),
+            NikaError::McpNotConfigured { .. } => {
+                Some("Add MCP server config to workflow 'mcp:' section")
+            }
             // Agent errors
             NikaError::AgentMaxTurns { .. } => Some("Increase max_turns or simplify the task"),
             NikaError::AgentStopConditionFailed { .. } => {
