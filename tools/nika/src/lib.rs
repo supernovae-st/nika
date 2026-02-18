@@ -56,6 +56,7 @@ pub mod runtime;
 // INFRASTRUCTURE LAYER - Storage, events, providers
 // ═══════════════════════════════════════════════════════════════
 pub mod event;
+pub mod mcp;
 pub mod provider;
 pub mod store;
 pub mod util;
@@ -92,3 +93,6 @@ pub use event::{Event, EventKind, EventLog};
 
 // Store types
 pub use store::{DataStore, TaskResult, TaskStatus};
+
+// MCP types (v0.2)
+pub use mcp::{ContentBlock, McpConfig, ResourceContent, ToolCallRequest, ToolCallResult, ToolDefinition};
