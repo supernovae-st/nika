@@ -1,6 +1,6 @@
 //! Task Executor - individual task execution (v0.2)
 //!
-//! Handles execution of individual tasks: infer, exec, fetch, invoke.
+//! Handles execution of individual tasks: infer, exec, fetch, invoke, agent.
 //! Uses DashMap for lock-free provider caching.
 
 use std::sync::Arc;
@@ -8,7 +8,7 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use tracing::{debug, instrument};
 
-use crate::ast::{ExecParams, FetchParams, InferParams, InvokeParams, TaskAction};
+use crate::ast::{AgentParams, ExecParams, FetchParams, InferParams, InvokeParams, TaskAction};
 use crate::binding::{template_resolve, UseBindings};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
@@ -64,9 +64,8 @@ impl TaskExecutor {
             TaskAction::Infer { infer } => self.execute_infer(task_id, infer, bindings).await,
             TaskAction::Exec { exec } => self.execute_exec(task_id, exec, bindings).await,
             TaskAction::Fetch { fetch } => self.execute_fetch(task_id, fetch, bindings).await,
-            TaskAction::Invoke { invoke } => {
-                self.execute_invoke(task_id, invoke).await
-            }
+            TaskAction::Invoke { invoke } => self.execute_invoke(task_id, invoke).await,
+            TaskAction::Agent { agent } => self.execute_agent(task_id, agent, bindings).await,
         }
     }
 
@@ -301,6 +300,54 @@ impl TaskExecutor {
         // Return JSON string representation
         Ok(result.to_string())
     }
+
+    /// Execute an agent action (agentic execution with tool calling loop)
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - Task identifier for event logging
+    /// * `agent` - Agent parameters with prompt, mcp servers, and stop conditions
+    /// * `_bindings` - Use bindings for template resolution (currently unused)
+    ///
+    /// # Note
+    ///
+    /// TODO(v0.2): Implement full agentic loop with MCP tool calling.
+    /// Currently returns a placeholder indicating the agent verb is not yet implemented.
+    #[instrument(skip(self, _bindings), fields(max_turns = %agent.effective_max_turns()))]
+    async fn execute_agent(
+        &self,
+        task_id: &Arc<str>,
+        agent: &AgentParams,
+        _bindings: &UseBindings,
+    ) -> Result<String, NikaError> {
+        // Validate agent params
+        agent
+            .validate()
+            .map_err(|e| NikaError::ValidationError { reason: e })?;
+
+        // EMIT: AgentStart event
+        self.event_log.emit(EventKind::AgentStart {
+            task_id: Arc::clone(task_id),
+            max_turns: agent.effective_max_turns(),
+            mcp_servers: agent.mcp.clone(),
+        });
+
+        // TODO(v0.2): Implement full agentic loop
+        // 1. Initialize conversation with system prompt
+        // 2. Loop until stop condition or max_turns:
+        //    a. Send to LLM with tool definitions
+        //    b. If LLM requests tool call, execute via MCP
+        //    c. Append tool result to conversation
+        //    d. Check stop conditions
+        // 3. Return final assistant response
+
+        // For now, return error indicating not implemented
+        Err(NikaError::NotImplemented {
+            feature: "agent: verb".to_string(),
+            suggestion: "Use infer: for one-shot LLM calls or invoke: for MCP tool calls"
+                .to_string(),
+        })
+    }
 }
 
 /// Get action type as string for tracing
@@ -310,6 +357,7 @@ fn action_type(action: &TaskAction) -> &'static str {
         TaskAction::Exec { .. } => "exec",
         TaskAction::Fetch { .. } => "fetch",
         TaskAction::Invoke { .. } => "invoke",
+        TaskAction::Agent { .. } => "agent",
     }
 }
 
@@ -410,9 +458,16 @@ mod tests {
         let task_id: Arc<str> = Arc::from("invoke_test");
         let result = exec.execute(&task_id, &action, &bindings).await;
 
-        assert!(result.is_ok(), "Invoke tool call should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Invoke tool call should succeed: {:?}",
+            result.err()
+        );
         let output = result.unwrap();
-        assert!(output.contains("entity"), "Output should contain entity: {output}");
+        assert!(
+            output.contains("entity"),
+            "Output should contain entity: {output}"
+        );
     }
 
     #[tokio::test]
@@ -433,9 +488,16 @@ mod tests {
         let task_id: Arc<str> = Arc::from("resource_test");
         let result = exec.execute(&task_id, &action, &bindings).await;
 
-        assert!(result.is_ok(), "Invoke resource read should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Invoke resource read should succeed: {:?}",
+            result.err()
+        );
         let output = result.unwrap();
-        assert!(output.contains("qr-code"), "Output should contain entity id: {output}");
+        assert!(
+            output.contains("qr-code"),
+            "Output should contain entity id: {output}"
+        );
     }
 
     #[tokio::test]

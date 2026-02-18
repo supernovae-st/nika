@@ -75,8 +75,8 @@ pub use error::NikaError;
 
 // AST types (Domain Model)
 pub use ast::{
-    ExecParams, FetchParams, Flow, InferParams, InvokeParams, OutputFormat, OutputPolicy, Task,
-    TaskAction, Workflow,
+    AgentParams, ExecParams, FetchParams, Flow, InferParams, InvokeParams, OutputFormat,
+    OutputPolicy, Task, TaskAction, Workflow,
 };
 
 // Runtime types (Application Layer)

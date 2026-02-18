@@ -105,6 +105,28 @@ pub enum EventKind {
         task_id: Arc<str>,
         output_len: usize,
     },
+
+    // ═══════════════════════════════════════════
+    // AGENT EVENTS (v0.2)
+    // ═══════════════════════════════════════════
+    /// Agent loop started
+    AgentStart {
+        task_id: Arc<str>,
+        max_turns: u32,
+        mcp_servers: Vec<String>,
+    },
+    /// Agent turn completed (one LLM call + optional tool calls)
+    AgentTurn {
+        task_id: Arc<str>,
+        turn: u32,
+        tool_calls: u32,
+    },
+    /// Agent loop completed (reached stop condition or max turns)
+    AgentComplete {
+        task_id: Arc<str>,
+        turns: u32,
+        stop_reason: String,
+    },
 }
 
 impl EventKind {
@@ -120,7 +142,10 @@ impl EventKind {
             | Self::ProviderCalled { task_id, .. }
             | Self::ProviderResponded { task_id, .. }
             | Self::McpInvoke { task_id, .. }
-            | Self::McpResponse { task_id, .. } => Some(task_id),
+            | Self::McpResponse { task_id, .. }
+            | Self::AgentStart { task_id, .. }
+            | Self::AgentTurn { task_id, .. }
+            | Self::AgentComplete { task_id, .. } => Some(task_id),
             Self::WorkflowStarted { .. }
             | Self::WorkflowCompleted { .. }
             | Self::WorkflowFailed { .. } => None,

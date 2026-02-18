@@ -161,7 +161,9 @@ pub enum NikaError {
         task_id: String,
     },
 
-    #[error("[NIKA-082] use.{alias}.from='{from_task}' creates circular dependency with '{task_id}'")]
+    #[error(
+        "[NIKA-082] use.{alias}.from='{from_task}' creates circular dependency with '{task_id}'"
+    )]
     UseCircularDep {
         alias: String,
         from_task: String,
@@ -218,6 +220,12 @@ pub enum NikaError {
 
     #[error("[NIKA-112] Invalid tool name format: {name}")]
     InvalidToolName { name: String },
+
+    #[error("[NIKA-113] Agent validation failed: {reason}")]
+    AgentValidationError { reason: String },
+
+    #[error("[NIKA-114] Feature not implemented: {feature}. {suggestion}")]
+    NotImplemented { feature: String, suggestion: String },
 }
 
 impl NikaError {
@@ -237,7 +245,7 @@ impl NikaError {
             Self::CycleDetected { .. } => "NIKA-020",
             Self::MissingDependency { .. } => "NIKA-021",
             // Provider errors
-            Self::Provider(_) => "NIKA-030",  // legacy
+            Self::Provider(_) => "NIKA-030", // legacy
             Self::ProviderNotConfigured { .. } => "NIKA-030",
             Self::ProviderApiError { .. } => "NIKA-031",
             Self::MissingApiKey { .. } => "NIKA-032",
@@ -282,6 +290,8 @@ impl NikaError {
             Self::AgentMaxTurns { .. } => "NIKA-110",
             Self::AgentStopConditionFailed { .. } => "NIKA-111",
             Self::InvalidToolName { .. } => "NIKA-112",
+            Self::AgentValidationError { .. } => "NIKA-113",
+            Self::NotImplemented { .. } => "NIKA-114",
         }
     }
 
@@ -301,53 +311,97 @@ impl FixSuggestion for NikaError {
     fn fix_suggestion(&self) -> Option<&str> {
         match self {
             NikaError::ParseError { .. } => Some("Check YAML syntax: indentation and quoting"),
-            NikaError::InvalidSchemaVersion { .. } => Some("Use 'nika/workflow@0.2' as the schema version"),
+            NikaError::InvalidSchemaVersion { .. } => {
+                Some("Use 'nika/workflow@0.2' as the schema version")
+            }
             NikaError::WorkflowNotFound { .. } => Some("Check the file path exists"),
             NikaError::ValidationError { .. } => Some("Check workflow structure matches schema"),
             NikaError::YamlParse(_) => Some("Check YAML syntax: indentation and quoting"),
-            NikaError::InvalidSchema { .. } => Some("Use 'nika/workflow@0.2' as the schema version"),
+            NikaError::InvalidSchema { .. } => {
+                Some("Use 'nika/workflow@0.2' as the schema version")
+            }
             NikaError::TaskFailed { .. } => Some("Check task configuration and dependencies"),
             NikaError::TaskTimeout { .. } => Some("Increase timeout or optimize the task"),
-            NikaError::CycleDetected { .. } => Some("Remove circular dependencies from your workflow"),
-            NikaError::MissingDependency { .. } => Some("Add the missing task or fix the dependency reference"),
+            NikaError::CycleDetected { .. } => {
+                Some("Remove circular dependencies from your workflow")
+            }
+            NikaError::MissingDependency { .. } => {
+                Some("Add the missing task or fix the dependency reference")
+            }
             NikaError::Provider(_) => Some("Check API key env var is set"),
-            NikaError::ProviderNotConfigured { .. } => Some("Add provider configuration to your workflow"),
+            NikaError::ProviderNotConfigured { .. } => {
+                Some("Add provider configuration to your workflow")
+            }
             NikaError::ProviderApiError { .. } => Some("Check API key and provider availability"),
-            NikaError::MissingApiKey { .. } => Some("Set the API key env var (ANTHROPIC_API_KEY or OPENAI_API_KEY)"),
+            NikaError::MissingApiKey { .. } => {
+                Some("Set the API key env var (ANTHROPIC_API_KEY or OPENAI_API_KEY)")
+            }
             NikaError::Template(_) => Some("Use {{use.alias}} format with use: block"),
             NikaError::Execution(_) => Some("Check command/URL is valid"),
             NikaError::BindingError { .. } => Some("Check binding syntax and source task output"),
             NikaError::TemplateError { .. } => Some("Use {{use.alias}} format with use: block"),
             NikaError::InvalidPath { .. } => Some("Use format: task_id.field.subfield"),
-            NikaError::TaskNotFound { .. } => Some("Verify task_id exists and has run successfully"),
+            NikaError::TaskNotFound { .. } => {
+                Some("Verify task_id exists and has run successfully")
+            }
             NikaError::PathNotFound { .. } => Some("Add '?? default' or ensure task outputs JSON"),
-            NikaError::InvalidTaskId { .. } => Some("Task IDs must be snake_case: lowercase letters, digits, underscores"),
-            NikaError::InvalidDefault { .. } => Some("Default values must be valid JSON. Strings must be quoted."),
+            NikaError::InvalidTaskId { .. } => {
+                Some("Task IDs must be snake_case: lowercase letters, digits, underscores")
+            }
+            NikaError::InvalidDefault { .. } => {
+                Some("Default values must be valid JSON. Strings must be quoted.")
+            }
             NikaError::InvalidJson { .. } => Some("Ensure output is valid JSON"),
             NikaError::SchemaFailed { .. } => Some("Fix output to match declared schema"),
             NikaError::DuplicateAlias { .. } => Some("Use unique alias names in use: block"),
-            NikaError::UnknownAlias { .. } => Some("Declare the alias in use: block before referencing"),
-            NikaError::NullValue { .. } => Some("Provide a default value or ensure non-null output"),
-            NikaError::InvalidTraversal { .. } => Some("Check the path - accessing field on non-object"),
+            NikaError::UnknownAlias { .. } => {
+                Some("Declare the alias in use: block before referencing")
+            }
+            NikaError::NullValue { .. } => {
+                Some("Provide a default value or ensure non-null output")
+            }
+            NikaError::InvalidTraversal { .. } => {
+                Some("Check the path - accessing field on non-object")
+            }
             NikaError::TemplateParse { .. } => Some("Check template syntax: {{use.alias}}"),
             NikaError::UseUnknownTask { .. } => Some("Verify the task_id exists in your workflow"),
-            NikaError::UseNotUpstream { .. } => Some("Add a flow from the source task to this task"),
+            NikaError::UseNotUpstream { .. } => {
+                Some("Add a flow from the source task to this task")
+            }
             NikaError::UseCircularDep { .. } => Some("Remove the circular dependency"),
             NikaError::JsonPathUnsupported { .. } => Some("Use simple paths like $.field.subfield"),
-            NikaError::JsonPathNoMatch { .. } => Some("Check the path exists in source task output"),
-            NikaError::JsonPathNonJson { .. } => Some("Ensure source task has output: { format: json }"),
+            NikaError::JsonPathNoMatch { .. } => {
+                Some("Check the path exists in source task output")
+            }
+            NikaError::JsonPathNonJson { .. } => {
+                Some("Ensure source task has output: { format: json }")
+            }
             NikaError::IoError(_) => Some("Check file path and permissions"),
             NikaError::JsonError(_) => Some("Check JSON syntax"),
             // MCP errors
-            NikaError::McpNotConnected { .. } => Some("Check MCP server is running and configured correctly"),
-            NikaError::McpStartError { .. } => Some("Check MCP command and args in workflow config"),
+            NikaError::McpNotConnected { .. } => {
+                Some("Check MCP server is running and configured correctly")
+            }
+            NikaError::McpStartError { .. } => {
+                Some("Check MCP command and args in workflow config")
+            }
             NikaError::McpToolError { .. } => Some("Check tool parameters and MCP server logs"),
             NikaError::McpResourceNotFound { .. } => Some("Verify the resource URI exists"),
             NikaError::McpProtocolError { .. } => Some("Check MCP server compatibility"),
             // Agent errors
             NikaError::AgentMaxTurns { .. } => Some("Increase max_turns or simplify the task"),
-            NikaError::AgentStopConditionFailed { .. } => Some("Check stop condition is achievable"),
-            NikaError::InvalidToolName { .. } => Some("Tool names must be mcp_server.tool_name format"),
+            NikaError::AgentStopConditionFailed { .. } => {
+                Some("Check stop condition is achievable")
+            }
+            NikaError::InvalidToolName { .. } => {
+                Some("Tool names must be mcp_server.tool_name format")
+            }
+            NikaError::AgentValidationError { .. } => {
+                Some("Check agent prompt is not empty and max_turns is valid (1-100)")
+            }
+            NikaError::NotImplemented { .. } => {
+                Some("This feature is planned for a future release")
+            }
         }
     }
 }
@@ -401,7 +455,10 @@ mod tests {
 
     #[test]
     fn test_agent_errors_have_codes() {
-        assert_eq!(NikaError::AgentMaxTurns { max_turns: 10 }.code(), "NIKA-110");
+        assert_eq!(
+            NikaError::AgentMaxTurns { max_turns: 10 }.code(),
+            "NIKA-110"
+        );
         assert_eq!(
             NikaError::AgentStopConditionFailed {
                 condition: "x".into()

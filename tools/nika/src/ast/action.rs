@@ -1,15 +1,16 @@
-//! Task Action Types - the 4 action verbs (v0.2)
+//! Task Action Types - the 5 action verbs (v0.2)
 //!
 //! Defines the task action variants:
 //! - `InferParams`: One-shot LLM call
 //! - `ExecParams`: Shell command execution
 //! - `FetchParams`: HTTP request
 //! - `InvokeParams`: MCP tool call / resource read (v0.2)
+//! - `AgentParams`: Agentic execution with tool calling (v0.2)
 
 use rustc_hash::FxHashMap;
 use serde::Deserialize;
 
-use crate::ast::InvokeParams;
+use crate::ast::{AgentParams, InvokeParams};
 
 /// Infer action - one-shot LLM call
 #[derive(Debug, Clone, Deserialize)]
@@ -44,13 +45,14 @@ fn default_method() -> String {
     "GET".to_string()
 }
 
-/// The 4 task action types (v0.2)
+/// The 5 task action types (v0.2)
 ///
 /// Each variant corresponds to a YAML verb:
-/// - `infer:` - LLM inference
+/// - `infer:` - LLM inference (one-shot)
 /// - `exec:` - Shell command execution
 /// - `fetch:` - HTTP request
 /// - `invoke:` - MCP tool call or resource read
+/// - `agent:` - Agentic execution with tool calling loop
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum TaskAction {
@@ -58,4 +60,5 @@ pub enum TaskAction {
     Exec { exec: ExecParams },
     Fetch { fetch: FetchParams },
     Invoke { invoke: InvokeParams },
+    Agent { agent: AgentParams },
 }
