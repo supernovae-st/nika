@@ -96,8 +96,8 @@ pub use binding::{UseBindings, UseWiring};
 
 // Event types
 pub use event::{
-    calculate_workflow_hash, generate_generation_id, list_traces, Event, EventKind, EventLog,
-    TraceInfo, TraceWriter,
+    calculate_workflow_hash, generate_generation_id, list_traces, Event, EventEmitter, EventKind,
+    EventLog, NoopEmitter, TraceInfo, TraceWriter,
 };
 
 // Store types
