@@ -1,0 +1,22 @@
+# for_each Parallelism Example (v0.3)
+#
+# Demonstrates parallel iteration over an array.
+# Each item in for_each executes in parallel with its own bindings.
+#
+# Usage: nika run examples/for-each-locales.nika.yaml
+
+schema: "nika/workflow@0.3"
+
+tasks:
+  # Process multiple locales in parallel
+  - id: process_locales
+    for_each: ["en-US", "fr-FR", "de-DE", "es-ES"]
+    as: locale
+    exec:
+      command: "echo Processing locale: {{use.locale}}"
+
+  # Process numbers with default 'item' variable
+  - id: process_numbers
+    for_each: [1, 2, 3, 4, 5]
+    exec:
+      command: "echo Number: {{use.item}}"

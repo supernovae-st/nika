@@ -1,0 +1,34 @@
+# Code Review Automation Example
+#
+# Analyze git changes and generate a code review with AI.
+# A practical example of combining exec: and infer: actions.
+#
+# Usage: nika run examples/code-review.nika.yaml
+
+schema: "nika/workflow@0.1"
+provider: claude
+
+tasks:
+  - id: get_diff
+    exec:
+      command: "git diff HEAD~1"
+
+  - id: review
+    use:
+      diff: get_diff
+    infer:
+      prompt: |
+        Review this code diff. List:
+        1. Potential bugs
+        2. Security issues
+        3. Improvements
+
+        ```diff
+        {{use.diff}}
+        ```
+    output:
+      format: text
+
+flows:
+  - source: get_diff
+    target: review

@@ -1,0 +1,43 @@
+# MCP Invoke Example (v0.2)
+#
+# Demonstrates calling tools from MCP servers.
+# Requires a running MCP server (e.g., NovaNet).
+#
+# Setup:
+#   1. Start NovaNet MCP server: cargo run -p novanet-mcp
+#   2. Run this workflow: nika run examples/mcp-invoke.nika.yaml
+
+schema: "nika/workflow@0.2"
+provider: claude
+
+# Define MCP server connections
+mcp:
+  novanet:
+    command: cargo
+    args: [run, -p, novanet-mcp]
+    env:
+      NEO4J_URI: bolt://localhost:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: password
+
+tasks:
+  # Call an MCP tool to generate content
+  - id: generate_content
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity: "qr-code"
+        locale: "fr-FR"
+        forms: ["title", "description"]
+
+  # Use the generated content
+  - id: display
+    use:
+      content: generate_content
+    exec:
+      command: "echo 'Generated content:' && echo '{{use.content}}'"
+
+flows:
+  - source: generate_content
+    target: display

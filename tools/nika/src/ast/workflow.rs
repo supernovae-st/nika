@@ -111,10 +111,11 @@ impl Workflow {
     /// Validate the workflow schema version
     ///
     /// Returns error if schema doesn't match expected version.
+    /// Accepts v0.1, v0.2, or v0.3 schemas.
     pub fn validate_schema(&self) -> Result<(), NikaError> {
-        if self.schema != SCHEMA_V01 {
+        if self.schema != SCHEMA_V01 && self.schema != SCHEMA_V02 && self.schema != SCHEMA_V03 {
             return Err(NikaError::InvalidSchema {
-                expected: SCHEMA_V01.to_string(),
+                expected: format!("{} or {} or {}", SCHEMA_V01, SCHEMA_V02, SCHEMA_V03),
                 actual: self.schema.clone(),
             });
         }
