@@ -6,13 +6,14 @@
 schema: "nika/workflow@0.2"
 provider: claude
 
-env:
-  PROJECT: qrcode-ai
-
 mcp:
   novanet:
-    command: ../novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    command: /Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
     args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
 
 tasks:
   # ─────────────────────────────────────────────────────────────────
@@ -24,12 +25,12 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "project:qrcode-ai"
-        arc: "HAS_ENTITY"
+        start_key: "qrcode-ai"
+        arc_kinds: ["HAS_ENTITY"]
         direction: "outgoing"
-        filter_properties:
-          is_pillar: true
-        depth: 1
+        max_depth: 1
+        limit: 50
+        include_properties: true
     output:
       format: json
 
@@ -42,12 +43,13 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "locale:fr-FR"
-        arc: "FOR_LOCALE"
+        start_key: "fr-FR"
+        arc_kinds: ["FOR_LOCALE"]
         direction: "incoming"
-        filter_node_class: "PageNative"
-        project_key: "qrcode-ai"
-        depth: 1
+        target_kinds: ["PageNative"]
+        max_depth: 1
+        limit: 100
+        include_properties: true
     output:
       format: json
 
@@ -58,12 +60,13 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "locale:en-US"
-        arc: "FOR_LOCALE"
+        start_key: "en-US"
+        arc_kinds: ["FOR_LOCALE"]
         direction: "incoming"
-        filter_node_class: "PageNative"
-        project_key: "qrcode-ai"
-        depth: 1
+        target_kinds: ["PageNative"]
+        max_depth: 1
+        limit: 100
+        include_properties: true
     output:
       format: json
 
@@ -74,12 +77,13 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "locale:es-ES"
-        arc: "FOR_LOCALE"
+        start_key: "es-ES"
+        arc_kinds: ["FOR_LOCALE"]
         direction: "incoming"
-        filter_node_class: "PageNative"
-        project_key: "qrcode-ai"
-        depth: 1
+        target_kinds: ["PageNative"]
+        max_depth: 1
+        limit: 100
+        include_properties: true
     output:
       format: json
 
@@ -90,12 +94,13 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "locale:de-DE"
-        arc: "FOR_LOCALE"
+        start_key: "de-DE"
+        arc_kinds: ["FOR_LOCALE"]
         direction: "incoming"
-        filter_node_class: "PageNative"
-        project_key: "qrcode-ai"
-        depth: 1
+        target_kinds: ["PageNative"]
+        max_depth: 1
+        limit: 100
+        include_properties: true
     output:
       format: json
 
@@ -106,12 +111,13 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "locale:pt-BR"
-        arc: "FOR_LOCALE"
+        start_key: "pt-BR"
+        arc_kinds: ["FOR_LOCALE"]
         direction: "incoming"
-        filter_node_class: "PageNative"
-        project_key: "qrcode-ai"
-        depth: 1
+        target_kinds: ["PageNative"]
+        max_depth: 1
+        limit: 100
+        include_properties: true
     output:
       format: json
 
@@ -122,12 +128,13 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "locale:ja-JP"
-        arc: "FOR_LOCALE"
+        start_key: "ja-JP"
+        arc_kinds: ["FOR_LOCALE"]
         direction: "incoming"
-        filter_node_class: "PageNative"
-        project_key: "qrcode-ai"
-        depth: 1
+        target_kinds: ["PageNative"]
+        max_depth: 1
+        limit: 100
+        include_properties: true
     output:
       format: json
 

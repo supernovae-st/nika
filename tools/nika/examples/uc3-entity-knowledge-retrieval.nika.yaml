@@ -6,23 +6,23 @@
 schema: "nika/workflow@0.2"
 provider: claude
 
-env:
-  ENTITY: dynamic-qr-code
-  PROJECT: qrcode-ai
-
 mcp:
   novanet:
-    command: ../novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    command: /Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
     args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
 
 tasks:
   # ─────────────────────────────────────────────────────────────────
-  # Input
+  # Input - static entity key (env: block doesn't work for exec commands)
   # ─────────────────────────────────────────────────────────────────
 
   - id: entity_key
     exec:
-      command: "echo $ENTITY"
+      command: "echo dynamic-qr-code"
 
   # ─────────────────────────────────────────────────────────────────
   # Parallel graph traversals (fan-out)
@@ -35,9 +35,8 @@ tasks:
       mcp: novanet
       tool: novanet_describe
       params:
+        describe: "entity"
         entity_key: "{{use.key}}"
-        include_llm_context: true
-        include_entity_summary: true
     output:
       format: json
 
@@ -48,11 +47,12 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "entity:{{use.key}}"
-        arc: "REQUIRES"
+        start_key: "{{use.key}}"
+        arc_kinds: ["REQUIRES"]
         direction: "outgoing"
-        depth: 2
-        project_key: "qrcode-ai"
+        max_depth: 2
+        limit: 50
+        include_properties: true
     output:
       format: json
 
@@ -63,11 +63,12 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "entity:{{use.key}}"
-        arc: "ENABLES"
+        start_key: "{{use.key}}"
+        arc_kinds: ["ENABLES"]
         direction: "outgoing"
-        depth: 1
-        project_key: "qrcode-ai"
+        max_depth: 1
+        limit: 50
+        include_properties: true
     output:
       format: json
 
@@ -78,11 +79,12 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "entity:{{use.key}}"
-        arc: "SIMILAR_TO"
+        start_key: "{{use.key}}"
+        arc_kinds: ["SIMILAR_TO"]
         direction: "outgoing"
-        depth: 1
-        project_key: "qrcode-ai"
+        max_depth: 1
+        limit: 50
+        include_properties: true
     output:
       format: json
 
@@ -93,11 +95,12 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "entity:{{use.key}}"
-        arc: "APPLIES_TO"
+        start_key: "{{use.key}}"
+        arc_kinds: ["APPLIES_TO"]
         direction: "outgoing"
-        depth: 1
-        project_key: "qrcode-ai"
+        max_depth: 1
+        limit: 50
+        include_properties: true
     output:
       format: json
 
@@ -114,10 +117,10 @@ tasks:
       sectors: industries
     infer:
       prompt: |
-        Build a product knowledge map for: {{use.desc.display_name}}
+        Build a product knowledge map for entity.
 
         DESCRIPTION:
-        {{use.desc.entity_summary}}
+        {{use.desc}}
 
         REQUIRES (dependencies):
         {{use.deps}}

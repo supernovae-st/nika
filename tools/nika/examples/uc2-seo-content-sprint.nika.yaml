@@ -6,14 +6,14 @@
 schema: "nika/workflow@0.2"
 provider: claude
 
-env:
-  PROJECT: qrcode-ai
-  INDUSTRY: restaurants
-
 mcp:
   novanet:
-    command: ../novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    command: /Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
     args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
 
 tasks:
   # ─────────────────────────────────────────────────────────────────
@@ -25,11 +25,12 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "entity:restaurants"
-        arc: "APPLIES_TO"
+        start_key: "restaurants"
+        arc_kinds: ["APPLIES_TO"]
         direction: "incoming"
-        depth: 1
-        project_key: "qrcode-ai"
+        max_depth: 1
+        limit: 50
+        include_properties: true
     output:
       format: json
 
@@ -61,11 +62,10 @@ tasks:
       mcp: novanet
       tool: novanet_generate
       params:
-        entity_key: "menu-restaurant"
+        focus_key: "menu-restaurant"
         locale: "fr-FR"
-        page_key: "menu-restaurant"
-        seo_mode: true
-        target_keyword: "qr code menu restaurant"
+        mode: "page"
+        token_budget: 50000
     output:
       format: json
 
@@ -76,11 +76,10 @@ tasks:
       mcp: novanet
       tool: novanet_generate
       params:
-        entity_key: "menu-restaurant"
+        focus_key: "menu-restaurant"
         locale: "en-US"
-        page_key: "menu-restaurant"
-        seo_mode: true
-        target_keyword: "qr code restaurant menu"
+        mode: "page"
+        token_budget: 50000
     output:
       format: json
 
@@ -91,11 +90,10 @@ tasks:
       mcp: novanet
       tool: novanet_generate
       params:
-        entity_key: "menu-restaurant"
+        focus_key: "menu-restaurant"
         locale: "es-MX"
-        page_key: "menu-restaurant"
-        seo_mode: true
-        target_keyword: "menu digital qr restaurante"
+        mode: "page"
+        token_budget: 50000
     output:
       format: json
 

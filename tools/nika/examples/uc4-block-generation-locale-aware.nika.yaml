@@ -6,15 +6,14 @@
 schema: "nika/workflow@0.2"
 provider: claude
 
-env:
-  ENTITY: qr-code-art
-  LOCALE: fr-FR
-  BLOCK_TYPE: hero
-
 mcp:
   novanet:
-    command: ../novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    command: /Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
     args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
 
 tasks:
   # ─────────────────────────────────────────────────────────────────
@@ -23,11 +22,11 @@ tasks:
 
   - id: entity_key
     exec:
-      command: "echo $ENTITY"
+      command: "echo qr-code-art"
 
   - id: locale_key
     exec:
-      command: "echo $LOCALE"
+      command: "echo fr-FR"
 
   # ─────────────────────────────────────────────────────────────────
   # Parallel context loading (fan-out)
@@ -36,15 +35,12 @@ tasks:
   - id: entity_context
     use:
       entity: entity_key
-      locale: locale_key
     invoke:
       mcp: novanet
       tool: novanet_describe
       params:
+        describe: "entity"
         entity_key: "{{use.entity}}"
-        locale: "{{use.locale}}"
-        include_entity_native: true
-        include_llm_context: true
     output:
       format: json
 
@@ -55,10 +51,12 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "locale:{{use.locale}}"
-        arc: "HAS_VOICE"
+        start_key: "{{use.locale}}"
+        arc_kinds: ["HAS_VOICE"]
         direction: "outgoing"
-        depth: 1
+        max_depth: 1
+        limit: 10
+        include_properties: true
     output:
       format: json
 
@@ -69,11 +67,12 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "locale:{{use.locale}}"
-        arc: "HAS_EXPRESSIONS"
+        start_key: "{{use.locale}}"
+        arc_kinds: ["HAS_EXPRESSIONS"]
         direction: "outgoing"
-        depth: 2
+        max_depth: 2
         limit: 15
+        include_properties: true
     output:
       format: json
 
@@ -84,10 +83,12 @@ tasks:
       mcp: novanet
       tool: novanet_traverse
       params:
-        start: "locale:{{use.locale}}"
-        arc: "HAS_TABOOS"
+        start_key: "{{use.locale}}"
+        arc_kinds: ["HAS_TABOOS"]
         direction: "outgoing"
-        depth: 2
+        max_depth: 2
+        limit: 20
+        include_properties: true
     output:
       format: json
 
@@ -107,9 +108,7 @@ tasks:
         Generate a HERO block for QR Code AI in native {{use.locale}}.
 
         ENTITY CONTEXT:
-        - Name: {{use.entity_ctx.display_name}}
-        - Summary: {{use.entity_ctx.entity_summary}}
-        - Native title: {{use.entity_ctx.entity_native.title}}
+        {{use.entity_ctx}}
 
         LOCALE VOICE ({{use.locale}}):
         {{use.voice}}
