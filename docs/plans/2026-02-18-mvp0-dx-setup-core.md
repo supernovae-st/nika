@@ -119,7 +119,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ## Overview
 
-Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
+Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the supernovae-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
 ## Architecture
 

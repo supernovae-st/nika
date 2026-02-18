@@ -1,6 +1,6 @@
 # Nika v0.2 DX Setup Implementation Plan
 
-> **PREREQUISITE:** Execute `spn-agi/docs/plans/2026-02-18-spn-agi-restructuration.md` first!
+> **PREREQUISITE:** Execute `supernovae-agi/docs/plans/2026-02-18-supernovae-agi-restructuration.md` first!
 >
 > **Note:** All paths in this plan are relative to `nika-dev/tools/nika/` (e.g., `src/` means `tools/nika/src/`).
 
