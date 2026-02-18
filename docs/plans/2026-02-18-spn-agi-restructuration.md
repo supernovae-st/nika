@@ -53,6 +53,8 @@ supernovae-st/                          supernovae-st/spn-agi/
 - Create: `~/supernovae-st/spn-agi/pnpm-workspace.yaml`
 - Create: `~/supernovae-st/spn-agi/README.md`
 - Create: `~/supernovae-st/spn-agi/.gitignore`
+- Create: `~/supernovae-st/spn-agi/docs/plans/` (for cross-project plans)
+- Create: `~/supernovae-st/spn-agi/docs/research/` (for cross-project research)
 
 **Step 1: Create workspace package.json**
 
@@ -762,6 +764,68 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ---
 
+### Task 4.3: Move Restructuration Plan to spn-agi/docs/
+
+**Files:**
+- Move: `~/supernovae-st/spn-agi/nika-dev/docs/plans/2026-02-18-spn-agi-restructuration.md` → `~/supernovae-st/spn-agi/docs/plans/`
+
+**Step 1: Create spn-agi/docs structure**
+
+```bash
+mkdir -p ~/supernovae-st/spn-agi/docs/plans
+mkdir -p ~/supernovae-st/spn-agi/docs/research
+```
+
+**Step 2: Move this plan (it's cross-project)**
+
+```bash
+mv ~/supernovae-st/spn-agi/nika-dev/docs/plans/2026-02-18-spn-agi-restructuration.md \
+   ~/supernovae-st/spn-agi/docs/plans/
+```
+
+**Step 3: Commit in nika-dev (removing the file)**
+
+```bash
+cd ~/supernovae-st/spn-agi/nika-dev
+git add -A
+git commit -m "docs: move restructuration plan to spn-agi/docs/
+
+Cross-project plans belong at workspace level.
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+**Rationale:** The restructuration plan concerns BOTH projects, so it belongs at spn-agi/ level, not inside nika-dev/.
+
+---
+
+## Docs Placement Summary
+
+```
+spn-agi/
+├── docs/                          ← Cross-project documentation
+│   ├── plans/
+│   │   └── 2026-02-18-spn-agi-restructuration.md  ← THIS PLAN
+│   └── research/
+│       └── (future cross-project research)
+│
+├── novanet-dev/
+│   └── docs/                      ← NovaNet-specific
+│       ├── plans/                 (30+ existing plans)
+│       ├── research/              (15+ existing research)
+│       └── archive/
+│
+└── nika-dev/
+    └── docs/                      ← Nika-specific
+        ├── plans/
+        │   ├── 2026-02-18-nika-v02-dx-setup.md
+        │   └── 2026-02-18-nika-v02-novanet-integration.md
+        └── research/
+            └── 2026-02-18-nika-novanet-integration.md
+```
+
+---
+
 ## Summary
 
 After completing this plan:
@@ -769,12 +833,16 @@ After completing this plan:
 ```
 ~/supernovae-st/spn-agi/
 ├── .claude/CLAUDE.md           ← Relationship docs
+├── docs/                       ← Cross-project documentation
+│   ├── plans/                  ← This plan lives here
+│   └── research/
 ├── package.json                ← Workspace root
 ├── pnpm-workspace.yaml         ← Unified packages
 ├── README.md
 │
 ├── novanet-dev/                ← Git repo (moved from novanet-hq)
 │   ├── .git/
+│   ├── docs/                   ← NovaNet-specific docs (30+ plans, 15+ research)
 │   ├── packages/
 │   │   ├── core/               ← @novanet/core
 │   │   └── db/                 ← @novanet/db
@@ -783,6 +851,8 @@ After completing this plan:
 │
 └── nika-dev/                   ← Git repo (restructured from nika)
     ├── .git/
+    ├── docs/                   ← Nika-specific docs
+    │   └── plans/              ← DX Setup, NovaNet Integration plans
     ├── packages/
     │   └── core/               ← @nika/core (placeholder)
     └── tools/nika/
