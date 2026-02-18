@@ -2,9 +2,11 @@
 
 pub mod claude;
 pub mod openai;
+mod types;
 
 pub use claude::ClaudeProvider;
 pub use openai::OpenAIProvider;
+pub use types::*;
 
 use anyhow::Result;
 use async_trait::async_trait;
