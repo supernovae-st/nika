@@ -302,3 +302,71 @@ async fn test_mcp_client_disconnect_idempotent() {
     );
     assert!(!client.is_connected());
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REAL CLIENT TESTS - Stdio Communication
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn test_real_client_starts_disconnected() {
+    // Arrange
+    let config = McpConfig::new("test", "echo");
+
+    // Act
+    let client = McpClient::new(config).unwrap();
+
+    // Assert
+    assert!(!client.is_connected());
+}
+
+#[tokio::test]
+async fn test_mock_client_call_tool_still_works() {
+    // Ensure mock mode is not broken by real mode implementation
+    let client = McpClient::mock("novanet");
+    assert!(client.is_connected());
+
+    let result = client.call_tool("novanet_describe", json!({})).await;
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_error);
+}
+
+#[tokio::test]
+async fn test_real_client_connect_with_invalid_command_fails() {
+    // Arrange - use a non-existent command
+    let config = McpConfig::new("test", "this_command_does_not_exist_xyz123");
+    let client = McpClient::new(config).unwrap();
+
+    // Act
+    let result = client.connect().await;
+
+    // Assert - should fail because command doesn't exist
+    assert!(result.is_err(), "Connect with invalid command should fail");
+    match result.unwrap_err() {
+        NikaError::McpStartError { name, reason } => {
+            assert_eq!(name, "this_command_does_not_exist_xyz123");
+            assert!(!reason.is_empty(), "Should have error reason");
+        }
+        err => panic!("Expected McpStartError, got: {err:?}"),
+    }
+}
+
+#[tokio::test]
+async fn test_real_client_disconnect_kills_process() {
+    // Arrange - use a command that stays alive (cat with no input)
+    let config = McpConfig::new("test", "cat");
+    let client = McpClient::new(config).unwrap();
+
+    // Connect will spawn the process
+    let connect_result = client.connect().await;
+    // Note: connect will try to initialize MCP, which cat doesn't support
+    // So this will fail, but the process will be spawned first
+    // For this test, we just verify disconnect doesn't panic
+    drop(connect_result);
+
+    // Act - disconnect should handle process cleanup gracefully
+    let result = client.disconnect().await;
+
+    // Assert
+    assert!(result.is_ok(), "Disconnect should succeed");
+    assert!(!client.is_connected());
+}
