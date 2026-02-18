@@ -95,4 +95,7 @@ pub use event::{Event, EventKind, EventLog};
 pub use store::{DataStore, TaskResult, TaskStatus};
 
 // MCP types (v0.2)
-pub use mcp::{ContentBlock, McpConfig, ResourceContent, ToolCallRequest, ToolCallResult, ToolDefinition};
+pub use mcp::{
+    ContentBlock, McpClient, McpConfig, ResourceContent, ToolCallRequest, ToolCallResult,
+    ToolDefinition,
+};
