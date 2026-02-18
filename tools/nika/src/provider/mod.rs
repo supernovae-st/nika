@@ -29,11 +29,35 @@ pub const OPENAI_DEFAULT_MODEL: &str = "gpt-4o";
 /// ```
 #[async_trait]
 pub trait Provider: Send + Sync {
-    /// Execute a prompt and return the response
+    /// Execute a prompt and return the response (simple, no tools)
     async fn infer(&self, prompt: &str, model: &str) -> Result<String>;
+
+    /// Chat with tool support for multi-turn conversations
+    ///
+    /// # Arguments
+    /// * `messages` - Conversation history
+    /// * `tools` - Optional tool definitions available to the LLM
+    /// * `model` - Model identifier to use
+    ///
+    /// # Returns
+    /// A `ChatResponse` containing the assistant's reply and any tool calls
+    async fn chat(
+        &self,
+        messages: &[Message],
+        tools: Option<&[ToolDefinition]>,
+        model: &str,
+    ) -> Result<ChatResponse>;
 
     /// Default model for this provider
     fn default_model(&self) -> &str;
+
+    /// Get the provider name (e.g., "claude", "openai", "mock")
+    fn name(&self) -> &str;
+
+    /// Get the current model identifier
+    fn model(&self) -> &str {
+        self.default_model()
+    }
 }
 
 /// Create provider by name
@@ -62,7 +86,25 @@ impl Provider for MockProvider {
         Ok("Mock response".to_string())
     }
 
+    async fn chat(
+        &self,
+        _messages: &[Message],
+        _tools: Option<&[ToolDefinition]>,
+        _model: &str,
+    ) -> Result<ChatResponse> {
+        Ok(ChatResponse {
+            content: MessageContent::Text("Mock response".to_string()),
+            tool_calls: vec![],
+            stop_reason: StopReason::EndTurn,
+            usage: Usage::new(10, 10),
+        })
+    }
+
     fn default_model(&self) -> &str {
         "mock-v1"
+    }
+
+    fn name(&self) -> &str {
+        "mock"
     }
 }
