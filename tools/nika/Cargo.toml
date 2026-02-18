@@ -13,6 +13,7 @@ path = "src/main.rs"
 [features]
 default = ["tui"]
 tui = ["dep:ratatui", "dep:crossterm"]
+integration = []  # Enable integration tests with real MCP servers
 
 [dependencies]
 # CLI
