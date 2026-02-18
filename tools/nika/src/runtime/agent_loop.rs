@@ -1,0 +1,428 @@
+//! Agent Loop - Agentic Execution Engine
+//!
+//! Executes multi-turn conversations with tool calling via MCP.
+//!
+//! The agent loop:
+//! 1. Sends a prompt to the LLM with available tools
+//! 2. If the LLM requests tool calls, executes them via MCP
+//! 3. Feeds results back to the LLM
+//! 4. Repeats until:
+//!    - No more tool calls (natural completion)
+//!    - Stop condition matched in output
+//!    - Max turns reached
+//!
+//! # Example
+//!
+//! ```rust,ignore
+//! use nika::runtime::{AgentLoop, AgentStatus};
+//! use nika::ast::AgentParams;
+//! use nika::event::EventLog;
+//! use nika::mcp::McpClient;
+//! use nika::provider::MockProvider;
+//! use std::collections::HashMap;
+//! use std::sync::Arc;
+//!
+//! let params = AgentParams {
+//!     prompt: "Generate content for QR code entity".to_string(),
+//!     mcp: vec!["novanet".to_string()],
+//!     max_turns: Some(10),
+//!     ..Default::default()
+//! };
+//!
+//! let event_log = EventLog::new();
+//! let mut mcp_clients = HashMap::new();
+//! mcp_clients.insert("novanet".to_string(), Arc::new(McpClient::mock("novanet")));
+//!
+//! let agent_loop = AgentLoop::new("task1".to_string(), params, event_log, mcp_clients)?;
+//! let result = agent_loop.run(Arc::new(MockProvider::default())).await?;
+//!
+//! match result.status {
+//!     AgentStatus::NaturalCompletion => println!("Completed naturally"),
+//!     AgentStatus::StopConditionMet => println!("Stop condition matched"),
+//!     AgentStatus::MaxTurnsReached => println!("Reached max turns"),
+//!     AgentStatus::Failed => println!("Agent failed"),
+//! }
+//! ```
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use crate::ast::AgentParams;
+use crate::error::{NikaError, Result};
+use crate::event::{EventKind, EventLog};
+use crate::mcp::McpClient;
+use crate::provider::{Message, MessageRole, Provider, ToolCall, ToolDefinition};
+
+// ============================================================================
+// AgentStatus - Completion reason
+// ============================================================================
+
+/// Agent completion status
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AgentStatus {
+    /// Completed naturally (LLM returned no tool calls)
+    NaturalCompletion,
+    /// Stopped due to stop condition match in output
+    StopConditionMet,
+    /// Reached max_turns limit
+    MaxTurnsReached,
+    /// Error during execution
+    Failed,
+}
+
+// ============================================================================
+// AgentLoopResult - Execution result
+// ============================================================================
+
+/// Result of an agent loop execution
+#[derive(Debug)]
+pub struct AgentLoopResult {
+    /// How the agent loop completed
+    pub status: AgentStatus,
+    /// Number of turns executed
+    pub turns: u32,
+    /// Final output (parsed as JSON if possible)
+    pub final_output: serde_json::Value,
+    /// Total tokens used across all turns
+    pub total_tokens: u32,
+}
+
+// ============================================================================
+// AgentLoop - Main agent implementation
+// ============================================================================
+
+/// Agent loop for agentic execution
+///
+/// Executes a multi-turn conversation with tool calling support via MCP.
+#[derive(Debug)]
+pub struct AgentLoop {
+    /// Task ID for event correlation
+    task_id: String,
+    /// Agent parameters from YAML
+    params: AgentParams,
+    /// Event log for observability
+    event_log: EventLog,
+    /// Connected MCP clients by name
+    mcp_clients: HashMap<String, Arc<McpClient>>,
+}
+
+impl AgentLoop {
+    /// Create a new agent loop
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - Unique task identifier for events
+    /// * `params` - Agent parameters from YAML
+    /// * `event_log` - Event log for observability
+    /// * `mcp_clients` - Map of MCP server name to connected client
+    ///
+    /// # Errors
+    ///
+    /// Returns `NikaError::AgentValidationError` if params are invalid.
+    pub fn new(
+        task_id: String,
+        params: AgentParams,
+        event_log: EventLog,
+        mcp_clients: HashMap<String, Arc<McpClient>>,
+    ) -> Result<Self> {
+        // Validate params before creating the loop
+        params
+            .validate()
+            .map_err(|e| NikaError::AgentValidationError { reason: e })?;
+
+        Ok(Self {
+            task_id,
+            params,
+            event_log,
+            mcp_clients,
+        })
+    }
+
+    /// Run the agent loop
+    ///
+    /// Executes multi-turn conversation until completion, stop condition, or max turns.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider` - LLM provider to use for inference
+    ///
+    /// # Returns
+    ///
+    /// `AgentLoopResult` with status, turns, output, and token usage.
+    pub async fn run(&self, provider: Arc<dyn Provider>) -> Result<AgentLoopResult> {
+        let max_turns = self.params.effective_max_turns();
+        let mut conversation: Vec<Message> = vec![Message::user(&self.params.prompt)];
+        let mut turn = 0u32;
+        let mut total_tokens = 0u32;
+        let model = self
+            .params
+            .model
+            .as_deref()
+            .unwrap_or(provider.default_model());
+
+        // Build tool definitions from MCP clients
+        let tools: Vec<ToolDefinition> = self.build_tool_definitions().await?;
+
+        loop {
+            // Emit turn started event
+            self.event_log.emit(EventKind::AgentTurn {
+                task_id: self.task_id.clone().into(),
+                turn_index: turn,
+                kind: "started".to_string(),
+                tokens: None,
+            });
+
+            // Check max turns before calling LLM
+            if turn >= max_turns {
+                return Ok(AgentLoopResult {
+                    status: AgentStatus::MaxTurnsReached,
+                    turns: turn,
+                    final_output: self.extract_final_output(&conversation),
+                    total_tokens,
+                });
+            }
+
+            // Call LLM
+            let tools_ref = if tools.is_empty() {
+                None
+            } else {
+                Some(tools.as_slice())
+            };
+
+            let response = provider
+                .chat(&conversation, tools_ref, model)
+                .await
+                .map_err(|e| NikaError::ProviderApiError {
+                    message: e.to_string(),
+                })?;
+
+            // Track tokens
+            total_tokens += response.usage.total_tokens();
+
+            // Add assistant response to conversation
+            conversation.push(Message {
+                role: MessageRole::Assistant,
+                content: response.content.clone(),
+                tool_call_id: None,
+            });
+
+            // Check stop conditions
+            let content_text = response.content.as_text().unwrap_or_default();
+            if self.params.should_stop(&content_text) {
+                self.event_log.emit(EventKind::AgentTurn {
+                    task_id: self.task_id.clone().into(),
+                    turn_index: turn,
+                    kind: "stop_condition_met".to_string(),
+                    tokens: Some(total_tokens),
+                });
+
+                return Ok(AgentLoopResult {
+                    status: AgentStatus::StopConditionMet,
+                    turns: turn + 1,
+                    final_output: self.parse_output(&content_text),
+                    total_tokens,
+                });
+            }
+
+            // Process tool calls
+            if response.tool_calls.is_empty() {
+                // No tool calls = natural completion
+                self.event_log.emit(EventKind::AgentTurn {
+                    task_id: self.task_id.clone().into(),
+                    turn_index: turn,
+                    kind: "natural_completion".to_string(),
+                    tokens: Some(total_tokens),
+                });
+
+                return Ok(AgentLoopResult {
+                    status: AgentStatus::NaturalCompletion,
+                    turns: turn + 1,
+                    final_output: self.parse_output(&content_text),
+                    total_tokens,
+                });
+            }
+
+            // Execute each tool call
+            for tool_call in &response.tool_calls {
+                let result = self.execute_tool_call(tool_call).await?;
+                conversation.push(Message::tool_result(&tool_call.id, &result));
+            }
+
+            self.event_log.emit(EventKind::AgentTurn {
+                task_id: self.task_id.clone().into(),
+                turn_index: turn,
+                kind: "continue".to_string(),
+                tokens: None,
+            });
+
+            turn += 1;
+        }
+    }
+
+    /// Build tool definitions from MCP clients
+    ///
+    /// Queries each MCP server for available tools and builds unified definitions.
+    /// Tool names are prefixed with MCP server name: `mcpname_toolname`.
+    async fn build_tool_definitions(&self) -> Result<Vec<ToolDefinition>> {
+        let mut tools = Vec::new();
+
+        for mcp_name in &self.params.mcp {
+            let client =
+                self.mcp_clients
+                    .get(mcp_name)
+                    .ok_or_else(|| NikaError::McpNotConnected {
+                        name: mcp_name.clone(),
+                    })?;
+
+            let mcp_tools = client.list_tools().await?;
+            for tool in mcp_tools {
+                // Prefix tool name with MCP server name for disambiguation
+                tools.push(ToolDefinition {
+                    name: format!("{}_{}", mcp_name, tool.name),
+                    description: tool.description.unwrap_or_default(),
+                    input_schema: tool.input_schema.unwrap_or(serde_json::json!({})),
+                });
+            }
+        }
+
+        Ok(tools)
+    }
+
+    /// Execute a tool call via MCP
+    ///
+    /// Parses the tool name to extract MCP server and tool, then invokes.
+    async fn execute_tool_call(&self, tool_call: &ToolCall) -> Result<String> {
+        // Parse MCP name from tool name (format: "mcpname_toolname")
+        let parts: Vec<&str> = tool_call.name.splitn(2, '_').collect();
+        if parts.len() != 2 {
+            return Err(NikaError::InvalidToolName {
+                name: tool_call.name.clone(),
+            });
+        }
+
+        let mcp_name = parts[0];
+        let tool_name = parts[1];
+
+        // Emit tool call event
+        self.event_log.emit(EventKind::McpInvoke {
+            task_id: self.task_id.clone().into(),
+            mcp_server: mcp_name.to_string(),
+            tool: Some(tool_name.to_string()),
+            resource: None,
+        });
+
+        let client = self
+            .mcp_clients
+            .get(mcp_name)
+            .ok_or_else(|| NikaError::McpNotConnected {
+                name: mcp_name.to_string(),
+            })?;
+
+        let start = std::time::Instant::now();
+        let result = client
+            .call_tool(tool_name, tool_call.arguments.clone())
+            .await?;
+        let _duration_ms = start.elapsed().as_millis() as u64;
+
+        // Emit response event
+        self.event_log.emit(EventKind::McpResponse {
+            task_id: self.task_id.clone().into(),
+            output_len: result.text().len(),
+        });
+
+        Ok(result.text())
+    }
+
+    /// Try to parse output as JSON, fallback to string
+    fn parse_output(&self, content: &str) -> serde_json::Value {
+        // Try to find JSON object in the content
+        if let Some(start) = content.find('{') {
+            if let Some(end) = content.rfind('}') {
+                if let Ok(json) = serde_json::from_str(&content[start..=end]) {
+                    return json;
+                }
+            }
+        }
+        // Fallback to string value
+        serde_json::Value::String(content.to_string())
+    }
+
+    /// Extract final output from conversation
+    fn extract_final_output(&self, conversation: &[Message]) -> serde_json::Value {
+        conversation
+            .last()
+            .and_then(|m| m.content.as_text())
+            .map(|text| self.parse_output(&text))
+            .unwrap_or(serde_json::Value::Null)
+    }
+}
+
+// ============================================================================
+// Unit Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_agent_status_equality() {
+        assert_eq!(
+            AgentStatus::NaturalCompletion,
+            AgentStatus::NaturalCompletion
+        );
+        assert_ne!(AgentStatus::NaturalCompletion, AgentStatus::Failed);
+    }
+
+    #[test]
+    fn test_agent_status_copy() {
+        let status = AgentStatus::MaxTurnsReached;
+        let copied = status;
+        assert_eq!(status, copied);
+    }
+
+    #[test]
+    fn test_parse_output_json() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            ..Default::default()
+        };
+        let agent_loop = AgentLoop {
+            task_id: "test".to_string(),
+            params,
+            event_log: EventLog::new(),
+            mcp_clients: HashMap::new(),
+        };
+
+        let content = r#"Here is the result: {"key": "value"} done"#;
+        let output = agent_loop.parse_output(content);
+        assert!(output.is_object());
+        assert_eq!(output["key"], "value");
+    }
+
+    #[test]
+    fn test_parse_output_string_fallback() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            ..Default::default()
+        };
+        let agent_loop = AgentLoop {
+            task_id: "test".to_string(),
+            params,
+            event_log: EventLog::new(),
+            mcp_clients: HashMap::new(),
+        };
+
+        let content = "Just plain text response";
+        let output = agent_loop.parse_output(content);
+        assert!(output.is_string());
+        assert_eq!(output.as_str().unwrap(), "Just plain text response");
+    }
+
+    #[test]
+    fn test_agent_loop_creation_validates_params() {
+        let params = AgentParams::default(); // Empty prompt
+        let result = AgentLoop::new("test".to_string(), params, EventLog::new(), HashMap::new());
+        assert!(result.is_err());
+    }
+}

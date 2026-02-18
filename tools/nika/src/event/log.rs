@@ -115,11 +115,14 @@ pub enum EventKind {
         max_turns: u32,
         mcp_servers: Vec<String>,
     },
-    /// Agent turn completed (one LLM call + optional tool calls)
+    /// Agent turn event (started, completed, stop_condition_met, etc.)
     AgentTurn {
         task_id: Arc<str>,
-        turn: u32,
-        tool_calls: u32,
+        turn_index: u32,
+        /// Event kind: "started", "continue", "natural_completion", "stop_condition_met"
+        kind: String,
+        /// Cumulative token count (optional)
+        tokens: Option<u32>,
     },
     /// Agent loop completed (reached stop condition or max turns)
     AgentComplete {
