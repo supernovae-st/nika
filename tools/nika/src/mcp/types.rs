@@ -158,9 +158,7 @@ impl ToolCallResult {
 
     /// Extract the first text block, if any.
     pub fn first_text(&self) -> Option<&str> {
-        self.content
-            .iter()
-            .find_map(|block| block.text.as_deref())
+        self.content.iter().find_map(|block| block.text.as_deref())
     }
 }
 
@@ -353,7 +351,10 @@ mod tests {
         assert_eq!(config.name, "novanet");
         assert_eq!(config.command, "npx");
         assert_eq!(config.args, vec!["-y", "@novanet/mcp-server"]);
-        assert_eq!(config.env.get("NEO4J_URI"), Some(&"bolt://localhost:7687".to_string()));
+        assert_eq!(
+            config.env.get("NEO4J_URI"),
+            Some(&"bolt://localhost:7687".to_string())
+        );
         assert_eq!(config.env.get("NEO4J_USER"), Some(&"neo4j".to_string()));
         assert_eq!(config.cwd, Some("/home/user/project".to_string()));
     }
@@ -421,8 +422,7 @@ mod tests {
             "locale": "fr-FR"
         });
 
-        let request = ToolCallRequest::new("novanet_generate")
-            .with_arguments(args.clone());
+        let request = ToolCallRequest::new("novanet_generate").with_arguments(args.clone());
 
         assert_eq!(request.name, "novanet_generate");
         assert_eq!(request.arguments, args);
@@ -462,9 +462,7 @@ mod tests {
 
     #[test]
     fn test_tool_result_text_extraction_empty() {
-        let result = ToolCallResult::success(vec![
-            ContentBlock::image("data", "image/png"),
-        ]);
+        let result = ToolCallResult::success(vec![ContentBlock::image("data", "image/png")]);
 
         assert_eq!(result.text(), "");
         assert_eq!(result.first_text(), None);
@@ -520,8 +518,7 @@ mod tests {
 
     #[test]
     fn test_content_block_resource() {
-        let resource = ResourceContent::new("file:///tmp/test.txt")
-            .with_text("File content");
+        let resource = ResourceContent::new("file:///tmp/test.txt").with_text("File content");
         let block = ContentBlock::resource(resource);
 
         assert!(block.is_resource());
@@ -592,7 +589,10 @@ mod tests {
             .with_input_schema(schema.clone());
 
         assert_eq!(tool.name, "novanet_generate");
-        assert_eq!(tool.description, Some("Generate native content for an entity".to_string()));
+        assert_eq!(
+            tool.description,
+            Some("Generate native content for an entity".to_string())
+        );
         assert_eq!(tool.input_schema, Some(schema));
     }
 
@@ -612,7 +612,10 @@ mod tests {
         let tool: ToolDefinition = serde_json::from_str(json).unwrap();
 
         assert_eq!(tool.name, "read_resource");
-        assert_eq!(tool.description, Some("Read a resource from the server".to_string()));
+        assert_eq!(
+            tool.description,
+            Some("Read a resource from the server".to_string())
+        );
         assert!(tool.input_schema.is_some());
     }
 

@@ -212,6 +212,8 @@ tasks:
 
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
 
-    let mcp = workflow.mcp.expect("mcp field should be Some even if empty");
+    let mcp = workflow
+        .mcp
+        .expect("mcp field should be Some even if empty");
     assert!(mcp.is_empty(), "mcp should be an empty map");
 }

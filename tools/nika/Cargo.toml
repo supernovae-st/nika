@@ -47,6 +47,8 @@ smallvec = "1.13"
 rustc-hash = "2.1"
 uuid = { version = "1.0", features = ["v4"] }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
+chrono = "0.4"
+rand = "0.8"
 
 # MCP (NEW v0.2)
 rmcp = { version = "0.1", features = ["client", "transport-io"], optional = true }

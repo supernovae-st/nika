@@ -264,8 +264,7 @@ impl OpenAIProvider {
                 let id = tc["id"].as_str().unwrap_or("").to_string();
                 let name = tc["function"]["name"].as_str().unwrap_or("").to_string();
                 let arguments_str = tc["function"]["arguments"].as_str().unwrap_or("{}");
-                let arguments: Value =
-                    serde_json::from_str(arguments_str).unwrap_or(json!({}));
+                let arguments: Value = serde_json::from_str(arguments_str).unwrap_or(json!({}));
 
                 tool_calls.push(ToolCall {
                     id,

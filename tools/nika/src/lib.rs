@@ -89,7 +89,10 @@ pub use dag::FlowGraph;
 pub use binding::{validate_task_id, UseBindings, UseEntry, UseWiring};
 
 // Event types
-pub use event::{Event, EventKind, EventLog};
+pub use event::{
+    calculate_workflow_hash, generate_generation_id, list_traces, Event, EventKind, EventLog,
+    TraceInfo, TraceWriter,
+};
 
 // Store types
 pub use store::{DataStore, TaskResult, TaskStatus};

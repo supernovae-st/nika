@@ -72,7 +72,11 @@ async fn test_invoke_execution_tool_call() {
     let result = execute_invoke(&invoke, &client).await;
 
     // Assert
-    assert!(result.is_ok(), "Tool call should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Tool call should succeed: {:?}",
+        result.err()
+    );
     let value = result.unwrap();
     assert!(value.is_object(), "Result should be a JSON object: {value}");
 }
@@ -145,7 +149,11 @@ async fn test_invoke_execution_resource_read() {
     let result = execute_invoke(&invoke, &client).await;
 
     // Assert
-    assert!(result.is_ok(), "Resource read should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Resource read should succeed: {:?}",
+        result.err()
+    );
     let value = result.unwrap();
     assert!(value.is_object(), "Result should be a JSON object: {value}");
 }
@@ -188,7 +196,10 @@ async fn test_invoke_execution_fails_with_both_tool_and_resource() {
 
     let result = execute_invoke(&invoke, &client).await;
 
-    assert!(result.is_err(), "Should fail when both tool and resource are set");
+    assert!(
+        result.is_err(),
+        "Should fail when both tool and resource are set"
+    );
     match result.unwrap_err() {
         NikaError::ValidationError { reason } => {
             assert!(
@@ -213,7 +224,10 @@ async fn test_invoke_execution_fails_with_neither_tool_nor_resource() {
 
     let result = execute_invoke(&invoke, &client).await;
 
-    assert!(result.is_err(), "Should fail when neither tool nor resource is set");
+    assert!(
+        result.is_err(),
+        "Should fail when neither tool nor resource is set"
+    );
     match result.unwrap_err() {
         NikaError::ValidationError { reason } => {
             assert!(

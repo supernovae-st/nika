@@ -74,10 +74,7 @@ fn test_tool_result_message() {
 
     assert_eq!(msg.role, MessageRole::Tool);
     assert_eq!(msg.tool_call_id, Some("call_123".to_string()));
-    assert_eq!(
-        msg.content.as_text(),
-        Some("The result data".to_string())
-    );
+    assert_eq!(msg.content.as_text(), Some("The result data".to_string()));
 }
 
 #[test]

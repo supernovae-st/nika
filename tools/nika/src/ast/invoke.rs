@@ -62,9 +62,7 @@ impl InvokeParams {
             (Some(_), Some(_)) => {
                 Err("'tool' and 'resource' are mutually exclusive - specify only one".to_string())
             }
-            (None, None) => {
-                Err("either 'tool' or 'resource' must be specified".to_string())
-            }
+            (None, None) => Err("either 'tool' or 'resource' must be specified".to_string()),
             _ => Ok(()),
         }
     }

@@ -28,7 +28,10 @@ fn test_mcp_client_creation_with_valid_config() {
     assert!(result.is_ok(), "Should create client with valid config");
     let client = result.unwrap();
     assert_eq!(client.name(), "novanet");
-    assert!(!client.is_connected(), "Client should not be connected initially");
+    assert!(
+        !client.is_connected(),
+        "Client should not be connected initially"
+    );
 }
 
 #[test]
@@ -44,7 +47,10 @@ fn test_mcp_client_config_validation_empty_name() {
     let err = result.unwrap_err();
     match err {
         NikaError::ValidationError { reason } => {
-            assert!(reason.contains("name"), "Error should mention 'name': {reason}");
+            assert!(
+                reason.contains("name"),
+                "Error should mention 'name': {reason}"
+            );
         }
         _ => panic!("Expected ValidationError, got: {err:?}"),
     }
@@ -63,7 +69,10 @@ fn test_mcp_client_config_validation_empty_command() {
     let err = result.unwrap_err();
     match err {
         NikaError::ValidationError { reason } => {
-            assert!(reason.contains("command"), "Error should mention 'command': {reason}");
+            assert!(
+                reason.contains("command"),
+                "Error should mention 'command': {reason}"
+            );
         }
         _ => panic!("Expected ValidationError, got: {err:?}"),
     }
@@ -98,8 +107,14 @@ async fn test_mcp_client_mock_tool_call_novanet_describe() {
 
     // Verify the mock response contains expected data
     let text = tool_result.text();
-    assert!(text.contains("nodes") || text.contains("62"), "Should contain node count: {text}");
-    assert!(text.contains("arcs") || text.contains("182"), "Should contain arc count: {text}");
+    assert!(
+        text.contains("nodes") || text.contains("62"),
+        "Should contain node count: {text}"
+    );
+    assert!(
+        text.contains("arcs") || text.contains("182"),
+        "Should contain arc count: {text}"
+    );
 }
 
 #[tokio::test]
@@ -240,7 +255,10 @@ async fn test_mcp_client_mock_connect_disconnect() {
 
     // Assert
     assert!(result.is_ok(), "Disconnect should succeed");
-    assert!(!client.is_connected(), "Should be disconnected after disconnect");
+    assert!(
+        !client.is_connected(),
+        "Should be disconnected after disconnect"
+    );
 
     // Act - reconnect
     let result = client.connect().await;
@@ -260,7 +278,10 @@ async fn test_mcp_client_connect_idempotent() {
     let result = client.connect().await;
 
     // Assert
-    assert!(result.is_ok(), "Connect when already connected should succeed");
+    assert!(
+        result.is_ok(),
+        "Connect when already connected should succeed"
+    );
     assert!(client.is_connected());
 }
 
@@ -275,6 +296,9 @@ async fn test_mcp_client_disconnect_idempotent() {
     let result = client.disconnect().await;
 
     // Assert
-    assert!(result.is_ok(), "Disconnect when not connected should succeed");
+    assert!(
+        result.is_ok(),
+        "Disconnect when not connected should succeed"
+    );
     assert!(!client.is_connected());
 }

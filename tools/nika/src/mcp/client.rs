@@ -34,9 +34,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use serde_json::Value;
 
 use crate::error::{NikaError, Result};
-use crate::mcp::types::{
-    ContentBlock, McpConfig, ResourceContent, ToolCallResult, ToolDefinition,
-};
+use crate::mcp::types::{ContentBlock, McpConfig, ResourceContent, ToolCallResult, ToolDefinition};
 
 /// MCP Client for connecting to and interacting with MCP servers.
 ///
@@ -441,7 +439,9 @@ mod tests {
     #[tokio::test]
     async fn test_mock_tool_call_returns_success() {
         let client = McpClient::mock("test");
-        let result = client.call_tool("unknown_tool", serde_json::json!({})).await;
+        let result = client
+            .call_tool("unknown_tool", serde_json::json!({}))
+            .await;
         assert!(result.is_ok());
         assert!(!result.unwrap().is_error);
     }
