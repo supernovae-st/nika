@@ -182,7 +182,7 @@ impl RateLimiter {
             let wait_ms = (tokens_needed / tokens_per_ms).ceil() as u64;
 
             // Wait a fraction of the calculated time, then retry
-            let sleep_time = Duration::from_millis(wait_ms.max(1).min(100));
+            let sleep_time = Duration::from_millis(wait_ms.clamp(1, 100));
             tokio::time::sleep(sleep_time).await;
         }
     }

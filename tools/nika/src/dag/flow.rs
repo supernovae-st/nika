@@ -4,6 +4,9 @@
 //! - Arc<str> for zero-cost cloning of task IDs
 //! - FxHashMap for faster hashing (non-crypto, ~2x faster)
 //! - SmallVec for stack-allocated small dependency lists (0-4 items)
+//!
+//! DAG Validation:
+//! - Cycle detection using DFS three-color algorithm
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -12,6 +15,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
 
 use crate::ast::Workflow;
+use crate::error::NikaError;
 use crate::util::intern;
 
 /// Stack-allocated deps: most tasks have 0-4 dependencies
@@ -155,5 +159,269 @@ impl FlowGraph {
         }
 
         false
+    }
+
+    /// Detect cycles in the DAG using DFS with three-color marking.
+    ///
+    /// Returns `Ok(())` if acyclic, `Err(NikaError::CycleDetected)` with cycle path if cycle found.
+    ///
+    /// Uses standard three-color algorithm:
+    /// - White: unvisited
+    /// - Gray: currently in DFS stack (visiting)
+    /// - Black: fully processed (all descendants visited)
+    ///
+    /// A cycle is detected when we encounter a Gray node while traversing.
+    pub fn detect_cycles(&self) -> Result<(), NikaError> {
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum Color {
+            White,
+            Gray,
+            Black,
+        }
+
+        let mut colors: FxHashMap<Arc<str>, Color> = self
+            .task_ids
+            .iter()
+            .map(|id| (Arc::clone(id), Color::White))
+            .collect();
+        let mut stack: Vec<Arc<str>> = Vec::new();
+
+        fn dfs(
+            node: Arc<str>,
+            adjacency: &FxHashMap<Arc<str>, DepVec>,
+            colors: &mut FxHashMap<Arc<str>, Color>,
+            stack: &mut Vec<Arc<str>>,
+        ) -> Result<(), String> {
+            colors.insert(Arc::clone(&node), Color::Gray);
+            stack.push(Arc::clone(&node));
+
+            if let Some(neighbors) = adjacency.get(&node) {
+                for neighbor in neighbors {
+                    match colors.get(neighbor) {
+                        Some(Color::Gray) => {
+                            // Found cycle - build path from stack
+                            let cycle_start = stack
+                                .iter()
+                                .position(|x| x.as_ref() == neighbor.as_ref())
+                                .unwrap();
+                            let cycle: Vec<&str> =
+                                stack[cycle_start..].iter().map(|s| s.as_ref()).collect();
+                            return Err(format!("{} → {}", cycle.join(" → "), neighbor));
+                        }
+                        Some(Color::White) | None => {
+                            dfs(Arc::clone(neighbor), adjacency, colors, stack)?;
+                        }
+                        Some(Color::Black) => {} // Already processed
+                    }
+                }
+            }
+
+            stack.pop();
+            colors.insert(node, Color::Black);
+            Ok(())
+        }
+
+        for task_id in &self.task_ids {
+            if colors.get(task_id) == Some(&Color::White) {
+                if let Err(cycle) =
+                    dfs(Arc::clone(task_id), &self.adjacency, &mut colors, &mut stack)
+                {
+                    return Err(NikaError::CycleDetected { cycle });
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ═══════════════════════════════════════════════════════════════
+    // CYCLE DETECTION TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_detect_cycle_simple() {
+        // A → B → C → A (cycle)
+        let yaml = r#"
+schema: nika/workflow@0.1
+id: cycle_test
+tasks:
+  - id: a
+    infer:
+      prompt: "A"
+  - id: b
+    infer:
+      prompt: "B"
+  - id: c
+    infer:
+      prompt: "C"
+flows:
+  - source: a
+    target: b
+  - source: b
+    target: c
+  - source: c
+    target: a
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let graph = FlowGraph::from_workflow(&workflow);
+
+        let result = graph.detect_cycles();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("NIKA-020"));
+    }
+
+    #[test]
+    fn test_no_cycle_linear() {
+        // A → B → C (no cycle)
+        let yaml = r#"
+schema: nika/workflow@0.1
+id: linear_test
+tasks:
+  - id: a
+    infer:
+      prompt: "A"
+  - id: b
+    infer:
+      prompt: "B"
+  - id: c
+    infer:
+      prompt: "C"
+flows:
+  - source: a
+    target: b
+  - source: b
+    target: c
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let graph = FlowGraph::from_workflow(&workflow);
+
+        assert!(graph.detect_cycles().is_ok());
+    }
+
+    #[test]
+    fn test_self_loop_is_cycle() {
+        // A → A (self-loop)
+        let yaml = r#"
+schema: nika/workflow@0.1
+id: self_loop
+tasks:
+  - id: a
+    infer:
+      prompt: "A"
+flows:
+  - source: a
+    target: a
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let graph = FlowGraph::from_workflow(&workflow);
+
+        let result = graph.detect_cycles();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-020"));
+    }
+
+    #[test]
+    fn test_diamond_no_cycle() {
+        // Diamond: A → B, A → C, B → D, C → D (no cycle)
+        let yaml = r#"
+schema: nika/workflow@0.1
+id: diamond
+tasks:
+  - id: a
+    infer:
+      prompt: "A"
+  - id: b
+    infer:
+      prompt: "B"
+  - id: c
+    infer:
+      prompt: "C"
+  - id: d
+    infer:
+      prompt: "D"
+flows:
+  - source: a
+    target: [b, c]
+  - source: [b, c]
+    target: d
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let graph = FlowGraph::from_workflow(&workflow);
+
+        assert!(graph.detect_cycles().is_ok());
+        assert_eq!(graph.get_final_tasks().len(), 1);
+        assert!(graph.has_path("a", "d"));
+    }
+
+    #[test]
+    fn test_disconnected_no_cycle() {
+        // Two disconnected chains: A → B, C → D (no cycle)
+        let yaml = r#"
+schema: nika/workflow@0.1
+id: disconnected
+tasks:
+  - id: a
+    infer:
+      prompt: "A"
+  - id: b
+    infer:
+      prompt: "B"
+  - id: c
+    infer:
+      prompt: "C"
+  - id: d
+    infer:
+      prompt: "D"
+flows:
+  - source: a
+    target: b
+  - source: c
+    target: d
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let graph = FlowGraph::from_workflow(&workflow);
+
+        assert!(graph.detect_cycles().is_ok());
+        assert_eq!(graph.get_final_tasks().len(), 2);
+    }
+
+    #[test]
+    fn test_cycle_path_includes_all_nodes() {
+        // A → B → C → A: cycle path should show the cycle
+        let yaml = r#"
+schema: nika/workflow@0.1
+id: cycle_path
+tasks:
+  - id: a
+    infer:
+      prompt: "A"
+  - id: b
+    infer:
+      prompt: "B"
+  - id: c
+    infer:
+      prompt: "C"
+flows:
+  - source: a
+    target: b
+  - source: b
+    target: c
+  - source: c
+    target: a
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let graph = FlowGraph::from_workflow(&workflow);
+
+        let result = graph.detect_cycles();
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        // Should contain cycle path
+        assert!(err_msg.contains("→"));
     }
 }

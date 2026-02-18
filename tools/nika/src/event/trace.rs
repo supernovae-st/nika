@@ -42,8 +42,7 @@ impl TraceWriter {
                     "Invalid generation_id: must be alphanumeric with hyphens/underscores only, got: {}",
                     generation_id
                 ),
-            }
-            .into());
+            });
         }
 
         // Ensure trace directory exists
