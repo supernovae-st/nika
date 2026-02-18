@@ -1,0 +1,70 @@
+# Example: Invoke NovaNet MCP tools
+#
+# This workflow demonstrates the invoke: verb for MCP integration.
+# Run with: cargo run -- run examples/invoke-novanet.yaml
+
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      RUST_LOG: info
+
+tasks:
+  # Step 1: Discover page structure
+  - id: discover
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        target: page
+        filters:
+          key: homepage
+
+  # Step 2: Get generation context for hero block
+  - id: hero_context
+    use:
+      page: discover
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        mode: block
+        page_key: "{{use.page.key}}"
+        block_key: hero
+        locale: fr-FR
+        token_budget: 8000
+    output:
+      format: json
+
+  # Step 3: Generate content using context
+  - id: generate_hero
+    use:
+      ctx: hero_context
+    infer:
+      prompt: |
+        Generate native French content for the hero block.
+
+        CONTEXT:
+        {{use.ctx}}
+
+        RULES:
+        - Use ONLY denomination_forms values from context
+        - NO invention, NO paraphrase of entity names
+        - Follow @ references for brand voice and style
+
+        Output JSON matching the block schema.
+    output:
+      format: json
+
+flows:
+  - source: discover
+    target: hero_context
+  - source: hero_context
+    target: generate_hero
