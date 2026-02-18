@@ -11,8 +11,9 @@ name = "nika"
 path = "src/main.rs"
 
 [features]
-default = ["tui"]
+default = ["tui", "mcp"]
 tui = ["dep:ratatui", "dep:crossterm"]
+mcp = []  # MCP types are always compiled, feature gates future optional deps
 integration = []  # Enable integration tests with real MCP servers
 
 [dependencies]
