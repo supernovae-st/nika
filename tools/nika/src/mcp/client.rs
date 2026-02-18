@@ -35,6 +35,7 @@ use parking_lot::Mutex;
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Child;
+use tokio::sync::Mutex as AsyncMutex;
 
 use crate::error::{NikaError, Result};
 use crate::mcp::protocol::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
@@ -64,6 +65,10 @@ pub struct McpClient {
 
     /// Request ID counter for JSON-RPC
     request_id: AtomicU64,
+
+    /// Async mutex to serialize request-response cycles
+    /// Required because stdio is shared and concurrent access races
+    io_lock: AsyncMutex<()>,
 }
 
 // Manual Debug impl since Child doesn't implement Debug well
@@ -121,6 +126,7 @@ impl McpClient {
             is_mock: false,
             process: Mutex::new(None),
             request_id: AtomicU64::new(1),
+            io_lock: AsyncMutex::new(()),
         })
     }
 
@@ -145,6 +151,7 @@ impl McpClient {
             is_mock: true,
             process: Mutex::new(None),
             request_id: AtomicU64::new(1),
+            io_lock: AsyncMutex::new(()),
         }
     }
 
@@ -304,7 +311,13 @@ impl McpClient {
     }
 
     /// Send a JSON-RPC request and read the response.
+    ///
+    /// Uses io_lock to serialize concurrent requests, preventing race conditions
+    /// when multiple for_each iterations access the same MCP client.
     async fn send_request(&self, request: &JsonRpcRequest) -> Result<JsonRpcResponse> {
+        // Serialize concurrent requests - only one request-response cycle at a time
+        let _io_guard = self.io_lock.lock().await;
+
         // Serialize request
         let json = serde_json::to_string(request).map_err(|e| NikaError::McpToolError {
             tool: request.method.clone(),
@@ -355,7 +368,7 @@ impl McpClient {
             }
         }
 
-        // Read response
+        // Read response (still under io_lock to ensure request-response pairing)
         self.read_response(&request.method).await
     }
 

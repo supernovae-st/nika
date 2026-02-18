@@ -1,0 +1,48 @@
+# NovaNet Multi-Query Integration Test
+#
+# Tests for_each parallelism with real NovaNet MCP server.
+# Queries multiple types of data in parallel to verify concurrent MCP access.
+#
+# This is the flagship Nika + NovaNet integration pattern:
+# - One MCP server instance (shared)
+# - Multiple parallel queries (serialized by io_lock)
+# - Real Neo4j data
+#
+# Usage:
+#   cargo run -- run examples/novanet-multi-query.nika.yaml
+
+schema: "nika/workflow@0.3"
+provider: mock
+
+mcp:
+  novanet:
+    command: /Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: warn
+
+tasks:
+  # Query 1: Count entities by different labels in parallel
+  - id: count_by_pattern
+    for_each: ["Entity", "EntityNative", "Page", "Block", "Locale"]
+    as: label
+    invoke:
+      mcp: novanet
+      tool: novanet_query
+      params:
+        cypher: "MATCH (n:{{use.label}}) RETURN count(n) AS count, '{{use.label}}' AS label"
+
+  # Query 2: Sample some entities
+  - id: sample_entities
+    invoke:
+      mcp: novanet
+      tool: novanet_query
+      params:
+        cypher: "MATCH (e:Entity) RETURN e.slug AS slug LIMIT 5"
+
+flows:
+  - source: count_by_pattern
+    target: sample_entities

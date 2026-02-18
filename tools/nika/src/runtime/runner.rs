@@ -41,6 +41,7 @@ impl Runner {
         let executor = TaskExecutor::new(
             &workflow.provider,
             workflow.model.as_deref(),
+            workflow.mcp.clone(),
             event_log.clone(),
         );
 

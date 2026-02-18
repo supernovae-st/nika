@@ -3,18 +3,18 @@
 //! Handles execution of individual tasks: infer, exec, fetch, invoke, agent.
 //! Uses DashMap for lock-free provider caching.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use dashmap::DashMap;
+use tokio::sync::OnceCell;
 use tracing::{debug, instrument};
 
-use std::collections::HashMap;
-
-use crate::ast::{AgentParams, ExecParams, FetchParams, InferParams, InvokeParams, TaskAction};
+use crate::ast::{AgentParams, ExecParams, FetchParams, InferParams, InvokeParams, McpConfigInline, TaskAction};
 use crate::binding::{template_resolve, UseBindings};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
-use crate::mcp::McpClient;
+use crate::mcp::{McpClient, McpConfig};
 use crate::provider::{create_provider, Provider};
 use crate::runtime::AgentLoop;
 use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
@@ -26,6 +26,11 @@ pub struct TaskExecutor {
     http_client: reqwest::Client,
     /// Cached providers (lock-free)
     provider_cache: Arc<DashMap<String, Arc<dyn Provider>>>,
+    /// Cached MCP clients with async-safe initialization (prevents race conditions in for_each)
+    /// Uses OnceCell per server to ensure only one client is created even with concurrent access
+    mcp_client_cache: Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>,
+    /// MCP server configurations from workflow
+    mcp_configs: Arc<HashMap<String, McpConfigInline>>,
     /// Default provider name
     default_provider: Arc<str>,
     /// Default model
@@ -35,8 +40,13 @@ pub struct TaskExecutor {
 }
 
 impl TaskExecutor {
-    /// Create a new executor with default provider, model, and event log
-    pub fn new(provider: &str, model: Option<&str>, event_log: EventLog) -> Self {
+    /// Create a new executor with default provider, model, MCP configs, and event log
+    pub fn new(
+        provider: &str,
+        model: Option<&str>,
+        mcp_configs: Option<HashMap<String, McpConfigInline>>,
+        event_log: EventLog,
+    ) -> Self {
         let http_client = reqwest::Client::builder()
             .timeout(FETCH_TIMEOUT)
             .connect_timeout(CONNECT_TIMEOUT)
@@ -48,6 +58,8 @@ impl TaskExecutor {
         Self {
             http_client,
             provider_cache: Arc::new(DashMap::new()),
+            mcp_client_cache: Arc::new(DashMap::new()),
+            mcp_configs: Arc::new(mcp_configs.unwrap_or_default()),
             default_provider: provider.into(),
             default_model: model.map(Into::into),
             event_log,
@@ -67,7 +79,7 @@ impl TaskExecutor {
             TaskAction::Infer { infer } => self.execute_infer(task_id, infer, bindings).await,
             TaskAction::Exec { exec } => self.execute_exec(task_id, exec, bindings).await,
             TaskAction::Fetch { fetch } => self.execute_fetch(task_id, fetch, bindings).await,
-            TaskAction::Invoke { invoke } => self.execute_invoke(task_id, invoke).await,
+            TaskAction::Invoke { invoke } => self.execute_invoke(task_id, invoke, bindings).await,
             TaskAction::Agent { agent } => self.execute_agent(task_id, agent, bindings).await,
         }
     }
@@ -244,16 +256,18 @@ impl TaskExecutor {
     ///
     /// * `task_id` - Task identifier for event logging
     /// * `invoke` - Invoke parameters with mcp server name and tool/resource
+    /// * `bindings` - Use bindings for template resolution in params
     ///
-    /// # Note
+    /// # Template Resolution
     ///
-    /// Currently uses mock MCP client since real MCP manager is not yet available.
-    /// The mock client provides canned responses for testing and development.
-    #[instrument(skip(self), fields(mcp = %invoke.mcp))]
+    /// Templates like `{{use.variable}}` in params are resolved before calling the MCP tool.
+    /// This enables for_each iterations to pass dynamic values to MCP tools.
+    #[instrument(skip(self, bindings), fields(mcp = %invoke.mcp))]
     async fn execute_invoke(
         &self,
         task_id: &Arc<str>,
         invoke: &InvokeParams,
+        bindings: &UseBindings,
     ) -> Result<String, NikaError> {
         // Validate invoke params (tool XOR resource)
         invoke
@@ -268,13 +282,26 @@ impl TaskExecutor {
             resource: invoke.resource.clone(),
         });
 
-        // For now, use mock client since we don't have MCP manager yet
-        // TODO(v0.2): Replace with MCP manager that maintains real connections
-        let client = McpClient::mock(&invoke.mcp);
+        // Get or create MCP client (real or mock depending on config)
+        let client = self.get_mcp_client(&invoke.mcp).await?;
 
         let result = if let Some(tool) = &invoke.tool {
-            // Tool call path
-            let params = invoke.params.clone().unwrap_or(serde_json::Value::Null);
+            // Tool call path - resolve templates in params
+            let params = if let Some(ref original_params) = invoke.params {
+                // Convert params to string, resolve templates, parse back
+                let params_str = serde_json::to_string(original_params).map_err(|e| {
+                    NikaError::Execution(format!("Failed to serialize params: {}", e))
+                })?;
+                let resolved_str = template_resolve(&params_str, bindings)?;
+                serde_json::from_str(&resolved_str).map_err(|e| {
+                    NikaError::Execution(format!(
+                        "Failed to parse resolved params '{}': {}",
+                        resolved_str, e
+                    ))
+                })?
+            } else {
+                serde_json::Value::Null
+            };
             let tool_result = client.call_tool(tool, params).await?;
 
             // Check if tool returned an error
@@ -353,7 +380,7 @@ impl TaskExecutor {
         // Build MCP client map for this agent
         let mut mcp_clients: HashMap<String, Arc<McpClient>> = HashMap::new();
         for mcp_name in &agent.mcp {
-            let client = self.get_mcp_client(mcp_name)?;
+            let client = self.get_mcp_client(mcp_name).await?;
             mcp_clients.insert(mcp_name.clone(), client);
         }
 
@@ -389,16 +416,67 @@ impl TaskExecutor {
         Ok(result.final_output.to_string())
     }
 
-    /// Get MCP client for a named server
+    /// Get or create an MCP client for a named server
     ///
-    /// # Note
+    /// Uses OnceCell per server to ensure thread-safe initialization.
+    /// Even with concurrent for_each iterations, only one client is created per server.
     ///
-    /// Currently uses mock MCP client since real MCP manager is not yet available.
-    /// TODO(v0.2): Replace with MCP manager that maintains real connections.
-    fn get_mcp_client(&self, name: &str) -> Result<Arc<McpClient>, NikaError> {
-        // For now, create mock clients since we don't have MCP manager yet
-        // TODO(v0.2): Replace with MCP manager lookup
-        Ok(Arc::new(McpClient::mock(name)))
+    /// Creates real MCP clients from workflow configuration if available,
+    /// otherwise falls back to mock clients for testing.
+    async fn get_mcp_client(&self, name: &str) -> Result<Arc<McpClient>, NikaError> {
+        // Get or create the OnceCell for this server (atomic via DashMap entry)
+        let cell = self
+            .mcp_client_cache
+            .entry(name.to_string())
+            .or_insert_with(|| Arc::new(OnceCell::new()))
+            .clone();
+
+        // Clone what we need for the async closure
+        let mcp_configs = Arc::clone(&self.mcp_configs);
+        let name_owned = name.to_string();
+
+        // OnceCell::get_or_try_init ensures only one initialization runs
+        // Other concurrent callers will wait for the first one to complete
+        let client = cell
+            .get_or_try_init(|| async {
+                let result: Result<Arc<McpClient>, NikaError> =
+                    if let Some(config) = mcp_configs.get(&name_owned) {
+                        // Build McpConfig from inline config
+                        let mut mcp_config = McpConfig::new(&name_owned, &config.command);
+                        for arg in &config.args {
+                            mcp_config = mcp_config.with_arg(arg);
+                        }
+                        for (key, value) in &config.env {
+                            mcp_config = mcp_config.with_env(key, value);
+                        }
+                        if let Some(cwd) = &config.cwd {
+                            mcp_config = mcp_config.with_cwd(cwd);
+                        }
+
+                        // Create and connect real client
+                        let client =
+                            McpClient::new(mcp_config).map_err(|e| NikaError::McpStartError {
+                                name: name_owned.clone(),
+                                reason: e.to_string(),
+                            })?;
+
+                        client.connect().await.map_err(|e| NikaError::McpStartError {
+                            name: name_owned.clone(),
+                            reason: e.to_string(),
+                        })?;
+
+                        tracing::info!(mcp_server = %name_owned, "Connected to MCP server");
+                        Ok(Arc::new(client))
+                    } else {
+                        // Fall back to mock client for testing
+                        tracing::debug!(mcp_server = %name_owned, "Using mock MCP client (no config found)");
+                        Ok(Arc::new(McpClient::mock(&name_owned)))
+                    };
+                result
+            })
+            .await?;
+
+        Ok(Arc::clone(client))
     }
 }
 
@@ -421,13 +499,13 @@ mod tests {
 
     #[test]
     fn executor_is_clone() {
-        let exec = TaskExecutor::new("mock", None, EventLog::new());
+        let exec = TaskExecutor::new("mock", None, None, EventLog::new());
         let _cloned = exec.clone();
     }
 
     #[tokio::test]
     async fn execute_exec_echo() {
-        let exec = TaskExecutor::new("mock", None, EventLog::new());
+        let exec = TaskExecutor::new("mock", None, None, EventLog::new());
         let bindings = UseBindings::new();
         let action = TaskAction::Exec {
             exec: ExecParams {
@@ -442,7 +520,7 @@ mod tests {
 
     #[tokio::test]
     async fn execute_exec_with_template() {
-        let exec = TaskExecutor::new("mock", None, EventLog::new());
+        let exec = TaskExecutor::new("mock", None, None, EventLog::new());
         let mut bindings = UseBindings::new();
         bindings.set("name", json!("world"));
 
@@ -460,7 +538,7 @@ mod tests {
     #[tokio::test]
     async fn execute_emits_template_resolved() {
         let event_log = EventLog::new();
-        let exec = TaskExecutor::new("mock", None, event_log.clone());
+        let exec = TaskExecutor::new("mock", None, None, event_log.clone());
         let mut bindings = UseBindings::new();
         bindings.set("name", json!("Alice"));
 
@@ -495,7 +573,7 @@ mod tests {
     #[tokio::test]
     async fn execute_invoke_tool_call() {
         let event_log = EventLog::new();
-        let exec = TaskExecutor::new("mock", None, event_log.clone());
+        let exec = TaskExecutor::new("mock", None, None, event_log.clone());
         let bindings = UseBindings::new();
 
         let action = TaskAction::Invoke {
@@ -525,7 +603,7 @@ mod tests {
     #[tokio::test]
     async fn execute_invoke_resource_read() {
         let event_log = EventLog::new();
-        let exec = TaskExecutor::new("mock", None, event_log.clone());
+        let exec = TaskExecutor::new("mock", None, None, event_log.clone());
         let bindings = UseBindings::new();
 
         let action = TaskAction::Invoke {
@@ -555,7 +633,7 @@ mod tests {
     #[tokio::test]
     async fn execute_invoke_emits_mcp_events() {
         let event_log = EventLog::new();
-        let exec = TaskExecutor::new("mock", None, event_log.clone());
+        let exec = TaskExecutor::new("mock", None, None, event_log.clone());
         let bindings = UseBindings::new();
 
         let action = TaskAction::Invoke {
@@ -592,7 +670,7 @@ mod tests {
     #[tokio::test]
     async fn execute_invoke_validation_error() {
         let event_log = EventLog::new();
-        let exec = TaskExecutor::new("mock", None, event_log);
+        let exec = TaskExecutor::new("mock", None, None, event_log);
         let bindings = UseBindings::new();
 
         // Both tool and resource set (invalid)

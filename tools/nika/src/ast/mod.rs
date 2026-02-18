@@ -24,4 +24,4 @@ pub use agent::AgentParams;
 // (also used by action.rs for TaskAction::Invoke variant)
 pub use invoke::InvokeParams;
 pub use output::{OutputFormat, OutputPolicy};
-pub use workflow::{Flow, FlowEndpoint, Task, Workflow, SCHEMA_V01};
+pub use workflow::{Flow, FlowEndpoint, McpConfigInline, Task, Workflow, SCHEMA_V01};
