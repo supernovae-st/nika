@@ -302,6 +302,7 @@ mod tests {
             schema: "nika/workflow@0.1".to_string(),
             provider: "mock".to_string(),
             model: None,
+            mcp: None,
             tasks: tasks
                 .into_iter()
                 .map(|(id, cmd)| {
