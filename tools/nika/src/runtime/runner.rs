@@ -101,6 +101,92 @@ impl Runner {
         None
     }
 
+    /// Execute a single task iteration (used for both regular tasks and for_each items)
+    ///
+    /// # Arguments
+    ///
+    /// * `task` - The task to execute
+    /// * `task_id` - ID for this specific execution (may include index for for_each)
+    /// * `parent_task_id` - Original task ID (for for_each, this is the parent task ID)
+    /// * `datastore` - Data store for task results
+    /// * `executor` - Task executor
+    /// * `event_log` - Event log for observability
+    /// * `for_each_binding` - Optional (var_name, value) for for_each iteration
+    async fn execute_task_iteration(
+        task: Arc<Task>,
+        task_id: Arc<str>,
+        parent_task_id: Arc<str>,
+        datastore: DataStore,
+        executor: TaskExecutor,
+        event_log: EventLog,
+        for_each_binding: Option<(String, Value)>,
+    ) -> (Arc<str>, TaskResult) {
+        let start = Instant::now();
+
+        // Build bindings from use: wiring
+        let mut bindings = match UseBindings::from_use_wiring(task.use_wiring.as_ref(), &datastore) {
+            Ok(b) => b,
+            Err(e) => {
+                let duration = start.elapsed();
+                // EMIT: TaskFailed (bindings build failed)
+                event_log.emit(EventKind::TaskFailed {
+                    task_id: Arc::clone(&task_id),
+                    error: e.to_string(),
+                    duration_ms: duration.as_millis() as u64,
+                });
+                return (parent_task_id, TaskResult::failed(e.to_string(), duration));
+            }
+        };
+
+        // Add for_each binding if present (v0.3)
+        if let Some((var_name, value)) = for_each_binding {
+            bindings.set(&var_name, value);
+        }
+
+        // EMIT: TaskStarted (with resolved inputs from use: wiring)
+        event_log.emit(EventKind::TaskStarted {
+            task_id: Arc::clone(&task_id),
+            inputs: bindings.to_value(),
+        });
+
+        // Execute via TaskExecutor
+        let result = executor.execute(&task_id, &task.action, &bindings).await;
+        let duration = start.elapsed();
+
+        // Convert result to TaskResult with output policy
+        let task_result = match result {
+            Ok(output) => {
+                let tr = make_task_result(output, task.output.as_ref(), duration).await;
+                // EMIT: TaskCompleted or TaskFailed (based on result)
+                if tr.is_success() {
+                    event_log.emit(EventKind::TaskCompleted {
+                        task_id: Arc::clone(&task_id),
+                        output: Arc::clone(&tr.output), // O(1) Arc clone
+                        duration_ms: duration.as_millis() as u64,
+                    });
+                } else {
+                    event_log.emit(EventKind::TaskFailed {
+                        task_id: Arc::clone(&task_id),
+                        error: tr.error().unwrap_or("Unknown error").to_string(),
+                        duration_ms: duration.as_millis() as u64,
+                    });
+                }
+                tr
+            }
+            Err(e) => {
+                // EMIT: TaskFailed
+                event_log.emit(EventKind::TaskFailed {
+                    task_id: Arc::clone(&task_id),
+                    error: e.to_string(),
+                    duration_ms: duration.as_millis() as u64,
+                });
+                TaskResult::failed(e.to_string(), duration)
+            }
+        };
+
+        (parent_task_id, task_result)
+    }
+
     /// Main execution loop
     #[instrument(skip(self), fields(workflow_tasks = self.workflow.tasks.len()))]
     pub async fn run(&self) -> Result<String, NikaError> {
@@ -152,9 +238,6 @@ impl Runner {
             for task in ready {
                 let task = Arc::clone(&task);
                 let task_id = intern(&task.id); // Interned Arc<str> for deduplication
-                let datastore = self.datastore.clone();
-                let executor = self.executor.clone();
-                let event_log = self.event_log.clone();
 
                 // EMIT: TaskScheduled
                 let deps = self.flow_graph.get_dependencies(&task.id);
@@ -170,68 +253,54 @@ impl Runner {
                     "running...".dimmed()
                 );
 
-                join_set.spawn(async move {
-                    let start = Instant::now();
+                // Check if task has for_each (v0.3 parallelism)
+                if let Some(for_each) = &task.for_each {
+                    if let Some(items) = for_each.as_array() {
+                        // Spawn one execution per item in the array
+                        let var_name = task.for_each_var().to_string();
+                        for (idx, item) in items.iter().enumerate() {
+                            let task = Arc::clone(&task);
+                            let task_id = intern(&format!("{}[{}]", task.id, idx));
+                            let parent_task_id = intern(&task.id);
+                            let datastore = self.datastore.clone();
+                            let executor = self.executor.clone();
+                            let event_log = self.event_log.clone();
+                            let item = item.clone();
+                            let var_name = var_name.clone();
 
-                    // Build bindings from use: wiring
-                    let bindings =
-                        match UseBindings::from_use_wiring(task.use_wiring.as_ref(), &datastore) {
-                            Ok(b) => b,
-                            Err(e) => {
-                                let duration = start.elapsed();
-                                // EMIT: TaskFailed (bindings build failed)
-                                event_log.emit(EventKind::TaskFailed {
-                                    task_id: Arc::clone(&task_id),
-                                    error: e.to_string(),
-                                    duration_ms: duration.as_millis() as u64,
-                                });
-                                return (task_id, TaskResult::failed(e.to_string(), duration));
-                            }
-                        };
-
-                    // EMIT: TaskStarted (with resolved inputs from use: wiring)
-                    event_log.emit(EventKind::TaskStarted {
-                        task_id: Arc::clone(&task_id),
-                        inputs: bindings.to_value(),
-                    });
-
-                    // Execute via TaskExecutor
-                    let result = executor.execute(&task_id, &task.action, &bindings).await;
-                    let duration = start.elapsed();
-
-                    // Convert result to TaskResult with output policy
-                    let task_result = match result {
-                        Ok(output) => {
-                            let tr = make_task_result(output, task.output.as_ref(), duration).await;
-                            // EMIT: TaskCompleted or TaskFailed (based on result)
-                            if tr.is_success() {
-                                event_log.emit(EventKind::TaskCompleted {
-                                    task_id: Arc::clone(&task_id),
-                                    output: Arc::clone(&tr.output), // O(1) Arc clone
-                                    duration_ms: duration.as_millis() as u64,
-                                });
-                            } else {
-                                event_log.emit(EventKind::TaskFailed {
-                                    task_id: Arc::clone(&task_id),
-                                    error: tr.error().unwrap_or("Unknown error").to_string(),
-                                    duration_ms: duration.as_millis() as u64,
-                                });
-                            }
-                            tr
-                        }
-                        Err(e) => {
-                            // EMIT: TaskFailed
-                            event_log.emit(EventKind::TaskFailed {
-                                task_id: Arc::clone(&task_id),
-                                error: e.to_string(),
-                                duration_ms: duration.as_millis() as u64,
+                            join_set.spawn(async move {
+                                Self::execute_task_iteration(
+                                    task,
+                                    task_id,
+                                    parent_task_id,
+                                    datastore,
+                                    executor,
+                                    event_log,
+                                    Some((var_name, item)),
+                                )
+                                .await
                             });
-                            TaskResult::failed(e.to_string(), duration)
                         }
-                    };
+                    }
+                } else {
+                    // Regular task without for_each
+                    let datastore = self.datastore.clone();
+                    let executor = self.executor.clone();
+                    let event_log = self.event_log.clone();
 
-                    (task_id, task_result)
-                });
+                    join_set.spawn(async move {
+                        Self::execute_task_iteration(
+                            task,
+                            Arc::clone(&task_id),
+                            task_id,
+                            datastore,
+                            executor,
+                            event_log,
+                            None,
+                        )
+                        .await
+                    });
+                }
             }
 
             // Wait for all spawned tasks to complete
@@ -314,6 +383,8 @@ mod tests {
                         id: id.to_string(),
                         use_wiring: None,
                         output: None,
+                        for_each: None,
+                        for_each_as: None,
                         action: TaskAction::Exec {
                             exec: ExecParams {
                                 command: cmd.to_string(),

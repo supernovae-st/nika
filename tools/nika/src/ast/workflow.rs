@@ -25,6 +25,10 @@ pub const SCHEMA_V01: &str = "nika/workflow@0.1";
 #[allow(dead_code)]
 pub const SCHEMA_V02: &str = "nika/workflow@0.2";
 
+/// Expected schema version for v0.3 workflows (for_each parallelism)
+#[allow(dead_code)]
+pub const SCHEMA_V03: &str = "nika/workflow@0.3";
+
 /// Inline MCP server configuration (v0.2)
 ///
 /// Allows workflows to define MCP servers directly in YAML.
@@ -131,8 +135,69 @@ pub struct Task {
     /// Output format and validation (v0.1)
     #[serde(default)]
     pub output: Option<OutputPolicy>,
+    /// Parallel iteration over array values (v0.3)
+    ///
+    /// When specified, the task will be executed once for each value in the array.
+    /// Each iteration runs in parallel with its own bindings.
+    ///
+    /// # Example
+    ///
+    /// ```yaml
+    /// tasks:
+    ///   - id: process_locales
+    ///     for_each: ["en-US", "fr-FR", "de-DE"]
+    ///     as: locale
+    ///     exec:
+    ///       command: "echo {{use.locale}}"
+    /// ```
+    #[serde(default)]
+    pub for_each: Option<serde_json::Value>,
+    /// Variable name for current iteration value (v0.3)
+    ///
+    /// Defaults to "item" if not specified.
+    /// The value is accessible as `{{use.<as>}}` in templates.
+    #[serde(default, rename = "as")]
+    pub for_each_as: Option<String>,
     #[serde(flatten)]
     pub action: TaskAction,
+}
+
+impl Task {
+    /// Validate for_each configuration (v0.3)
+    ///
+    /// Returns error if:
+    /// - for_each is not an array
+    /// - for_each array is empty
+    pub fn validate_for_each(&self) -> Result<(), NikaError> {
+        if let Some(for_each) = &self.for_each {
+            if !for_each.is_array() {
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "for_each must be an array, got {}",
+                        for_each
+                    ),
+                });
+            }
+            if let Some(arr) = for_each.as_array() {
+                if arr.is_empty() {
+                    return Err(NikaError::ValidationError {
+                        reason: "for_each array cannot be empty".to_string(),
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Check if this task has for_each iteration
+    pub fn has_for_each(&self) -> bool {
+        self.for_each.is_some()
+    }
+
+    /// Get the iteration variable name (defaults to "item")
+    pub fn for_each_var(&self) -> &str {
+        self.for_each_as.as_deref().unwrap_or("item")
+    }
 }
 
 #[derive(Debug, Deserialize)]
