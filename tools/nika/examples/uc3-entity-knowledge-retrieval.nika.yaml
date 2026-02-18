@@ -1,0 +1,147 @@
+# UC3: Entity Knowledge Retrieval
+# Retrieves full semantic neighborhood of an entity
+#
+# DAG: entity → [describe, requires, enables, similar, industries] → knowledge_map
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+env:
+  ENTITY: dynamic-qr-code
+  PROJECT: qrcode-ai
+
+mcp:
+  novanet:
+    command: ../novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    args: []
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────
+  # Input
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: entity_key
+    exec:
+      command: "echo $ENTITY"
+
+  # ─────────────────────────────────────────────────────────────────
+  # Parallel graph traversals (fan-out)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: describe
+    use:
+      key: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        entity_key: "{{use.key}}"
+        include_llm_context: true
+        include_entity_summary: true
+    output:
+      format: json
+
+  - id: requires
+    use:
+      key: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "entity:{{use.key}}"
+        arc: "REQUIRES"
+        direction: "outgoing"
+        depth: 2
+        project_key: "qrcode-ai"
+    output:
+      format: json
+
+  - id: enables
+    use:
+      key: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "entity:{{use.key}}"
+        arc: "ENABLES"
+        direction: "outgoing"
+        depth: 1
+        project_key: "qrcode-ai"
+    output:
+      format: json
+
+  - id: similar_to
+    use:
+      key: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "entity:{{use.key}}"
+        arc: "SIMILAR_TO"
+        direction: "outgoing"
+        depth: 1
+        project_key: "qrcode-ai"
+    output:
+      format: json
+
+  - id: industries
+    use:
+      key: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "entity:{{use.key}}"
+        arc: "APPLIES_TO"
+        direction: "outgoing"
+        depth: 1
+        project_key: "qrcode-ai"
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # Knowledge map synthesis (fan-in)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: knowledge_map
+    use:
+      desc: describe
+      deps: requires
+      unlocks: enables
+      alts: similar_to
+      sectors: industries
+    infer:
+      prompt: |
+        Build a product knowledge map for: {{use.desc.display_name}}
+
+        DESCRIPTION:
+        {{use.desc.entity_summary}}
+
+        REQUIRES (dependencies):
+        {{use.deps}}
+
+        ENABLES (what it unlocks):
+        {{use.unlocks}}
+
+        ALTERNATIVES:
+        {{use.alts}}
+
+        APPLICABLE INDUSTRIES:
+        {{use.sectors}}
+
+        Produce:
+        1. One-line definition
+        2. Dependency chain
+        3. Feature matrix
+        4. Competitive positioning
+        5. Top 3 target industries
+
+        Format: clean markdown.
+
+flows:
+  - source: entity_key
+    target: [describe, requires, enables, similar_to, industries]
+  - source: [describe, requires, enables, similar_to, industries]
+    target: knowledge_map

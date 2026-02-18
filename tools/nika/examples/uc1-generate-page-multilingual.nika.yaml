@@ -1,0 +1,129 @@
+# UC1: Multi-Locale Page Generation
+# Generates a product page across 5 locales in parallel
+#
+# DAG: entity_key → [gen_fr, gen_es, gen_de, gen_ja, gen_pt] → report
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+env:
+  ENTITY: qr-code-art
+  PAGE: qr-code-art
+
+mcp:
+  novanet:
+    command: ../novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    args: []
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 1: Input
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: entity_key
+    exec:
+      command: "echo $ENTITY"
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 2: Parallel locale generation (fan-out)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: gen_fr
+    use:
+      entity: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity_key: "{{use.entity}}"
+        locale: "fr-FR"
+        page_key: "qr-code-art"
+        include_blocks: true
+    output:
+      format: json
+
+  - id: gen_es
+    use:
+      entity: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity_key: "{{use.entity}}"
+        locale: "es-ES"
+        page_key: "qr-code-art"
+        include_blocks: true
+    output:
+      format: json
+
+  - id: gen_de
+    use:
+      entity: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity_key: "{{use.entity}}"
+        locale: "de-DE"
+        page_key: "qr-code-art"
+        include_blocks: true
+    output:
+      format: json
+
+  - id: gen_ja
+    use:
+      entity: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity_key: "{{use.entity}}"
+        locale: "ja-JP"
+        page_key: "qr-code-art"
+        include_blocks: true
+    output:
+      format: json
+
+  - id: gen_pt
+    use:
+      entity: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity_key: "{{use.entity}}"
+        locale: "pt-BR"
+        page_key: "qr-code-art"
+        include_blocks: true
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 3: Generation report (fan-in)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: report
+    use:
+      result_fr: gen_fr
+      result_es: gen_es
+      result_de: gen_de
+      result_ja: gen_ja
+      result_pt: gen_pt
+    infer:
+      prompt: |
+        Generate a deployment summary for entity: qr-code-art
+
+        RESULTS:
+        - fr-FR: {{use.result_fr}}
+        - es-ES: {{use.result_es}}
+        - de-DE: {{use.result_de}}
+        - ja-JP: {{use.result_ja}}
+        - pt-BR: {{use.result_pt}}
+
+        Summarize: total blocks, failures, time saved vs manual.
+
+flows:
+  - source: entity_key
+    target: [gen_fr, gen_es, gen_de, gen_ja, gen_pt]
+  - source: [gen_fr, gen_es, gen_de, gen_ja, gen_pt]
+    target: report

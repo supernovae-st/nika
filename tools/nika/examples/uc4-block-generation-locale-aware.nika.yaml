@@ -1,0 +1,181 @@
+# UC4: Block Generation with Locale Context
+# Generates a hero block with authentic locale knowledge atoms
+#
+# DAG: [entity, locale] → [ctx, voice, expressions, taboos] → generate → validate
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+env:
+  ENTITY: qr-code-art
+  LOCALE: fr-FR
+  BLOCK_TYPE: hero
+
+mcp:
+  novanet:
+    command: ../novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    args: []
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────
+  # Inputs
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: entity_key
+    exec:
+      command: "echo $ENTITY"
+
+  - id: locale_key
+    exec:
+      command: "echo $LOCALE"
+
+  # ─────────────────────────────────────────────────────────────────
+  # Parallel context loading (fan-out)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: entity_context
+    use:
+      entity: entity_key
+      locale: locale_key
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        entity_key: "{{use.entity}}"
+        locale: "{{use.locale}}"
+        include_entity_native: true
+        include_llm_context: true
+    output:
+      format: json
+
+  - id: locale_voice
+    use:
+      locale: locale_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "locale:{{use.locale}}"
+        arc: "HAS_VOICE"
+        direction: "outgoing"
+        depth: 1
+    output:
+      format: json
+
+  - id: locale_expressions
+    use:
+      locale: locale_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "locale:{{use.locale}}"
+        arc: "HAS_EXPRESSIONS"
+        direction: "outgoing"
+        depth: 2
+        limit: 15
+    output:
+      format: json
+
+  - id: locale_taboos
+    use:
+      locale: locale_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "locale:{{use.locale}}"
+        arc: "HAS_TABOOS"
+        direction: "outgoing"
+        depth: 2
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # Hero block generation (fan-in)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: generate_hero
+    use:
+      locale: locale_key
+      entity_ctx: entity_context
+      voice: locale_voice
+      expressions: locale_expressions
+      taboos: locale_taboos
+    infer:
+      prompt: |
+        Generate a HERO block for QR Code AI in native {{use.locale}}.
+
+        ENTITY CONTEXT:
+        - Name: {{use.entity_ctx.display_name}}
+        - Summary: {{use.entity_ctx.entity_summary}}
+        - Native title: {{use.entity_ctx.entity_native.title}}
+
+        LOCALE VOICE ({{use.locale}}):
+        {{use.voice}}
+
+        AUTHENTIC EXPRESSIONS TO USE:
+        {{use.expressions}}
+
+        TABOOS TO AVOID:
+        {{use.taboos}}
+
+        Generate:
+        - title: compelling, native {{use.locale}}
+        - subtitle: 1-2 sentences product value
+        - cta_primary: action-oriented, 2-4 words
+        - cta_secondary: softer alternative
+
+        RULES:
+        - Generate natively, NOT translated
+        - Brand "QR Code AI" is [FIXED]
+        - Zero taboos
+
+        Output as JSON: {title, subtitle, cta_primary, cta_secondary}
+      model: claude-opus-4-5-20251101
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # Quality validation
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: validate_block
+    use:
+      locale: locale_key
+      hero_block: generate_hero
+      voice: locale_voice
+      taboos: locale_taboos
+    infer:
+      prompt: |
+        Quality check this {{use.locale}} hero block:
+
+        GENERATED CONTENT:
+        {{use.hero_block}}
+
+        VOICE REQUIREMENTS:
+        {{use.voice}}
+
+        TABOOS:
+        {{use.taboos}}
+
+        Check:
+        1. Is title compelling and native?
+        2. Does it respect voice formality?
+        3. Any taboos violated?
+        4. Is "QR Code AI" preserved?
+        5. CTA length 2-4 words?
+
+        Output JSON: {passed: bool, score: 0-10, issues: [], approved_content: {...}}
+    output:
+      format: json
+
+flows:
+  - source: [entity_key, locale_key]
+    target: entity_context
+  - source: locale_key
+    target: [locale_voice, locale_expressions, locale_taboos]
+  - source: [entity_context, locale_voice, locale_expressions, locale_taboos]
+    target: generate_hero
+  - source: generate_hero
+    target: validate_block

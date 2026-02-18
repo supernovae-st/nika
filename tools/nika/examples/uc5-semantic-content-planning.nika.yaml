@@ -1,0 +1,193 @@
+# UC5: Semantic Content Planning
+# Discovers coverage gaps across entity x locale matrix
+#
+# DAG: pillars → [coverage_*] → gap_analysis → sprint_plan
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+env:
+  PROJECT: qrcode-ai
+
+mcp:
+  novanet:
+    command: ../novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    args: []
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 1: Discovery
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: discover_pillars
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "project:qrcode-ai"
+        arc: "HAS_ENTITY"
+        direction: "outgoing"
+        filter_properties:
+          is_pillar: true
+        depth: 1
+    output:
+      format: json
+
+  # Check coverage for each priority locale (parallel fan-out)
+
+  - id: coverage_fr
+    use:
+      pillars: discover_pillars
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "locale:fr-FR"
+        arc: "FOR_LOCALE"
+        direction: "incoming"
+        filter_node_class: "PageNative"
+        project_key: "qrcode-ai"
+        depth: 1
+    output:
+      format: json
+
+  - id: coverage_en
+    use:
+      pillars: discover_pillars
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "locale:en-US"
+        arc: "FOR_LOCALE"
+        direction: "incoming"
+        filter_node_class: "PageNative"
+        project_key: "qrcode-ai"
+        depth: 1
+    output:
+      format: json
+
+  - id: coverage_es
+    use:
+      pillars: discover_pillars
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "locale:es-ES"
+        arc: "FOR_LOCALE"
+        direction: "incoming"
+        filter_node_class: "PageNative"
+        project_key: "qrcode-ai"
+        depth: 1
+    output:
+      format: json
+
+  - id: coverage_de
+    use:
+      pillars: discover_pillars
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "locale:de-DE"
+        arc: "FOR_LOCALE"
+        direction: "incoming"
+        filter_node_class: "PageNative"
+        project_key: "qrcode-ai"
+        depth: 1
+    output:
+      format: json
+
+  - id: coverage_pt
+    use:
+      pillars: discover_pillars
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "locale:pt-BR"
+        arc: "FOR_LOCALE"
+        direction: "incoming"
+        filter_node_class: "PageNative"
+        project_key: "qrcode-ai"
+        depth: 1
+    output:
+      format: json
+
+  - id: coverage_ja
+    use:
+      pillars: discover_pillars
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "locale:ja-JP"
+        arc: "FOR_LOCALE"
+        direction: "incoming"
+        filter_node_class: "PageNative"
+        project_key: "qrcode-ai"
+        depth: 1
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 2: Gap analysis (fan-in)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: gap_analysis
+    use:
+      pillars: discover_pillars
+      fr: coverage_fr
+      en: coverage_en
+      es: coverage_es
+      de: coverage_de
+      pt: coverage_pt
+      ja: coverage_ja
+    infer:
+      prompt: |
+        Analyze content coverage gaps for QR Code AI.
+
+        PILLAR ENTITIES:
+        {{use.pillars}}
+
+        EXISTING PAGES PER LOCALE:
+        - fr-FR: {{use.fr}}
+        - en-US: {{use.en}}
+        - es-ES: {{use.es}}
+        - de-DE: {{use.de}}
+        - pt-BR: {{use.pt}}
+        - ja-JP: {{use.ja}}
+
+        TASK:
+        1. Build coverage matrix (entity x locale): EXISTS / MISSING
+        2. Top 5 highest-priority gaps
+        3. Estimate generation effort
+        4. Output prioritized sprint plan
+
+        Format: markdown table + numbered priority list.
+
+  - id: sprint_plan
+    use:
+      gaps: gap_analysis
+    infer:
+      prompt: |
+        Convert gap analysis into actionable Nika workflow plan.
+
+        GAP ANALYSIS:
+        {{use.gaps}}
+
+        For top 5 priority gaps, generate:
+        1. Nika YAML snippet (invoke: novanet_generate)
+        2. Estimated runtime (30s per block)
+        3. Total generation time
+
+        Output ready-to-execute sprint plan with copy-paste YAML.
+
+flows:
+  - source: discover_pillars
+    target: [coverage_fr, coverage_en, coverage_es, coverage_de, coverage_pt, coverage_ja]
+  - source: [discover_pillars, coverage_fr, coverage_en, coverage_es, coverage_de, coverage_pt, coverage_ja]
+    target: gap_analysis
+  - source: gap_analysis
+    target: sprint_plan
