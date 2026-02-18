@@ -120,8 +120,7 @@ async fn test_transport_spawn_passes_environment_variables() {
 
 #[test]
 fn test_transport_implements_debug() {
-    let transport = McpTransport::new("echo", &["test"])
-        .with_env("KEY", "value");
+    let transport = McpTransport::new("echo", &["test"]).with_env("KEY", "value");
 
     let debug_output = format!("{:?}", transport);
 

@@ -12,4 +12,6 @@ mod trace;
 
 // Re-export all public types
 pub use log::{Event, EventKind, EventLog};
-pub use trace::{calculate_workflow_hash, generate_generation_id, list_traces, TraceInfo, TraceWriter};
+pub use trace::{
+    calculate_workflow_hash, generate_generation_id, list_traces, TraceInfo, TraceWriter,
+};

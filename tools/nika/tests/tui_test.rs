@@ -43,7 +43,10 @@ tasks:
         let temp = NamedTempFile::new().unwrap();
 
         let app = App::new(temp.path());
-        assert!(app.is_ok(), "App should be created for existing file (content validation happens later)");
+        assert!(
+            app.is_ok(),
+            "App should be created for existing file (content validation happens later)"
+        );
     }
 
     #[test]

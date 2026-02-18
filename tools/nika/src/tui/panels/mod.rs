@@ -6,12 +6,12 @@
 //! - Context assembled
 //! - Agent reasoning
 
-mod progress;
-mod graph;
 mod context;
+mod graph;
+mod progress;
 mod reasoning;
 
-pub use progress::ProgressPanel;
-pub use graph::GraphPanel;
 pub use context::ContextPanel;
+pub use graph::GraphPanel;
+pub use progress::ProgressPanel;
 pub use reasoning::ReasoningPanel;

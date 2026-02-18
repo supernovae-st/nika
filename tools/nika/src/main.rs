@@ -196,10 +196,7 @@ fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
             };
 
             println!("Found {} traces:\n", traces.len());
-            println!(
-                "{:<30} {:>10} {:>20}",
-                "GENERATION ID", "SIZE", "CREATED"
-            );
+            println!("{:<30} {:>10} {:>20}", "GENERATION ID", "SIZE", "CREATED");
             println!("{}", "-".repeat(62));
 
             for trace in traces {
