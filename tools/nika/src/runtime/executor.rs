@@ -1,6 +1,6 @@
-//! Task Executor - individual task execution (v0.1)
+//! Task Executor - individual task execution (v0.2)
 //!
-//! Handles execution of individual tasks: infer, exec, fetch.
+//! Handles execution of individual tasks: infer, exec, fetch, invoke.
 //! Uses DashMap for lock-free provider caching.
 
 use std::sync::Arc;
@@ -8,10 +8,11 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use tracing::{debug, instrument};
 
-use crate::ast::{ExecParams, FetchParams, InferParams, TaskAction};
+use crate::ast::{ExecParams, FetchParams, InferParams, InvokeParams, TaskAction};
 use crate::binding::{template_resolve, UseBindings};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
+use crate::mcp::McpClient;
 use crate::provider::{create_provider, Provider};
 use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
 
@@ -63,12 +64,8 @@ impl TaskExecutor {
             TaskAction::Infer { infer } => self.execute_infer(task_id, infer, bindings).await,
             TaskAction::Exec { exec } => self.execute_exec(task_id, exec, bindings).await,
             TaskAction::Fetch { fetch } => self.execute_fetch(task_id, fetch, bindings).await,
-            TaskAction::Invoke { invoke: _ } => {
-                // TODO(v0.2): Implement invoke execution with MCP client
-                Err(NikaError::Execution(
-                    "invoke verb execution not yet implemented - requires MCP client (v0.2)"
-                        .to_string(),
-                ))
+            TaskAction::Invoke { invoke } => {
+                self.execute_invoke(task_id, invoke).await
             }
         }
     }
@@ -232,6 +229,78 @@ impl TaskExecutor {
             .await
             .map_err(|e| NikaError::Execution(format!("Failed to read response: {}", e)))
     }
+
+    /// Execute an invoke action (MCP tool call or resource read)
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - Task identifier for event logging
+    /// * `invoke` - Invoke parameters with mcp server name and tool/resource
+    ///
+    /// # Note
+    ///
+    /// Currently uses mock MCP client since real MCP manager is not yet available.
+    /// The mock client provides canned responses for testing and development.
+    #[instrument(skip(self), fields(mcp = %invoke.mcp))]
+    async fn execute_invoke(
+        &self,
+        task_id: &Arc<str>,
+        invoke: &InvokeParams,
+    ) -> Result<String, NikaError> {
+        // Validate invoke params (tool XOR resource)
+        invoke
+            .validate()
+            .map_err(|e| NikaError::ValidationError { reason: e })?;
+
+        // EMIT: McpInvoke event
+        self.event_log.emit(EventKind::McpInvoke {
+            task_id: Arc::clone(task_id),
+            mcp_server: invoke.mcp.clone(),
+            tool: invoke.tool.clone(),
+            resource: invoke.resource.clone(),
+        });
+
+        // For now, use mock client since we don't have MCP manager yet
+        // TODO(v0.2): Replace with MCP manager that maintains real connections
+        let client = McpClient::mock(&invoke.mcp);
+
+        let result = if let Some(tool) = &invoke.tool {
+            // Tool call path
+            let params = invoke.params.clone().unwrap_or(serde_json::Value::Null);
+            let tool_result = client.call_tool(tool, params).await?;
+
+            // Check if tool returned an error
+            if tool_result.is_error {
+                return Err(NikaError::McpToolError {
+                    tool: tool.clone(),
+                    reason: tool_result.text(),
+                });
+            }
+
+            // Extract text and try to parse as JSON
+            let text = tool_result.text();
+            serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text))
+        } else if let Some(resource) = &invoke.resource {
+            // Resource read path
+            let content = client.read_resource(resource).await?;
+            content
+                .text
+                .and_then(|t| serde_json::from_str(&t).ok())
+                .unwrap_or(serde_json::Value::Null)
+        } else {
+            // validate() ensures this never happens
+            unreachable!("validate() ensures tool or resource is set")
+        };
+
+        // EMIT: McpResponse event
+        self.event_log.emit(EventKind::McpResponse {
+            task_id: Arc::clone(task_id),
+            output_len: result.to_string().len(),
+        });
+
+        // Return JSON string representation
+        Ok(result.to_string())
+    }
 }
 
 /// Get action type as string for tracing
@@ -247,7 +316,7 @@ fn action_type(action: &TaskAction) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::ExecParams;
+    use crate::ast::{ExecParams, InvokeParams};
     use serde_json::json;
 
     #[test]
@@ -316,6 +385,121 @@ mod tests {
 
         if let EventKind::TemplateResolved { result, .. } = &template_events[0].kind {
             assert_eq!(result, "echo Hello Alice");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // INVOKE VERB TESTS (v0.2)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn execute_invoke_tool_call() {
+        let event_log = EventLog::new();
+        let exec = TaskExecutor::new("mock", None, event_log.clone());
+        let bindings = UseBindings::new();
+
+        let action = TaskAction::Invoke {
+            invoke: InvokeParams {
+                mcp: "novanet".to_string(),
+                tool: Some("novanet_generate".to_string()),
+                params: Some(json!({"entity": "qr-code", "locale": "fr-FR"})),
+                resource: None,
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("invoke_test");
+        let result = exec.execute(&task_id, &action, &bindings).await;
+
+        assert!(result.is_ok(), "Invoke tool call should succeed: {:?}", result.err());
+        let output = result.unwrap();
+        assert!(output.contains("entity"), "Output should contain entity: {output}");
+    }
+
+    #[tokio::test]
+    async fn execute_invoke_resource_read() {
+        let event_log = EventLog::new();
+        let exec = TaskExecutor::new("mock", None, event_log.clone());
+        let bindings = UseBindings::new();
+
+        let action = TaskAction::Invoke {
+            invoke: InvokeParams {
+                mcp: "novanet".to_string(),
+                tool: None,
+                params: None,
+                resource: Some("neo4j://entity/qr-code".to_string()),
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("resource_test");
+        let result = exec.execute(&task_id, &action, &bindings).await;
+
+        assert!(result.is_ok(), "Invoke resource read should succeed: {:?}", result.err());
+        let output = result.unwrap();
+        assert!(output.contains("qr-code"), "Output should contain entity id: {output}");
+    }
+
+    #[tokio::test]
+    async fn execute_invoke_emits_mcp_events() {
+        let event_log = EventLog::new();
+        let exec = TaskExecutor::new("mock", None, event_log.clone());
+        let bindings = UseBindings::new();
+
+        let action = TaskAction::Invoke {
+            invoke: InvokeParams {
+                mcp: "novanet".to_string(),
+                tool: Some("novanet_describe".to_string()),
+                params: None,
+                resource: None,
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("mcp_events_test");
+        exec.execute(&task_id, &action, &bindings).await.unwrap();
+
+        // Check MCP events were emitted
+        let events = event_log.filter_task("mcp_events_test");
+        assert!(!events.is_empty(), "Should emit events");
+
+        // Check for McpInvoke event
+        let invoke_events: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e.kind, EventKind::McpInvoke { .. }))
+            .collect();
+        assert_eq!(invoke_events.len(), 1, "Should emit McpInvoke event");
+
+        // Check for McpResponse event
+        let response_events: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e.kind, EventKind::McpResponse { .. }))
+            .collect();
+        assert_eq!(response_events.len(), 1, "Should emit McpResponse event");
+    }
+
+    #[tokio::test]
+    async fn execute_invoke_validation_error() {
+        let event_log = EventLog::new();
+        let exec = TaskExecutor::new("mock", None, event_log);
+        let bindings = UseBindings::new();
+
+        // Both tool and resource set (invalid)
+        let action = TaskAction::Invoke {
+            invoke: InvokeParams {
+                mcp: "novanet".to_string(),
+                tool: Some("test".to_string()),
+                params: None,
+                resource: Some("test://resource".to_string()),
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("invalid_test");
+        let result = exec.execute(&task_id, &action, &bindings).await;
+
+        assert!(result.is_err(), "Should fail with validation error");
+        match result.unwrap_err() {
+            NikaError::ValidationError { reason } => {
+                assert!(reason.contains("mutually exclusive"));
+            }
+            err => panic!("Expected ValidationError, got: {err:?}"),
         }
     }
 }

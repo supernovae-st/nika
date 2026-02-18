@@ -1,8 +1,8 @@
-//! EventLog - Event sourcing implementation (v0.1)
+//! EventLog - Event sourcing implementation (v0.2)
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 10 variants across 3 levels (workflow/task/fine-grained)
+//! - EventKind: 12 variants across 4 levels (workflow/task/fine-grained/MCP)
 //! - EventLog: thread-safe, append-only log
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -89,6 +89,22 @@ pub enum EventKind {
         output_len: usize,
         tokens_used: Option<u32>,
     },
+
+    // ═══════════════════════════════════════════
+    // MCP EVENTS (v0.2)
+    // ═══════════════════════════════════════════
+    /// MCP tool call or resource read initiated
+    McpInvoke {
+        task_id: Arc<str>,
+        mcp_server: String,
+        tool: Option<String>,
+        resource: Option<String>,
+    },
+    /// MCP operation completed
+    McpResponse {
+        task_id: Arc<str>,
+        output_len: usize,
+    },
 }
 
 impl EventKind {
@@ -102,7 +118,9 @@ impl EventKind {
             | Self::TaskFailed { task_id, .. }
             | Self::TemplateResolved { task_id, .. }
             | Self::ProviderCalled { task_id, .. }
-            | Self::ProviderResponded { task_id, .. } => Some(task_id),
+            | Self::ProviderResponded { task_id, .. }
+            | Self::McpInvoke { task_id, .. }
+            | Self::McpResponse { task_id, .. } => Some(task_id),
             Self::WorkflowStarted { .. }
             | Self::WorkflowCompleted { .. }
             | Self::WorkflowFailed { .. } => None,
