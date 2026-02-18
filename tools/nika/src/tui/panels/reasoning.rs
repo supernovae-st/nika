@@ -9,6 +9,7 @@ use ratatui::{
 };
 
 /// Panel showing agent reasoning
+#[allow(dead_code)]
 pub struct ReasoningPanel;
 
 impl ReasoningPanel {

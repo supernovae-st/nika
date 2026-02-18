@@ -100,10 +100,10 @@ pub fn novanet_config() -> McpConfig {
     let mcp_path = novanet_mcp_path();
 
     // Get Neo4j connection settings from environment or use defaults
-    let neo4j_uri = std::env::var("NOVANET_MCP_NEO4J_URI")
-        .unwrap_or_else(|_| DEFAULT_NEO4J_URI.to_string());
-    let neo4j_user = std::env::var("NOVANET_MCP_NEO4J_USER")
-        .unwrap_or_else(|_| DEFAULT_NEO4J_USER.to_string());
+    let neo4j_uri =
+        std::env::var("NOVANET_MCP_NEO4J_URI").unwrap_or_else(|_| DEFAULT_NEO4J_URI.to_string());
+    let neo4j_user =
+        std::env::var("NOVANET_MCP_NEO4J_USER").unwrap_or_else(|_| DEFAULT_NEO4J_USER.to_string());
     let neo4j_password = std::env::var("NOVANET_MCP_NEO4J_PASSWORD")
         .unwrap_or_else(|_| DEFAULT_NEO4J_PASSWORD.to_string());
 

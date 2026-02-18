@@ -22,6 +22,7 @@ use super::output::OutputPolicy;
 pub const SCHEMA_V01: &str = "nika/workflow@0.1";
 
 /// Expected schema version for v0.2 workflows
+#[allow(dead_code)]
 pub const SCHEMA_V02: &str = "nika/workflow@0.2";
 
 /// Inline MCP server configuration (v0.2)

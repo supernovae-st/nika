@@ -360,17 +360,8 @@ async fn test_multiple_tool_calls() {
             )
             .await;
 
-        assert!(
-            result.is_ok(),
-            "Tool call {} failed: {:?}",
-            i,
-            result.err()
-        );
-        assert!(
-            !result.unwrap().is_error,
-            "Tool call {} returned error",
-            i
-        );
+        assert!(result.is_ok(), "Tool call {} failed: {:?}", i, result.err());
+        assert!(!result.unwrap().is_error, "Tool call {} returned error", i);
     }
 
     // Cleanup

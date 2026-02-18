@@ -14,6 +14,10 @@
 //! └─────────────────────────────────────────────────────────────────────┘
 //! ```
 
+// Allow dead_code and unused_imports in TUI module - this is scaffolding for MVP 5
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 #[cfg(feature = "tui")]
 mod app;
 #[cfg(feature = "tui")]

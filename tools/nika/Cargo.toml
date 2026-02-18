@@ -4,7 +4,7 @@ version = "0.2.0"
 edition = "2021"
 description = "DAG workflow runner for AI tasks with MCP integration"
 license = "AGPL-3.0-or-later"
-rust-version = "1.75"
+rust-version = "1.82"
 
 [[bin]]
 name = "nika"
