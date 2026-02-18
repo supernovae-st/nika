@@ -87,6 +87,53 @@ impl JsonRpcRequest {
     }
 }
 
+/// JSON-RPC 2.0 Notification.
+///
+/// A notification is a request without an ID - the server should not respond.
+/// Used for one-way messages like `notifications/initialized`.
+#[derive(Debug, Serialize)]
+pub struct JsonRpcNotification {
+    /// Protocol version - always "2.0"
+    pub jsonrpc: &'static str,
+
+    /// Method name (e.g., "notifications/initialized")
+    pub method: String,
+
+    /// Method parameters (optional)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<Value>,
+}
+
+impl JsonRpcNotification {
+    /// Create a new JSON-RPC notification.
+    ///
+    /// # Arguments
+    ///
+    /// * `method` - Notification method name
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let notification = JsonRpcNotification::new("notifications/initialized");
+    /// ```
+    pub fn new(method: &str) -> Self {
+        Self {
+            jsonrpc: "2.0",
+            method: method.to_string(),
+            params: None,
+        }
+    }
+
+    /// Create a notification with parameters.
+    pub fn with_params(method: &str, params: Value) -> Self {
+        Self {
+            jsonrpc: "2.0",
+            method: method.to_string(),
+            params: Some(params),
+        }
+    }
+}
+
 /// JSON-RPC 2.0 Response.
 ///
 /// Received from an MCP server after a request. Contains either a result or an error.
@@ -172,5 +219,34 @@ mod tests {
         let response: JsonRpcResponse = serde_json::from_str(json_str).unwrap();
 
         assert!(!response.is_success());
+    }
+
+    #[test]
+    fn test_notification_new() {
+        let notification = JsonRpcNotification::new("notifications/initialized");
+
+        assert_eq!(notification.jsonrpc, "2.0");
+        assert_eq!(notification.method, "notifications/initialized");
+        assert!(notification.params.is_none());
+    }
+
+    #[test]
+    fn test_notification_with_params() {
+        let notification =
+            JsonRpcNotification::with_params("notifications/test", json!({"key": "value"}));
+
+        assert_eq!(notification.jsonrpc, "2.0");
+        assert_eq!(notification.method, "notifications/test");
+        assert!(notification.params.is_some());
+    }
+
+    #[test]
+    fn test_notification_serializes_without_params() {
+        let notification = JsonRpcNotification::new("notifications/initialized");
+        let json = serde_json::to_string(&notification).unwrap();
+
+        // Should not include "params" field when None
+        assert!(!json.contains("params"));
+        assert!(json.contains("notifications/initialized"));
     }
 }

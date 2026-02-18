@@ -77,7 +77,7 @@ pub mod types;
 
 // Re-export core types for convenience
 pub use client::McpClient;
-pub use protocol::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
+pub use protocol::{JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 pub use transport::McpTransport;
 pub use types::{
     ContentBlock, McpConfig, ResourceContent, ToolCallRequest, ToolCallResult, ToolDefinition,

@@ -367,3 +367,264 @@ async fn test_multiple_tool_calls() {
     // Cleanup
     client.disconnect().await.ok();
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Use Case Tests: Entity Discovery
+// ═══════════════════════════════════════════════════════════════
+
+/// Test discovering entities in the knowledge graph.
+///
+/// This use case simulates a workflow that needs to find all available
+/// entities before generating content.
+#[tokio::test]
+#[ignore]
+async fn test_use_case_discover_entities() {
+    if should_skip_integration_test() {
+        return;
+    }
+
+    let config = novanet_config();
+    let client = McpClient::new(config).expect("Failed to create client");
+    client.connect().await.expect("Failed to connect");
+
+    // Query for Entity nodes
+    let result = client
+        .call_tool(
+            "novanet_query",
+            json!({
+                "cypher": "MATCH (e:Entity) RETURN e.key as key, e.slug as slug LIMIT 10"
+            }),
+        )
+        .await;
+
+    assert!(result.is_ok(), "Entity query failed: {:?}", result.err());
+    let response = result.unwrap();
+    assert!(!response.is_error, "Query returned error: {:?}", response.text());
+
+    // Verify response contains entity data
+    let text = response.text();
+    println!("Discovered entities: {}", text);
+
+    // Cleanup
+    client.disconnect().await.ok();
+}
+
+/// Test discovering page structure for content generation.
+#[tokio::test]
+#[ignore]
+async fn test_use_case_discover_pages() {
+    if should_skip_integration_test() {
+        return;
+    }
+
+    let config = novanet_config();
+    let client = McpClient::new(config).expect("Failed to create client");
+    client.connect().await.expect("Failed to connect");
+
+    // Query for Page nodes with their blocks
+    let result = client
+        .call_tool(
+            "novanet_query",
+            json!({
+                "cypher": r#"
+                    MATCH (p:Page)
+                    OPTIONAL MATCH (p)-[:HAS_BLOCK]->(b:Block)
+                    RETURN p.key as page_key, collect(b.key) as block_keys
+                    LIMIT 5
+                "#
+            }),
+        )
+        .await;
+
+    assert!(result.is_ok(), "Page query failed: {:?}", result.err());
+    let response = result.unwrap();
+    assert!(!response.is_error, "Query returned error: {:?}", response.text());
+
+    println!("Discovered pages: {}", response.text());
+
+    // Cleanup
+    client.disconnect().await.ok();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Use Case Tests: Content Generation Workflow
+// ═══════════════════════════════════════════════════════════════
+
+/// Test the full content generation workflow:
+/// 1. Discover schema to understand available content
+/// 2. Query for specific entity context
+/// 3. (Would normally invoke LLM here, simulated by query)
+#[tokio::test]
+#[ignore]
+async fn test_use_case_content_generation_workflow() {
+    if should_skip_integration_test() {
+        return;
+    }
+
+    let config = novanet_config();
+    let client = McpClient::new(config).expect("Failed to create client");
+    client.connect().await.expect("Failed to connect");
+
+    // Step 1: Get schema overview
+    let schema_result = client
+        .call_tool(
+            "novanet_describe",
+            json!({
+                "describe": "schema"
+            }),
+        )
+        .await;
+    assert!(schema_result.is_ok(), "Schema describe failed");
+    let schema = schema_result.unwrap();
+    assert!(!schema.is_error, "Schema describe returned error");
+    println!("Step 1 - Schema: {}", &schema.text()[..200.min(schema.text().len())]);
+
+    // Step 2: Query for entity with native content
+    let entity_result = client
+        .call_tool(
+            "novanet_query",
+            json!({
+                "cypher": r#"
+                    MATCH (e:Entity)
+                    WHERE e.key IS NOT NULL
+                    OPTIONAL MATCH (e)-[:HAS_NATIVE]->(n:EntityNative)
+                    RETURN e.key as entity, collect(n.locale) as locales
+                    LIMIT 3
+                "#
+            }),
+        )
+        .await;
+    assert!(entity_result.is_ok(), "Entity query failed");
+    let entities = entity_result.unwrap();
+    assert!(!entities.is_error, "Entity query returned error");
+    println!("Step 2 - Entities with natives: {}", entities.text());
+
+    // Step 3: Get denomination forms for content
+    let forms_result = client
+        .call_tool(
+            "novanet_query",
+            json!({
+                "cypher": r#"
+                    MATCH (n:EntityNative)
+                    WHERE n.denomination_forms IS NOT NULL
+                    RETURN n.locale as locale, n.denomination_forms as forms
+                    LIMIT 2
+                "#
+            }),
+        )
+        .await;
+    assert!(forms_result.is_ok(), "Forms query failed");
+    let forms = forms_result.unwrap();
+    println!("Step 3 - Denomination forms: {}", forms.text());
+
+    // Cleanup
+    client.disconnect().await.ok();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Use Case Tests: Schema Introspection
+// ═══════════════════════════════════════════════════════════════
+
+/// Test introspecting the complete knowledge graph schema.
+///
+/// This is useful for understanding what node types and relationships
+/// are available before building workflows.
+#[tokio::test]
+#[ignore]
+async fn test_use_case_schema_introspection() {
+    if should_skip_integration_test() {
+        return;
+    }
+
+    let config = novanet_config();
+    let client = McpClient::new(config).expect("Failed to create client");
+    client.connect().await.expect("Failed to connect");
+
+    // Get all node labels
+    let labels_result = client
+        .call_tool(
+            "novanet_query",
+            json!({
+                "cypher": "CALL db.labels() YIELD label RETURN collect(label) as labels"
+            }),
+        )
+        .await;
+    assert!(labels_result.is_ok(), "Labels query failed");
+    println!("Node labels: {}", labels_result.unwrap().text());
+
+    // Get all relationship types
+    let rels_result = client
+        .call_tool(
+            "novanet_query",
+            json!({
+                "cypher": "CALL db.relationshipTypes() YIELD relationshipType RETURN collect(relationshipType) as types"
+            }),
+        )
+        .await;
+    assert!(rels_result.is_ok(), "Relationship types query failed");
+    println!("Relationship types: {}", rels_result.unwrap().text());
+
+    // Cleanup
+    client.disconnect().await.ok();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Use Case Tests: Data Validation
+// ═══════════════════════════════════════════════════════════════
+
+/// Test validating knowledge graph data integrity.
+///
+/// This simulates a maintenance workflow that checks for:
+/// - Orphan nodes (entities without natives)
+/// - Missing required properties
+/// - Broken relationships
+#[tokio::test]
+#[ignore]
+async fn test_use_case_data_validation() {
+    if should_skip_integration_test() {
+        return;
+    }
+
+    let config = novanet_config();
+    let client = McpClient::new(config).expect("Failed to create client");
+    client.connect().await.expect("Failed to connect");
+
+    // Check for entities without any native content
+    let orphan_result = client
+        .call_tool(
+            "novanet_query",
+            json!({
+                "cypher": r#"
+                    MATCH (e:Entity)
+                    WHERE NOT (e)-[:HAS_NATIVE]->(:EntityNative)
+                    RETURN e.key as orphan_entity
+                    LIMIT 5
+                "#
+            }),
+        )
+        .await;
+    assert!(orphan_result.is_ok(), "Orphan check failed");
+    println!("Entities without natives: {}", orphan_result.unwrap().text());
+
+    // Check for natives missing required properties
+    let missing_props_result = client
+        .call_tool(
+            "novanet_query",
+            json!({
+                "cypher": r#"
+                    MATCH (n:EntityNative)
+                    WHERE n.denomination_forms IS NULL
+                    RETURN n.locale as locale, count(*) as count
+                "#
+            }),
+        )
+        .await;
+    assert!(missing_props_result.is_ok(), "Missing props check failed");
+    println!(
+        "Natives missing denomination_forms: {}",
+        missing_props_result.unwrap().text()
+    );
+
+    // Cleanup
+    client.disconnect().await.ok();
+}

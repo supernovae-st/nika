@@ -37,7 +37,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Child;
 
 use crate::error::{NikaError, Result};
-use crate::mcp::protocol::{JsonRpcRequest, JsonRpcResponse};
+use crate::mcp::protocol::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 use crate::mcp::transport::McpTransport;
 use crate::mcp::types::{ContentBlock, McpConfig, ResourceContent, ToolCallResult, ToolDefinition};
 
@@ -206,7 +206,14 @@ impl McpClient {
     }
 
     /// Initialize MCP connection with handshake.
+    ///
+    /// MCP protocol requires:
+    /// 1. Client sends `initialize` request
+    /// 2. Server responds with capabilities
+    /// 3. Client sends `notifications/initialized` notification
+    /// 4. Now tool calls can be made
     async fn initialize(&self) -> Result<()> {
+        // Step 1: Send initialize request
         let req = JsonRpcRequest::new(
             self.next_id(),
             "initialize",
@@ -227,6 +234,67 @@ impl McpClient {
                     .unwrap_or_else(|| "Unknown error".to_string()),
             });
         }
+
+        // Step 2: Send initialized notification (required by MCP protocol)
+        self.send_notification(&JsonRpcNotification::new("notifications/initialized"))
+            .await?;
+
+        Ok(())
+    }
+
+    /// Send a JSON-RPC notification (no response expected).
+    async fn send_notification(&self, notification: &JsonRpcNotification) -> Result<()> {
+        // Serialize notification
+        let json =
+            serde_json::to_string(notification).map_err(|e| NikaError::McpToolError {
+                tool: notification.method.clone(),
+                reason: format!("Failed to serialize notification: {}", e),
+            })?;
+
+        // Take stdin out of the process to avoid holding lock across await
+        let mut stdin = {
+            let mut guard = self.process.lock();
+            let process = guard.as_mut().ok_or_else(|| NikaError::McpNotConnected {
+                name: self.name.clone(),
+            })?;
+
+            process
+                .stdin
+                .take()
+                .ok_or_else(|| NikaError::McpToolError {
+                    tool: notification.method.clone(),
+                    reason: "stdin not available".to_string(),
+                })?
+        };
+
+        // Write notification (without holding the lock)
+        stdin
+            .write_all(json.as_bytes())
+            .await
+            .map_err(|e| NikaError::McpToolError {
+                tool: notification.method.clone(),
+                reason: format!("Failed to write: {}", e),
+            })?;
+        stdin
+            .write_all(b"\n")
+            .await
+            .map_err(|e| NikaError::McpToolError {
+                tool: notification.method.clone(),
+                reason: format!("Failed to write newline: {}", e),
+            })?;
+        stdin.flush().await.map_err(|e| NikaError::McpToolError {
+            tool: notification.method.clone(),
+            reason: format!("Failed to flush: {}", e),
+        })?;
+
+        // Put stdin back
+        {
+            let mut guard = self.process.lock();
+            if let Some(process) = guard.as_mut() {
+                process.stdin = Some(stdin);
+            }
+        }
+
         Ok(())
     }
 
@@ -500,8 +568,49 @@ impl McpClient {
             return Ok(self.mock_list_tools());
         }
 
-        // TODO: Real list tools implementation
-        Ok(Vec::new())
+        // Send tools/list request
+        let request = JsonRpcRequest::new(self.next_id(), "tools/list", serde_json::json!({}));
+
+        let response = self.send_request(&request).await?;
+
+        if let Some(error) = response.error {
+            return Err(NikaError::McpToolError {
+                tool: "tools/list".to_string(),
+                reason: error.message,
+            });
+        }
+
+        // Parse tools from response
+        let result = response.result.ok_or_else(|| NikaError::McpToolError {
+            tool: "tools/list".to_string(),
+            reason: "Empty result".to_string(),
+        })?;
+
+        // MCP returns: { "tools": [{ "name": "...", "description": "...", "inputSchema": {...} }] }
+        let tools = result
+            .get("tools")
+            .and_then(|t| t.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| {
+                        let name = item.get("name")?.as_str()?;
+                        let description = item.get("description").and_then(|d| d.as_str());
+                        let input_schema = item.get("inputSchema").cloned();
+
+                        let mut tool = ToolDefinition::new(name);
+                        if let Some(desc) = description {
+                            tool = tool.with_description(desc);
+                        }
+                        if let Some(schema) = input_schema {
+                            tool = tool.with_input_schema(schema);
+                        }
+                        Some(tool)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(tools)
     }
 
     // ═══════════════════════════════════════════════════════════════
