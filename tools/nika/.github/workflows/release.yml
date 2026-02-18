@@ -20,10 +20,16 @@ jobs:
         include:
           - target: x86_64-apple-darwin
             os: macos-latest
+            artifact: nika-macos-x64
           - target: aarch64-apple-darwin
             os: macos-latest
+            artifact: nika-macos-arm64
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+            artifact: nika-linux-x64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact: nika-windows-x64
 
     steps:
       - uses: actions/checkout@v4
@@ -35,17 +41,43 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Package
+      - name: Package (Unix)
+        if: matrix.os != 'windows-latest'
         run: |
           cd target/${{ matrix.target }}/release
-          tar czvf nika-${{ matrix.target }}.tar.gz nika
-          mv nika-${{ matrix.target }}.tar.gz ../../../
+          tar czvf ${{ matrix.artifact }}.tar.gz nika
+          shasum -a 256 ${{ matrix.artifact }}.tar.gz > ${{ matrix.artifact }}.tar.gz.sha256
+          mv ${{ matrix.artifact }}.tar.gz ../../../
+          mv ${{ matrix.artifact }}.tar.gz.sha256 ../../../
 
-      - name: Upload artifact
+      - name: Package (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          cd target/${{ matrix.target }}/release
+          Compress-Archive -Path nika.exe -DestinationPath ${{ matrix.artifact }}.zip
+          $hash = (Get-FileHash ${{ matrix.artifact }}.zip -Algorithm SHA256).Hash
+          "$hash  ${{ matrix.artifact }}.zip" | Out-File -Encoding ASCII ${{ matrix.artifact }}.zip.sha256
+          Move-Item ${{ matrix.artifact }}.zip ../../../
+          Move-Item ${{ matrix.artifact }}.zip.sha256 ../../../
+
+      - name: Upload artifact (Unix)
+        if: matrix.os != 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: nika-${{ matrix.target }}
-          path: nika-${{ matrix.target }}.tar.gz
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}.tar.gz
+            ${{ matrix.artifact }}.tar.gz.sha256
+
+      - name: Upload artifact (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}.zip
+            ${{ matrix.artifact }}.zip.sha256
 
   release:
     name: Create Release
@@ -59,5 +91,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/**/*.tar.gz
+          files: |
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
+            artifacts/**/*.sha256
           generate_release_notes: true
