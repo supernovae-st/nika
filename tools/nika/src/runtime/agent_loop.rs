@@ -164,15 +164,7 @@ impl AgentLoop {
         let tools: Vec<ToolDefinition> = self.build_tool_definitions().await?;
 
         loop {
-            // Emit turn started event
-            self.event_log.emit(EventKind::AgentTurn {
-                task_id: self.task_id.clone().into(),
-                turn_index: turn,
-                kind: "started".to_string(),
-                tokens: None,
-            });
-
-            // Check max turns before calling LLM
+            // Check max turns before calling LLM (before emitting started event)
             if turn >= max_turns {
                 return Ok(AgentLoopResult {
                     status: AgentStatus::MaxTurnsReached,
@@ -181,6 +173,14 @@ impl AgentLoop {
                     total_tokens,
                 });
             }
+
+            // Emit turn started event (only after confirming turn will execute)
+            self.event_log.emit(EventKind::AgentTurn {
+                task_id: self.task_id.clone().into(),
+                turn_index: turn,
+                kind: "started".to_string(),
+                tokens: None,
+            });
 
             // Call LLM
             let tools_ref = if tools.is_empty() {
@@ -291,17 +291,23 @@ impl AgentLoop {
     /// Execute a tool call via MCP
     ///
     /// Parses the tool name to extract MCP server and tool, then invokes.
+    /// Format: "mcpname_toolname" where mcpname is one of the configured MCP servers.
     async fn execute_tool_call(&self, tool_call: &ToolCall) -> Result<String> {
-        // Parse MCP name from tool name (format: "mcpname_toolname")
-        let parts: Vec<&str> = tool_call.name.splitn(2, '_').collect();
-        if parts.len() != 2 {
-            return Err(NikaError::InvalidToolName {
+        // Find which MCP server this tool belongs to by checking prefixes
+        // This handles MCP server names that contain underscores
+        let (mcp_name, tool_name) = self
+            .mcp_clients
+            .keys()
+            .find_map(|name| {
+                let prefix = format!("{}_", name);
+                tool_call
+                    .name
+                    .strip_prefix(&prefix)
+                    .map(|tool| (name.as_str(), tool))
+            })
+            .ok_or_else(|| NikaError::InvalidToolName {
                 name: tool_call.name.clone(),
-            });
-        }
-
-        let mcp_name = parts[0];
-        let tool_name = parts[1];
+            })?;
 
         // Emit tool call event
         self.event_log.emit(EventKind::McpInvoke {

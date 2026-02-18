@@ -13,6 +13,7 @@
 //! - NIKA-090-099: JSONPath/IO errors
 //! - NIKA-100-109: MCP errors (v0.2)
 //! - NIKA-110-119: Agent errors (v0.2)
+//! - NIKA-120-129: Resilience errors (v0.2)
 
 use thiserror::Error;
 
@@ -226,6 +227,27 @@ pub enum NikaError {
 
     #[error("[NIKA-114] Feature not implemented: {feature}. {suggestion}")]
     NotImplemented { feature: String, suggestion: String },
+
+    // ═══════════════════════════════════════════
+    // RESILIENCE ERRORS (120-129) - NEW v0.2
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-120] Provider '{provider}' error: {reason}")]
+    ProviderError { provider: String, reason: String },
+
+    #[error("[NIKA-121] Operation '{operation}' timed out after {duration_ms}ms")]
+    Timeout { operation: String, duration_ms: u64 },
+
+    #[error("[NIKA-122] Retry exhausted after {attempts} attempts: {last_error}")]
+    RetryExhausted { attempts: u32, last_error: String },
+
+    #[error("[NIKA-123] Circuit breaker open for '{service}': too many failures")]
+    CircuitBreakerOpen { service: String },
+
+    #[error("[NIKA-124] Rate limit exceeded for '{resource}': {reason}")]
+    RateLimitExceeded { resource: String, reason: String },
+
+    #[error("[NIKA-125] MCP tool call '{tool}' failed: {reason}")]
+    McpToolCallFailed { tool: String, reason: String },
 }
 
 impl NikaError {
@@ -292,6 +314,13 @@ impl NikaError {
             Self::InvalidToolName { .. } => "NIKA-112",
             Self::AgentValidationError { .. } => "NIKA-113",
             Self::NotImplemented { .. } => "NIKA-114",
+            // Resilience errors
+            Self::ProviderError { .. } => "NIKA-120",
+            Self::Timeout { .. } => "NIKA-121",
+            Self::RetryExhausted { .. } => "NIKA-122",
+            Self::CircuitBreakerOpen { .. } => "NIKA-123",
+            Self::RateLimitExceeded { .. } => "NIKA-124",
+            Self::McpToolCallFailed { .. } => "NIKA-125",
         }
     }
 
@@ -303,6 +332,9 @@ impl NikaError {
                 | Self::McpNotConnected { .. }
                 | Self::ProviderApiError { .. }
                 | Self::McpToolError { .. }
+                | Self::ProviderError { .. }
+                | Self::Timeout { .. }
+                | Self::McpToolCallFailed { .. }
         )
     }
 }
@@ -402,6 +434,19 @@ impl FixSuggestion for NikaError {
             NikaError::NotImplemented { .. } => {
                 Some("This feature is planned for a future release")
             }
+            // Resilience errors
+            NikaError::ProviderError { .. } => {
+                Some("Check provider configuration and network connectivity")
+            }
+            NikaError::Timeout { .. } => Some("Increase timeout or check for slow operations"),
+            NikaError::RetryExhausted { .. } => {
+                Some("Check service availability or increase retry attempts")
+            }
+            NikaError::CircuitBreakerOpen { .. } => {
+                Some("Wait for circuit breaker to reset or check service health")
+            }
+            NikaError::RateLimitExceeded { .. } => Some("Reduce request rate or wait before retrying"),
+            NikaError::McpToolCallFailed { .. } => Some("Check MCP tool parameters and server logs"),
         }
     }
 }

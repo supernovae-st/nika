@@ -211,7 +211,7 @@ impl McpClient {
             self.next_id(),
             "initialize",
             serde_json::json!({
-                "protocolVersion": "1.0",
+                "protocolVersion": "2024-11-05",
                 "capabilities": {},
                 "clientInfo": { "name": "nika", "version": env!("CARGO_PKG_VERSION") }
             }),

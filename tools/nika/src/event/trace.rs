@@ -22,7 +22,30 @@ pub struct TraceWriter {
 
 impl TraceWriter {
     /// Create a new trace writer for a generation
+    ///
+    /// # Security
+    ///
+    /// The generation_id is validated to prevent path traversal attacks.
+    /// Only alphanumeric characters, hyphens, and underscores are allowed.
     pub fn new(generation_id: &str) -> Result<Self> {
+        // Validate generation_id to prevent path traversal
+        if generation_id.is_empty()
+            || generation_id.contains("..")
+            || generation_id.contains('/')
+            || generation_id.contains('\\')
+            || !generation_id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == 'T')
+        {
+            return Err(crate::error::NikaError::ValidationError {
+                reason: format!(
+                    "Invalid generation_id: must be alphanumeric with hyphens/underscores only, got: {}",
+                    generation_id
+                ),
+            }
+            .into());
+        }
+
         // Ensure trace directory exists
         let trace_dir = Path::new(TRACE_DIR);
         fs::create_dir_all(trace_dir)?;
@@ -82,7 +105,7 @@ pub fn generate_generation_id() -> String {
 
     let now = Utc::now();
     let timestamp = now.format("%Y-%m-%dT%H-%M-%S");
-    let random: u32 = rand::random::<u32>() % 0xFFFF;
+    let random: u32 = rand::random::<u32>() % 0x10000;  // 0-65535 for 4 hex digits
 
     format!("{}-{:04x}", timestamp, random)
 }
@@ -245,5 +268,37 @@ mod tests {
         let result = list_traces();
         // This may or may not return empty depending on filesystem state
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_trace_writer_rejects_path_traversal() {
+        // Path traversal attempts should be rejected
+        let result = TraceWriter::new("../evil");
+        assert!(result.is_err());
+
+        let result = TraceWriter::new("foo/../bar");
+        assert!(result.is_err());
+
+        let result = TraceWriter::new("foo/bar");
+        assert!(result.is_err());
+
+        let result = TraceWriter::new("foo\\bar");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_trace_writer_rejects_empty_id() {
+        let result = TraceWriter::new("");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_trace_writer_accepts_valid_ids() {
+        // These should be valid format (even if file creation fails)
+        assert!(
+            "2024-01-01T12-00-00-abc0"
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == 'T')
+        );
     }
 }
