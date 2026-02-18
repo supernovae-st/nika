@@ -132,10 +132,16 @@ impl TaskExecutor {
             .map_err(|e| NikaError::Provider(e.to_string()))?;
 
         // EMIT: ProviderResponded
+        // TODO(v0.2): Get actual token counts from provider response
         self.event_log.emit(EventKind::ProviderResponded {
             task_id: Arc::clone(task_id),
-            output_len: result.len(),
-            tokens_used: None, // TODO(v0.2): Add token counting to Provider trait
+            request_id: None, // TODO: Get from provider response
+            input_tokens: 0,  // TODO: Get from provider response
+            output_tokens: 0, // TODO: Get from provider response
+            cache_read_tokens: 0,
+            ttft_ms: None,
+            finish_reason: "stop".to_string(),
+            cost_usd: 0.0,
         });
 
         Ok(result)

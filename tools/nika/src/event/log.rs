@@ -2,7 +2,7 @@
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 12 variants across 4 levels (workflow/task/fine-grained/MCP)
+//! - EventKind: 13 variants across 5 levels (workflow/task/fine-grained/MCP/context)
 //! - EventLog: thread-safe, append-only log
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -13,6 +13,28 @@ use parking_lot::RwLock; // 2-3x faster than std::sync::RwLock
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+// ═══════════════════════════════════════════════════════════════
+// Helper structs for ContextAssembled event
+// ═══════════════════════════════════════════════════════════════
+
+/// A source included in the assembled context
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ContextSource {
+    /// Node/source identifier
+    pub node: String,
+    /// Token count for this source
+    pub tokens: u32,
+}
+
+/// An item excluded from context assembly
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ExcludedItem {
+    /// Node/source identifier
+    pub node: String,
+    /// Reason for exclusion
+    pub reason: String,
+}
 
 /// Single event in the workflow execution log
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,6 +58,12 @@ pub enum EventKind {
     // ═══════════════════════════════════════════
     WorkflowStarted {
         task_count: usize,
+        /// Unique generation ID for this execution
+        generation_id: String,
+        /// Hash of workflow file for cache invalidation
+        workflow_hash: String,
+        /// Nika version
+        nika_version: String,
     },
     WorkflowCompleted {
         final_output: Arc<Value>,
@@ -86,8 +114,38 @@ pub enum EventKind {
     },
     ProviderResponded {
         task_id: Arc<str>,
-        output_len: usize,
-        tokens_used: Option<u32>,
+        /// API request ID (for debugging with provider)
+        request_id: Option<String>,
+        /// Input tokens
+        input_tokens: u32,
+        /// Output tokens
+        output_tokens: u32,
+        /// Cache read tokens (if any)
+        cache_read_tokens: u32,
+        /// Time to first token (ms), if known
+        ttft_ms: Option<u64>,
+        /// Finish reason
+        finish_reason: String,
+        /// Estimated cost in USD
+        cost_usd: f64,
+    },
+
+    // ═══════════════════════════════════════════
+    // CONTEXT ASSEMBLY (v0.2)
+    // ═══════════════════════════════════════════
+    /// Context assembly event for observability
+    ContextAssembled {
+        task_id: Arc<str>,
+        /// Sources included in context
+        sources: Vec<ContextSource>,
+        /// Items excluded (with reasons)
+        excluded: Vec<ExcludedItem>,
+        /// Total tokens in assembled context
+        total_tokens: u32,
+        /// Budget utilization percentage
+        budget_used_pct: f32,
+        /// Was context truncated?
+        truncated: bool,
     },
 
     // ═══════════════════════════════════════════
@@ -144,6 +202,7 @@ impl EventKind {
             | Self::TemplateResolved { task_id, .. }
             | Self::ProviderCalled { task_id, .. }
             | Self::ProviderResponded { task_id, .. }
+            | Self::ContextAssembled { task_id, .. }
             | Self::McpInvoke { task_id, .. }
             | Self::McpResponse { task_id, .. }
             | Self::AgentStart { task_id, .. }
@@ -287,6 +346,34 @@ mod tests {
     use serde_json::json;
 
     // ═══════════════════════════════════════════════════════════════
+    // Test helpers
+    // ═══════════════════════════════════════════════════════════════
+
+    /// Create a WorkflowStarted event with test defaults
+    fn workflow_started(task_count: usize) -> EventKind {
+        EventKind::WorkflowStarted {
+            task_count,
+            generation_id: "test-gen-123".to_string(),
+            workflow_hash: "abc123".to_string(),
+            nika_version: "0.2.0".to_string(),
+        }
+    }
+
+    /// Create a ProviderResponded event with test defaults
+    fn provider_responded(task_id: &str, input_tokens: u32, output_tokens: u32) -> EventKind {
+        EventKind::ProviderResponded {
+            task_id: Arc::from(task_id),
+            request_id: Some("req-456".to_string()),
+            input_tokens,
+            output_tokens,
+            cache_read_tokens: 0,
+            ttft_ms: Some(150),
+            finish_reason: "stop".to_string(),
+            cost_usd: 0.001,
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // Event + EventKind tests
     // ═══════════════════════════════════════════════════════════════
 
@@ -298,13 +385,13 @@ mod tests {
         };
         assert_eq!(started.task_id(), Some("task1"));
 
-        let workflow = EventKind::WorkflowStarted { task_count: 5 };
+        let workflow = workflow_started(5);
         assert_eq!(workflow.task_id(), None);
     }
 
     #[test]
     fn eventkind_is_workflow_event() {
-        assert!(EventKind::WorkflowStarted { task_count: 3 }.is_workflow_event());
+        assert!(workflow_started(3).is_workflow_event());
         assert!(EventKind::WorkflowCompleted {
             final_output: Arc::new(json!("done")),
             total_duration_ms: 1000,
@@ -364,7 +451,7 @@ mod tests {
     fn eventlog_emit_returns_monotonic_ids() {
         let log = EventLog::new();
 
-        let id1 = log.emit(EventKind::WorkflowStarted { task_count: 3 });
+        let id1 = log.emit(workflow_started(3));
         let id2 = log.emit(EventKind::TaskStarted {
             task_id: "t1".into(),
             inputs: json!({}),
@@ -383,7 +470,7 @@ mod tests {
     #[test]
     fn eventlog_events_returns_all() {
         let log = EventLog::new();
-        log.emit(EventKind::WorkflowStarted { task_count: 2 });
+        log.emit(workflow_started(2));
         log.emit(EventKind::TaskStarted {
             task_id: "t1".into(),
             inputs: json!({}),
@@ -398,7 +485,7 @@ mod tests {
     #[test]
     fn eventlog_filter_task_returns_only_matching() {
         let log = EventLog::new();
-        log.emit(EventKind::WorkflowStarted { task_count: 2 });
+        log.emit(workflow_started(2));
         log.emit(EventKind::TaskStarted {
             task_id: "alpha".into(),
             inputs: json!({}),
@@ -426,7 +513,7 @@ mod tests {
     #[test]
     fn eventlog_workflow_events_returns_only_workflow() {
         let log = EventLog::new();
-        log.emit(EventKind::WorkflowStarted { task_count: 1 });
+        log.emit(workflow_started(1));
         log.emit(EventKind::TaskStarted {
             task_id: "t1".into(),
             inputs: json!({}),
@@ -458,7 +545,7 @@ mod tests {
     #[test]
     fn eventlog_is_clone() {
         let log = EventLog::new();
-        log.emit(EventKind::WorkflowStarted { task_count: 1 });
+        log.emit(workflow_started(1));
 
         let cloned = log.clone();
         assert_eq!(cloned.len(), 1);
@@ -508,7 +595,7 @@ mod tests {
         let log = EventLog::new();
 
         // First event should have small timestamp
-        log.emit(EventKind::WorkflowStarted { task_count: 1 });
+        log.emit(workflow_started(1));
 
         std::thread::sleep(std::time::Duration::from_millis(10));
 
@@ -552,6 +639,171 @@ mod tests {
             assert_eq!(captured["nested"]["key"], "value");
         } else {
             panic!("Expected TaskStarted event");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Enhanced event tests (v0.2 - generation_id, token tracking)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn workflow_started_includes_generation_id() {
+        let log = EventLog::new();
+        log.emit(EventKind::WorkflowStarted {
+            task_count: 3,
+            generation_id: "gen-abc-123".to_string(),
+            workflow_hash: "sha256:deadbeef".to_string(),
+            nika_version: "0.2.1".to_string(),
+        });
+
+        let events = log.events();
+        if let EventKind::WorkflowStarted {
+            generation_id,
+            workflow_hash,
+            nika_version,
+            ..
+        } = &events[0].kind
+        {
+            assert_eq!(generation_id, "gen-abc-123");
+            assert_eq!(workflow_hash, "sha256:deadbeef");
+            assert_eq!(nika_version, "0.2.1");
+        } else {
+            panic!("Expected WorkflowStarted event");
+        }
+    }
+
+    #[test]
+    fn provider_responded_tracks_detailed_tokens() {
+        let log = EventLog::new();
+        log.emit(EventKind::ProviderResponded {
+            task_id: "infer_task".into(),
+            request_id: Some("req-xyz-789".to_string()),
+            input_tokens: 500,
+            output_tokens: 150,
+            cache_read_tokens: 200,
+            ttft_ms: Some(85),
+            finish_reason: "stop".to_string(),
+            cost_usd: 0.0025,
+        });
+
+        let events = log.filter_task("infer_task");
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::ProviderResponded {
+            request_id,
+            input_tokens,
+            output_tokens,
+            cache_read_tokens,
+            ttft_ms,
+            finish_reason,
+            cost_usd,
+            ..
+        } = &events[0].kind
+        {
+            assert_eq!(request_id, &Some("req-xyz-789".to_string()));
+            assert_eq!(*input_tokens, 500);
+            assert_eq!(*output_tokens, 150);
+            assert_eq!(*cache_read_tokens, 200);
+            assert_eq!(*ttft_ms, Some(85));
+            assert_eq!(finish_reason, "stop");
+            assert!((*cost_usd - 0.0025).abs() < f64::EPSILON);
+        } else {
+            panic!("Expected ProviderResponded event");
+        }
+    }
+
+    #[test]
+    fn context_assembled_tracks_sources() {
+        let log = EventLog::new();
+
+        let sources = vec![
+            ContextSource {
+                node: "system_prompt".to_string(),
+                tokens: 200,
+            },
+            ContextSource {
+                node: "user_input".to_string(),
+                tokens: 50,
+            },
+            ContextSource {
+                node: "examples".to_string(),
+                tokens: 300,
+            },
+        ];
+
+        let excluded = vec![ExcludedItem {
+            node: "large_history".to_string(),
+            reason: "exceeded budget".to_string(),
+        }];
+
+        log.emit(EventKind::ContextAssembled {
+            task_id: "assemble_task".into(),
+            sources: sources.clone(),
+            excluded: excluded.clone(),
+            total_tokens: 550,
+            budget_used_pct: 55.0,
+            truncated: false,
+        });
+
+        let events = log.filter_task("assemble_task");
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::ContextAssembled {
+            sources: s,
+            excluded: e,
+            total_tokens,
+            budget_used_pct,
+            truncated,
+            ..
+        } = &events[0].kind
+        {
+            assert_eq!(s.len(), 3);
+            assert_eq!(s[0].node, "system_prompt");
+            assert_eq!(s[0].tokens, 200);
+            assert_eq!(e.len(), 1);
+            assert_eq!(e[0].reason, "exceeded budget");
+            assert_eq!(*total_tokens, 550);
+            assert!((*budget_used_pct - 55.0).abs() < f32::EPSILON);
+            assert!(!*truncated);
+        } else {
+            panic!("Expected ContextAssembled event");
+        }
+    }
+
+    #[test]
+    fn context_source_and_excluded_item_serialize() {
+        let source = ContextSource {
+            node: "test_node".to_string(),
+            tokens: 100,
+        };
+        let json = serde_json::to_value(&source).unwrap();
+        assert_eq!(json["node"], "test_node");
+        assert_eq!(json["tokens"], 100);
+
+        let excluded = ExcludedItem {
+            node: "big_file".to_string(),
+            reason: "too large".to_string(),
+        };
+        let json = serde_json::to_value(&excluded).unwrap();
+        assert_eq!(json["node"], "big_file");
+        assert_eq!(json["reason"], "too large");
+    }
+
+    #[test]
+    fn provider_responded_helper_creates_valid_event() {
+        let event = provider_responded("test_task", 100, 50);
+        assert_eq!(event.task_id(), Some("test_task"));
+
+        if let EventKind::ProviderResponded {
+            input_tokens,
+            output_tokens,
+            ..
+        } = event
+        {
+            assert_eq!(input_tokens, 100);
+            assert_eq!(output_tokens, 50);
+        } else {
+            panic!("Expected ProviderResponded event");
         }
     }
 }

@@ -114,8 +114,12 @@ impl Runner {
         let mut completed = 0;
 
         // EMIT: WorkflowStarted
+        // TODO(v0.2): Generate proper generation_id (e.g., UUID) and workflow_hash
         self.event_log.emit(EventKind::WorkflowStarted {
             task_count: total_tasks,
+            generation_id: format!("gen-{}", uuid::Uuid::new_v4()),
+            workflow_hash: "TODO".to_string(), // TODO: Hash workflow file
+            nika_version: env!("CARGO_PKG_VERSION").to_string(),
         });
 
         println!(
@@ -357,7 +361,7 @@ mod tests {
         // First event should be WorkflowStarted
         assert!(matches!(
             &events[0].kind,
-            EventKind::WorkflowStarted { task_count: 1 }
+            EventKind::WorkflowStarted { task_count: 1, .. }
         ));
 
         // Last event should be WorkflowCompleted
@@ -392,7 +396,7 @@ mod tests {
         // Verify WorkflowStarted with correct task count
         assert!(matches!(
             &events[0].kind,
-            EventKind::WorkflowStarted { task_count: 2 }
+            EventKind::WorkflowStarted { task_count: 2, .. }
         ));
 
         // Verify both tasks have complete event sequences
@@ -437,7 +441,7 @@ mod tests {
         // Verify WorkflowStarted
         assert!(matches!(
             &events[0].kind,
-            EventKind::WorkflowStarted { task_count: 2 }
+            EventKind::WorkflowStarted { task_count: 2, .. }
         ));
 
         // Both tasks should have been scheduled
