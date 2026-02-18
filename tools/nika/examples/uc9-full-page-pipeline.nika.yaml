@@ -1,0 +1,328 @@
+# UC9: Full Page Generation Pipeline
+# End-to-end page creation with all blocks in sequence
+#
+# DAG: entity → [planning] → [hero, features, social, cta, faq] → layout_validation → assembly
+#
+# COMPLEXITY: Agent-driven planning + parallel block generation + assembly
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    command: /Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 1: Inputs
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: entity_key
+    exec:
+      command: "echo dynamic-qr-code"
+
+  - id: locale_key
+    exec:
+      command: "echo fr-FR"
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 2: Context & Planning (Agent-driven)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: entity_context
+    use:
+      entity: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: "entity"
+        entity_key: "{{use.entity}}"
+    output:
+      format: json
+
+  - id: page_planning
+    use:
+      entity: entity_key
+      entity_ctx: entity_context
+    agent:
+      prompt: |
+        You are a page architect. Plan the structure for a landing page about "{{use.entity}}".
+
+        ENTITY CONTEXT:
+        {{use.entity_ctx}}
+
+        Use NovaNet tools to understand:
+        1. What features/benefits this entity provides (ENABLES arcs)
+        2. What use cases apply (APPLIES_TO arcs)
+        3. What related entities might enhance the page (SIMILAR_TO, SEMANTIC_LINK)
+
+        Then create a page structure plan:
+        - Block sequence (which blocks in what order)
+        - Content themes per block
+        - Internal linking opportunities
+
+        Output JSON:
+        {
+          "page_title": "...",
+          "blocks": [
+            {"type": "hero", "theme": "...", "key_message": "..."},
+            {"type": "features", "count": N, "focus_areas": [...]},
+            {"type": "social_proof", "elements": [...]},
+            {"type": "cta", "urgency": "low|medium|high"},
+            {"type": "faq", "questions_count": N}
+          ],
+          "internal_links": [...]
+        }
+
+        Say "PLANNING_COMPLETE" when done.
+      mcp:
+        - novanet
+      max_turns: 10
+      stop_conditions:
+        - "PLANNING_COMPLETE"
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 3: Parallel Block Generation
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: block_hero
+    use:
+      plan: page_planning
+      entity_ctx: entity_context
+      locale: locale_key
+    infer:
+      prompt: |
+        Generate HERO block for {{use.locale}}.
+
+        PAGE PLAN:
+        {{use.plan}}
+
+        ENTITY:
+        {{use.entity_ctx}}
+
+        Generate natively in {{use.locale}}:
+        - title: compelling headline
+        - subtitle: value proposition
+        - cta_primary: main action
+        - cta_secondary: alternative action
+        - background_theme: visual suggestion
+
+        Output JSON: {type: "hero", locale: "{{use.locale}}", content: {...}}
+
+  - id: block_features
+    use:
+      plan: page_planning
+      entity_ctx: entity_context
+      locale: locale_key
+    infer:
+      prompt: |
+        Generate FEATURES block for {{use.locale}}.
+
+        PAGE PLAN:
+        {{use.plan}}
+
+        ENTITY:
+        {{use.entity_ctx}}
+
+        Generate 4 features natively in {{use.locale}}:
+        Each feature:
+        - icon: emoji suggestion
+        - title: feature name (3-5 words)
+        - description: benefit (1-2 sentences)
+
+        Output JSON: {type: "features", locale: "{{use.locale}}", features: [...]}
+
+  - id: block_social
+    use:
+      plan: page_planning
+      entity_ctx: entity_context
+      locale: locale_key
+    infer:
+      prompt: |
+        Generate SOCIAL PROOF block for {{use.locale}}.
+
+        PAGE PLAN:
+        {{use.plan}}
+
+        ENTITY:
+        {{use.entity_ctx}}
+
+        Generate natively in {{use.locale}}:
+        - stats: 3 impressive numbers (users, QR codes generated, etc.)
+        - testimonial: 1 fictional but realistic quote
+        - trust_badges: suggested logos/certifications
+
+        Output JSON: {type: "social_proof", locale: "{{use.locale}}", content: {...}}
+
+  - id: block_cta
+    use:
+      plan: page_planning
+      locale: locale_key
+    infer:
+      prompt: |
+        Generate CTA block for {{use.locale}}.
+
+        PAGE PLAN:
+        {{use.plan}}
+
+        Generate natively in {{use.locale}}:
+        - headline: urgency-driven (based on plan)
+        - subheadline: remove objections
+        - button_text: action verb (2-4 words)
+        - guarantee: risk reversal statement
+
+        Output JSON: {type: "cta", locale: "{{use.locale}}", content: {...}}
+
+  - id: block_faq
+    use:
+      plan: page_planning
+      entity_ctx: entity_context
+      locale: locale_key
+    infer:
+      prompt: |
+        Generate FAQ block for {{use.locale}}.
+
+        PAGE PLAN:
+        {{use.plan}}
+
+        ENTITY:
+        {{use.entity_ctx}}
+
+        Generate 5 FAQs natively in {{use.locale}}:
+        - Common questions about the product
+        - Address objections and concerns
+        - Include "how it works" and "pricing" questions
+
+        Output JSON: {type: "faq", locale: "{{use.locale}}", questions: [...]}
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 4: Layout Validation
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: layout_validation
+    use:
+      hero: block_hero
+      features: block_features
+      social: block_social
+      cta: block_cta
+      faq: block_faq
+      plan: page_planning
+    infer:
+      prompt: |
+        Validate page layout and content flow.
+
+        ORIGINAL PLAN:
+        {{use.plan}}
+
+        GENERATED BLOCKS:
+        - Hero: {{use.hero}}
+        - Features: {{use.features}}
+        - Social Proof: {{use.social}}
+        - CTA: {{use.cta}}
+        - FAQ: {{use.faq}}
+
+        VALIDATION CRITERIA:
+
+        1. Content Flow
+           - Does story progress logically?
+           - Is there redundancy?
+
+        2. Message Consistency
+           - Do all blocks support main value prop?
+           - Any contradictions?
+
+        3. CTA Alignment
+           - Does CTA follow from content above?
+           - Is urgency appropriate?
+
+        4. SEO Structure
+           - Keyword presence in titles
+           - Internal linking opportunities
+
+        Output JSON:
+        {
+          "valid": bool,
+          "score": 0-100,
+          "flow_issues": [],
+          "consistency_issues": [],
+          "seo_score": 0-100,
+          "recommendations": []
+        }
+      model: claude-sonnet-4-20250514
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 5: Page Assembly
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: page_assembly
+    use:
+      hero: block_hero
+      features: block_features
+      social: block_social
+      cta: block_cta
+      faq: block_faq
+      validation: layout_validation
+      plan: page_planning
+      locale: locale_key
+    infer:
+      prompt: |
+        Assemble final page from validated blocks.
+
+        VALIDATION:
+        {{use.validation}}
+
+        BLOCKS:
+        1. {{use.hero}}
+        2. {{use.features}}
+        3. {{use.social}}
+        4. {{use.cta}}
+        5. {{use.faq}}
+
+        PLAN:
+        {{use.plan}}
+
+        Assemble complete page:
+        - Apply any validation recommendations
+        - Add metadata (title, description, keywords)
+        - Structure for deployment
+
+        Output JSON:
+        {
+          "locale": "{{use.locale}}",
+          "metadata": {
+            "title": "...",
+            "description": "...",
+            "keywords": [...]
+          },
+          "blocks": [
+            {...hero...},
+            {...features...},
+            {...social_proof...},
+            {...cta...},
+            {...faq...}
+          ],
+          "validation_score": N,
+          "deployment_ready": bool,
+          "generation_stats": {
+            "blocks_count": 5,
+            "total_tokens_estimate": N
+          }
+        }
+
+flows:
+  - source: entity_key
+    target: entity_context
+  - source: [entity_key, entity_context]
+    target: page_planning
+  - source: [page_planning, entity_context, locale_key]
+    target: [block_hero, block_features, block_social, block_cta, block_faq]
+  - source: [block_hero, block_features, block_social, block_cta, block_faq, page_planning]
+    target: layout_validation
+  - source: [block_hero, block_features, block_social, block_cta, block_faq, layout_validation, page_planning, locale_key]
+    target: page_assembly

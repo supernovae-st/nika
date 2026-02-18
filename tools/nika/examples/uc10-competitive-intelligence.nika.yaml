@@ -1,0 +1,357 @@
+# UC10: Competitive Intelligence Pipeline
+# Entity analysis with competitive positioning and differentiation strategy
+#
+# DAG: entity → [describe, similar, enables] → feature_matrix → positioning → strategy
+#
+# COMPLEXITY: Deep semantic analysis with strategic synthesis
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    command: /Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 1: Input
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: entity_key
+    exec:
+      command: "echo dynamic-qr-code"
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 2: Parallel Discovery
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: entity_describe
+    use:
+      entity: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: "entity"
+        entity_key: "{{use.entity}}"
+    output:
+      format: json
+
+  - id: similar_entities
+    use:
+      entity: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.entity}}"
+        arc_kinds: ["SIMILAR_TO", "SEMANTIC_LINK"]
+        direction: "outgoing"
+        max_depth: 2
+        limit: 30
+        include_properties: true
+    output:
+      format: json
+
+  - id: entity_enables
+    use:
+      entity: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.entity}}"
+        arc_kinds: ["ENABLES"]
+        direction: "outgoing"
+        max_depth: 2
+        limit: 30
+        include_properties: true
+    output:
+      format: json
+
+  - id: entity_requires
+    use:
+      entity: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.entity}}"
+        arc_kinds: ["REQUIRES"]
+        direction: "outgoing"
+        max_depth: 2
+        limit: 30
+        include_properties: true
+    output:
+      format: json
+
+  - id: applicable_industries
+    use:
+      entity: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.entity}}"
+        arc_kinds: ["APPLIES_TO"]
+        direction: "outgoing"
+        max_depth: 1
+        limit: 20
+        include_properties: true
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 3: Feature Comparison Matrix
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: feature_matrix
+    use:
+      main: entity_describe
+      similar: similar_entities
+      enables: entity_enables
+      requires: entity_requires
+    infer:
+      prompt: |
+        Build a feature comparison matrix.
+
+        MAIN ENTITY:
+        {{use.main}}
+
+        SIMILAR/COMPETING ENTITIES:
+        {{use.similar}}
+
+        CAPABILITIES (what it enables):
+        {{use.enables}}
+
+        REQUIREMENTS:
+        {{use.requires}}
+
+        Create comparison matrix:
+
+        1. Identify Top 5 Competitors
+           - From similar entities
+           - Rank by relevance
+
+        2. Define Feature Dimensions
+           - Core features (5-8)
+           - Differentiators
+           - Table stakes
+
+        3. Score Each Entity
+           - Main entity vs. each competitor
+           - Score: ✓ (has), ◐ (partial), ✗ (missing)
+
+        Output JSON:
+        {
+          "main_entity": "...",
+          "competitors": ["..."],
+          "features": [
+            {"name": "...", "category": "core|differentiator|table_stakes"}
+          ],
+          "matrix": {
+            "entity_key": {"feature_name": "✓|◐|✗", ...}
+          },
+          "main_entity_strengths": [...],
+          "main_entity_gaps": [...]
+        }
+      model: claude-sonnet-4-20250514
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 4: Competitive Positioning
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: positioning
+    use:
+      matrix: feature_matrix
+      industries: applicable_industries
+      main: entity_describe
+    infer:
+      prompt: |
+        Develop competitive positioning strategy.
+
+        FEATURE MATRIX:
+        {{use.matrix}}
+
+        TARGET INDUSTRIES:
+        {{use.industries}}
+
+        MAIN ENTITY:
+        {{use.main}}
+
+        POSITIONING ANALYSIS:
+
+        1. Unique Selling Proposition (USP)
+           - Based on differentiators from matrix
+           - What can ONLY this entity claim?
+
+        2. Market Position
+           - Leader, challenger, niche, or follower?
+           - Why?
+
+        3. Target Segment
+           - Which industries to prioritize
+           - Which to avoid (bad fit)
+
+        4. Competitive Advantages
+           - Sustainable vs. temporary
+           - Defensibility
+
+        5. Vulnerabilities
+           - Where competitors are stronger
+           - Mitigation strategies
+
+        Output JSON:
+        {
+          "usp": {
+            "statement": "...",
+            "supporting_features": [...]
+          },
+          "market_position": {
+            "type": "leader|challenger|niche|follower",
+            "justification": "..."
+          },
+          "target_segments": {
+            "primary": [...],
+            "secondary": [...],
+            "avoid": [...]
+          },
+          "advantages": [
+            {"advantage": "...", "sustainable": bool, "defensibility": "high|medium|low"}
+          ],
+          "vulnerabilities": [
+            {"area": "...", "risk": "high|medium|low", "mitigation": "..."}
+          ]
+        }
+      model: claude-sonnet-4-20250514
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 5: Differentiation Strategy
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: strategy
+    use:
+      positioning: positioning
+      matrix: feature_matrix
+      main: entity_describe
+    infer:
+      prompt: |
+        Create actionable differentiation strategy.
+
+        POSITIONING:
+        {{use.positioning}}
+
+        FEATURE MATRIX:
+        {{use.matrix}}
+
+        ENTITY:
+        {{use.main}}
+
+        STRATEGY DELIVERABLES:
+
+        1. Messaging Framework
+           - Primary message (headline)
+           - Supporting messages (3-5)
+           - Proof points
+
+        2. Competitive Responses
+           - For each top competitor
+           - "Why us instead of X" talking points
+
+        3. Feature Roadmap Priorities
+           - Fill gaps from matrix
+           - Enhance differentiators
+           - Prioritized list
+
+        4. Go-to-Market Recommendations
+           - Channel priorities
+           - Industry-specific approaches
+           - Quick wins vs. long-term
+
+        Output JSON:
+        {
+          "messaging": {
+            "headline": "...",
+            "supporting": [...],
+            "proof_points": [...]
+          },
+          "competitive_responses": {
+            "competitor_key": {
+              "why_us": "...",
+              "key_differentiators": [...]
+            }
+          },
+          "feature_roadmap": [
+            {"feature": "...", "priority": 1-5, "effort": "low|medium|high", "impact": "low|medium|high"}
+          ],
+          "gtm": {
+            "channels": [...],
+            "industry_approaches": {...},
+            "quick_wins": [...],
+            "long_term": [...]
+          }
+        }
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 6: Executive Summary
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: executive_summary
+    use:
+      main: entity_describe
+      matrix: feature_matrix
+      positioning: positioning
+      strategy: strategy
+    infer:
+      prompt: |
+        Generate executive summary of competitive intelligence.
+
+        ENTITY:
+        {{use.main}}
+
+        FEATURE MATRIX:
+        {{use.matrix}}
+
+        POSITIONING:
+        {{use.positioning}}
+
+        STRATEGY:
+        {{use.strategy}}
+
+        Executive Summary (1 page equivalent):
+
+        1. Situation Overview (2-3 sentences)
+        2. Key Findings (5 bullets)
+        3. Strategic Recommendation (1 paragraph)
+        4. Immediate Actions (3 items)
+        5. Success Metrics (3-5 KPIs)
+
+        Output JSON:
+        {
+          "situation": "...",
+          "key_findings": [...],
+          "recommendation": "...",
+          "immediate_actions": [...],
+          "success_metrics": [
+            {"metric": "...", "target": "...", "timeframe": "..."}
+          ],
+          "confidence_level": "high|medium|low",
+          "data_quality_notes": "..."
+        }
+
+flows:
+  - source: entity_key
+    target: [entity_describe, similar_entities, entity_enables, entity_requires, applicable_industries]
+  - source: [entity_describe, similar_entities, entity_enables, entity_requires]
+    target: feature_matrix
+  - source: [feature_matrix, applicable_industries, entity_describe]
+    target: positioning
+  - source: [positioning, feature_matrix, entity_describe]
+    target: strategy
+  - source: [entity_describe, feature_matrix, positioning, strategy]
+    target: executive_summary

@@ -1,0 +1,139 @@
+# UC6: Multi-Agent Research Pipeline
+# Deep entity research using agent: verb with autonomous MCP exploration
+#
+# DAG: entity → [agent_research] → market_analysis → recommendations
+#
+# COMPLEXITY: Uses agent: verb for autonomous tool calling
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    command: /Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 1: Input
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: entity_key
+    exec:
+      command: "echo dynamic-qr-code"
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 2: Autonomous Agent Research
+  # Uses agent: verb - LLM autonomously explores the knowledge graph
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: agent_research
+    use:
+      entity: entity_key
+    agent:
+      prompt: |
+        You are a product research analyst. Your task is to build a comprehensive
+        understanding of the entity "{{use.entity}}" using the NovaNet knowledge graph.
+
+        RESEARCH OBJECTIVES:
+        1. Describe the entity (what is it, what problem does it solve)
+        2. Discover what it REQUIRES (dependencies, prerequisites)
+        3. Discover what it ENABLES (capabilities, use cases)
+        4. Find SIMILAR entities (alternatives, related concepts)
+        5. Identify applicable INDUSTRIES (target markets)
+
+        Use the available MCP tools:
+        - novanet_describe: Get entity details
+        - novanet_traverse: Explore relationships (REQUIRES, ENABLES, SIMILAR_TO, APPLIES_TO)
+
+        When you have gathered enough information, output a structured research report
+        with sections for each objective.
+
+        End your research with: "RESEARCH_COMPLETE"
+      mcp:
+        - novanet
+      max_turns: 15
+      stop_conditions:
+        - "RESEARCH_COMPLETE"
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 3: Market Analysis (synthesis)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: market_analysis
+    use:
+      research: agent_research
+    infer:
+      prompt: |
+        Based on the research findings, perform a market analysis.
+
+        RESEARCH DATA:
+        {{use.research}}
+
+        ANALYSIS TASKS:
+        1. Market Size Estimation
+           - Based on applicable industries, estimate TAM/SAM/SOM
+
+        2. Competitive Landscape
+           - Position vs. similar entities
+           - Differentiation factors
+
+        3. Growth Opportunities
+           - Underserved industries
+           - Feature gaps to address
+
+        4. Risk Assessment
+           - Dependency risks
+           - Market saturation indicators
+
+        Output as structured JSON:
+        {
+          "market_size": {...},
+          "competitive_position": {...},
+          "opportunities": [...],
+          "risks": [...]
+        }
+      model: claude-sonnet-4-20250514
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 4: Strategic Recommendations
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: recommendations
+    use:
+      analysis: market_analysis
+      research: agent_research
+    infer:
+      prompt: |
+        Convert market analysis into actionable recommendations.
+
+        MARKET ANALYSIS:
+        {{use.analysis}}
+
+        ORIGINAL RESEARCH:
+        {{use.research}}
+
+        Generate a strategic roadmap with:
+        1. Immediate Actions (0-30 days)
+        2. Short-term Initiatives (1-3 months)
+        3. Long-term Strategy (3-12 months)
+
+        For each action:
+        - Specific deliverable
+        - Expected impact
+        - Resource requirements
+        - Success metrics
+
+        Output as prioritized JSON array.
+
+flows:
+  - source: entity_key
+    target: agent_research
+  - source: agent_research
+    target: market_analysis
+  - source: [agent_research, market_analysis]
+    target: recommendations

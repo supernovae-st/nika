@@ -1,0 +1,241 @@
+# UC7: Quality Gate Pipeline
+# Generate → Validate → Refine pattern with quality scoring
+#
+# DAG: [entity, locale] → generate_v1 → validate_v1 → refine → validate_v2 → final
+#
+# COMPLEXITY: Multi-stage validation with quality gates
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    command: /Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 1: Inputs
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: entity_key
+    exec:
+      command: "echo qr-code-art"
+
+  - id: locale_key
+    exec:
+      command: "echo fr-FR"
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 2: Context Gathering
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: entity_context
+    use:
+      entity: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: "entity"
+        entity_key: "{{use.entity}}"
+    output:
+      format: json
+
+  - id: locale_voice
+    use:
+      locale: locale_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.locale}}"
+        arc_kinds: ["HAS_VOICE", "HAS_TERMS"]
+        direction: "outgoing"
+        max_depth: 2
+        limit: 20
+        include_properties: true
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 3: Initial Generation (V1)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: generate_v1
+    use:
+      entity_ctx: entity_context
+      locale: locale_key
+      voice: locale_voice
+    infer:
+      prompt: |
+        Generate a HERO block for QR Code AI in {{use.locale}}.
+
+        ENTITY CONTEXT:
+        {{use.entity_ctx}}
+
+        LOCALE VOICE GUIDANCE:
+        {{use.voice}}
+
+        Generate natively in {{use.locale}} (NOT translated):
+        - title: compelling, 5-10 words
+        - subtitle: value proposition, 1-2 sentences
+        - cta_primary: action verb, 2-4 words
+        - cta_secondary: softer alternative, 2-4 words
+
+        Output as JSON: {title, subtitle, cta_primary, cta_secondary}
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 4: Quality Validation (Round 1)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: validate_v1
+    use:
+      content: generate_v1
+      locale: locale_key
+      voice: locale_voice
+    infer:
+      prompt: |
+        Quality validation for {{use.locale}} hero block.
+
+        CONTENT TO VALIDATE:
+        {{use.content}}
+
+        VOICE REQUIREMENTS:
+        {{use.voice}}
+
+        VALIDATION CRITERIA:
+        1. Authenticity (native feel, not translated) - 0-25 points
+        2. Brand Alignment (mentions QR Code AI correctly) - 0-25 points
+        3. Locale Fit (respects cultural norms) - 0-25 points
+        4. CTA Effectiveness (clear action, proper length) - 0-25 points
+
+        For each criterion:
+        - Score 0-25
+        - List specific issues if score < 20
+        - Provide fix suggestion
+
+        Output JSON:
+        {
+          "total_score": 0-100,
+          "passed": bool (>= 80),
+          "criteria": {
+            "authenticity": {"score": N, "issues": [], "fixes": []},
+            "brand_alignment": {"score": N, "issues": [], "fixes": []},
+            "locale_fit": {"score": N, "issues": [], "fixes": []},
+            "cta_effectiveness": {"score": N, "issues": [], "fixes": []}
+          }
+        }
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 5: Refinement (Apply Fixes)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: refine
+    use:
+      original: generate_v1
+      validation: validate_v1
+      locale: locale_key
+      voice: locale_voice
+    infer:
+      prompt: |
+        Refine the hero block based on validation feedback.
+
+        ORIGINAL CONTENT:
+        {{use.original}}
+
+        VALIDATION RESULTS:
+        {{use.validation}}
+
+        LOCALE: {{use.locale}}
+        VOICE: {{use.voice}}
+
+        Apply ALL suggested fixes while maintaining:
+        - Native {{use.locale}} feel
+        - Brand name "QR Code AI" unchanged
+        - Proper CTA length (2-4 words)
+
+        Output refined JSON: {title, subtitle, cta_primary, cta_secondary}
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 6: Final Validation (Round 2)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: validate_v2
+    use:
+      content: refine
+      locale: locale_key
+      voice: locale_voice
+    infer:
+      prompt: |
+        Final quality validation for refined {{use.locale}} hero block.
+
+        REFINED CONTENT:
+        {{use.content}}
+
+        VOICE REQUIREMENTS:
+        {{use.voice}}
+
+        Same validation criteria as before (authenticity, brand, locale, CTA).
+        Score 0-100, must pass >= 80.
+
+        Output JSON:
+        {
+          "total_score": 0-100,
+          "passed": bool,
+          "improvement_delta": N (vs. first validation),
+          "remaining_issues": []
+        }
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 7: Final Assembly
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: final_output
+    use:
+      content: refine
+      v1_validation: validate_v1
+      v2_validation: validate_v2
+      locale: locale_key
+    infer:
+      prompt: |
+        Assemble final quality-gated hero block.
+
+        APPROVED CONTENT:
+        {{use.content}}
+
+        VALIDATION HISTORY:
+        - V1 Score: {{use.v1_validation}}
+        - V2 Score: {{use.v2_validation}}
+
+        Output final package:
+        {
+          "locale": "{{use.locale}}",
+          "content": {...},
+          "quality": {
+            "final_score": N,
+            "passed": bool,
+            "iterations": 2,
+            "v1_score": N,
+            "v2_score": N
+          },
+          "deployment_ready": bool
+        }
+
+flows:
+  - source: [entity_key, locale_key]
+    target: [entity_context, locale_voice]
+  - source: [entity_context, locale_voice, locale_key]
+    target: generate_v1
+  - source: [generate_v1, locale_voice, locale_key]
+    target: validate_v1
+  - source: [generate_v1, validate_v1, locale_voice, locale_key]
+    target: refine
+  - source: [refine, locale_voice, locale_key]
+    target: validate_v2
+  - source: [refine, validate_v1, validate_v2, locale_key]
+    target: final_output

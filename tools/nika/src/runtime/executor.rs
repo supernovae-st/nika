@@ -358,51 +358,71 @@ impl TaskExecutor {
     ///
     /// * `task_id` - Task identifier for event logging
     /// * `agent` - Agent parameters with prompt, mcp servers, and stop conditions
-    /// * `_bindings` - Use bindings for template resolution (currently unused)
+    /// * `bindings` - Use bindings for template resolution
     ///
     /// # Flow
     ///
-    /// 1. Validate agent parameters
-    /// 2. Emit AgentStart event
-    /// 3. Get LLM provider (task override or workflow default)
-    /// 4. Build MCP client map for required servers
-    /// 5. Create and run AgentLoop
-    /// 6. Emit AgentComplete event
-    /// 7. Return final output as JSON string
-    #[instrument(skip(self, _bindings), fields(max_turns = %agent.effective_max_turns()))]
+    /// 1. Resolve templates in agent prompt
+    /// 2. Validate agent parameters
+    /// 3. Emit AgentStart event
+    /// 4. Get LLM provider (task override or workflow default)
+    /// 5. Build MCP client map for required servers
+    /// 6. Create and run AgentLoop
+    /// 7. Emit AgentComplete event
+    /// 8. Return final output as JSON string
+    #[instrument(skip(self, bindings), fields(max_turns = %agent.effective_max_turns()))]
     async fn execute_agent(
         &self,
         task_id: &Arc<str>,
         agent: &AgentParams,
-        _bindings: &ResolvedBindings,
+        bindings: &ResolvedBindings,
     ) -> Result<String, NikaError> {
+        // Resolve {{use.alias}} templates in prompt
+        let resolved_prompt = template_resolve(&agent.prompt, bindings)?;
+
+        // EMIT: TemplateResolved event
+        self.event_log.emit(EventKind::TemplateResolved {
+            task_id: Arc::clone(task_id),
+            template: agent.prompt.clone(),
+            result: resolved_prompt.to_string(),
+        });
+
+        // Create agent params with resolved prompt
+        let resolved_agent = AgentParams {
+            prompt: resolved_prompt.into_owned(),
+            ..agent.clone()
+        };
+
         // Validate agent params
-        agent
+        resolved_agent
             .validate()
             .map_err(|e| NikaError::AgentValidationError { reason: e })?;
 
         // EMIT: AgentStart event
         self.event_log.emit(EventKind::AgentStart {
             task_id: Arc::clone(task_id),
-            max_turns: agent.effective_max_turns(),
-            mcp_servers: agent.mcp.clone(),
+            max_turns: resolved_agent.effective_max_turns(),
+            mcp_servers: resolved_agent.mcp.clone(),
         });
 
         // Get provider (task override or workflow default)
-        let provider_name = agent.provider.as_deref().unwrap_or(&self.default_provider);
+        let provider_name = resolved_agent
+            .provider
+            .as_deref()
+            .unwrap_or(&self.default_provider);
         let provider = self.get_provider(provider_name)?;
 
         // Build MCP client map for this agent
         let mut mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
-        for mcp_name in &agent.mcp {
+        for mcp_name in &resolved_agent.mcp {
             let client = self.get_mcp_client(mcp_name).await?;
             mcp_clients.insert(mcp_name.clone(), client);
         }
 
-        // Create and run agent loop
+        // Create and run agent loop with resolved prompt
         let agent_loop = AgentLoop::new(
             task_id.to_string(),
-            agent.clone(),
+            resolved_agent,
             self.event_log.clone(),
             mcp_clients,
         )?;

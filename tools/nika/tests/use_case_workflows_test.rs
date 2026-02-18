@@ -63,8 +63,8 @@ fn test_uc1_workflow_parses() {
 fn test_uc1_has_correct_tasks() {
     let workflow = load_workflow("uc1-generate-page-multilingual.nika.yaml");
 
-    // Input task
-    assert_task_exists(&workflow, "entity_key");
+    // Input task (page_key provides the focus key)
+    assert_task_exists(&workflow, "page_key");
 
     // Generation tasks (fan-out)
     assert_task_exists(&workflow, "gen_fr");

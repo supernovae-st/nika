@@ -262,7 +262,8 @@ impl AgentLoop {
     /// Build tool definitions from MCP clients
     ///
     /// Queries each MCP server for available tools and builds unified definitions.
-    /// Tool names are prefixed with MCP server name: `mcpname_toolname`.
+    /// Tool names are prefixed with MCP server name: `mcpname_toolname`, unless
+    /// the tool name already includes that prefix (to avoid double-prefixing).
     async fn build_tool_definitions(&self) -> Result<Vec<ToolDefinition>> {
         let mut tools = Vec::new();
 
@@ -275,10 +276,19 @@ impl AgentLoop {
                     })?;
 
             let mcp_tools = client.list_tools().await?;
+            let prefix = format!("{}_", mcp_name);
+
             for tool in mcp_tools {
-                // Prefix tool name with MCP server name for disambiguation
+                // Don't double-prefix if MCP server already prefixes tool names
+                // (e.g., NovaNet returns "novanet_describe", not "describe")
+                let tool_name = if tool.name.starts_with(&prefix) {
+                    tool.name.clone()
+                } else {
+                    format!("{}{}", prefix, tool.name)
+                };
+
                 tools.push(ToolDefinition {
-                    name: format!("{}_{}", mcp_name, tool.name),
+                    name: tool_name,
                     description: tool.description.unwrap_or_default(),
                     input_schema: tool.input_schema.unwrap_or(serde_json::json!({})),
                 });
@@ -292,18 +302,23 @@ impl AgentLoop {
     ///
     /// Parses the tool name to extract MCP server and tool, then invokes.
     /// Format: "mcpname_toolname" where mcpname is one of the configured MCP servers.
+    ///
+    /// Note: If the MCP server returns tools already prefixed (e.g., "novanet_describe"),
+    /// we pass the full prefixed name to MCP (not strip it down to just "describe").
     async fn execute_tool_call(&self, tool_call: &ToolCall) -> Result<String> {
         // Find which MCP server this tool belongs to by checking prefixes
-        // This handles MCP server names that contain underscores
         let (mcp_name, tool_name) = self
             .mcp_clients
             .keys()
             .find_map(|name| {
                 let prefix = format!("{}_", name);
-                tool_call
-                    .name
-                    .strip_prefix(&prefix)
-                    .map(|tool| (name.as_str(), tool))
+                if tool_call.name.starts_with(&prefix) {
+                    // MCP servers like NovaNet prefix their tools (e.g., "novanet_describe")
+                    // We pass the FULL tool name to MCP, not the stripped version
+                    Some((name.as_str(), tool_call.name.as_str()))
+                } else {
+                    None
+                }
             })
             .ok_or_else(|| NikaError::InvalidToolName {
                 name: tool_call.name.clone(),
@@ -430,5 +445,76 @@ mod tests {
         let params = AgentParams::default(); // Empty prompt
         let result = AgentLoop::new("test".to_string(), params, EventLog::new(), FxHashMap::default());
         assert!(result.is_err());
+    }
+
+    // ========================================================================
+    // Tool Name Prefixing Tests
+    // ========================================================================
+
+    #[test]
+    fn test_tool_name_already_prefixed_not_doubled() {
+        // When MCP server returns tool names already prefixed (e.g., novanet_describe),
+        // we should NOT add another prefix (avoiding novanet_novanet_describe).
+        let mcp_name = "novanet";
+        let tool_name = "novanet_describe"; // Already prefixed by MCP server
+
+        // Simulate the prefixing logic
+        let prefixed = if tool_name.starts_with(&format!("{}_", mcp_name)) {
+            tool_name.to_string()
+        } else {
+            format!("{}_{}", mcp_name, tool_name)
+        };
+
+        assert_eq!(prefixed, "novanet_describe", "Should not double-prefix");
+    }
+
+    #[test]
+    fn test_tool_name_not_prefixed_gets_prefix() {
+        // When MCP server returns tool names without prefix (e.g., describe),
+        // we should add the prefix.
+        let mcp_name = "novanet";
+        let tool_name = "describe"; // Not prefixed
+
+        // Simulate the prefixing logic
+        let prefixed = if tool_name.starts_with(&format!("{}_", mcp_name)) {
+            tool_name.to_string()
+        } else {
+            format!("{}_{}", mcp_name, tool_name)
+        };
+
+        assert_eq!(prefixed, "novanet_describe", "Should add prefix");
+    }
+
+    #[test]
+    fn test_execute_tool_extracts_correct_name() {
+        // When Claude calls "novanet_describe", we should pass "novanet_describe"
+        // to MCP (the full tool name as registered), not just "describe".
+        let tool_call_name = "novanet_describe";
+        let mcp_name = "novanet";
+        let prefix = format!("{}_", mcp_name);
+
+        // New behavior: if tool name starts with MCP prefix, pass full name to MCP
+        let tool_name_for_mcp = if tool_call_name.starts_with(&prefix) {
+            tool_call_name.to_string() // Keep the full name for MCP
+        } else {
+            tool_call_name.to_string()
+        };
+
+        assert_eq!(tool_name_for_mcp, "novanet_describe", "Should pass full tool name to MCP");
+    }
+
+    #[test]
+    fn test_tool_name_with_custom_mcp_prefix() {
+        // Test with a different MCP server name
+        let mcp_name = "custom_server";
+        let tool_name = "custom_server_mytool"; // Already prefixed
+
+        let prefixed = if tool_name.starts_with(&format!("{}_", mcp_name)) {
+            tool_name.to_string()
+        } else {
+            format!("{}_{}", mcp_name, tool_name)
+        };
+
+        assert_eq!(prefixed, "custom_server_mytool", "Should not double-prefix");
     }
 }

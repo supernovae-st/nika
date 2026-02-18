@@ -1,0 +1,271 @@
+# UC8: Cross-Locale Orchestration with Validation
+# Generate for multiple locales in parallel, then cross-validate consistency
+#
+# DAG: entity → [gen_fr, gen_en, gen_es, gen_de, gen_ja] → consistency_check → gap_report
+#
+# COMPLEXITY: Parallel generation + cross-locale validation
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    command: /Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 1: Entity Context (shared across all locales)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: entity_key
+    exec:
+      command: "echo qr-code-art"
+
+  - id: entity_context
+    use:
+      entity: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: "entity"
+        entity_key: "{{use.entity}}"
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 2: Parallel Generation (5 locales)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: gen_fr
+    use:
+      entity_ctx: entity_context
+    infer:
+      prompt: |
+        Generate a HERO block for QR Code AI nativement en français (fr-FR).
+
+        ENTITY:
+        {{use.entity_ctx}}
+
+        Generate (NOT translate):
+        - title: accrocheur, 5-10 mots
+        - subtitle: proposition de valeur, 1-2 phrases
+        - cta_primary: verbe d'action, 2-4 mots
+        - cta_secondary: alternative douce
+
+        Brand "QR Code AI" reste [INVARIANT].
+        Output JSON: {locale: "fr-FR", title, subtitle, cta_primary, cta_secondary}
+
+  - id: gen_en
+    use:
+      entity_ctx: entity_context
+    infer:
+      prompt: |
+        Generate a HERO block for QR Code AI natively in English (en-US).
+
+        ENTITY:
+        {{use.entity_ctx}}
+
+        Generate (NOT translate):
+        - title: compelling, 5-10 words
+        - subtitle: value proposition, 1-2 sentences
+        - cta_primary: action verb, 2-4 words
+        - cta_secondary: softer alternative
+
+        Brand "QR Code AI" stays [INVARIANT].
+        Output JSON: {locale: "en-US", title, subtitle, cta_primary, cta_secondary}
+
+  - id: gen_es
+    use:
+      entity_ctx: entity_context
+    infer:
+      prompt: |
+        Generate a HERO block for QR Code AI nativamente en español (es-ES).
+
+        ENTITY:
+        {{use.entity_ctx}}
+
+        Genera (NO traduzcas):
+        - title: atractivo, 5-10 palabras
+        - subtitle: propuesta de valor, 1-2 oraciones
+        - cta_primary: verbo de acción, 2-4 palabras
+        - cta_secondary: alternativa suave
+
+        Marca "QR Code AI" permanece [INVARIANTE].
+        Output JSON: {locale: "es-ES", title, subtitle, cta_primary, cta_secondary}
+
+  - id: gen_de
+    use:
+      entity_ctx: entity_context
+    infer:
+      prompt: |
+        Generate a HERO block for QR Code AI nativ auf Deutsch (de-DE).
+
+        ENTITY:
+        {{use.entity_ctx}}
+
+        Generiere (NICHT übersetzen):
+        - title: ansprechend, 5-10 Wörter
+        - subtitle: Wertversprechen, 1-2 Sätze
+        - cta_primary: Aktionsverb, 2-4 Wörter
+        - cta_secondary: sanftere Alternative
+
+        Marke "QR Code AI" bleibt [INVARIANT].
+        Output JSON: {locale: "de-DE", title, subtitle, cta_primary, cta_secondary}
+
+  - id: gen_ja
+    use:
+      entity_ctx: entity_context
+    infer:
+      prompt: |
+        Generate a HERO block for QR Code AI natively in Japanese (ja-JP).
+
+        ENTITY:
+        {{use.entity_ctx}}
+
+        ネイティブに生成（翻訳しない）:
+        - title: 魅力的、5-10語
+        - subtitle: 価値提案、1-2文
+        - cta_primary: アクション動詞、2-4語
+        - cta_secondary: より柔らかい代替
+
+        ブランド「QR Code AI」は[不変]。
+        Output JSON: {locale: "ja-JP", title, subtitle, cta_primary, cta_secondary}
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 3: Cross-Locale Consistency Check
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: consistency_check
+    use:
+      fr: gen_fr
+      en: gen_en
+      es: gen_es
+      de: gen_de
+      ja: gen_ja
+    infer:
+      prompt: |
+        Cross-validate consistency across 5 locale hero blocks.
+
+        GENERATED CONTENT:
+        - FR: {{use.fr}}
+        - EN: {{use.en}}
+        - ES: {{use.es}}
+        - DE: {{use.de}}
+        - JA: {{use.ja}}
+
+        VALIDATION CRITERIA:
+
+        1. Brand Consistency
+           - "QR Code AI" preserved in all locales
+           - No mistranslation of brand
+
+        2. Message Alignment
+           - Core value proposition consistent
+           - No contradictory claims
+
+        3. Tone Consistency
+           - Appropriate formality per locale
+           - Professional but approachable
+
+        4. Length Parity
+           - Title lengths relatively balanced
+           - CTA lengths consistent (2-4 words)
+
+        For each criterion, check all 5 locales.
+
+        Output JSON:
+        {
+          "overall_consistency": 0-100,
+          "passed": bool (>= 80),
+          "brand_check": {
+            "passed": bool,
+            "issues": [{"locale": "xx-XX", "issue": "..."}]
+          },
+          "message_alignment": {
+            "passed": bool,
+            "divergent_locales": []
+          },
+          "tone_check": {
+            "passed": bool,
+            "issues": []
+          },
+          "length_parity": {
+            "passed": bool,
+            "outliers": []
+          }
+        }
+      model: claude-sonnet-4-20250514
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 4: Gap Report & Recommendations
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: gap_report
+    use:
+      consistency: consistency_check
+      fr: gen_fr
+      en: gen_en
+      es: gen_es
+      de: gen_de
+      ja: gen_ja
+    infer:
+      prompt: |
+        Generate cross-locale quality report with actionable fixes.
+
+        CONSISTENCY CHECK:
+        {{use.consistency}}
+
+        ALL CONTENT:
+        - FR: {{use.fr}}
+        - EN: {{use.en}}
+        - ES: {{use.es}}
+        - DE: {{use.de}}
+        - JA: {{use.ja}}
+
+        Generate report:
+
+        1. Executive Summary
+           - Overall quality score
+           - Locales ready for deployment
+           - Locales needing revision
+
+        2. Revision Priority
+           - Rank locales by urgency
+           - Specific fixes needed
+
+        3. Deployment Recommendation
+           - Which locales can ship now
+           - Which need another iteration
+
+        Output JSON:
+        {
+          "summary": {
+            "overall_score": N,
+            "ready_locales": ["xx-XX"],
+            "pending_locales": ["xx-XX"]
+          },
+          "revisions_needed": [
+            {"locale": "xx-XX", "priority": 1-5, "fixes": [...]}
+          ],
+          "deployment": {
+            "ship_now": ["xx-XX"],
+            "hold": ["xx-XX"],
+            "estimated_revision_time": "X hours"
+          }
+        }
+
+flows:
+  - source: entity_key
+    target: entity_context
+  - source: entity_context
+    target: [gen_fr, gen_en, gen_es, gen_de, gen_ja]
+  - source: [gen_fr, gen_en, gen_es, gen_de, gen_ja]
+    target: consistency_check
+  - source: [consistency_check, gen_fr, gen_en, gen_es, gen_de, gen_ja]
+    target: gap_report
