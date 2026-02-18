@@ -47,6 +47,13 @@ enum Commands {
         #[command(subcommand)]
         action: TraceAction,
     },
+
+    /// Run workflow with interactive TUI
+    #[cfg(feature = "tui")]
+    Tui {
+        /// Path to workflow YAML file
+        workflow: PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -107,6 +114,8 @@ async fn main() {
         } => run_workflow(&file, provider, model).await,
         Commands::Validate { file } => validate_workflow(&file),
         Commands::Trace { action } => handle_trace_command(action),
+        #[cfg(feature = "tui")]
+        Commands::Tui { workflow } => nika::tui::run_tui(&workflow).await,
     };
 
     if let Err(e) = result {
