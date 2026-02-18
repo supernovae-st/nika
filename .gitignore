@@ -16,10 +16,15 @@
 .DS_Store
 Thumbs.db
 
-# Claude Code (private DX)
-.claude/
+# Claude Code (private DX - settings are local, skills are shared)
+.claude/settings.local.json
 .claude.local
-CLAUDE.md
+
+# Track skills and shared DX (team conventions)
+!.claude/
+!.claude/skills/
+!.claude/CLAUDE.md
+!CLAUDE.md
 
 # Local dev
 *.local
