@@ -19,7 +19,7 @@
 //! use nika::event::EventLog;
 //! use nika::mcp::McpClient;
 //! use nika::provider::MockProvider;
-//! use std::collections::HashMap;
+//! use rustc_hash::FxHashMap;
 //! use std::sync::Arc;
 //!
 //! let params = AgentParams {
@@ -30,7 +30,7 @@
 //! };
 //!
 //! let event_log = EventLog::new();
-//! let mut mcp_clients = HashMap::new();
+//! let mut mcp_clients = FxHashMap::default();
 //! mcp_clients.insert("novanet".to_string(), Arc::new(McpClient::mock("novanet")));
 //!
 //! let agent_loop = AgentLoop::new("task1".to_string(), params, event_log, mcp_clients)?;
@@ -44,7 +44,7 @@
 //! }
 //! ```
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 use crate::ast::AgentParams;
@@ -103,7 +103,7 @@ pub struct AgentLoop {
     /// Event log for observability
     event_log: EventLog,
     /// Connected MCP clients by name
-    mcp_clients: HashMap<String, Arc<McpClient>>,
+    mcp_clients: FxHashMap<String, Arc<McpClient>>,
 }
 
 impl AgentLoop {
@@ -123,7 +123,7 @@ impl AgentLoop {
         task_id: String,
         params: AgentParams,
         event_log: EventLog,
-        mcp_clients: HashMap<String, Arc<McpClient>>,
+        mcp_clients: FxHashMap<String, Arc<McpClient>>,
     ) -> Result<Self> {
         // Validate params before creating the loop
         params
@@ -397,7 +397,7 @@ mod tests {
             task_id: "test".to_string(),
             params,
             event_log: EventLog::new(),
-            mcp_clients: HashMap::new(),
+            mcp_clients: FxHashMap::default(),
         };
 
         let content = r#"Here is the result: {"key": "value"} done"#;
@@ -416,7 +416,7 @@ mod tests {
             task_id: "test".to_string(),
             params,
             event_log: EventLog::new(),
-            mcp_clients: HashMap::new(),
+            mcp_clients: FxHashMap::default(),
         };
 
         let content = "Just plain text response";
@@ -428,7 +428,7 @@ mod tests {
     #[test]
     fn test_agent_loop_creation_validates_params() {
         let params = AgentParams::default(); // Empty prompt
-        let result = AgentLoop::new("test".to_string(), params, EventLog::new(), HashMap::new());
+        let result = AgentLoop::new("test".to_string(), params, EventLog::new(), FxHashMap::default());
         assert!(result.is_err());
     }
 }

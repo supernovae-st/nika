@@ -15,7 +15,7 @@
 //! // Use child.stdin/stdout for JSON-RPC communication
 //! ```
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::process::Stdio;
 
 use tokio::process::{Child, Command};
@@ -37,7 +37,7 @@ pub struct McpTransport {
     args: Vec<String>,
 
     /// Environment variables for the process
-    env: HashMap<String, String>,
+    env: FxHashMap<String, String>,
 }
 
 impl McpTransport {
@@ -52,7 +52,7 @@ impl McpTransport {
         Self {
             command: command.to_string(),
             args: args.iter().map(|s| s.to_string()).collect(),
-            env: HashMap::new(),
+            env: FxHashMap::default(),
         }
     }
 
@@ -83,7 +83,7 @@ impl McpTransport {
     }
 
     /// Get the environment variables.
-    pub fn env(&self) -> &HashMap<String, String> {
+    pub fn env(&self) -> &FxHashMap<String, String> {
         &self.env
     }
 

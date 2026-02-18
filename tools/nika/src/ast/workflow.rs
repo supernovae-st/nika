@@ -7,7 +7,7 @@
 //! - `FlowEndpoint`: Single or multiple task references
 //! - `McpConfigInline`: Inline MCP server configuration (v0.2)
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 use serde::Deserialize;
@@ -53,7 +53,7 @@ pub struct McpConfigInline {
     pub args: Vec<String>,
     /// Environment variables for the server process
     #[serde(default)]
-    pub env: HashMap<String, String>,
+    pub env: FxHashMap<String, String>,
     /// Working directory for the server process
     pub cwd: Option<String>,
 }
@@ -68,7 +68,7 @@ struct WorkflowRaw {
     pub model: Option<String>,
     /// MCP server configurations (v0.2)
     #[serde(default)]
-    pub mcp: Option<HashMap<String, McpConfigInline>>,
+    pub mcp: Option<FxHashMap<String, McpConfigInline>>,
     pub tasks: Vec<Task>,
     #[serde(default)]
     pub flows: Vec<Flow>,
@@ -85,7 +85,7 @@ pub struct Workflow {
     /// Allows workflows to define MCP servers inline rather than
     /// referencing external configuration. The map key is the server
     /// name used in `invoke.mcp` fields.
-    pub mcp: Option<HashMap<String, McpConfigInline>>,
+    pub mcp: Option<FxHashMap<String, McpConfigInline>>,
     pub tasks: Vec<Arc<Task>>,
     pub flows: Vec<Flow>,
 }

@@ -3,7 +3,7 @@
 //! Handles execution of individual tasks: infer, exec, fetch, invoke, agent.
 //! Uses DashMap for lock-free provider caching.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 use dashmap::DashMap;
@@ -32,7 +32,7 @@ pub struct TaskExecutor {
     /// Uses OnceCell per server to ensure only one client is created even with concurrent access
     mcp_client_cache: Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>,
     /// MCP server configurations from workflow
-    mcp_configs: Arc<HashMap<String, McpConfigInline>>,
+    mcp_configs: Arc<FxHashMap<String, McpConfigInline>>,
     /// Default provider name
     default_provider: Arc<str>,
     /// Default model
@@ -46,7 +46,7 @@ impl TaskExecutor {
     pub fn new(
         provider: &str,
         model: Option<&str>,
-        mcp_configs: Option<HashMap<String, McpConfigInline>>,
+        mcp_configs: Option<FxHashMap<String, McpConfigInline>>,
         event_log: EventLog,
     ) -> Self {
         let http_client = reqwest::Client::builder()
@@ -393,7 +393,7 @@ impl TaskExecutor {
         let provider = self.get_provider(provider_name)?;
 
         // Build MCP client map for this agent
-        let mut mcp_clients: HashMap<String, Arc<McpClient>> = HashMap::new();
+        let mut mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
         for mcp_name in &agent.mcp {
             let client = self.get_mcp_client(mcp_name).await?;
             mcp_clients.insert(mcp_name.clone(), client);

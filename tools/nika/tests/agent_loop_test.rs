@@ -5,7 +5,7 @@
 //! - Execution with mock provider and MCP clients
 //! - Stop conditions and max_turns behavior
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 use nika::ast::AgentParams;
@@ -29,7 +29,7 @@ fn test_agent_loop_creation_with_valid_params() {
     };
 
     let event_log = EventLog::new();
-    let mcp_clients: HashMap<String, Arc<McpClient>> = HashMap::new();
+    let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
     // Act
     let result = AgentLoop::new("test_task".to_string(), params, event_log, mcp_clients);
@@ -44,7 +44,7 @@ fn test_agent_loop_creation_with_empty_prompt_fails() {
     let params = AgentParams::default(); // Empty prompt
 
     let event_log = EventLog::new();
-    let mcp_clients = HashMap::new();
+    let mcp_clients = FxHashMap::default();
 
     // Act
     let result = AgentLoop::new("test_task".to_string(), params, event_log, mcp_clients);
@@ -68,7 +68,7 @@ fn test_agent_loop_creation_with_zero_max_turns_fails() {
     };
 
     let event_log = EventLog::new();
-    let mcp_clients = HashMap::new();
+    let mcp_clients = FxHashMap::default();
 
     // Act
     let result = AgentLoop::new("test_task".to_string(), params, event_log, mcp_clients);
@@ -87,7 +87,7 @@ fn test_agent_loop_creation_with_excessive_max_turns_fails() {
     };
 
     let event_log = EventLog::new();
-    let mcp_clients = HashMap::new();
+    let mcp_clients = FxHashMap::default();
 
     // Act
     let result = AgentLoop::new("test_task".to_string(), params, event_log, mcp_clients);
@@ -110,7 +110,7 @@ async fn test_agent_loop_runs_to_natural_completion() {
     };
 
     let event_log = EventLog::new();
-    let mcp_clients: HashMap<String, Arc<McpClient>> = HashMap::new();
+    let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
     let agent_loop = AgentLoop::new(
         "test_natural".to_string(),
@@ -150,7 +150,7 @@ async fn test_agent_loop_respects_max_turns() {
     };
 
     let event_log = EventLog::new();
-    let mcp_clients: HashMap<String, Arc<McpClient>> = HashMap::new();
+    let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
     let agent_loop = AgentLoop::new(
         "test_max_turns".to_string(),
@@ -183,7 +183,7 @@ async fn test_agent_loop_detects_stop_condition() {
     };
 
     let event_log = EventLog::new();
-    let mcp_clients: HashMap<String, Arc<McpClient>> = HashMap::new();
+    let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
     let agent_loop = AgentLoop::new(
         "test_stop_condition".to_string(),
@@ -218,7 +218,7 @@ async fn test_agent_loop_emits_events() {
     };
 
     let event_log = EventLog::new();
-    let mcp_clients: HashMap<String, Arc<McpClient>> = HashMap::new();
+    let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
     let agent_loop = AgentLoop::new(
         "test_events".to_string(),
@@ -269,7 +269,7 @@ async fn test_agent_loop_with_mock_mcp_client() {
     let event_log = EventLog::new();
 
     // Create mock MCP client
-    let mut mcp_clients: HashMap<String, Arc<McpClient>> = HashMap::new();
+    let mut mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
     mcp_clients.insert("novanet".to_string(), Arc::new(McpClient::mock("novanet")));
 
     let agent_loop = AgentLoop::new(
@@ -300,7 +300,7 @@ async fn test_agent_loop_fails_with_missing_mcp_client() {
     };
 
     let event_log = EventLog::new();
-    let mcp_clients: HashMap<String, Arc<McpClient>> = HashMap::new(); // Empty
+    let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default(); // Empty
 
     let agent_loop = AgentLoop::new(
         "test_missing_mcp".to_string(),

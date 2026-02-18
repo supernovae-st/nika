@@ -8,7 +8,7 @@
 //! - [`ResourceContent`]: Resource content from MCP server
 //! - [`ToolDefinition`]: Tool schema from MCP server
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -42,7 +42,7 @@ pub struct McpConfig {
 
     /// Environment variables for the process
     #[serde(default)]
-    pub env: HashMap<String, String>,
+    pub env: FxHashMap<String, String>,
 
     /// Working directory for the process
     #[serde(default)]
@@ -56,7 +56,7 @@ impl McpConfig {
             name: name.into(),
             command: command.into(),
             args: Vec::new(),
-            env: HashMap::new(),
+            env: FxHashMap::default(),
             cwd: None,
         }
     }

@@ -5,7 +5,7 @@
 //! - JoinSet for efficient parallel task collection
 //! - Tokio handles all concurrency (no artificial limits)
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -332,7 +332,7 @@ impl Runner {
             }
 
             // Collect for_each results for aggregation: parent_id -> Vec<(index, result)>
-            let mut for_each_results: HashMap<Arc<str>, Vec<(usize, TaskResult)>> = HashMap::new();
+            let mut for_each_results: FxHashMap<Arc<str>, Vec<(usize, TaskResult)>> = FxHashMap::default();
 
             // Wait for all spawned tasks to complete
             while let Some(result) = join_set.join_next().await {
