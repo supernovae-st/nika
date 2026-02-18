@@ -142,9 +142,16 @@ tasks:
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
     let task = &workflow.tasks[0];
 
-    // Validation should fail for empty array
+    // Validation should fail for empty array (task-level)
     let result = task.validate_for_each();
     assert!(result.is_err(), "Empty for_each should be invalid");
+
+    // Validation should also fail at workflow level
+    let workflow_result = workflow.validate_schema();
+    assert!(
+        workflow_result.is_err(),
+        "workflow.validate_schema() should catch empty for_each"
+    );
 }
 
 #[test]

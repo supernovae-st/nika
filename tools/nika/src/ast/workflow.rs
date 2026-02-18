@@ -108,17 +108,25 @@ impl<'de> Deserialize<'de> for Workflow {
 }
 
 impl Workflow {
-    /// Validate the workflow schema version
+    /// Validate the workflow schema version and task configuration
     ///
-    /// Returns error if schema doesn't match expected version.
-    /// Accepts v0.1, v0.2, or v0.3 schemas.
+    /// Returns error if:
+    /// - Schema doesn't match expected version (v0.1, v0.2, or v0.3)
+    /// - Any task has invalid for_each configuration (non-array or empty)
     pub fn validate_schema(&self) -> Result<(), NikaError> {
+        // Validate schema version
         if self.schema != SCHEMA_V01 && self.schema != SCHEMA_V02 && self.schema != SCHEMA_V03 {
             return Err(NikaError::InvalidSchema {
                 expected: format!("{} or {} or {}", SCHEMA_V01, SCHEMA_V02, SCHEMA_V03),
                 actual: self.schema.clone(),
             });
         }
+
+        // Validate for_each on all tasks
+        for task in &self.tasks {
+            task.validate_for_each()?;
+        }
+
         Ok(())
     }
 }
