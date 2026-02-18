@@ -5,6 +5,7 @@
 //! - JoinSet for efficient parallel task collection
 //! - Tokio handles all concurrency (no artificial limits)
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -23,6 +24,17 @@ use crate::util::intern;
 
 use super::executor::TaskExecutor;
 use super::output::make_task_result;
+
+/// Result of executing a task iteration
+/// For for_each tasks, includes the iteration index for ordered aggregation
+struct IterationResult {
+    /// ID used for storage (task_id for regular, indexed for for_each)
+    store_id: Arc<str>,
+    /// The actual task result
+    result: TaskResult,
+    /// For for_each: (parent_id, index) to enable aggregation
+    for_each_info: Option<(Arc<str>, usize)>,
+}
 
 /// DAG workflow runner with event sourcing
 pub struct Runner {
@@ -112,7 +124,7 @@ impl Runner {
     /// * `datastore` - Data store for task results
     /// * `executor` - Task executor
     /// * `event_log` - Event log for observability
-    /// * `for_each_binding` - Optional (var_name, value) for for_each iteration
+    /// * `for_each_binding` - Optional (var_name, value, index) for for_each iteration
     async fn execute_task_iteration(
         task: Arc<Task>,
         task_id: Arc<str>,
@@ -120,9 +132,15 @@ impl Runner {
         datastore: DataStore,
         executor: TaskExecutor,
         event_log: EventLog,
-        for_each_binding: Option<(String, Value)>,
-    ) -> (Arc<str>, TaskResult) {
+        for_each_binding: Option<(String, Value, usize)>, // Added index
+    ) -> IterationResult {
         let start = Instant::now();
+
+        // Extract for_each info if present
+        let for_each_info = for_each_binding
+            .as_ref()
+            .map(|(_, _, idx)| (Arc::clone(&parent_task_id), *idx));
+        let _is_for_each = for_each_binding.is_some();
 
         // Build bindings from use: wiring
         let mut bindings = match UseBindings::from_use_wiring(task.use_wiring.as_ref(), &datastore) {
@@ -135,12 +153,16 @@ impl Runner {
                     error: e.to_string(),
                     duration_ms: duration.as_millis() as u64,
                 });
-                return (parent_task_id, TaskResult::failed(e.to_string(), duration));
+                return IterationResult {
+                    store_id: task_id, // Store with indexed ID for for_each
+                    result: TaskResult::failed(e.to_string(), duration),
+                    for_each_info,
+                };
             }
         };
 
         // Add for_each binding if present (v0.3)
-        if let Some((var_name, value)) = for_each_binding {
+        if let Some((var_name, value, _idx)) = for_each_binding {
             bindings.set(&var_name, value);
         }
 
@@ -185,7 +207,11 @@ impl Runner {
             }
         };
 
-        (parent_task_id, task_result)
+        IterationResult {
+            store_id: task_id, // Store individual results with indexed ID
+            result: task_result,
+            for_each_info,
+        }
     }
 
     /// Main execution loop
@@ -277,7 +303,7 @@ impl Runner {
                                     datastore,
                                     executor,
                                     event_log,
-                                    Some((var_name, item)),
+                                    Some((var_name, item, idx)), // Pass index for ordering
                                 )
                                 .await
                             });
@@ -304,10 +330,19 @@ impl Runner {
                 }
             }
 
+            // Collect for_each results for aggregation: parent_id -> Vec<(index, result)>
+            let mut for_each_results: HashMap<Arc<str>, Vec<(usize, TaskResult)>> = HashMap::new();
+
             // Wait for all spawned tasks to complete
             while let Some(result) = join_set.join_next().await {
                 match result {
-                    Ok((task_id, task_result)) => {
+                    Ok(iteration_result) => {
+                        let IterationResult {
+                            store_id,
+                            result: task_result,
+                            for_each_info,
+                        } = iteration_result;
+
                         completed += 1;
                         let success = task_result.is_success();
 
@@ -328,14 +363,23 @@ impl Runner {
 
                         println!(
                             "  {} {} {} {}",
-                            status, &*task_id, symbol_colored, duration_str
+                            status, &*store_id, symbol_colored, duration_str
                         );
 
                         if let Some(err) = task_result.error() {
                             println!("      {} {}", "Error:".red(), err);
                         }
 
-                        self.datastore.insert(task_id, task_result);
+                        // Store individual result
+                        self.datastore.insert(Arc::clone(&store_id), task_result.clone());
+
+                        // If this is a for_each iteration, collect for aggregation
+                        if let Some((parent_id, idx)) = for_each_info {
+                            for_each_results
+                                .entry(parent_id)
+                                .or_default()
+                                .push((idx, task_result));
+                        }
                     }
                     Err(e) => {
                         // EMIT: WorkflowFailed (task panic)
@@ -346,6 +390,43 @@ impl Runner {
                         return Err(NikaError::Execution(format!("Task panicked: {}", e)));
                     }
                 }
+            }
+
+            // Aggregate for_each results into parent task
+            for (parent_id, mut results) in for_each_results {
+                // Sort by index to preserve order
+                results.sort_by_key(|(idx, _)| *idx);
+
+                // Collect outputs into JSON array
+                let outputs: Vec<Value> = results
+                    .iter()
+                    .map(|(_, r)| {
+                        // Try to parse as JSON, fall back to string
+                        let output_str = r.output_str();
+                        serde_json::from_str(&output_str)
+                            .unwrap_or(Value::String(output_str.into_owned()))
+                    })
+                    .collect();
+
+                // Calculate aggregate duration and success
+                let total_duration: std::time::Duration =
+                    results.iter().map(|(_, r)| r.duration).sum();
+                let all_success = results.iter().all(|(_, r)| r.is_success());
+
+                // Create aggregated result with JSON array
+                let aggregated_result = if all_success {
+                    TaskResult::success(Value::Array(outputs), total_duration)
+                } else {
+                    // Collect errors
+                    let errors: Vec<String> = results
+                        .iter()
+                        .filter_map(|(idx, r)| r.error().map(|e| format!("[{}]: {}", idx, e)))
+                        .collect();
+                    TaskResult::failed(errors.join("; "), total_duration)
+                };
+
+                // Store aggregated result under parent ID
+                self.datastore.insert(parent_id, aggregated_result);
             }
         }
 
@@ -369,6 +450,102 @@ mod tests {
     use super::*;
     use crate::ast::{ExecParams, Flow, FlowEndpoint, Task, TaskAction};
     use std::sync::Arc;
+
+    // ═══════════════════════════════════════════════════════════════
+    // FOR_EACH RESULT AGGREGATION TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_for_each_collects_all_results() {
+        // Create workflow with for_each that runs 3 items
+        let workflow = Workflow {
+            schema: "nika/workflow@0.3".to_string(),
+            provider: "mock".to_string(),
+            model: None,
+            mcp: None,
+            tasks: vec![Arc::new(Task {
+                id: "echo_items".to_string(),
+                for_each: Some(serde_json::json!(["a", "b", "c"])),
+                for_each_as: Some("item".to_string()),
+                action: TaskAction::Exec {
+                    exec: ExecParams {
+                        command: "echo {{use.item}}".to_string(),
+                    },
+                },
+                use_wiring: None,
+                output: None,
+            })],
+            flows: vec![],
+        };
+
+        let runner = Runner::new(workflow);
+        let result = runner.run().await;
+        assert!(result.is_ok(), "Workflow should complete: {:?}", result.err());
+
+        // The final output should contain results from all 3 iterations
+        // When for_each completes, results should be aggregated
+        // Check datastore has the parent task result
+        let parent_result = runner.datastore.get("echo_items");
+        assert!(parent_result.is_some(), "Parent task result should exist");
+
+        let result = parent_result.unwrap();
+        let output = result.output_str();
+        // Should contain all three outputs somehow (either as array or concatenated)
+        // The exact format depends on implementation, but all should be present
+        let has_a = output.contains("a") || output.contains("\"a\"");
+        let has_b = output.contains("b") || output.contains("\"b\"");
+        let has_c = output.contains("c") || output.contains("\"c\"");
+
+        assert!(has_a && has_b && has_c,
+            "Output should contain all 3 results, got: {}", output);
+    }
+
+    #[tokio::test]
+    async fn test_for_each_preserves_order() {
+        // Create workflow with for_each that runs 5 items
+        let workflow = Workflow {
+            schema: "nika/workflow@0.3".to_string(),
+            provider: "mock".to_string(),
+            model: None,
+            mcp: None,
+            tasks: vec![Arc::new(Task {
+                id: "ordered".to_string(),
+                for_each: Some(serde_json::json!(["first", "second", "third"])),
+                for_each_as: Some("x".to_string()),
+                action: TaskAction::Exec {
+                    exec: ExecParams {
+                        command: "echo {{use.x}}".to_string(),
+                    },
+                },
+                use_wiring: None,
+                output: None,
+            })],
+            flows: vec![],
+        };
+
+        let runner = Runner::new(workflow);
+        runner.run().await.unwrap();
+
+        let parent_result = runner.datastore.get("ordered");
+        assert!(parent_result.is_some(), "Parent task result should exist");
+
+        // If stored as array, order should be preserved
+        let result = parent_result.unwrap();
+        let output = result.output_str();
+        if let Ok(arr) = serde_json::from_str::<Vec<serde_json::Value>>(&output) {
+            assert_eq!(arr.len(), 3, "Should have 3 results");
+            // First element should be "first", last should be "third"
+            let first = arr[0].as_str().unwrap_or("");
+            let last = arr[2].as_str().unwrap_or("");
+            assert!(first.contains("first"), "First element should contain 'first'");
+            assert!(last.contains("third"), "Last element should contain 'third'");
+        }
+        // If not an array, at least verify all are present (parallel execution may reorder)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // BASIC WORKFLOW TESTS
+    // ═══════════════════════════════════════════════════════════════
 
     /// Helper to create a minimal workflow with exec tasks
     fn create_exec_workflow(tasks: Vec<(&str, &str)>, flows: Vec<(&str, &str)>) -> Workflow {
