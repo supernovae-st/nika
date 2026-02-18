@@ -15,7 +15,7 @@ use tokio::task::JoinSet;
 use tracing::{info, instrument};
 
 use crate::ast::{Task, Workflow};
-use crate::binding::UseBindings;
+use crate::binding::ResolvedBindings;
 use crate::dag::{validate_use_wiring, FlowGraph};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
@@ -143,7 +143,7 @@ impl Runner {
         let _is_for_each = for_each_binding.is_some();
 
         // Build bindings from use: wiring
-        let mut bindings = match UseBindings::from_use_wiring(task.use_wiring.as_ref(), &datastore)
+        let mut bindings = match ResolvedBindings::from_wiring_spec(task.use_wiring.as_ref(), &datastore)
         {
             Ok(b) => b,
             Err(e) => {
@@ -611,7 +611,7 @@ mod tests {
         // Expected sequence:
         // 1. WorkflowStarted
         // 2. TaskScheduled
-        // 3. TaskStarted (with inputs from UseBindings)
+        // 3. TaskStarted (with inputs from ResolvedBindings)
         // 4. TemplateResolved (from executor)
         // 5. TaskCompleted
         // 6. WorkflowCompleted

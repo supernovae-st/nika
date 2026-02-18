@@ -14,7 +14,7 @@
 use rustc_hash::FxHashSet;
 
 use crate::ast::Workflow;
-use crate::binding::{validate_task_id, UseWiring};
+use crate::binding::{validate_task_id, WiringSpec};
 use crate::error::NikaError;
 
 use super::flow::FlowGraph;
@@ -43,7 +43,7 @@ pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &FlowGraph) -> Resul
 /// 4. Source task has path to current task
 fn validate_wiring(
     task_id: &str,
-    wiring: &UseWiring,
+    wiring: &WiringSpec,
     all_task_ids: &FxHashSet<&str>,
     flow_graph: &FlowGraph,
 ) -> Result<(), NikaError> {

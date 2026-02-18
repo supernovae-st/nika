@@ -18,7 +18,7 @@ use smallvec::SmallVec;
 
 use crate::error::NikaError;
 
-use super::resolve::UseBindings;
+use super::resolve::ResolvedBindings;
 
 /// Pre-compiled regex for {{use.alias}} or {{use.alias.field}} pattern
 static USE_RE: LazyLock<Regex> =
@@ -52,7 +52,7 @@ fn escape_for_json(s: &str) -> String {
 ///
 /// Example: `{{use.forecast}}` → resolved value from bindings
 /// Example: `{{use.flight_info.departure}}` → nested access
-pub fn resolve<'a>(template: &'a str, bindings: &UseBindings) -> Result<Cow<'a, str>, NikaError> {
+pub fn resolve<'a>(template: &'a str, bindings: &ResolvedBindings) -> Result<Cow<'a, str>, NikaError> {
     // Early return with borrowed string (zero alloc)
     if !template.contains("{{use.") {
         return Ok(Cow::Borrowed(template));
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn resolve_simple() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("forecast", json!("Sunny 25C"));
 
         let result = resolve("Weather: {{use.forecast}}", &bindings).unwrap();
@@ -253,7 +253,7 @@ mod tests {
 
     #[test]
     fn resolve_number() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("price", json!(89));
 
         let result = resolve("Price: ${{use.price}}", &bindings).unwrap();
@@ -262,7 +262,7 @@ mod tests {
 
     #[test]
     fn resolve_nested() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("flight_info", json!({"departure": "10:30", "gate": "A12"}));
 
         let result = resolve("Depart at {{use.flight_info.departure}}", &bindings).unwrap();
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn resolve_multiple() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("a", json!("first"));
         bindings.set("b", json!("second"));
 
@@ -281,7 +281,7 @@ mod tests {
 
     #[test]
     fn resolve_object() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("data", json!({"x": 1, "y": 2}));
 
         let result = resolve("Full: {{use.data}}", &bindings).unwrap();
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn resolve_alias_not_found() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("known", json!("value"));
 
         let result = resolve("{{use.unknown}}", &bindings);
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn resolve_path_not_found() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("data", json!({"a": 1}));
 
         let result = resolve("{{use.data.nonexistent}}", &bindings);
@@ -310,7 +310,7 @@ mod tests {
 
     #[test]
     fn resolve_no_templates() {
-        let bindings = UseBindings::new();
+        let bindings = ResolvedBindings::new();
         let result = resolve("No templates here", &bindings).unwrap();
         assert_eq!(result, "No templates here");
         // Verify zero-alloc: should be Cow::Borrowed
@@ -319,7 +319,7 @@ mod tests {
 
     #[test]
     fn resolve_with_templates_is_owned() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("x", json!("value"));
         let result = resolve("Has {{use.x}} template", &bindings).unwrap();
         assert_eq!(result, "Has value template");
@@ -329,7 +329,7 @@ mod tests {
 
     #[test]
     fn resolve_array_index() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("items", json!(["first", "second", "third"]));
 
         let result = resolve("Item: {{use.items.0}}", &bindings).unwrap();
@@ -342,7 +342,7 @@ mod tests {
 
     #[test]
     fn resolve_null_is_error() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("data", json!(null));
 
         let result = resolve("Value: {{use.data}}", &bindings);
@@ -354,7 +354,7 @@ mod tests {
 
     #[test]
     fn resolve_nested_null_is_error() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("data", json!({"value": null}));
 
         let result = resolve("Value: {{use.data.value}}", &bindings);
@@ -364,7 +364,7 @@ mod tests {
 
     #[test]
     fn resolve_invalid_traversal_on_string() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("data", json!("just a string"));
 
         let result = resolve("{{use.data.field}}", &bindings);
@@ -376,7 +376,7 @@ mod tests {
 
     #[test]
     fn resolve_invalid_traversal_on_number() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("price", json!(42));
 
         let result = resolve("{{use.price.currency}}", &bindings);

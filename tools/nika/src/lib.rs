@@ -13,7 +13,7 @@
 //! │                      APPLICATION LAYER                       │
 //! │  runtime/   DAG execution (Runner, TaskExecutor)             │
 //! │  dag/       DAG structure (FlowGraph, validate)              │
-//! │  binding/   Data binding (UseWiring, UseBindings, template)  │
+//! │  binding/   Data binding (WiringSpec, ResolvedBindings)       │
 //! └──────────────────────────────────────────────────────────────┘
 //!                              │
 //!                              ▼
@@ -88,7 +88,11 @@ pub use runtime::{Runner, TaskExecutor};
 pub use dag::FlowGraph;
 
 // Binding types
-pub use binding::{validate_task_id, UseBindings, UseEntry, UseWiring};
+// New names (v0.3)
+pub use binding::{validate_task_id, ResolvedBindings, UseEntry, WiringSpec};
+// Deprecated aliases for backward compatibility
+#[allow(deprecated)]
+pub use binding::{UseBindings, UseWiring};
 
 // Event types
 pub use event::{

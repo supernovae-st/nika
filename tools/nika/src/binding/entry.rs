@@ -1,4 +1,4 @@
-//! Use Wiring Spec - YAML types for explicit data wiring (v0.1)
+//! Wiring Spec - YAML types for explicit data wiring (v0.1)
 //!
 //! Unified syntax: `alias: task.path [?? default]`
 //!
@@ -16,8 +16,12 @@ use std::fmt;
 
 use crate::error::NikaError;
 
-/// Use wiring - map of alias to entry
-pub type UseWiring = FxHashMap<String, UseEntry>;
+/// Wiring spec - map of alias to entry (YAML `use:` block)
+pub type WiringSpec = FxHashMap<String, UseEntry>;
+
+/// Deprecated alias - use WiringSpec instead
+#[deprecated(since = "0.3.0", note = "use WiringSpec instead")]
+pub type UseWiring = WiringSpec;
 
 /// Unified use entry - single form
 ///

@@ -13,7 +13,7 @@ use tracing::{debug, instrument};
 use crate::ast::{
     AgentParams, ExecParams, FetchParams, InferParams, InvokeParams, McpConfigInline, TaskAction,
 };
-use crate::binding::{template_resolve, UseBindings};
+use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 use crate::mcp::{McpClient, McpConfig};
@@ -87,7 +87,7 @@ impl TaskExecutor {
         &self,
         task_id: &Arc<str>,
         action: &TaskAction,
-        bindings: &UseBindings,
+        bindings: &ResolvedBindings,
     ) -> Result<String, NikaError> {
         debug!("Executing task action");
         match action {
@@ -120,7 +120,7 @@ impl TaskExecutor {
         &self,
         task_id: &Arc<str>,
         infer: &InferParams,
-        bindings: &UseBindings,
+        bindings: &ResolvedBindings,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
         let prompt = template_resolve(&infer.prompt, bindings)?;
@@ -178,7 +178,7 @@ impl TaskExecutor {
         &self,
         task_id: &Arc<str>,
         exec: &ExecParams,
-        bindings: &UseBindings,
+        bindings: &ResolvedBindings,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
         let command = template_resolve(&exec.command, bindings)?;
@@ -220,7 +220,7 @@ impl TaskExecutor {
         &self,
         task_id: &Arc<str>,
         fetch: &FetchParams,
-        bindings: &UseBindings,
+        bindings: &ResolvedBindings,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
         let url = template_resolve(&fetch.url, bindings)?;
@@ -282,7 +282,7 @@ impl TaskExecutor {
         &self,
         task_id: &Arc<str>,
         invoke: &InvokeParams,
-        bindings: &UseBindings,
+        bindings: &ResolvedBindings,
     ) -> Result<String, NikaError> {
         // Validate invoke params (tool XOR resource)
         invoke
@@ -374,7 +374,7 @@ impl TaskExecutor {
         &self,
         task_id: &Arc<str>,
         agent: &AgentParams,
-        _bindings: &UseBindings,
+        _bindings: &ResolvedBindings,
     ) -> Result<String, NikaError> {
         // Validate agent params
         agent
@@ -521,7 +521,7 @@ mod tests {
     #[tokio::test]
     async fn execute_exec_echo() {
         let exec = TaskExecutor::new("mock", None, None, EventLog::new());
-        let bindings = UseBindings::new();
+        let bindings = ResolvedBindings::new();
         let action = TaskAction::Exec {
             exec: ExecParams {
                 command: "echo hello".to_string(),
@@ -536,7 +536,7 @@ mod tests {
     #[tokio::test]
     async fn execute_exec_with_template() {
         let exec = TaskExecutor::new("mock", None, None, EventLog::new());
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("name", json!("world"));
 
         let action = TaskAction::Exec {
@@ -554,7 +554,7 @@ mod tests {
     async fn execute_emits_template_resolved() {
         let event_log = EventLog::new();
         let exec = TaskExecutor::new("mock", None, None, event_log.clone());
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("name", json!("Alice"));
 
         let action = TaskAction::Exec {
@@ -590,7 +590,7 @@ mod tests {
         let event_log = EventLog::new();
         let exec = TaskExecutor::new("mock", None, None, event_log.clone());
         exec.inject_mock_mcp_client("novanet"); // Explicit mock injection
-        let bindings = UseBindings::new();
+        let bindings = ResolvedBindings::new();
 
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
@@ -621,7 +621,7 @@ mod tests {
         let event_log = EventLog::new();
         let exec = TaskExecutor::new("mock", None, None, event_log.clone());
         exec.inject_mock_mcp_client("novanet"); // Explicit mock injection
-        let bindings = UseBindings::new();
+        let bindings = ResolvedBindings::new();
 
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
@@ -652,7 +652,7 @@ mod tests {
         let event_log = EventLog::new();
         let exec = TaskExecutor::new("mock", None, None, event_log.clone());
         exec.inject_mock_mcp_client("novanet"); // Explicit mock injection
-        let bindings = UseBindings::new();
+        let bindings = ResolvedBindings::new();
 
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
@@ -689,7 +689,7 @@ mod tests {
     async fn execute_invoke_validation_error() {
         let event_log = EventLog::new();
         let exec = TaskExecutor::new("mock", None, None, event_log);
-        let bindings = UseBindings::new();
+        let bindings = ResolvedBindings::new();
 
         // Both tool and resource set (invalid)
         let action = TaskAction::Invoke {
@@ -718,7 +718,7 @@ mod tests {
         let event_log = EventLog::new();
         let exec = TaskExecutor::new("mock", None, None, event_log);
         // NOTE: No inject_mock_mcp_client() - should fail with McpNotConfigured
-        let bindings = UseBindings::new();
+        let bindings = ResolvedBindings::new();
 
         let action = TaskAction::Invoke {
             invoke: InvokeParams {

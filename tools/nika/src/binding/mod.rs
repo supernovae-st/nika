@@ -1,8 +1,8 @@
 //! Binding Module - Data binding between tasks (v0.1)
 //!
 //! Handles the `use:` block system for explicit data binding:
-//! - `entry`: YAML types (UseWiring, UseEntry) - unified syntax
-//! - `resolve`: Runtime resolution (UseBindings)
+//! - `entry`: YAML types (WiringSpec, UseEntry) - unified syntax
+//! - `resolve`: Runtime resolution (ResolvedBindings)
 //! - `template`: Template substitution (`{{use.alias}}`)
 //!
 //! Unified `use:` syntax:
@@ -16,11 +16,11 @@
 //!
 //! Data flow:
 //! ```text
-//! YAML `use:` block → UseWiring (entry)
+//! YAML `use:` block → WiringSpec (entry)
 //!                          ↓
 //!                  Runtime resolution
 //!                          ↓
-//!                    UseBindings (resolve)
+//!                  ResolvedBindings (resolve)
 //!                          ↓
 //!                  Template substitution
 //!                          ↓
@@ -32,8 +32,14 @@ mod resolve;
 mod template;
 mod validate;
 
-// Re-export public types
-pub use entry::{parse_use_entry, UseEntry, UseWiring};
-pub use resolve::UseBindings;
+// Re-export public types (new names)
+pub use entry::{parse_use_entry, UseEntry, WiringSpec};
+pub use resolve::ResolvedBindings;
 pub use template::{extract_refs, resolve as template_resolve, validate_refs};
 pub use validate::validate_task_id;
+
+// Deprecated aliases for backward compatibility
+#[allow(deprecated)]
+pub use entry::UseWiring;
+#[allow(deprecated)]
+pub use resolve::UseBindings;

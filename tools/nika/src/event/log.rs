@@ -84,7 +84,7 @@ pub enum EventKind {
     /// Task execution begins with resolved inputs from use: block
     TaskStarted {
         task_id: Arc<str>,
-        /// Resolved inputs from UseBindings (what the task receives)
+        /// Resolved inputs from ResolvedBindings (what the task receives)
         inputs: Value,
     },
     TaskCompleted {

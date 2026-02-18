@@ -1,6 +1,6 @@
-//! Use Bindings Resolver - runtime value resolution (v0.1)
+//! Resolved Bindings - runtime value resolution (v0.1)
 //!
-//! UseBindings holds resolved values from `use:` blocks for template resolution.
+//! ResolvedBindings holds resolved values from `use:` blocks for template resolution.
 //! Eliminates intermediate storage - values are resolved once and used inline.
 //!
 //! Unified syntax: `alias: task.path [?? default]`
@@ -14,18 +14,22 @@ use crate::error::NikaError;
 use crate::store::DataStore;
 use crate::util::jsonpath;
 
-use super::entry::{UseEntry, UseWiring};
+use super::entry::{UseEntry, WiringSpec};
 
 /// Resolved bindings from use: block (alias -> value)
 ///
 /// Uses FxHashMap for faster hashing on small string keys.
 #[derive(Debug, Clone, Default)]
-pub struct UseBindings {
+pub struct ResolvedBindings {
     /// Resolved alias -> value mappings from use: block
     resolved: FxHashMap<String, Value>,
 }
 
-impl UseBindings {
+/// Deprecated alias - use ResolvedBindings instead
+#[deprecated(since = "0.3.0", note = "use ResolvedBindings instead")]
+pub type UseBindings = ResolvedBindings;
+
+impl ResolvedBindings {
     /// Create empty bindings
     pub fn new() -> Self {
         Self::default()
@@ -36,11 +40,11 @@ impl UseBindings {
     /// Unified resolution for the new syntax: `task.path [?? default]`
     ///
     /// Returns empty bindings if use_wiring is None.
-    pub fn from_use_wiring(
-        use_wiring: Option<&UseWiring>,
+    pub fn from_wiring_spec(
+        wiring_spec: Option<&WiringSpec>,
         datastore: &DataStore,
     ) -> Result<Self, NikaError> {
-        let Some(wiring) = use_wiring else {
+        let Some(wiring) = wiring_spec else {
             return Ok(Self::new());
         };
 
@@ -52,6 +56,15 @@ impl UseBindings {
         }
 
         Ok(bindings)
+    }
+
+    /// Deprecated alias - use from_wiring_spec instead
+    #[deprecated(since = "0.3.0", note = "use from_wiring_spec instead")]
+    pub fn from_use_wiring(
+        use_wiring: Option<&WiringSpec>,
+        datastore: &DataStore,
+    ) -> Result<Self, NikaError> {
+        Self::from_wiring_spec(use_wiring, datastore)
     }
 
     /// Set a resolved value
@@ -153,7 +166,7 @@ mod tests {
 
     #[test]
     fn set_and_get() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("forecast", json!("Sunny"));
 
         assert_eq!(bindings.get("forecast"), Some(&json!("Sunny")));
@@ -162,7 +175,7 @@ mod tests {
 
     #[test]
     fn is_empty() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         assert!(bindings.is_empty());
 
         bindings.set("key", json!("value"));
@@ -170,9 +183,9 @@ mod tests {
     }
 
     #[test]
-    fn from_use_wiring_none() {
+    fn from_wiring_spec_none() {
         let store = DataStore::new();
-        let bindings = UseBindings::from_use_wiring(None, &store).unwrap();
+        let bindings = ResolvedBindings::from_wiring_spec(None, &store).unwrap();
         assert!(bindings.is_empty());
     }
 
@@ -188,10 +201,10 @@ mod tests {
             TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)),
         );
 
-        let mut wiring = UseWiring::default();
+        let mut wiring = WiringSpec::default();
         wiring.insert("forecast".to_string(), UseEntry::new("weather.summary"));
 
-        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
         assert_eq!(bindings.get("forecast"), Some(&json!("Sunny")));
     }
 
@@ -206,10 +219,10 @@ mod tests {
             ),
         );
 
-        let mut wiring = UseWiring::default();
+        let mut wiring = WiringSpec::default();
         wiring.insert("data".to_string(), UseEntry::new("weather"));
 
-        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
         assert_eq!(
             bindings.get("data"),
             Some(&json!({"summary": "Sunny", "temp": 25}))
@@ -227,13 +240,13 @@ mod tests {
             ),
         );
 
-        let mut wiring = UseWiring::default();
+        let mut wiring = WiringSpec::default();
         wiring.insert(
             "temp".to_string(),
             UseEntry::new("weather.data.temp.celsius"),
         );
 
-        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
         assert_eq!(bindings.get("temp"), Some(&json!(25)));
     }
 
@@ -242,13 +255,13 @@ mod tests {
         let store = DataStore::new();
         // No weather task in store
 
-        let mut wiring = UseWiring::default();
+        let mut wiring = WiringSpec::default();
         wiring.insert(
             "forecast".to_string(),
             UseEntry::with_default("weather.summary", json!("Unknown")),
         );
 
-        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
         assert_eq!(bindings.get("forecast"), Some(&json!("Unknown")));
     }
 
@@ -260,13 +273,13 @@ mod tests {
             TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
         );
 
-        let mut wiring = UseWiring::default();
+        let mut wiring = WiringSpec::default();
         wiring.insert(
             "forecast".to_string(),
             UseEntry::with_default("weather.summary", json!("N/A")),
         );
 
-        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
         assert_eq!(bindings.get("forecast"), Some(&json!("N/A")));
     }
 
@@ -275,13 +288,13 @@ mod tests {
         let store = DataStore::new();
         // No settings task
 
-        let mut wiring = UseWiring::default();
+        let mut wiring = WiringSpec::default();
         wiring.insert(
             "cfg".to_string(),
             UseEntry::with_default("settings", json!({"debug": false})),
         );
 
-        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
         assert_eq!(bindings.get("cfg"), Some(&json!({"debug": false})));
     }
 
@@ -290,13 +303,13 @@ mod tests {
         let store = DataStore::new();
         // No meta task
 
-        let mut wiring = UseWiring::default();
+        let mut wiring = WiringSpec::default();
         wiring.insert(
             "tags".to_string(),
             UseEntry::with_default("meta.tags", json!(["default"])),
         );
 
-        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
         assert_eq!(bindings.get("tags"), Some(&json!(["default"])));
     }
 
@@ -308,10 +321,10 @@ mod tests {
     fn resolve_path_not_found_error() {
         let store = DataStore::new();
 
-        let mut wiring = UseWiring::default();
+        let mut wiring = WiringSpec::default();
         wiring.insert("x".to_string(), UseEntry::new("missing.path"));
 
-        let result = UseBindings::from_use_wiring(Some(&wiring), &store);
+        let result = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-052"));
     }
@@ -324,10 +337,10 @@ mod tests {
             TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
         );
 
-        let mut wiring = UseWiring::default();
+        let mut wiring = WiringSpec::default();
         wiring.insert("forecast".to_string(), UseEntry::new("weather.summary"));
 
-        let result = UseBindings::from_use_wiring(Some(&wiring), &store);
+        let result = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-072"));
     }
@@ -347,10 +360,10 @@ mod tests {
             ),
         );
 
-        let mut wiring = UseWiring::default();
+        let mut wiring = WiringSpec::default();
         wiring.insert("first".to_string(), UseEntry::new("data.items[0].name"));
 
-        let bindings = UseBindings::from_use_wiring(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
         assert_eq!(bindings.get("first"), Some(&json!("first")));
     }
 
@@ -385,7 +398,7 @@ mod tests {
 
     #[test]
     fn to_value_serializes_resolved_inputs() {
-        let mut bindings = UseBindings::new();
+        let mut bindings = ResolvedBindings::new();
         bindings.set("weather", json!("sunny"));
         bindings.set("temp", json!(25));
         bindings.set("nested", json!({"key": "value"}));
@@ -400,7 +413,7 @@ mod tests {
 
     #[test]
     fn to_value_empty_bindings() {
-        let bindings = UseBindings::new();
+        let bindings = ResolvedBindings::new();
         let value = bindings.to_value();
 
         assert!(value.is_object());

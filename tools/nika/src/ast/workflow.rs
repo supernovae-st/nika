@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use serde::Deserialize;
 
-use crate::binding::UseWiring;
+use crate::binding::WiringSpec;
 use crate::error::NikaError;
 
 use super::action::TaskAction;
@@ -140,7 +140,7 @@ pub struct Task {
     pub id: String,
     /// Explicit data wiring (v0.1)
     #[serde(default, rename = "use")]
-    pub use_wiring: Option<UseWiring>,
+    pub use_wiring: Option<WiringSpec>,
     /// Output format and validation (v0.1)
     #[serde(default)]
     pub output: Option<OutputPolicy>,
