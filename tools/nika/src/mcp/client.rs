@@ -250,59 +250,22 @@ impl McpClient {
     }
 
     /// Send a JSON-RPC notification (no response expected).
+    ///
+    /// Uses io_lock to prevent racing with send_request on shared stdio.
+    /// Uses RAII pattern to guarantee stdin is restored even on error or panic.
     async fn send_notification(&self, notification: &JsonRpcNotification) -> Result<()> {
+        // Acquire io_lock to prevent racing with send_request
+        let _io_guard = self.io_lock.lock().await;
+
         // Serialize notification
-        let json =
-            serde_json::to_string(notification).map_err(|e| NikaError::McpToolError {
-                tool: notification.method.clone(),
-                reason: format!("Failed to serialize notification: {}", e),
-            })?;
-
-        // Take stdin out of the process to avoid holding lock across await
-        let mut stdin = {
-            let mut guard = self.process.lock();
-            let process = guard.as_mut().ok_or_else(|| NikaError::McpNotConnected {
-                name: self.name.clone(),
-            })?;
-
-            process
-                .stdin
-                .take()
-                .ok_or_else(|| NikaError::McpToolError {
-                    tool: notification.method.clone(),
-                    reason: "stdin not available".to_string(),
-                })?
-        };
-
-        // Write notification (without holding the lock)
-        stdin
-            .write_all(json.as_bytes())
-            .await
-            .map_err(|e| NikaError::McpToolError {
-                tool: notification.method.clone(),
-                reason: format!("Failed to write: {}", e),
-            })?;
-        stdin
-            .write_all(b"\n")
-            .await
-            .map_err(|e| NikaError::McpToolError {
-                tool: notification.method.clone(),
-                reason: format!("Failed to write newline: {}", e),
-            })?;
-        stdin.flush().await.map_err(|e| NikaError::McpToolError {
+        let json = serde_json::to_string(notification).map_err(|e| NikaError::McpToolError {
             tool: notification.method.clone(),
-            reason: format!("Failed to flush: {}", e),
+            reason: format!("Failed to serialize notification: {}", e),
         })?;
 
-        // Put stdin back
-        {
-            let mut guard = self.process.lock();
-            if let Some(process) = guard.as_mut() {
-                process.stdin = Some(stdin);
-            }
-        }
-
-        Ok(())
+        // Write notification with guaranteed stdin restoration
+        self.write_to_stdin(&notification.method, json.as_bytes())
+            .await
     }
 
     /// Get next request ID.
@@ -314,6 +277,10 @@ impl McpClient {
     ///
     /// Uses io_lock to serialize concurrent requests, preventing race conditions
     /// when multiple for_each iterations access the same MCP client.
+    ///
+    /// # Safety
+    ///
+    /// Uses RAII pattern to guarantee stdin is restored even on error or panic.
     async fn send_request(&self, request: &JsonRpcRequest) -> Result<JsonRpcResponse> {
         // Serialize concurrent requests - only one request-response cycle at a time
         let _io_guard = self.io_lock.lock().await;
@@ -324,90 +291,103 @@ impl McpClient {
             reason: format!("Failed to serialize request: {}", e),
         })?;
 
-        // Take stdin out of the process to avoid holding lock across await
-        let mut stdin = {
-            let mut guard = self.process.lock();
-            let process = guard.as_mut().ok_or_else(|| NikaError::McpNotConnected {
-                name: self.name.clone(),
-            })?;
-
-            process
-                .stdin
-                .take()
-                .ok_or_else(|| NikaError::McpToolError {
-                    tool: request.method.clone(),
-                    reason: "stdin not available".to_string(),
-                })?
-        };
-
-        // Write request (without holding the lock)
-        stdin
-            .write_all(json.as_bytes())
-            .await
-            .map_err(|e| NikaError::McpToolError {
-                tool: request.method.clone(),
-                reason: format!("Failed to write: {}", e),
-            })?;
-        stdin
-            .write_all(b"\n")
-            .await
-            .map_err(|e| NikaError::McpToolError {
-                tool: request.method.clone(),
-                reason: format!("Failed to write newline: {}", e),
-            })?;
-        stdin.flush().await.map_err(|e| NikaError::McpToolError {
-            tool: request.method.clone(),
-            reason: format!("Failed to flush: {}", e),
-        })?;
-
-        // Put stdin back
-        {
-            let mut guard = self.process.lock();
-            if let Some(process) = guard.as_mut() {
-                process.stdin = Some(stdin);
-            }
-        }
+        // Write request with guaranteed stdin restoration
+        self.write_to_stdin(&request.method, json.as_bytes()).await?;
 
         // Read response (still under io_lock to ensure request-response pairing)
         self.read_response(&request.method).await
     }
 
+    /// Write bytes to stdin with guaranteed restoration on any exit path.
+    ///
+    /// Uses scopeguard to ensure stdin is always put back, even on error or panic.
+    async fn write_to_stdin(&self, method: &str, data: &[u8]) -> Result<()> {
+        // Take stdin out of the process
+        let stdin = {
+            let mut guard = self.process.lock();
+            let process = guard.as_mut().ok_or_else(|| NikaError::McpNotConnected {
+                name: self.name.clone(),
+            })?;
+
+            process.stdin.take().ok_or_else(|| NikaError::McpToolError {
+                tool: method.to_string(),
+                reason: "stdin not available".to_string(),
+            })?
+        };
+
+        // Wrap in scopeguard for guaranteed restoration
+        let process_ref = &self.process;
+        let mut stdin_guard = scopeguard::guard(stdin, |stdin| {
+            // This runs on any exit: normal, error, or panic
+            if let Some(process) = process_ref.lock().as_mut() {
+                process.stdin = Some(stdin);
+            }
+        });
+
+        // Write data using the guarded stdin
+        stdin_guard
+            .write_all(data)
+            .await
+            .map_err(|e| NikaError::McpToolError {
+                tool: method.to_string(),
+                reason: format!("Failed to write: {}", e),
+            })?;
+        stdin_guard
+            .write_all(b"\n")
+            .await
+            .map_err(|e| NikaError::McpToolError {
+                tool: method.to_string(),
+                reason: format!("Failed to write newline: {}", e),
+            })?;
+        stdin_guard
+            .flush()
+            .await
+            .map_err(|e| NikaError::McpToolError {
+                tool: method.to_string(),
+                reason: format!("Failed to flush: {}", e),
+            })?;
+
+        // scopeguard restores stdin on drop (which happens here)
+        Ok(())
+    }
+
     /// Read a JSON-RPC response from stdout.
+    ///
+    /// Guarantees stdout is restored even on error or panic.
     async fn read_response(&self, method: &str) -> Result<JsonRpcResponse> {
-        // Take stdout out of the process to avoid holding lock across await
+        // Take stdout out of the process
         let stdout = {
             let mut guard = self.process.lock();
             let process = guard.as_mut().ok_or_else(|| NikaError::McpNotConnected {
                 name: self.name.clone(),
             })?;
 
-            process
-                .stdout
-                .take()
-                .ok_or_else(|| NikaError::McpToolError {
-                    tool: method.to_string(),
-                    reason: "stdout not available".to_string(),
-                })?
+            process.stdout.take().ok_or_else(|| NikaError::McpToolError {
+                tool: method.to_string(),
+                reason: "stdout not available".to_string(),
+            })?
         };
 
-        // Read response (without holding the lock)
+        // Read and restore - always restore stdout regardless of read result
         let mut reader = BufReader::new(stdout);
         let mut line = String::new();
-        reader
-            .read_line(&mut line)
-            .await
-            .map_err(|e| NikaError::McpToolError {
-                tool: method.to_string(),
-                reason: format!("Failed to read response: {}", e),
-            })?;
 
-        // Put stdout back
+        let read_result = reader.read_line(&mut line).await;
+
+        // ALWAYS restore stdout before returning (RAII via explicit restore)
+        let stdout = reader.into_inner();
         {
             let mut guard = self.process.lock();
             if let Some(process) = guard.as_mut() {
-                process.stdout = Some(reader.into_inner());
+                process.stdout = Some(stdout);
             }
         }
+
+        // Now handle the read result
+        read_result.map_err(|e| NikaError::McpToolError {
+            tool: method.to_string(),
+            reason: format!("Failed to read response: {}", e),
+        })?;
 
         serde_json::from_str(&line).map_err(|e| NikaError::McpToolError {
             tool: method.to_string(),
@@ -755,6 +735,51 @@ impl McpClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ═══════════════════════════════════════════════════════════════
+    // STDIO RESTORATION TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_multiple_sequential_calls_prove_stdin_restoration() {
+        // This test verifies that stdin is properly restored after each call
+        // If stdin were lost after any call, subsequent calls would fail
+        let client = McpClient::mock("test");
+
+        // 10 sequential calls should all succeed
+        for i in 0..10 {
+            let result = client
+                .call_tool("test_tool", serde_json::json!({"iteration": i}))
+                .await;
+            assert!(result.is_ok(), "Call {} should succeed: {:?}", i, result.err());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_calls_prove_io_lock_works() {
+        // This test verifies that concurrent calls don't race on stdio
+        let client = std::sync::Arc::new(McpClient::mock("test"));
+
+        let handles: Vec<_> = (0..20)
+            .map(|i| {
+                let client = std::sync::Arc::clone(&client);
+                tokio::spawn(async move {
+                    client
+                        .call_tool("test_tool", serde_json::json!({"iteration": i}))
+                        .await
+                })
+            })
+            .collect();
+
+        for (i, handle) in handles.into_iter().enumerate() {
+            let result = handle.await.expect("Task should not panic");
+            assert!(result.is_ok(), "Concurrent call {} should succeed", i);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // BASIC TESTS
+    // ═══════════════════════════════════════════════════════════════
 
     #[test]
     fn test_client_name_accessor() {

@@ -1348,6 +1348,7 @@ dependencies = [
  "reqwest",
  "rmcp",
  "rustc-hash",
+ "scopeguard",
  "serde",
  "serde_json",
  "serde_yaml",
