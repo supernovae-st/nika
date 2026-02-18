@@ -6,7 +6,7 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg?logo=rust)](https://www.rust-lang.org/)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.0-green.svg)](CHANGELOG.md)
 
 *DAG workflow runner for AI tasks*
 
@@ -46,10 +46,13 @@ nika run hello.nika.yaml
 
 | Feature | Description |
 |---------|-------------|
-| **3 Actions** | `infer:` (LLM) • `exec:` (shell) • `fetch:` (HTTP) |
+| **5 Actions** | `infer:` (LLM) • `exec:` (shell) • `fetch:` (HTTP) • `invoke:` (MCP) • `agent:` (agentic) |
 | **DAG Execution** | Parallel processing when dependencies allow |
 | **Data Flow** | `use:` blocks + `{{use.alias}}` templates |
+| **for_each** | Parallel iteration over arrays (v0.3) |
+| **MCP Integration** | Connect to MCP servers for tool calling (v0.2) |
 | **Providers** | Claude, OpenAI, Mock |
+| **Resilience** | Retry, circuit breaker, rate limiting (v0.2) |
 
 ## Example
 
@@ -104,6 +107,89 @@ fetch:
   method: POST
   headers:
     Authorization: "Bearer {{use.token}}"
+```
+
+### invoke (MCP) — v0.2
+
+Call tools from MCP servers.
+
+```yaml
+invoke:
+  mcp: novanet
+  tool: novanet_generate
+  params:
+    entity: "qr-code"
+    locale: "fr-FR"
+```
+
+### agent (Agentic Loop) — v0.2
+
+Run an agentic loop with tool access.
+
+```yaml
+agent:
+  prompt: "Research and summarize recent AI papers"
+  tools:
+    - web_search
+    - read_file
+  max_iterations: 10
+```
+
+## MCP Configuration — v0.2
+
+Define MCP servers inline in your workflow:
+
+```yaml
+schema: "nika/workflow@0.2"
+
+mcp:
+  novanet:
+    command: cargo
+    args: [run, -p, novanet-mcp]
+    env:
+      NEO4J_URI: bolt://localhost:7687
+
+tasks:
+  - id: generate
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity: "landing-page"
+```
+
+## for_each Parallelism — v0.3
+
+Execute a task once per item in an array, all in parallel:
+
+```yaml
+schema: "nika/workflow@0.3"
+
+tasks:
+  - id: process_locales
+    for_each: ["en-US", "fr-FR", "de-DE", "es-ES"]
+    as: locale
+    exec:
+      command: "echo Processing {{use.locale}}"
+```
+
+- `for_each:` — Array of values to iterate over
+- `as:` — Variable name (defaults to `item` if omitted)
+- Access via `{{use.<var>}}` in templates
+
+### for_each with MCP
+
+```yaml
+tasks:
+  - id: generate_content
+    for_each: ["en-US", "fr-FR", "de-DE"]
+    as: locale
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity: "qr-code"
+        locale: "{{use.locale}}"
 ```
 
 ## Providers
@@ -292,6 +378,35 @@ flows:
 ```
 
 This creates a diamond DAG: `outline` → parallel `write_intro` + `write_conclusion` → `assemble`.
+
+### Use Case 5: Multi-Locale Content Generation (v0.3)
+
+Generate content for multiple locales in parallel using `for_each`.
+
+```yaml
+# multi-locale.nika.yaml
+schema: "nika/workflow@0.3"
+provider: claude
+
+mcp:
+  novanet:
+    command: cargo
+    args: [run, -p, novanet-mcp]
+
+tasks:
+  - id: generate_pages
+    for_each: ["en-US", "fr-FR", "de-DE", "es-ES", "ja-JP"]
+    as: locale
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity: "landing-page"
+        locale: "{{use.locale}}"
+        forms: ["title", "description", "cta"]
+```
+
+All 5 locales process in parallel, each calling NovaNet's MCP server.
 
 ## Documentation
 
