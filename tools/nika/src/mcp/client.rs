@@ -41,6 +41,7 @@ use crate::error::{NikaError, Result};
 use crate::mcp::protocol::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 use crate::mcp::transport::McpTransport;
 use crate::mcp::types::{ContentBlock, McpConfig, ResourceContent, ToolCallResult, ToolDefinition};
+use crate::util::MCP_CALL_TIMEOUT;
 
 /// MCP Client for connecting to and interacting with MCP servers.
 ///
@@ -457,7 +458,7 @@ impl McpClient {
             return Ok(self.mock_tool_call(name, params));
         }
 
-        // Real mode: send tools/call request
+        // Real mode: send tools/call request with timeout
         let request = JsonRpcRequest::new(
             self.next_id(),
             "tools/call",
@@ -467,7 +468,12 @@ impl McpClient {
             }),
         );
 
-        let response = self.send_request(&request).await?;
+        let response = tokio::time::timeout(MCP_CALL_TIMEOUT, self.send_request(&request))
+            .await
+            .map_err(|_| NikaError::Timeout {
+                operation: format!("MCP tool call: {}", name),
+                duration_ms: MCP_CALL_TIMEOUT.as_millis() as u64,
+            })??;
 
         if let Some(error) = response.error {
             return Err(NikaError::McpToolError {
@@ -568,10 +574,15 @@ impl McpClient {
             return Ok(self.mock_list_tools());
         }
 
-        // Send tools/list request
+        // Send tools/list request with timeout
         let request = JsonRpcRequest::new(self.next_id(), "tools/list", serde_json::json!({}));
 
-        let response = self.send_request(&request).await?;
+        let response = tokio::time::timeout(MCP_CALL_TIMEOUT, self.send_request(&request))
+            .await
+            .map_err(|_| NikaError::Timeout {
+                operation: "MCP tools/list".to_string(),
+                duration_ms: MCP_CALL_TIMEOUT.as_millis() as u64,
+            })??;
 
         if let Some(error) = response.error {
             return Err(NikaError::McpToolError {
@@ -739,6 +750,34 @@ impl McpClient {
     }
 }
 
+/// Drop implementation to cleanup spawned MCP server process
+///
+/// Best-effort cleanup - tries to kill the child process when the client is dropped.
+/// This prevents orphaned MCP server processes when workflows complete or error.
+impl Drop for McpClient {
+    fn drop(&mut self) {
+        if !self.is_mock {
+            if let Some(mut child) = self.process.lock().take() {
+                // Best effort: try to kill the process
+                // Note: this is sync context, can't await async operations
+                // start_kill() sends SIGKILL on Unix, TerminateProcess on Windows
+                if let Err(e) = child.start_kill() {
+                    tracing::debug!(
+                        mcp_server = %self.name,
+                        error = %e,
+                        "Failed to kill MCP server process on drop"
+                    );
+                } else {
+                    tracing::debug!(
+                        mcp_server = %self.name,
+                        "Killed MCP server process on drop"
+                    );
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -823,5 +862,28 @@ mod tests {
             .await;
         assert!(result.is_ok());
         assert!(!result.unwrap().is_error);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // DROP TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_mock_client_drop_is_noop() {
+        // Mock clients should not try to kill any process
+        let client = McpClient::mock("test");
+        assert!(client.is_mock);
+        // Dropping should not panic
+        drop(client);
+    }
+
+    #[test]
+    fn test_real_client_drop_without_process() {
+        // Real client that was never connected should drop safely
+        let config = McpConfig::new("test", "echo");
+        let client = McpClient::new(config).unwrap();
+        assert!(!client.is_mock);
+        // No process was spawned, drop should be safe
+        drop(client);
     }
 }

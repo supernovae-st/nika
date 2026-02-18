@@ -20,6 +20,9 @@ pub const INFER_TIMEOUT: Duration = Duration::from_secs(120);
 /// Timeout for establishing HTTP connections
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// Timeout for MCP tool calls (invoke: verb)
+pub const MCP_CALL_TIMEOUT: Duration = Duration::from_secs(30);
+
 // ═══════════════════════════════════════════════════════════════
 // HTTP Client Limits
 // ═══════════════════════════════════════════════════════════════
@@ -41,6 +44,7 @@ mod tests {
         assert!(FETCH_TIMEOUT.as_secs() > 0);
         assert!(INFER_TIMEOUT.as_secs() > 0);
         assert!(CONNECT_TIMEOUT.as_secs() > 0);
+        assert!(MCP_CALL_TIMEOUT.as_secs() > 0);
     }
 
     #[test]

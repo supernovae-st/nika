@@ -10,5 +10,7 @@ mod interner;
 pub mod jsonpath;
 
 // Re-export public types
-pub use constants::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, INFER_TIMEOUT, REDIRECT_LIMIT};
+pub use constants::{
+    CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, INFER_TIMEOUT, MCP_CALL_TIMEOUT, REDIRECT_LIMIT,
+};
 pub use interner::{intern, Interner};
