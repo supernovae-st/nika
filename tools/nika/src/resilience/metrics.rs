@@ -23,6 +23,7 @@
 //! println!("Requests: {}, Failures: {}", snapshot.total_requests, snapshot.failures);
 //! ```
 
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::RwLock;
 use std::time::{Duration, Instant};
@@ -41,7 +42,8 @@ pub struct Metrics {
     /// Rate limit hits
     rate_limits: AtomicU64,
     /// Latency samples for percentile calculation (recent window)
-    latencies: RwLock<Vec<u64>>, // microseconds
+    /// Uses VecDeque for O(1) FIFO operations
+    latencies: RwLock<VecDeque<u64>>, // microseconds
     /// Maximum samples to keep
     max_samples: usize,
     /// Start time for uptime calculation
@@ -60,7 +62,7 @@ impl Metrics {
             retries: AtomicU64::new(0),
             circuit_trips: AtomicU64::new(0),
             rate_limits: AtomicU64::new(0),
-            latencies: RwLock::new(Vec::with_capacity(Self::DEFAULT_MAX_SAMPLES)),
+            latencies: RwLock::new(VecDeque::with_capacity(Self::DEFAULT_MAX_SAMPLES)),
             max_samples: Self::DEFAULT_MAX_SAMPLES,
             start_time: Instant::now(),
         }
@@ -75,7 +77,7 @@ impl Metrics {
             retries: AtomicU64::new(0),
             circuit_trips: AtomicU64::new(0),
             rate_limits: AtomicU64::new(0),
-            latencies: RwLock::new(Vec::with_capacity(max_samples)),
+            latencies: RwLock::new(VecDeque::with_capacity(max_samples)),
             max_samples,
             start_time: Instant::now(),
         }
@@ -114,15 +116,16 @@ impl Metrics {
     }
 
     /// Record latency sample
+    /// Uses VecDeque for O(1) pop_front instead of O(n) Vec::remove(0)
     fn record_latency(&self, latency: Duration) {
         let micros = latency.as_micros() as u64;
         let mut latencies = self.latencies.write().unwrap();
 
         if latencies.len() >= self.max_samples {
-            // Remove oldest sample (FIFO behavior)
-            latencies.remove(0);
+            // Remove oldest sample (FIFO behavior) - O(1) with VecDeque
+            latencies.pop_front();
         }
-        latencies.push(micros);
+        latencies.push_back(micros);
     }
 
     /// Get a snapshot of current metrics
@@ -136,7 +139,7 @@ impl Metrics {
 
         // Calculate latency statistics
         let latencies = self.latencies.read().unwrap();
-        let latency_stats = Self::calculate_latency_stats(&latencies);
+        let latency_stats = Self::calculate_latency_stats(&latencies.iter().copied().collect::<Vec<_>>());
 
         MetricsSnapshot {
             name: self.name.clone(),

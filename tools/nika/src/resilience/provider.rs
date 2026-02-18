@@ -20,13 +20,15 @@
 //! ```
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::Result;
 use async_trait::async_trait;
 
 use crate::provider::{ChatResponse, Message, Provider, ToolDefinition};
 use crate::resilience::{
-    CircuitBreaker, CircuitBreakerConfig, RateLimiter, RateLimiterConfig, RetryConfig, RetryPolicy,
+    CircuitBreaker, CircuitBreakerConfig, Metrics, MetricsSnapshot, RateLimiter, RateLimiterConfig,
+    RetryConfig, RetryPolicy,
 };
 
 /// Configuration for resilient provider
@@ -124,6 +126,7 @@ pub struct ResilientProvider {
     rate_limiter: RateLimiter,
     circuit_breaker: CircuitBreaker,
     retry_policy: RetryPolicy,
+    metrics: Metrics,
 }
 
 impl ResilientProvider {
@@ -142,6 +145,7 @@ impl ResilientProvider {
                 config.circuit_breaker.clone(),
             ),
             retry_policy: RetryPolicy::new(config.retry.clone()),
+            metrics: Metrics::new(format!("{}-metrics", provider_name)),
             config,
         }
     }
@@ -175,14 +179,29 @@ impl ResilientProvider {
     pub fn reset_rate_limiter(&self) {
         self.rate_limiter.reset();
     }
+
+    /// Get a snapshot of current metrics
+    pub fn metrics(&self) -> MetricsSnapshot {
+        self.metrics.snapshot()
+    }
+
+    /// Reset metrics (for admin/testing)
+    pub fn reset_metrics(&self) {
+        self.metrics.reset();
+    }
 }
 
 #[async_trait]
 impl Provider for ResilientProvider {
     async fn infer(&self, prompt: &str, model: &str) -> Result<String> {
+        let start = Instant::now();
+
         // 1. Rate limiting
         if self.config.enable_rate_limiting {
-            self.rate_limiter.acquire().await?;
+            if let Err(e) = self.rate_limiter.acquire().await {
+                self.metrics.record_rate_limit();
+                return Err(e);
+            }
         }
 
         // 2. Circuit breaker + retry
@@ -197,19 +216,39 @@ impl Provider for ResilientProvider {
             async move { inner.infer(&prompt, &model).await }
         };
 
-        if self.config.enable_circuit_breaker {
-            if self.config.enable_retry {
-                self.circuit_breaker
-                    .execute(|| self.retry_policy.execute(operation))
-                    .await
+        // Convert NikaError result to anyhow::Result for Provider trait
+        let convert = |r: crate::error::Result<String>| -> Result<String> {
+            r.map_err(|e| anyhow::anyhow!("{}", e))
+        };
+
+        // Correct order: retry wraps circuit breaker
+        // - Each retry attempt goes through circuit breaker independently
+        // - Circuit breaker sees each failure (accurate tracking)
+        // - If circuit opens mid-retry, subsequent attempts fail fast
+        let result = if self.config.enable_retry {
+            if self.config.enable_circuit_breaker {
+                convert(
+                    self.retry_policy
+                        .execute(|| self.circuit_breaker.execute(operation))
+                        .await,
+                )
             } else {
-                self.circuit_breaker.execute(operation).await
+                convert(self.retry_policy.execute(operation).await)
             }
-        } else if self.config.enable_retry {
-            self.retry_policy.execute(operation).await
+        } else if self.config.enable_circuit_breaker {
+            convert(self.circuit_breaker.execute(operation).await)
         } else {
             operation().await
+        };
+
+        // Record metrics
+        let latency = start.elapsed();
+        match &result {
+            Ok(_) => self.metrics.record_success(latency),
+            Err(_) => self.metrics.record_failure(latency),
         }
+
+        result
     }
 
     async fn chat(
@@ -218,9 +257,14 @@ impl Provider for ResilientProvider {
         tools: Option<&[ToolDefinition]>,
         model: &str,
     ) -> Result<ChatResponse> {
+        let start = Instant::now();
+
         // 1. Rate limiting
         if self.config.enable_rate_limiting {
-            self.rate_limiter.acquire().await?;
+            if let Err(e) = self.rate_limiter.acquire().await {
+                self.metrics.record_rate_limit();
+                return Err(e);
+            }
         }
 
         // 2. Circuit breaker + retry
@@ -237,19 +281,39 @@ impl Provider for ResilientProvider {
             async move { inner.chat(&messages, tools.as_deref(), &model).await }
         };
 
-        if self.config.enable_circuit_breaker {
-            if self.config.enable_retry {
-                self.circuit_breaker
-                    .execute(|| self.retry_policy.execute(operation))
-                    .await
+        // Convert NikaError result to anyhow::Result for Provider trait
+        let convert = |r: crate::error::Result<ChatResponse>| -> Result<ChatResponse> {
+            r.map_err(|e| anyhow::anyhow!("{}", e))
+        };
+
+        // Correct order: retry wraps circuit breaker
+        // - Each retry attempt goes through circuit breaker independently
+        // - Circuit breaker sees each failure (accurate tracking)
+        // - If circuit opens mid-retry, subsequent attempts fail fast
+        let result = if self.config.enable_retry {
+            if self.config.enable_circuit_breaker {
+                convert(
+                    self.retry_policy
+                        .execute(|| self.circuit_breaker.execute(operation))
+                        .await,
+                )
             } else {
-                self.circuit_breaker.execute(operation).await
+                convert(self.retry_policy.execute(operation).await)
             }
-        } else if self.config.enable_retry {
-            self.retry_policy.execute(operation).await
+        } else if self.config.enable_circuit_breaker {
+            convert(self.circuit_breaker.execute(operation).await)
         } else {
             operation().await
+        };
+
+        // Record metrics
+        let latency = start.elapsed();
+        match &result {
+            Ok(_) => self.metrics.record_success(latency),
+            Err(_) => self.metrics.record_failure(latency),
         }
+
+        result
     }
 
     fn default_model(&self) -> &str {

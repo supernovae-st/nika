@@ -244,9 +244,12 @@ fn bench_full_resilience_stack(c: &mut Criterion) {
 
             let start = std::time::Instant::now();
 
-            let result = breaker
-                .execute(|| retry.execute(|| async { Ok::<_, anyhow::Error>(42) }))
-                .await;
+            // Correct order: retry wraps circuit breaker
+            // Note: resilience module returns NikaError, convert to anyhow for benchmark
+            let result = retry
+                .execute(|| breaker.execute(|| async { Ok::<_, anyhow::Error>(42) }))
+                .await
+                .map_err(|e| anyhow::anyhow!("{}", e));
 
             let latency = start.elapsed();
 

@@ -21,14 +21,13 @@
 //! }).await;
 //! ```
 
+use std::fmt::Display;
 use std::future::Future;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::RwLock;
 use std::time::Duration;
 
-use anyhow::Result;
-
-use crate::error::NikaError;
+use crate::error::{NikaError, Result};
 
 /// Circuit breaker states
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,10 +125,11 @@ impl CircuitBreaker {
     }
 
     /// Execute an operation through the circuit breaker
-    pub async fn execute<F, Fut, T>(&self, operation: F) -> Result<T>
+    pub async fn execute<F, Fut, T, E>(&self, operation: F) -> Result<T>
     where
         F: FnOnce() -> Fut,
-        Fut: Future<Output = Result<T>>,
+        Fut: Future<Output = std::result::Result<T, E>>,
+        E: Display + Send + Sync + 'static,
     {
         // Check if circuit should transition from Open to HalfOpen
         self.check_recovery_timeout();
@@ -145,31 +145,36 @@ impl CircuitBreaker {
                     }
                     Err(e) => {
                         self.record_failure();
-                        Err(e)
+                        // Convert error to NikaError
+                        Err(NikaError::ProviderError {
+                            provider: self.name.clone(),
+                            reason: e.to_string(),
+                        })
                     }
                 }
             }
-            CircuitState::Open => {
-                Err(NikaError::CircuitBreakerOpen {
-                    service: self.name.clone(),
-                }
-                .into())
-            }
+            CircuitState::Open => Err(NikaError::CircuitBreakerOpen {
+                service: self.name.clone(),
+            }),
         }
     }
 
     /// Check if recovery timeout has passed and transition to half-open
+    /// Fixed TOCTOU: re-reads last_failure_time inside the write lock
     fn check_recovery_timeout(&self) {
         let state = *self.state.read().unwrap();
 
         if state == CircuitState::Open {
-            let last_failure = self.last_failure_time.load(Ordering::SeqCst);
             let now = Self::current_time_millis();
-            let elapsed = Duration::from_millis(now.saturating_sub(last_failure));
 
-            if elapsed >= self.config.recovery_timeout {
-                let mut state_guard = self.state.write().unwrap();
-                if *state_guard == CircuitState::Open {
+            // Acquire write lock to check and potentially update state atomically
+            let mut state_guard = self.state.write().unwrap();
+            if *state_guard == CircuitState::Open {
+                // Re-read last_failure_time inside the write lock to prevent TOCTOU
+                let last_failure = self.last_failure_time.load(Ordering::SeqCst);
+                let elapsed = Duration::from_millis(now.saturating_sub(last_failure));
+
+                if elapsed >= self.config.recovery_timeout {
                     *state_guard = CircuitState::HalfOpen;
                     self.success_count.store(0, Ordering::SeqCst);
                 }
@@ -275,6 +280,18 @@ impl std::fmt::Debug for CircuitBreaker {
 mod tests {
     use super::*;
 
+    /// Simple test error for testing circuit breaker logic
+    #[derive(Debug)]
+    struct TestError(String);
+
+    impl std::fmt::Display for TestError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
+
+    impl std::error::Error for TestError {}
+
     #[test]
     fn test_circuit_breaker_config_default() {
         let config = CircuitBreakerConfig::default();
@@ -307,7 +324,7 @@ mod tests {
         let breaker = CircuitBreaker::with_defaults("test-service");
 
         let result = breaker
-            .execute(|| async { Ok::<_, anyhow::Error>("success") })
+            .execute(|| async { Ok::<_, NikaError>("success") })
             .await;
 
         assert!(result.is_ok());
@@ -323,7 +340,7 @@ mod tests {
         // Fail 3 times
         for _ in 0..3 {
             let _ = breaker
-                .execute(|| async { Err::<(), _>(anyhow::anyhow!("failure")) })
+                .execute(|| async { Err::<(), _>(TestError("failure".to_string())) })
                 .await;
         }
 
@@ -341,19 +358,19 @@ mod tests {
 
         // Trigger open state
         let _ = breaker
-            .execute(|| async { Err::<(), _>(anyhow::anyhow!("failure")) })
+            .execute(|| async { Err::<(), _>(TestError("failure".to_string())) })
             .await;
 
         assert_eq!(breaker.state(), CircuitState::Open);
 
         // Next request should fail fast
         let result = breaker
-            .execute(|| async { Ok::<_, anyhow::Error>("should not run") })
+            .execute(|| async { Ok::<_, NikaError>("should not run") })
             .await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.to_string().contains("Circuit breaker open"));
+        assert!(matches!(err, NikaError::CircuitBreakerOpen { .. }));
     }
 
     #[tokio::test]
@@ -364,7 +381,7 @@ mod tests {
         // Fail twice
         for _ in 0..2 {
             let _ = breaker
-                .execute(|| async { Err::<(), _>(anyhow::anyhow!("failure")) })
+                .execute(|| async { Err::<(), _>(TestError("failure".to_string())) })
                 .await;
         }
 
@@ -372,7 +389,7 @@ mod tests {
 
         // Success resets count
         let _ = breaker
-            .execute(|| async { Ok::<_, anyhow::Error>(()) })
+            .execute(|| async { Ok::<_, NikaError>(()) })
             .await;
 
         assert_eq!(breaker.failure_count(), 0);
@@ -393,14 +410,14 @@ mod tests {
 
         // First success
         let _ = breaker
-            .execute(|| async { Ok::<_, anyhow::Error>(()) })
+            .execute(|| async { Ok::<_, NikaError>(()) })
             .await;
 
         assert_eq!(breaker.state(), CircuitState::HalfOpen);
 
         // Second success should close the circuit
         let _ = breaker
-            .execute(|| async { Ok::<_, anyhow::Error>(()) })
+            .execute(|| async { Ok::<_, NikaError>(()) })
             .await;
 
         assert_eq!(breaker.state(), CircuitState::Closed);
@@ -420,7 +437,7 @@ mod tests {
 
         // Failure should reopen
         let _ = breaker
-            .execute(|| async { Err::<(), _>(anyhow::anyhow!("failure")) })
+            .execute(|| async { Err::<(), _>(TestError("failure".to_string())) })
             .await;
 
         assert_eq!(breaker.state(), CircuitState::Open);
@@ -449,7 +466,7 @@ mod tests {
 
         // Trigger open state
         let _ = breaker
-            .execute(|| async { Err::<(), _>(anyhow::anyhow!("failure")) })
+            .execute(|| async { Err::<(), _>(TestError("failure".to_string())) })
             .await;
 
         assert_eq!(breaker.state(), CircuitState::Open);
@@ -460,7 +477,7 @@ mod tests {
         // Next call should trigger transition to half-open
         // and the operation should be allowed
         let result = breaker
-            .execute(|| async { Ok::<_, anyhow::Error>("recovered") })
+            .execute(|| async { Ok::<_, NikaError>("recovered") })
             .await;
 
         assert!(result.is_ok());
