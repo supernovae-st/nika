@@ -1,5 +1,9 @@
 # Nika v0.2 NovaNet Integration — Implementation Plan
 
+> **PREREQUISITE:** Execute `spn-agi/docs/plans/2026-02-18-spn-agi-restructuration.md` first!
+>
+> **Note:** All paths in this plan are relative to `nika-dev/tools/nika/` (e.g., `src/` means `tools/nika/src/`).
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add `invoke:` and `agent:` verbs to Nika for NovaNet MCP integration, enabling intelligent YAML workflows with knowledge graph memory.
@@ -1033,7 +1037,7 @@ provider: claude
 mcp:
   novanet:
     command: "cargo"
-    args: ["run", "--manifest-path", "../../novanet-hq/tools/novanet-mcp/Cargo.toml"]
+    args: ["run", "--manifest-path", "../../novanet-dev/tools/novanet-mcp/Cargo.toml"]
 
 tasks:
   # 1. Discover page structure
@@ -1145,7 +1149,7 @@ async fn test_full_novanet_execution() {
 
 ```bash
 # Start NovaNet MCP server in another terminal
-cd /path/to/novanet-hq/tools/novanet-mcp
+cd /path/to/novanet-dev/tools/novanet-mcp
 cargo run
 
 # Run integration test

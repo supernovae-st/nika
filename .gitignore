@@ -30,3 +30,4 @@ node_modules/
 # Test artifacts
 *.profraw
 coverage/
+tools/nika/target/

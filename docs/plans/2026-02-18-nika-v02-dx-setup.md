@@ -1,5 +1,9 @@
 # Nika v0.2 DX Setup Implementation Plan
 
+> **PREREQUISITE:** Execute `spn-agi/docs/plans/2026-02-18-spn-agi-restructuration.md` first!
+>
+> **Note:** All paths in this plan are relative to `nika-dev/tools/nika/` (e.g., `src/` means `tools/nika/src/`).
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Set up comprehensive Developer Experience for Nika v0.2 matching NovaNet's DX quality.
