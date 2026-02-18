@@ -8,12 +8,15 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use tracing::{debug, instrument};
 
+use std::collections::HashMap;
+
 use crate::ast::{AgentParams, ExecParams, FetchParams, InferParams, InvokeParams, TaskAction};
 use crate::binding::{template_resolve, UseBindings};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 use crate::mcp::McpClient;
 use crate::provider::{create_provider, Provider};
+use crate::runtime::AgentLoop;
 use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
 
 /// Task executor with cached providers, shared HTTP client, and event logging
@@ -309,10 +312,15 @@ impl TaskExecutor {
     /// * `agent` - Agent parameters with prompt, mcp servers, and stop conditions
     /// * `_bindings` - Use bindings for template resolution (currently unused)
     ///
-    /// # Note
+    /// # Flow
     ///
-    /// TODO(v0.2): Implement full agentic loop with MCP tool calling.
-    /// Currently returns a placeholder indicating the agent verb is not yet implemented.
+    /// 1. Validate agent parameters
+    /// 2. Emit AgentStart event
+    /// 3. Get LLM provider (task override or workflow default)
+    /// 4. Build MCP client map for required servers
+    /// 5. Create and run AgentLoop
+    /// 6. Emit AgentComplete event
+    /// 7. Return final output as JSON string
     #[instrument(skip(self, _bindings), fields(max_turns = %agent.effective_max_turns()))]
     async fn execute_agent(
         &self,
@@ -323,7 +331,7 @@ impl TaskExecutor {
         // Validate agent params
         agent
             .validate()
-            .map_err(|e| NikaError::ValidationError { reason: e })?;
+            .map_err(|e| NikaError::AgentValidationError { reason: e })?;
 
         // EMIT: AgentStart event
         self.event_log.emit(EventKind::AgentStart {
@@ -332,21 +340,59 @@ impl TaskExecutor {
             mcp_servers: agent.mcp.clone(),
         });
 
-        // TODO(v0.2): Implement full agentic loop
-        // 1. Initialize conversation with system prompt
-        // 2. Loop until stop condition or max_turns:
-        //    a. Send to LLM with tool definitions
-        //    b. If LLM requests tool call, execute via MCP
-        //    c. Append tool result to conversation
-        //    d. Check stop conditions
-        // 3. Return final assistant response
+        // Get provider (task override or workflow default)
+        let provider_name = agent.provider.as_deref().unwrap_or(&self.default_provider);
+        let provider = self.get_provider(provider_name)?;
 
-        // For now, return error indicating not implemented
-        Err(NikaError::NotImplemented {
-            feature: "agent: verb".to_string(),
-            suggestion: "Use infer: for one-shot LLM calls or invoke: for MCP tool calls"
-                .to_string(),
-        })
+        // Build MCP client map for this agent
+        let mut mcp_clients: HashMap<String, Arc<McpClient>> = HashMap::new();
+        for mcp_name in &agent.mcp {
+            let client = self.get_mcp_client(mcp_name)?;
+            mcp_clients.insert(mcp_name.clone(), client);
+        }
+
+        // Create and run agent loop
+        let agent_loop = AgentLoop::new(
+            task_id.to_string(),
+            agent.clone(),
+            self.event_log.clone(),
+            mcp_clients,
+        )?;
+
+        let start = std::time::Instant::now();
+        let result = agent_loop.run(provider).await?;
+        let duration_ms = start.elapsed().as_millis() as u64;
+
+        // EMIT: AgentComplete event
+        self.event_log.emit(EventKind::AgentComplete {
+            task_id: Arc::clone(task_id),
+            turns: result.turns,
+            stop_reason: format!("{:?}", result.status),
+        });
+
+        tracing::info!(
+            task_id = %task_id,
+            turns = result.turns,
+            status = ?result.status,
+            tokens = result.total_tokens,
+            duration_ms = duration_ms,
+            "Agent loop completed"
+        );
+
+        // Return final output as JSON string
+        Ok(result.final_output.to_string())
+    }
+
+    /// Get MCP client for a named server
+    ///
+    /// # Note
+    ///
+    /// Currently uses mock MCP client since real MCP manager is not yet available.
+    /// TODO(v0.2): Replace with MCP manager that maintains real connections.
+    fn get_mcp_client(&self, name: &str) -> Result<Arc<McpClient>, NikaError> {
+        // For now, create mock clients since we don't have MCP manager yet
+        // TODO(v0.2): Replace with MCP manager lookup
+        Ok(Arc::new(McpClient::mock(name)))
     }
 }
 
