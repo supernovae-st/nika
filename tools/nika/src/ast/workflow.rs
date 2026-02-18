@@ -181,10 +181,7 @@ impl Task {
         if let Some(for_each) = &self.for_each {
             if !for_each.is_array() {
                 return Err(NikaError::ValidationError {
-                    reason: format!(
-                        "for_each must be an array, got {}",
-                        for_each
-                    ),
+                    reason: format!("for_each must be an array, got {}", for_each),
                 });
             }
             if let Some(arr) = for_each.as_array() {

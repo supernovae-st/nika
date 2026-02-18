@@ -388,9 +388,7 @@ mod tests {
         assert_eq!(breaker.failure_count(), 2);
 
         // Success resets count
-        let _ = breaker
-            .execute(|| async { Ok::<_, NikaError>(()) })
-            .await;
+        let _ = breaker.execute(|| async { Ok::<_, NikaError>(()) }).await;
 
         assert_eq!(breaker.failure_count(), 0);
         assert_eq!(breaker.state(), CircuitState::Closed);
@@ -409,16 +407,12 @@ mod tests {
         assert_eq!(breaker.state(), CircuitState::HalfOpen);
 
         // First success
-        let _ = breaker
-            .execute(|| async { Ok::<_, NikaError>(()) })
-            .await;
+        let _ = breaker.execute(|| async { Ok::<_, NikaError>(()) }).await;
 
         assert_eq!(breaker.state(), CircuitState::HalfOpen);
 
         // Second success should close the circuit
-        let _ = breaker
-            .execute(|| async { Ok::<_, NikaError>(()) })
-            .await;
+        let _ = breaker.execute(|| async { Ok::<_, NikaError>(()) }).await;
 
         assert_eq!(breaker.state(), CircuitState::Closed);
     }

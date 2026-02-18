@@ -139,7 +139,8 @@ impl Metrics {
 
         // Calculate latency statistics
         let latencies = self.latencies.read().unwrap();
-        let latency_stats = Self::calculate_latency_stats(&latencies.iter().copied().collect::<Vec<_>>());
+        let latency_stats =
+            Self::calculate_latency_stats(&latencies.iter().copied().collect::<Vec<_>>());
 
         MetricsSnapshot {
             name: self.name.clone(),

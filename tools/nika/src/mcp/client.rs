@@ -292,7 +292,8 @@ impl McpClient {
         })?;
 
         // Write request with guaranteed stdin restoration
-        self.write_to_stdin(&request.method, json.as_bytes()).await?;
+        self.write_to_stdin(&request.method, json.as_bytes())
+            .await?;
 
         // Read response (still under io_lock to ensure request-response pairing)
         self.read_response(&request.method).await
@@ -309,10 +310,13 @@ impl McpClient {
                 name: self.name.clone(),
             })?;
 
-            process.stdin.take().ok_or_else(|| NikaError::McpToolError {
-                tool: method.to_string(),
-                reason: "stdin not available".to_string(),
-            })?
+            process
+                .stdin
+                .take()
+                .ok_or_else(|| NikaError::McpToolError {
+                    tool: method.to_string(),
+                    reason: "stdin not available".to_string(),
+                })?
         };
 
         // Wrap in scopeguard for guaranteed restoration
@@ -362,10 +366,13 @@ impl McpClient {
                 name: self.name.clone(),
             })?;
 
-            process.stdout.take().ok_or_else(|| NikaError::McpToolError {
-                tool: method.to_string(),
-                reason: "stdout not available".to_string(),
-            })?
+            process
+                .stdout
+                .take()
+                .ok_or_else(|| NikaError::McpToolError {
+                    tool: method.to_string(),
+                    reason: "stdout not available".to_string(),
+                })?
         };
 
         // Read and restore - always restore stdout regardless of read result
@@ -751,7 +758,12 @@ mod tests {
             let result = client
                 .call_tool("test_tool", serde_json::json!({"iteration": i}))
                 .await;
-            assert!(result.is_ok(), "Call {} should succeed: {:?}", i, result.err());
+            assert!(
+                result.is_ok(),
+                "Call {} should succeed: {:?}",
+                i,
+                result.err()
+            );
         }
     }
 

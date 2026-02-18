@@ -410,8 +410,8 @@ mod tests {
     #[tokio::test]
     async fn test_resilient_provider_rate_limiting() {
         let mock = Box::new(MockProvider);
-        let config = ResilientProviderConfig::default()
-            .with_rate_limiter(RateLimiterConfig::new(1000.0, 5)); // 5 burst
+        let config =
+            ResilientProviderConfig::default().with_rate_limiter(RateLimiterConfig::new(1000.0, 5)); // 5 burst
 
         let provider = ResilientProvider::new(mock, config);
 
@@ -423,7 +423,11 @@ mod tests {
 
         // Check tokens are depleted
         let available = provider.available_tokens();
-        assert!(available < 1.0, "Expected depleted tokens, got {}", available);
+        assert!(
+            available < 1.0,
+            "Expected depleted tokens, got {}",
+            available
+        );
     }
 
     #[tokio::test]
@@ -564,8 +568,8 @@ mod tests {
     #[tokio::test]
     async fn test_resilient_provider_reset_methods() {
         let mock = Box::new(MockProvider);
-        let config = ResilientProviderConfig::default()
-            .with_rate_limiter(RateLimiterConfig::new(1.0, 1)); // Very limited
+        let config =
+            ResilientProviderConfig::default().with_rate_limiter(RateLimiterConfig::new(1.0, 1)); // Very limited
 
         let provider = ResilientProvider::new(mock, config);
 

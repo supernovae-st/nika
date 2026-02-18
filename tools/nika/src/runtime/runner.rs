@@ -143,7 +143,8 @@ impl Runner {
         let _is_for_each = for_each_binding.is_some();
 
         // Build bindings from use: wiring
-        let mut bindings = match UseBindings::from_use_wiring(task.use_wiring.as_ref(), &datastore) {
+        let mut bindings = match UseBindings::from_use_wiring(task.use_wiring.as_ref(), &datastore)
+        {
             Ok(b) => b,
             Err(e) => {
                 let duration = start.elapsed();
@@ -371,7 +372,8 @@ impl Runner {
                         }
 
                         // Store individual result
-                        self.datastore.insert(Arc::clone(&store_id), task_result.clone());
+                        self.datastore
+                            .insert(Arc::clone(&store_id), task_result.clone());
 
                         // If this is a for_each iteration, collect for aggregation
                         if let Some((parent_id, idx)) = for_each_info {
@@ -480,7 +482,11 @@ mod tests {
 
         let runner = Runner::new(workflow);
         let result = runner.run().await;
-        assert!(result.is_ok(), "Workflow should complete: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Workflow should complete: {:?}",
+            result.err()
+        );
 
         // The final output should contain results from all 3 iterations
         // When for_each completes, results should be aggregated
@@ -496,8 +502,11 @@ mod tests {
         let has_b = output.contains("b") || output.contains("\"b\"");
         let has_c = output.contains("c") || output.contains("\"c\"");
 
-        assert!(has_a && has_b && has_c,
-            "Output should contain all 3 results, got: {}", output);
+        assert!(
+            has_a && has_b && has_c,
+            "Output should contain all 3 results, got: {}",
+            output
+        );
     }
 
     #[tokio::test]
@@ -537,8 +546,14 @@ mod tests {
             // First element should be "first", last should be "third"
             let first = arr[0].as_str().unwrap_or("");
             let last = arr[2].as_str().unwrap_or("");
-            assert!(first.contains("first"), "First element should contain 'first'");
-            assert!(last.contains("third"), "Last element should contain 'third'");
+            assert!(
+                first.contains("first"),
+                "First element should contain 'first'"
+            );
+            assert!(
+                last.contains("third"),
+                "Last element should contain 'third'"
+            );
         }
         // If not an array, at least verify all are present (parallel execution may reorder)
     }

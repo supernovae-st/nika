@@ -399,7 +399,11 @@ async fn test_use_case_discover_entities() {
 
     assert!(result.is_ok(), "Entity query failed: {:?}", result.err());
     let response = result.unwrap();
-    assert!(!response.is_error, "Query returned error: {:?}", response.text());
+    assert!(
+        !response.is_error,
+        "Query returned error: {:?}",
+        response.text()
+    );
 
     // Verify response contains entity data
     let text = response.text();
@@ -438,7 +442,11 @@ async fn test_use_case_discover_pages() {
 
     assert!(result.is_ok(), "Page query failed: {:?}", result.err());
     let response = result.unwrap();
-    assert!(!response.is_error, "Query returned error: {:?}", response.text());
+    assert!(
+        !response.is_error,
+        "Query returned error: {:?}",
+        response.text()
+    );
 
     println!("Discovered pages: {}", response.text());
 
@@ -477,7 +485,10 @@ async fn test_use_case_content_generation_workflow() {
     assert!(schema_result.is_ok(), "Schema describe failed");
     let schema = schema_result.unwrap();
     assert!(!schema.is_error, "Schema describe returned error");
-    println!("Step 1 - Schema: {}", &schema.text()[..200.min(schema.text().len())]);
+    println!(
+        "Step 1 - Schema: {}",
+        &schema.text()[..200.min(schema.text().len())]
+    );
 
     // Step 2: Query for entity with native content
     let entity_result = client
@@ -604,7 +615,10 @@ async fn test_use_case_data_validation() {
         )
         .await;
     assert!(orphan_result.is_ok(), "Orphan check failed");
-    println!("Entities without natives: {}", orphan_result.unwrap().text());
+    println!(
+        "Entities without natives: {}",
+        orphan_result.unwrap().text()
+    );
 
     // Check for natives missing required properties
     let missing_props_result = client

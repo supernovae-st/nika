@@ -452,8 +452,12 @@ impl FixSuggestion for NikaError {
             NikaError::CircuitBreakerOpen { .. } => {
                 Some("Wait for circuit breaker to reset or check service health")
             }
-            NikaError::RateLimitExceeded { .. } => Some("Reduce request rate or wait before retrying"),
-            NikaError::McpToolCallFailed { .. } => Some("Check MCP tool parameters and server logs"),
+            NikaError::RateLimitExceeded { .. } => {
+                Some("Reduce request rate or wait before retrying")
+            }
+            NikaError::McpToolCallFailed { .. } => {
+                Some("Check MCP tool parameters and server logs")
+            }
         }
     }
 }

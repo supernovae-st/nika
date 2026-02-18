@@ -69,7 +69,9 @@ fn bench_circuit_breaker_execute_closed(c: &mut Criterion) {
 
     c.bench_function("circuit_breaker/execute_closed", |b| {
         b.to_async(&rt).iter(|| async {
-            let result = breaker.execute(|| async { Ok::<_, anyhow::Error>(42) }).await;
+            let result = breaker
+                .execute(|| async { Ok::<_, anyhow::Error>(42) })
+                .await;
             black_box(result)
         });
     });
@@ -86,8 +88,9 @@ fn bench_circuit_breaker_execute_open(c: &mut Criterion) {
 
     c.bench_function("circuit_breaker/execute_open_fast_fail", |b| {
         b.to_async(&rt).iter(|| async {
-            let result: Result<i32, _> =
-                breaker.execute(|| async { Ok::<_, anyhow::Error>(42) }).await;
+            let result: Result<i32, _> = breaker
+                .execute(|| async { Ok::<_, anyhow::Error>(42) })
+                .await;
             black_box(result)
         });
     });
@@ -127,7 +130,9 @@ fn bench_retry_execute_success(c: &mut Criterion) {
 
     c.bench_function("retry/execute_success", |b| {
         b.to_async(&rt).iter(|| async {
-            let result = policy.execute(|| async { Ok::<_, anyhow::Error>(42) }).await;
+            let result = policy
+                .execute(|| async { Ok::<_, anyhow::Error>(42) })
+                .await;
             black_box(result)
         });
     });

@@ -10,7 +10,9 @@ use dashmap::DashMap;
 use tokio::sync::OnceCell;
 use tracing::{debug, instrument};
 
-use crate::ast::{AgentParams, ExecParams, FetchParams, InferParams, InvokeParams, McpConfigInline, TaskAction};
+use crate::ast::{
+    AgentParams, ExecParams, FetchParams, InferParams, InvokeParams, McpConfigInline, TaskAction,
+};
 use crate::binding::{template_resolve, UseBindings};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};

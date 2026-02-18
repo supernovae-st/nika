@@ -193,7 +193,11 @@ tasks:
     let runner = Runner::new(workflow);
     let result = runner.run().await;
 
-    assert!(result.is_ok(), "Workflow should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Workflow should succeed: {:?}",
+        result.err()
+    );
 
     // The output should contain all fruits (order may vary due to parallelism)
     let output = result.unwrap();
@@ -219,5 +223,9 @@ tasks:
     let runner = Runner::new(workflow);
     let result = runner.run().await;
 
-    assert!(result.is_ok(), "Workflow should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Workflow should succeed: {:?}",
+        result.err()
+    );
 }

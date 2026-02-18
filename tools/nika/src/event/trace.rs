@@ -105,7 +105,7 @@ pub fn generate_generation_id() -> String {
 
     let now = Utc::now();
     let timestamp = now.format("%Y-%m-%dT%H-%M-%S");
-    let random: u32 = rand::random::<u32>() % 0x10000;  // 0-65535 for 4 hex digits
+    let random: u32 = rand::random::<u32>() % 0x10000; // 0-65535 for 4 hex digits
 
     format!("{}-{:04x}", timestamp, random)
 }
@@ -295,10 +295,8 @@ mod tests {
     #[test]
     fn test_trace_writer_accepts_valid_ids() {
         // These should be valid format (even if file creation fails)
-        assert!(
-            "2024-01-01T12-00-00-abc0"
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == 'T')
-        );
+        assert!("2024-01-01T12-00-00-abc0"
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == 'T'));
     }
 }

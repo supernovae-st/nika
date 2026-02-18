@@ -198,8 +198,8 @@ impl RateLimiter {
         }
 
         // Calculate tokens to add
-        let tokens_to_add = (elapsed_ms as f64 * self.config.rate_per_second / 1000.0
-            * Self::SCALE as f64) as u64;
+        let tokens_to_add =
+            (elapsed_ms as f64 * self.config.rate_per_second / 1000.0 * Self::SCALE as f64) as u64;
 
         if tokens_to_add == 0 {
             return;
