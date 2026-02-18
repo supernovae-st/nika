@@ -16,6 +16,8 @@ mod workflow;
 
 // Re-export all public types
 pub use action::{ExecParams, FetchParams, InferParams, TaskAction};
+// InvokeParams is defined in invoke.rs and re-exported here
+// (also used by action.rs for TaskAction::Invoke variant)
 pub use invoke::InvokeParams;
 pub use output::{OutputFormat, OutputPolicy};
 pub use workflow::{Flow, FlowEndpoint, Task, Workflow, SCHEMA_V01};

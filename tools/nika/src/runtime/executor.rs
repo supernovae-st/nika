@@ -63,6 +63,13 @@ impl TaskExecutor {
             TaskAction::Infer { infer } => self.execute_infer(task_id, infer, bindings).await,
             TaskAction::Exec { exec } => self.execute_exec(task_id, exec, bindings).await,
             TaskAction::Fetch { fetch } => self.execute_fetch(task_id, fetch, bindings).await,
+            TaskAction::Invoke { invoke: _ } => {
+                // TODO(v0.2): Implement invoke execution with MCP client
+                Err(NikaError::Execution(
+                    "invoke verb execution not yet implemented - requires MCP client (v0.2)"
+                        .to_string(),
+                ))
+            }
         }
     }
 
@@ -233,6 +240,7 @@ fn action_type(action: &TaskAction) -> &'static str {
         TaskAction::Infer { .. } => "infer",
         TaskAction::Exec { .. } => "exec",
         TaskAction::Fetch { .. } => "fetch",
+        TaskAction::Invoke { .. } => "invoke",
     }
 }
 
