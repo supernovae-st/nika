@@ -19,8 +19,11 @@
 | #3 TUI 4-panel layout | HIGH | TO DO | MVP 3 |
 | #4 CLI trace commands | MEDIUM | TO DO | MVP 3 |
 | #5 Real NovaNet integration test | MEDIUM | TO DO | MVP 4 |
-| #6 OpenAI tool calling | LOW | DEFER | MVP 5 |
-| #7 for_each parallelism | LOW | DEFER | MVP 6 |
+| #6 **DAG cycle detection** | CRITICAL | TO DO | MVP 0 |
+| #7 **DAG validation tests** | CRITICAL | TO DO | Quality |
+| #8 **Windows CI target** | MEDIUM | TO DO | Quality |
+| #9 OpenAI tool calling | LOW | DEFER | MVP 5 |
+| #10 for_each parallelism | LOW | DEFER | MVP 6 |
 
 ---
 
@@ -327,16 +330,29 @@ git commit -m "test(integration): add real NovaNet MCP integration test"
 ## Execution Order
 
 ```
+                               CRITICAL PATH (DO FIRST)
+                               ========================
+Task 6 (Cycle Detection) ─────┬──► Task 7 (DAG Tests)
+                               │
+                               ▼
+                               HIGH PRIORITY
+                               =============
 Task 1 (MCP feature)     ─────┐
                                │
 Task 2 (Doc tests)       ─────┼──► Task 5 (Integration)
                                │
 Task 3 (TUI panels)      ─────┤
                                │
-Task 4 (CLI trace)       ─────┘
+Task 4 (CLI trace)       ─────┤
+                               │
+Task 8 (Windows CI)      ─────┘
 ```
 
-Tasks 1-4 can run in parallel. Task 5 depends on Task 1.
+Execution order:
+1. **Task 6** (cycle detection) - CRITICAL, blocks Task 7
+2. **Task 7** (DAG tests) - depends on Task 6
+3. Tasks 1-4, 8 can run in parallel
+4. **Task 5** depends on Task 1
 
 ---
 
@@ -344,12 +360,324 @@ Tasks 1-4 can run in parallel. Task 5 depends on Task 1.
 
 After all tasks:
 - [ ] `cargo build --all-features` passes
-- [ ] `cargo test` passes
+- [ ] `cargo test` passes (including DAG cycle tests)
 - [ ] `cargo test --doc` runs at least 10 doc tests
 - [ ] `cargo clippy -- -D warnings` no warnings
 - [ ] `cargo run -- trace list --help` shows help
 - [ ] TUI has 4 panel structs defined
+- [ ] DAG cycle detection catches A→B→C→A
 - [ ] Integration test exists and runs with `--ignored`
+- [ ] release.yml includes Windows target
+
+---
+
+## Task 6: DAG Cycle Detection (CRITICAL)
+
+**Files:**
+- Modify: `src/dag/flow.rs`
+- Modify: `src/error.rs`
+
+**Step 1: Write failing test for cycle detection**
+
+```rust
+// In src/dag/flow.rs, add to #[cfg(test)] module
+#[test]
+fn test_detect_cycle_simple() {
+    // A → B → C → A (cycle)
+    let yaml = r#"
+schema: nika/workflow@0.1
+id: cycle_test
+tasks:
+  - id: a
+    infer: "A"
+  - id: b
+    infer: "B"
+  - id: c
+    infer: "C"
+flows:
+  - source: a
+    target: b
+  - source: b
+    target: c
+  - source: c
+    target: a
+"#;
+    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let graph = FlowGraph::from_workflow(&workflow);
+
+    let result = graph.detect_cycles();
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(err.to_string().contains("NIKA-025")); // Cycle error code
+}
+
+#[test]
+fn test_no_cycle_linear() {
+    // A → B → C (no cycle)
+    let yaml = r#"
+schema: nika/workflow@0.1
+id: linear_test
+tasks:
+  - id: a
+    infer: "A"
+  - id: b
+    infer: "B"
+  - id: c
+    infer: "C"
+flows:
+  - source: a
+    target: b
+  - source: b
+    target: c
+"#;
+    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let graph = FlowGraph::from_workflow(&workflow);
+
+    assert!(graph.detect_cycles().is_ok());
+}
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `cargo test test_detect_cycle_simple -v`
+Expected: FAIL (method `detect_cycles` not found)
+
+**Step 3: Add NIKA-025 error variant**
+
+```rust
+// In src/error.rs, add to NikaError enum:
+#[error("[NIKA-025] DAG contains cycle: {path}")]
+DagCycle { path: String },
+```
+
+**Step 4: Implement detect_cycles using DFS**
+
+```rust
+// In src/dag/flow.rs, add method to FlowGraph impl
+/// Detect cycles in the DAG using DFS with three-color marking
+/// Returns Ok(()) if acyclic, Err with cycle path if cycle found
+pub fn detect_cycles(&self) -> Result<(), NikaError> {
+    use rustc_hash::FxHashSet;
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Color { White, Gray, Black }
+
+    let mut colors: FxHashMap<&str, Color> = self.task_ids
+        .iter()
+        .map(|id| (id.as_ref(), Color::White))
+        .collect();
+    let mut stack: Vec<&str> = Vec::new();
+
+    fn dfs<'a>(
+        node: &'a str,
+        adjacency: &FxHashMap<Arc<str>, DepVec>,
+        colors: &mut FxHashMap<&'a str, Color>,
+        stack: &mut Vec<&'a str>,
+    ) -> Result<(), String> {
+        colors.insert(node, Color::Gray);
+        stack.push(node);
+
+        if let Some(neighbors) = adjacency.get(node) {
+            for neighbor in neighbors {
+                let n = neighbor.as_ref();
+                match colors.get(n) {
+                    Some(Color::Gray) => {
+                        // Found cycle - build path from stack
+                        let cycle_start = stack.iter().position(|&x| x == n).unwrap();
+                        let cycle: Vec<&str> = stack[cycle_start..].to_vec();
+                        return Err(format!("{} → {}", cycle.join(" → "), n));
+                    }
+                    Some(Color::White) | None => {
+                        dfs(n, adjacency, colors, stack)?;
+                    }
+                    Some(Color::Black) => {} // Already processed
+                }
+            }
+        }
+
+        stack.pop();
+        colors.insert(node, Color::Black);
+        Ok(())
+    }
+
+    for task_id in &self.task_ids {
+        if colors.get(task_id.as_ref()) == Some(&Color::White) {
+            if let Err(path) = dfs(task_id.as_ref(), &self.adjacency, &mut colors, &mut stack) {
+                return Err(NikaError::DagCycle { path });
+            }
+        }
+    }
+
+    Ok(())
+}
+```
+
+**Step 5: Run tests to verify they pass**
+
+Run: `cargo test test_detect_cycle -v`
+Expected: PASS (both tests)
+
+**Step 6: Commit**
+
+```bash
+git add src/dag/flow.rs src/error.rs
+git commit -m "feat(dag): add cycle detection with DFS three-color algorithm (MVP 0)"
+```
+
+---
+
+## Task 7: DAG Validation Tests
+
+**Files:**
+- Modify: `src/dag/flow.rs`
+- Create: `tests/dag_test.rs`
+
+**Step 1: Write comprehensive DAG tests**
+
+```rust
+// tests/dag_test.rs
+use nika::dag::FlowGraph;
+use nika::ast::Workflow;
+
+#[test]
+fn test_dag_diamond_no_cycle() {
+    // Diamond: A → B, A → C, B → D, C → D
+    let yaml = r#"
+schema: nika/workflow@0.1
+id: diamond
+tasks:
+  - id: a
+    infer: "A"
+  - id: b
+    infer: "B"
+  - id: c
+    infer: "C"
+  - id: d
+    infer: "D"
+flows:
+  - source: a
+    target: [b, c]
+  - source: [b, c]
+    target: d
+"#;
+    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let graph = FlowGraph::from_workflow(&workflow);
+
+    assert!(graph.detect_cycles().is_ok());
+    assert_eq!(graph.get_final_tasks().len(), 1);
+    assert!(graph.has_path("a", "d"));
+}
+
+#[test]
+fn test_dag_self_loop() {
+    // A → A (self-loop = cycle)
+    let yaml = r#"
+schema: nika/workflow@0.1
+id: self_loop
+tasks:
+  - id: a
+    infer: "A"
+flows:
+  - source: a
+    target: a
+"#;
+    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let graph = FlowGraph::from_workflow(&workflow);
+
+    let result = graph.detect_cycles();
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_dag_disconnected_valid() {
+    // A → B, C → D (two disconnected chains, no cycle)
+    let yaml = r#"
+schema: nika/workflow@0.1
+id: disconnected
+tasks:
+  - id: a
+    infer: "A"
+  - id: b
+    infer: "B"
+  - id: c
+    infer: "C"
+  - id: d
+    infer: "D"
+flows:
+  - source: a
+    target: b
+  - source: c
+    target: d
+"#;
+    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let graph = FlowGraph::from_workflow(&workflow);
+
+    assert!(graph.detect_cycles().is_ok());
+    assert_eq!(graph.get_final_tasks().len(), 2); // b and d
+}
+```
+
+**Step 2: Run tests**
+
+Run: `cargo test dag_test -v`
+Expected: PASS
+
+**Step 3: Commit**
+
+```bash
+git add tests/dag_test.rs
+git commit -m "test(dag): add comprehensive DAG validation tests"
+```
+
+---
+
+## Task 8: Windows CI Target
+
+**Files:**
+- Modify: `.github/workflows/release.yml`
+
+**Step 1: Audit current release workflow**
+
+Run: `cat .github/workflows/release.yml | grep -A5 "matrix:"`
+Expected: See current build targets (likely macOS + Linux only)
+
+**Step 2: Add Windows target to matrix**
+
+```yaml
+# In .github/workflows/release.yml, update matrix:
+strategy:
+  matrix:
+    include:
+      - os: ubuntu-latest
+        target: x86_64-unknown-linux-gnu
+        artifact: nika-linux-x64
+      - os: macos-latest
+        target: x86_64-apple-darwin
+        artifact: nika-macos-x64
+      - os: macos-latest
+        target: aarch64-apple-darwin
+        artifact: nika-macos-arm64
+      - os: windows-latest
+        target: x86_64-pc-windows-msvc
+        artifact: nika-windows-x64
+```
+
+**Step 3: Add SHA256 checksum generation**
+
+```yaml
+# After build step, add:
+- name: Generate checksums
+  run: |
+    cd target/${{ matrix.target }}/release
+    sha256sum nika* > checksums.sha256 || shasum -a 256 nika* > checksums.sha256
+```
+
+**Step 4: Commit**
+
+```bash
+git add .github/workflows/release.yml
+git commit -m "ci: add Windows target and SHA256 checksums"
+```
 
 ---
 
