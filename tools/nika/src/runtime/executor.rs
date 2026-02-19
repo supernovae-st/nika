@@ -19,10 +19,8 @@ use crate::binding::{ResolvedBindings, template_resolve};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 use crate::mcp::{McpClient, McpConfig};
-#[allow(deprecated)]
-use crate::provider::{Provider, create_provider};
 use crate::provider::rig::RigProvider;
-use crate::runtime::AgentLoop;
+use crate::runtime::RigAgentLoop;
 use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
 
 /// Task executor with cached providers, shared HTTP client, and event logging
@@ -30,9 +28,6 @@ use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
 pub struct TaskExecutor {
     /// Shared HTTP client (connection pooling)
     http_client: reqwest::Client,
-    /// Cached providers (lock-free) - DEPRECATED: Use rig_provider_cache instead
-    #[allow(deprecated)]
-    provider_cache: Arc<DashMap<String, Arc<dyn Provider>>>,
     /// Cached rig-core providers (v0.3.1+)
     rig_provider_cache: Arc<DashMap<String, RigProvider>>,
     /// Cached MCP clients with async-safe initialization (prevents race conditions in for_each)
@@ -66,7 +61,6 @@ impl TaskExecutor {
 
         Self {
             http_client,
-            provider_cache: Arc::new(DashMap::new()),
             rig_provider_cache: Arc::new(DashMap::new()),
             mcp_client_cache: Arc::new(DashMap::new()),
             mcp_configs: Arc::new(mcp_configs.unwrap_or_default()),
@@ -104,26 +98,6 @@ impl TaskExecutor {
             TaskAction::Fetch { fetch } => self.execute_fetch(task_id, fetch, bindings).await,
             TaskAction::Invoke { invoke } => self.execute_invoke(task_id, invoke, bindings).await,
             TaskAction::Agent { agent } => self.execute_agent(task_id, agent, bindings).await,
-        }
-    }
-
-    /// Get or create a cached provider (atomic via DashMap entry API)
-    ///
-    /// DEPRECATED: Use `get_rig_provider` instead for new code.
-    #[allow(deprecated)]
-    fn get_provider(&self, name: &str) -> Result<Arc<dyn Provider>, NikaError> {
-        // Use entry API for atomic get-or-insert (avoids race condition)
-        use dashmap::mapref::entry::Entry;
-
-        match self.provider_cache.entry(name.to_string()) {
-            Entry::Occupied(e) => Ok(Arc::clone(e.get())),
-            Entry::Vacant(e) => {
-                let provider: Arc<dyn Provider> = Arc::from(
-                    create_provider(name).map_err(|e| NikaError::Provider(e.to_string()))?,
-                );
-                e.insert(Arc::clone(&provider));
-                Ok(provider)
-            }
         }
     }
 
@@ -461,12 +435,12 @@ impl TaskExecutor {
             mcp_servers: resolved_agent.mcp.clone(),
         });
 
-        // Get provider (task override or workflow default)
-        let provider_name = resolved_agent
+        // Get provider name (task override or workflow default)
+        // Clone to avoid borrow conflict when moving resolved_agent into RigAgentLoop
+        let provider_name: String = resolved_agent
             .provider
-            .as_deref()
-            .unwrap_or(&self.default_provider);
-        let provider = self.get_provider(provider_name)?;
+            .clone()
+            .unwrap_or_else(|| self.default_provider.to_string());
 
         // Build MCP client map for this agent
         let mut mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
@@ -475,8 +449,8 @@ impl TaskExecutor {
             mcp_clients.insert(mcp_name.clone(), client);
         }
 
-        // Create and run agent loop with resolved prompt
-        let agent_loop = AgentLoop::new(
+        // Create rig-based agent loop (v0.3.1+)
+        let mut agent_loop = RigAgentLoop::new(
             task_id.to_string(),
             resolved_agent,
             self.event_log.clone(),
@@ -484,13 +458,23 @@ impl TaskExecutor {
         )?;
 
         let start = std::time::Instant::now();
-        let result = agent_loop.run(provider).await?;
+
+        // Run agent with appropriate provider
+        // mock provider uses run_mock(), real providers use run_claude()
+        let result = if provider_name.as_str() == "mock" {
+            agent_loop.run_mock().await?
+        } else {
+            // Use rig-core for Claude (default) and OpenAI
+            // Note: OpenAI support via run_openai() can be added in the future
+            agent_loop.run_claude().await?
+        };
+
         let duration_ms = start.elapsed().as_millis() as u64;
 
         // EMIT: AgentComplete event
         self.event_log.emit(EventKind::AgentComplete {
             task_id: Arc::clone(task_id),
-            turns: result.turns,
+            turns: result.turns as u32,
             stop_reason: format!("{:?}", result.status),
         });
 

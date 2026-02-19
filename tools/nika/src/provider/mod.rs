@@ -1,23 +1,20 @@
 //! Provider abstraction layer
 //!
-//! ## Provider Strategy (v0.3.1)
+//! ## Provider Strategy (v0.4)
 //!
-//! Nika is migrating from custom providers to [rig-core](https://github.com/0xPlaygrounds/rig).
+//! Nika uses [rig-core](https://github.com/0xPlaygrounds/rig) for LLM providers.
 //!
-//! | Component | Old Approach | New Approach (v0.3.1+) |
-//! |-----------|--------------|------------------------|
-//! | `agent:` verb | `AgentLoop` + `Provider` trait | [`RigAgentLoop`](crate::runtime::RigAgentLoop) + rig-core |
-//! | `infer:` verb | `executor.rs` + `Provider` trait | Pending migration to rig |
-//! | Tool calling | Manual JSON construction | [`NikaMcpTool`](rig::NikaMcpTool) (rig `ToolDyn`) |
+//! | Component | Implementation |
+//! |-----------|----------------|
+//! | `agent:` verb | [`RigAgentLoop`](crate::runtime::RigAgentLoop) + rig-core |
+//! | `infer:` verb | [`RigProvider`](rig::RigProvider) + rig-core |
+//! | Tool calling | [`NikaMcpTool`](rig::NikaMcpTool) (rig `ToolDyn`) |
 //!
-//! ## Current Modules
+//! ## Modules
 //!
-//! - [`rig`] - **Recommended**: rig-core integration (`RigProvider`, `NikaMcpTool`)
-//! - [`claude`] - *Deprecated*: Legacy Claude provider (use rig for new code)
-//! - [`openai`] - *Deprecated*: Legacy OpenAI provider (use rig for new code)
-//! - [`types`] - *Deprecated*: Legacy types (use rig-core types)
+//! - [`rig`] - rig-core integration (`RigProvider`, `NikaMcpTool`)
 //!
-//! ## Example: Using rig-core (Recommended)
+//! ## Example
 //!
 //! ```rust,ignore
 //! use nika::runtime::RigAgentLoop;
@@ -30,57 +27,123 @@
 //!     max_turns: Some(5),
 //!     ..Default::default()
 //! };
-//! let agent = RigAgentLoop::new("task-1".into(), params, EventLog::new(), mcp_clients)?;
+//! let mut agent = RigAgentLoop::new("task-1".into(), params, EventLog::new(), mcp_clients)?;
 //! let result = agent.run_claude().await?;
 //! ```
 
-// Allow deprecated during transition period (these are still used by executor.rs)
-#[allow(deprecated)]
-pub mod claude;
-#[allow(deprecated)]
-pub mod openai;
 pub mod rig;
-mod types;
 
-#[allow(deprecated)]
-pub use claude::ClaudeProvider;
-#[allow(deprecated)]
-pub use openai::OpenAIProvider;
-pub use types::*;
+// ═══════════════════════════════════════════════════════════════════════════
+// DEPRECATED: Legacy Provider types (v0.4)
+//
+// These types are kept for compatibility with resilience/provider.rs.
+// They will be removed in a future version.
+// ═══════════════════════════════════════════════════════════════════════════
 
 use anyhow::Result;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 
 /// Default models per provider
+#[deprecated(since = "0.4.0", note = "Use rig-core model constants instead")]
 pub const CLAUDE_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
+#[deprecated(since = "0.4.0", note = "Use rig-core model constants instead")]
 pub const OPENAI_DEFAULT_MODEL: &str = "gpt-4o";
+
+/// Message role in conversation
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[deprecated(since = "0.4.0", note = "Use rig-core types instead")]
+pub enum MessageRole {
+    User,
+    Assistant,
+    System,
+}
+
+/// Content of a message
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[deprecated(since = "0.4.0", note = "Use rig-core types instead")]
+pub enum MessageContent {
+    Text(String),
+    ToolResult { tool_use_id: String, content: String },
+}
+
+/// A message in a conversation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[deprecated(since = "0.4.0", note = "Use rig-core types instead")]
+#[allow(deprecated)]
+pub struct Message {
+    pub role: MessageRole,
+    pub content: MessageContent,
+}
+
+/// Tool definition for function calling
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[deprecated(since = "0.4.0", note = "Use rig-core types instead")]
+pub struct ToolDefinition {
+    pub name: String,
+    pub description: String,
+    pub input_schema: serde_json::Value,
+}
+
+/// Tool call from LLM
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[deprecated(since = "0.4.0", note = "Use rig-core types instead")]
+pub struct ToolCall {
+    pub id: String,
+    pub name: String,
+    pub input: serde_json::Value,
+}
+
+/// Stop reason for completion
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[deprecated(since = "0.4.0", note = "Use rig-core types instead")]
+pub enum StopReason {
+    EndTurn,
+    ToolUse,
+    MaxTokens,
+    StopSequence,
+}
+
+/// Token usage tracking
+#[derive(Debug, Clone, Default)]
+#[deprecated(since = "0.4.0", note = "Use rig-core types instead")]
+pub struct Usage {
+    pub input_tokens: u32,
+    pub output_tokens: u32,
+}
+
+#[allow(deprecated)]
+impl Usage {
+    pub fn new(input: u32, output: u32) -> Self {
+        Self {
+            input_tokens: input,
+            output_tokens: output,
+        }
+    }
+}
+
+/// Chat response from provider
+#[derive(Debug, Clone)]
+#[deprecated(since = "0.4.0", note = "Use rig-core types instead")]
+#[allow(deprecated)]
+pub struct ChatResponse {
+    pub content: MessageContent,
+    pub tool_calls: Vec<ToolCall>,
+    pub stop_reason: StopReason,
+    pub usage: Usage,
+}
 
 /// LLM provider abstraction for inference operations
 ///
-/// Implementations:
-/// - [`ClaudeProvider`]: Anthropic Claude API
-/// - [`OpenAIProvider`]: OpenAI API
-/// - [`MockProvider`]: Testing mock (returns "Mock response")
-///
-/// # Example
-/// ```rust,ignore
-/// let provider = create_provider("claude")?;
-/// let response = provider.infer("Hello", "claude-sonnet-4-5").await?;
-/// ```
+/// DEPRECATED: Use `RigAgentLoop` for agent execution and `RigProvider` for inference.
+#[deprecated(since = "0.4.0", note = "Use RigAgentLoop or RigProvider instead")]
 #[async_trait]
+#[allow(deprecated)]
 pub trait Provider: Send + Sync {
     /// Execute a prompt and return the response (simple, no tools)
     async fn infer(&self, prompt: &str, model: &str) -> Result<String>;
 
     /// Chat with tool support for multi-turn conversations
-    ///
-    /// # Arguments
-    /// * `messages` - Conversation history
-    /// * `tools` - Optional tool definitions available to the LLM
-    /// * `model` - Model identifier to use
-    ///
-    /// # Returns
-    /// A `ChatResponse` containing the assistant's reply and any tool calls
     async fn chat(
         &self,
         messages: &[Message],
@@ -100,30 +163,12 @@ pub trait Provider: Send + Sync {
     }
 }
 
-/// Create provider by name
-///
-/// **Note:** This function uses deprecated providers during transition.
-/// For new agent code, use [`crate::runtime::RigAgentLoop`] instead.
-#[allow(deprecated)]
-pub fn create_provider(name: &str) -> Result<Box<dyn Provider>> {
-    if name.eq_ignore_ascii_case("claude") {
-        Ok(Box::new(ClaudeProvider::new()?))
-    } else if name.eq_ignore_ascii_case("openai") {
-        Ok(Box::new(OpenAIProvider::new()?))
-    } else if name.eq_ignore_ascii_case("mock") {
-        Ok(Box::new(MockProvider))
-    } else {
-        anyhow::bail!(
-            "Unknown provider: '{}'. Available: claude, openai, mock",
-            name
-        )
-    }
-}
-
 /// Mock provider for testing
 #[derive(Default)]
+#[deprecated(since = "0.4.0", note = "Use RigAgentLoop.run_mock() instead")]
 pub struct MockProvider;
 
+#[allow(deprecated)]
 #[async_trait]
 impl Provider for MockProvider {
     async fn infer(&self, _prompt: &str, _model: &str) -> Result<String> {

@@ -342,7 +342,7 @@ impl std::fmt::Debug for ResilientProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::provider::{MessageContent, MockProvider, StopReason, Usage};
+    use crate::provider::{Message, MessageContent, MessageRole, MockProvider, StopReason, Usage};
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::time::Duration;
 
@@ -385,7 +385,10 @@ mod tests {
         let mock = Box::new(MockProvider);
         let provider = ResilientProvider::with_defaults(mock);
 
-        let messages = vec![Message::user("Hello")];
+        let messages = vec![Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("Hello".to_string()),
+        }];
 
         let result = provider.chat(&messages, None, "mock-v1").await;
         assert!(result.is_ok());
