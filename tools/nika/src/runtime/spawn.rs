@@ -232,7 +232,7 @@ impl SpawnAgentTool {
         };
 
         // Create child RigAgentLoop
-        let child_loop = super::RigAgentLoop::new(
+        let mut child_loop = super::RigAgentLoop::new(
             params.task_id.clone(),
             child_params,
             self.event_log.clone(),
@@ -240,10 +240,10 @@ impl SpawnAgentTool {
         )
         .map_err(|e| SpawnAgentError::ExecutionFailed(e.to_string()))?;
 
-        // Execute child agent (use mock for now, real Claude requires API key)
-        // In production, this would be child_loop.run_claude().await
+        // Execute child agent with auto-detected provider (production mode)
+        // Uses ANTHROPIC_API_KEY or OPENAI_API_KEY from environment
         let result = child_loop
-            .run_mock()
+            .run_auto()
             .await
             .map_err(|e| SpawnAgentError::ExecutionFailed(e.to_string()))?;
 

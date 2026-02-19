@@ -131,8 +131,15 @@ let params = AgentParams {
     max_turns: Some(5),
     ..Default::default()
 };
-let agent = RigAgentLoop::new("task-1".into(), params, EventLog::new(), mcp_clients)?;
-let result = agent.run_claude().await?;  // or run_mock() for testing
+let mut agent = RigAgentLoop::new("task-1".into(), params, EventLog::new(), mcp_clients)?;
+
+// Production - auto-detects provider from env vars
+let result = agent.run_auto().await?;
+
+// Or explicitly choose provider
+let result = agent.run_claude().await?;   // requires ANTHROPIC_API_KEY
+let result = agent.run_openai().await?;   // requires OPENAI_API_KEY
+let result = agent.run_mock().await?;     // for testing (no API key needed)
 ```
 
 ## v0.4.1 Changes (Token Tracking Fix)

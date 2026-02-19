@@ -24,7 +24,7 @@ use rig::agent::AgentBuilder;
 use rig::client::{CompletionClient, ProviderClient};
 use rig::completion::{CompletionModel as _, GetTokenUsage, Prompt};
 use rig::message::ReasoningContent;
-use rig::providers::anthropic;
+use rig::providers::{anthropic, openai};
 use rig::streaming::StreamedAssistantContent;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
@@ -519,6 +519,135 @@ impl RigAgentLoop {
             turns: 1,
             final_output: serde_json::json!({ "response": response }),
             total_tokens: (input_tokens + output_tokens) as u64,
+        })
+    }
+
+    /// Run the agent loop with the OpenAI provider
+    ///
+    /// This method uses rig-core's OpenAI client for actual execution.
+    /// Requires OPENAI_API_KEY environment variable to be set.
+    ///
+    /// # Note
+    /// This method takes `&mut self` because tools are consumed (moved to rig's AgentBuilder).
+    /// The agent loop is designed for single-use execution.
+    pub async fn run_openai(&mut self) -> Result<RigAgentLoopResult, NikaError> {
+        // Create OpenAI client from environment
+        let client = openai::Client::from_env();
+
+        // Get model name (default to gpt-4o)
+        let model_name = self.params.model.as_deref().unwrap_or("gpt-4o");
+        let model = client.completion_model(model_name);
+
+        // Take ownership of tools (they'll be consumed by the builder)
+        let tools = std::mem::take(&mut self.tools);
+
+        // Get max_turns
+        let max_turns = self.params.max_turns.unwrap_or(10) as usize;
+
+        // Emit start event (no metadata for "started")
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index: 1,
+            kind: "started".to_string(),
+            metadata: None,
+        });
+
+        // Build and run agent
+        let response = if tools.is_empty() {
+            // No tools - simple completion
+            let agent = AgentBuilder::new(model)
+                .preamble(&self.params.prompt)
+                .build();
+
+            agent
+                .prompt(&self.params.prompt)
+                .max_turns(max_turns)
+                .await
+                .map_err(|e| NikaError::AgentExecutionError {
+                    task_id: self.task_id.clone(),
+                    reason: e.to_string(),
+                })?
+        } else {
+            // With tools - agentic execution
+            let agent = AgentBuilder::new(model)
+                .preamble(&self.params.prompt)
+                .tools(tools)
+                .build();
+
+            agent
+                .prompt(&self.params.prompt)
+                .max_turns(max_turns)
+                .await
+                .map_err(|e| NikaError::AgentExecutionError {
+                    task_id: self.task_id.clone(),
+                    reason: e.to_string(),
+                })?
+        };
+
+        // Determine status from response
+        let response_str = response.clone();
+        let status = if self.check_stop_conditions(&response_str) {
+            RigAgentStatus::StopConditionMet
+        } else {
+            RigAgentStatus::NaturalCompletion
+        };
+
+        // Emit completion event
+        let stop_reason = status.as_canonical_str();
+        let metadata = AgentTurnMetadata::text_only(&response, stop_reason);
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index: 1,
+            kind: stop_reason.to_string(),
+            metadata: Some(metadata),
+        });
+
+        Ok(RigAgentLoopResult {
+            status,
+            turns: 1,
+            final_output: serde_json::json!({ "response": response }),
+            total_tokens: 0, // Token tracking requires response metadata
+        })
+    }
+
+    /// Run the agent loop with the best available provider
+    ///
+    /// Provider selection order:
+    /// 1. Check AgentParams.provider field
+    /// 2. Check ANTHROPIC_API_KEY env var → use Claude
+    /// 3. Check OPENAI_API_KEY env var → use OpenAI
+    /// 4. Error if no API key found
+    ///
+    /// # Note
+    /// This is the recommended method for production use.
+    pub async fn run_auto(&mut self) -> Result<RigAgentLoopResult, NikaError> {
+        // Check explicit provider from params
+        if let Some(ref provider) = self.params.provider {
+            match provider.to_lowercase().as_str() {
+                "claude" | "anthropic" => return self.run_claude().await,
+                "openai" | "gpt" => return self.run_openai().await,
+                other => {
+                    return Err(NikaError::AgentValidationError {
+                        reason: format!("Unknown provider: '{}'. Use 'claude' or 'openai'.", other),
+                    });
+                }
+            }
+        }
+
+        // Auto-detect based on available API keys
+        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+            return self.run_claude().await;
+        }
+
+        if std::env::var("OPENAI_API_KEY").is_ok() {
+            return self.run_openai().await;
+        }
+
+        Err(NikaError::AgentValidationError {
+            reason:
+                "No API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable."
+                    .to_string(),
         })
     }
 }
