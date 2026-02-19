@@ -27,10 +27,8 @@ tools/nika/src/
 │   └── trace.rs      # NDJSON writer
 ├── tui/              # Terminal UI (feature-gated)
 ├── binding/          # Data flow ({{use.alias}})
-├── provider/         # LLM providers (v0.4: rig-core only)
-│   ├── mod.rs        # Minimal legacy types for resilience/provider.rs
+├── provider/         # LLM providers (rig-core only)
 │   └── rig.rs        # ✅ RigProvider + NikaMcpTool (rig-core v0.31)
-├── resilience/       # Retry, circuit breaker, rate limiter (v0.2)
 └── store/            # DataStore
 ```
 
@@ -98,59 +96,9 @@ The following were **removed in v0.4**:
 | `OpenAIProvider` | `RigProvider::openai()` | Deleted `provider/openai.rs` |
 | `provider::types` | `rig::completion::*` | Moved to minimal compat types in `mod.rs` |
 | `AgentLoop` | `RigAgentLoop` | Deleted `runtime/agent_loop.rs` |
-
-**Still deprecated (kept for resilience/ compatibility):**
-- `UseWiring` → use `WiringSpec` instead (`binding/entry.rs`)
-- `from_use_wiring()` → use `from_wiring_spec()` instead (`binding/resolver.rs`)
-- Legacy `Provider` trait types in `provider/mod.rs` (used by `resilience/provider.rs`)
-
-## Resilience Patterns (v0.2)
-
-Provider-level resilience for handling LLM API failures.
-
-### Configuration
-
-```yaml
-providers:
-  claude:
-    api_key: ${ANTHROPIC_API_KEY}
-    resilience:
-      retry:
-        max_attempts: 3
-        backoff: exponential
-        initial_delay_ms: 1000
-      circuit_breaker:
-        failure_threshold: 5
-        reset_timeout_ms: 30000
-      rate_limiter:
-        requests_per_minute: 60
-```
-
-### Patterns
-
-| Pattern | Purpose | Config | Tests |
-|---------|---------|--------|-------|
-| `retry` | Automatic retry with exponential backoff + jitter | `max_attempts`, `backoff`, `initial_delay_ms` | 21 |
-| `circuit_breaker` | Fail-fast after repeated failures | `failure_threshold`, `reset_timeout_ms` | 12 |
-| `rate_limiter` | Throttle requests to stay within API limits | `requests_per_minute` | 11 |
-
-### Circuit Breaker States
-
-```
-┌────────┐  failure_threshold  ┌──────┐  reset_timeout  ┌──────────┐
-│ Closed │ ─────────────────►  │ Open │ ─────────────►  │ HalfOpen │
-└────────┘                     └──────┘                 └──────────┘
-    ▲                                                        │
-    │                     success                            │
-    └────────────────────────────────────────────────────────┘
-```
-
-### Implementation
-
-- `resilience/retry.rs` — Exponential backoff with jitter
-- `resilience/circuit_breaker.rs` — State machine (Closed/Open/HalfOpen)
-- `resilience/rate_limiter.rs` — Token bucket algorithm
-- `resilience/metrics.rs` — Performance metrics collection
+| `UseWiring` | `WiringSpec` | Alias removed |
+| `from_use_wiring()` | `from_wiring_spec()` | Method removed |
+| `resilience/` module | None | Entire module deleted (was never wired) |
 
 ## for_each Parallelism (v0.3)
 
