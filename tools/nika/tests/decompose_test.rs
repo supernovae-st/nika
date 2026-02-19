@@ -262,12 +262,93 @@ mod executor_unit_tests {
 // INTEGRATION TESTS (require MCP server)
 // ============================================================================
 
-/// Test decomposer with mock MCP that returns traverse results
+/// Test decomposer with real NovaNet MCP server
 #[tokio::test]
 #[ignore = "Requires running NovaNet MCP server with Neo4j"]
 async fn test_decompose_semantic_with_real_mcp() {
-    // This test requires:
-    // 1. NovaNet MCP server running
-    // 2. Neo4j with test data
-    // See tests/rig_integration_test.rs for similar setup
+    use nika::mcp::{McpClient, McpConfig};
+    use serde_json::json;
+    use std::sync::Arc;
+
+    // Path to NovaNet MCP binary
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let workspace_root = std::path::Path::new(manifest_dir)
+        .parent()
+        .and_then(|p| p.parent())
+        .and_then(|p| p.parent())
+        .expect("Should find workspace root");
+
+    let mcp_bin = workspace_root.join("novanet-dev/tools/novanet-mcp/target/release/novanet-mcp");
+    if !mcp_bin.exists() {
+        eprintln!("NovaNet MCP binary not found. Build with:");
+        eprintln!("  cd novanet-dev/tools/novanet-mcp && cargo build --release");
+        return;
+    }
+
+    // Setup MCP client
+    let password = std::env::var("NOVANET_MCP_NEO4J_PASSWORD")
+        .unwrap_or_else(|_| "novanetpassword".to_string());
+
+    let config = McpConfig::new("novanet", mcp_bin.to_string_lossy())
+        .with_env("NOVANET_MCP_NEO4J_URI", "bolt://localhost:7687")
+        .with_env("NOVANET_MCP_NEO4J_USER", "neo4j")
+        .with_env("NOVANET_MCP_NEO4J_PASSWORD", &password);
+
+    let client = Arc::new(McpClient::new(config).expect("Should create client"));
+    client.connect().await.expect("Should connect to MCP");
+
+    // Verify connection by listing tools
+    let tools = client.list_tools().await.expect("Should list tools");
+    assert!(
+        tools.iter().any(|t| t.name == "novanet_traverse"),
+        "novanet_traverse tool should be available"
+    );
+
+    // Test: Call novanet_traverse directly to verify it works
+    let traverse_result = client
+        .call_tool(
+            "novanet_traverse",
+            json!({
+                "start_key": "qr-code",
+                "arc_kinds": ["HAS_NATIVE"],
+                "direction": "outgoing"
+            }),
+        )
+        .await;
+
+    assert!(
+        traverse_result.is_ok(),
+        "novanet_traverse should succeed: {:?}",
+        traverse_result.err()
+    );
+
+    let result = traverse_result.unwrap();
+    assert!(!result.is_error, "Result should not be an error");
+
+    // Parse the result and verify we got nodes
+    let result_json: serde_json::Value =
+        serde_json::from_str(&result.text()).expect("Should parse JSON");
+
+    // The result should have nodes (EntityNative instances for qr-code)
+    let nodes = result_json
+        .get("nodes")
+        .or_else(|| result_json.get("items"))
+        .or_else(|| result_json.as_array().map(|_| &result_json));
+
+    assert!(
+        nodes.is_some(),
+        "Result should contain nodes: {}",
+        result.text()
+    );
+
+    eprintln!(
+        "✓ novanet_traverse returned {} nodes",
+        nodes
+            .and_then(|n| n.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0)
+    );
+
+    // Cleanup
+    let _ = client.disconnect().await;
 }
