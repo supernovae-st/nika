@@ -17,9 +17,10 @@ tools/nika/src/
 │   └── output.rs     # OutputSpec
 ├── dag/              # DAG validation
 ├── runtime/          # Execution engine
-│   ├── executor.rs   # Task dispatch
+│   ├── executor.rs   # Task dispatch (infer/exec/fetch/invoke)
 │   ├── runner.rs     # Workflow orchestration
-│   └── agent_loop.rs # Agentic execution (v0.2)
+│   ├── agent_loop.rs # Legacy agentic execution (v0.2, deprecated)
+│   └── rig_agent_loop.rs # NEW: rig-core AgentBuilder (v0.3.1)
 ├── mcp/              # MCP client (v0.2)
 ├── event/            # Event sourcing
 │   ├── log.rs        # EventLog
@@ -43,6 +44,41 @@ tools/nika/src/
 
 - `nika/workflow@0.1`: infer, exec, fetch verbs
 - `nika/workflow@0.2`: +invoke, +agent verbs, +mcp config
+- `nika/workflow@0.3`: +for_each parallelism, rig-core integration
+
+## rig-core Migration (v0.3.1)
+
+Nika is migrating from custom providers to [rig-core](https://github.com/0xPlaygrounds/rig).
+
+| Component | Status | Implementation |
+|-----------|--------|----------------|
+| `agent:` verb | ✅ Done | `RigAgentLoop` uses rig's AgentBuilder |
+| `infer:` verb | ⏳ Pending | Still uses executor.rs + Provider trait |
+| MCP tools | ✅ Done | `NikaMcpTool` implements rig's `ToolDyn` |
+
+### Using RigAgentLoop (Recommended for agent:)
+
+```rust
+use nika::runtime::RigAgentLoop;
+use nika::ast::AgentParams;
+use nika::event::EventLog;
+
+let params = AgentParams {
+    prompt: "Generate a landing page".to_string(),
+    mcp: vec!["novanet".to_string()],
+    max_turns: Some(5),
+    ..Default::default()
+};
+let agent = RigAgentLoop::new("task-1".into(), params, EventLog::new(), mcp_clients)?;
+let result = agent.run_mock().await?;  // or run_claude() for real execution
+```
+
+### Deprecated Providers
+
+These are deprecated and will be removed in v0.4:
+- `ClaudeProvider` → Use `RigAgentLoop`
+- `OpenAIProvider` → Use `RigAgentLoop`
+- `provider::types` → Use rig-core types
 
 ## Resilience Patterns (v0.2)
 
