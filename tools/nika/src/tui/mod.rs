@@ -14,10 +14,6 @@
 //! └─────────────────────────────────────────────────────────────────────┘
 //! ```
 
-// Allow dead_code and unused_imports in TUI module - this is scaffolding for MVP 5
-#![allow(dead_code)]
-#![allow(unused_imports)]
-
 #[cfg(feature = "tui")]
 mod app;
 #[cfg(feature = "tui")]
@@ -41,10 +37,60 @@ pub use state::{PanelId, TuiMode, TuiState};
 pub use theme::{MissionPhase, TaskStatus, Theme};
 
 /// Run the TUI for a workflow
+///
+/// This function:
+/// 1. Parses and validates the workflow
+/// 2. Creates an EventLog with broadcast channel
+/// 3. Spawns the Runner in a background task
+/// 4. Runs the TUI with real-time event updates
 #[cfg(feature = "tui")]
 pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()> {
-    let app = App::new(workflow_path)?;
-    app.run().await
+    use crate::ast::Workflow;
+    use crate::event::EventLog;
+    use crate::runtime::Runner;
+
+    // 1. Parse and validate workflow
+    let yaml_content = std::fs::read_to_string(workflow_path).map_err(|e| {
+        crate::error::NikaError::WorkflowNotFound {
+            path: format!("{}: {}", workflow_path.display(), e),
+        }
+    })?;
+
+    let workflow: Workflow = serde_yaml::from_str(&yaml_content).map_err(|e| {
+        let line_info = e.location().map(|l| format!(" (line {})", l.line())).unwrap_or_default();
+        crate::error::NikaError::ParseError {
+            details: format!("{}{}", e, line_info),
+        }
+    })?;
+
+    workflow.validate_schema()?;
+
+    // 2. Create EventLog with broadcast channel for TUI
+    let (event_log, event_rx) = EventLog::new_with_broadcast();
+
+    // 3. Create Runner with the broadcast-enabled EventLog
+    let runner = Runner::with_event_log(workflow, event_log);
+
+    // 4. Spawn Runner in background task
+    let runner_handle = tokio::spawn(async move {
+        match runner.run().await {
+            Ok(output) => {
+                tracing::info!("Workflow completed: {} bytes output", output.len());
+            }
+            Err(e) => {
+                tracing::error!("Workflow failed: {}", e);
+            }
+        }
+    });
+
+    // 5. Create and run TUI with event receiver
+    let app = App::new(workflow_path)?.with_broadcast_receiver(event_rx);
+    let tui_result = app.run().await;
+
+    // 6. Abort runner if TUI exits early (user pressed q)
+    runner_handle.abort();
+
+    tui_result
 }
 
 #[cfg(not(feature = "tui"))]

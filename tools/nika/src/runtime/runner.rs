@@ -6,13 +6,15 @@
 //! - Tokio handles all concurrency (no artificial limits)
 
 use rustc_hash::FxHashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
 use colored::Colorize;
 use serde_json::Value;
+use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
-use tracing::{info, instrument};
+use tracing::{debug, info, instrument};
 
 use crate::ast::{Task, Workflow};
 use crate::binding::ResolvedBindings;
@@ -47,9 +49,16 @@ pub struct Runner {
 
 impl Runner {
     pub fn new(workflow: Workflow) -> Self {
+        Self::with_event_log(workflow, EventLog::new())
+    }
+
+    /// Create a Runner with a custom EventLog (for TUI integration)
+    ///
+    /// Use `EventLog::new_with_broadcast()` to create an EventLog that
+    /// sends events to TUI in real-time.
+    pub fn with_event_log(workflow: Workflow, event_log: EventLog) -> Self {
         let flow_graph = FlowGraph::from_workflow(&workflow);
         let datastore = DataStore::new();
-        let event_log = EventLog::new();
         let executor = TaskExecutor::new(
             &workflow.provider,
             workflow.model.as_deref(),
@@ -228,11 +237,10 @@ impl Runner {
         let mut completed = 0;
 
         // EMIT: WorkflowStarted
-        // TODO(v0.2): Generate proper generation_id (e.g., UUID) and workflow_hash
         self.event_log.emit(EventKind::WorkflowStarted {
             task_count: total_tasks,
             generation_id: format!("gen-{}", uuid::Uuid::new_v4()),
-            workflow_hash: "TODO".to_string(), // TODO: Hash workflow file
+            workflow_hash: self.workflow.compute_hash(),
             nika_version: env!("CARGO_PKG_VERSION").to_string(),
         });
 
@@ -284,9 +292,36 @@ impl Runner {
                 // Check if task has for_each (v0.3 parallelism)
                 if let Some(for_each) = &task.for_each {
                     if let Some(items) = for_each.as_array() {
+                        // Get concurrency settings from task (v0.3)
+                        let concurrency = task.for_each_concurrency();
+                        let fail_fast = task.for_each_fail_fast();
+
+                        debug!(
+                            task_id = %task.id,
+                            items = items.len(),
+                            concurrency = concurrency,
+                            fail_fast = fail_fast,
+                            "Starting for_each iteration"
+                        );
+
+                        // Create semaphore for concurrency limiting
+                        let semaphore = Arc::new(Semaphore::new(concurrency));
+                        // Create cancellation flag for fail_fast
+                        let cancelled = Arc::new(AtomicBool::new(false));
+
                         // Spawn one execution per item in the array
                         let var_name = task.for_each_var().to_string();
                         for (idx, item) in items.iter().enumerate() {
+                            // Check if cancelled before spawning
+                            if fail_fast && cancelled.load(Ordering::Relaxed) {
+                                debug!(
+                                    task_id = %task.id,
+                                    idx = idx,
+                                    "Skipping iteration due to fail_fast cancellation"
+                                );
+                                break;
+                            }
+
                             let task = Arc::clone(&task);
                             let task_id = intern(&format!("{}[{}]", task.id, idx));
                             let parent_task_id = intern(&task.id);
@@ -295,18 +330,42 @@ impl Runner {
                             let event_log = self.event_log.clone();
                             let item = item.clone();
                             let var_name = var_name.clone();
+                            let semaphore = Arc::clone(&semaphore);
+                            let cancelled = Arc::clone(&cancelled);
 
                             join_set.spawn(async move {
-                                Self::execute_task_iteration(
+                                // Acquire semaphore permit (blocks if at concurrency limit)
+                                let _permit = semaphore.acquire().await.expect("semaphore closed");
+
+                                // Check cancellation before executing
+                                if cancelled.load(Ordering::Relaxed) {
+                                    return IterationResult {
+                                        store_id: task_id,
+                                        result: TaskResult::failed(
+                                            "Cancelled due to fail_fast".to_string(),
+                                            std::time::Duration::ZERO,
+                                        ),
+                                        for_each_info: Some((parent_task_id, idx)),
+                                    };
+                                }
+
+                                let result = Self::execute_task_iteration(
                                     task,
-                                    task_id,
-                                    parent_task_id,
+                                    Arc::clone(&task_id),
+                                    Arc::clone(&parent_task_id),
                                     datastore,
                                     executor,
                                     event_log,
-                                    Some((var_name, item, idx)), // Pass index for ordering
+                                    Some((var_name, item, idx)),
                                 )
-                                .await
+                                .await;
+
+                                // If failed and fail_fast, set cancellation flag
+                                if !result.result.is_success() && fail_fast {
+                                    cancelled.store(true, Ordering::Relaxed);
+                                }
+
+                                result
                             });
                         }
                     }
@@ -469,6 +528,8 @@ mod tests {
                 id: "echo_items".to_string(),
                 for_each: Some(serde_json::json!(["a", "b", "c"])),
                 for_each_as: Some("item".to_string()),
+                concurrency: None,  // Default sequential
+                fail_fast: None,    // Default true
                 action: TaskAction::Exec {
                     exec: ExecParams {
                         command: "echo {{use.item}}".to_string(),
@@ -521,6 +582,8 @@ mod tests {
                 id: "ordered".to_string(),
                 for_each: Some(serde_json::json!(["first", "second", "third"])),
                 for_each_as: Some("x".to_string()),
+                concurrency: None,
+                fail_fast: None,
                 action: TaskAction::Exec {
                     exec: ExecParams {
                         command: "echo {{use.x}}".to_string(),
@@ -578,6 +641,8 @@ mod tests {
                         output: None,
                         for_each: None,
                         for_each_as: None,
+                        concurrency: None,
+                        fail_fast: None,
                         action: TaskAction::Exec {
                             exec: ExecParams {
                                 command: cmd.to_string(),

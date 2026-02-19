@@ -447,7 +447,7 @@ impl McpClient {
         match name {
             "novanet_describe" => {
                 let response = serde_json::json!({
-                    "nodes": 62,
+                    "nodes": 61,
                     "arcs": 182,
                     "labels": ["Entity", "EntityNative", "Page", "Block"],
                     "relationships": ["HAS_NATIVE", "CONTAINS", "FLOWS_TO"]

@@ -19,10 +19,10 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Widget},
     Frame, Terminal,
 };
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 
 use crate::error::{NikaError, Result};
-use crate::event::Event as NikaEvent;
+use crate::event::{Event as NikaEvent, EventKind};
 
 use super::panels::{ContextPanel, GraphPanel, ProgressPanel, ReasoningPanel};
 use super::state::{PanelId, TuiMode, TuiState};
@@ -66,10 +66,14 @@ pub struct App {
     state: TuiState,
     /// Color theme
     theme: Theme,
-    /// Event receiver from runtime
+    /// Event receiver from runtime (mpsc - legacy)
     event_rx: Option<mpsc::Receiver<NikaEvent>>,
+    /// Broadcast receiver from runtime (v0.4.1 - preferred)
+    broadcast_rx: Option<broadcast::Receiver<NikaEvent>>,
     /// Should quit flag
     should_quit: bool,
+    /// Workflow completed flag
+    workflow_done: bool,
 }
 
 impl App {
@@ -92,7 +96,9 @@ impl App {
             state,
             theme: Theme::novanet(),
             event_rx: None,
+            broadcast_rx: None,
             should_quit: false,
+            workflow_done: false,
         })
     }
 
@@ -120,9 +126,17 @@ impl App {
         Ok(())
     }
 
-    /// Set the event receiver from runtime
+    /// Set the event receiver from runtime (legacy mpsc)
     pub fn with_event_receiver(mut self, rx: mpsc::Receiver<NikaEvent>) -> Self {
         self.event_rx = Some(rx);
+        self
+    }
+
+    /// Set the broadcast receiver from runtime (v0.4.1 - preferred)
+    ///
+    /// Use this with `EventLog::new_with_broadcast()` for real-time TUI updates.
+    pub fn with_broadcast_receiver(mut self, rx: broadcast::Receiver<NikaEvent>) -> Self {
+        self.broadcast_rx = Some(rx);
         self
     }
 
@@ -136,7 +150,38 @@ impl App {
         let tick_rate = Duration::from_millis(FRAME_RATE_MS);
 
         loop {
-            // 1. Poll runtime events (non-blocking)
+            // 1. Poll runtime events (non-blocking) - supports both mpsc and broadcast
+            // First check broadcast receiver (v0.4.1 preferred)
+            if let Some(ref mut rx) = self.broadcast_rx {
+                loop {
+                    match rx.try_recv() {
+                        Ok(event) => {
+                            // Check for workflow completion
+                            if matches!(event.kind, EventKind::WorkflowCompleted { .. } | EventKind::WorkflowFailed { .. }) {
+                                self.workflow_done = true;
+                            }
+
+                            // Check for breakpoints
+                            if self.state.should_break(&event.kind) {
+                                self.state.paused = true;
+                            }
+
+                            // Update state
+                            self.state.handle_event(&event.kind, event.timestamp_ms);
+                        }
+                        Err(broadcast::error::TryRecvError::Empty) => break,
+                        Err(broadcast::error::TryRecvError::Lagged(n)) => {
+                            tracing::warn!("TUI lagged behind by {} events", n);
+                            // Continue to catch up
+                        }
+                        Err(broadcast::error::TryRecvError::Closed) => {
+                            self.workflow_done = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            // Fallback to legacy mpsc receiver
             if let Some(ref mut rx) = self.event_rx {
                 while let Ok(event) = rx.try_recv() {
                     // Check for breakpoints

@@ -14,6 +14,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use parking_lot::RwLock; // 2-3x faster than std::sync::RwLock
+use tokio::sync::broadcast;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -331,11 +332,17 @@ impl EventKind {
 }
 
 /// Thread-safe, append-only event log
+///
+/// Optionally supports real-time event broadcasting for TUI integration.
+/// Use `new_with_broadcast()` to create an EventLog that sends events
+/// to subscribers via tokio broadcast channel.
 #[derive(Clone)]
 pub struct EventLog {
     events: Arc<RwLock<Vec<Event>>>,
     start_time: Instant,
     next_id: Arc<AtomicU64>,
+    /// Optional broadcast sender for TUI real-time updates
+    broadcast_tx: Option<broadcast::Sender<Event>>,
 }
 
 impl EventLog {
@@ -345,10 +352,36 @@ impl EventLog {
             events: Arc::new(RwLock::new(Vec::new())),
             start_time: Instant::now(),
             next_id: Arc::new(AtomicU64::new(0)),
+            broadcast_tx: None,
         }
     }
 
+    /// Create a new event log with broadcast channel for TUI (v0.4.1)
+    ///
+    /// Returns (EventLog, Receiver) tuple. Pass the receiver to TUI App.
+    /// Channel capacity is 256 events (buffer for TUI lag).
+    pub fn new_with_broadcast() -> (Self, broadcast::Receiver<Event>) {
+        let (tx, rx) = broadcast::channel(256);
+        let event_log = Self {
+            events: Arc::new(RwLock::new(Vec::new())),
+            start_time: Instant::now(),
+            next_id: Arc::new(AtomicU64::new(0)),
+            broadcast_tx: Some(tx),
+        };
+        (event_log, rx)
+    }
+
+    /// Subscribe to event broadcasts (for additional TUI observers)
+    ///
+    /// Returns None if this EventLog was not created with `new_with_broadcast()`.
+    #[allow(dead_code)]
+    pub fn subscribe(&self) -> Option<broadcast::Receiver<Event>> {
+        self.broadcast_tx.as_ref().map(|tx| tx.subscribe())
+    }
+
     /// Emit an event (thread-safe, returns event ID)
+    ///
+    /// If broadcast channel is configured, also sends to subscribers.
     pub fn emit(&self, kind: EventKind) -> u64 {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let event = Event {
@@ -357,7 +390,13 @@ impl EventLog {
             kind,
         };
 
-        self.events.write().push(event); // parking_lot: no unwrap needed
+        self.events.write().push(event.clone()); // parking_lot: no unwrap needed
+
+        // Broadcast to TUI if configured (ignore errors - TUI might be closed)
+        if let Some(ref tx) = self.broadcast_tx {
+            let _ = tx.send(event);
+        }
+
         id
     }
 

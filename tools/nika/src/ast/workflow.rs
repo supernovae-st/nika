@@ -106,6 +106,32 @@ impl<'de> Deserialize<'de> for Workflow {
 }
 
 impl Workflow {
+    /// Compute a hash of the workflow for cache invalidation (v0.4.1)
+    ///
+    /// Uses xxhash3 for fast hashing. The hash is computed from:
+    /// - Schema version
+    /// - Provider + model
+    /// - Task count and IDs
+    ///
+    /// Returns a 16-character hex string (64-bit hash).
+    pub fn compute_hash(&self) -> String {
+        use xxhash_rust::xxh3::xxh3_64;
+
+        let mut hasher_input = String::new();
+        hasher_input.push_str(&self.schema);
+        hasher_input.push_str(&self.provider);
+        if let Some(ref model) = self.model {
+            hasher_input.push_str(model);
+        }
+        hasher_input.push_str(&self.tasks.len().to_string());
+        for task in &self.tasks {
+            hasher_input.push_str(&task.id);
+        }
+
+        let hash = xxh3_64(hasher_input.as_bytes());
+        format!("{:016x}", hash)
+    }
+
     /// Validate the workflow schema version and task configuration
     ///
     /// Returns error if:
@@ -165,6 +191,32 @@ pub struct Task {
     /// The value is accessible as `{{use.<as>}}` in templates.
     #[serde(default, rename = "as")]
     pub for_each_as: Option<String>,
+    /// Maximum parallel executions for for_each (v0.3)
+    ///
+    /// Controls how many iterations run concurrently.
+    /// Defaults to 1 (sequential). Set higher for parallel execution.
+    ///
+    /// # Example
+    ///
+    /// ```yaml
+    /// for_each: ["a", "b", "c", "d", "e"]
+    /// concurrency: 3  # Run at most 3 at a time
+    /// ```
+    #[serde(default)]
+    pub concurrency: Option<usize>,
+    /// Stop all iterations on first error (v0.3)
+    ///
+    /// When true (default), aborts remaining iterations if any fails.
+    /// When false, continues executing remaining iterations.
+    ///
+    /// # Example
+    ///
+    /// ```yaml
+    /// for_each: $items
+    /// fail_fast: false  # Continue even if some fail
+    /// ```
+    #[serde(default)]
+    pub fail_fast: Option<bool>,
     #[serde(flatten)]
     pub action: TaskAction,
 }
@@ -201,6 +253,16 @@ impl Task {
     /// Get the iteration variable name (defaults to "item")
     pub fn for_each_var(&self) -> &str {
         self.for_each_as.as_deref().unwrap_or("item")
+    }
+
+    /// Get the concurrency limit for for_each (defaults to 1 = sequential)
+    pub fn for_each_concurrency(&self) -> usize {
+        self.concurrency.unwrap_or(1).max(1) // At least 1
+    }
+
+    /// Get the fail_fast setting for for_each (defaults to true)
+    pub fn for_each_fail_fast(&self) -> bool {
+        self.fail_fast.unwrap_or(true)
     }
 }
 

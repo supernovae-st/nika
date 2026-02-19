@@ -4,6 +4,8 @@
 
 use std::time::Duration;
 
+// CrosstermEvent used in poll_event implementation below
+#[allow(unused_imports)]
 use crossterm::event::{Event as CrosstermEvent, KeyEvent, MouseEvent};
 
 /// TUI events that the application handles
