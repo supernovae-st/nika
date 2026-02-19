@@ -169,4 +169,291 @@ mod tests {
         .await;
         assert!(!result.is_success());
     }
+
+    // ══════════════════════════════════════════════════════════════
+    // make_task_result EDGE CASES
+    // ══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn make_task_result_no_policy_returns_text() {
+        let result = make_task_result(
+            "plain text output".to_string(),
+            None,
+            Duration::from_millis(50),
+        )
+        .await;
+
+        assert!(result.is_success());
+        // Without policy, output should be stored as string (success_str)
+        assert_eq!(
+            result.output.as_ref(),
+            &serde_json::Value::String("plain text output".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn make_task_result_json_no_schema_parses_json() {
+        use crate::ast::OutputPolicy;
+
+        let policy = OutputPolicy {
+            format: OutputFormat::Json,
+            schema: None, // No schema validation
+        };
+
+        let result = make_task_result(
+            r#"{"key": "value", "nested": {"a": 1}}"#.to_string(),
+            Some(&policy),
+            Duration::from_millis(50),
+        )
+        .await;
+
+        assert!(result.is_success());
+        // Should be parsed as JSON object, not string
+        assert!(result.output.is_object());
+        assert_eq!(result.output["key"], "value");
+        assert_eq!(result.output["nested"]["a"], 1);
+    }
+
+    #[tokio::test]
+    async fn make_task_result_invalid_json_returns_error_with_code() {
+        use crate::ast::OutputPolicy;
+
+        let policy = OutputPolicy {
+            format: OutputFormat::Json,
+            schema: None,
+        };
+
+        let result = make_task_result(
+            "{ invalid json".to_string(),
+            Some(&policy),
+            Duration::from_millis(50),
+        )
+        .await;
+
+        assert!(!result.is_success());
+        // Error should contain NIKA-060 code
+        let error_msg = result.error().expect("Should have error");
+        assert!(
+            error_msg.contains("NIKA-060"),
+            "Error should contain NIKA-060 code: {}",
+            error_msg
+        );
+    }
+
+    #[tokio::test]
+    async fn make_task_result_text_format_returns_raw_string() {
+        use crate::ast::OutputPolicy;
+
+        let policy = OutputPolicy {
+            format: OutputFormat::Text,
+            schema: None,
+        };
+
+        // Even valid JSON should be treated as text
+        let result = make_task_result(
+            r#"{"key": "value"}"#.to_string(),
+            Some(&policy),
+            Duration::from_millis(50),
+        )
+        .await;
+
+        assert!(result.is_success());
+        // Should be stored as string, not parsed JSON
+        assert!(result.output.is_string());
+        assert_eq!(
+            result.output.as_ref(),
+            &serde_json::Value::String(r#"{"key": "value"}"#.to_string())
+        );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // validate_schema ERROR PATHS
+    // ══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn validate_schema_file_not_found_returns_error() {
+        let value = serde_json::json!({"name": "test"});
+        let result = validate_schema(&value, "/nonexistent/path/schema.json").await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_string = err.to_string();
+        assert!(
+            err_string.contains("Failed to read schema"),
+            "Error should mention file read failure: {}",
+            err_string
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_schema_invalid_json_in_schema_file() {
+        let mut schema_file = NamedTempFile::new().unwrap();
+        writeln!(schema_file, "{{ not valid json").unwrap();
+        let schema_path = schema_file.path().to_str().unwrap();
+
+        let value = serde_json::json!({"name": "test"});
+        let result = validate_schema(&value, schema_path).await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_string = err.to_string();
+        assert!(
+            err_string.contains("Invalid JSON in schema"),
+            "Error should mention invalid JSON: {}",
+            err_string
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_schema_invalid_schema_structure() {
+        let mut schema_file = NamedTempFile::new().unwrap();
+        // Valid JSON but not a valid JSON Schema (type must be a string, not number)
+        writeln!(schema_file, r#"{{"type": 123}}"#).unwrap();
+        let schema_path = schema_file.path().to_str().unwrap();
+
+        let value = serde_json::json!({"name": "test"});
+        let result = validate_schema(&value, schema_path).await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_string = err.to_string();
+        assert!(
+            err_string.contains("Invalid schema"),
+            "Error should mention invalid schema: {}",
+            err_string
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_schema_multiple_validation_errors() {
+        let mut schema_file = NamedTempFile::new().unwrap();
+        writeln!(
+            schema_file,
+            r#"{{
+                "type": "object",
+                "properties": {{
+                    "name": {{"type": "string"}},
+                    "age": {{"type": "number"}}
+                }},
+                "required": ["name", "age"]
+            }}"#
+        )
+        .unwrap();
+        let schema_path = schema_file.path().to_str().unwrap();
+
+        // Missing both required fields
+        let value = serde_json::json!({});
+        let result = validate_schema(&value, schema_path).await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_string = err.to_string();
+        // Should mention both missing fields
+        assert!(
+            err_string.contains("name") || err_string.contains("required"),
+            "Error should mention validation issues: {}",
+            err_string
+        );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // EDGE CASES
+    // ══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn make_task_result_large_json_output() {
+        use crate::ast::OutputPolicy;
+
+        let policy = OutputPolicy {
+            format: OutputFormat::Json,
+            schema: None,
+        };
+
+        // Generate large JSON array
+        let large_array: Vec<i32> = (0..10000).collect();
+        let json_str = serde_json::to_string(&large_array).unwrap();
+
+        let result = make_task_result(json_str, Some(&policy), Duration::from_millis(100)).await;
+
+        assert!(result.is_success());
+        assert!(result.output.is_array());
+        assert_eq!(result.output.as_array().unwrap().len(), 10000);
+    }
+
+    #[tokio::test]
+    async fn make_task_result_unicode_content() {
+        use crate::ast::OutputPolicy;
+
+        let policy = OutputPolicy {
+            format: OutputFormat::Json,
+            schema: None,
+        };
+
+        // JSON with various Unicode characters
+        let json_str = r#"{"greeting": "你好世界", "emoji": "🚀✨", "japanese": "こんにちは"}"#;
+
+        let result =
+            make_task_result(json_str.to_string(), Some(&policy), Duration::from_millis(50)).await;
+
+        assert!(result.is_success());
+        assert_eq!(result.output["greeting"], "你好世界");
+        assert_eq!(result.output["emoji"], "🚀✨");
+        assert_eq!(result.output["japanese"], "こんにちは");
+    }
+
+    #[tokio::test]
+    async fn schema_cache_concurrent_access() {
+        // Create a temp schema file
+        let mut schema_file = NamedTempFile::new().unwrap();
+        writeln!(schema_file, r#"{{"type": "object"}}"#).unwrap();
+        let schema_path = schema_file.path().to_str().unwrap().to_string();
+
+        // Spawn multiple concurrent validation tasks
+        let handles: Vec<_> = (0..10)
+            .map(|i| {
+                let path = schema_path.clone();
+                tokio::spawn(async move {
+                    let value = serde_json::json!({"id": i});
+                    validate_schema(&value, &path).await
+                })
+            })
+            .collect();
+
+        // All should succeed
+        for handle in handles {
+            let result = handle.await.unwrap();
+            assert!(result.is_ok());
+        }
+    }
+
+    #[tokio::test]
+    async fn make_task_result_preserves_duration() {
+        let duration = Duration::from_secs(5);
+        let result = make_task_result("output".to_string(), None, duration).await;
+
+        assert_eq!(result.duration, duration);
+    }
+
+    #[tokio::test]
+    async fn make_task_result_json_array() {
+        use crate::ast::OutputPolicy;
+
+        let policy = OutputPolicy {
+            format: OutputFormat::Json,
+            schema: None,
+        };
+
+        let result = make_task_result(
+            r#"[1, 2, 3, "four"]"#.to_string(),
+            Some(&policy),
+            Duration::from_millis(50),
+        )
+        .await;
+
+        assert!(result.is_success());
+        assert!(result.output.is_array());
+        let arr = result.output.as_array().unwrap();
+        assert_eq!(arr.len(), 4);
+        assert_eq!(arr[3], "four");
+    }
 }
