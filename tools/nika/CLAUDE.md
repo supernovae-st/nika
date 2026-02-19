@@ -43,6 +43,55 @@ tools/nika/src/
 - `nika/workflow@0.1`: infer, exec, fetch verbs
 - `nika/workflow@0.2`: +invoke, +agent verbs, +mcp config
 
+## Resilience Patterns (v0.2)
+
+Provider-level resilience for handling LLM API failures:
+
+```yaml
+providers:
+  claude:
+    api_key: ${ANTHROPIC_API_KEY}
+    resilience:
+      retry:
+        max_attempts: 3
+        backoff: exponential
+        initial_delay_ms: 1000
+      circuit_breaker:
+        failure_threshold: 5
+        reset_timeout_ms: 30000
+      rate_limiter:
+        requests_per_minute: 60
+```
+
+| Pattern | Purpose | Config |
+|---------|---------|--------|
+| `retry` | Automatic retry with exponential backoff | `max_attempts`, `backoff`, `initial_delay_ms` |
+| `circuit_breaker` | Fail-fast after repeated failures | `failure_threshold`, `reset_timeout_ms` |
+| `rate_limiter` | Throttle requests to stay within limits | `requests_per_minute` |
+
+## for_each Parallelism (v0.3)
+
+Parallel iteration over arrays with concurrency control:
+
+```yaml
+tasks:
+  - id: generate_pages
+    for_each:
+      items: $pages
+      as: page
+      concurrency: 5      # Max parallel tasks (default: 1)
+      fail_fast: true     # Stop on first error (default: true)
+    infer: "Generate content for {{page.title}}"
+    use.ctx: page_content
+```
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `items` | array/binding | required | Array to iterate over |
+| `as` | string | required | Loop variable name |
+| `concurrency` | integer | 1 | Max parallel executions |
+| `fail_fast` | boolean | true | Stop all on first error |
+
 ## Commands
 
 ```bash
