@@ -427,6 +427,64 @@ impl McpClient {
         Ok(())
     }
 
+    /// Reconnect to the MCP server.
+    ///
+    /// Useful when the connection is broken (e.g., broken pipe, server crashed).
+    /// This terminates any existing connection and establishes a new one.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NikaError::McpStartError` if reconnection fails.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// // After detecting a broken connection
+    /// client.reconnect().await?;
+    /// // Retry the failed operation
+    /// ```
+    pub async fn reconnect(&self) -> Result<()> {
+        if self.is_mock {
+            // Mock clients don't need reconnection
+            self.connected.store(true, Ordering::SeqCst);
+            return Ok(());
+        }
+
+        tracing::info!(
+            mcp_server = %self.name,
+            "Attempting MCP server reconnection"
+        );
+
+        // Disconnect first (ignore errors)
+        let _ = self.disconnect().await;
+
+        // Reset state
+        self.connected.store(false, Ordering::SeqCst);
+
+        // Reconnect using the stored config
+        self.connect().await.map_err(|e| {
+            tracing::error!(
+                mcp_server = %self.name,
+                error = %e,
+                "Failed to reconnect to MCP server"
+            );
+            e
+        })
+    }
+
+    /// Check if an error indicates a broken connection.
+    ///
+    /// Used to determine if a reconnection attempt should be made.
+    pub fn is_connection_error(error: &NikaError) -> bool {
+        let error_str = error.to_string().to_lowercase();
+        error_str.contains("broken pipe")
+            || error_str.contains("connection reset")
+            || error_str.contains("connection refused")
+            || error_str.contains("eof")
+            || error_str.contains("stdin not available")
+            || error_str.contains("stdout not available")
+    }
+
     /// Call an MCP tool with the given parameters.
     ///
     /// # Arguments
@@ -458,6 +516,58 @@ impl McpClient {
             return Ok(self.mock_tool_call(name, params));
         }
 
+        // Retry with reconnection on connection errors
+        let name_owned = name.to_string();
+        let max_retries = 3;
+        let mut last_error: Option<NikaError> = None;
+
+        for attempt in 0..=max_retries {
+            // Attempt the call
+            match self.call_tool_impl(&name_owned, params.clone()).await {
+                Ok(result) => return Ok(result),
+                Err(e) => {
+                    // Check if this is a connection error that might benefit from reconnection
+                    if Self::is_connection_error(&e) && attempt < max_retries {
+                        tracing::warn!(
+                            mcp_server = %self.name,
+                            tool = %name_owned,
+                            attempt = attempt + 1,
+                            error = %e,
+                            "Connection error, attempting reconnect"
+                        );
+
+                        // Try to reconnect
+                        if let Err(reconnect_err) = self.reconnect().await {
+                            tracing::error!(
+                                mcp_server = %self.name,
+                                error = %reconnect_err,
+                                "Failed to reconnect"
+                            );
+                            last_error = Some(e);
+                            break;
+                        }
+
+                        // Small delay before retry
+                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                        last_error = Some(e);
+                        continue;
+                    }
+
+                    // Non-connection error or last attempt - propagate
+                    return Err(e);
+                }
+            }
+        }
+
+        // All retries exhausted
+        Err(last_error.unwrap_or_else(|| NikaError::McpToolError {
+            tool: name_owned,
+            reason: "Connection failed after reconnection attempts".to_string(),
+        }))
+    }
+
+    /// Internal implementation of call_tool (single attempt).
+    async fn call_tool_impl(&self, name: &str, params: Value) -> Result<ToolCallResult> {
         // Real mode: send tools/call request with timeout
         let request = JsonRpcRequest::new(
             self.next_id(),
@@ -543,10 +653,131 @@ impl McpClient {
             return Ok(self.mock_read_resource(uri));
         }
 
-        // TODO: Real resource read implementation
-        Err(NikaError::McpResourceNotFound {
+        // Retry with reconnection on connection errors
+        let uri_owned = uri.to_string();
+        let max_retries = 3;
+        let mut last_error: Option<NikaError> = None;
+
+        for attempt in 0..=max_retries {
+            match self.read_resource_impl(&uri_owned).await {
+                Ok(result) => return Ok(result),
+                Err(e) => {
+                    // Preserve McpResourceNotFound errors - no retry needed
+                    if matches!(&e, NikaError::McpResourceNotFound { .. }) {
+                        return Err(e);
+                    }
+
+                    // Check if this is a connection error that might benefit from reconnection
+                    if Self::is_connection_error(&e) && attempt < max_retries {
+                        tracing::warn!(
+                            mcp_server = %self.name,
+                            uri = %uri_owned,
+                            attempt = attempt + 1,
+                            error = %e,
+                            "Connection error, attempting reconnect"
+                        );
+
+                        // Try to reconnect
+                        if let Err(reconnect_err) = self.reconnect().await {
+                            tracing::error!(
+                                mcp_server = %self.name,
+                                error = %reconnect_err,
+                                "Failed to reconnect"
+                            );
+                            last_error = Some(e);
+                            break;
+                        }
+
+                        // Small delay before retry
+                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                        last_error = Some(e);
+                        continue;
+                    }
+
+                    // Non-connection error or last attempt - propagate
+                    return Err(e);
+                }
+            }
+        }
+
+        // All retries exhausted
+        Err(last_error.unwrap_or_else(|| NikaError::McpToolError {
+            tool: "resources/read".to_string(),
+            reason: "Connection failed after reconnection attempts".to_string(),
+        }))
+    }
+
+    /// Internal implementation of read_resource (single attempt).
+    async fn read_resource_impl(&self, uri: &str) -> Result<ResourceContent> {
+        // Send resources/read request with timeout
+        let request = JsonRpcRequest::new(
+            self.next_id(),
+            "resources/read",
+            serde_json::json!({ "uri": uri }),
+        );
+
+        let response = tokio::time::timeout(MCP_CALL_TIMEOUT, self.send_request(&request))
+            .await
+            .map_err(|_| NikaError::Timeout {
+                operation: format!("MCP resource read: {}", uri),
+                duration_ms: MCP_CALL_TIMEOUT.as_millis() as u64,
+            })??;
+
+        if let Some(error) = response.error {
+            // Check for resource not found error
+            if error.code == -32001 || error.message.to_lowercase().contains("not found") {
+                return Err(NikaError::McpResourceNotFound {
+                    uri: uri.to_string(),
+                });
+            }
+            return Err(NikaError::McpToolError {
+                tool: "resources/read".to_string(),
+                reason: error.message,
+            });
+        }
+
+        // Parse resource from response.result
+        let result = response.result.ok_or_else(|| NikaError::McpToolError {
+            tool: "resources/read".to_string(),
+            reason: "Empty result".to_string(),
+        })?;
+
+        Self::parse_resource_result(uri, result)
+    }
+
+    /// Parse an MCP resource read result from JSON response.
+    fn parse_resource_result(uri: &str, result: serde_json::Value) -> Result<ResourceContent> {
+        // MCP returns: { "contents": [{ "uri": "...", "mimeType": "...", "text": "..." }] }
+        let contents = result
+            .get("contents")
+            .and_then(|c| c.as_array())
+            .ok_or_else(|| NikaError::McpToolError {
+                tool: "resources/read".to_string(),
+                reason: "Missing 'contents' array in response".to_string(),
+            })?;
+
+        // Find matching resource by URI (first item typically)
+        let resource_json = contents.first().ok_or_else(|| NikaError::McpResourceNotFound {
             uri: uri.to_string(),
-        })
+        })?;
+
+        // Build ResourceContent from JSON
+        let mut resource = ResourceContent::new(
+            resource_json
+                .get("uri")
+                .and_then(|u| u.as_str())
+                .unwrap_or(uri),
+        );
+
+        if let Some(mime_type) = resource_json.get("mimeType").and_then(|m| m.as_str()) {
+            resource = resource.with_mime_type(mime_type);
+        }
+
+        if let Some(text) = resource_json.get("text").and_then(|t| t.as_str()) {
+            resource = resource.with_text(text);
+        }
+
+        Ok(resource)
     }
 
     /// List all available tools from the MCP server.
@@ -862,6 +1093,77 @@ mod tests {
             .await;
         assert!(result.is_ok());
         assert!(!result.unwrap().is_error);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // RESOURCE READ TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_mock_read_resource_entity() {
+        let client = McpClient::mock("test");
+        let result = client.read_resource("neo4j://entity/qr-code").await;
+        assert!(result.is_ok());
+
+        let resource = result.unwrap();
+        assert_eq!(resource.uri, "neo4j://entity/qr-code");
+        assert!(resource.text.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_mock_read_resource_file() {
+        let client = McpClient::mock("test");
+        let result = client.read_resource("file:///tmp/test.txt").await;
+        assert!(result.is_ok());
+
+        let resource = result.unwrap();
+        assert_eq!(resource.uri, "file:///tmp/test.txt");
+    }
+
+    #[test]
+    fn test_parse_resource_result_success() {
+        let result = serde_json::json!({
+            "contents": [{
+                "uri": "neo4j://entity/qr-code",
+                "mimeType": "application/json",
+                "text": "{\"name\": \"QR Code\"}"
+            }]
+        });
+
+        let resource = McpClient::parse_resource_result("neo4j://entity/qr-code", result).unwrap();
+
+        assert_eq!(resource.uri, "neo4j://entity/qr-code");
+        assert_eq!(resource.mime_type, Some("application/json".to_string()));
+        assert_eq!(resource.text, Some("{\"name\": \"QR Code\"}".to_string()));
+    }
+
+    #[test]
+    fn test_parse_resource_result_empty_contents() {
+        let result = serde_json::json!({
+            "contents": []
+        });
+
+        let err = McpClient::parse_resource_result("neo4j://entity/missing", result).unwrap_err();
+        match err {
+            NikaError::McpResourceNotFound { uri } => {
+                assert_eq!(uri, "neo4j://entity/missing");
+            }
+            _ => panic!("Expected McpResourceNotFound error"),
+        }
+    }
+
+    #[test]
+    fn test_parse_resource_result_missing_contents() {
+        let result = serde_json::json!({});
+
+        let err = McpClient::parse_resource_result("test://uri", result).unwrap_err();
+        match err {
+            NikaError::McpToolError { tool, reason } => {
+                assert_eq!(tool, "resources/read");
+                assert!(reason.contains("contents"));
+            }
+            _ => panic!("Expected McpToolError"),
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════

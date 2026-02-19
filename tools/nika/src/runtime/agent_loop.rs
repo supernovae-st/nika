@@ -44,6 +44,7 @@
 //! }
 //! ```
 
+use futures::future::join_all;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
@@ -66,6 +67,8 @@ pub enum AgentStatus {
     StopConditionMet,
     /// Reached max_turns limit
     MaxTurnsReached,
+    /// Token budget exceeded - stopped gracefully
+    TokenBudgetExceeded,
     /// Error during execution
     Failed,
 }
@@ -151,7 +154,15 @@ impl AgentLoop {
     /// `AgentLoopResult` with status, turns, output, and token usage.
     pub async fn run(&self, provider: Arc<dyn Provider>) -> Result<AgentLoopResult> {
         let max_turns = self.params.effective_max_turns();
-        let mut conversation: Vec<Message> = vec![Message::user(&self.params.prompt)];
+        let token_budget = self.params.effective_token_budget();
+
+        // Build initial conversation with optional system prompt
+        let mut conversation: Vec<Message> = Vec::new();
+        if let Some(system) = &self.params.system {
+            conversation.push(Message::system(system));
+        }
+        conversation.push(Message::user(&self.params.prompt));
+
         let mut turn = 0u32;
         let mut total_tokens = 0u32;
         let model = self
@@ -174,6 +185,23 @@ impl AgentLoop {
                 });
             }
 
+            // Check token budget before calling LLM
+            if total_tokens >= token_budget {
+                self.event_log.emit(EventKind::AgentTurn {
+                    task_id: self.task_id.clone().into(),
+                    turn_index: turn,
+                    kind: "token_budget_exceeded".to_string(),
+                    tokens: Some(total_tokens),
+                });
+
+                return Ok(AgentLoopResult {
+                    status: AgentStatus::TokenBudgetExceeded,
+                    turns: turn,
+                    final_output: self.extract_final_output(&conversation),
+                    total_tokens,
+                });
+            }
+
             // Emit turn started event (only after confirming turn will execute)
             self.event_log.emit(EventKind::AgentTurn {
                 task_id: self.task_id.clone().into(),
@@ -182,19 +210,57 @@ impl AgentLoop {
                 tokens: None,
             });
 
-            // Call LLM
+            // Call LLM with retry on transient failures
             let tools_ref = if tools.is_empty() {
                 None
             } else {
                 Some(tools.as_slice())
             };
 
-            let response = provider
-                .chat(&conversation, tools_ref, model)
-                .await
-                .map_err(|e| NikaError::ProviderApiError {
-                    message: e.to_string(),
-                })?;
+            let max_llm_retries = 3;
+            let mut llm_last_error: Option<NikaError> = None;
+            let mut response = None;
+
+            for llm_attempt in 0..=max_llm_retries {
+                match provider.chat(&conversation, tools_ref, model).await {
+                    Ok(resp) => {
+                        response = Some(resp);
+                        break;
+                    }
+                    Err(e) => {
+                        let error = NikaError::ProviderApiError {
+                            message: e.to_string(),
+                        };
+
+                        // Check if this is a retryable error
+                        let is_retryable = Self::is_retryable_provider_error(&error);
+
+                        if is_retryable && llm_attempt < max_llm_retries {
+                            tracing::warn!(
+                                task_id = %self.task_id,
+                                attempt = llm_attempt + 1,
+                                error = %error,
+                                "LLM call failed, retrying"
+                            );
+
+                            // Exponential backoff: 100ms, 200ms, 400ms
+                            let delay_ms = 100 * (1 << llm_attempt);
+                            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                            llm_last_error = Some(error);
+                            continue;
+                        }
+
+                        // Non-retryable or exhausted retries
+                        return Err(error);
+                    }
+                }
+            }
+
+            let response = response.ok_or_else(|| {
+                llm_last_error.unwrap_or_else(|| NikaError::ProviderApiError {
+                    message: "LLM call failed after retries".to_string(),
+                })
+            })?;
 
             // Track tokens
             total_tokens += response.usage.total_tokens();
@@ -242,10 +308,31 @@ impl AgentLoop {
                 });
             }
 
-            // Execute each tool call
-            for tool_call in &response.tool_calls {
-                let result = self.execute_tool_call(tool_call).await?;
-                conversation.push(Message::tool_result(&tool_call.id, &result));
+            // Execute tool calls in parallel - errors are returned to LLM for recovery
+            let tool_futures: Vec<_> = response
+                .tool_calls
+                .iter()
+                .map(|tool_call| async {
+                    let result = match self.execute_tool_call(tool_call).await {
+                        Ok(result) => result,
+                        Err(e) => {
+                            // Return error to LLM so it can try an alternative approach
+                            tracing::warn!(
+                                task_id = %self.task_id,
+                                tool = %tool_call.name,
+                                error = %e,
+                                "Tool call failed, returning error to LLM"
+                            );
+                            format!("ERROR: Tool '{}' failed: {}", tool_call.name, e)
+                        }
+                    };
+                    (tool_call.id.clone(), result)
+                })
+                .collect();
+
+            let tool_results = join_all(tool_futures).await;
+            for (tool_call_id, result) in tool_results {
+                conversation.push(Message::tool_result(&tool_call_id, &result));
             }
 
             self.event_log.emit(EventKind::AgentTurn {
@@ -375,6 +462,40 @@ impl AgentLoop {
             .and_then(|m| m.content.as_text())
             .map(|text| self.parse_output(&text))
             .unwrap_or(serde_json::Value::Null)
+    }
+
+    /// Check if a provider error is retryable (transient).
+    ///
+    /// Retryable errors include:
+    /// - Rate limits (429)
+    /// - Server errors (5xx)
+    /// - Network timeouts
+    /// - Connection issues
+    fn is_retryable_provider_error(error: &NikaError) -> bool {
+        let error_str = error.to_string().to_lowercase();
+
+        // Rate limits
+        error_str.contains("rate limit")
+            || error_str.contains("429")
+            || error_str.contains("too many requests")
+            // Server errors
+            || error_str.contains("500")
+            || error_str.contains("502")
+            || error_str.contains("503")
+            || error_str.contains("504")
+            || error_str.contains("internal server error")
+            || error_str.contains("bad gateway")
+            || error_str.contains("service unavailable")
+            || error_str.contains("gateway timeout")
+            // Network issues
+            || error_str.contains("timeout")
+            || error_str.contains("timed out")
+            || error_str.contains("connection reset")
+            || error_str.contains("connection refused")
+            || error_str.contains("network")
+            // Overloaded
+            || error_str.contains("overloaded")
+            || error_str.contains("capacity")
     }
 }
 
@@ -516,5 +637,72 @@ mod tests {
         };
 
         assert_eq!(prefixed, "custom_server_mytool", "Should not double-prefix");
+    }
+
+    // ========================================================================
+    // Token Budget Tests
+    // ========================================================================
+
+    #[test]
+    fn test_token_budget_exceeded_status() {
+        assert_ne!(
+            AgentStatus::TokenBudgetExceeded,
+            AgentStatus::MaxTurnsReached
+        );
+        assert_eq!(
+            AgentStatus::TokenBudgetExceeded,
+            AgentStatus::TokenBudgetExceeded
+        );
+    }
+
+    // ========================================================================
+    // System Prompt Tests
+    // ========================================================================
+
+    #[test]
+    fn test_agent_params_with_system_prompt() {
+        let params = AgentParams {
+            prompt: "user message".to_string(),
+            system: Some("You are a helpful assistant.".to_string()),
+            ..Default::default()
+        };
+        assert!(params.validate().is_ok());
+        assert!(params.system.is_some());
+    }
+
+    // ========================================================================
+    // Retry Logic Tests
+    // ========================================================================
+
+    #[test]
+    fn test_is_retryable_provider_error_rate_limit() {
+        let error = NikaError::ProviderApiError {
+            message: "Rate limit exceeded (429)".to_string(),
+        };
+        assert!(AgentLoop::is_retryable_provider_error(&error));
+    }
+
+    #[test]
+    fn test_is_retryable_provider_error_server_error() {
+        let error = NikaError::ProviderApiError {
+            message: "Internal server error (500)".to_string(),
+        };
+        assert!(AgentLoop::is_retryable_provider_error(&error));
+    }
+
+    #[test]
+    fn test_is_retryable_provider_error_timeout() {
+        let error = NikaError::ProviderApiError {
+            message: "Request timed out".to_string(),
+        };
+        assert!(AgentLoop::is_retryable_provider_error(&error));
+    }
+
+    #[test]
+    fn test_is_retryable_provider_error_not_retryable() {
+        let error = NikaError::ProviderApiError {
+            message: "Invalid API key".to_string(),
+        };
+        assert!(!AgentLoop::is_retryable_provider_error(&error));
     }
 }

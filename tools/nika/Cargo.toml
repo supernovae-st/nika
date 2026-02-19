@@ -64,6 +64,7 @@ crossterm = { version = "0.28", optional = true }
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+futures = { version = "0.3.32", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 tempfile = "3.14"

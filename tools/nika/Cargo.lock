@@ -1337,6 +1337,7 @@ dependencies = [
  "crossterm",
  "dashmap",
  "dotenvy",
+ "futures",
  "insta",
  "jsonschema",
  "parking_lot",
