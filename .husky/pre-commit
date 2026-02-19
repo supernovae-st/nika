@@ -1,0 +1,93 @@
+#!/usr/bin/env sh
+
+# Pre-commit validation for Nika
+# - Rust formatting (cargo fmt)
+# - Clippy lints
+# - Workflow file validation (.nika.yaml)
+
+set -e
+
+NIKA_DIR="tools/nika"
+
+# =============================================================================
+# Rust Formatting Check
+# =============================================================================
+
+if git diff --cached --name-only | grep -q "\.rs$"; then
+  echo "🦀 Rust files changed - checking formatting..."
+
+  cd "$NIKA_DIR"
+  if ! cargo fmt --check 2>/dev/null; then
+    echo ""
+    echo "════════════════════════════════════════════════════════════"
+    echo "❌ Rust formatting check failed!"
+    echo ""
+    echo "To fix, run:"
+    echo "  cd $NIKA_DIR && cargo fmt"
+    echo ""
+    echo "Then stage the formatted files:"
+    echo "  git add <files>"
+    echo "════════════════════════════════════════════════════════════"
+    exit 1
+  fi
+  cd - > /dev/null
+
+  echo "✅ Rust formatting validated"
+fi
+
+# =============================================================================
+# Clippy Lints
+# =============================================================================
+
+if git diff --cached --name-only | grep -q "\.rs$"; then
+  echo "📎 Running clippy..."
+
+  cd "$NIKA_DIR"
+  if ! cargo clippy --all-targets --all-features -- -D warnings 2>/dev/null; then
+    echo ""
+    echo "════════════════════════════════════════════════════════════"
+    echo "❌ Clippy found issues!"
+    echo ""
+    echo "To see details, run:"
+    echo "  cd $NIKA_DIR && cargo clippy --all-targets --all-features"
+    echo "════════════════════════════════════════════════════════════"
+    exit 1
+  fi
+  cd - > /dev/null
+
+  echo "✅ Clippy passed"
+fi
+
+# =============================================================================
+# Nika Workflow File Validation (.nika.yaml)
+# =============================================================================
+
+if git diff --cached --name-only | grep -q "\.nika\.yaml$"; then
+  echo "📋 Nika workflow files changed - validating..."
+
+  cd "$NIKA_DIR"
+
+  # Get list of changed .nika.yaml files
+  CHANGED_WORKFLOWS=$(git diff --cached --name-only | grep "\.nika\.yaml$" || true)
+
+  for workflow in $CHANGED_WORKFLOWS; do
+    if [ -f "../../$workflow" ]; then
+      echo "  Validating $workflow..."
+      if ! cargo run --quiet -- validate "../../$workflow" 2>/dev/null; then
+        echo ""
+        echo "════════════════════════════════════════════════════════════"
+        echo "❌ Workflow validation failed: $workflow"
+        echo ""
+        echo "To see details, run:"
+        echo "  cd $NIKA_DIR && cargo run -- validate ../../$workflow"
+        echo "════════════════════════════════════════════════════════════"
+        exit 1
+      fi
+    fi
+  done
+  cd - > /dev/null
+
+  echo "✅ Workflow files validated"
+fi
+
+echo "🎉 Pre-commit checks passed!"
