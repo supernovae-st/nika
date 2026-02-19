@@ -293,7 +293,13 @@ impl RigAgentLoop {
         // Create Anthropic client from environment
         let client = anthropic::Client::from_env();
 
-        let model = client.completion_model(anthropic::completion::CLAUDE_3_5_SONNET);
+        // Get model name (default to claude-3-5-sonnet-latest)
+        let model_name = self
+            .params
+            .model
+            .as_deref()
+            .unwrap_or(anthropic::completion::CLAUDE_3_5_SONNET);
+        let model = client.completion_model(model_name);
 
         // Take ownership of tools (they'll be consumed by the builder)
         let tools = std::mem::take(&mut self.tools);
