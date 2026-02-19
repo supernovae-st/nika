@@ -11,7 +11,7 @@
 # - max_turns limit
 # - Multi-tool orchestration
 #
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.3"
 provider: claude
 
 mcp:

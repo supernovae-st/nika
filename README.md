@@ -142,12 +142,18 @@ Define MCP servers inline in your workflow:
 ```yaml
 schema: "nika/workflow@0.2"
 
+# Run from nika-dev/tools/nika/ directory
 mcp:
   novanet:
     command: cargo
-    args: [run, -p, novanet-mcp]
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
     env:
-      NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
 
 tasks:
   - id: generate
@@ -388,10 +394,16 @@ Generate content for multiple locales in parallel using `for_each`.
 schema: "nika/workflow@0.3"
 provider: claude
 
+# Run from nika-dev/tools/nika/ directory
 mcp:
   novanet:
     command: cargo
-    args: [run, -p, novanet-mcp]
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
 
 tasks:
   - id: generate_pages

@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Build release binary
+        working-directory: tools/nika
+        run: cargo build --release
+
+      - name: Package artifact
+        run: |
+          mkdir -p dist
+          cp tools/nika/target/release/nika dist/
+          cd dist && tar -czvf ../nika-linux-x86_64.tar.gz nika
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nika-linux-x86_64
+          path: nika-linux-x86_64.tar.gz
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*.tar.gz
+          draft: false
+          generate_release_notes: true

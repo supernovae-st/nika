@@ -7,7 +7,7 @@
 #
 # DAG: locales → generate_all (parallel) → summary
 #
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.3"
 provider: claude
 
 mcp:

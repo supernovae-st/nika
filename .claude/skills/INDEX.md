@@ -1,5 +1,7 @@
 # Nika Skills Index
 
+**Nika Version:** v0.3 | **5 verbs** | for_each parallelism | Resilience patterns
+
 ## Available Skills
 
 | Skill | Command | Purpose |
@@ -11,6 +13,18 @@
 | **nika-binding** | `/nika-binding` | Data binding syntax reference |
 | **workflow-validate** | `/workflow-validate` | Validate YAML syntax and DAG |
 | **nika-spec** | `/nika-spec` | Workflow specification reference |
+
+## v0.3 Features (Reference)
+
+Features added in v0.2 and v0.3 are documented in:
+
+| Feature | Documentation |
+|---------|--------------|
+| `invoke:` verb (MCP) | `README.md` → "invoke (MCP)" |
+| `agent:` verb (agentic loop) | `README.md` → "agent (Agentic Loop)" |
+| `for_each:` parallelism | `README.md` → "for_each Parallelism" |
+| Resilience (retry, circuit breaker) | `CLAUDE.md` → "Resilience Patterns" |
+| MCP configuration | `README.md` → "MCP Configuration" |
 
 ## Quick Reference
 

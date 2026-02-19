@@ -11,7 +11,7 @@
 # - Rate limiting per provider
 # - Graceful degradation
 #
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.3"
 provider: claude
 
 # Provider-level resilience configuration

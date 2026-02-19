@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Check formatting
+        working-directory: tools/nika
+        run: cargo fmt --check
+
+      - name: Run clippy
+        working-directory: tools/nika
+        run: cargo clippy -- -D warnings
+
+      - name: Build
+        working-directory: tools/nika
+        run: cargo build --release
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Run tests
+        working-directory: tools/nika
+        run: cargo nextest run
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Generate coverage
+        working-directory: tools/nika
+        run: cargo llvm-cov --lcov --output-path lcov.info
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: tools/nika/lcov.info
+          fail_ci_if_error: false
