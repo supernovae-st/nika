@@ -383,7 +383,8 @@ impl RigAgentLoop {
         let model = client.completion_model(model_name);
 
         // Build completion request with thinking enabled
-        let thinking_budget = 4096; // Default thinking budget
+        // Use configurable thinking_budget from AgentParams (default: 4096)
+        let thinking_budget = self.params.effective_thinking_budget();
         let request = model
             .completion_request(&self.params.prompt)
             .preamble(self.params.system.clone().unwrap_or_default())
@@ -441,8 +442,13 @@ impl RigAgentLoop {
                     }
                 },
                 Err(e) => {
-                    tracing::warn!("Streaming chunk error: {}", e);
-                    // Continue processing other chunks
+                    // Return error instead of silently swallowing - critical for debugging
+                    return Err(NikaError::ThinkingCaptureFailed {
+                        reason: format!(
+                            "Streaming chunk failed for task '{}': {}",
+                            self.task_id, e
+                        ),
+                    });
                 }
             }
         }

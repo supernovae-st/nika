@@ -78,6 +78,3 @@ pretty_assertions = "1.4"
 tokio-test = "0.4"
 criterion = { version = "0.5", features = ["async_tokio"] }
 
-[[bench]]
-name = "resilience"
-harness = false

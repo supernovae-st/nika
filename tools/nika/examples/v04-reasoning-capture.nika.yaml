@@ -5,7 +5,7 @@
 #
 # Run with: cargo run -- run examples/v04-reasoning-capture.yaml
 #
-schema: "nika/workflow@0.3"
+schema: "nika/workflow@0.4"
 provider: claude
 
 tasks:
@@ -15,6 +15,7 @@ tasks:
         Analyze why QR codes are effective for marketing.
         Think through this step by step before answering.
       extended_thinking: true
+      thinking_budget: 8192  # v0.4: configurable thinking budget (default: 4096)
       model: claude-sonnet-4-20250514
       max_turns: 1
     output:

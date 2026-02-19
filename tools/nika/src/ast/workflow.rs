@@ -27,6 +27,9 @@ pub const SCHEMA_V02: &str = "nika/workflow@0.2";
 /// Expected schema version for v0.3 workflows (for_each parallelism)
 pub const SCHEMA_V03: &str = "nika/workflow@0.3";
 
+/// Expected schema version for v0.4 workflows (extended thinking)
+pub const SCHEMA_V04: &str = "nika/workflow@0.4";
+
 /// Inline MCP server configuration (v0.2)
 ///
 /// Allows workflows to define MCP servers directly in YAML.

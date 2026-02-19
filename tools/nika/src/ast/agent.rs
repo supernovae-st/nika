@@ -28,6 +28,9 @@ const DEFAULT_MAX_TURNS: u32 = 10;
 /// Maximum allowed turns to prevent runaway agents
 const MAX_ALLOWED_TURNS: u32 = 100;
 
+/// Default thinking budget for extended thinking (4096 tokens)
+const DEFAULT_THINKING_BUDGET: u64 = 4096;
+
 /// Parameters for the `agent:` verb
 ///
 /// Enables agentic execution with MCP tool access. The agent runs
@@ -78,6 +81,14 @@ pub struct AgentParams {
     /// for Claude provider.
     #[serde(default)]
     pub extended_thinking: Option<bool>,
+
+    /// Token budget for extended thinking (default: 4096)
+    ///
+    /// Controls how many tokens Claude can use for reasoning in
+    /// extended thinking mode. Higher values allow deeper analysis
+    /// but cost more. Only used when `extended_thinking: true`.
+    #[serde(default)]
+    pub thinking_budget: Option<u64>,
 }
 
 impl AgentParams {
@@ -97,6 +108,15 @@ impl AgentParams {
     #[inline]
     pub fn effective_token_budget(&self) -> u32 {
         self.token_budget.unwrap_or(u32::MAX)
+    }
+
+    /// Get effective thinking budget (with default).
+    ///
+    /// Returns the configured `thinking_budget` if set, otherwise returns
+    /// the default value of 4096 tokens.
+    #[inline]
+    pub fn effective_thinking_budget(&self) -> u64 {
+        self.thinking_budget.unwrap_or(DEFAULT_THINKING_BUDGET)
     }
 
     /// Check if a response triggers a stop condition.
@@ -375,5 +395,47 @@ extended_thinking: false
             ..Default::default()
         };
         assert!(params.validate().is_ok());
+    }
+
+    // ========================================================================
+    // Thinking Budget Tests (v0.4+)
+    // ========================================================================
+
+    #[test]
+    fn parse_thinking_budget() {
+        let yaml = r#"
+prompt: "Test"
+extended_thinking: true
+thinking_budget: 8192
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(params.thinking_budget, Some(8192));
+    }
+
+    #[test]
+    fn effective_thinking_budget_default() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            ..Default::default()
+        };
+        // Default should be 4096
+        assert_eq!(params.effective_thinking_budget(), DEFAULT_THINKING_BUDGET);
+        assert_eq!(params.effective_thinking_budget(), 4096);
+    }
+
+    #[test]
+    fn effective_thinking_budget_custom() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            thinking_budget: Some(16384),
+            ..Default::default()
+        };
+        assert_eq!(params.effective_thinking_budget(), 16384);
+    }
+
+    #[test]
+    fn thinking_budget_defaults_to_none() {
+        let params = AgentParams::default();
+        assert!(params.thinking_budget.is_none());
     }
 }

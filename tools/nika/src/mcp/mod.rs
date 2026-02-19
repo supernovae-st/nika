@@ -1,4 +1,4 @@
-//! MCP Integration Module (v0.3)
+//! MCP Integration Module (v0.4)
 //!
 //! Provides MCP (Model Context Protocol) client capabilities for Nika workflows.
 //! Uses Anthropic's official rmcp SDK for real MCP connections.
@@ -9,7 +9,6 @@
 //! - [`rmcp_adapter`]: Thin wrapper around rmcp SDK (internal)
 //! - [`types`]: Core MCP types (McpConfig, ToolCallRequest, ToolCallResult, etc.)
 //! - [`protocol`]: JSON-RPC 2.0 types (utility, for testing/debugging)
-//! - [`transport`]: Process spawn utility (legacy, for testing/debugging)
 //!
 //! ## Usage
 //!
@@ -68,23 +67,20 @@
 //!                                   └── TokioChildProcess transport
 //! ```
 //!
-//! ## Legacy Utilities
+//! ## Debug Utilities
 //!
-//! The `protocol` and `transport` modules provide low-level utilities
-//! that may be useful for testing or debugging, but are not used by
-//! the main McpClient (which uses rmcp internally).
+//! The `protocol` module provides low-level JSON-RPC types
+//! useful for testing or debugging MCP protocol interactions.
 
 pub mod client;
 pub mod protocol;
 pub mod rmcp_adapter;
-pub mod transport;
 pub mod types;
 
 // Re-export core types for convenience
 pub use client::McpClient;
 pub use protocol::{JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 pub use rmcp_adapter::RmcpClientAdapter;
-pub use transport::McpTransport;
 pub use types::{
     ContentBlock, McpConfig, ResourceContent, ToolCallRequest, ToolCallResult, ToolDefinition,
 };

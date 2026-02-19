@@ -21,7 +21,7 @@
 //! │                    INFRASTRUCTURE LAYER                      │
 //! │  store/     State management (DataStore, TaskResult)         │
 //! │  event/     Event sourcing (EventLog, EventKind)             │
-//! │  provider/  LLM abstraction (Claude, OpenAI, Mock)           │
+//! │  provider/  LLM abstraction (rig-core v0.31 wrapper)         │
 //! │  util/      Utilities (interner, jsonpath)                   │
 //! └──────────────────────────────────────────────────────────────┘
 //! ```
@@ -36,7 +36,7 @@
 //! | [`binding`] | Use block system: entry, resolve, template |
 //! | [`store`] | Thread-safe task output storage (DashMap) |
 //! | [`event`] | Event sourcing for audit trail |
-//! | [`provider`] | LLM provider abstraction (Claude, OpenAI, Mock) |
+//! | [`provider`] | LLM provider abstraction (rig-core v0.31) |
 //! | [`util`] | String interning, JSONPath parser |
 //! | [`error`] | Error types with fix suggestions |
 
