@@ -241,4 +241,273 @@ mod tests {
         assert!(store.resolve_path("task1.nonexistent").is_none());
         assert!(store.resolve_path("unknown.field").is_none());
     }
+
+    // =========================================================================
+    // Concurrent Access Tests (v0.5.0 - Plan B Test Coverage)
+    // =========================================================================
+
+    #[test]
+    fn concurrent_writes_all_stored() {
+        use std::thread;
+
+        let store = DataStore::new();
+        let store_arc = Arc::new(store);
+
+        let handles: Vec<_> = (0..100)
+            .map(|i| {
+                let store = Arc::clone(&store_arc);
+                thread::spawn(move || {
+                    store.insert(
+                        Arc::from(format!("task_{}", i)),
+                        TaskResult::success(json!({"index": i}), Duration::from_millis(i)),
+                    );
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        // All 100 keys should exist
+        for i in 0..100 {
+            assert!(
+                store_arc.contains(&format!("task_{}", i)),
+                "task_{} should exist",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn concurrent_reads_during_writes() {
+        use std::thread;
+
+        let store = Arc::new(DataStore::new());
+
+        // Pre-populate some data
+        for i in 0..50 {
+            store.insert(
+                Arc::from(format!("initial_{}", i)),
+                TaskResult::success(json!({"value": i}), Duration::from_millis(i)),
+            );
+        }
+
+        let store_writer = Arc::clone(&store);
+        let store_reader = Arc::clone(&store);
+
+        // Spawn writer thread
+        let writer = thread::spawn(move || {
+            for i in 0..100 {
+                store_writer.insert(
+                    Arc::from(format!("new_{}", i)),
+                    TaskResult::success(json!({"new": i}), Duration::from_millis(i)),
+                );
+            }
+        });
+
+        // Spawn reader thread - should not block
+        let reader = thread::spawn(move || {
+            let mut read_count = 0;
+            for i in 0..50 {
+                if store_reader.get(&format!("initial_{}", i)).is_some() {
+                    read_count += 1;
+                }
+            }
+            read_count
+        });
+
+        writer.join().unwrap();
+        let reads = reader.join().unwrap();
+
+        // Reader should have been able to read existing data
+        assert_eq!(reads, 50, "Should read all 50 initial entries");
+
+        // Verify writer completed
+        for i in 0..100 {
+            assert!(store.contains(&format!("new_{}", i)));
+        }
+    }
+
+    #[test]
+    fn overwrite_existing_task() {
+        let store = DataStore::new();
+
+        // Insert initial value
+        store.insert(
+            Arc::from("task1"),
+            TaskResult::success(json!({"version": 1}), Duration::from_secs(1)),
+        );
+
+        // Overwrite with new value
+        store.insert(
+            Arc::from("task1"),
+            TaskResult::success(json!({"version": 2}), Duration::from_secs(2)),
+        );
+
+        let result = store.get("task1").unwrap();
+        assert_eq!(result.output["version"], 2);
+        assert_eq!(result.duration, Duration::from_secs(2));
+    }
+
+    // =========================================================================
+    // Edge Case Tests (v0.5.0 - Plan B Test Coverage)
+    // =========================================================================
+
+    #[test]
+    fn contains_and_is_success() {
+        let store = DataStore::new();
+
+        // Non-existent task
+        assert!(!store.contains("nonexistent"));
+        assert!(!store.is_success("nonexistent"));
+
+        // Successful task
+        store.insert(
+            Arc::from("success"),
+            TaskResult::success(json!(1), Duration::from_secs(1)),
+        );
+        assert!(store.contains("success"));
+        assert!(store.is_success("success"));
+
+        // Failed task
+        store.insert(
+            Arc::from("failed"),
+            TaskResult::failed("error", Duration::from_secs(1)),
+        );
+        assert!(store.contains("failed"));
+        assert!(!store.is_success("failed"));
+    }
+
+    #[test]
+    fn get_output_returns_arc() {
+        let store = DataStore::new();
+
+        let big_json = json!({
+            "large": "data".repeat(1000),
+            "nested": {"deep": {"value": 42}}
+        });
+
+        store.insert(
+            Arc::from("big"),
+            TaskResult::success(big_json.clone(), Duration::from_secs(1)),
+        );
+
+        // get_output should return Arc (cheap clone)
+        let output1 = store.get_output("big").unwrap();
+        let output2 = store.get_output("big").unwrap();
+
+        // Both should point to same data (Arc comparison)
+        assert!(Arc::ptr_eq(&output1, &output2));
+    }
+
+    #[test]
+    fn resolve_task_only_returns_full_output() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("task"),
+            TaskResult::success(json!({"a": 1, "b": 2}), Duration::from_secs(1)),
+        );
+
+        // Just task name should return full output
+        let full = store.resolve_path("task").unwrap();
+        assert_eq!(full, json!({"a": 1, "b": 2}));
+    }
+
+    #[test]
+    fn resolve_deeply_nested_path() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("deep"),
+            TaskResult::success(
+                json!({"level1": {"level2": {"level3": {"level4": "found"}}}}),
+                Duration::from_secs(1),
+            ),
+        );
+
+        let value = store
+            .resolve_path("deep.level1.level2.level3.level4")
+            .unwrap();
+        assert_eq!(value, "found");
+    }
+
+    #[test]
+    fn resolve_mixed_array_object_path() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("mixed"),
+            TaskResult::success(
+                json!({
+                    "users": [
+                        {"name": "Alice", "scores": [90, 85, 92]},
+                        {"name": "Bob", "scores": [78, 82]}
+                    ]
+                }),
+                Duration::from_secs(1),
+            ),
+        );
+
+        assert_eq!(store.resolve_path("mixed.users.0.name").unwrap(), "Alice");
+        assert_eq!(store.resolve_path("mixed.users.1.name").unwrap(), "Bob");
+        assert_eq!(store.resolve_path("mixed.users.0.scores.2").unwrap(), 92);
+    }
+
+    #[test]
+    fn output_str_cow_borrowed_for_strings() {
+        let result = TaskResult::success_str("hello", Duration::from_secs(1));
+
+        let cow = result.output_str();
+        // Should be borrowed (no allocation for string values)
+        assert!(matches!(cow, std::borrow::Cow::Borrowed(_)));
+        assert_eq!(&*cow, "hello");
+    }
+
+    #[test]
+    fn output_str_cow_owned_for_non_strings() {
+        let result = TaskResult::success(json!({"num": 42}), Duration::from_secs(1));
+
+        let cow = result.output_str();
+        // Should be owned (converted to string)
+        assert!(matches!(cow, std::borrow::Cow::Owned(_)));
+        assert!(cow.contains("42"));
+    }
+
+    #[test]
+    fn empty_task_id_resolves_nothing() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("task"),
+            TaskResult::success(json!(1), Duration::from_secs(1)),
+        );
+
+        // Empty path should return None
+        assert!(store.resolve_path("").is_none());
+    }
+
+    #[test]
+    fn clone_is_shallow() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("task"),
+            TaskResult::success(json!({"value": 42}), Duration::from_secs(1)),
+        );
+
+        // Clone the store
+        let cloned = store.clone();
+
+        // Both should see the same data (shared Arc<DashMap>)
+        assert_eq!(
+            store.get("task").unwrap().output,
+            cloned.get("task").unwrap().output
+        );
+
+        // Insert into original
+        store.insert(
+            Arc::from("new"),
+            TaskResult::success(json!(1), Duration::from_secs(1)),
+        );
+
+        // Clone should also see it (same underlying DashMap)
+        assert!(cloned.contains("new"));
+    }
 }
