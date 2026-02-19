@@ -11,9 +11,8 @@ name = "nika"
 path = "src/main.rs"
 
 [features]
-default = ["tui", "mcp"]
+default = ["tui"]
 tui = ["dep:ratatui", "dep:crossterm"]
-mcp = []  # MCP types are always compiled, feature gates future optional deps
 integration = []  # Enable integration tests with real MCP servers
 
 [dependencies]
@@ -54,8 +53,9 @@ xxhash-rust = { version = "0.8", features = ["xxh3"] }
 chrono = "0.4"
 rand = "0.8"
 
-# MCP (NEW v0.2)
-rmcp = { version = "0.1", features = ["client", "transport-io"], optional = true }
+# MCP - custom implementation in mcp/ module
+# See docs/research/2026-02-19-mcp-rust-crates.md for crate comparison
+# rmcp, rust-mcp-sdk, tower-mcp evaluated - custom impl chosen for control
 
 # TUI (feature-gated)
 ratatui = { version = "0.29", optional = true }
