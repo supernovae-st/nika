@@ -110,11 +110,11 @@ impl<'a> Dag<'a> {
     /// Get status color
     fn status_color(status: TaskStatus) -> Color {
         match status {
-            TaskStatus::Pending => Color::Rgb(107, 114, 128),  // gray
-            TaskStatus::Running => Color::Rgb(245, 158, 11),   // amber
-            TaskStatus::Success => Color::Rgb(34, 197, 94),    // green
-            TaskStatus::Failed => Color::Rgb(239, 68, 68),     // red
-            TaskStatus::Paused => Color::Rgb(6, 182, 212),     // cyan
+            TaskStatus::Pending => Color::Rgb(107, 114, 128), // gray
+            TaskStatus::Running => Color::Rgb(245, 158, 11),  // amber
+            TaskStatus::Success => Color::Rgb(34, 197, 94),   // green
+            TaskStatus::Failed => Color::Rgb(239, 68, 68),    // red
+            TaskStatus::Paused => Color::Rgb(6, 182, 212),    // cyan
         }
     }
 
@@ -218,13 +218,13 @@ impl Widget for Dag<'_> {
             }
 
             // Draw node icon (animated for running, static for others)
-            let icon_style = Style::default()
-                .fg(color)
-                .add_modifier(if node.is_current || node.status == TaskStatus::Running {
+            let icon_style = Style::default().fg(color).add_modifier(
+                if node.is_current || node.status == TaskStatus::Running {
                     Modifier::BOLD
                 } else {
                     Modifier::empty()
-                });
+                },
+            );
             buf.set_string(area.x + x, area.y + y, icon, icon_style);
 
             // Draw task ID
@@ -312,14 +312,19 @@ mod tests {
 
     #[test]
     fn test_status_colors_distinct() {
-        let colors = [Dag::status_color(TaskStatus::Pending),
+        let colors = [
+            Dag::status_color(TaskStatus::Pending),
             Dag::status_color(TaskStatus::Running),
             Dag::status_color(TaskStatus::Success),
             Dag::status_color(TaskStatus::Failed),
-            Dag::status_color(TaskStatus::Paused)];
+            Dag::status_color(TaskStatus::Paused),
+        ];
 
         // Verify colors are distinct
-        let unique_count = colors.iter().collect::<std::collections::HashSet<_>>().len();
+        let unique_count = colors
+            .iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len();
         assert_eq!(unique_count, 5, "All status colors should be distinct");
     }
 }

@@ -160,11 +160,10 @@ tasks:
   - id: parallel_traversals
     use:
       entity: input_entity
-    for_each:
-      items: ["REPRESENTS", "ENABLES", "REQUIRES"]
-      as: arc_type
-      concurrency: 3
-      fail_fast: false  # Continue even if one traversal fails
+    for_each: ["REPRESENTS", "ENABLES", "REQUIRES"]
+    as: arc_type
+    concurrency: 3
+    fail_fast: false  # Continue even if one traversal fails
     invoke:
       mcp: novanet
       tool: novanet_traverse
@@ -193,11 +192,10 @@ tasks:
   - id: multi_locale_generate
     use:
       entity: input_entity
-    for_each:
-      items: ["fr-FR", "de-DE", "es-ES"]
-      as: locale
-      concurrency: 1  # Sequential to respect rate limiter
-      fail_fast: false
+    for_each: ["fr-FR", "de-DE", "es-ES"]
+    as: locale
+    concurrency: 1  # Sequential to respect rate limiter
+    fail_fast: false
     invoke:
       mcp: novanet
       tool: novanet_generate

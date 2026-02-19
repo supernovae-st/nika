@@ -43,13 +43,13 @@ impl<'a> ProgressPanel<'a> {
     /// Get phase color
     fn phase_color(phase: MissionPhase) -> Color {
         match phase {
-            MissionPhase::Preflight => Color::Rgb(107, 114, 128),  // gray
-            MissionPhase::Countdown => Color::Rgb(245, 158, 11),   // amber
-            MissionPhase::Launch => Color::Rgb(236, 72, 153),      // pink
-            MissionPhase::Orbital => Color::Rgb(59, 130, 246),     // blue
-            MissionPhase::Rendezvous => Color::Rgb(139, 92, 246),  // violet
+            MissionPhase::Preflight => Color::Rgb(107, 114, 128), // gray
+            MissionPhase::Countdown => Color::Rgb(245, 158, 11),  // amber
+            MissionPhase::Launch => Color::Rgb(236, 72, 153),     // pink
+            MissionPhase::Orbital => Color::Rgb(59, 130, 246),    // blue
+            MissionPhase::Rendezvous => Color::Rgb(139, 92, 246), // violet
             MissionPhase::MissionSuccess => Color::Rgb(34, 197, 94), // green
-            MissionPhase::Abort => Color::Rgb(239, 68, 68),        // red
+            MissionPhase::Abort => Color::Rgb(239, 68, 68),       // red
         }
     }
 
@@ -373,11 +373,11 @@ impl Widget for ProgressPanel<'_> {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),  // Header
-                Constraint::Length(2),  // Progress
-                Constraint::Length(4),  // Timeline
-                Constraint::Length(4),  // Current task
-                Constraint::Min(2),     // Metrics
+                Constraint::Length(3), // Header
+                Constraint::Length(2), // Progress
+                Constraint::Length(4), // Timeline
+                Constraint::Length(4), // Current task
+                Constraint::Min(2),    // Metrics
             ])
             .split(inner);
 
@@ -448,7 +448,10 @@ mod tests {
         ];
 
         // Verify most colors are distinct (some might overlap intentionally)
-        let unique_count = colors.iter().collect::<std::collections::HashSet<_>>().len();
+        let unique_count = colors
+            .iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len();
         assert!(unique_count >= 5, "Phase colors should be mostly distinct");
     }
 }

@@ -24,9 +24,9 @@ For workflows using NovaNet MCP:
 
 ## Example Categories
 
-### v0.3 Feature Showcases
+### Feature Showcases
 
-These examples demonstrate v0.3 features: `for_each` parallelism, MCP integration, and agent loops.
+These examples demonstrate core features: `for_each` parallelism, MCP integration, and agent loops.
 
 | File | Features | Description |
 |------|----------|-------------|
@@ -49,24 +49,24 @@ Production-ready workflow patterns for real-world scenarios.
 
 | File | Use Case |
 |------|----------|
-| `uc1-entity-generation.yaml` | Single entity content generation |
-| `uc2-multi-locale-generation.yaml` | Multi-locale pipeline |
-| `uc3-agent-refinement.yaml` | Agent-based content refinement |
-| `uc4-seo-pipeline.yaml` | SEO content pipeline |
-| `uc5-graph-traversal.yaml` | Knowledge graph traversal |
-| `uc6-page-generation.yaml` | Full page generation |
-| `uc7-error-recovery.yaml` | Error handling patterns |
-| `uc8-batch-entities.yaml` | Batch entity processing |
-| `uc9-content-validation.yaml` | Content quality validation |
-| `uc10-comprehensive-landing-page.yaml` | Complete landing page pipeline |
+| `uc1-entity-generation.nika.yaml` | Single entity content generation |
+| `uc2-multi-locale-generation.nika.yaml` | Multi-locale pipeline |
+| `uc3-entity-knowledge-retrieval.nika.yaml` | Entity knowledge retrieval |
+| `uc4-seo-pipeline.nika.yaml` | SEO content pipeline |
+| `uc5-graph-traversal.nika.yaml` | Knowledge graph traversal |
+| `uc6-page-generation.nika.yaml` | Full page generation |
+| `uc7-error-recovery.nika.yaml` | Error handling patterns |
+| `uc8-batch-entities.nika.yaml` | Batch entity processing |
+| `uc9-content-validation.nika.yaml` | Content quality validation |
+| `uc10-comprehensive-landing-page.nika.yaml` | Complete landing page pipeline |
 
 ## Workflow Schema
 
-All workflows use schema `nika/workflow@0.3`:
+All workflows use schema `nika/workflow@0.4` (or earlier versions for compatibility):
 
 ```yaml
-schema: "nika/workflow@0.3"
-provider: claude  # or openai
+schema: "nika/workflow@0.4"
+provider: claude  # or openai (via rig-core)
 
 mcp:
   novanet:
@@ -92,23 +92,28 @@ tasks:
 | `invoke:` | MCP tool call | `invoke: { mcp: novanet, tool: novanet_generate }` |
 | `agent:` | Multi-turn agentic loop | `agent: { goal: "...", max_turns: 5 }` |
 
-## for_each Parallelism (v0.3)
+## for_each Parallelism (v0.3+)
 
-Execute tasks in parallel over an array:
+Execute tasks in parallel over an array. Uses **FLAT format** (not nested):
 
 ```yaml
 - id: generate_pages
-  for_each:
-    items: ["fr-FR", "en-US", "es-ES"]
-    as: locale
-    concurrency: 3    # Max parallel tasks
-    fail_fast: true   # Stop on first error
+  for_each: ["fr-FR", "en-US", "es-ES"]  # Array or binding expression
+  as: locale                              # Loop variable name
+  concurrency: 3                          # Max parallel tasks (default: 1)
+  fail_fast: true                         # Stop on first error (default: true)
   invoke:
     mcp: novanet
     tool: novanet_generate
     params:
       entity: "qr-code"
       locale: "{{use.locale}}"
+```
+
+Binding expressions are also supported:
+```yaml
+  for_each: "{{use.items}}"   # Reference to array in context
+  for_each: "$items"          # Alternative binding syntax
 ```
 
 ## Data Flow (use: bindings)
@@ -151,16 +156,16 @@ LLMs MUST use ONLY these forms. No invention, no paraphrase.
 
 ```bash
 # v0.3 showcase: parallel locales
-cargo run -- run examples/v03-parallel-locales.yaml
+cargo run -- run examples/v03-parallel-locales.nika.yaml
 
 # v0.3 showcase: denomination forms
-cargo run -- run examples/v03-denomination-forms.yaml
+cargo run -- run examples/v03-denomination-forms.nika.yaml
 
 # Use case: entity generation
-cargo run -- run examples/uc1-entity-generation.yaml
+cargo run -- run examples/uc1-entity-generation.nika.yaml
 
 # With TUI for real-time observation
-cargo run -- tui examples/v03-entity-pipeline.yaml
+cargo run -- tui examples/v03-entity-pipeline.nika.yaml
 ```
 
 ## Traces

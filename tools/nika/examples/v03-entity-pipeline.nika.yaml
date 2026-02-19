@@ -43,11 +43,10 @@ tasks:
   # Step 2: Process sample entities in parallel
   # concurrency: 3 means up to 3 LLM calls running simultaneously
   - id: process_entities
-    for_each:
-      items: ["qr-code", "dynamic-qr-code", "qr-code-art"]
-      as: entity_key
-      concurrency: 3
-      fail_fast: true
+    for_each: ["qr-code", "dynamic-qr-code", "qr-code-art"]
+    as: entity_key
+    concurrency: 3
+    fail_fast: true
     infer:
       prompt: |
         Analyze this entity briefly: {{use.entity_key}}

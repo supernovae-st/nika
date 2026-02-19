@@ -157,7 +157,11 @@ impl App {
                     match rx.try_recv() {
                         Ok(event) => {
                             // Check for workflow completion
-                            if matches!(event.kind, EventKind::WorkflowCompleted { .. } | EventKind::WorkflowFailed { .. }) {
+                            if matches!(
+                                event.kind,
+                                EventKind::WorkflowCompleted { .. }
+                                    | EventKind::WorkflowFailed { .. }
+                            ) {
                                 self.workflow_done = true;
                             }
 
@@ -374,13 +378,7 @@ fn render_frame(frame: &mut Frame, state: &TuiState, theme: &Theme) {
 }
 
 /// Render a single panel
-fn render_panel(
-    frame: &mut Frame,
-    state: &TuiState,
-    theme: &Theme,
-    panel_id: PanelId,
-    area: Rect,
-) {
+fn render_panel(frame: &mut Frame, state: &TuiState, theme: &Theme, panel_id: PanelId, area: Rect) {
     let focused = state.focus == panel_id;
 
     // All panels have dedicated widgets

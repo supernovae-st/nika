@@ -133,8 +133,8 @@ impl SpawnAgentTool {
     /// - Invalid arguments
     pub async fn call(&self, args: String) -> Result<String, SpawnAgentError> {
         // Parse arguments
-        let params: SpawnAgentParams = serde_json::from_str(&args)
-            .map_err(|e| SpawnAgentError::InvalidArgs(e.to_string()))?;
+        let params: SpawnAgentParams =
+            serde_json::from_str(&args).map_err(|e| SpawnAgentError::InvalidArgs(e.to_string()))?;
 
         // Check depth limit
         if self.current_depth >= self.max_depth {

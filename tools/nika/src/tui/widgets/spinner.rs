@@ -72,7 +72,12 @@ impl Widget for Spinner {
         }
 
         let ch = self.current_char();
-        buf.set_string(area.x, area.y, ch.to_string(), Style::default().fg(self.color));
+        buf.set_string(
+            area.x,
+            area.y,
+            ch.to_string(),
+            Style::default().fg(self.color),
+        );
     }
 }
 

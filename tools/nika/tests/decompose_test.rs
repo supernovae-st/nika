@@ -3,7 +3,7 @@
 //! Tests runtime DAG expansion via MCP traversal.
 //! Phase 4 of MVP 8: RLM Enhancements.
 
-use nika::ast::{DecomposeSpec, DecomposeStrategy, Task, Workflow};
+use nika::ast::{DecomposeStrategy, Workflow};
 
 // ============================================================================
 // PARSING TESTS (GREEN - AST is implemented)

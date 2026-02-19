@@ -1,0 +1,379 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nika.dev/schemas/nika-workflow.schema.json",
+  "title": "Nika Workflow",
+  "description": "Schema for Nika YAML workflow files (.nika.yaml)",
+  "type": "object",
+  "required": ["schema", "tasks"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "type": "string",
+      "enum": [
+        "nika/workflow@0.1",
+        "nika/workflow@0.2",
+        "nika/workflow@0.3",
+        "nika/workflow@0.4"
+      ],
+      "description": "Workflow schema version"
+    },
+    "workflow": {
+      "type": "string",
+      "description": "Workflow name/identifier"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable workflow description"
+    },
+    "provider": {
+      "type": "string",
+      "enum": ["claude", "openai", "mock"],
+      "default": "claude",
+      "description": "Default LLM provider for tasks"
+    },
+    "model": {
+      "type": "string",
+      "description": "Default model for all tasks"
+    },
+    "mcp": {
+      "type": "object",
+      "description": "MCP server configurations (v0.2+)",
+      "additionalProperties": {
+        "$ref": "#/$defs/McpConfig"
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/Task"
+      },
+      "description": "List of tasks to execute"
+    },
+    "flows": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Flow"
+      },
+      "description": "DAG edges defining task dependencies"
+    }
+  },
+  "$defs": {
+    "McpConfig": {
+      "type": "object",
+      "required": ["command"],
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Command to spawn the MCP server"
+        },
+        "args": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Arguments to pass to the command"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Environment variables for the server process"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory for the server process"
+        }
+      }
+    },
+    "Task": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Unique task identifier (snake_case)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable task description"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Explicit task dependencies"
+        },
+        "use": {
+          "$ref": "#/$defs/UseWiring",
+          "description": "Data wiring from previous tasks"
+        },
+        "output": {
+          "$ref": "#/$defs/OutputPolicy",
+          "description": "Output format and validation"
+        },
+        "for_each": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {},
+              "description": "Literal array to iterate over"
+            },
+            {
+              "type": "string",
+              "pattern": "^(\\{\\{.*\\}\\}|\\$.*)$",
+              "description": "Binding expression (e.g., {{use.items}} or $items)"
+            }
+          ],
+          "description": "Array or binding expression for parallel iteration (v0.3+)"
+        },
+        "as": {
+          "type": "string",
+          "default": "item",
+          "description": "Loop variable name for for_each"
+        },
+        "concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Max parallel executions for for_each"
+        },
+        "fail_fast": {
+          "type": "boolean",
+          "default": true,
+          "description": "Stop all iterations on first error"
+        },
+        "infer": {
+          "$ref": "#/$defs/InferParams",
+          "description": "LLM inference task (one-shot)"
+        },
+        "exec": {
+          "$ref": "#/$defs/ExecParams",
+          "description": "Shell command execution"
+        },
+        "fetch": {
+          "$ref": "#/$defs/FetchParams",
+          "description": "HTTP request"
+        },
+        "invoke": {
+          "$ref": "#/$defs/InvokeParams",
+          "description": "MCP tool call or resource read (v0.2+)"
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentParams",
+          "description": "Agentic execution with tool calling (v0.2+)"
+        }
+      },
+      "oneOf": [
+        { "required": ["infer"] },
+        { "required": ["exec"] },
+        { "required": ["fetch"] },
+        { "required": ["invoke"] },
+        { "required": ["agent"] }
+      ]
+    },
+    "InferParams": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Simple prompt string"
+        },
+        {
+          "type": "object",
+          "required": ["prompt"],
+          "additionalProperties": false,
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "LLM prompt text"
+            },
+            "provider": {
+              "type": "string",
+              "description": "Override provider for this task"
+            },
+            "model": {
+              "type": "string",
+              "description": "Override model for this task"
+            }
+          }
+        }
+      ]
+    },
+    "ExecParams": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Simple command string"
+        },
+        {
+          "type": "object",
+          "required": ["command"],
+          "additionalProperties": false,
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "Shell command to execute"
+            }
+          }
+        }
+      ]
+    },
+    "FetchParams": {
+      "type": "object",
+      "required": ["url"],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to fetch"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"],
+          "default": "GET",
+          "description": "HTTP method"
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "HTTP headers"
+        },
+        "body": {
+          "type": "string",
+          "description": "Request body"
+        }
+      }
+    },
+    "InvokeParams": {
+      "type": "object",
+      "required": ["mcp"],
+      "additionalProperties": false,
+      "properties": {
+        "mcp": {
+          "type": "string",
+          "description": "MCP server name (must match key in workflow mcp config)"
+        },
+        "tool": {
+          "type": "string",
+          "description": "Tool name to call (mutually exclusive with resource)"
+        },
+        "params": {
+          "type": "object",
+          "description": "Parameters to pass to the tool"
+        },
+        "resource": {
+          "type": "string",
+          "description": "Resource URI to read (mutually exclusive with tool)"
+        }
+      },
+      "oneOf": [
+        { "required": ["tool"] },
+        { "required": ["resource"] }
+      ]
+    },
+    "AgentParams": {
+      "type": "object",
+      "required": ["prompt"],
+      "additionalProperties": false,
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "description": "User prompt for the agent"
+        },
+        "system": {
+          "type": "string",
+          "description": "System prompt (agent persona/behavior)"
+        },
+        "provider": {
+          "type": "string",
+          "description": "Override provider for this agent"
+        },
+        "model": {
+          "type": "string",
+          "description": "Override model for this agent"
+        },
+        "mcp": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "MCP servers the agent can access"
+        },
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "description": "Maximum agentic turns before stopping"
+        },
+        "token_budget": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Token budget for entire agent session"
+        },
+        "stop_conditions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Strings that trigger early stop"
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["full", "minimal", "debug"],
+          "description": "Scope preset"
+        },
+        "extended_thinking": {
+          "type": "boolean",
+          "description": "Enable extended thinking for Claude (v0.4+)"
+        },
+        "thinking_budget": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 4096,
+          "description": "Token budget for extended thinking"
+        }
+      }
+    },
+    "UseWiring": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Map of alias -> task_id for data binding"
+    },
+    "OutputPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["text", "json"],
+          "default": "text",
+          "description": "Output format"
+        },
+        "schema": {
+          "type": "string",
+          "description": "JSON Schema path for validation"
+        }
+      }
+    },
+    "Flow": {
+      "type": "object",
+      "required": ["source", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ],
+          "description": "Source task(s)"
+        },
+        "target": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ],
+          "description": "Target task(s)"
+        }
+      }
+    }
+  }
+}

@@ -280,7 +280,10 @@ impl Task {
             }
             // Reject everything else
             return Err(NikaError::ValidationError {
-                reason: format!("for_each must be an array or binding expression, got {}", for_each),
+                reason: format!(
+                    "for_each must be an array or binding expression, got {}",
+                    for_each
+                ),
             });
         }
         Ok(())

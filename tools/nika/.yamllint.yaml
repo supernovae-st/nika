@@ -1,0 +1,87 @@
+# yamllint configuration for Nika workflows
+# Run: yamllint -c .yamllint.yaml **/*.nika.yaml
+
+extends: default
+
+yaml-files:
+  - '*.yaml'
+  - '*.yml'
+  - '*.nika.yaml'
+
+rules:
+  # Line length - allow longer lines for prompts
+  line-length:
+    max: 120
+    level: warning
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+
+  # Indentation - 2 spaces, consistent sequences
+  indentation:
+    spaces: 2
+    indent-sequences: consistent
+    check-multi-line-strings: false
+
+  # Truthy values - only true/false
+  truthy:
+    allowed-values: ['true', 'false']
+    check-keys: false
+
+  # Document markers - not required
+  document-start: disable
+  document-end: disable
+
+  # Comments - require space after #
+  comments:
+    require-starting-space: true
+    min-spaces-from-content: 1
+
+  # Braces - allow inline
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # Brackets - allow inline
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # Colons - space after
+  colons:
+    max-spaces-before: 0
+    max-spaces-after: 1
+
+  # Commas - space after
+  commas:
+    max-spaces-before: 0
+    min-spaces-after: 1
+    max-spaces-after: 1
+
+  # Empty lines
+  empty-lines:
+    max: 2
+    max-start: 0
+    max-end: 1
+
+  # Key duplicates - error
+  key-duplicates: enable
+
+  # New line at end of file
+  new-line-at-end-of-file: enable
+
+  # Trailing spaces - error
+  trailing-spaces: enable
+
+  # Hyphens
+  hyphens:
+    max-spaces-after: 1
+
+  # Octal values - warning (e.g., 0644)
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: false
+
+  # Quoted strings - allow both
+  quoted-strings:
+    quote-type: any
+    required: false

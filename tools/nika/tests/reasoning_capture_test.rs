@@ -346,10 +346,7 @@ Consider:
 
     let result = agent_loop.run_mock().await;
 
-    assert!(
-        result.is_ok(),
-        "Reasoning capture workflow should complete"
-    );
+    assert!(result.is_ok(), "Reasoning capture workflow should complete");
 
     // Verify events were captured
     let events = event_log.events();

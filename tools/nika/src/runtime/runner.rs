@@ -152,24 +152,24 @@ impl Runner {
         let _is_for_each = for_each_binding.is_some();
 
         // Build bindings from use: wiring
-        let mut bindings = match ResolvedBindings::from_wiring_spec(task.use_wiring.as_ref(), &datastore)
-        {
-            Ok(b) => b,
-            Err(e) => {
-                let duration = start.elapsed();
-                // EMIT: TaskFailed (bindings build failed)
-                event_log.emit(EventKind::TaskFailed {
-                    task_id: Arc::clone(&task_id),
-                    error: e.to_string(),
-                    duration_ms: duration.as_millis() as u64,
-                });
-                return IterationResult {
-                    store_id: task_id, // Store with indexed ID for for_each
-                    result: TaskResult::failed(e.to_string(), duration),
-                    for_each_info,
-                };
-            }
-        };
+        let mut bindings =
+            match ResolvedBindings::from_wiring_spec(task.use_wiring.as_ref(), &datastore) {
+                Ok(b) => b,
+                Err(e) => {
+                    let duration = start.elapsed();
+                    // EMIT: TaskFailed (bindings build failed)
+                    event_log.emit(EventKind::TaskFailed {
+                        task_id: Arc::clone(&task_id),
+                        error: e.to_string(),
+                        duration_ms: duration.as_millis() as u64,
+                    });
+                    return IterationResult {
+                        store_id: task_id, // Store with indexed ID for for_each
+                        result: TaskResult::failed(e.to_string(), duration),
+                        for_each_info,
+                    };
+                }
+            };
 
         // Add for_each binding if present (v0.3)
         if let Some((var_name, value, _idx)) = for_each_binding {
@@ -291,35 +291,41 @@ impl Runner {
 
                 // Check if task has decompose (v0.5) - expands to for_each items
                 // decompose takes priority over for_each (they're mutually exclusive)
-                let for_each_items: Option<Vec<Value>> = if let Some(decompose) = task.decompose_spec() {
-                    debug!(
-                        task_id = %task.id,
-                        strategy = ?decompose.strategy,
-                        traverse = %decompose.traverse,
-                        "Expanding decompose modifier"
-                    );
-                    // Resolve bindings for decompose source
-                    let bindings = ResolvedBindings::from_wiring_spec(
-                        task.use_wiring.as_ref(),
-                        &self.datastore,
-                    ).unwrap_or_default();
-                    // Expand decompose using executor
-                    match self.executor.expand_decompose(decompose, &bindings, &self.datastore).await {
-                        Ok(items) => Some(items),
-                        Err(e) => {
-                            // Store error and continue to next task
-                            self.datastore.insert(
-                                intern(&task.id),
-                                TaskResult::failed(e.to_string(), std::time::Duration::ZERO),
-                            );
-                            continue;
+                let for_each_items: Option<Vec<Value>> =
+                    if let Some(decompose) = task.decompose_spec() {
+                        debug!(
+                            task_id = %task.id,
+                            strategy = ?decompose.strategy,
+                            traverse = %decompose.traverse,
+                            "Expanding decompose modifier"
+                        );
+                        // Resolve bindings for decompose source
+                        let bindings = ResolvedBindings::from_wiring_spec(
+                            task.use_wiring.as_ref(),
+                            &self.datastore,
+                        )
+                        .unwrap_or_default();
+                        // Expand decompose using executor
+                        match self
+                            .executor
+                            .expand_decompose(decompose, &bindings, &self.datastore)
+                            .await
+                        {
+                            Ok(items) => Some(items),
+                            Err(e) => {
+                                // Store error and continue to next task
+                                self.datastore.insert(
+                                    intern(&task.id),
+                                    TaskResult::failed(e.to_string(), std::time::Duration::ZERO),
+                                );
+                                continue;
+                            }
                         }
-                    }
-                } else if let Some(for_each) = &task.for_each {
-                    for_each.as_array().cloned()
-                } else {
-                    None
-                };
+                    } else if let Some(for_each) = &task.for_each {
+                        for_each.as_array().cloned()
+                    } else {
+                        None
+                    };
 
                 // Check if task has for_each (v0.3 parallelism) or decompose items
                 if let Some(items) = for_each_items {
@@ -423,7 +429,8 @@ impl Runner {
             }
 
             // Collect for_each results for aggregation: parent_id -> Vec<(index, result)>
-            let mut for_each_results: FxHashMap<Arc<str>, Vec<(usize, TaskResult)>> = FxHashMap::default();
+            let mut for_each_results: FxHashMap<Arc<str>, Vec<(usize, TaskResult)>> =
+                FxHashMap::default();
 
             // Wait for all spawned tasks to complete
             while let Some(result) = join_set.join_next().await {
@@ -560,8 +567,8 @@ mod tests {
                 id: "echo_items".to_string(),
                 for_each: Some(serde_json::json!(["a", "b", "c"])),
                 for_each_as: Some("item".to_string()),
-                concurrency: None,  // Default sequential
-                fail_fast: None,    // Default true
+                concurrency: None, // Default sequential
+                fail_fast: None,   // Default true
                 decompose: None,
                 action: TaskAction::Exec {
                     exec: ExecParams {
@@ -982,9 +989,10 @@ mod tests {
         assert_eq!(ready.len(), 1);
 
         // Mark task as done
-        runner
-            .datastore
-            .insert(intern("only"), TaskResult::success_str("done", std::time::Duration::ZERO));
+        runner.datastore.insert(
+            intern("only"),
+            TaskResult::success_str("done", std::time::Duration::ZERO),
+        );
 
         // Now no tasks should be ready
         let ready = runner.get_ready_tasks();
@@ -1005,12 +1013,14 @@ mod tests {
         let runner = Runner::new(workflow);
 
         // Mark all tasks as done
-        runner
-            .datastore
-            .insert(intern("a"), TaskResult::success_str("A", std::time::Duration::ZERO));
-        runner
-            .datastore
-            .insert(intern("b"), TaskResult::success_str("B", std::time::Duration::ZERO));
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::success_str("A", std::time::Duration::ZERO),
+        );
+        runner.datastore.insert(
+            intern("b"),
+            TaskResult::success_str("B", std::time::Duration::ZERO),
+        );
 
         assert!(runner.all_done(), "All tasks should be done");
     }
@@ -1018,19 +1028,19 @@ mod tests {
     #[test]
     fn get_final_output_returns_output_from_final_task() {
         // Chain: a -> b (b is final)
-        let workflow = create_exec_workflow(
-            vec![("a", "echo A"), ("b", "echo B")],
-            vec![("a", "b")],
-        );
+        let workflow =
+            create_exec_workflow(vec![("a", "echo A"), ("b", "echo B")], vec![("a", "b")]);
         let runner = Runner::new(workflow);
 
         // Mark tasks as done
-        runner
-            .datastore
-            .insert(intern("a"), TaskResult::success_str("A", std::time::Duration::ZERO));
-        runner
-            .datastore
-            .insert(intern("b"), TaskResult::success_str("final output", std::time::Duration::ZERO));
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::success_str("A", std::time::Duration::ZERO),
+        );
+        runner.datastore.insert(
+            intern("b"),
+            TaskResult::success_str("final output", std::time::Duration::ZERO),
+        );
 
         let output = runner.get_final_output();
         assert!(output.is_some());
@@ -1055,16 +1065,22 @@ mod tests {
         let runner = Runner::new(workflow);
 
         // a succeeds, b fails
-        runner
-            .datastore
-            .insert(intern("a"), TaskResult::success_str("success", std::time::Duration::ZERO));
-        runner
-            .datastore
-            .insert(intern("b"), TaskResult::failed("error", std::time::Duration::ZERO));
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::success_str("success", std::time::Duration::ZERO),
+        );
+        runner.datastore.insert(
+            intern("b"),
+            TaskResult::failed("error", std::time::Duration::ZERO),
+        );
 
         let output = runner.get_final_output();
         assert!(output.is_some());
-        assert_eq!(output.unwrap(), "success", "Should return successful task output");
+        assert_eq!(
+            output.unwrap(),
+            "success",
+            "Should return successful task output"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1099,7 +1115,11 @@ mod tests {
 
         let runner = Runner::new(workflow);
         let result = runner.run().await;
-        assert!(result.is_ok(), "Workflow should complete: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Workflow should complete: {:?}",
+            result.err()
+        );
 
         // Verify all 4 items were processed
         let parent_result = runner.datastore.get("concurrent");
@@ -1209,7 +1229,10 @@ mod tests {
             .find(|e| matches!(&e.kind, EventKind::WorkflowCompleted { .. }));
 
         assert!(completed.is_some());
-        if let EventKind::WorkflowCompleted { total_duration_ms, .. } = &completed.unwrap().kind {
+        if let EventKind::WorkflowCompleted {
+            total_duration_ms, ..
+        } = &completed.unwrap().kind
+        {
             assert!(*total_duration_ms > 0, "Duration should be positive");
         }
     }
@@ -1228,8 +1251,14 @@ mod tests {
 
         assert!(started.is_some());
         if let EventKind::WorkflowStarted { generation_id, .. } = &started.unwrap().kind {
-            assert!(generation_id.starts_with("gen-"), "Generation ID should have prefix");
-            assert!(generation_id.len() > 10, "Generation ID should include UUID");
+            assert!(
+                generation_id.starts_with("gen-"),
+                "Generation ID should have prefix"
+            );
+            assert!(
+                generation_id.len() > 10,
+                "Generation ID should include UUID"
+            );
         }
     }
 }

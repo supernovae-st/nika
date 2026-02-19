@@ -94,12 +94,12 @@ impl<'a> AgentTurns<'a> {
     /// Get status color
     fn status_color(status: &str) -> Color {
         match status {
-            "thinking" => Color::Rgb(245, 158, 11),   // amber
-            "tool_use" => Color::Rgb(59, 130, 246),   // blue
+            "thinking" => Color::Rgb(245, 158, 11),    // amber
+            "tool_use" => Color::Rgb(59, 130, 246),    // blue
             "tool_result" => Color::Rgb(139, 92, 246), // violet
-            "response" => Color::Rgb(34, 197, 94),    // green
-            "complete" => Color::Rgb(34, 197, 94),    // green
-            "error" => Color::Rgb(239, 68, 68),       // red
+            "response" => Color::Rgb(34, 197, 94),     // green
+            "complete" => Color::Rgb(34, 197, 94),     // green
+            "error" => Color::Rgb(239, 68, 68),        // red
             _ => Color::White,
         }
     }
@@ -160,9 +160,7 @@ impl Widget for AgentTurns<'_> {
             };
 
             let status_style = if entry.is_current {
-                Style::default()
-                    .fg(color)
-                    .add_modifier(Modifier::BOLD)
+                Style::default().fg(color).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(color)
             };

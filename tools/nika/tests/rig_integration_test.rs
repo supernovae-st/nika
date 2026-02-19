@@ -18,19 +18,18 @@ fn novanet_mcp_bin() -> String {
     // Try release first, then debug
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let workspace_root = std::path::Path::new(manifest_dir)
-        .parent()  // tools/
-        .and_then(|p| p.parent())  // nika-dev/
-        .and_then(|p| p.parent())  // supernovae-agi/
+        .parent() // tools/
+        .and_then(|p| p.parent()) // nika-dev/
+        .and_then(|p| p.parent()) // supernovae-agi/
         .expect("Should find workspace root");
 
-    let release_path = workspace_root
-        .join("novanet-dev/tools/novanet-mcp/target/release/novanet-mcp");
+    let release_path =
+        workspace_root.join("novanet-dev/tools/novanet-mcp/target/release/novanet-mcp");
     if release_path.exists() {
         return release_path.to_string_lossy().to_string();
     }
 
-    let debug_path = workspace_root
-        .join("novanet-dev/tools/novanet-mcp/target/debug/novanet-mcp");
+    let debug_path = workspace_root.join("novanet-dev/tools/novanet-mcp/target/debug/novanet-mcp");
     if debug_path.exists() {
         return debug_path.to_string_lossy().to_string();
     }
@@ -55,8 +54,8 @@ async fn test_real_mcp_client_connect() {
     }
 
     // Check Neo4j password
-    let password = std::env::var("NOVANET_MCP_NEO4J_PASSWORD")
-        .unwrap_or_else(|_| "password".to_string());
+    let password =
+        std::env::var("NOVANET_MCP_NEO4J_PASSWORD").unwrap_or_else(|_| "password".to_string());
 
     // Create MCP config pointing to real NovaNet MCP
     let config = McpConfig::new("novanet", novanet_mcp_bin())
@@ -86,8 +85,8 @@ async fn test_real_mcp_client_connect() {
 #[tokio::test]
 #[ignore = "requires NovaNet MCP server and Neo4j"]
 async fn test_real_mcp_list_tools() {
-    let password = std::env::var("NOVANET_MCP_NEO4J_PASSWORD")
-        .unwrap_or_else(|_| "password".to_string());
+    let password =
+        std::env::var("NOVANET_MCP_NEO4J_PASSWORD").unwrap_or_else(|_| "password".to_string());
 
     let config = McpConfig::new("novanet", novanet_mcp_bin())
         .with_env("NOVANET_MCP_NEO4J_URI", "bolt://localhost:7687")
@@ -121,8 +120,8 @@ async fn test_real_mcp_list_tools() {
 #[tokio::test]
 #[ignore = "requires NovaNet MCP server and Neo4j"]
 async fn test_real_mcp_novanet_describe() {
-    let password = std::env::var("NOVANET_MCP_NEO4J_PASSWORD")
-        .unwrap_or_else(|_| "password".to_string());
+    let password =
+        std::env::var("NOVANET_MCP_NEO4J_PASSWORD").unwrap_or_else(|_| "password".to_string());
 
     let config = McpConfig::new("novanet", novanet_mcp_bin())
         .with_env("NOVANET_MCP_NEO4J_URI", "bolt://localhost:7687")
@@ -158,8 +157,8 @@ async fn test_real_mcp_novanet_describe() {
 #[tokio::test]
 #[ignore = "requires NovaNet MCP server and Neo4j"]
 async fn test_rig_with_real_novanet_describe() {
-    let password = std::env::var("NOVANET_MCP_NEO4J_PASSWORD")
-        .unwrap_or_else(|_| "password".to_string());
+    let password =
+        std::env::var("NOVANET_MCP_NEO4J_PASSWORD").unwrap_or_else(|_| "password".to_string());
 
     let config = McpConfig::new("novanet", novanet_mcp_bin())
         .with_env("NOVANET_MCP_NEO4J_URI", "bolt://localhost:7687")
@@ -189,7 +188,10 @@ async fn test_rig_with_real_novanet_describe() {
 
     match &result {
         Ok(output) => {
-            println!("rig tool call output (first 500 chars): {}", &output[..output.len().min(500)]);
+            println!(
+                "rig tool call output (first 500 chars): {}",
+                &output[..output.len().min(500)]
+            );
             assert!(!output.is_empty(), "Should return schema description");
         }
         Err(e) => {
@@ -204,8 +206,8 @@ async fn test_rig_with_real_novanet_describe() {
 #[tokio::test]
 #[ignore = "requires NovaNet MCP server and Neo4j"]
 async fn test_rig_with_real_novanet_generate() {
-    let password = std::env::var("NOVANET_MCP_NEO4J_PASSWORD")
-        .unwrap_or_else(|_| "password".to_string());
+    let password =
+        std::env::var("NOVANET_MCP_NEO4J_PASSWORD").unwrap_or_else(|_| "password".to_string());
 
     let config = McpConfig::new("novanet", novanet_mcp_bin())
         .with_env("NOVANET_MCP_NEO4J_URI", "bolt://localhost:7687")
@@ -236,13 +238,17 @@ async fn test_rig_with_real_novanet_generate() {
         "focus_key": "qr-code",
         "locale": "fr-FR",
         "forms": ["text", "title", "abbrev"]
-    }).to_string();
+    })
+    .to_string();
 
     let result = tool.call(args).await;
 
     match &result {
         Ok(output) => {
-            println!("novanet_generate output (first 1000 chars): {}", &output[..output.len().min(1000)]);
+            println!(
+                "novanet_generate output (first 1000 chars): {}",
+                &output[..output.len().min(1000)]
+            );
 
             // Verify expected content
             assert!(!output.is_empty(), "Should return generation context");
@@ -270,8 +276,8 @@ async fn test_rig_with_real_novanet_generate() {
 #[tokio::test]
 #[ignore = "requires NovaNet MCP server and Neo4j"]
 async fn test_rig_full_workflow_simulation() {
-    let password = std::env::var("NOVANET_MCP_NEO4J_PASSWORD")
-        .unwrap_or_else(|_| "password".to_string());
+    let password =
+        std::env::var("NOVANET_MCP_NEO4J_PASSWORD").unwrap_or_else(|_| "password".to_string());
 
     let config = McpConfig::new("novanet", novanet_mcp_bin())
         .with_env("NOVANET_MCP_NEO4J_URI", "bolt://localhost:7687")
@@ -316,7 +322,8 @@ async fn test_rig_full_workflow_simulation() {
             "focus_key": "qr-code",
             "locale": locale,
             "forms": ["text", "title"]
-        }).to_string();
+        })
+        .to_string();
 
         match generate_tool.call(args).await {
             Ok(output) => {
@@ -344,7 +351,10 @@ async fn test_rig_full_workflow_simulation() {
         println!("\n=== Full Workflow Simulation PASSED (with known gaps) ===");
         println!("Schema chars: {}", schema_result.len());
         println!("novanet_generate has entity lookup issues (NovaNet MCP gap)");
-        println!("All {} locales returned 'Entity not found' - integration works!", errors.len());
+        println!(
+            "All {} locales returned 'Entity not found' - integration works!",
+            errors.len()
+        );
     } else {
         panic!("Workflow failed with unexpected errors: {:?}", errors);
     }

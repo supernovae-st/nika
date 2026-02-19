@@ -57,38 +57,38 @@ impl Default for Theme {
     fn default() -> Self {
         Self {
             // Realms
-            realm_shared: Color::Rgb(59, 130, 246),  // #3B82F6 blue
-            realm_org: Color::Rgb(16, 185, 129),     // #10B981 emerald
+            realm_shared: Color::Rgb(59, 130, 246), // #3B82F6 blue
+            realm_org: Color::Rgb(16, 185, 129),    // #10B981 emerald
 
             // Traits
-            trait_defined: Color::Rgb(107, 114, 128),   // #6B7280 gray
-            trait_authored: Color::Rgb(139, 92, 246),   // #8B5CF6 violet
-            trait_imported: Color::Rgb(245, 158, 11),   // #F59E0B amber
-            trait_generated: Color::Rgb(16, 185, 129),  // #10B981 emerald
-            trait_retrieved: Color::Rgb(6, 182, 212),   // #06B6D4 cyan
+            trait_defined: Color::Rgb(107, 114, 128), // #6B7280 gray
+            trait_authored: Color::Rgb(139, 92, 246), // #8B5CF6 violet
+            trait_imported: Color::Rgb(245, 158, 11), // #F59E0B amber
+            trait_generated: Color::Rgb(16, 185, 129), // #10B981 emerald
+            trait_retrieved: Color::Rgb(6, 182, 212), // #06B6D4 cyan
 
             // Status
-            status_pending: Color::Rgb(107, 114, 128),  // #6B7280 gray
-            status_running: Color::Rgb(245, 158, 11),   // #F59E0B amber
-            status_success: Color::Rgb(34, 197, 94),    // #22C55E green
-            status_failed: Color::Rgb(239, 68, 68),     // #EF4444 red
-            status_paused: Color::Rgb(6, 182, 212),     // #06B6D4 cyan
+            status_pending: Color::Rgb(107, 114, 128), // #6B7280 gray
+            status_running: Color::Rgb(245, 158, 11),  // #F59E0B amber
+            status_success: Color::Rgb(34, 197, 94),   // #22C55E green
+            status_failed: Color::Rgb(239, 68, 68),    // #EF4444 red
+            status_paused: Color::Rgb(6, 182, 212),    // #06B6D4 cyan
 
             // MCP tools
-            mcp_describe: Color::Rgb(59, 130, 246),   // #3B82F6 blue
-            mcp_traverse: Color::Rgb(236, 72, 153),   // #EC4899 pink
-            mcp_search: Color::Rgb(245, 158, 11),     // #F59E0B amber
-            mcp_atoms: Color::Rgb(139, 92, 246),      // #8B5CF6 violet
-            mcp_generate: Color::Rgb(16, 185, 129),   // #10B981 emerald
+            mcp_describe: Color::Rgb(59, 130, 246), // #3B82F6 blue
+            mcp_traverse: Color::Rgb(236, 72, 153), // #EC4899 pink
+            mcp_search: Color::Rgb(245, 158, 11),   // #F59E0B amber
+            mcp_atoms: Color::Rgb(139, 92, 246),    // #8B5CF6 violet
+            mcp_generate: Color::Rgb(16, 185, 129), // #10B981 emerald
 
             // UI elements
-            border_normal: Color::Rgb(75, 85, 99),    // #4B5563 gray-600
+            border_normal: Color::Rgb(75, 85, 99), // #4B5563 gray-600
             border_focused: Color::Rgb(99, 102, 241), // #6366F1 indigo
-            text_primary: Color::Rgb(243, 244, 246),  // #F3F4F6 gray-100
+            text_primary: Color::Rgb(243, 244, 246), // #F3F4F6 gray-100
             text_secondary: Color::Rgb(156, 163, 175), // #9CA3AF gray-400
-            text_muted: Color::Rgb(107, 114, 128),    // #6B7280 gray-500
-            background: Color::Rgb(17, 24, 39),       // #111827 gray-900
-            highlight: Color::Rgb(99, 102, 241),      // #6366F1 indigo
+            text_muted: Color::Rgb(107, 114, 128), // #6B7280 gray-500
+            background: Color::Rgb(17, 24, 39),    // #111827 gray-900
+            highlight: Color::Rgb(99, 102, 241),   // #6366F1 indigo
         }
     }
 }

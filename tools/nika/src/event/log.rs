@@ -9,8 +9,8 @@
 //! - Added `AgentTurnMetadata` for reasoning capture (thinking, tokens, stop_reason)
 //! - Updated `AgentTurn` variant to include optional metadata
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 
 use parking_lot::RwLock; // 2-3x faster than std::sync::RwLock
@@ -553,20 +553,16 @@ mod tests {
     #[test]
     fn eventkind_is_workflow_event() {
         assert!(workflow_started(3).is_workflow_event());
-        assert!(
-            EventKind::WorkflowCompleted {
-                final_output: Arc::new(json!("done")),
-                total_duration_ms: 1000,
-            }
-            .is_workflow_event()
-        );
-        assert!(
-            !EventKind::TaskStarted {
-                task_id: "t1".into(),
-                inputs: json!({}),
-            }
-            .is_workflow_event()
-        );
+        assert!(EventKind::WorkflowCompleted {
+            final_output: Arc::new(json!("done")),
+            total_duration_ms: 1000,
+        }
+        .is_workflow_event());
+        assert!(!EventKind::TaskStarted {
+            task_id: "t1".into(),
+            inputs: json!({}),
+        }
+        .is_workflow_event());
     }
 
     #[test]
@@ -667,11 +663,9 @@ mod tests {
 
         let alpha_events = log.filter_task("alpha");
         assert_eq!(alpha_events.len(), 2); // Started + Completed
-        assert!(
-            alpha_events
-                .iter()
-                .all(|e| e.kind.task_id() == Some("alpha"))
-        );
+        assert!(alpha_events
+            .iter()
+            .all(|e| e.kind.task_id() == Some("alpha")));
 
         let beta_events = log.filter_task("beta");
         assert_eq!(beta_events.len(), 1);

@@ -65,7 +65,12 @@ mod tests {
     #[test]
     fn redirect_limit_is_reasonable() {
         // Not too many, not too few
-        assert!(REDIRECT_LIMIT >= 3);
-        assert!(REDIRECT_LIMIT <= 10);
+        // Compile-time assertion via const block
+        const _: () = {
+            assert!(REDIRECT_LIMIT >= 3);
+            assert!(REDIRECT_LIMIT <= 10);
+        };
+        // Runtime assertion for test visibility
+        assert_eq!(REDIRECT_LIMIT, 5);
     }
 }

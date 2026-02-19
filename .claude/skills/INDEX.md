@@ -1,11 +1,12 @@
 # Nika Skills Index
 
-**Nika Version:** v0.3 | **5 verbs** | for_each parallelism | Resilience patterns
+**Nika Version:** v0.4.1 | **5 verbs** | for_each parallelism | rig-core v0.31 | Extended thinking
 
 ## Available Skills
 
 | Skill | Command | Purpose |
 |-------|---------|---------|
+| **nika-yaml** | `/nika-yaml` | **NEW** Complete YAML authoring guide (verbs, for_each, bindings) |
 | **nika-arch** | `/nika-arch` | Architecture diagram and module structure |
 | **nika-run** | `/nika-run` | Run workflows with validation |
 | **nika-diagnose** | `/nika-diagnose` | Systematic workflow diagnosis |

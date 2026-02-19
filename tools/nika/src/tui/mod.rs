@@ -53,7 +53,10 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
     })?;
 
     let workflow: Workflow = serde_yaml::from_str(&yaml_content).map_err(|e| {
-        let line_info = e.location().map(|l| format!(" (line {})", l.line())).unwrap_or_default();
+        let line_info = e
+            .location()
+            .map(|l| format!(" (line {})", l.line()))
+            .unwrap_or_default();
         crate::error::NikaError::ParseError {
             details: format!("{}{}", e, line_info),
         }

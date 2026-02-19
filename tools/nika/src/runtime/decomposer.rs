@@ -100,12 +100,11 @@ async fn expand_semantic(
     let result = client.call_tool("novanet_traverse", params).await?;
 
     // Parse JSON from result content
-    let result_json: Value = serde_json::from_str(&result.text()).map_err(|e| {
-        NikaError::McpInvalidResponse {
+    let result_json: Value =
+        serde_json::from_str(&result.text()).map_err(|e| NikaError::McpInvalidResponse {
             tool: "novanet_traverse".to_string(),
             reason: format!("failed to parse JSON response: {}", e),
-        }
-    })?;
+        })?;
 
     // Extract nodes from result
     let mut items = extract_nodes(&result_json)?;
@@ -173,9 +172,11 @@ fn resolve_source(
         // Dollar syntax: $alias or $task.path
         if alias.contains('.') {
             // Path syntax: $task.field
-            datastore.resolve_path(alias).ok_or_else(|| NikaError::BindingNotFound {
-                alias: alias.to_string(),
-            })
+            datastore
+                .resolve_path(alias)
+                .ok_or_else(|| NikaError::BindingNotFound {
+                    alias: alias.to_string(),
+                })
         } else {
             // Simple alias
             bindings

@@ -142,20 +142,20 @@ impl RmcpClientAdapter {
         }
 
         // Create transport
-        let transport =
-            TokioChildProcess::new(cmd).map_err(|e| NikaError::McpStartError {
-                name: self.name.clone(),
-                reason: format!("Failed to create transport: {}", e),
-            })?;
+        let transport = TokioChildProcess::new(cmd).map_err(|e| NikaError::McpStartError {
+            name: self.name.clone(),
+            reason: format!("Failed to create transport: {}", e),
+        })?;
 
         // Connect to server using rmcp's serve pattern
         // The () implements ClientHandler with default behavior
-        let service = ().serve(transport).await.map_err(|e| {
-            NikaError::McpStartError {
-                name: self.name.clone(),
-                reason: format!("Failed to connect: {}", e),
-            }
-        })?;
+        let service =
+            ().serve(transport)
+                .await
+                .map_err(|e| NikaError::McpStartError {
+                    name: self.name.clone(),
+                    reason: format!("Failed to connect: {}", e),
+                })?;
 
         // Store server info
         if let Some(info) = service.peer_info() {
@@ -221,12 +221,13 @@ impl RmcpClientAdapter {
             task: None,
         };
 
-        let result = service.call_tool(request).await.map_err(|e| {
-            NikaError::McpToolError {
+        let result = service
+            .call_tool(request)
+            .await
+            .map_err(|e| NikaError::McpToolError {
                 tool: name.to_string(),
                 reason: e.to_string(),
-            }
-        })?;
+            })?;
 
         // Convert rmcp result to Nika's ToolCallResult
         let content: Vec<ContentBlock> = result
@@ -281,11 +282,12 @@ impl RmcpClientAdapter {
         })?;
 
         // Convert first resource content
-        let resource = result.contents.first().ok_or_else(|| {
-            NikaError::McpResourceNotFound {
+        let resource = result
+            .contents
+            .first()
+            .ok_or_else(|| NikaError::McpResourceNotFound {
                 uri: uri.to_string(),
-            }
-        })?;
+            })?;
 
         // Build ResourceContent from rmcp response
         // Serialize the resource content as JSON for simplicity
@@ -312,13 +314,14 @@ impl RmcpClientAdapter {
             name: self.name.clone(),
         })?;
 
-        let result: ListToolsResult = service
-            .list_tools(Default::default())
-            .await
-            .map_err(|e| NikaError::McpToolError {
-                tool: "tools/list".to_string(),
-                reason: e.to_string(),
-            })?;
+        let result: ListToolsResult =
+            service
+                .list_tools(Default::default())
+                .await
+                .map_err(|e| NikaError::McpToolError {
+                    tool: "tools/list".to_string(),
+                    reason: e.to_string(),
+                })?;
 
         // Convert rmcp tools to Nika's ToolDefinition
         let tools = result
@@ -379,9 +382,7 @@ mod tests {
         let config = McpConfig::new("test", "echo");
         let adapter = RmcpClientAdapter::new(config);
 
-        let result = adapter
-            .call_tool("test_tool", serde_json::json!({}))
-            .await;
+        let result = adapter.call_tool("test_tool", serde_json::json!({})).await;
 
         assert!(result.is_err());
         match result.unwrap_err() {

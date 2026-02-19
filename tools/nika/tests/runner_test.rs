@@ -6,10 +6,9 @@
 //! - for_each parallelism and concurrency
 //! - Event emission
 
-use nika::ast::{Task, Workflow};
+use nika::ast::Workflow;
 use nika::event::EventLog;
 use nika::runtime::Runner;
-use std::sync::Arc;
 
 /// Helper to create a minimal workflow YAML and parse it
 fn parse_workflow(yaml: &str) -> Workflow {

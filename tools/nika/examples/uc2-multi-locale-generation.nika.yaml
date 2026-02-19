@@ -64,11 +64,10 @@ tasks:
     depends_on: [setup]
 
     # for_each: Iterate over 3 locales with full parallelism
-    for_each:
-      items: ["fr-FR", "en-US", "de-DE"]
-      as: locale
-      concurrency: 3        # Process all 3 locales simultaneously
-      fail_fast: true       # Stop all if any locale fails
+    for_each: ["fr-FR", "en-US", "de-DE"]
+    as: locale
+    concurrency: 3        # Process all 3 locales simultaneously
+    fail_fast: true       # Stop all if any locale fails
 
     # invoke: Call novanet_generate for each locale
     invoke:

@@ -92,11 +92,11 @@ impl<'a> Timeline<'a> {
     /// Get status color
     fn status_color(status: TaskStatus) -> Color {
         match status {
-            TaskStatus::Pending => Color::Rgb(107, 114, 128),  // gray
-            TaskStatus::Running => Color::Rgb(245, 158, 11),   // amber
-            TaskStatus::Success => Color::Rgb(34, 197, 94),    // green
-            TaskStatus::Failed => Color::Rgb(239, 68, 68),     // red
-            TaskStatus::Paused => Color::Rgb(6, 182, 212),     // cyan
+            TaskStatus::Pending => Color::Rgb(107, 114, 128), // gray
+            TaskStatus::Running => Color::Rgb(245, 158, 11),  // amber
+            TaskStatus::Success => Color::Rgb(34, 197, 94),   // green
+            TaskStatus::Failed => Color::Rgb(239, 68, 68),    // red
+            TaskStatus::Paused => Color::Rgb(6, 182, 212),    // cyan
         }
     }
 

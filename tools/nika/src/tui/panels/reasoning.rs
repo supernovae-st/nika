@@ -209,10 +209,7 @@ impl<'a> ReasoningPanel<'a> {
 
     /// Check if any turn has thinking content
     fn has_thinking(&self) -> bool {
-        self.state
-            .agent_turns
-            .iter()
-            .any(|t| t.thinking.is_some())
+        self.state.agent_turns.iter().any(|t| t.thinking.is_some())
     }
 
     /// Render thinking/reasoning content (v0.4 extended thinking)
@@ -276,12 +273,7 @@ impl<'a> ReasoningPanel<'a> {
 
     /// Render token summary
     fn render_tokens(&self, area: Rect, buf: &mut Buffer) {
-        let total_tokens: u32 = self
-            .state
-            .agent_turns
-            .iter()
-            .filter_map(|t| t.tokens)
-            .sum();
+        let total_tokens: u32 = self.state.agent_turns.iter().filter_map(|t| t.tokens).sum();
 
         if total_tokens > 0 {
             let token_line = Line::from(vec![

@@ -52,7 +52,10 @@ fn escape_for_json(s: &str) -> String {
 ///
 /// Example: `{{use.forecast}}` → resolved value from bindings
 /// Example: `{{use.flight_info.departure}}` → nested access
-pub fn resolve<'a>(template: &'a str, bindings: &ResolvedBindings) -> Result<Cow<'a, str>, NikaError> {
+pub fn resolve<'a>(
+    template: &'a str,
+    bindings: &ResolvedBindings,
+) -> Result<Cow<'a, str>, NikaError> {
     // Early return with borrowed string (zero alloc)
     if !template.contains("{{use.") {
         return Ok(Cow::Borrowed(template));

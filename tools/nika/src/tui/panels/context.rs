@@ -88,8 +88,16 @@ impl<'a> ContextPanel<'a> {
         let header = Line::from(vec![
             Span::styled("  ", Style::default()),
             Span::styled(format!("{} ", icon), Style::default().fg(icon_color)),
-            Span::styled("MCP: ", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
-            Span::styled(format!("{} calls", total_calls), Style::default().fg(Color::White)),
+            Span::styled(
+                "MCP: ",
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("{} calls", total_calls),
+                Style::default().fg(Color::White),
+            ),
             if pending > 0 {
                 Span::styled(
                     format!(" {} ({} pending)", self.spinner(), pending),
@@ -109,9 +117,7 @@ impl<'a> ContextPanel<'a> {
         let entries = self.build_mcp_entries();
         let max_entries = area.height as usize;
 
-        let mcp_log = McpLog::new(&entries)
-            .reverse(true)
-            .max_entries(max_entries);
+        let mcp_log = McpLog::new(&entries).reverse(true).max_entries(max_entries);
 
         // Offset by 2 for padding
         let log_area = Rect {
@@ -142,7 +148,12 @@ impl<'a> ContextPanel<'a> {
         let header = Line::from(vec![
             Span::styled("  ", Style::default()),
             Span::styled("📦 ", Style::default()),
-            Span::styled("Context: ", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Context: ",
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(
                 format!("{} tokens", format_number(ctx.total_tokens)),
                 Style::default().fg(Color::Rgb(139, 92, 246)),
@@ -168,11 +179,11 @@ impl<'a> ContextPanel<'a> {
 
             let ratio = (ctx.budget_used_pct / 100.0) as f64;
             let gauge_color = if ratio >= 0.9 {
-                Color::Rgb(239, 68, 68)  // red - near limit
+                Color::Rgb(239, 68, 68) // red - near limit
             } else if ratio >= 0.7 {
                 Color::Rgb(245, 158, 11) // amber - warning
             } else {
-                Color::Rgb(34, 197, 94)  // green - ok
+                Color::Rgb(34, 197, 94) // green - ok
             };
 
             let gauge = Gauge::new(ratio)
@@ -236,7 +247,10 @@ impl<'a> ContextPanel<'a> {
         }
 
         // Server badges
-        let mut spans = vec![Span::styled("  Servers: ", Style::default().fg(Color::DarkGray))];
+        let mut spans = vec![Span::styled(
+            "  Servers: ",
+            Style::default().fg(Color::DarkGray),
+        )];
 
         for (i, server) in servers.iter().enumerate() {
             if i > 0 {
@@ -276,10 +290,10 @@ impl Widget for ContextPanel<'_> {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(1),  // MCP Header
-                Constraint::Min(3),     // MCP Log
-                Constraint::Length(3),  // Context Assembly
-                Constraint::Length(1),  // Servers
+                Constraint::Length(1), // MCP Header
+                Constraint::Min(3),    // MCP Log
+                Constraint::Length(3), // Context Assembly
+                Constraint::Length(1), // Servers
             ])
             .split(inner);
 

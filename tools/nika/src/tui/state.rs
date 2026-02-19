@@ -108,7 +108,6 @@ pub enum TuiMode {
     Metrics,
 }
 
-
 /// Workflow execution state
 #[derive(Debug, Clone)]
 pub struct WorkflowState {
@@ -532,10 +531,7 @@ impl TuiState {
             // ═══════════════════════════════════════════
             // AGENT EVENTS
             // ═══════════════════════════════════════════
-            EventKind::AgentStart {
-                max_turns,
-                ..
-            } => {
+            EventKind::AgentStart { max_turns, .. } => {
                 self.agent_turns.clear();
                 self.streaming_buffer.clear();
                 self.agent_max_turns = Some(*max_turns);
@@ -597,7 +593,9 @@ impl TuiState {
                 self.metrics.output_tokens += output_tokens;
                 self.metrics.total_tokens += input_tokens + output_tokens;
                 self.metrics.cost_usd += cost_usd;
-                self.metrics.token_history.push(input_tokens + output_tokens);
+                self.metrics
+                    .token_history
+                    .push(input_tokens + output_tokens);
                 if let Some(ttft) = ttft_ms {
                     self.metrics.latency_history.push(*ttft);
                 }
@@ -668,22 +666,18 @@ impl TuiState {
         }
 
         match kind {
-            EventKind::TaskStarted { task_id, .. } => {
-                self.breakpoints
-                    .contains(&Breakpoint::BeforeTask(task_id.to_string()))
-            }
-            EventKind::TaskCompleted { task_id, .. } => {
-                self.breakpoints
-                    .contains(&Breakpoint::AfterTask(task_id.to_string()))
-            }
-            EventKind::TaskFailed { task_id, .. } => {
-                self.breakpoints
-                    .contains(&Breakpoint::OnError(task_id.to_string()))
-            }
-            EventKind::McpInvoke { task_id, .. } => {
-                self.breakpoints
-                    .contains(&Breakpoint::OnMcp(task_id.to_string()))
-            }
+            EventKind::TaskStarted { task_id, .. } => self
+                .breakpoints
+                .contains(&Breakpoint::BeforeTask(task_id.to_string())),
+            EventKind::TaskCompleted { task_id, .. } => self
+                .breakpoints
+                .contains(&Breakpoint::AfterTask(task_id.to_string())),
+            EventKind::TaskFailed { task_id, .. } => self
+                .breakpoints
+                .contains(&Breakpoint::OnError(task_id.to_string())),
+            EventKind::McpInvoke { task_id, .. } => self
+                .breakpoints
+                .contains(&Breakpoint::OnMcp(task_id.to_string())),
             EventKind::AgentTurn {
                 task_id,
                 turn_index,
@@ -699,6 +693,9 @@ impl TuiState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Use actual package version in tests to avoid version drift
+    const TEST_VERSION: &str = env!("CARGO_PKG_VERSION");
 
     #[test]
     fn test_panel_id_next_cycles() {
@@ -744,7 +741,7 @@ mod tests {
                 task_count: 5,
                 generation_id: "gen-123".to_string(),
                 workflow_hash: "abc".to_string(),
-                nika_version: "0.2.0".to_string(),
+                nika_version: TEST_VERSION.to_string(),
             },
             0,
         );
@@ -809,7 +806,10 @@ mod tests {
         );
 
         assert_eq!(state.mcp_calls.len(), 1);
-        assert_eq!(state.mcp_calls[0].tool, Some("novanet_describe".to_string()));
+        assert_eq!(
+            state.mcp_calls[0].tool,
+            Some("novanet_describe".to_string())
+        );
         assert!(!state.mcp_calls[0].completed);
 
         state.handle_event(

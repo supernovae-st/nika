@@ -18,11 +18,9 @@
 //! ```
 
 use nika::mcp::McpClient;
-use nika::McpConfig;
 use serde_json::json;
 
-mod helpers;
-use helpers::{novanet_config, should_skip_integration_test};
+use super::helpers::{novanet_config, should_skip_integration_test};
 
 // ============================================================================
 // MCP Resource Reading Tests
@@ -66,11 +64,7 @@ async fn test_read_resource_entity() {
                 || error_str.contains("method")
                 || error_str.contains("not supported");
 
-            assert!(
-                is_expected_error,
-                "Unexpected error type: {}",
-                e
-            );
+            assert!(is_expected_error, "Unexpected error type: {}", e);
             println!("  Expected error (resource or method not supported): {}", e);
         }
     }
@@ -129,7 +123,11 @@ async fn test_workflow_describe_query_traverse() {
         .call_tool("novanet_describe", json!({"describe": "schema"}))
         .await;
 
-    assert!(describe_result.is_ok(), "Describe failed: {:?}", describe_result.err());
+    assert!(
+        describe_result.is_ok(),
+        "Describe failed: {:?}",
+        describe_result.err()
+    );
     let schema_info = describe_result.unwrap();
     assert!(!schema_info.is_error, "novanet_describe returned error");
     println!("    Schema: {} chars", schema_info.text().len());
@@ -145,7 +143,11 @@ async fn test_workflow_describe_query_traverse() {
         )
         .await;
 
-    assert!(query_result.is_ok(), "Query failed: {:?}", query_result.err());
+    assert!(
+        query_result.is_ok(),
+        "Query failed: {:?}",
+        query_result.err()
+    );
     let entities = query_result.unwrap();
     println!("    Entities: {}", entities.text());
 
@@ -214,7 +216,10 @@ async fn test_concurrent_tool_calls() {
         }
     }
 
-    assert!(successes >= 4, "Expected at least 4/5 concurrent calls to succeed");
+    assert!(
+        successes >= 4,
+        "Expected at least 4/5 concurrent calls to succeed"
+    );
 
     client.disconnect().await.expect("Failed to disconnect");
 }
@@ -286,7 +291,12 @@ async fn test_describe_all_targets_return_valid_json() {
             .call_tool("novanet_describe", json!({"describe": target}))
             .await;
 
-        assert!(result.is_ok(), "Describe '{}' failed: {:?}", target, result.err());
+        assert!(
+            result.is_ok(),
+            "Describe '{}' failed: {:?}",
+            target,
+            result.err()
+        );
 
         let response = result.unwrap();
         assert!(!response.is_error, "Describe '{}' returned error", target);
@@ -321,7 +331,10 @@ async fn test_cypher_query_patterns() {
         // Count nodes
         ("MATCH (n) RETURN count(n) AS total LIMIT 1", "count query"),
         // Get labels
-        ("CALL db.labels() YIELD label RETURN label LIMIT 10", "labels query"),
+        (
+            "CALL db.labels() YIELD label RETURN label LIMIT 10",
+            "labels query",
+        ),
         // Get relationship types
         (
             "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType LIMIT 10",
@@ -330,17 +343,16 @@ async fn test_cypher_query_patterns() {
     ];
 
     for (cypher, description) in queries {
-        println!("  Testing {}: {}", description, &cypher[..50.min(cypher.len())]);
+        println!(
+            "  Testing {}: {}",
+            description,
+            &cypher[..50.min(cypher.len())]
+        );
         let result = client
             .call_tool("novanet_query", json!({"cypher": cypher}))
             .await;
 
-        assert!(
-            result.is_ok(),
-            "{} failed: {:?}",
-            description,
-            result.err()
-        );
+        assert!(result.is_ok(), "{} failed: {:?}", description, result.err());
         println!("    Result: {}", result.unwrap().text());
     }
 
@@ -365,7 +377,10 @@ async fn test_invalid_cypher_returns_error() {
 
     // Invalid Cypher syntax
     let result = client
-        .call_tool("novanet_query", json!({"cypher": "THIS IS NOT VALID CYPHER"}))
+        .call_tool(
+            "novanet_query",
+            json!({"cypher": "THIS IS NOT VALID CYPHER"}),
+        )
         .await;
 
     // Should return an error or is_error=true
@@ -404,10 +419,7 @@ async fn test_write_operations_blocked() {
     // Should return an error
     match result {
         Ok(response) => {
-            assert!(
-                response.is_error,
-                "Expected write operation to be blocked"
-            );
+            assert!(response.is_error, "Expected write operation to be blocked");
             println!("  Write blocked with message: {}", response.text());
         }
         Err(e) => {

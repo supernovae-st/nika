@@ -16,13 +16,13 @@ DAG workflow runner for AI tasks with MCP integration.
 
 ```bash
 # Run a workflow
-cargo run -- run examples/v03-parallel-locales.yaml
+cargo run -- run examples/v03-parallel-locales.nika.yaml
 
 # Validate without executing
-cargo run -- validate examples/v03-agent-with-tools.yaml
+cargo run -- validate examples/v03-agent-with-tools.nika.yaml
 
 # Interactive TUI
-cargo run -- tui examples/invoke-novanet.yaml
+cargo run -- tui examples/invoke-novanet.nika.yaml
 ```
 
 ## Installation
@@ -37,9 +37,9 @@ cargo build --release
 ./target/release/nika --help
 ```
 
-## v0.3 Features
+## Features
 
-### Parallel for_each
+### Parallel for_each (v0.3+)
 
 Execute tasks in parallel with `for_each`:
 
@@ -77,24 +77,6 @@ tasks:
         - "DONE"
 ```
 
-### Resilience Patterns
-
-Provider-level resilience:
-
-```yaml
-providers:
-  claude:
-    resilience:
-      retry:
-        max_attempts: 3
-        backoff: exponential
-      circuit_breaker:
-        failure_threshold: 5
-        reset_timeout_ms: 30000
-      rate_limiter:
-        requests_per_minute: 60
-```
-
 ## Semantic Verbs
 
 | Verb | Purpose | Example |
@@ -127,7 +109,7 @@ mcp:
 |---------|-------------|
 | `v03-parallel-locales.yaml` | Parallel generation for 5 locales |
 | `v03-agent-with-tools.yaml` | Agent-driven competitive analysis |
-| `v03-resilience-demo.yaml` | Retry, circuit breaker, rate limiting |
+| `v03-denomination-forms.yaml` | Entity naming with denomination_forms |
 | `invoke-novanet.yaml` | Basic MCP invoke |
 | `agent-novanet.yaml` | Agent with NovaNet tools |
 | `uc1-*.yaml` to `uc10-*.yaml` | Production use cases |
@@ -139,13 +121,13 @@ src/
 ├── ast/          # YAML → Rust structs
 ├── dag/          # DAG validation
 ├── runtime/      # Execution engine
-│   ├── executor.rs   # Task dispatch
-│   ├── runner.rs     # Workflow orchestration
-│   └── agent_loop.rs # Agentic execution
-├── mcp/          # MCP client
-├── provider/     # LLM providers (Claude, OpenAI)
+│   ├── executor.rs       # Task dispatch (5 verbs + for_each)
+│   ├── runner.rs         # Workflow orchestration
+│   └── rig_agent_loop.rs # RigAgentLoop with rig::AgentBuilder
+├── mcp/          # MCP client (rmcp v0.16)
+├── provider/     # rig-core provider (RigProvider wrapper)
 ├── event/        # Observability (16 event types)
-├── resilience/   # Retry, circuit breaker, rate limiter
+├── binding/      # Data flow ({{use.alias}})
 └── tui/          # Terminal UI
 ```
 

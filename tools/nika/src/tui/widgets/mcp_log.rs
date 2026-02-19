@@ -116,7 +116,7 @@ impl Widget for McpLog<'_> {
 
             // Status icon
             let (icon, icon_color) = if entry.completed {
-                ("✓", Color::Rgb(34, 197, 94))  // green
+                ("✓", Color::Rgb(34, 197, 94)) // green
             } else {
                 ("⋯", Color::Rgb(245, 158, 11)) // amber
             };
@@ -125,14 +125,16 @@ impl Widget for McpLog<'_> {
 
             // Call type icon
             let type_icon = if entry.tool.is_some() {
-                "🔌"  // tool call
+                "🔌" // tool call
             } else {
-                "📖"  // resource read
+                "📖" // resource read
             };
             buf.set_string(area.x + 2, y, type_icon, Style::default());
 
             // Name (tool or resource)
-            let name = entry.tool.as_deref()
+            let name = entry
+                .tool
+                .as_deref()
                 .or(entry.resource.as_deref())
                 .unwrap_or("unknown");
 
@@ -158,12 +160,7 @@ impl Widget for McpLog<'_> {
                 let size_str = format_size(len);
                 let size_x = area.x + area.width - size_str.len() as u16;
                 if size_x > area.x + 5 + display_name.len() as u16 {
-                    buf.set_string(
-                        size_x,
-                        y,
-                        &size_str,
-                        Style::default().fg(Color::DarkGray),
-                    );
+                    buf.set_string(size_x, y, &size_str, Style::default().fg(Color::DarkGray));
                 }
             }
         }

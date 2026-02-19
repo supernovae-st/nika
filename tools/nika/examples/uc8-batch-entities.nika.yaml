@@ -55,11 +55,10 @@ tasks:
   # for_each spawns a tokio task for each entity, runs up to 3 concurrently
 
   - id: generate_entities
-    for_each:
-      items: "{{use.batch}}"
-      as: entity
-      concurrency: 3        # Max 3 parallel generations (adjust for API limits)
-      fail_fast: false      # Continue on errors, collect results
+    for_each: "{{use.batch}}"
+    as: entity
+    concurrency: 3        # Max 3 parallel generations (adjust for API limits)
+    fail_fast: false      # Continue on errors, collect results
     use:
       batch: entity_batch
     invoke:

@@ -223,9 +223,12 @@ impl FlowGraph {
 
         for task_id in &self.task_ids {
             if colors.get(task_id) == Some(&Color::White) {
-                if let Err(cycle) =
-                    dfs(Arc::clone(task_id), &self.adjacency, &mut colors, &mut stack)
-                {
+                if let Err(cycle) = dfs(
+                    Arc::clone(task_id),
+                    &self.adjacency,
+                    &mut colors,
+                    &mut stack,
+                ) {
                     return Err(NikaError::CycleDetected { cycle });
                 }
             }

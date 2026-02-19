@@ -32,7 +32,10 @@ fn test_rig_agent_loop_creation_with_valid_params() {
     let result = RigAgentLoop::new("test_task".to_string(), params, event_log, mcp_clients);
 
     // Assert
-    assert!(result.is_ok(), "Should create RigAgentLoop with valid params");
+    assert!(
+        result.is_ok(),
+        "Should create RigAgentLoop with valid params"
+    );
 }
 
 #[test]
@@ -256,8 +259,14 @@ fn test_rig_agent_status_equality() {
         RigAgentStatus::NaturalCompletion,
         RigAgentStatus::NaturalCompletion
     );
-    assert_eq!(RigAgentStatus::StopConditionMet, RigAgentStatus::StopConditionMet);
-    assert_eq!(RigAgentStatus::MaxTurnsReached, RigAgentStatus::MaxTurnsReached);
+    assert_eq!(
+        RigAgentStatus::StopConditionMet,
+        RigAgentStatus::StopConditionMet
+    );
+    assert_eq!(
+        RigAgentStatus::MaxTurnsReached,
+        RigAgentStatus::MaxTurnsReached
+    );
     assert_eq!(RigAgentStatus::Failed, RigAgentStatus::Failed);
 
     assert_ne!(RigAgentStatus::NaturalCompletion, RigAgentStatus::Failed);
@@ -463,13 +472,8 @@ async fn test_workflow_multiple_mcp_servers() {
         Arc::new(McpClient::mock("filesystem")),
     );
 
-    let agent_loop = RigAgentLoop::new(
-        "test_multi_mcp".to_string(),
-        params,
-        event_log,
-        mcp_clients,
-    )
-    .unwrap();
+    let agent_loop =
+        RigAgentLoop::new("test_multi_mcp".to_string(), params, event_log, mcp_clients).unwrap();
 
     // Assert: Tools from both MCP servers are available
     // novanet mock returns 3 tools, filesystem mock returns 3 tools
@@ -547,7 +551,10 @@ flows:
 
     // First task is invoke
     assert_eq!(workflow.tasks[0].id, "fetch_context");
-    assert!(matches!(workflow.tasks[0].action, TaskAction::Invoke { .. }));
+    assert!(matches!(
+        workflow.tasks[0].action,
+        TaskAction::Invoke { .. }
+    ));
 
     // Second task is agent with dependency
     assert_eq!(workflow.tasks[1].id, "generate_page");

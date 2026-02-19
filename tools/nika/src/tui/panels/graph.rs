@@ -71,22 +71,26 @@ impl<'a> GraphPanel<'a> {
     /// Render DAG statistics header
     fn render_stats(&self, area: Rect, buf: &mut Buffer) {
         let total = self.state.tasks.len();
-        let completed = self.state
+        let completed = self
+            .state
             .tasks
             .values()
             .filter(|t| t.status == TaskStatus::Success)
             .count();
-        let failed = self.state
+        let failed = self
+            .state
             .tasks
             .values()
             .filter(|t| t.status == TaskStatus::Failed)
             .count();
-        let running = self.state
+        let running = self
+            .state
             .tasks
             .values()
             .filter(|t| t.status == TaskStatus::Running)
             .count();
-        let pending = self.state
+        let pending = self
+            .state
             .tasks
             .values()
             .filter(|t| t.status == TaskStatus::Pending)
@@ -96,7 +100,10 @@ impl<'a> GraphPanel<'a> {
         let stats_line = Line::from(vec![
             Span::styled("  ", Style::default()),
             Span::styled("●", Style::default().fg(Color::Rgb(34, 197, 94))),
-            Span::styled(format!(" {} ", completed), Style::default().fg(Color::White)),
+            Span::styled(
+                format!(" {} ", completed),
+                Style::default().fg(Color::White),
+            ),
             Span::styled("○", Style::default().fg(Color::Rgb(107, 114, 128))),
             Span::styled(format!(" {} ", pending), Style::default().fg(Color::White)),
             Span::styled("◉", Style::default().fg(Color::Rgb(245, 158, 11))),
@@ -118,7 +125,12 @@ impl<'a> GraphPanel<'a> {
         let nodes = self.build_dag_nodes();
 
         // Get scroll offset for this panel
-        let scroll = self.state.scroll.get(&crate::tui::state::PanelId::Dag).copied().unwrap_or(0);
+        let scroll = self
+            .state
+            .scroll
+            .get(&crate::tui::state::PanelId::Dag)
+            .copied()
+            .unwrap_or(0);
 
         // Apply scroll to nodes (skip first N)
         let visible_nodes: Vec<DagNode> = nodes.into_iter().skip(scroll).collect();
@@ -167,9 +179,9 @@ impl Widget for GraphPanel<'_> {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(1),  // Stats
-                Constraint::Min(2),     // DAG
-                Constraint::Length(1),  // Legend
+                Constraint::Length(1), // Stats
+                Constraint::Min(2),    // DAG
+                Constraint::Length(1), // Legend
             ])
             .split(inner);
 

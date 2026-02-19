@@ -183,7 +183,8 @@ impl<'de> Visitor<'de> for UseEntryVisitor {
     type Value = UseEntry;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a string 'task.path [?? default]' or an object {path, lazy?, default?}")
+        formatter
+            .write_str("a string 'task.path [?? default]' or an object {path, lazy?, default?}")
     }
 
     /// Handle string format: "task.path [?? default]" (eager)

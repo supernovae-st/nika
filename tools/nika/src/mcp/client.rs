@@ -179,9 +179,12 @@ impl McpClient {
             return Ok(());
         }
 
-        let adapter = self.adapter.as_ref().ok_or_else(|| NikaError::McpNotConnected {
-            name: self.name.clone(),
-        })?;
+        let adapter = self
+            .adapter
+            .as_ref()
+            .ok_or_else(|| NikaError::McpNotConnected {
+                name: self.name.clone(),
+            })?;
 
         adapter.connect().await?;
         self.connected.store(true, Ordering::SeqCst);
@@ -229,9 +232,12 @@ impl McpClient {
             return Ok(());
         }
 
-        let adapter = self.adapter.as_ref().ok_or_else(|| NikaError::McpNotConnected {
-            name: self.name.clone(),
-        })?;
+        let adapter = self
+            .adapter
+            .as_ref()
+            .ok_or_else(|| NikaError::McpNotConnected {
+                name: self.name.clone(),
+            })?;
 
         adapter.reconnect().await?;
         self.connected.store(true, Ordering::SeqCst);
@@ -282,9 +288,12 @@ impl McpClient {
         }
 
         // Real mode: use rmcp adapter with retry logic
-        let adapter = self.adapter.as_ref().ok_or_else(|| NikaError::McpNotConnected {
-            name: self.name.clone(),
-        })?;
+        let adapter = self
+            .adapter
+            .as_ref()
+            .ok_or_else(|| NikaError::McpNotConnected {
+                name: self.name.clone(),
+            })?;
 
         let max_retries = 3;
         let mut last_error: Option<NikaError> = None;
@@ -355,9 +364,12 @@ impl McpClient {
         }
 
         // Real mode: use rmcp adapter with retry logic
-        let adapter = self.adapter.as_ref().ok_or_else(|| NikaError::McpNotConnected {
-            name: self.name.clone(),
-        })?;
+        let adapter = self
+            .adapter
+            .as_ref()
+            .ok_or_else(|| NikaError::McpNotConnected {
+                name: self.name.clone(),
+            })?;
 
         let max_retries = 3;
         let mut last_error: Option<NikaError> = None;
@@ -431,9 +443,12 @@ impl McpClient {
         }
 
         // Real mode: use rmcp adapter
-        let adapter = self.adapter.as_ref().ok_or_else(|| NikaError::McpNotConnected {
-            name: self.name.clone(),
-        })?;
+        let adapter = self
+            .adapter
+            .as_ref()
+            .ok_or_else(|| NikaError::McpNotConnected {
+                name: self.name.clone(),
+            })?;
 
         adapter.list_tools().await
     }

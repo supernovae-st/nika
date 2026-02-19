@@ -255,7 +255,10 @@ mod tests {
         std::env::set_var("ANTHROPIC_API_KEY", "test-key-for-unit-test");
         let provider = RigProvider::claude();
 
-        assert_eq!(provider.default_model(), anthropic::completion::CLAUDE_3_5_SONNET);
+        assert_eq!(
+            provider.default_model(),
+            anthropic::completion::CLAUDE_3_5_SONNET
+        );
     }
 
     #[test]
@@ -403,12 +406,17 @@ mod tests {
             "locale": "fr-FR",
             "mode": "page",
             "forms": ["text", "title", "abbrev"]
-        }).to_string();
+        })
+        .to_string();
 
         let result = tool.call(args).await;
 
         // Then: Should succeed with mock response
-        assert!(result.is_ok(), "novanet_generate should succeed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "novanet_generate should succeed: {:?}",
+            result
+        );
         let output = result.unwrap();
         assert!(!output.is_empty(), "Should return generation context");
     }
@@ -443,7 +451,8 @@ mod tests {
         // When: Describing schema overview
         let args = serde_json::json!({
             "describe": "schema"
-        }).to_string();
+        })
+        .to_string();
 
         let result = tool.call(args).await;
         assert!(result.is_ok(), "novanet_describe should succeed");
@@ -481,7 +490,8 @@ mod tests {
             "max_depth": 2,
             "direction": "outgoing",
             "arc_families": ["ownership", "localization"]
-        }).to_string();
+        })
+        .to_string();
 
         let result = tool.call(args).await;
         assert!(result.is_ok(), "novanet_traverse should succeed");
@@ -519,7 +529,8 @@ mod tests {
             "mode": "hybrid",
             "kinds": ["Entity", "Page"],
             "limit": 5
-        }).to_string();
+        })
+        .to_string();
 
         let result = tool.call(args).await;
         assert!(result.is_ok(), "novanet_search should succeed");
@@ -557,7 +568,8 @@ mod tests {
             "locale": "fr-FR",
             "atom_type": "term",
             "domain": "qr-code"
-        }).to_string();
+        })
+        .to_string();
 
         let result = tool.call(args).await;
         assert!(result.is_ok(), "novanet_atoms should succeed");
@@ -597,7 +609,8 @@ mod tests {
             "locale": "es-MX",
             "token_budget": 3000,
             "strategy": "relevance"
-        }).to_string();
+        })
+        .to_string();
 
         let result = tool.call(args).await;
         assert!(result.is_ok(), "novanet_assemble should succeed");
@@ -630,7 +643,8 @@ mod tests {
         let err_str = err.to_string();
         assert!(
             err_str.contains("No MCP client") || err_str.contains("NotConnected"),
-            "Error should mention missing client: {}", err_str
+            "Error should mention missing client: {}",
+            err_str
         );
     }
 
@@ -659,7 +673,8 @@ mod tests {
         let err_str = err.to_string();
         assert!(
             err_str.contains("Invalid JSON") || err_str.contains("JSON"),
-            "Error should mention JSON parsing: {}", err_str
+            "Error should mention JSON parsing: {}",
+            err_str
         );
     }
 
@@ -811,7 +826,8 @@ mod tests {
                 "focus_key": "qr-code",
                 "locale": locale,
                 "forms": ["text", "title"]
-            }).to_string();
+            })
+            .to_string();
 
             let result = tool.call(args).await;
             results.push((locale, result.is_ok()));

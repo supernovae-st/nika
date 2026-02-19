@@ -392,8 +392,12 @@ mod tests {
         // JSON with various Unicode characters
         let json_str = r#"{"greeting": "你好世界", "emoji": "🚀✨", "japanese": "こんにちは"}"#;
 
-        let result =
-            make_task_result(json_str.to_string(), Some(&policy), Duration::from_millis(50)).await;
+        let result = make_task_result(
+            json_str.to_string(),
+            Some(&policy),
+            Duration::from_millis(50),
+        )
+        .await;
 
         assert!(result.is_success());
         assert_eq!(result.output["greeting"], "你好世界");

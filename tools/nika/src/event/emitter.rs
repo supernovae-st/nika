@@ -48,6 +48,9 @@ mod tests {
     use serde_json::json;
     use std::sync::Arc;
 
+    /// Use actual package version in tests to avoid version drift
+    const TEST_VERSION: &str = env!("CARGO_PKG_VERSION");
+
     // ═══════════════════════════════════════════════════════════════
     // EventEmitter trait tests
     // ═══════════════════════════════════════════════════════════════
@@ -72,7 +75,7 @@ mod tests {
             task_count: 1,
             generation_id: "test".to_string(),
             workflow_hash: "hash".to_string(),
-            nika_version: "0.3.0".to_string(),
+            nika_version: TEST_VERSION.to_string(),
         });
         assert_eq!(id, 0); // First event
     }
@@ -104,7 +107,7 @@ mod tests {
             task_count: 2,
             generation_id: "gen1".to_string(),
             workflow_hash: "hash1".to_string(),
-            nika_version: "0.3.0".to_string(),
+            nika_version: TEST_VERSION.to_string(),
         });
         let id2 = emitter.emit(EventKind::TaskStarted {
             task_id: Arc::from("task1"),
@@ -133,7 +136,7 @@ mod tests {
             task_count: 5,
             generation_id: "gen".to_string(),
             workflow_hash: "hash".to_string(),
-            nika_version: "0.3.0".to_string(),
+            nika_version: TEST_VERSION.to_string(),
         });
         let id2 = noop.emit(EventKind::TaskStarted {
             task_id: Arc::from("task"),
@@ -158,12 +161,15 @@ mod tests {
     #[test]
     fn noop_emitter_is_default() {
         let noop = NoopEmitter;
-        assert_eq!(noop.emit(EventKind::WorkflowStarted {
-            task_count: 1,
-            generation_id: "".to_string(),
-            workflow_hash: "".to_string(),
-            nika_version: "".to_string(),
-        }), 0);
+        assert_eq!(
+            noop.emit(EventKind::WorkflowStarted {
+                task_count: 1,
+                generation_id: "".to_string(),
+                workflow_hash: "".to_string(),
+                nika_version: TEST_VERSION.to_string(),
+            }),
+            0
+        );
     }
 
     #[test]
@@ -181,7 +187,7 @@ mod tests {
             task_count,
             generation_id: "test-gen".to_string(),
             workflow_hash: "test-hash".to_string(),
-            nika_version: "0.3.0".to_string(),
+            nika_version: TEST_VERSION.to_string(),
         })
     }
 

@@ -17,8 +17,8 @@ use serde_json::json;
 
 mod template_fuzzing {
     use super::*;
-    use nika::binding::ResolvedBindings;
     use nika::binding::template_resolve;
+    use nika::binding::ResolvedBindings;
     use std::borrow::Cow;
 
     prop_compose! {

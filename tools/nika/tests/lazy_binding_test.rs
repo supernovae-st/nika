@@ -136,10 +136,7 @@ fn test_lazy_binding_with_path() {
     let store = DataStore::new();
 
     let mut wiring = WiringSpec::default();
-    wiring.insert(
-        "nested".to_string(),
-        UseEntry::new_lazy("task1.data.value"),
-    );
+    wiring.insert("nested".to_string(), UseEntry::new_lazy("task1.data.value"));
 
     let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
 

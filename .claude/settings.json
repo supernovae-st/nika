@@ -32,6 +32,17 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "pattern": "\\.nika\\.yaml$|examples/.*\\.yaml$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/yaml-validate.sh",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "PreToolUse": [

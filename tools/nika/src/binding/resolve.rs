@@ -93,7 +93,9 @@ impl ResolvedBindings {
             } else {
                 // Eager binding - resolve immediately
                 let value = resolve_entry(entry, alias, datastore)?;
-                bindings.bindings.insert(alias.clone(), LazyBinding::Resolved(value));
+                bindings
+                    .bindings
+                    .insert(alias.clone(), LazyBinding::Resolved(value));
             }
         }
 
@@ -102,7 +104,8 @@ impl ResolvedBindings {
 
     /// Set a resolved value (always eager)
     pub fn set(&mut self, alias: impl Into<String>, value: Value) {
-        self.bindings.insert(alias.into(), LazyBinding::Resolved(value));
+        self.bindings
+            .insert(alias.into(), LazyBinding::Resolved(value));
     }
 
     /// Get a resolved value (only works for already-resolved bindings)

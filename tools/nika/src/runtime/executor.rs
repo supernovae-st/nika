@@ -16,13 +16,13 @@ use crate::ast::{
     decompose::{DecomposeSpec, DecomposeStrategy},
     AgentParams, ExecParams, FetchParams, InferParams, InvokeParams, McpConfigInline, TaskAction,
 };
-use crate::binding::{ResolvedBindings, template_resolve};
+use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 use crate::mcp::{McpClient, McpConfig};
-use crate::store::DataStore;
 use crate::provider::rig::RigProvider;
 use crate::runtime::RigAgentLoop;
+use crate::store::DataStore;
 use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
 
 /// Task executor with cached providers, shared HTTP client, and event logging
@@ -102,17 +102,14 @@ impl TaskExecutor {
     ) -> Result<Vec<serde_json::Value>, NikaError> {
         match spec.strategy {
             DecomposeStrategy::Semantic => {
-                self.expand_decompose_semantic(spec, bindings, datastore).await
+                self.expand_decompose_semantic(spec, bindings, datastore)
+                    .await
             }
-            DecomposeStrategy::Static => {
-                self.expand_decompose_static(spec, bindings, datastore)
-            }
-            DecomposeStrategy::Nested => {
-                Err(NikaError::NotImplemented {
-                    feature: "decompose: nested strategy".to_string(),
-                    suggestion: "Use semantic strategy with max_items for now".to_string(),
-                })
-            }
+            DecomposeStrategy::Static => self.expand_decompose_static(spec, bindings, datastore),
+            DecomposeStrategy::Nested => Err(NikaError::NotImplemented {
+                feature: "decompose: nested strategy".to_string(),
+                suggestion: "Use semantic strategy with max_items for now".to_string(),
+            }),
         }
     }
 
@@ -149,12 +146,11 @@ impl TaskExecutor {
         let result = client.call_tool("novanet_traverse", params).await?;
 
         // Parse JSON from result content
-        let result_json: Value = serde_json::from_str(&result.text()).map_err(|e| {
-            NikaError::McpInvalidResponse {
+        let result_json: Value =
+            serde_json::from_str(&result.text()).map_err(|e| NikaError::McpInvalidResponse {
                 tool: "novanet_traverse".to_string(),
                 reason: format!("failed to parse JSON response: {}", e),
-            }
-        })?;
+            })?;
 
         // Extract nodes from result
         let mut items = self.extract_decompose_nodes(&result_json)?;
@@ -220,9 +216,11 @@ impl TaskExecutor {
         } else if let Some(alias) = source.strip_prefix('$') {
             if alias.contains('.') {
                 // Path syntax: $task.field
-                datastore.resolve_path(alias).ok_or_else(|| NikaError::BindingNotFound {
-                    alias: alias.to_string(),
-                })
+                datastore
+                    .resolve_path(alias)
+                    .ok_or_else(|| NikaError::BindingNotFound {
+                        alias: alias.to_string(),
+                    })
             } else {
                 // Simple alias
                 bindings
@@ -260,7 +258,10 @@ impl TaskExecutor {
     }
 
     /// Extract nodes array from novanet_traverse result
-    fn extract_decompose_nodes(&self, result: &serde_json::Value) -> Result<Vec<serde_json::Value>, NikaError> {
+    fn extract_decompose_nodes(
+        &self,
+        result: &serde_json::Value,
+    ) -> Result<Vec<serde_json::Value>, NikaError> {
         if let Some(nodes) = result.get("nodes").and_then(|v| v.as_array()) {
             return Ok(nodes.clone());
         }
@@ -358,16 +359,15 @@ impl TaskExecutor {
         let provider = self.get_rig_provider(provider_name)?;
 
         // Resolve model: task override -> workflow default -> provider default
-        let model = infer
-            .model
-            .as_deref()
-            .or(self.default_model.as_deref());
+        let model = infer.model.as_deref().or(self.default_model.as_deref());
 
         // EMIT: ProviderCalled
         self.event_log.emit(EventKind::ProviderCalled {
             task_id: Arc::clone(task_id),
             provider: provider_name.to_string(),
-            model: model.unwrap_or_else(|| provider.default_model()).to_string(),
+            model: model
+                .unwrap_or_else(|| provider.default_model())
+                .to_string(),
             prompt_len: prompt.len(),
         });
 

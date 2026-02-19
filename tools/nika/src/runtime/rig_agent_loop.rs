@@ -164,11 +164,11 @@ impl RigAgentLoop {
         let mut tools: Vec<Box<dyn rig::tool::ToolDyn>> = Vec::new();
 
         for mcp_name in mcp_names {
-            let client = mcp_clients.get(mcp_name).ok_or_else(|| {
-                NikaError::McpNotConnected {
+            let client = mcp_clients
+                .get(mcp_name)
+                .ok_or_else(|| NikaError::McpNotConnected {
                     name: mcp_name.clone(),
-                }
-            })?;
+                })?;
 
             // Get tool definitions from MCP client
             // For now, we'll get mock tools if client is in mock mode
@@ -179,7 +179,10 @@ impl RigAgentLoop {
                     NikaMcpToolDef {
                         name: def.name.clone(),
                         description: def.description.clone().unwrap_or_default(),
-                        input_schema: def.input_schema.clone().unwrap_or_else(|| serde_json::json!({"type": "object"})),
+                        input_schema: def
+                            .input_schema
+                            .clone()
+                            .unwrap_or_else(|| serde_json::json!({"type": "object"})),
                     },
                     client.clone(),
                 );
@@ -405,12 +408,14 @@ impl RigAgentLoop {
         });
 
         // Execute streaming request
-        let mut stream = model.stream(request).await.map_err(|e| {
-            NikaError::AgentExecutionError {
-                task_id: self.task_id.clone(),
-                reason: format!("Streaming request failed: {}", e),
-            }
-        })?;
+        let mut stream =
+            model
+                .stream(request)
+                .await
+                .map_err(|e| NikaError::AgentExecutionError {
+                    task_id: self.task_id.clone(),
+                    reason: format!("Streaming request failed: {}", e),
+                })?;
 
         // Accumulate thinking, response, and token usage
         let mut thinking_parts: Vec<String> = Vec::new();
@@ -541,12 +546,7 @@ mod tests {
         let event_log = EventLog::new();
         let mcp_clients = FxHashMap::default();
 
-        let agent = RigAgentLoop::new(
-            "test".to_string(),
-            params,
-            event_log,
-            mcp_clients,
-        ).unwrap();
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
 
         assert!(agent.check_stop_conditions("Task is DONE"));
         assert!(agent.check_stop_conditions("COMPLETE!"));
@@ -568,14 +568,12 @@ mod tests {
         let event_log = EventLog::new();
         let mcp_clients = FxHashMap::default();
 
-        let agent = RigAgentLoop::new(
-            "thinking-test".to_string(),
-            params,
-            event_log,
-            mcp_clients,
-        );
+        let agent = RigAgentLoop::new("thinking-test".to_string(), params, event_log, mcp_clients);
 
-        assert!(agent.is_ok(), "Agent with extended_thinking should be created");
+        assert!(
+            agent.is_ok(),
+            "Agent with extended_thinking should be created"
+        );
     }
 
     #[test]
@@ -595,7 +593,10 @@ mod tests {
             mcp_clients,
         );
 
-        assert!(agent.is_ok(), "Agent with extended_thinking: false should be created");
+        assert!(
+            agent.is_ok(),
+            "Agent with extended_thinking: false should be created"
+        );
     }
 
     #[test]
@@ -608,14 +609,12 @@ mod tests {
         let event_log = EventLog::new();
         let mcp_clients = FxHashMap::default();
 
-        let agent = RigAgentLoop::new(
-            "default-test".to_string(),
-            params,
-            event_log,
-            mcp_clients,
-        );
+        let agent = RigAgentLoop::new("default-test".to_string(), params, event_log, mcp_clients);
 
-        assert!(agent.is_ok(), "Agent with extended_thinking: None should be created");
+        assert!(
+            agent.is_ok(),
+            "Agent with extended_thinking: None should be created"
+        );
     }
 
     #[test]
@@ -637,6 +636,9 @@ mod tests {
             mcp_clients,
         );
 
-        assert!(agent.is_ok(), "Agent with system prompt and thinking should be created");
+        assert!(
+            agent.is_ok(),
+            "Agent with system prompt and thinking should be created"
+        );
     }
 }
