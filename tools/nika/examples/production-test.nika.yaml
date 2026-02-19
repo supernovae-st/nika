@@ -30,6 +30,7 @@ tasks:
         Provide a brief analysis.
       model: gpt-4o-mini
       max_turns: 1
+      # spawn_agent now has OpenAI-compatible schema (all props required, nullable types)
     output:
       format: text
 

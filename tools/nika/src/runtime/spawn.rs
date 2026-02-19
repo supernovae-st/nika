@@ -142,33 +142,30 @@ impl SpawnAgentTool {
     }
 
     /// Get the JSON Schema definition for this tool
+    ///
+    /// Note: OpenAI's strict mode requires ALL properties in `required` and
+    /// `additionalProperties: false`. We keep the schema simple with only
+    /// required fields - context and max_turns use sensible defaults.
     pub fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "spawn_agent".to_string(),
             description: "Spawn a sub-agent to handle a delegated subtask. The child agent \
-                         runs independently and returns its result when complete."
+                         runs independently with max 10 turns and returns its result."
                 .to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "task_id": {
                         "type": "string",
-                        "description": "Unique identifier for the child task"
+                        "description": "Unique identifier for the child task (e.g., 'subtask-1')"
                     },
                     "prompt": {
                         "type": "string",
-                        "description": "Goal/prompt for the child agent"
-                    },
-                    "context": {
-                        "type": "object",
-                        "description": "Optional context data to pass to child"
-                    },
-                    "max_turns": {
-                        "type": "integer",
-                        "description": "Optional max turns override (default: 10)"
+                        "description": "Goal/prompt describing what the child agent should accomplish"
                     }
                 },
-                "required": ["task_id", "prompt"]
+                "required": ["task_id", "prompt"],
+                "additionalProperties": false
             }),
         }
     }
@@ -306,32 +303,27 @@ impl ToolDyn for SpawnAgentTool {
     }
 
     fn definition(&self, _prompt: String) -> BoxFuture<'_, ToolDefinition> {
+        // Note: OpenAI's strict mode requires ALL properties in `required` and
+        // `additionalProperties: false`. Keep schema simple with only required fields.
         let def = ToolDefinition {
             name: "spawn_agent".to_string(),
             description: "Spawn a sub-agent to handle a delegated subtask. The child agent \
-                         runs independently and returns its result when complete."
+                         runs independently with max 10 turns and returns its result."
                 .to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "task_id": {
                         "type": "string",
-                        "description": "Unique identifier for the child task"
+                        "description": "Unique identifier for the child task (e.g., 'subtask-1')"
                     },
                     "prompt": {
                         "type": "string",
-                        "description": "Goal/prompt for the child agent"
-                    },
-                    "context": {
-                        "type": "object",
-                        "description": "Optional context data to pass to child"
-                    },
-                    "max_turns": {
-                        "type": "integer",
-                        "description": "Optional max turns override (default: 10)"
+                        "description": "Goal/prompt describing what the child agent should accomplish"
                     }
                 },
-                "required": ["task_id", "prompt"]
+                "required": ["task_id", "prompt"],
+                "additionalProperties": false
             }),
         };
         Box::pin(async move { def })
@@ -481,8 +473,18 @@ mod tests {
             .and_then(|v| v.as_array())
             .expect("required should be an array");
 
+        // OpenAI strict mode: all properties in required + additionalProperties: false
+        // We keep schema simple with only task_id and prompt (context/max_turns use defaults)
         assert!(required.iter().any(|v| v == "task_id"));
         assert!(required.iter().any(|v| v == "prompt"));
+        assert_eq!(required.len(), 2);
+
+        // Check additionalProperties is false (required for OpenAI strict mode)
+        let additional = def
+            .parameters
+            .get("additionalProperties")
+            .expect("additionalProperties should exist");
+        assert_eq!(additional, false);
     }
 
     // =========================================================================

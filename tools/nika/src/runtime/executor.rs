@@ -651,6 +651,12 @@ impl TaskExecutor {
             .clone()
             .unwrap_or_else(|| self.default_provider.to_string());
 
+        // Ensure resolved_agent has the provider set for run_auto() dispatch
+        let resolved_agent = AgentParams {
+            provider: Some(provider_name.clone()),
+            ..resolved_agent
+        };
+
         // Build MCP client map for this agent
         let mut mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
         for mcp_name in &resolved_agent.mcp {
@@ -669,13 +675,14 @@ impl TaskExecutor {
         let start = std::time::Instant::now();
 
         // Run agent with appropriate provider
-        // mock provider uses run_mock(), real providers use run_claude()
+        // mock provider uses run_mock(), real providers use run_auto() which dispatches
+        // based on AgentParams.provider (claude/openai)
         let result = if provider_name.as_str() == "mock" {
             agent_loop.run_mock().await?
         } else {
-            // Use rig-core for Claude (default) and OpenAI
-            // Note: OpenAI support via run_openai() can be added in the future
-            agent_loop.run_claude().await?
+            // Use run_auto() which dispatches to run_claude() or run_openai()
+            // based on the provider field we just set
+            agent_loop.run_auto().await?
         };
 
         let duration_ms = start.elapsed().as_millis() as u64;
