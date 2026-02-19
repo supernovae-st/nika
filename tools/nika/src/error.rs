@@ -14,6 +14,7 @@
 //! - NIKA-100-109: MCP errors (v0.2)
 //! - NIKA-110-119: Agent errors (v0.2)
 //! - NIKA-120-129: Resilience errors (v0.2)
+//! - NIKA-130-139: TUI errors (v0.2)
 
 use thiserror::Error;
 
@@ -251,6 +252,12 @@ pub enum NikaError {
 
     #[error("[NIKA-125] MCP tool call '{tool}' failed: {reason}")]
     McpToolCallFailed { tool: String, reason: String },
+
+    // ═══════════════════════════════════════════
+    // TUI ERRORS (130-139) - NEW v0.2
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-130] TUI error: {reason}")]
+    TuiError { reason: String },
 }
 
 impl NikaError {
@@ -325,6 +332,8 @@ impl NikaError {
             Self::CircuitBreakerOpen { .. } => "NIKA-123",
             Self::RateLimitExceeded { .. } => "NIKA-124",
             Self::McpToolCallFailed { .. } => "NIKA-125",
+            // TUI errors
+            Self::TuiError { .. } => "NIKA-130",
         }
     }
 
@@ -458,6 +467,8 @@ impl FixSuggestion for NikaError {
             NikaError::McpToolCallFailed { .. } => {
                 Some("Check MCP tool parameters and server logs")
             }
+            // TUI errors
+            NikaError::TuiError { .. } => Some("Check terminal compatibility and size"),
         }
     }
 }

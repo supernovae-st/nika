@@ -25,10 +25,20 @@ mod event;
 #[cfg(feature = "tui")]
 mod panels;
 #[cfg(feature = "tui")]
+mod state;
+#[cfg(feature = "tui")]
+mod theme;
+#[cfg(feature = "tui")]
 mod ui;
+#[cfg(feature = "tui")]
+mod widgets;
 
 #[cfg(feature = "tui")]
 pub use app::App;
+#[cfg(feature = "tui")]
+pub use state::{PanelId, TuiMode, TuiState};
+#[cfg(feature = "tui")]
+pub use theme::{MissionPhase, TaskStatus, Theme};
 
 /// Run the TUI for a workflow
 #[cfg(feature = "tui")]

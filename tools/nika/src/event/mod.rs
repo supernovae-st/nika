@@ -15,7 +15,7 @@ mod trace;
 
 // Re-export all public types
 pub use emitter::{EventEmitter, NoopEmitter};
-pub use log::{Event, EventKind, EventLog};
+pub use log::{ContextSource, Event, EventKind, EventLog, ExcludedItem};
 pub use trace::{
     calculate_workflow_hash, generate_generation_id, list_traces, TraceInfo, TraceWriter,
 };
