@@ -6,7 +6,7 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg?logo=rust)](https://www.rust-lang.org/)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.3.0-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.4.0-green.svg)](CHANGELOG.md)
 
 *DAG workflow runner for AI tasks*
 
@@ -51,8 +51,8 @@ nika run hello.nika.yaml
 | **Data Flow** | `use:` blocks + `{{use.alias}}` templates |
 | **for_each** | Parallel iteration over arrays (v0.3) |
 | **MCP Integration** | Connect to MCP servers for tool calling (v0.2) |
-| **Providers** | Claude, OpenAI, Mock |
-| **Resilience** | Retry, circuit breaker, rate limiting (v0.2) |
+| **Providers** | rig-core (Claude, OpenAI, 20+) via `RigProvider` (v0.4) |
+| **TUI** | Real-time workflow visualization (v0.3) |
 
 ## Example
 
@@ -198,7 +198,9 @@ tasks:
         locale: "{{use.locale}}"
 ```
 
-## Providers
+## Providers (v0.4 — rig-core)
+
+Nika uses [rig-core](https://github.com/0xPlaygrounds/rig) for LLM providers. All providers are accessed via `RigProvider`.
 
 | Provider | Env Variable | Models |
 |----------|--------------|--------|
@@ -206,11 +208,16 @@ tasks:
 | `openai` | `OPENAI_API_KEY` | gpt-4o, gpt-4o-mini |
 | `mock` | - | (testing) |
 
+See [rig-core docs](https://docs.rs/rig-core) for 20+ additional providers.
+
 ## Commands
 
 ```bash
 nika run <workflow.yaml>      # Execute workflow
 nika validate <workflow.yaml> # Validate only
+nika tui <workflow.yaml>      # Interactive TUI (v0.3)
+nika trace list               # List traces
+nika trace show <id>          # Show trace details
 ```
 
 ## Tutorial
