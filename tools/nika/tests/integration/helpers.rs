@@ -1,5 +1,8 @@
 //! Integration test helpers for testing against real MCP servers.
 //!
+// Allow dead_code because these helpers are used by #[ignore] tests only
+#![allow(dead_code)]
+//!
 //! These tests require:
 //! - NovaNet MCP server binary at NOVANET_MCP_PATH or default location
 //! - Neo4j running at localhost:7687 with novanetpassword

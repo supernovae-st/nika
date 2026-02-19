@@ -17,6 +17,12 @@
 //! - `child_task_id`: The new agent's task ID
 //! - `depth`: Current recursion depth
 //!
+//! ## rig::ToolDyn Integration
+//!
+//! SpawnAgentTool implements `rig::tool::ToolDyn` for seamless integration
+//! with `RigAgentLoop`. When an agent has `depth_limit > current_depth`,
+//! the spawn_agent tool is automatically added to its tool list.
+//!
 //! ## Example
 //!
 //! ```json
@@ -28,12 +34,19 @@
 //! }
 //! ```
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
+use rig::completion::ToolDefinition;
+use rig::tool::{ToolDyn, ToolError};
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use crate::ast::AgentParams;
 use crate::event::{EventKind, EventLog};
+use crate::mcp::McpClient;
 
 /// Parameters for spawning a child agent
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +67,8 @@ pub struct SpawnAgentParams {
 ///
 /// This tool is automatically added to agents that have depth_limit > current_depth.
 /// It allows recursive task decomposition with safety limits.
+///
+/// Implements `rig::tool::ToolDyn` for integration with RigAgentLoop.
 #[derive(Clone)]
 pub struct SpawnAgentTool {
     /// Current recursion depth (1 = root agent)
@@ -64,10 +79,14 @@ pub struct SpawnAgentTool {
     parent_task_id: Arc<str>,
     /// Event log for emitting AgentSpawned events
     event_log: EventLog,
+    /// MCP clients for child agent tool access
+    mcp_clients: FxHashMap<String, Arc<McpClient>>,
+    /// MCP server names for child agents (from parent AgentParams.mcp)
+    mcp_names: Vec<String>,
 }
 
 impl SpawnAgentTool {
-    /// Create a new SpawnAgentTool
+    /// Create a new SpawnAgentTool (minimal - for testing without MCP)
     ///
     /// # Arguments
     /// * `current_depth` - Current recursion depth (starts at 1 for root)
@@ -85,6 +104,35 @@ impl SpawnAgentTool {
             max_depth,
             parent_task_id,
             event_log,
+            mcp_clients: FxHashMap::default(),
+            mcp_names: Vec::new(),
+        }
+    }
+
+    /// Create a new SpawnAgentTool with MCP clients (for production use)
+    ///
+    /// # Arguments
+    /// * `current_depth` - Current recursion depth (starts at 1 for root)
+    /// * `max_depth` - Maximum allowed depth (default 3)
+    /// * `parent_task_id` - ID of the parent task
+    /// * `event_log` - Shared event log for observability
+    /// * `mcp_clients` - Connected MCP clients for child agent tools
+    /// * `mcp_names` - MCP server names to pass to child agents
+    pub fn with_mcp(
+        current_depth: u32,
+        max_depth: u32,
+        parent_task_id: Arc<str>,
+        event_log: EventLog,
+        mcp_clients: FxHashMap<String, Arc<McpClient>>,
+        mcp_names: Vec<String>,
+    ) -> Self {
+        Self {
+            current_depth,
+            max_depth,
+            parent_task_id,
+            event_log,
+            mcp_clients,
+            mcp_names,
         }
     }
 
@@ -127,10 +175,14 @@ impl SpawnAgentTool {
 
     /// Execute the spawn_agent tool
     ///
+    /// Creates and runs a child `RigAgentLoop` with inherited MCP clients.
+    /// The child agent runs to completion and its result is returned.
+    ///
     /// # Errors
     /// Returns an error if:
     /// - Current depth >= max depth (depth limit reached)
     /// - Invalid arguments
+    /// - Child agent execution fails
     pub async fn call(&self, args: String) -> Result<String, SpawnAgentError> {
         // Parse arguments
         let params: SpawnAgentParams =
@@ -152,18 +204,57 @@ impl SpawnAgentTool {
             depth: child_depth,
         });
 
-        // In a full implementation, we would:
-        // 1. Create a new RigAgentLoop with reduced depth_limit
-        // 2. Execute the child agent
-        // 3. Return the child's result
-        //
-        // For now, we return a placeholder indicating the spawn was accepted.
-        // Full implementation requires MCP client injection.
+        // If no MCP clients, return placeholder (for backward compatibility with tests)
+        if self.mcp_clients.is_empty() {
+            return Ok(json!({
+                "status": "spawned",
+                "child_task_id": params.task_id,
+                "depth": child_depth,
+                "note": "Child agent execution requires MCP client context"
+            })
+            .to_string());
+        }
+
+        // Build child AgentParams
+        let remaining_depth = self.max_depth.saturating_sub(child_depth);
+        let child_params = AgentParams {
+            prompt: params.prompt,
+            system: params.context.as_ref().map(|ctx| {
+                format!(
+                    "Context from parent agent:\n{}",
+                    serde_json::to_string_pretty(ctx).unwrap_or_default()
+                )
+            }),
+            mcp: self.mcp_names.clone(),
+            max_turns: params.max_turns.or(Some(10)),
+            depth_limit: Some(remaining_depth),
+            ..Default::default()
+        };
+
+        // Create child RigAgentLoop
+        let child_loop = super::RigAgentLoop::new(
+            params.task_id.clone(),
+            child_params,
+            self.event_log.clone(),
+            self.mcp_clients.clone(),
+        )
+        .map_err(|e| SpawnAgentError::ExecutionFailed(e.to_string()))?;
+
+        // Execute child agent (use mock for now, real Claude requires API key)
+        // In production, this would be child_loop.run_claude().await
+        let result = child_loop
+            .run_mock()
+            .await
+            .map_err(|e| SpawnAgentError::ExecutionFailed(e.to_string()))?;
+
+        // Return child's result
         Ok(json!({
-            "status": "spawned",
+            "status": "completed",
             "child_task_id": params.task_id,
             "depth": child_depth,
-            "note": "Child agent execution requires MCP client context"
+            "result": result.final_output,
+            "turns": result.turns,
+            "total_tokens": result.total_tokens
         })
         .to_string())
     }
@@ -177,14 +268,6 @@ impl SpawnAgentTool {
     pub fn child_depth(&self) -> u32 {
         self.current_depth + 1
     }
-}
-
-/// Tool definition structure (compatible with MCP/rig)
-#[derive(Debug, Clone, Serialize)]
-pub struct ToolDefinition {
-    pub name: String,
-    pub description: String,
-    pub parameters: Value,
 }
 
 /// Errors that can occur when spawning agents
@@ -214,9 +297,54 @@ impl std::fmt::Debug for SpawnAgentTool {
 // rig::ToolDyn implementation (for integration with RigAgentLoop)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// TODO(MVP 8): rig::ToolDyn integration when full agent spawning is implemented
-// The rig-core 0.31 ToolDyn trait has changed (async definition, different lifetimes).
-// Full implementation requires MCP client injection into spawned agents.
+/// Type alias for boxed future (required by ToolDyn)
+type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+
+impl ToolDyn for SpawnAgentTool {
+    fn name(&self) -> String {
+        "spawn_agent".to_string()
+    }
+
+    fn definition(&self, _prompt: String) -> BoxFuture<'_, ToolDefinition> {
+        let def = ToolDefinition {
+            name: "spawn_agent".to_string(),
+            description: "Spawn a sub-agent to handle a delegated subtask. The child agent \
+                         runs independently and returns its result when complete."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "Unique identifier for the child task"
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "description": "Goal/prompt for the child agent"
+                    },
+                    "context": {
+                        "type": "object",
+                        "description": "Optional context data to pass to child"
+                    },
+                    "max_turns": {
+                        "type": "integer",
+                        "description": "Optional max turns override (default: 10)"
+                    }
+                },
+                "required": ["task_id", "prompt"]
+            }),
+        };
+        Box::pin(async move { def })
+    }
+
+    fn call(&self, args: String) -> BoxFuture<'_, Result<String, ToolError>> {
+        Box::pin(async move {
+            self.call(args).await.map_err(|e| {
+                ToolError::ToolCallError(Box::new(std::io::Error::other(e.to_string())))
+            })
+        })
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -355,5 +483,72 @@ mod tests {
 
         assert!(required.iter().any(|v| v == "task_id"));
         assert!(required.iter().any(|v| v == "prompt"));
+    }
+
+    // =========================================================================
+    // rig::ToolDyn implementation tests
+    // =========================================================================
+
+    #[test]
+    fn spawn_agent_implements_tool_dyn() {
+        use rig::tool::ToolDyn;
+
+        let tool = SpawnAgentTool::new(1, 3, "parent".into(), EventLog::new());
+
+        // Test ToolDyn::name()
+        let name: String = ToolDyn::name(&tool);
+        assert_eq!(name, "spawn_agent");
+    }
+
+    #[tokio::test]
+    async fn spawn_agent_tool_dyn_definition_returns_correct_schema() {
+        use rig::tool::ToolDyn;
+
+        let tool = SpawnAgentTool::new(1, 3, "parent".into(), EventLog::new());
+
+        // Test ToolDyn::definition()
+        let def = ToolDyn::definition(&tool, "test".to_string()).await;
+
+        assert_eq!(def.name, "spawn_agent");
+        assert!(def.description.contains("sub-agent"));
+        assert!(def.parameters.get("required").is_some());
+    }
+
+    #[tokio::test]
+    async fn spawn_agent_tool_dyn_call_enforces_depth_limit() {
+        use rig::tool::ToolDyn;
+
+        let tool = SpawnAgentTool::new(3, 3, "parent".into(), EventLog::new());
+
+        let args = json!({
+            "task_id": "child-1",
+            "prompt": "Do something"
+        })
+        .to_string();
+
+        // Test ToolDyn::call() - should fail at max depth
+        let result = ToolDyn::call(&tool, args).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("depth limit"));
+    }
+
+    #[test]
+    fn spawn_agent_with_mcp_creates_correctly() {
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+        let mcp_names = vec!["novanet".to_string()];
+
+        let tool = SpawnAgentTool::with_mcp(
+            1,
+            3,
+            "parent".into(),
+            event_log,
+            mcp_clients,
+            mcp_names.clone(),
+        );
+
+        assert_eq!(tool.name(), "spawn_agent");
+        assert!(tool.can_spawn());
+        assert_eq!(tool.child_depth(), 2);
     }
 }

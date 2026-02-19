@@ -145,7 +145,23 @@ impl RigAgentLoop {
         }
 
         // Build tools from MCP clients
-        let tools = Self::build_tools(&params.mcp, &mcp_clients)?;
+        let mut tools = Self::build_tools(&params.mcp, &mcp_clients)?;
+
+        // Add spawn_agent tool if depth_limit allows spawning (MVP 8 Phase 2)
+        // Default depth is 1 (root agent). Child agents get higher depths via spawn_agent.
+        let current_depth = 1_u32;
+        let max_depth = params.effective_depth_limit();
+        if current_depth < max_depth {
+            let spawn_tool = super::spawn::SpawnAgentTool::with_mcp(
+                current_depth,
+                max_depth,
+                Arc::from(task_id.as_str()),
+                event_log.clone(),
+                mcp_clients.clone(),
+                params.mcp.clone(),
+            );
+            tools.push(Box::new(spawn_tool));
+        }
 
         Ok(Self {
             task_id,
