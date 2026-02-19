@@ -2,6 +2,7 @@
 
 pub mod claude;
 pub mod openai;
+pub mod rig;
 mod types;
 
 pub use claude::ClaudeProvider;

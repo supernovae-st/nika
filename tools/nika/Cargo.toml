@@ -4,7 +4,7 @@ version = "0.3.0"
 edition = "2021"
 description = "DAG workflow runner for AI tasks with MCP integration"
 license = "AGPL-3.0-or-later"
-rust-version = "1.82"
+rust-version = "1.86"
 
 [[bin]]
 name = "nika"
@@ -20,7 +20,7 @@ integration = []  # Enable integration tests with real MCP servers
 clap = { version = "4.5", features = ["derive"] }
 
 # Async
-tokio = { version = "1.48", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs"] }
+tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs"] }
 async-trait = "0.1"
 
 # Serialization
@@ -57,9 +57,13 @@ rand = "0.8"
 # See docs/research/2026-02-19-mcp-rust-crates.md for crate comparison
 rmcp = { version = "0.16", features = ["client", "transport-child-process"] }
 
+# LLM Agent Framework - replaces custom provider implementation
+# Native rmcp integration via .rmcp_tools() method
+rig-core = { version = "0.31", features = ["rmcp"] }
+
 # TUI (feature-gated)
-ratatui = { version = "0.29", optional = true }
-crossterm = { version = "0.28", optional = true }
+ratatui = { version = "0.30", optional = true }
+crossterm = { version = "0.29", optional = true }
 
 # Logging
 tracing = "0.1"
