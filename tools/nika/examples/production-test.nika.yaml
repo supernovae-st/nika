@@ -1,0 +1,38 @@
+# Production Test Workflow
+#
+# Tests real OpenAI integration with Nika v0.5.
+# Run with: cargo run -- run examples/production-test.nika.yaml
+#
+schema: "nika/workflow@0.4"
+provider: openai
+
+tasks:
+  # Step 1: Simple infer test with OpenAI
+  - id: simple_infer
+    infer:
+      prompt: "In one sentence, what makes QR codes useful for marketing?"
+      model: gpt-4o-mini
+    output:
+      format: text
+
+  # Step 2: Agent test with tool calling
+  - id: agent_test
+    use:
+      context: simple_infer
+    agent:
+      prompt: |
+        You received this insight about QR codes: {{use.context}}
+
+        Now think about how this applies to:
+        1. Restaurant menus
+        2. Product packaging
+
+        Provide a brief analysis.
+      model: gpt-4o-mini
+      max_turns: 1
+    output:
+      format: text
+
+flows:
+  - source: simple_infer
+    target: agent_test
