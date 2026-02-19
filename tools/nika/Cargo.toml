@@ -53,9 +53,9 @@ xxhash-rust = { version = "0.8", features = ["xxh3"] }
 chrono = "0.4"
 rand = "0.8"
 
-# MCP - custom implementation in mcp/ module
+# MCP - Anthropic's official Rust SDK
 # See docs/research/2026-02-19-mcp-rust-crates.md for crate comparison
-# rmcp, rust-mcp-sdk, tower-mcp evaluated - custom impl chosen for control
+rmcp = { version = "0.16", features = ["client", "transport-child-process"] }
 
 # TUI (feature-gated)
 ratatui = { version = "0.29", optional = true }

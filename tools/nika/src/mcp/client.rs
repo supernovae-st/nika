@@ -1,7 +1,7 @@
-//! MCP Client Implementation (v0.2)
+//! MCP Client Implementation (v0.3)
 //!
 //! Provides a client for connecting to MCP (Model Context Protocol) servers.
-//! Supports both real server connections and mock mode for testing.
+//! Uses rmcp SDK for real connections, with mock mode for testing.
 //!
 //! ## Usage
 //!
@@ -29,59 +29,42 @@
 //! assert!(client.is_connected());
 //! ```
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use parking_lot::Mutex;
 use serde_json::Value;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::Child;
-use tokio::sync::Mutex as AsyncMutex;
 
 use crate::error::{NikaError, Result};
-use crate::mcp::protocol::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
-use crate::mcp::transport::McpTransport;
+use crate::mcp::rmcp_adapter::RmcpClientAdapter;
 use crate::mcp::types::{ContentBlock, McpConfig, ResourceContent, ToolCallResult, ToolDefinition};
-use crate::util::MCP_CALL_TIMEOUT;
 
 /// MCP Client for connecting to and interacting with MCP servers.
 ///
 /// The client can operate in two modes:
-/// - **Real mode**: Spawns an MCP server process and communicates via stdio
+/// - **Real mode**: Uses rmcp SDK via RmcpClientAdapter
 /// - **Mock mode**: Returns canned responses for testing
 pub struct McpClient {
     /// Server name (from config or mock)
     name: String,
 
-    /// Server configuration (None for mock clients)
-    config: Option<McpConfig>,
-
     /// Connection state (atomic for interior mutability)
+    /// For mock clients, this tracks mock state.
+    /// For real clients, rmcp adapter tracks actual connection.
     connected: AtomicBool,
 
     /// Whether this is a mock client
     is_mock: bool,
 
-    /// Child process for real MCP connection
-    process: Mutex<Option<Child>>,
-
-    /// Request ID counter for JSON-RPC
-    request_id: AtomicU64,
-
-    /// Async mutex to serialize request-response cycles
-    /// Required because stdio is shared and concurrent access races
-    io_lock: AsyncMutex<()>,
+    /// rmcp adapter for real connections (None for mock clients)
+    adapter: Option<RmcpClientAdapter>,
 }
 
-// Manual Debug impl since Child doesn't implement Debug well
 impl std::fmt::Debug for McpClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("McpClient")
             .field("name", &self.name)
-            .field("config", &self.config)
             .field("connected", &self.connected)
             .field("is_mock", &self.is_mock)
-            .field("process", &self.process.lock().is_some())
-            .field("request_id", &self.request_id)
+            .field("has_adapter", &self.adapter.is_some())
             .finish()
     }
 }
@@ -120,14 +103,14 @@ impl McpClient {
             });
         }
 
+        let name = config.name.clone();
+        let adapter = RmcpClientAdapter::new(config);
+
         Ok(Self {
-            name: config.name.clone(),
-            config: Some(config),
+            name,
             connected: AtomicBool::new(false),
             is_mock: false,
-            process: Mutex::new(None),
-            request_id: AtomicU64::new(1),
-            io_lock: AsyncMutex::new(()),
+            adapter: Some(adapter),
         })
     }
 
@@ -147,12 +130,9 @@ impl McpClient {
     pub fn mock(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            config: None,
             connected: AtomicBool::new(true), // Mock is pre-connected
             is_mock: true,
-            process: Mutex::new(None),
-            request_id: AtomicU64::new(1),
-            io_lock: AsyncMutex::new(()),
+            adapter: None,
         }
     }
 
@@ -163,13 +143,30 @@ impl McpClient {
 
     /// Check if the client is connected to the server.
     pub fn is_connected(&self) -> bool {
+        if self.is_mock {
+            return self.connected.load(Ordering::SeqCst);
+        }
+        // For real clients, check adapter state synchronously
+        // This is a best-effort check - use is_connected_async for accurate state
         self.connected.load(Ordering::SeqCst)
+    }
+
+    /// Check connection state asynchronously (accurate for real clients).
+    pub async fn is_connected_async(&self) -> bool {
+        if self.is_mock {
+            return self.connected.load(Ordering::SeqCst);
+        }
+        if let Some(adapter) = &self.adapter {
+            adapter.is_connected().await
+        } else {
+            false
+        }
     }
 
     /// Connect to the MCP server.
     ///
     /// For mock clients, this is a no-op that always succeeds.
-    /// For real clients, this spawns the server process and establishes communication.
+    /// For real clients, this uses rmcp SDK to connect.
     ///
     /// This method is idempotent - calling it when already connected succeeds.
     ///
@@ -177,252 +174,35 @@ impl McpClient {
     ///
     /// Returns `NikaError::McpStartError` if the server process fails to start.
     pub async fn connect(&self) -> Result<()> {
-        if self.is_connected() {
-            return Ok(());
-        }
-
         if self.is_mock {
             self.connected.store(true, Ordering::SeqCst);
             return Ok(());
         }
 
-        let config = self
-            .config
-            .as_ref()
-            .ok_or_else(|| NikaError::McpNotConnected {
-                name: self.name.clone(),
-            })?;
+        let adapter = self.adapter.as_ref().ok_or_else(|| NikaError::McpNotConnected {
+            name: self.name.clone(),
+        })?;
 
-        // Create transport from config
-        let args: Vec<&str> = config.args.iter().map(|s| s.as_str()).collect();
-        let mut transport = McpTransport::new(&config.command, &args);
-
-        // Add env vars
-        for (k, v) in &config.env {
-            transport = transport.with_env(k, v);
-        }
-
-        // Spawn process
-        let child = transport.spawn().await?;
-        *self.process.lock() = Some(child);
-
-        // Initialize MCP connection
-        self.initialize().await?;
-
+        adapter.connect().await?;
         self.connected.store(true, Ordering::SeqCst);
         Ok(())
-    }
-
-    /// Initialize MCP connection with handshake.
-    ///
-    /// MCP protocol requires:
-    /// 1. Client sends `initialize` request
-    /// 2. Server responds with capabilities
-    /// 3. Client sends `notifications/initialized` notification
-    /// 4. Now tool calls can be made
-    async fn initialize(&self) -> Result<()> {
-        // Step 1: Send initialize request
-        let req = JsonRpcRequest::new(
-            self.next_id(),
-            "initialize",
-            serde_json::json!({
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": { "name": "nika", "version": env!("CARGO_PKG_VERSION") }
-            }),
-        );
-
-        let response = self.send_request(&req).await?;
-        if !response.is_success() {
-            return Err(NikaError::McpStartError {
-                name: self.name.clone(),
-                reason: response
-                    .error
-                    .map(|e| e.message)
-                    .unwrap_or_else(|| "Unknown error".to_string()),
-            });
-        }
-
-        // Step 2: Send initialized notification (required by MCP protocol)
-        self.send_notification(&JsonRpcNotification::new("notifications/initialized"))
-            .await?;
-
-        Ok(())
-    }
-
-    /// Send a JSON-RPC notification (no response expected).
-    ///
-    /// Uses io_lock to prevent racing with send_request on shared stdio.
-    /// Uses RAII pattern to guarantee stdin is restored even on error or panic.
-    async fn send_notification(&self, notification: &JsonRpcNotification) -> Result<()> {
-        // Acquire io_lock to prevent racing with send_request
-        let _io_guard = self.io_lock.lock().await;
-
-        // Serialize notification
-        let json = serde_json::to_string(notification).map_err(|e| NikaError::McpToolError {
-            tool: notification.method.clone(),
-            reason: format!("Failed to serialize notification: {}", e),
-        })?;
-
-        // Write notification with guaranteed stdin restoration
-        self.write_to_stdin(&notification.method, json.as_bytes())
-            .await
-    }
-
-    /// Get next request ID.
-    fn next_id(&self) -> u64 {
-        self.request_id.fetch_add(1, Ordering::SeqCst)
-    }
-
-    /// Send a JSON-RPC request and read the response.
-    ///
-    /// Uses io_lock to serialize concurrent requests, preventing race conditions
-    /// when multiple for_each iterations access the same MCP client.
-    ///
-    /// # Safety
-    ///
-    /// Uses RAII pattern to guarantee stdin is restored even on error or panic.
-    async fn send_request(&self, request: &JsonRpcRequest) -> Result<JsonRpcResponse> {
-        // Serialize concurrent requests - only one request-response cycle at a time
-        let _io_guard = self.io_lock.lock().await;
-
-        // Serialize request
-        let json = serde_json::to_string(request).map_err(|e| NikaError::McpToolError {
-            tool: request.method.clone(),
-            reason: format!("Failed to serialize request: {}", e),
-        })?;
-
-        // Write request with guaranteed stdin restoration
-        self.write_to_stdin(&request.method, json.as_bytes())
-            .await?;
-
-        // Read response (still under io_lock to ensure request-response pairing)
-        self.read_response(&request.method).await
-    }
-
-    /// Write bytes to stdin with guaranteed restoration on any exit path.
-    ///
-    /// Uses scopeguard to ensure stdin is always put back, even on error or panic.
-    async fn write_to_stdin(&self, method: &str, data: &[u8]) -> Result<()> {
-        // Take stdin out of the process
-        let stdin = {
-            let mut guard = self.process.lock();
-            let process = guard.as_mut().ok_or_else(|| NikaError::McpNotConnected {
-                name: self.name.clone(),
-            })?;
-
-            process
-                .stdin
-                .take()
-                .ok_or_else(|| NikaError::McpToolError {
-                    tool: method.to_string(),
-                    reason: "stdin not available".to_string(),
-                })?
-        };
-
-        // Wrap in scopeguard for guaranteed restoration
-        let process_ref = &self.process;
-        let mut stdin_guard = scopeguard::guard(stdin, |stdin| {
-            // This runs on any exit: normal, error, or panic
-            if let Some(process) = process_ref.lock().as_mut() {
-                process.stdin = Some(stdin);
-            }
-        });
-
-        // Write data using the guarded stdin
-        stdin_guard
-            .write_all(data)
-            .await
-            .map_err(|e| NikaError::McpToolError {
-                tool: method.to_string(),
-                reason: format!("Failed to write: {}", e),
-            })?;
-        stdin_guard
-            .write_all(b"\n")
-            .await
-            .map_err(|e| NikaError::McpToolError {
-                tool: method.to_string(),
-                reason: format!("Failed to write newline: {}", e),
-            })?;
-        stdin_guard
-            .flush()
-            .await
-            .map_err(|e| NikaError::McpToolError {
-                tool: method.to_string(),
-                reason: format!("Failed to flush: {}", e),
-            })?;
-
-        // scopeguard restores stdin on drop (which happens here)
-        Ok(())
-    }
-
-    /// Read a JSON-RPC response from stdout.
-    ///
-    /// Guarantees stdout is restored even on error or panic.
-    async fn read_response(&self, method: &str) -> Result<JsonRpcResponse> {
-        // Take stdout out of the process
-        let stdout = {
-            let mut guard = self.process.lock();
-            let process = guard.as_mut().ok_or_else(|| NikaError::McpNotConnected {
-                name: self.name.clone(),
-            })?;
-
-            process
-                .stdout
-                .take()
-                .ok_or_else(|| NikaError::McpToolError {
-                    tool: method.to_string(),
-                    reason: "stdout not available".to_string(),
-                })?
-        };
-
-        // Read and restore - always restore stdout regardless of read result
-        let mut reader = BufReader::new(stdout);
-        let mut line = String::new();
-
-        let read_result = reader.read_line(&mut line).await;
-
-        // ALWAYS restore stdout before returning (RAII via explicit restore)
-        let stdout = reader.into_inner();
-        {
-            let mut guard = self.process.lock();
-            if let Some(process) = guard.as_mut() {
-                process.stdout = Some(stdout);
-            }
-        }
-
-        // Now handle the read result
-        read_result.map_err(|e| NikaError::McpToolError {
-            tool: method.to_string(),
-            reason: format!("Failed to read response: {}", e),
-        })?;
-
-        serde_json::from_str(&line).map_err(|e| NikaError::McpToolError {
-            tool: method.to_string(),
-            reason: format!("Invalid JSON response: {} (line: {})", e, line.trim()),
-        })
     }
 
     /// Disconnect from the MCP server.
     ///
     /// For mock clients, this just updates the connection state.
-    /// For real clients, this terminates the server process.
+    /// For real clients, this terminates the server process via rmcp.
     ///
     /// This method is idempotent - calling it when already disconnected succeeds.
     pub async fn disconnect(&self) -> Result<()> {
-        if !self.is_connected() {
+        if self.is_mock {
+            self.connected.store(false, Ordering::SeqCst);
             return Ok(());
         }
 
-        // Kill process if real mode
-        if !self.is_mock {
-            // Take the child out of the mutex to avoid holding the lock across await
-            let child = self.process.lock().take();
-            if let Some(mut child) = child {
-                let _ = child.kill().await;
-            }
+        if let Some(adapter) = &self.adapter {
+            adapter.disconnect().await?;
         }
-
         self.connected.store(false, Ordering::SeqCst);
         Ok(())
     }
@@ -445,31 +225,17 @@ impl McpClient {
     /// ```
     pub async fn reconnect(&self) -> Result<()> {
         if self.is_mock {
-            // Mock clients don't need reconnection
             self.connected.store(true, Ordering::SeqCst);
             return Ok(());
         }
 
-        tracing::info!(
-            mcp_server = %self.name,
-            "Attempting MCP server reconnection"
-        );
+        let adapter = self.adapter.as_ref().ok_or_else(|| NikaError::McpNotConnected {
+            name: self.name.clone(),
+        })?;
 
-        // Disconnect first (ignore errors)
-        let _ = self.disconnect().await;
-
-        // Reset state
-        self.connected.store(false, Ordering::SeqCst);
-
-        // Reconnect using the stored config
-        self.connect().await.map_err(|e| {
-            tracing::error!(
-                mcp_server = %self.name,
-                error = %e,
-                "Failed to reconnect to MCP server"
-            );
-            e
-        })
+        adapter.reconnect().await?;
+        self.connected.store(true, Ordering::SeqCst);
+        Ok(())
     }
 
     /// Check if an error indicates a broken connection.
@@ -506,38 +272,37 @@ impl McpClient {
     /// })).await?;
     /// ```
     pub async fn call_tool(&self, name: &str, params: Value) -> Result<ToolCallResult> {
-        if !self.is_connected() {
-            return Err(NikaError::McpNotConnected {
-                name: self.name.clone(),
-            });
-        }
-
         if self.is_mock {
+            if !self.connected.load(Ordering::SeqCst) {
+                return Err(NikaError::McpNotConnected {
+                    name: self.name.clone(),
+                });
+            }
             return Ok(self.mock_tool_call(name, params));
         }
 
-        // Retry with reconnection on connection errors
-        let name_owned = name.to_string();
+        // Real mode: use rmcp adapter with retry logic
+        let adapter = self.adapter.as_ref().ok_or_else(|| NikaError::McpNotConnected {
+            name: self.name.clone(),
+        })?;
+
         let max_retries = 3;
         let mut last_error: Option<NikaError> = None;
 
         for attempt in 0..=max_retries {
-            // Attempt the call
-            match self.call_tool_impl(&name_owned, params.clone()).await {
+            match adapter.call_tool(name, params.clone()).await {
                 Ok(result) => return Ok(result),
                 Err(e) => {
-                    // Check if this is a connection error that might benefit from reconnection
                     if Self::is_connection_error(&e) && attempt < max_retries {
                         tracing::warn!(
                             mcp_server = %self.name,
-                            tool = %name_owned,
+                            tool = %name,
                             attempt = attempt + 1,
                             error = %e,
                             "Connection error, attempting reconnect"
                         );
 
-                        // Try to reconnect
-                        if let Err(reconnect_err) = self.reconnect().await {
+                        if let Err(reconnect_err) = adapter.reconnect().await {
                             tracing::error!(
                                 mcp_server = %self.name,
                                 error = %reconnect_err,
@@ -547,83 +312,20 @@ impl McpClient {
                             break;
                         }
 
-                        // Small delay before retry
                         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                         last_error = Some(e);
                         continue;
                     }
 
-                    // Non-connection error or last attempt - propagate
                     return Err(e);
                 }
             }
         }
 
-        // All retries exhausted
         Err(last_error.unwrap_or_else(|| NikaError::McpToolError {
-            tool: name_owned,
+            tool: name.to_string(),
             reason: "Connection failed after reconnection attempts".to_string(),
         }))
-    }
-
-    /// Internal implementation of call_tool (single attempt).
-    async fn call_tool_impl(&self, name: &str, params: Value) -> Result<ToolCallResult> {
-        // Real mode: send tools/call request with timeout
-        let request = JsonRpcRequest::new(
-            self.next_id(),
-            "tools/call",
-            serde_json::json!({
-                "name": name,
-                "arguments": params
-            }),
-        );
-
-        let response = tokio::time::timeout(MCP_CALL_TIMEOUT, self.send_request(&request))
-            .await
-            .map_err(|_| NikaError::Timeout {
-                operation: format!("MCP tool call: {}", name),
-                duration_ms: MCP_CALL_TIMEOUT.as_millis() as u64,
-            })??;
-
-        if let Some(error) = response.error {
-            return Err(NikaError::McpToolError {
-                tool: name.to_string(),
-                reason: error.message,
-            });
-        }
-
-        // Parse MCP tool result from response.result
-        let result = response.result.ok_or_else(|| NikaError::McpToolError {
-            tool: name.to_string(),
-            reason: "Empty result".to_string(),
-        })?;
-
-        // Convert to ToolCallResult
-        Self::parse_tool_result(name, result)
-    }
-
-    /// Parse an MCP tool result from JSON response.
-    fn parse_tool_result(_tool_name: &str, result: Value) -> Result<ToolCallResult> {
-        // MCP returns: { "content": [{ "type": "text", "text": "..." }], "isError": false }
-        let content = result
-            .get("content")
-            .and_then(|c| c.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|item| {
-                        let text = item.get("text")?.as_str()?;
-                        Some(ContentBlock::text(text.to_string()))
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        let is_error = result
-            .get("isError")
-            .and_then(|e| e.as_bool())
-            .unwrap_or(false);
-
-        Ok(ToolCallResult { content, is_error })
     }
 
     /// Read a resource from the MCP server.
@@ -643,23 +345,25 @@ impl McpClient {
     /// let resource = client.read_resource("neo4j://entity/qr-code").await?;
     /// ```
     pub async fn read_resource(&self, uri: &str) -> Result<ResourceContent> {
-        if !self.is_connected() {
-            return Err(NikaError::McpNotConnected {
-                name: self.name.clone(),
-            });
-        }
-
         if self.is_mock {
+            if !self.connected.load(Ordering::SeqCst) {
+                return Err(NikaError::McpNotConnected {
+                    name: self.name.clone(),
+                });
+            }
             return Ok(self.mock_read_resource(uri));
         }
 
-        // Retry with reconnection on connection errors
-        let uri_owned = uri.to_string();
+        // Real mode: use rmcp adapter with retry logic
+        let adapter = self.adapter.as_ref().ok_or_else(|| NikaError::McpNotConnected {
+            name: self.name.clone(),
+        })?;
+
         let max_retries = 3;
         let mut last_error: Option<NikaError> = None;
 
         for attempt in 0..=max_retries {
-            match self.read_resource_impl(&uri_owned).await {
+            match adapter.read_resource(uri).await {
                 Ok(result) => return Ok(result),
                 Err(e) => {
                     // Preserve McpResourceNotFound errors - no retry needed
@@ -667,18 +371,16 @@ impl McpClient {
                         return Err(e);
                     }
 
-                    // Check if this is a connection error that might benefit from reconnection
                     if Self::is_connection_error(&e) && attempt < max_retries {
                         tracing::warn!(
                             mcp_server = %self.name,
-                            uri = %uri_owned,
+                            uri = %uri,
                             attempt = attempt + 1,
                             error = %e,
                             "Connection error, attempting reconnect"
                         );
 
-                        // Try to reconnect
-                        if let Err(reconnect_err) = self.reconnect().await {
+                        if let Err(reconnect_err) = adapter.reconnect().await {
                             tracing::error!(
                                 mcp_server = %self.name,
                                 error = %reconnect_err,
@@ -688,96 +390,20 @@ impl McpClient {
                             break;
                         }
 
-                        // Small delay before retry
                         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                         last_error = Some(e);
                         continue;
                     }
 
-                    // Non-connection error or last attempt - propagate
                     return Err(e);
                 }
             }
         }
 
-        // All retries exhausted
         Err(last_error.unwrap_or_else(|| NikaError::McpToolError {
             tool: "resources/read".to_string(),
             reason: "Connection failed after reconnection attempts".to_string(),
         }))
-    }
-
-    /// Internal implementation of read_resource (single attempt).
-    async fn read_resource_impl(&self, uri: &str) -> Result<ResourceContent> {
-        // Send resources/read request with timeout
-        let request = JsonRpcRequest::new(
-            self.next_id(),
-            "resources/read",
-            serde_json::json!({ "uri": uri }),
-        );
-
-        let response = tokio::time::timeout(MCP_CALL_TIMEOUT, self.send_request(&request))
-            .await
-            .map_err(|_| NikaError::Timeout {
-                operation: format!("MCP resource read: {}", uri),
-                duration_ms: MCP_CALL_TIMEOUT.as_millis() as u64,
-            })??;
-
-        if let Some(error) = response.error {
-            // Check for resource not found error
-            if error.code == -32001 || error.message.to_lowercase().contains("not found") {
-                return Err(NikaError::McpResourceNotFound {
-                    uri: uri.to_string(),
-                });
-            }
-            return Err(NikaError::McpToolError {
-                tool: "resources/read".to_string(),
-                reason: error.message,
-            });
-        }
-
-        // Parse resource from response.result
-        let result = response.result.ok_or_else(|| NikaError::McpToolError {
-            tool: "resources/read".to_string(),
-            reason: "Empty result".to_string(),
-        })?;
-
-        Self::parse_resource_result(uri, result)
-    }
-
-    /// Parse an MCP resource read result from JSON response.
-    fn parse_resource_result(uri: &str, result: serde_json::Value) -> Result<ResourceContent> {
-        // MCP returns: { "contents": [{ "uri": "...", "mimeType": "...", "text": "..." }] }
-        let contents = result
-            .get("contents")
-            .and_then(|c| c.as_array())
-            .ok_or_else(|| NikaError::McpToolError {
-                tool: "resources/read".to_string(),
-                reason: "Missing 'contents' array in response".to_string(),
-            })?;
-
-        // Find matching resource by URI (first item typically)
-        let resource_json = contents.first().ok_or_else(|| NikaError::McpResourceNotFound {
-            uri: uri.to_string(),
-        })?;
-
-        // Build ResourceContent from JSON
-        let mut resource = ResourceContent::new(
-            resource_json
-                .get("uri")
-                .and_then(|u| u.as_str())
-                .unwrap_or(uri),
-        );
-
-        if let Some(mime_type) = resource_json.get("mimeType").and_then(|m| m.as_str()) {
-            resource = resource.with_mime_type(mime_type);
-        }
-
-        if let Some(text) = resource_json.get("text").and_then(|t| t.as_str()) {
-            resource = resource.with_text(text);
-        }
-
-        Ok(resource)
     }
 
     /// List all available tools from the MCP server.
@@ -795,64 +421,21 @@ impl McpClient {
     /// }
     /// ```
     pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
-        if !self.is_connected() {
-            return Err(NikaError::McpNotConnected {
-                name: self.name.clone(),
-            });
-        }
-
         if self.is_mock {
+            if !self.connected.load(Ordering::SeqCst) {
+                return Err(NikaError::McpNotConnected {
+                    name: self.name.clone(),
+                });
+            }
             return Ok(self.mock_list_tools());
         }
 
-        // Send tools/list request with timeout
-        let request = JsonRpcRequest::new(self.next_id(), "tools/list", serde_json::json!({}));
-
-        let response = tokio::time::timeout(MCP_CALL_TIMEOUT, self.send_request(&request))
-            .await
-            .map_err(|_| NikaError::Timeout {
-                operation: "MCP tools/list".to_string(),
-                duration_ms: MCP_CALL_TIMEOUT.as_millis() as u64,
-            })??;
-
-        if let Some(error) = response.error {
-            return Err(NikaError::McpToolError {
-                tool: "tools/list".to_string(),
-                reason: error.message,
-            });
-        }
-
-        // Parse tools from response
-        let result = response.result.ok_or_else(|| NikaError::McpToolError {
-            tool: "tools/list".to_string(),
-            reason: "Empty result".to_string(),
+        // Real mode: use rmcp adapter
+        let adapter = self.adapter.as_ref().ok_or_else(|| NikaError::McpNotConnected {
+            name: self.name.clone(),
         })?;
 
-        // MCP returns: { "tools": [{ "name": "...", "description": "...", "inputSchema": {...} }] }
-        let tools = result
-            .get("tools")
-            .and_then(|t| t.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|item| {
-                        let name = item.get("name")?.as_str()?;
-                        let description = item.get("description").and_then(|d| d.as_str());
-                        let input_schema = item.get("inputSchema").cloned();
-
-                        let mut tool = ToolDefinition::new(name);
-                        if let Some(desc) = description {
-                            tool = tool.with_description(desc);
-                        }
-                        if let Some(schema) = input_schema {
-                            tool = tool.with_input_schema(schema);
-                        }
-                        Some(tool)
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        Ok(tools)
+        adapter.list_tools().await
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -981,49 +564,21 @@ impl McpClient {
     }
 }
 
-/// Drop implementation to cleanup spawned MCP server process
-///
-/// Best-effort cleanup - tries to kill the child process when the client is dropped.
-/// This prevents orphaned MCP server processes when workflows complete or error.
-impl Drop for McpClient {
-    fn drop(&mut self) {
-        if !self.is_mock {
-            if let Some(mut child) = self.process.lock().take() {
-                // Best effort: try to kill the process
-                // Note: this is sync context, can't await async operations
-                // start_kill() sends SIGKILL on Unix, TerminateProcess on Windows
-                if let Err(e) = child.start_kill() {
-                    tracing::debug!(
-                        mcp_server = %self.name,
-                        error = %e,
-                        "Failed to kill MCP server process on drop"
-                    );
-                } else {
-                    tracing::debug!(
-                        mcp_server = %self.name,
-                        "Killed MCP server process on drop"
-                    );
-                }
-            }
-        }
-    }
-}
+// Drop is handled by RmcpClientAdapter which cleans up the child process
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     // ═══════════════════════════════════════════════════════════════
-    // STDIO RESTORATION TESTS
+    // CONCURRENT CALL TESTS
     // ═══════════════════════════════════════════════════════════════
 
     #[tokio::test]
-    async fn test_multiple_sequential_calls_prove_stdin_restoration() {
-        // This test verifies that stdin is properly restored after each call
-        // If stdin were lost after any call, subsequent calls would fail
+    async fn test_multiple_sequential_calls() {
+        // Verify multiple sequential calls work
         let client = McpClient::mock("test");
 
-        // 10 sequential calls should all succeed
         for i in 0..10 {
             let result = client
                 .call_tool("test_tool", serde_json::json!({"iteration": i}))
@@ -1038,8 +593,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_concurrent_calls_prove_io_lock_works() {
-        // This test verifies that concurrent calls don't race on stdio
+    async fn test_concurrent_calls() {
+        // Verify concurrent calls work
         let client = std::sync::Arc::new(McpClient::mock("test"));
 
         let handles: Vec<_> = (0..20)
@@ -1118,52 +673,6 @@ mod tests {
 
         let resource = result.unwrap();
         assert_eq!(resource.uri, "file:///tmp/test.txt");
-    }
-
-    #[test]
-    fn test_parse_resource_result_success() {
-        let result = serde_json::json!({
-            "contents": [{
-                "uri": "neo4j://entity/qr-code",
-                "mimeType": "application/json",
-                "text": "{\"name\": \"QR Code\"}"
-            }]
-        });
-
-        let resource = McpClient::parse_resource_result("neo4j://entity/qr-code", result).unwrap();
-
-        assert_eq!(resource.uri, "neo4j://entity/qr-code");
-        assert_eq!(resource.mime_type, Some("application/json".to_string()));
-        assert_eq!(resource.text, Some("{\"name\": \"QR Code\"}".to_string()));
-    }
-
-    #[test]
-    fn test_parse_resource_result_empty_contents() {
-        let result = serde_json::json!({
-            "contents": []
-        });
-
-        let err = McpClient::parse_resource_result("neo4j://entity/missing", result).unwrap_err();
-        match err {
-            NikaError::McpResourceNotFound { uri } => {
-                assert_eq!(uri, "neo4j://entity/missing");
-            }
-            _ => panic!("Expected McpResourceNotFound error"),
-        }
-    }
-
-    #[test]
-    fn test_parse_resource_result_missing_contents() {
-        let result = serde_json::json!({});
-
-        let err = McpClient::parse_resource_result("test://uri", result).unwrap_err();
-        match err {
-            NikaError::McpToolError { tool, reason } => {
-                assert_eq!(tool, "resources/read");
-                assert!(reason.contains("contents"));
-            }
-            _ => panic!("Expected McpToolError"),
-        }
     }
 
     // ═══════════════════════════════════════════════════════════════

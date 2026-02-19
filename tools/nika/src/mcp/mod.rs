@@ -1,13 +1,15 @@
-//! MCP Integration Module (v0.2)
+//! MCP Integration Module (v0.3)
 //!
 //! Provides MCP (Model Context Protocol) client capabilities for Nika workflows.
+//! Uses Anthropic's official rmcp SDK for real MCP connections.
 //!
 //! ## Module Structure
 //!
+//! - [`client`]: High-level MCP client with mock support
+//! - [`rmcp_adapter`]: Thin wrapper around rmcp SDK (internal)
 //! - [`types`]: Core MCP types (McpConfig, ToolCallRequest, ToolCallResult, etc.)
-//! - [`protocol`]: JSON-RPC 2.0 types (JsonRpcRequest, JsonRpcResponse, JsonRpcError)
-//! - [`transport`]: Process spawn and lifecycle management (McpTransport)
-//! - [`client`]: MCP client implementation with mock support
+//! - [`protocol`]: JSON-RPC 2.0 types (utility, for testing/debugging)
+//! - [`transport`]: Process spawn utility (legacy, for testing/debugging)
 //!
 //! ## Usage
 //!
@@ -52,32 +54,36 @@
 //! assert!(mock.is_connected());
 //! ```
 //!
-//! ## Low-Level Transport Usage
+//! ## Architecture
 //!
-//! ```rust,ignore
-//! use nika::mcp::{McpTransport, JsonRpcRequest};
-//! use serde_json::json;
-//!
-//! // Spawn MCP server process
-//! let transport = McpTransport::new("npx", &["-y", "@novanet/mcp-server"])
-//!     .with_env("NEO4J_URI", "bolt://localhost:7687");
-//! let mut child = transport.spawn().await?;
-//!
-//! // Create JSON-RPC request
-//! let request = JsonRpcRequest::new(1, "initialize", json!({
-//!     "protocolVersion": "2024-11-05",
-//!     "capabilities": {}
-//! }));
+//! ```text
+//! McpClient (public API)
+//!     │
+//!     ├── Mock Mode ──► Direct mock responses (testing)
+//!     │
+//!     └── Real Mode ──► RmcpClientAdapter
+//!                           │
+//!                           └── rmcp::Service<ClientHandler>
+//!                                   │
+//!                                   └── TokioChildProcess transport
 //! ```
+//!
+//! ## Legacy Utilities
+//!
+//! The `protocol` and `transport` modules provide low-level utilities
+//! that may be useful for testing or debugging, but are not used by
+//! the main McpClient (which uses rmcp internally).
 
 pub mod client;
 pub mod protocol;
+pub mod rmcp_adapter;
 pub mod transport;
 pub mod types;
 
 // Re-export core types for convenience
 pub use client::McpClient;
 pub use protocol::{JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
+pub use rmcp_adapter::RmcpClientAdapter;
 pub use transport::McpTransport;
 pub use types::{
     ContentBlock, McpConfig, ResourceContent, ToolCallRequest, ToolCallResult, ToolDefinition,

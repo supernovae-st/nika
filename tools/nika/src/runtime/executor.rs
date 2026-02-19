@@ -307,7 +307,7 @@ impl TaskExecutor {
         // Get or create MCP client (real or mock depending on config)
         let client = self.get_mcp_client(&invoke.mcp).await?;
 
-        let mut is_error = false;
+        let is_error = false;
         let result = if let Some(tool) = &invoke.tool {
             // Tool call path - resolve templates in params
             let params = if let Some(ref original_params) = invoke.params {
@@ -329,7 +329,6 @@ impl TaskExecutor {
 
             // Check if tool returned an error
             if tool_result.is_error {
-                is_error = true;
                 // Emit response event before returning error
                 let duration_ms = start_time.elapsed().as_millis() as u64;
                 self.event_log.emit(EventKind::McpResponse {

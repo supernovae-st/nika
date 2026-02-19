@@ -153,19 +153,15 @@ impl<'a> Dag<'a> {
     }
 
     /// Calculate node positions for layout
-    fn calculate_layout(&self, _width: u16, height: u16) -> Vec<(u16, u16)> {
+    fn calculate_layout(&self, _width: u16, _height: u16) -> Vec<(u16, u16)> {
         let node_count = self.nodes.len();
         if node_count == 0 {
             return Vec::new();
         }
 
         // Simple vertical list layout for now
-        // Each node gets a row
-        let row_height = if height > node_count as u16 {
-            1
-        } else {
-            1
-        };
+        // Each node gets a row (TODO: variable height based on available space)
+        let row_height = 1;
 
         self.nodes
             .iter()

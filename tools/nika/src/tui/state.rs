@@ -89,9 +89,10 @@ impl PanelId {
 }
 
 /// TUI interaction mode
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TuiMode {
     /// Default navigation mode
+    #[default]
     Normal,
     /// Live agent output streaming
     Streaming,
@@ -107,11 +108,6 @@ pub enum TuiMode {
     Metrics,
 }
 
-impl Default for TuiMode {
-    fn default() -> Self {
-        Self::Normal
-    }
-}
 
 /// Workflow execution state
 #[derive(Debug, Clone)]
