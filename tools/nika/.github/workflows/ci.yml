@@ -3,14 +3,26 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']  # Also run on release tags
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_integration:
+        description: 'Run integration tests with Neo4j'
+        required: false
+        default: 'false'
+        type: boolean
 
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
 
 jobs:
+  # ============================================================================
+  # QUICK CHECKS (run on every push/PR)
+  # ============================================================================
+
   check:
     name: Check
     runs-on: ubuntu-latest
@@ -48,6 +60,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v1
 
+  # ============================================================================
+  # UNIT & INTEGRATION TESTS (mock mode)
+  # ============================================================================
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -56,7 +72,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@nextest
-      - run: cargo nextest run --all-features
+
+      - name: Run unit tests
+        run: cargo nextest run --all-features
+
+      - name: Run production verification tests
+        run: cargo nextest run --test production_verification_test --all-features
 
   coverage:
     name: Coverage
@@ -83,3 +104,193 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release
+
+  # ============================================================================
+  # INTEGRATION TESTS (with real Neo4j + NovaNet MCP)
+  # Runs on:
+  # - Release tags (v*)
+  # - Manual workflow_dispatch with run_integration=true
+  # - Commits containing [integration] in message
+  # ============================================================================
+
+  integration:
+    name: Integration Tests (Neo4j + NovaNet MCP)
+    runs-on: ubuntu-latest
+    needs: [check, test]  # Only run if basic tests pass
+
+    # Condition: run on tags, manual trigger, or [integration] commit
+    # Note: github.event.head_commit.message is used safely in condition, not in run commands
+    if: |
+      startsWith(github.ref, 'refs/tags/v') ||
+      github.event.inputs.run_integration == 'true' ||
+      contains(github.event.head_commit.message, '[integration]')
+
+    services:
+      neo4j:
+        image: neo4j:5.26-community
+        env:
+          NEO4J_AUTH: neo4j/novanetpassword
+          NEO4J_PLUGINS: '["apoc"]'
+          NEO4J_dbms_security_procedures_unrestricted: apoc.*
+        ports:
+          - 7474:7474
+          - 7687:7687
+        options: >-
+          --health-cmd "wget -q --spider http://localhost:7474 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 30s
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive  # Get NovaNet MCP source
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+
+      - name: Wait for Neo4j to be ready
+        run: |
+          echo "Waiting for Neo4j..."
+          for i in {1..30}; do
+            if curl -s http://localhost:7474 > /dev/null; then
+              echo "Neo4j is ready!"
+              break
+            fi
+            echo "Attempt $i/30..."
+            sleep 2
+          done
+
+      - name: Verify Neo4j connection
+        run: |
+          curl -s -u neo4j:novanetpassword \
+            -H "Content-Type: application/json" \
+            -d '{"statements":[{"statement":"RETURN 1 AS n"}]}' \
+            http://localhost:7474/db/neo4j/tx/commit | jq .
+
+      - name: Build NovaNet MCP server
+        run: |
+          if [ -d "../novanet-dev/tools/novanet-mcp" ]; then
+            cargo build --release --manifest-path ../novanet-dev/tools/novanet-mcp/Cargo.toml
+          else
+            echo "NovaNet MCP not found in submodules, skipping build"
+          fi
+
+      - name: Run integration tests (ignored tests)
+        env:
+          NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+          NOVANET_MCP_NEO4J_USER: neo4j
+          NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+          RUST_LOG: info
+        run: |
+          cargo nextest run --all-features -- --ignored
+
+      - name: Run E2E workflow tests
+        env:
+          NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+          NOVANET_MCP_NEO4J_USER: neo4j
+          NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+        run: |
+          # Test workflow validation
+          cargo run --release -- validate examples/invoke-novanet.nika.yaml
+          cargo run --release -- validate examples/production-test.nika.yaml
+
+  # ============================================================================
+  # LLM INTEGRATION TESTS (with real API keys)
+  # Only runs on releases with secrets available
+  # ============================================================================
+
+  llm-integration:
+    name: LLM Integration Tests
+    runs-on: ubuntu-latest
+    needs: [check, test]
+
+    # Only run on release tags where secrets are available
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+
+      - name: Run LLM integration tests (OpenAI)
+        if: env.OPENAI_API_KEY != ''
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          cargo nextest run --all-features \
+            test_integration_openai -- --ignored
+
+      - name: Run LLM integration tests (Anthropic)
+        if: env.ANTHROPIC_API_KEY != ''
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          cargo nextest run --all-features \
+            thinking_capture -- --ignored
+
+  # ============================================================================
+  # MVP 8 FEATURE VERIFICATION (comprehensive check before release)
+  # ============================================================================
+
+  mvp8-verification:
+    name: MVP 8 Feature Verification
+    runs-on: ubuntu-latest
+    needs: [check, test]
+
+    # Run on release tags
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+
+      - name: Verify Phase 1 - Reasoning Capture
+        run: |
+          cargo nextest run --all-features \
+            test_phase1 \
+            test_reasoning_capture \
+            test_agent_turn_metadata
+
+      - name: Verify Phase 2 - spawn_agent
+        run: |
+          cargo nextest run --all-features \
+            test_phase2 \
+            spawn_agent
+
+      - name: Verify Phase 3 - novanet_introspect
+        run: |
+          cargo nextest run --all-features \
+            test_phase3 \
+            novanet_introspect
+
+      - name: Verify Phase 4 - decompose
+        run: |
+          cargo nextest run --all-features \
+            test_phase4 \
+            decompose
+
+      - name: Verify Phase 5 - lazy bindings
+        run: |
+          cargo nextest run --all-features \
+            test_phase5 \
+            lazy_binding
+
+      - name: Generate MVP 8 verification report
+        run: |
+          echo "## MVP 8 Feature Verification Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Phase | Feature | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|---------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 1 | Reasoning Capture | ✅ Verified |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 2 | spawn_agent | ✅ Verified |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 3 | novanet_introspect | ✅ Verified |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 4 | decompose: | ✅ Verified |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 5 | lazy: bindings | ✅ Verified |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "All MVP 8 features verified for release." >> "$GITHUB_STEP_SUMMARY"

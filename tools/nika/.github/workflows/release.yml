@@ -12,9 +12,132 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # ============================================================================
+  # PRE-RELEASE VERIFICATION
+  # These jobs run BEFORE building release artifacts
+  # ============================================================================
+
+  verify:
+    name: Pre-release Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+
+      - name: Run all tests
+        run: cargo nextest run --all-features
+
+      - name: Run production verification tests
+        run: cargo nextest run --test production_verification_test --all-features
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --all-features -- -D warnings
+
+  # ============================================================================
+  # INTEGRATION TESTS (Neo4j + NovaNet MCP)
+  # Required before release
+  # ============================================================================
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: verify
+
+    services:
+      neo4j:
+        image: neo4j:5.26-community
+        env:
+          NEO4J_AUTH: neo4j/novanetpassword
+          NEO4J_PLUGINS: '["apoc"]'
+          NEO4J_dbms_security_procedures_unrestricted: apoc.*
+        ports:
+          - 7474:7474
+          - 7687:7687
+        options: >-
+          --health-cmd "wget -q --spider http://localhost:7474 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 30s
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+
+      - name: Wait for Neo4j
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:7474 > /dev/null; then
+              echo "Neo4j ready!"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Run integration tests
+        env:
+          NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+          NOVANET_MCP_NEO4J_USER: neo4j
+          NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+          RUST_LOG: info
+        run: cargo nextest run --all-features -- --ignored
+
+      - name: Validate example workflows
+        run: |
+          cargo run --release -- validate examples/invoke-novanet.nika.yaml
+          cargo run --release -- validate examples/production-test.nika.yaml
+
+  # ============================================================================
+  # MVP 8 VERIFICATION
+  # Comprehensive feature verification before release
+  # ============================================================================
+
+  mvp8:
+    name: MVP 8 Verification
+    runs-on: ubuntu-latest
+    needs: verify
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+
+      - name: Phase 1 - Reasoning Capture
+        run: cargo nextest run --all-features test_phase1 test_reasoning
+
+      - name: Phase 2 - spawn_agent
+        run: cargo nextest run --all-features test_phase2 spawn_agent
+
+      - name: Phase 3 - novanet_introspect
+        run: cargo nextest run --all-features test_phase3
+
+      - name: Phase 4 - decompose
+        run: cargo nextest run --all-features test_phase4 decompose
+
+      - name: Phase 5 - lazy bindings
+        run: cargo nextest run --all-features test_phase5 lazy_binding
+
+  # ============================================================================
+  # BUILD RELEASE ARTIFACTS
+  # Only runs after verification passes
+  # ============================================================================
+
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
+    needs: [verify, integration, mvp8]  # Require all verification to pass
+
     strategy:
       matrix:
         include:
@@ -79,14 +202,55 @@ jobs:
             ${{ matrix.artifact }}.zip
             ${{ matrix.artifact }}.zip.sha256
 
+  # ============================================================================
+  # CREATE GITHUB RELEASE
+  # Only after all builds succeed
+  # ============================================================================
+
   release:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
+
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+
+      - name: Generate release notes
+        run: |
+          cat << 'EOF' > release_notes.md
+          ## What's Changed
+
+          ### MVP 8 Features (RLM Enhancements)
+
+          | Phase | Feature | Status |
+          |-------|---------|--------|
+          | 1 | Reasoning Capture | ✅ |
+          | 2 | spawn_agent | ✅ |
+          | 3 | novanet_introspect | ✅ |
+          | 4 | decompose: | ✅ |
+          | 5 | lazy: bindings | ✅ |
+
+          ### Verification
+
+          - ✅ All unit tests passed
+          - ✅ Integration tests with Neo4j passed
+          - ✅ MVP 8 feature verification passed
+          - ✅ Production verification tests passed
+
+          ### Downloads
+
+          | Platform | Binary |
+          |----------|--------|
+          | macOS (Intel) | nika-macos-x64.tar.gz |
+          | macOS (Apple Silicon) | nika-macos-arm64.tar.gz |
+          | Linux (x64) | nika-linux-x64.tar.gz |
+          | Windows (x64) | nika-windows-x64.zip |
+
+          EOF
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -95,4 +259,6 @@ jobs:
             artifacts/**/*.tar.gz
             artifacts/**/*.zip
             artifacts/**/*.sha256
+          body_path: release_notes.md
           generate_release_notes: true
+          append_body: true

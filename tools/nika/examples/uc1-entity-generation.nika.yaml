@@ -58,9 +58,10 @@ tasks:
       mcp: novanet
       tool: novanet_generate
       params:
-        entity: "qr-code"
+        focus_key: "qr-code"
         locale: "fr-FR"
-        forms: ["text", "title", "abbrev", "url"]
+        mode: "page"
+        spreading_depth: 2
     output:
       format: json
 
