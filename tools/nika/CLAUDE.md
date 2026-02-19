@@ -208,17 +208,36 @@ tasks:
     infer: "Generate for {{use.item}}"
 ```
 
-### Nested Agents (spawn_agent)
+### Nested Agents (spawn_agent) ✅ IMPLEMENTED
 
-Internal tool for recursive agent spawning with depth protection:
+Internal tool for recursive agent spawning with depth protection.
+Implements `rig::ToolDyn` for seamless integration with `RigAgentLoop`.
 
+**Usage in workflow:**
 ```yaml
 tasks:
   - id: orchestrator
     agent:
       prompt: "Decompose and delegate sub-tasks"
-      depth_limit: 3  # Prevents infinite recursion
+      depth_limit: 3  # Prevents infinite recursion (default: 3, max: 10)
 ```
+
+**spawn_agent tool parameters:**
+```json
+{
+  "task_id": "subtask-1",      // Unique ID for child task
+  "prompt": "Generate header", // Child agent goal
+  "context": {"entity": "qr"}, // Optional context data
+  "max_turns": 5               // Optional max turns (default: 10)
+}
+```
+
+**Implementation:**
+- `SpawnAgentTool` in `runtime/spawn.rs` (implements `rig::ToolDyn`)
+- Automatically added to agents when `depth_limit > current_depth`
+- Child agents inherit MCP clients from parent
+- Emits `AgentSpawned` event for observability
+- 13 unit tests + 4 ToolDyn integration tests
 
 ## for_each Parallelism (v0.3)
 
