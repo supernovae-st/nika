@@ -232,6 +232,9 @@ pub enum NikaError {
     #[error("[NIKA-114] Feature not implemented: {feature}. {suggestion}")]
     NotImplemented { feature: String, suggestion: String },
 
+    #[error("[NIKA-115] Agent execution failed for task '{task_id}': {reason}")]
+    AgentExecutionError { task_id: String, reason: String },
+
     // ═══════════════════════════════════════════
     // RESILIENCE ERRORS (120-129) - NEW v0.2
     // ═══════════════════════════════════════════
@@ -325,6 +328,7 @@ impl NikaError {
             Self::InvalidToolName { .. } => "NIKA-112",
             Self::AgentValidationError { .. } => "NIKA-113",
             Self::NotImplemented { .. } => "NIKA-114",
+            Self::AgentExecutionError { .. } => "NIKA-115",
             // Resilience errors
             Self::ProviderError { .. } => "NIKA-120",
             Self::Timeout { .. } => "NIKA-121",
@@ -446,6 +450,9 @@ impl FixSuggestion for NikaError {
             }
             NikaError::AgentValidationError { .. } => {
                 Some("Check agent prompt is not empty and max_turns is valid (1-100)")
+            }
+            NikaError::AgentExecutionError { .. } => {
+                Some("Check LLM provider API key and network connectivity")
             }
             NikaError::NotImplemented { .. } => {
                 Some("This feature is planned for a future release")

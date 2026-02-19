@@ -21,6 +21,7 @@ use std::sync::Arc;
 
 use rig::agent::AgentBuilder;
 use rig::client::{CompletionClient, ProviderClient};
+use rig::completion::Prompt;
 use rig::providers::anthropic;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
@@ -222,27 +223,21 @@ impl RigAgentLoop {
     ///
     /// This method uses rig-core's AgentBuilder for actual execution.
     /// Requires ANTHROPIC_API_KEY environment variable to be set.
-    #[allow(dead_code)]
-    pub async fn run_claude(&self) -> Result<RigAgentLoopResult, NikaError> {
+    ///
+    /// # Note
+    /// This method takes `&mut self` because tools are consumed (moved to rig's AgentBuilder).
+    /// The agent loop is designed for single-use execution.
+    pub async fn run_claude(&mut self) -> Result<RigAgentLoopResult, NikaError> {
         // Create Anthropic client from environment
         let client = anthropic::Client::from_env();
 
         let model = client.completion_model(anthropic::completion::CLAUDE_3_5_SONNET);
 
-        // Build agent with tools
-        let mut builder = AgentBuilder::new(model)
-            .preamble(&self.params.prompt);
+        // Take ownership of tools (they'll be consumed by the builder)
+        let tools = std::mem::take(&mut self.tools);
 
-        // Set max turns
-        if let Some(max_turns) = self.params.max_turns {
-            builder = builder.default_max_turns(max_turns as usize);
-        }
-
-        // TODO: Add tools to builder
-        // This requires moving tools ownership or using references
-        // For now, we'll handle this in a follow-up implementation
-
-        let _agent = builder.build();
+        // Get max_turns
+        let max_turns = self.params.max_turns.unwrap_or(10) as usize;
 
         // Emit start event
         self.event_log.emit(EventKind::AgentTurn {
@@ -252,19 +247,60 @@ impl RigAgentLoop {
             tokens: Some(0),
         });
 
-        // Run agent chat
-        // let response = agent.chat(&self.params.prompt, vec![]).await
-        //     .map_err(|e| NikaError::AgentLoopError {
-        //         task_id: self.task_id.clone(),
-        //         reason: e.to_string(),
-        //     })?;
+        // Build and run agent
+        // AgentBuilder type changes when tools are added, so we branch here
+        let response = if tools.is_empty() {
+            // No tools - simple completion
+            let agent = AgentBuilder::new(model)
+                .preamble(&self.params.prompt)
+                .build();
 
-        // For now, return mock result (real implementation coming)
+            agent
+                .prompt(&self.params.prompt)
+                .max_turns(max_turns)
+                .await
+                .map_err(|e| NikaError::AgentExecutionError {
+                    task_id: self.task_id.clone(),
+                    reason: e.to_string(),
+                })?
+        } else {
+            // With tools - agentic execution
+            let agent = AgentBuilder::new(model)
+                .preamble(&self.params.prompt)
+                .tools(tools)
+                .build();
+
+            agent
+                .prompt(&self.params.prompt)
+                .max_turns(max_turns)
+                .await
+                .map_err(|e| NikaError::AgentExecutionError {
+                    task_id: self.task_id.clone(),
+                    reason: e.to_string(),
+                })?
+        };
+
+        // Determine status from response
+        let response_str = response.clone();
+        let status = if self.check_stop_conditions(&response_str) {
+            RigAgentStatus::StopConditionMet
+        } else {
+            RigAgentStatus::NaturalCompletion
+        };
+
+        // Emit completion event
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index: 1,
+            kind: format!("{:?}", status),
+            tokens: None, // Token tracking not available from rig's Prompt trait
+        });
+
         Ok(RigAgentLoopResult {
-            status: RigAgentStatus::NaturalCompletion,
-            turns: 1,
-            final_output: serde_json::json!({"response": "Claude response"}),
-            total_tokens: 0,
+            status,
+            turns: 1, // rig handles turns internally, we report completion as 1
+            final_output: serde_json::json!({ "response": response }),
+            total_tokens: 0, // Token tracking requires response metadata
         })
     }
 
