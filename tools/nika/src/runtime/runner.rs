@@ -289,9 +289,41 @@ impl Runner {
                     "running...".dimmed()
                 );
 
-                // Check if task has for_each (v0.3 parallelism)
-                if let Some(for_each) = &task.for_each {
-                    if let Some(items) = for_each.as_array() {
+                // Check if task has decompose (v0.5) - expands to for_each items
+                // decompose takes priority over for_each (they're mutually exclusive)
+                let for_each_items: Option<Vec<Value>> = if let Some(decompose) = task.decompose_spec() {
+                    debug!(
+                        task_id = %task.id,
+                        strategy = ?decompose.strategy,
+                        traverse = %decompose.traverse,
+                        "Expanding decompose modifier"
+                    );
+                    // Resolve bindings for decompose source
+                    let bindings = ResolvedBindings::from_wiring_spec(
+                        task.use_wiring.as_ref(),
+                        &self.datastore,
+                    ).unwrap_or_default();
+                    // Expand decompose using executor
+                    match self.executor.expand_decompose(decompose, &bindings, &self.datastore).await {
+                        Ok(items) => Some(items),
+                        Err(e) => {
+                            // Store error and continue to next task
+                            self.datastore.insert(
+                                intern(&task.id),
+                                TaskResult::failed(e.to_string(), std::time::Duration::ZERO),
+                            );
+                            continue;
+                        }
+                    }
+                } else if let Some(for_each) = &task.for_each {
+                    for_each.as_array().cloned()
+                } else {
+                    None
+                };
+
+                // Check if task has for_each (v0.3 parallelism) or decompose items
+                if let Some(items) = for_each_items {
+                    if !items.is_empty() {
                         // Get concurrency settings from task (v0.3)
                         let concurrency = task.for_each_concurrency();
                         let fail_fast = task.for_each_fail_fast();
@@ -530,6 +562,7 @@ mod tests {
                 for_each_as: Some("item".to_string()),
                 concurrency: None,  // Default sequential
                 fail_fast: None,    // Default true
+                decompose: None,
                 action: TaskAction::Exec {
                     exec: ExecParams {
                         command: "echo {{use.item}}".to_string(),
@@ -584,6 +617,7 @@ mod tests {
                 for_each_as: Some("x".to_string()),
                 concurrency: None,
                 fail_fast: None,
+                decompose: None,
                 action: TaskAction::Exec {
                     exec: ExecParams {
                         command: "echo {{use.x}}".to_string(),
@@ -639,6 +673,7 @@ mod tests {
                         id: id.to_string(),
                         use_wiring: None,
                         output: None,
+                        decompose: None,
                         for_each: None,
                         for_each_as: None,
                         concurrency: None,
@@ -1050,6 +1085,7 @@ mod tests {
                 for_each_as: Some("item".to_string()),
                 concurrency: Some(2), // Limit to 2 concurrent
                 fail_fast: None,
+                decompose: None,
                 action: TaskAction::Exec {
                     exec: ExecParams {
                         command: "echo {{use.item}}".to_string(),
@@ -1089,6 +1125,7 @@ mod tests {
                 for_each_as: Some("item".to_string()),
                 concurrency: Some(1), // Sequential to make failure predictable
                 fail_fast: Some(true),
+                decompose: None,
                 action: TaskAction::Exec {
                     exec: ExecParams {
                         // Exit with error if item is "FAIL"
@@ -1124,6 +1161,7 @@ mod tests {
                 for_each_as: Some("item".to_string()),
                 concurrency: None,
                 fail_fast: Some(false), // Explicitly disable fail_fast
+                decompose: None,
                 action: TaskAction::Exec {
                     exec: ExecParams {
                         command: "echo {{use.item}}".to_string(),

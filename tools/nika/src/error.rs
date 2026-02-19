@@ -97,6 +97,16 @@ pub enum NikaError {
     #[error("[NIKA-041] Template error in '{template}': {reason}")]
     TemplateError { template: String, reason: String },
 
+    #[error("[NIKA-042] Binding '{alias}' not found")]
+    BindingNotFound { alias: String },
+
+    #[error("[NIKA-043] Binding type mismatch at '{path}': expected {expected}, got {actual}")]
+    BindingTypeMismatch {
+        expected: String,
+        actual: String,
+        path: String,
+    },
+
     // ═══════════════════════════════════════════
     // PATH/TASK ERRORS (050-059) - v0.1
     // ═══════════════════════════════════════════
@@ -214,6 +224,9 @@ pub enum NikaError {
     #[error("[NIKA-105] MCP server '{name}' not configured in workflow")]
     McpNotConfigured { name: String },
 
+    #[error("[NIKA-106] MCP tool '{tool}' returned invalid response: {reason}")]
+    McpInvalidResponse { tool: String, reason: String },
+
     // ═══════════════════════════════════════════
     // AGENT ERRORS (110-119) - NEW v0.2
     // ═══════════════════════════════════════════
@@ -286,6 +299,8 @@ impl NikaError {
             Self::Execution(_) => "NIKA-041", // legacy
             Self::BindingError { .. } => "NIKA-040",
             Self::TemplateError { .. } => "NIKA-041",
+            Self::BindingNotFound { .. } => "NIKA-042",
+            Self::BindingTypeMismatch { .. } => "NIKA-043",
             // Path/Task errors
             Self::InvalidPath { .. } => "NIKA-050",
             Self::TaskNotFound { .. } => "NIKA-051",
@@ -319,6 +334,7 @@ impl NikaError {
             Self::McpResourceNotFound { .. } => "NIKA-103",
             Self::McpProtocolError { .. } => "NIKA-104",
             Self::McpNotConfigured { .. } => "NIKA-105",
+            Self::McpInvalidResponse { .. } => "NIKA-106",
             // Agent errors
             Self::AgentMaxTurns { .. } => "NIKA-110",
             Self::AgentStopConditionFailed { .. } => "NIKA-111",
@@ -435,6 +451,16 @@ impl FixSuggestion for NikaError {
             NikaError::McpProtocolError { .. } => Some("Check MCP server compatibility"),
             NikaError::McpNotConfigured { .. } => {
                 Some("Add MCP server config to workflow 'mcp:' section")
+            }
+            NikaError::McpInvalidResponse { .. } => {
+                Some("Check MCP server is returning valid JSON responses")
+            }
+            // Binding errors (decompose)
+            NikaError::BindingNotFound { .. } => {
+                Some("Verify the binding alias exists in use: block or task outputs")
+            }
+            NikaError::BindingTypeMismatch { .. } => {
+                Some("Check binding value type matches expected type")
             }
             // Agent errors
             NikaError::AgentMaxTurns { .. } => Some("Increase max_turns or simplify the task"),

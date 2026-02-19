@@ -12,6 +12,7 @@
 
 mod action;
 mod agent;
+pub mod decompose;
 mod invoke;
 mod output;
 mod workflow;
@@ -25,3 +26,5 @@ pub use agent::AgentParams;
 pub use invoke::InvokeParams;
 pub use output::{OutputFormat, OutputPolicy};
 pub use workflow::{Flow, FlowEndpoint, McpConfigInline, Task, Workflow, SCHEMA_V01};
+// DecomposeSpec is defined in decompose.rs (v0.5 - Runtime DAG expansion)
+pub use decompose::{DecomposeSpec, DecomposeStrategy};

@@ -22,7 +22,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use rig::agent::AgentBuilder;
 use rig::client::{CompletionClient, ProviderClient};
-use rig::completion::{CompletionModel as _, Prompt};
+use rig::completion::{CompletionModel as _, GetTokenUsage, Prompt};
 use rig::message::ReasoningContent;
 use rig::providers::anthropic;
 use rig::streaming::StreamedAssistantContent;
@@ -412,9 +412,11 @@ impl RigAgentLoop {
             }
         })?;
 
-        // Accumulate thinking and response
+        // Accumulate thinking, response, and token usage
         let mut thinking_parts: Vec<String> = Vec::new();
         let mut response_parts: Vec<String> = Vec::new();
+        let mut input_tokens: u32 = 0;
+        let mut output_tokens: u32 = 0;
 
         while let Some(chunk_result) = stream.next().await {
             match chunk_result {
@@ -433,8 +435,12 @@ impl RigAgentLoop {
                             }
                         }
                     }
-                    StreamedAssistantContent::Final(_) => {
-                        // Final response marker - nothing to extract
+                    StreamedAssistantContent::Final(final_resp) => {
+                        // Extract token usage from final response (v0.4.1 fix)
+                        if let Some(usage) = final_resp.token_usage() {
+                            input_tokens = usage.input_tokens as u32;
+                            output_tokens = usage.output_tokens as u32;
+                        }
                     }
                     _ => {
                         // Tool calls and other events - handled by agent loop
@@ -468,14 +474,14 @@ impl RigAgentLoop {
             RigAgentStatus::NaturalCompletion
         };
 
-        // Build metadata with thinking
+        // Build metadata with thinking and token usage (v0.4.1 fix)
         let stop_reason = status.as_canonical_str();
         let metadata = AgentTurnMetadata {
             thinking,
             response_text: response.clone(),
-            input_tokens: 0,  // Token tracking requires usage from final message
-            output_tokens: 0,
-            cache_read_tokens: 0,
+            input_tokens,
+            output_tokens,
+            cache_read_tokens: 0, // Cache tracking requires message metadata
             stop_reason: stop_reason.to_string(),
         };
 
@@ -491,7 +497,7 @@ impl RigAgentLoop {
             status,
             turns: 1,
             final_output: serde_json::json!({ "response": response }),
-            total_tokens: 0, // Would need message usage tracking
+            total_tokens: (input_tokens + output_tokens) as u64,
         })
     }
 }

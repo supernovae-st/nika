@@ -13,12 +13,14 @@ use tracing::{debug, instrument};
 use uuid::Uuid;
 
 use crate::ast::{
+    decompose::{DecomposeSpec, DecomposeStrategy},
     AgentParams, ExecParams, FetchParams, InferParams, InvokeParams, McpConfigInline, TaskAction,
 };
 use crate::binding::{ResolvedBindings, template_resolve};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 use crate::mcp::{McpClient, McpConfig};
+use crate::store::DataStore;
 use crate::provider::rig::RigProvider;
 use crate::runtime::RigAgentLoop;
 use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
@@ -81,6 +83,213 @@ impl TaskExecutor {
         let mock = Arc::new(McpClient::mock(name));
         cell.set(mock).expect("Cell should be empty");
         self.mcp_client_cache.insert(name.to_string(), cell);
+    }
+
+    /// Expand a decompose spec into iteration items (v0.5)
+    ///
+    /// Returns an array of JSON values that can be used as for_each items.
+    /// Supports semantic (MCP traverse), static (binding resolution), and nested strategies.
+    #[instrument(name = "expand_decompose", skip(self, bindings, datastore), fields(
+        strategy = ?spec.strategy,
+        traverse = %spec.traverse,
+        source = %spec.source
+    ))]
+    pub async fn expand_decompose(
+        &self,
+        spec: &DecomposeSpec,
+        bindings: &ResolvedBindings,
+        datastore: &DataStore,
+    ) -> Result<Vec<serde_json::Value>, NikaError> {
+        match spec.strategy {
+            DecomposeStrategy::Semantic => {
+                self.expand_decompose_semantic(spec, bindings, datastore).await
+            }
+            DecomposeStrategy::Static => {
+                self.expand_decompose_static(spec, bindings, datastore)
+            }
+            DecomposeStrategy::Nested => {
+                Err(NikaError::NotImplemented {
+                    feature: "decompose: nested strategy".to_string(),
+                    suggestion: "Use semantic strategy with max_items for now".to_string(),
+                })
+            }
+        }
+    }
+
+    /// Expand using semantic traversal via MCP (calls novanet_traverse)
+    async fn expand_decompose_semantic(
+        &self,
+        spec: &DecomposeSpec,
+        bindings: &ResolvedBindings,
+        datastore: &DataStore,
+    ) -> Result<Vec<serde_json::Value>, NikaError> {
+        use serde_json::{json, Value};
+
+        // Get MCP client
+        let server_name = spec.mcp_server();
+        let client = self.get_mcp_client(server_name).await?;
+
+        // Resolve source binding
+        let source_value = self.resolve_decompose_source(&spec.source, bindings, datastore)?;
+        let source_key = self.extract_decompose_key(&source_value)?;
+
+        debug!(
+            source_key = %source_key,
+            arc = %spec.traverse,
+            "Calling novanet_traverse for decompose"
+        );
+
+        // Call novanet_traverse
+        let params = json!({
+            "start": source_key,
+            "arc": spec.traverse,
+            "direction": "outgoing"
+        });
+
+        let result = client.call_tool("novanet_traverse", params).await?;
+
+        // Parse JSON from result content
+        let result_json: Value = serde_json::from_str(&result.text()).map_err(|e| {
+            NikaError::McpInvalidResponse {
+                tool: "novanet_traverse".to_string(),
+                reason: format!("failed to parse JSON response: {}", e),
+            }
+        })?;
+
+        // Extract nodes from result
+        let mut items = self.extract_decompose_nodes(&result_json)?;
+
+        // Apply max_items limit
+        if let Some(max) = spec.max_items {
+            items.truncate(max);
+        }
+
+        debug!(
+            count = items.len(),
+            max_items = ?spec.max_items,
+            "Decompose expanded to items"
+        );
+
+        Ok(items)
+    }
+
+    /// Expand using static binding resolution (no MCP call)
+    fn expand_decompose_static(
+        &self,
+        spec: &DecomposeSpec,
+        bindings: &ResolvedBindings,
+        datastore: &DataStore,
+    ) -> Result<Vec<serde_json::Value>, NikaError> {
+        let source_value = self.resolve_decompose_source(&spec.source, bindings, datastore)?;
+
+        // Expect array
+        let items = source_value
+            .as_array()
+            .ok_or_else(|| NikaError::BindingTypeMismatch {
+                expected: "array".to_string(),
+                actual: self.json_type_name(&source_value),
+                path: spec.source.clone(),
+            })?
+            .clone();
+
+        // Apply max_items limit
+        let mut items = items;
+        if let Some(max) = spec.max_items {
+            items.truncate(max);
+        }
+
+        Ok(items)
+    }
+
+    /// Resolve source binding expression for decompose
+    fn resolve_decompose_source(
+        &self,
+        source: &str,
+        bindings: &ResolvedBindings,
+        datastore: &DataStore,
+    ) -> Result<serde_json::Value, NikaError> {
+        if source.starts_with("{{use.") && source.ends_with("}}") {
+            // Template syntax: {{use.alias}}
+            let alias = &source[6..source.len() - 2];
+            bindings
+                .get(alias)
+                .cloned()
+                .ok_or_else(|| NikaError::BindingNotFound {
+                    alias: alias.to_string(),
+                })
+        } else if let Some(alias) = source.strip_prefix('$') {
+            if alias.contains('.') {
+                // Path syntax: $task.field
+                datastore.resolve_path(alias).ok_or_else(|| NikaError::BindingNotFound {
+                    alias: alias.to_string(),
+                })
+            } else {
+                // Simple alias
+                bindings
+                    .get(alias)
+                    .cloned()
+                    .ok_or_else(|| NikaError::BindingNotFound {
+                        alias: alias.to_string(),
+                    })
+            }
+        } else {
+            // Literal value
+            Ok(serde_json::Value::String(source.to_string()))
+        }
+    }
+
+    /// Extract key from source value (string or object with 'key' field)
+    fn extract_decompose_key(&self, value: &serde_json::Value) -> Result<String, NikaError> {
+        match value {
+            serde_json::Value::String(s) => Ok(s.clone()),
+            serde_json::Value::Object(obj) => obj
+                .get("key")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .ok_or_else(|| NikaError::BindingTypeMismatch {
+                    expected: "string or object with 'key'".to_string(),
+                    actual: "object without 'key'".to_string(),
+                    path: "decompose.source".to_string(),
+                }),
+            _ => Err(NikaError::BindingTypeMismatch {
+                expected: "string or object".to_string(),
+                actual: self.json_type_name(value),
+                path: "decompose.source".to_string(),
+            }),
+        }
+    }
+
+    /// Extract nodes array from novanet_traverse result
+    fn extract_decompose_nodes(&self, result: &serde_json::Value) -> Result<Vec<serde_json::Value>, NikaError> {
+        if let Some(nodes) = result.get("nodes").and_then(|v| v.as_array()) {
+            return Ok(nodes.clone());
+        }
+        if let Some(items) = result.get("items").and_then(|v| v.as_array()) {
+            return Ok(items.clone());
+        }
+        if let Some(results) = result.get("results").and_then(|v| v.as_array()) {
+            return Ok(results.clone());
+        }
+        if let Some(arr) = result.as_array() {
+            return Ok(arr.clone());
+        }
+        Err(NikaError::McpInvalidResponse {
+            tool: "novanet_traverse".to_string(),
+            reason: "expected nodes/items/results array in response".to_string(),
+        })
+    }
+
+    /// Get JSON type name for error messages
+    fn json_type_name(&self, value: &serde_json::Value) -> String {
+        match value {
+            serde_json::Value::Null => "null",
+            serde_json::Value::Bool(_) => "boolean",
+            serde_json::Value::Number(_) => "number",
+            serde_json::Value::String(_) => "string",
+            serde_json::Value::Array(_) => "array",
+            serde_json::Value::Object(_) => "object",
+        }
+        .to_string()
     }
 
     /// Execute a task action with the given bindings

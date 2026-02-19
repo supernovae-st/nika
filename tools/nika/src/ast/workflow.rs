@@ -16,6 +16,7 @@ use crate::binding::WiringSpec;
 use crate::error::NikaError;
 
 use super::action::TaskAction;
+use super::decompose::DecomposeSpec;
 use super::output::OutputPolicy;
 
 /// Expected schema version for v0.1 workflows
@@ -138,13 +139,20 @@ impl Workflow {
     /// Validate the workflow schema version and task configuration
     ///
     /// Returns error if:
-    /// - Schema doesn't match expected version (v0.1, v0.2, or v0.3)
+    /// - Schema doesn't match expected version (v0.1, v0.2, v0.3, or v0.4)
     /// - Any task has invalid for_each configuration (non-array or empty)
     pub fn validate_schema(&self) -> Result<(), NikaError> {
         // Validate schema version
-        if self.schema != SCHEMA_V01 && self.schema != SCHEMA_V02 && self.schema != SCHEMA_V03 {
+        if self.schema != SCHEMA_V01
+            && self.schema != SCHEMA_V02
+            && self.schema != SCHEMA_V03
+            && self.schema != SCHEMA_V04
+        {
             return Err(NikaError::InvalidSchema {
-                expected: format!("{} or {} or {}", SCHEMA_V01, SCHEMA_V02, SCHEMA_V03),
+                expected: format!(
+                    "{} or {} or {} or {}",
+                    SCHEMA_V01, SCHEMA_V02, SCHEMA_V03, SCHEMA_V04
+                ),
                 actual: self.schema.clone(),
             });
         }
@@ -171,6 +179,24 @@ pub struct Task {
     /// Output format and validation (v0.1)
     #[serde(default)]
     pub output: Option<OutputPolicy>,
+    /// Runtime DAG expansion via semantic traversal (v0.5)
+    ///
+    /// When specified, the task will be decomposed at runtime based on
+    /// graph traversal results. This takes precedence over static `for_each`.
+    ///
+    /// # Example
+    ///
+    /// ```yaml
+    /// tasks:
+    ///   - id: generate_children
+    ///     decompose:
+    ///       strategy: semantic
+    ///       traverse: HAS_CHILD
+    ///       source: $entity
+    ///     infer: "Generate for {{use.item}}"
+    /// ```
+    #[serde(default)]
+    pub decompose: Option<DecomposeSpec>,
     /// Parallel iteration over array values (v0.3)
     ///
     /// When specified, the task will be executed once for each value in the array.
@@ -228,22 +254,34 @@ impl Task {
     /// Validate for_each configuration (v0.3)
     ///
     /// Returns error if:
-    /// - for_each is not an array
+    /// - for_each is not an array and not a binding expression
     /// - for_each array is empty
+    ///
+    /// Binding expressions (strings containing `{{`) are accepted because
+    /// they resolve to arrays at runtime.
     pub fn validate_for_each(&self) -> Result<(), NikaError> {
         if let Some(for_each) = &self.for_each {
-            if !for_each.is_array() {
-                return Err(NikaError::ValidationError {
-                    reason: format!("for_each must be an array, got {}", for_each),
-                });
+            // Accept arrays
+            if for_each.is_array() {
+                if let Some(arr) = for_each.as_array() {
+                    if arr.is_empty() {
+                        return Err(NikaError::ValidationError {
+                            reason: "for_each array cannot be empty".to_string(),
+                        });
+                    }
+                }
+                return Ok(());
             }
-            if let Some(arr) = for_each.as_array() {
-                if arr.is_empty() {
-                    return Err(NikaError::ValidationError {
-                        reason: "for_each array cannot be empty".to_string(),
-                    });
+            // Accept binding expressions (e.g., "{{use.items}}", "$items")
+            if let Some(s) = for_each.as_str() {
+                if s.contains("{{") || s.starts_with('$') {
+                    return Ok(());
                 }
             }
+            // Reject everything else
+            return Err(NikaError::ValidationError {
+                reason: format!("for_each must be an array or binding expression, got {}", for_each),
+            });
         }
         Ok(())
     }
@@ -266,6 +304,16 @@ impl Task {
     /// Get the fail_fast setting for for_each (defaults to true)
     pub fn for_each_fail_fast(&self) -> bool {
         self.fail_fast.unwrap_or(true)
+    }
+
+    /// Check if this task has decompose modifier (v0.5)
+    pub fn has_decompose(&self) -> bool {
+        self.decompose.is_some()
+    }
+
+    /// Get the decompose spec if present (v0.5)
+    pub fn decompose_spec(&self) -> Option<&DecomposeSpec> {
+        self.decompose.as_ref()
     }
 }
 

@@ -1,15 +1,19 @@
-//! Wiring Spec - YAML types for explicit data wiring (v0.1)
+//! Wiring Spec - YAML types for explicit data wiring (v0.5)
 //!
 //! Unified syntax: `alias: task.path [?? default]`
 //!
 //! Examples:
-//! - `forecast: weather.summary` -> simple path
+//! - `forecast: weather.summary` -> simple path (eager)
 //! - `temp: weather.data.temp ?? 20` -> with numeric default
 //! - `name: user.profile ?? "Anonymous"` -> with string default (quoted)
 //! - `cfg: x ?? {"a": 1}` -> with object default
+//!
+//! Extended syntax for lazy bindings (v0.5 MVP 8):
+//! - `alias: { path: task.result, lazy: true }` -> deferred resolution
+//! - `alias: { path: task.result, lazy: true, default: "fallback" }` -> lazy with default
 
 use rustc_hash::FxHashMap;
-use serde::de::{self, Deserializer, Visitor};
+use serde::de::{self, Deserializer, MapAccess, Visitor};
 use serde::Deserialize;
 use serde_json::Value;
 use std::fmt;
@@ -19,34 +23,66 @@ use crate::error::NikaError;
 /// Wiring spec - map of alias to entry (YAML `use:` block)
 pub type WiringSpec = FxHashMap<String, UseEntry>;
 
-/// Unified use entry - single form
+/// Unified use entry - supports both string and extended object syntax (v0.5)
 ///
-/// Syntax: `task.path [?? default]`
+/// String syntax: `task.path [?? default]`
 /// - path: "task.field.subfield" or "task" for entire output
 /// - default: Optional JSON literal after ??
+///
+/// Extended syntax (YAML object):
+/// - path: "task.field" (required)
+/// - lazy: bool (optional, default false)
+/// - default: JSON value (optional)
 #[derive(Debug, Clone, PartialEq)]
 pub struct UseEntry {
     /// Full path: "task.field.subfield" or "task" for entire output
     pub path: String,
     /// Optional default value (JSON literal)
     pub default: Option<Value>,
+    /// Lazy flag - if true, resolution is deferred until first access (v0.5)
+    pub lazy: bool,
 }
 
 impl UseEntry {
-    /// Create a new UseEntry with just a path
+    /// Create a new UseEntry with just a path (eager resolution)
     pub fn new(path: impl Into<String>) -> Self {
         Self {
             path: path.into(),
             default: None,
+            lazy: false,
         }
     }
 
-    /// Create a new UseEntry with path and default
+    /// Create a new UseEntry with path and default (eager resolution)
     pub fn with_default(path: impl Into<String>, default: Value) -> Self {
         Self {
             path: path.into(),
             default: Some(default),
+            lazy: false,
         }
+    }
+
+    /// Create a new lazy UseEntry (deferred resolution, v0.5)
+    pub fn new_lazy(path: impl Into<String>) -> Self {
+        Self {
+            path: path.into(),
+            default: None,
+            lazy: true,
+        }
+    }
+
+    /// Create a new lazy UseEntry with default (deferred resolution, v0.5)
+    pub fn lazy_with_default(path: impl Into<String>, default: Value) -> Self {
+        Self {
+            path: path.into(),
+            default: Some(default),
+            lazy: true,
+        }
+    }
+
+    /// Check if this binding is lazy (deferred resolution)
+    pub fn is_lazy(&self) -> bool {
+        self.lazy
     }
 
     /// Extract the task ID from the path (first segment before '.')
@@ -55,11 +91,12 @@ impl UseEntry {
     }
 }
 
-/// Parse a use entry string into UseEntry
+/// Parse a use entry string into UseEntry (eager resolution)
 ///
 /// Syntax: `task.path [?? default]`
 /// - If `??` found outside quotes, splits into path and default
 /// - Default is parsed as JSON literal (strings must be quoted)
+/// - String syntax always produces eager bindings (lazy=false)
 pub fn parse_use_entry(s: &str) -> Result<UseEntry, NikaError> {
     let s = s.trim();
 
@@ -89,11 +126,13 @@ pub fn parse_use_entry(s: &str) -> Result<UseEntry, NikaError> {
             Ok(UseEntry {
                 path: path.to_string(),
                 default: Some(default),
+                lazy: false,
             })
         }
         None => Ok(UseEntry {
             path: s.to_string(),
             default: None,
+            lazy: false,
         }),
     }
 }
@@ -124,15 +163,17 @@ fn find_operator_outside_quotes(s: &str, op: &str) -> Option<usize> {
     None
 }
 
-/// Custom deserializer for UseEntry
+/// Custom deserializer for UseEntry (v0.5)
 ///
-/// Accepts string in format: `task.path [?? default]`
+/// Accepts two formats:
+/// 1. String: `task.path [?? default]` → eager binding
+/// 2. Object: `{path: "task.path", lazy: true, default: ...}` → lazy binding (v0.5)
 impl<'de> Deserialize<'de> for UseEntry {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_str(UseEntryVisitor)
+        deserializer.deserialize_any(UseEntryVisitor)
     }
 }
 
@@ -142,14 +183,60 @@ impl<'de> Visitor<'de> for UseEntryVisitor {
     type Value = UseEntry;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a string in format 'task.path' or 'task.path ?? default'")
+        formatter.write_str("a string 'task.path [?? default]' or an object {path, lazy?, default?}")
     }
 
+    /// Handle string format: "task.path [?? default]" (eager)
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
     where
         E: de::Error,
     {
         parse_use_entry(value).map_err(|e| de::Error::custom(e.to_string()))
+    }
+
+    /// Handle object format: {path, lazy?, default?} (v0.5 extended syntax)
+    fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+    where
+        M: MapAccess<'de>,
+    {
+        let mut path: Option<String> = None;
+        let mut lazy: Option<bool> = None;
+        let mut default: Option<Value> = None;
+
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "path" => {
+                    if path.is_some() {
+                        return Err(de::Error::duplicate_field("path"));
+                    }
+                    path = Some(map.next_value()?);
+                }
+                "lazy" => {
+                    if lazy.is_some() {
+                        return Err(de::Error::duplicate_field("lazy"));
+                    }
+                    lazy = Some(map.next_value()?);
+                }
+                "default" => {
+                    if default.is_some() {
+                        return Err(de::Error::duplicate_field("default"));
+                    }
+                    default = Some(map.next_value()?);
+                }
+                _ => {
+                    // Ignore unknown fields for forward compatibility
+                    let _ = map.next_value::<de::IgnoredAny>()?;
+                }
+            }
+        }
+
+        let path = path.ok_or_else(|| de::Error::missing_field("path"))?;
+
+        Ok(UseEntry {
+            path,
+            default,
+            lazy: lazy.unwrap_or(false),
+        })
     }
 }
 

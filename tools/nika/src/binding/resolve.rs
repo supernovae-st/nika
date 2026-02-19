@@ -1,9 +1,10 @@
-//! Resolved Bindings - runtime value resolution (v0.1)
+//! Resolved Bindings - runtime value resolution (v0.5)
 //!
 //! ResolvedBindings holds resolved values from `use:` blocks for template resolution.
-//! Eliminates intermediate storage - values are resolved once and used inline.
+//! Supports both eager (immediate) and lazy (deferred) resolution.
 //!
 //! Unified syntax: `alias: task.path [?? default]`
+//! Extended syntax: `alias: {path: task.path, lazy: true}`
 //!
 //! Uses FxHashMap for faster hashing (consistent with FlowGraph).
 
@@ -16,13 +17,41 @@ use crate::util::jsonpath;
 
 use super::entry::{UseEntry, WiringSpec};
 
-/// Resolved bindings from use: block (alias -> value)
+/// Lazy binding state - either resolved or pending (v0.5)
+#[derive(Debug, Clone)]
+pub enum LazyBinding {
+    /// Already resolved to a concrete value (eager bindings)
+    Resolved(Value),
+    /// Pending resolution - stores path and default for deferred resolution
+    Pending {
+        path: String,
+        default: Option<Value>,
+    },
+}
+
+impl LazyBinding {
+    /// Check if this binding is pending resolution
+    pub fn is_pending(&self) -> bool {
+        matches!(self, LazyBinding::Pending { .. })
+    }
+
+    /// Get the value if already resolved
+    pub fn get_value(&self) -> Option<&Value> {
+        match self {
+            LazyBinding::Resolved(v) => Some(v),
+            LazyBinding::Pending { .. } => None,
+        }
+    }
+}
+
+/// Resolved bindings from use: block (alias -> value or pending)
 ///
 /// Uses FxHashMap for faster hashing on small string keys.
+/// Supports both eager and lazy bindings (v0.5).
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedBindings {
-    /// Resolved alias -> value mappings from use: block
-    resolved: FxHashMap<String, Value>,
+    /// Alias -> binding mappings (resolved or pending)
+    bindings: FxHashMap<String, LazyBinding>,
 }
 
 impl ResolvedBindings {
@@ -31,9 +60,14 @@ impl ResolvedBindings {
         Self::default()
     }
 
-    /// Build bindings from use: wiring by resolving paths from datastore
+    /// Build bindings from use: wiring by resolving paths from datastore (v0.5)
     ///
-    /// Unified resolution for the new syntax: `task.path [?? default]`
+    /// Unified resolution for both syntax styles:
+    /// - String: `task.path [?? default]` → eager resolution
+    /// - Object: `{path, lazy?, default?}` → lazy or eager based on flag
+    ///
+    /// Lazy bindings are stored as Pending and resolved on first access.
+    /// Eager bindings are resolved immediately and fail if source is missing.
     ///
     /// Returns empty bindings if use_wiring is None.
     pub fn from_wiring_spec(
@@ -47,35 +81,99 @@ impl ResolvedBindings {
         let mut bindings = Self::new();
 
         for (alias, entry) in wiring {
-            let value = resolve_entry(entry, alias, datastore)?;
-            bindings.set(alias, value);
+            if entry.is_lazy() {
+                // Lazy binding - defer resolution
+                bindings.bindings.insert(
+                    alias.clone(),
+                    LazyBinding::Pending {
+                        path: entry.path.clone(),
+                        default: entry.default.clone(),
+                    },
+                );
+            } else {
+                // Eager binding - resolve immediately
+                let value = resolve_entry(entry, alias, datastore)?;
+                bindings.bindings.insert(alias.clone(), LazyBinding::Resolved(value));
+            }
         }
 
         Ok(bindings)
     }
 
-    /// Set a resolved value
+    /// Set a resolved value (always eager)
     pub fn set(&mut self, alias: impl Into<String>, value: Value) {
-        self.resolved.insert(alias.into(), value);
+        self.bindings.insert(alias.into(), LazyBinding::Resolved(value));
     }
 
-    /// Get a resolved value
+    /// Get a resolved value (only works for already-resolved bindings)
+    ///
+    /// For lazy bindings that haven't been resolved yet, returns None.
+    /// Use `get_resolved()` to force resolution of lazy bindings.
     pub fn get(&self, alias: &str) -> Option<&Value> {
-        self.resolved.get(alias)
+        self.bindings.get(alias).and_then(|b| b.get_value())
     }
 
-    /// Check if context has any resolved values
+    /// Get a resolved value, resolving lazy bindings on demand (v0.5)
+    ///
+    /// For eager bindings, returns the pre-resolved value.
+    /// For lazy bindings, resolves from datastore on first call.
+    ///
+    /// Note: This doesn't cache the resolution - each call re-resolves.
+    /// This is intentional to support changing datastore values.
+    pub fn get_resolved(&self, alias: &str, datastore: &DataStore) -> Result<Value, NikaError> {
+        match self.bindings.get(alias) {
+            Some(LazyBinding::Resolved(value)) => Ok(value.clone()),
+            Some(LazyBinding::Pending { path, default }) => {
+                // Resolve on demand
+                let entry = UseEntry {
+                    path: path.clone(),
+                    default: default.clone(),
+                    lazy: true,
+                };
+                resolve_entry(&entry, alias, datastore)
+            }
+            None => Err(NikaError::BindingNotFound {
+                alias: alias.to_string(),
+            }),
+        }
+    }
+
+    /// Check if a binding is lazy (pending resolution) (v0.5)
+    pub fn is_lazy(&self, alias: &str) -> bool {
+        self.bindings
+            .get(alias)
+            .map(|b| b.is_pending())
+            .unwrap_or(false)
+    }
+
+    /// Check if context has any bindings
     #[allow(dead_code)] // Used in tests
     pub fn is_empty(&self) -> bool {
-        self.resolved.is_empty()
+        self.bindings.is_empty()
     }
 
     /// Serialize context to JSON Value for event logging
     ///
     /// Returns the full resolved inputs as a JSON object.
+    /// Lazy bindings that haven't been resolved are represented as null.
     /// Used by EventLog for TaskStarted events (inputs field).
     pub fn to_value(&self) -> Value {
-        serde_json::to_value(&self.resolved).unwrap_or(Value::Null)
+        let mut map = serde_json::Map::new();
+        for (alias, binding) in &self.bindings {
+            match binding {
+                LazyBinding::Resolved(v) => {
+                    map.insert(alias.clone(), v.clone());
+                }
+                LazyBinding::Pending { path, default: _ } => {
+                    // Represent pending as a marker object
+                    map.insert(
+                        alias.clone(),
+                        serde_json::json!({"__lazy__": true, "path": path}),
+                    );
+                }
+            }
+        }
+        Value::Object(map)
     }
 }
 

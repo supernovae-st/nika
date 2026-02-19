@@ -293,6 +293,19 @@ pub enum EventKind {
         turns: u32,
         stop_reason: String,
     },
+
+    // ═══════════════════════════════════════════
+    // NESTED AGENT EVENTS (v0.5 - MVP 8 Phase 2)
+    // ═══════════════════════════════════════════
+    /// A sub-agent was spawned by a parent agent
+    AgentSpawned {
+        /// ID of the parent task that spawned the child
+        parent_task_id: Arc<str>,
+        /// ID of the newly spawned child task
+        child_task_id: Arc<str>,
+        /// Current depth level (1 = root agent spawning first child)
+        depth: u32,
+    },
 }
 
 impl EventKind {
@@ -313,6 +326,8 @@ impl EventKind {
             | Self::AgentStart { task_id, .. }
             | Self::AgentTurn { task_id, .. }
             | Self::AgentComplete { task_id, .. } => Some(task_id),
+            // AgentSpawned uses parent_task_id as the primary task reference
+            Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
             Self::WorkflowStarted { .. }
             | Self::WorkflowCompleted { .. }
             | Self::WorkflowFailed { .. } => None,
@@ -488,6 +503,9 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// Use actual package version in tests to avoid version drift
+    const TEST_VERSION: &str = env!("CARGO_PKG_VERSION");
+
     // ═══════════════════════════════════════════════════════════════
     // Test helpers
     // ═══════════════════════════════════════════════════════════════
@@ -498,7 +516,7 @@ mod tests {
             task_count,
             generation_id: "test-gen-123".to_string(),
             workflow_hash: "abc123".to_string(),
-            nika_version: "0.2.0".to_string(),
+            nika_version: TEST_VERSION.to_string(),
         }
     }
 
@@ -802,7 +820,7 @@ mod tests {
             task_count: 3,
             generation_id: "gen-abc-123".to_string(),
             workflow_hash: "sha256:deadbeef".to_string(),
-            nika_version: "0.2.1".to_string(),
+            nika_version: TEST_VERSION.to_string(),
         });
 
         let events = log.events();
@@ -815,7 +833,7 @@ mod tests {
         {
             assert_eq!(generation_id, "gen-abc-123");
             assert_eq!(workflow_hash, "sha256:deadbeef");
-            assert_eq!(nika_version, "0.2.1");
+            assert_eq!(nika_version, TEST_VERSION);
         } else {
             panic!("Expected WorkflowStarted event");
         }

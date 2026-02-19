@@ -31,6 +31,12 @@ const MAX_ALLOWED_TURNS: u32 = 100;
 /// Default thinking budget for extended thinking (4096 tokens)
 const DEFAULT_THINKING_BUDGET: u64 = 4096;
 
+/// Default depth limit for nested agent spawning (MVP 8 Phase 2)
+const DEFAULT_DEPTH_LIMIT: u32 = 3;
+
+/// Maximum allowed depth limit (prevent deep recursion)
+const MAX_DEPTH_LIMIT: u32 = 10;
+
 /// Parameters for the `agent:` verb
 ///
 /// Enables agentic execution with MCP tool access. The agent runs
@@ -89,6 +95,14 @@ pub struct AgentParams {
     /// but cost more. Only used when `extended_thinking: true`.
     #[serde(default)]
     pub thinking_budget: Option<u64>,
+
+    /// Maximum depth for nested agent spawning (default: 3, max: 10)
+    ///
+    /// Controls how many levels of sub-agents can be spawned recursively.
+    /// A depth_limit of 1 means no sub-agents can be spawned.
+    /// Used by `spawn_agent` internal tool to prevent infinite recursion.
+    #[serde(default)]
+    pub depth_limit: Option<u32>,
 }
 
 impl AgentParams {
@@ -117,6 +131,15 @@ impl AgentParams {
     #[inline]
     pub fn effective_thinking_budget(&self) -> u64 {
         self.thinking_budget.unwrap_or(DEFAULT_THINKING_BUDGET)
+    }
+
+    /// Get effective depth limit for nested agent spawning (with default).
+    ///
+    /// Returns the configured `depth_limit` if set, otherwise returns
+    /// the default value of 3.
+    #[inline]
+    pub fn effective_depth_limit(&self) -> u32 {
+        self.depth_limit.unwrap_or(DEFAULT_DEPTH_LIMIT)
     }
 
     /// Check if a response triggers a stop condition.
@@ -166,6 +189,16 @@ impl AgentParams {
                         provider
                     ));
                 }
+            }
+        }
+
+        // Validate depth_limit (MVP 8 Phase 2)
+        if let Some(depth) = self.depth_limit {
+            if depth == 0 {
+                return Err("depth_limit must be > 0".to_string());
+            }
+            if depth > MAX_DEPTH_LIMIT {
+                return Err(format!("depth_limit cannot exceed {}", MAX_DEPTH_LIMIT));
             }
         }
 
