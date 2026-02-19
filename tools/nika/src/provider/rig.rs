@@ -24,8 +24,8 @@
 //! ```
 
 use crate::mcp::McpClient;
-use rig::client::ProviderClient;
-use rig::completion::ToolDefinition;
+use rig::client::{CompletionClient, ProviderClient};
+use rig::completion::{Prompt, PromptError, ToolDefinition};
 use rig::providers::{anthropic, openai};
 use rig::tool::{ToolDyn, ToolError};
 use std::future::Future;
@@ -61,6 +61,50 @@ impl RigProvider {
             RigProvider::OpenAI(_) => "openai",
         }
     }
+
+    /// Get the default model for this provider
+    pub fn default_model(&self) -> &'static str {
+        match self {
+            RigProvider::Claude(_) => anthropic::completion::CLAUDE_3_5_SONNET,
+            RigProvider::OpenAI(_) => openai::GPT_4O,
+        }
+    }
+
+    /// Simple text completion (infer) using rig-core
+    ///
+    /// # Arguments
+    /// * `prompt` - The text prompt to send
+    /// * `model` - Model identifier (uses default if None)
+    ///
+    /// # Returns
+    /// The completion text from the model
+    pub async fn infer(&self, prompt: &str, model: Option<&str>) -> Result<String, RigInferError> {
+        let model_id = model.unwrap_or_else(|| self.default_model());
+
+        match self {
+            RigProvider::Claude(client) => {
+                let agent = client.agent(model_id).build();
+                agent
+                    .prompt(prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+            RigProvider::OpenAI(client) => {
+                let agent = client.agent(model_id).build();
+                agent
+                    .prompt(prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+        }
+    }
+}
+
+/// Error type for RigProvider infer operations
+#[derive(Debug, thiserror::Error)]
+pub enum RigInferError {
+    #[error("Completion error: {0}")]
+    PromptError(String),
 }
 
 // =============================================================================
@@ -155,10 +199,10 @@ impl ToolDyn for NikaMcpTool {
 
             // Call the MCP tool
             let result = client.call_tool(&tool_name, params).await.map_err(|e| {
-                ToolError::ToolCallError(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("MCP tool call failed: {}", e),
-                )))
+                ToolError::ToolCallError(Box::new(std::io::Error::other(format!(
+                    "MCP tool call failed: {}",
+                    e
+                ))))
             })?;
 
             // Extract text content from the result
@@ -206,8 +250,30 @@ mod tests {
         assert!(matches!(provider, RigProvider::OpenAI(_)));
     }
 
+    #[test]
+    fn test_rig_provider_default_model_claude() {
+        std::env::set_var("ANTHROPIC_API_KEY", "test-key-for-unit-test");
+        let provider = RigProvider::claude();
+
+        assert_eq!(provider.default_model(), anthropic::completion::CLAUDE_3_5_SONNET);
+    }
+
+    #[test]
+    fn test_rig_provider_default_model_openai() {
+        std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+        let provider = RigProvider::openai();
+
+        assert_eq!(provider.default_model(), openai::GPT_4O);
+    }
+
+    #[test]
+    fn test_rig_infer_error_display() {
+        let err = RigInferError::PromptError("Test error message".to_string());
+        assert_eq!(err.to_string(), "Completion error: Test error message");
+    }
+
     // =========================================================================
-    // RED: NikaMcpTool tests - these should FAIL until we implement NikaMcpTool
+    // NikaMcpTool tests
     // =========================================================================
 
     #[test]

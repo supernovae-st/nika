@@ -10,20 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **rig-core integration** - New `RigAgentLoop` using rig-core's AgentBuilder for agentic execution
+- **RigProvider.infer()** - Simple text completion via rig-core (now used by `infer:` verb)
 - **NikaMcpTool** - Implements rig's `ToolDyn` trait for MCP tool bridging
-- **21 new rig tests** - Comprehensive test suite for rig-based agent loop
+- **24 rig tests** - Comprehensive test suite for rig-based providers and agent loop
 - **Advanced workflow YAML tests** - UC-001/002/003 use cases with NovaNet integration
 
 ### Changed
 
+- **`infer:` verb migrated to rig-core** - executor.rs now uses `RigProvider.infer()` instead of deprecated providers
 - **Provider migration started** - Old providers (claude.rs, openai.rs) marked as deprecated
 - **Migration path documented** - Clear guidance for transitioning from old Provider trait to rig-core
-- Provider module now recommends `RigAgentLoop` for new `agent:` verb implementations
+- Provider module now recommends `RigProvider` for `infer:` and `RigAgentLoop` for `agent:` verb
 
 ### Deprecated
 
-- `ClaudeProvider` - Use `RigAgentLoop` with rig-core instead
-- `OpenAIProvider` - Use `RigAgentLoop` with rig-core instead
+- `ClaudeProvider` - Use `RigProvider.infer()` for infer, `RigAgentLoop` for agent
+- `OpenAIProvider` - Use `RigProvider.infer()` for infer, `RigAgentLoop` for agent
 - `provider::types` - Use rig-core types directly
 
 ## [0.3.0] - 2026-02-19

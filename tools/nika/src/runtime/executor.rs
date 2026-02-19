@@ -19,7 +19,9 @@ use crate::binding::{ResolvedBindings, template_resolve};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 use crate::mcp::{McpClient, McpConfig};
+#[allow(deprecated)]
 use crate::provider::{Provider, create_provider};
+use crate::provider::rig::RigProvider;
 use crate::runtime::AgentLoop;
 use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
 
@@ -28,8 +30,11 @@ use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
 pub struct TaskExecutor {
     /// Shared HTTP client (connection pooling)
     http_client: reqwest::Client,
-    /// Cached providers (lock-free)
+    /// Cached providers (lock-free) - DEPRECATED: Use rig_provider_cache instead
+    #[allow(deprecated)]
     provider_cache: Arc<DashMap<String, Arc<dyn Provider>>>,
+    /// Cached rig-core providers (v0.3.1+)
+    rig_provider_cache: Arc<DashMap<String, RigProvider>>,
     /// Cached MCP clients with async-safe initialization (prevents race conditions in for_each)
     /// Uses OnceCell per server to ensure only one client is created even with concurrent access
     mcp_client_cache: Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>,
@@ -62,6 +67,7 @@ impl TaskExecutor {
         Self {
             http_client,
             provider_cache: Arc::new(DashMap::new()),
+            rig_provider_cache: Arc::new(DashMap::new()),
             mcp_client_cache: Arc::new(DashMap::new()),
             mcp_configs: Arc::new(mcp_configs.unwrap_or_default()),
             default_provider: provider.into(),
@@ -102,6 +108,9 @@ impl TaskExecutor {
     }
 
     /// Get or create a cached provider (atomic via DashMap entry API)
+    ///
+    /// DEPRECATED: Use `get_rig_provider` instead for new code.
+    #[allow(deprecated)]
     fn get_provider(&self, name: &str) -> Result<Arc<dyn Provider>, NikaError> {
         // Use entry API for atomic get-or-insert (avoids race condition)
         use dashmap::mapref::entry::Entry;
@@ -113,6 +122,31 @@ impl TaskExecutor {
                     create_provider(name).map_err(|e| NikaError::Provider(e.to_string()))?,
                 );
                 e.insert(Arc::clone(&provider));
+                Ok(provider)
+            }
+        }
+    }
+
+    /// Get or create a cached rig-core provider (v0.3.1+)
+    ///
+    /// Uses rig-core's provider clients for LLM inference.
+    fn get_rig_provider(&self, name: &str) -> Result<RigProvider, NikaError> {
+        use dashmap::mapref::entry::Entry;
+
+        match self.rig_provider_cache.entry(name.to_string()) {
+            Entry::Occupied(e) => Ok(e.get().clone()),
+            Entry::Vacant(e) => {
+                let provider = match name {
+                    "claude" | "anthropic" => RigProvider::claude(),
+                    "openai" | "gpt" => RigProvider::openai(),
+                    _ => {
+                        return Err(NikaError::Provider(format!(
+                            "Unknown rig provider: {}. Supported: claude, openai",
+                            name
+                        )));
+                    }
+                };
+                e.insert(provider.clone());
                 Ok(provider)
             }
         }
@@ -137,21 +171,20 @@ impl TaskExecutor {
         // Use task-level override or workflow default
         let provider_name = infer.provider.as_deref().unwrap_or(&self.default_provider);
 
-        // Get cached provider (or create and cache)
-        let provider = self.get_provider(provider_name)?;
+        // Get cached rig provider (v0.3.1+)
+        let provider = self.get_rig_provider(provider_name)?;
 
         // Resolve model: task override -> workflow default -> provider default
         let model = infer
             .model
             .as_deref()
-            .or(self.default_model.as_deref())
-            .unwrap_or_else(|| provider.default_model());
+            .or(self.default_model.as_deref());
 
         // EMIT: ProviderCalled
         self.event_log.emit(EventKind::ProviderCalled {
             task_id: Arc::clone(task_id),
             provider: provider_name.to_string(),
-            model: model.to_string(),
+            model: model.unwrap_or_else(|| provider.default_model()).to_string(),
             prompt_len: prompt.len(),
         });
 

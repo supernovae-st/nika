@@ -52,11 +52,23 @@ Nika is migrating from custom providers to [rig-core](https://github.com/0xPlayg
 
 | Component | Status | Implementation |
 |-----------|--------|----------------|
-| `agent:` verb | ✅ Done | `RigAgentLoop` uses rig's AgentBuilder |
-| `infer:` verb | ⏳ Pending | Still uses executor.rs + Provider trait |
+| `infer:` verb | ✅ Done | `RigProvider.infer()` via executor.rs |
+| `agent:` verb | ⏳ Partial | `RigAgentLoop` exists, executor still uses old AgentLoop |
 | MCP tools | ✅ Done | `NikaMcpTool` implements rig's `ToolDyn` |
 
-### Using RigAgentLoop (Recommended for agent:)
+### Using RigProvider (for infer:)
+
+```rust
+use nika::provider::rig::RigProvider;
+
+// Create provider from environment
+let provider = RigProvider::claude();  // or RigProvider::openai()
+
+// Simple text completion
+let result = provider.infer("Summarize this text", None).await?;
+```
+
+### Using RigAgentLoop (for agent:)
 
 ```rust
 use nika::runtime::RigAgentLoop;
