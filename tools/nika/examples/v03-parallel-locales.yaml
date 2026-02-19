@@ -1,0 +1,65 @@
+# v0.3 Feature Showcase: Parallel Locale Generation
+#
+# Demonstrates for_each parallelism with concurrency control.
+# Generates content for 5 locales simultaneously using tokio::spawn JoinSet.
+#
+# Run with: cargo run -- run examples/v03-parallel-locales.yaml
+#
+# DAG: locales → generate_all (parallel) → summary
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+tasks:
+  # Step 1: Generate for ALL locales in parallel
+  # for_each iterates over the array, each iteration runs via tokio::spawn
+  - id: generate_all
+    for_each: ["fr-FR", "en-US", "es-ES", "de-DE", "ja-JP"]
+    as: locale
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity: "qr-code"
+        locale: "{{use.locale}}"
+        token_budget: 2000
+    output:
+      format: json
+
+  # Step 3: Synthesize results
+  - id: summary
+    use:
+      results: generate_all
+    infer:
+      prompt: |
+        You received generation results for 5 locales.
+
+        RESULTS:
+        {{use.results}}
+
+        Create a summary JSON with:
+        - locale_count: number of locales processed
+        - success_rate: percentage of successful generations
+        - locales: array of {locale, status, word_count}
+
+        Output only valid JSON.
+      model: claude-sonnet-4-20250514
+    output:
+      format: json
+
+flows:
+  - source: generate_all
+    target: summary

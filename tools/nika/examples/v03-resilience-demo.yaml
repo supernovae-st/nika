@@ -1,0 +1,115 @@
+# v0.3 Feature Showcase: Resilience Patterns
+#
+# Demonstrates retry, circuit breaker, and rate limiting.
+# These patterns handle transient failures gracefully.
+#
+# Run with: cargo run -- run examples/v03-resilience-demo.yaml
+#
+# Features shown:
+# - Exponential backoff with jitter
+# - Circuit breaker (Closed → Open → HalfOpen)
+# - Rate limiting per provider
+# - Graceful degradation
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+# Provider-level resilience configuration
+providers:
+  claude:
+    api_key: ${ANTHROPIC_API_KEY}
+    resilience:
+      retry:
+        max_attempts: 3
+        backoff: exponential
+        initial_delay_ms: 500
+        max_delay_ms: 10000
+        jitter: true
+      circuit_breaker:
+        failure_threshold: 5
+        success_threshold: 2
+        reset_timeout_ms: 30000
+      rate_limiter:
+        requests_per_minute: 60
+        burst_size: 10
+
+mcp:
+  novanet:
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+tasks:
+  # Step 1: Fetch data (may fail transiently)
+  - id: fetch_entities
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: "entities"
+        limit: 10
+    output:
+      format: json
+
+  # Step 2: Process sample entities (benefits from rate limiting)
+  # Note: In production, would iterate over fetch_entities.entities
+  - id: process_entities
+    for_each: ["qr-code", "dynamic-qr-code", "qr-code-art"]
+    as: entity_key
+    infer:
+      prompt: |
+        Analyze this entity briefly: {{use.entity_key}}
+
+        Output a single-sentence summary of what this entity represents.
+      model: claude-haiku-4-20250514  # Faster model for batch processing
+    output:
+      format: text
+
+  # Step 3: Aggregate (single call, retry on failure)
+  - id: aggregate
+    use:
+      summaries: process_entities
+    infer:
+      prompt: |
+        Combine these entity summaries into a cohesive report:
+
+        {{use.summaries}}
+
+        Output a JSON with:
+        - entity_count: number of entities
+        - themes: array of common themes
+        - highlights: top 3 notable entities
+      model: claude-sonnet-4-20250514
+    output:
+      format: json
+
+flows:
+  - source: fetch_entities
+    target: process_entities
+  - source: process_entities
+    target: aggregate
+
+# Resilience behavior explanation:
+#
+# RETRY PATTERN:
+#   Attempt 1 fails → wait 500ms
+#   Attempt 2 fails → wait 1000ms (+ jitter)
+#   Attempt 3 fails → wait 2000ms (+ jitter)
+#   Attempt 4: final attempt
+#
+# CIRCUIT BREAKER:
+#   Closed: normal operation
+#   5 failures → Open: fail fast (no API calls)
+#   After 30s → HalfOpen: try one request
+#   Success → Closed, Failure → Open
+#
+# RATE LIMITER:
+#   Token bucket: 60 requests/min, burst of 10
+#   Excess requests wait for tokens

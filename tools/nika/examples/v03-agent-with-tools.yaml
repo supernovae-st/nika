@@ -1,0 +1,93 @@
+# v0.3 Feature Showcase: Agent with MCP Tools
+#
+# Demonstrates the agent: verb for autonomous multi-turn execution.
+# The agent explores the knowledge graph and generates a competitive analysis.
+#
+# Run with: cargo run -- run examples/v03-agent-with-tools.yaml
+#
+# Features shown:
+# - agent: verb with tool calling
+# - stop_conditions for agent termination
+# - max_turns limit
+# - Multi-tool orchestration
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+tasks:
+  # Input: entity to analyze
+  - id: entity_key
+    exec:
+      command: "echo dynamic-qr-code"
+
+  # Agent-driven exploration and analysis
+  - id: competitive_analysis
+    use:
+      entity: entity_key
+    agent:
+      prompt: |
+        You are a competitive intelligence analyst. Analyze "{{use.entity}}" using NovaNet tools.
+
+        MISSION:
+        1. Use novanet_describe to understand the entity
+        2. Use novanet_traverse with SIMILAR_TO arcs to find competitors
+        3. Use novanet_traverse with ENABLES arcs to find capabilities
+        4. Synthesize into a competitive positioning report
+
+        AVAILABLE TOOLS:
+        - novanet_describe: Get entity details (params: entity_key)
+        - novanet_traverse: Follow graph relationships (params: start_key, arc_kinds, direction, max_depth)
+
+        OUTPUT FORMAT:
+        When complete, output a JSON report with:
+        {
+          "entity": "...",
+          "competitors": [...],
+          "unique_capabilities": [...],
+          "positioning_statement": "..."
+        }
+
+        Say "ANALYSIS_COMPLETE" when done.
+
+      provider: claude
+      model: claude-sonnet-4-20250514
+      mcp:
+        - novanet
+      max_turns: 8
+      stop_conditions:
+        - "ANALYSIS_COMPLETE"
+        - "ERROR:"
+    output:
+      format: json
+
+  # Final formatting
+  - id: executive_summary
+    use:
+      analysis: competitive_analysis
+    infer:
+      prompt: |
+        Create an executive summary from this competitive analysis:
+
+        {{use.analysis}}
+
+        Format as a brief 3-paragraph summary suitable for executives.
+        Include: key finding, competitive advantage, recommended action.
+
+flows:
+  - source: entity_key
+    target: competitive_analysis
+  - source: competitive_analysis
+    target: executive_summary
