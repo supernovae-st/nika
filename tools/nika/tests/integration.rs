@@ -33,3 +33,8 @@ mod invoke_workflow;
 #[cfg(feature = "integration")]
 #[path = "integration/novanet_test.rs"]
 mod novanet_test;
+
+// E2E workflow integration tests (feature-gated and ignored by default)
+#[cfg(feature = "integration")]
+#[path = "integration/e2e_workflow_test.rs"]
+mod e2e_workflow_test;
