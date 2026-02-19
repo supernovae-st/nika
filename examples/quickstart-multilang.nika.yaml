@@ -1,0 +1,39 @@
+# Quickstart: Multi-Locale Generation (v0.3)
+#
+# Generate native content for 3 locales in parallel.
+# Demonstrates: for_each + invoke (the flagship v0.3 pattern).
+#
+# This is the core NovaNet + Nika use case:
+# Generate culturally-native content from the knowledge graph.
+#
+# Setup:
+#   1. Start Neo4j: cd ../novanet-dev && pnpm infra:up && pnpm infra:seed
+#   2. Run: cargo run -- run examples/quickstart-multilang.nika.yaml
+#
+# Expected output: Content generated in English, French, and Spanish
+
+schema: "nika/workflow@0.3"
+provider: claude
+
+mcp:
+  novanet:
+    command: cargo
+    args: [run, -p, novanet-mcp]
+    env:
+      NEO4J_URI: bolt://localhost:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: novanetpassword
+
+tasks:
+  # Generate content for each locale in parallel
+  - id: generate_per_locale
+    for_each: ["en-US", "fr-FR", "es-MX"]
+    as: locale
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        focus_key: "qr-code"
+        locale: "{{use.locale}}"
+        mode: block
+        token_budget: 2000
