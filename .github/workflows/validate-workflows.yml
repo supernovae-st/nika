@@ -1,0 +1,80 @@
+name: Validate Nika Workflows
+
+on:
+  push:
+    paths:
+      - '**.nika.yaml'
+      - 'schemas/nika-workflow.schema.json'
+      - '.yamllint.yaml'
+  pull_request:
+    paths:
+      - '**.nika.yaml'
+      - 'schemas/nika-workflow.schema.json'
+      - '.yamllint.yaml'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint-yaml:
+    name: Lint YAML
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Lint Nika workflows
+        run: yamllint -c .yamllint.yaml **/*.nika.yaml
+
+  validate-schema:
+    name: Validate Schema
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            tools/nika/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build Nika
+        run: |
+          cd tools/nika
+          cargo build --release
+
+      - name: Validate workflows
+        run: |
+          cd tools/nika
+          for f in examples/*.nika.yaml; do
+            echo "Validating $f..."
+            cargo run --release -- validate "$f"
+          done
+
+  check-extension:
+    name: Check File Extensions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for non-.nika.yaml workflow files
+        run: |
+          # Find YAML files in examples/ that don't follow the .nika.yaml convention
+          # Exclude legitimate non-workflow YAML files
+          WRONG_EXT=$(find tools/nika/examples -name "*.yaml" ! -name "*.nika.yaml" 2>/dev/null || true)
+          if [ -n "$WRONG_EXT" ]; then
+            echo "ERROR: Found workflow files without .nika.yaml extension:"
+            echo "$WRONG_EXT"
+            exit 1
+          fi
+          echo "All workflow files use .nika.yaml extension"

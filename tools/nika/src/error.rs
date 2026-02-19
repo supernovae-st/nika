@@ -465,6 +465,12 @@ impl FixSuggestion for NikaError {
             NikaError::NotImplemented { .. } => {
                 Some("This feature is planned for a future release")
             }
+            NikaError::ThinkingCaptureFailed { .. } => {
+                Some("Check Claude API response and streaming connection")
+            }
+            NikaError::ThinkingNotSupported { .. } => {
+                Some("Extended thinking is only supported with Claude provider")
+            }
             // Resilience errors
             NikaError::ProviderError { .. } => {
                 Some("Check provider configuration and network connectivity")

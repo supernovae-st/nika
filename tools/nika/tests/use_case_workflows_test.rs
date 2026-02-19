@@ -375,15 +375,15 @@ fn test_all_use_case_workflows_use_portable_mcp_paths() {
 
 #[test]
 fn test_invoke_novanet_example_uses_portable_path() {
-    let workflow = load_workflow("invoke-novanet.yaml");
-    assert_mcp_path_portable(&workflow, "invoke-novanet.yaml");
+    let workflow = load_workflow("invoke-novanet.nika.yaml");
+    assert_mcp_path_portable(&workflow, "invoke-novanet.nika.yaml");
 }
 
 #[test]
 fn test_agent_novanet_example_uses_portable_path() {
-    let path = Path::new("examples/agent-novanet.yaml");
+    let path = Path::new("examples/agent-novanet.nika.yaml");
     if path.exists() {
-        let workflow = load_workflow("agent-novanet.yaml");
-        assert_mcp_path_portable(&workflow, "agent-novanet.yaml");
+        let workflow = load_workflow("agent-novanet.nika.yaml");
+        assert_mcp_path_portable(&workflow, "agent-novanet.nika.yaml");
     }
 }

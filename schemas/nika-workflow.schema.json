@@ -1,0 +1,394 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nika.dev/schemas/workflow.json",
+  "title": "Nika Workflow",
+  "description": "Schema for .nika.yaml workflow files - DAG workflow runner for AI tasks",
+  "type": "object",
+  "required": ["schema", "tasks"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "type": "string",
+      "pattern": "^nika/workflow@0\\.[1-4]$",
+      "description": "Workflow schema version (nika/workflow@0.1, @0.2, @0.3, or @0.4)",
+      "examples": ["nika/workflow@0.3", "nika/workflow@0.4"]
+    },
+    "workflow": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Workflow identifier (lowercase alphanumeric with hyphens)",
+      "examples": ["generate-page", "seo-pipeline"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable workflow description"
+    },
+    "provider": {
+      "type": "string",
+      "enum": ["claude", "openai", "mock"],
+      "default": "claude",
+      "description": "Default LLM provider for infer and agent tasks"
+    },
+    "model": {
+      "type": "string",
+      "description": "Default model override (e.g., claude-sonnet-4-20250514, gpt-4o)",
+      "examples": ["claude-sonnet-4-20250514", "gpt-4o-mini"]
+    },
+    "mcp": {
+      "type": "object",
+      "description": "MCP server configurations (v0.2+)",
+      "additionalProperties": {
+        "$ref": "#/$defs/McpServerConfig"
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "description": "List of tasks to execute",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/Task"
+      }
+    },
+    "flows": {
+      "type": "array",
+      "description": "DAG edges defining task dependencies",
+      "items": {
+        "$ref": "#/$defs/Flow"
+      }
+    }
+  },
+  "$defs": {
+    "McpServerConfig": {
+      "type": "object",
+      "description": "Inline MCP server configuration",
+      "required": ["command"],
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Command to spawn the MCP server",
+          "examples": ["cargo", "node", "python"]
+        },
+        "args": {
+          "type": "array",
+          "description": "Arguments to pass to the command",
+          "items": { "type": "string" },
+          "examples": [["run", "-p", "novanet-mcp"]]
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables for the server process",
+          "additionalProperties": { "type": "string" }
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory for the server process"
+        }
+      }
+    },
+    "Task": {
+      "type": "object",
+      "description": "A task in the workflow DAG",
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "Unique task identifier (lowercase alphanumeric with underscores/hyphens)"
+        },
+        "use": {
+          "$ref": "#/$defs/WiringSpec",
+          "description": "Data wiring from previous task outputs"
+        },
+        "output": {
+          "$ref": "#/$defs/OutputPolicy",
+          "description": "Output format and validation"
+        },
+        "for_each": {
+          "oneOf": [
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {}
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$[a-z][a-z0-9_]*$",
+              "description": "Binding reference to an array (e.g., $locales)"
+            }
+          ],
+          "description": "Array to iterate over in parallel (v0.3+)"
+        },
+        "as": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "default": "item",
+          "description": "Variable name for current iteration value"
+        },
+        "concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 1,
+          "description": "Maximum parallel executions for for_each"
+        },
+        "fail_fast": {
+          "type": "boolean",
+          "default": true,
+          "description": "Stop all iterations on first error"
+        },
+        "infer": {
+          "$ref": "#/$defs/InferParams",
+          "description": "LLM inference task"
+        },
+        "exec": {
+          "$ref": "#/$defs/ExecParams",
+          "description": "Shell command execution task"
+        },
+        "fetch": {
+          "$ref": "#/$defs/FetchParams",
+          "description": "HTTP request task"
+        },
+        "invoke": {
+          "$ref": "#/$defs/InvokeParams",
+          "description": "MCP tool call task (v0.2+)"
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentParams",
+          "description": "Agentic execution task (v0.2+)"
+        }
+      },
+      "oneOf": [
+        { "required": ["id", "infer"] },
+        { "required": ["id", "exec"] },
+        { "required": ["id", "fetch"] },
+        { "required": ["id", "invoke"] },
+        { "required": ["id", "agent"] }
+      ]
+    },
+    "InferParams": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Simple prompt string"
+        },
+        {
+          "type": "object",
+          "required": ["prompt"],
+          "additionalProperties": false,
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "LLM prompt (supports {{use.alias}} templates)"
+            },
+            "provider": {
+              "type": "string",
+              "enum": ["claude", "openai", "mock"],
+              "description": "Provider override for this task"
+            },
+            "model": {
+              "type": "string",
+              "description": "Model override for this task"
+            }
+          }
+        }
+      ]
+    },
+    "ExecParams": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Simple command string"
+        },
+        {
+          "type": "object",
+          "required": ["command"],
+          "additionalProperties": false,
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "Shell command to execute (supports {{use.alias}} templates)"
+            }
+          }
+        }
+      ]
+    },
+    "FetchParams": {
+      "type": "object",
+      "required": ["url"],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to fetch"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+          "default": "GET",
+          "description": "HTTP method"
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "HTTP headers"
+        },
+        "body": {
+          "type": "string",
+          "description": "Request body (for POST/PUT/PATCH)"
+        }
+      }
+    },
+    "InvokeParams": {
+      "type": "object",
+      "required": ["mcp"],
+      "additionalProperties": false,
+      "properties": {
+        "mcp": {
+          "type": "string",
+          "description": "MCP server name (must match a key in workflow's mcp config)"
+        },
+        "tool": {
+          "type": "string",
+          "description": "Tool name to call (mutually exclusive with resource)"
+        },
+        "params": {
+          "type": "object",
+          "description": "Parameters to pass to the tool"
+        },
+        "resource": {
+          "type": "string",
+          "description": "Resource URI to read (mutually exclusive with tool)"
+        }
+      },
+      "oneOf": [
+        { "required": ["mcp", "tool"] },
+        { "required": ["mcp", "resource"] }
+      ]
+    },
+    "AgentParams": {
+      "type": "object",
+      "required": ["prompt"],
+      "additionalProperties": false,
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "description": "User prompt for the agent"
+        },
+        "system": {
+          "type": "string",
+          "description": "System prompt (agent persona/behavior)"
+        },
+        "provider": {
+          "type": "string",
+          "enum": ["claude", "openai", "mock"],
+          "description": "Provider override"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model override"
+        },
+        "mcp": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "MCP servers the agent can access"
+        },
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "description": "Maximum agentic turns"
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "description": "LLM temperature"
+        },
+        "stop_sequences": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Sequences that stop generation"
+        }
+      }
+    },
+    "WiringSpec": {
+      "type": "object",
+      "description": "Data wiring from previous task outputs",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          { "$ref": "#/$defs/WiringValue" }
+        ]
+      }
+    },
+    "WiringValue": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Source task.field reference"
+        },
+        "default": {
+          "description": "Default value if source is null"
+        },
+        "transform": {
+          "type": "string",
+          "enum": ["json", "yaml", "string", "trim"],
+          "description": "Transform to apply"
+        }
+      }
+    },
+    "OutputPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["json", "yaml", "text", "markdown"],
+          "default": "text",
+          "description": "Expected output format"
+        },
+        "schema": {
+          "type": "object",
+          "description": "JSON Schema for output validation"
+        },
+        "save": {
+          "type": "string",
+          "description": "File path to save output"
+        }
+      }
+    },
+    "Flow": {
+      "type": "object",
+      "required": ["source", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/FlowEndpoint",
+          "description": "Source task(s)"
+        },
+        "target": {
+          "$ref": "#/$defs/FlowEndpoint",
+          "description": "Target task(s)"
+        }
+      }
+    },
+    "FlowEndpoint": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Single task ID"
+        },
+        {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Multiple task IDs"
+        }
+      ]
+    }
+  }
+}

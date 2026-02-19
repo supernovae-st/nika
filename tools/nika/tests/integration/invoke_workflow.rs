@@ -12,7 +12,7 @@ use nika::Workflow;
 
 #[test]
 fn test_invoke_workflow_parses() {
-    let yaml = std::fs::read_to_string("examples/invoke-novanet.yaml")
+    let yaml = std::fs::read_to_string("examples/invoke-novanet.nika.yaml")
         .expect("Example workflow should exist");
 
     let workflow: Workflow = serde_yaml::from_str(&yaml).expect("Workflow should parse");
@@ -46,7 +46,7 @@ fn test_invoke_workflow_parses() {
 
 #[test]
 fn test_invoke_workflow_task_ids() {
-    let yaml = std::fs::read_to_string("examples/invoke-novanet.yaml")
+    let yaml = std::fs::read_to_string("examples/invoke-novanet.nika.yaml")
         .expect("Example workflow should exist");
 
     let workflow: Workflow = serde_yaml::from_str(&yaml).expect("Workflow should parse");
@@ -57,7 +57,7 @@ fn test_invoke_workflow_task_ids() {
 
 #[test]
 fn test_invoke_workflow_flows() {
-    let yaml = std::fs::read_to_string("examples/invoke-novanet.yaml")
+    let yaml = std::fs::read_to_string("examples/invoke-novanet.nika.yaml")
         .expect("Example workflow should exist");
 
     let workflow: Workflow = serde_yaml::from_str(&yaml).expect("Workflow should parse");
@@ -82,7 +82,7 @@ fn test_invoke_workflow_flows() {
 
 #[test]
 fn test_invoke_workflow_mcp_env() {
-    let yaml = std::fs::read_to_string("examples/invoke-novanet.yaml")
+    let yaml = std::fs::read_to_string("examples/invoke-novanet.nika.yaml")
         .expect("Example workflow should exist");
 
     let workflow: Workflow = serde_yaml::from_str(&yaml).expect("Workflow should parse");
@@ -106,6 +106,6 @@ async fn test_invoke_workflow_executes() {
     // 1. NovaNet MCP server running
     // 2. Neo4j with test data
     // For now, just verify the workflow can be loaded
-    let _yaml = std::fs::read_to_string("examples/invoke-novanet.yaml")
+    let _yaml = std::fs::read_to_string("examples/invoke-novanet.nika.yaml")
         .expect("Example workflow should exist");
 }

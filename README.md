@@ -210,14 +210,46 @@ Nika uses [rig-core](https://github.com/0xPlaygrounds/rig) for LLM providers. Al
 
 See [rig-core docs](https://docs.rs/rig-core) for 20+ additional providers.
 
+## File Conventions
+
+All Nika workflow files **MUST** use the `.nika.yaml` extension:
+
+| Pattern | Status |
+|---------|--------|
+| `workflow.nika.yaml` | ✅ Correct |
+| `workflow.yaml` | ❌ Wrong (ambiguous) |
+| `workflow.nika` | ❌ Wrong (not YAML) |
+
+### Schema Validation
+
+Workflows are validated against `schemas/nika-workflow.schema.json`:
+
+```bash
+# Validate single file
+nika validate workflow.nika.yaml
+
+# Validate all examples
+nika validate examples/
+```
+
+### IDE Support
+
+VS Code users get automatic schema validation and autocompletion via `.vscode/settings.json`. Install the [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml).
+
+### Linting
+
+```bash
+yamllint -c .yamllint.yaml **/*.nika.yaml
+```
+
 ## Commands
 
 ```bash
-nika run <workflow.yaml>      # Execute workflow
-nika validate <workflow.yaml> # Validate only
-nika tui <workflow.yaml>      # Interactive TUI (v0.3)
-nika trace list               # List traces
-nika trace show <id>          # Show trace details
+nika run <workflow.nika.yaml>      # Execute workflow
+nika validate <workflow.nika.yaml> # Validate only
+nika tui <workflow.nika.yaml>      # Interactive TUI (v0.3)
+nika trace list                    # List traces
+nika trace show <id>               # Show trace details
 ```
 
 ## Tutorial

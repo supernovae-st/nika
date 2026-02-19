@@ -40,6 +40,50 @@ tools/nika/src/
 - **Verb:** Action type (infer:, exec:, fetch:, invoke:, agent:)
 - **Binding:** Data passing via `use:` block and `{{use.alias}}`
 
+## File Conventions
+
+### Workflow File Extension
+
+All Nika workflow files **MUST** use the `.nika.yaml` extension:
+
+```
+workflow.nika.yaml     ✅ Correct
+workflow.yaml          ❌ Wrong (ambiguous)
+workflow.nika          ❌ Wrong (not YAML)
+```
+
+### JSON Schema Validation
+
+Workflows are validated against `schemas/nika-workflow.schema.json`:
+
+```bash
+# Validate single file
+cargo run -- validate workflow.nika.yaml
+
+# Validate directory
+cargo run -- validate examples/
+```
+
+### VS Code Integration
+
+Schema auto-completion is enabled via `.vscode/settings.json`:
+
+```json
+{
+  "yaml.schemas": {
+    "./schemas/nika-workflow.schema.json": "*.nika.yaml"
+  }
+}
+```
+
+### yamllint
+
+YAML linting uses `.yamllint.yaml` configuration:
+
+```bash
+yamllint -c .yamllint.yaml **/*.nika.yaml
+```
+
 ## Schema Versions
 
 - `nika/workflow@0.1`: infer, exec, fetch verbs

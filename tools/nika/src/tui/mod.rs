@@ -28,7 +28,7 @@ mod widgets;
 #[cfg(feature = "tui")]
 pub use app::App;
 #[cfg(feature = "tui")]
-pub use state::{PanelId, TuiMode, TuiState};
+pub use state::{AgentTurnState, PanelId, TuiMode, TuiState};
 #[cfg(feature = "tui")]
 pub use theme::{MissionPhase, TaskStatus, Theme};
 
