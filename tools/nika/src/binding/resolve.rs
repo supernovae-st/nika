@@ -25,10 +25,6 @@ pub struct ResolvedBindings {
     resolved: FxHashMap<String, Value>,
 }
 
-/// Deprecated alias - use ResolvedBindings instead
-#[deprecated(since = "0.3.0", note = "use ResolvedBindings instead")]
-pub type UseBindings = ResolvedBindings;
-
 impl ResolvedBindings {
     /// Create empty bindings
     pub fn new() -> Self {
@@ -56,15 +52,6 @@ impl ResolvedBindings {
         }
 
         Ok(bindings)
-    }
-
-    /// Deprecated alias - use from_wiring_spec instead
-    #[deprecated(since = "0.3.0", note = "use from_wiring_spec instead")]
-    pub fn from_use_wiring(
-        use_wiring: Option<&WiringSpec>,
-        datastore: &DataStore,
-    ) -> Result<Self, NikaError> {
-        Self::from_wiring_spec(use_wiring, datastore)
     }
 
     /// Set a resolved value

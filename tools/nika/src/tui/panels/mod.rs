@@ -6,10 +6,6 @@
 //! - Context assembled
 //! - Agent reasoning
 
-// Allow dead_code and unused imports in TUI panels - scaffolding for MVP 5
-#![allow(dead_code)]
-#![allow(unused_imports)]
-
 mod context;
 mod graph;
 mod progress;

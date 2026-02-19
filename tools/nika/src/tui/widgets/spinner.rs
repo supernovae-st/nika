@@ -12,7 +12,6 @@ use ratatui::{
 /// Spinner animation frames
 pub const BRAILLE_SPINNER: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 pub const DOT_SPINNER: &[char] = &['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷'];
-pub const ARROW_SPINNER: &[char] = &['←', '↖', '↑', '↗', '→', '↘', '↓', '↙'];
 pub const PULSE_SPINNER: &[char] = &['○', '◔', '◑', '◕', '●', '◕', '◑', '◔'];
 
 /// Animated spinner widget
@@ -44,12 +43,6 @@ impl Spinner {
     /// Use dot/pulse spinner
     pub fn dots(mut self) -> Self {
         self.chars = DOT_SPINNER;
-        self
-    }
-
-    /// Use arrow spinner
-    pub fn arrows(mut self) -> Self {
-        self.chars = ARROW_SPINNER;
         self
     }
 

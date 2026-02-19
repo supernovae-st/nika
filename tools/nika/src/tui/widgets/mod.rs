@@ -22,7 +22,6 @@ pub use agent_turns::{AgentTurns, TurnEntry};
 pub use dag::{Dag, DagNode};
 pub use gauge::Gauge;
 pub use mcp_log::{McpEntry, McpLog};
-// Public API for spinner widgets - used by TUI panels
-#[allow(unused_imports)]
+// Spinner widgets - exported for future panel use
 pub use spinner::{ProgressDots, Spinner, BRAILLE_SPINNER, DOT_SPINNER, PULSE_SPINNER};
 pub use timeline::{Timeline, TimelineEntry};

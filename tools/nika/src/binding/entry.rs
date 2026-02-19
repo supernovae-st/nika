@@ -19,10 +19,6 @@ use crate::error::NikaError;
 /// Wiring spec - map of alias to entry (YAML `use:` block)
 pub type WiringSpec = FxHashMap<String, UseEntry>;
 
-/// Deprecated alias - use WiringSpec instead
-#[deprecated(since = "0.3.0", note = "use WiringSpec instead")]
-pub type UseWiring = WiringSpec;
-
 /// Unified use entry - single form
 ///
 /// Syntax: `task.path [?? default]`
@@ -362,7 +358,7 @@ mod tests {
     #[test]
     fn yaml_parse_simple() {
         let yaml = "forecast: weather.summary";
-        let wiring: UseWiring = serde_yaml::from_str(yaml).unwrap();
+        let wiring: WiringSpec = serde_yaml::from_str(yaml).unwrap();
         let entry = wiring.get("forecast").unwrap();
         assert_eq!(entry.path, "weather.summary");
         assert_eq!(entry.default, None);
@@ -371,7 +367,7 @@ mod tests {
     #[test]
     fn yaml_parse_with_default() {
         let yaml = r#"temp: weather.temp ?? 20"#;
-        let wiring: UseWiring = serde_yaml::from_str(yaml).unwrap();
+        let wiring: WiringSpec = serde_yaml::from_str(yaml).unwrap();
         let entry = wiring.get("temp").unwrap();
         assert_eq!(entry.path, "weather.temp");
         assert_eq!(entry.default, Some(json!(20)));
@@ -384,7 +380,7 @@ forecast: weather.summary
 temp: weather.temp ?? 20
 name: user.name ?? "Anonymous"
 "#;
-        let wiring: UseWiring = serde_yaml::from_str(yaml).unwrap();
+        let wiring: WiringSpec = serde_yaml::from_str(yaml).unwrap();
 
         let forecast = wiring.get("forecast").unwrap();
         assert_eq!(forecast.path, "weather.summary");
@@ -407,7 +403,7 @@ name: user.name ?? "Anonymous"
 cfg: 'settings ?? {"debug": false}'
 tags: 'meta.tags ?? ["default"]'
 "#;
-        let wiring: UseWiring = serde_yaml::from_str(yaml).unwrap();
+        let wiring: WiringSpec = serde_yaml::from_str(yaml).unwrap();
 
         let cfg = wiring.get("cfg").unwrap();
         assert_eq!(cfg.default, Some(json!({"debug": false})));

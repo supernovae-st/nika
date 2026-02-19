@@ -58,7 +58,6 @@ pub mod runtime;
 pub mod event;
 pub mod mcp;
 pub mod provider;
-pub mod resilience;
 pub mod store;
 pub mod tui;
 pub mod util;
@@ -88,11 +87,7 @@ pub use runtime::{Runner, TaskExecutor};
 pub use dag::FlowGraph;
 
 // Binding types
-// New names (v0.3)
 pub use binding::{validate_task_id, ResolvedBindings, UseEntry, WiringSpec};
-// Deprecated aliases for backward compatibility
-#[allow(deprecated)]
-pub use binding::{UseBindings, UseWiring};
 
 // Event types
 pub use event::{
@@ -107,11 +102,4 @@ pub use store::{DataStore, TaskResult, TaskStatus};
 pub use mcp::{
     ContentBlock, McpClient, McpConfig, ResourceContent, ToolCallRequest, ToolCallResult,
     ToolDefinition,
-};
-
-// Resilience types (v0.2)
-pub use resilience::{
-    CircuitBreaker, CircuitBreakerConfig, CircuitState, LatencyStats, Metrics, MetricsSnapshot,
-    RateLimiter, RateLimiterConfig, ResilientProvider, ResilientProviderConfig, RetryConfig,
-    RetryPolicy,
 };

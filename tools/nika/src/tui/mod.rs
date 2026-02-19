@@ -17,15 +17,11 @@
 #[cfg(feature = "tui")]
 mod app;
 #[cfg(feature = "tui")]
-mod event;
-#[cfg(feature = "tui")]
 mod panels;
 #[cfg(feature = "tui")]
 mod state;
 #[cfg(feature = "tui")]
 mod theme;
-#[cfg(feature = "tui")]
-mod ui;
 #[cfg(feature = "tui")]
 mod widgets;
 

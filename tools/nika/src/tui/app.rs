@@ -404,89 +404,6 @@ fn render_panel(
     }
 }
 
-/// Render progress panel content
-fn render_progress_content(state: &TuiState) -> String {
-    let phase = state.workflow.phase;
-    let elapsed = format_duration(state.workflow.elapsed_ms);
-    let progress = state.workflow.progress_pct();
-
-    format!(
-        "Phase: {} {}\nElapsed: {}\nProgress: {:.0}% ({}/{})\n\nCurrent: {}",
-        phase.icon(),
-        phase.name(),
-        elapsed,
-        progress,
-        state.workflow.tasks_completed,
-        state.workflow.task_count,
-        state.current_task.as_deref().unwrap_or("(none)")
-    )
-}
-
-/// Render DAG panel content
-fn render_dag_content(state: &TuiState) -> String {
-    use super::theme::TaskStatus;
-
-    let mut content = String::new();
-    for task_id in &state.task_order {
-        if let Some(task) = state.tasks.get(task_id) {
-            let status_icon = match task.status {
-                TaskStatus::Pending => "○",
-                TaskStatus::Running => "◉",
-                TaskStatus::Success => "✓",
-                TaskStatus::Failed => "⊗",
-                TaskStatus::Paused => "⏸",
-            };
-            content.push_str(&format!("{} {}\n", status_icon, task_id));
-        }
-    }
-    if content.is_empty() {
-        content = "(no tasks scheduled)".to_string();
-    }
-    content
-}
-
-/// Render NovaNet panel content
-fn render_novanet_content(state: &TuiState) -> String {
-    let mut content = String::new();
-
-    // MCP call count
-    content.push_str(&format!("MCP Calls: {}\n\n", state.mcp_calls.len()));
-
-    // Recent calls
-    for call in state.mcp_calls.iter().rev().take(5) {
-        let tool = call.tool.as_deref().unwrap_or("resource");
-        let status = if call.completed { "✓" } else { "⋯" };
-        content.push_str(&format!("{} {}\n", status, tool));
-    }
-
-    // Context assembly
-    if state.context_assembly.total_tokens > 0 {
-        content.push_str(&format!(
-            "\nContext: {} tokens ({:.0}%)",
-            state.context_assembly.total_tokens, state.context_assembly.budget_used_pct
-        ));
-    }
-
-    content
-}
-
-/// Render agent panel content
-fn render_agent_content(state: &TuiState) -> String {
-    let mut content = String::new();
-
-    if let Some(max) = state.agent_max_turns {
-        content.push_str(&format!("Turns: {}/{}\n\n", state.agent_turns.len(), max));
-
-        for turn in &state.agent_turns {
-            content.push_str(&format!("Turn {}: {}\n", turn.index, turn.status));
-        }
-    } else {
-        content = "(no agent active)".to_string();
-    }
-
-    content
-}
-
 /// Render help overlay
 fn render_help_overlay(frame: &mut Frame, theme: &Theme, area: Rect) {
     let help_text = r#"
@@ -557,20 +474,6 @@ fn render_metrics_overlay(frame: &mut Frame, state: &TuiState, theme: &Theme, ar
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════
 
-/// Format duration in HH:MM:SS or MM:SS
-fn format_duration(ms: u64) -> String {
-    let total_secs = ms / 1000;
-    let hours = total_secs / 3600;
-    let minutes = (total_secs % 3600) / 60;
-    let seconds = total_secs % 60;
-
-    if hours > 0 {
-        format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
-    } else {
-        format!("{:02}:{:02}", minutes, seconds)
-    }
-}
-
 /// Create a centered rectangle
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
     let popup_layout = Layout::default()
@@ -595,17 +498,6 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_format_duration_seconds() {
-        assert_eq!(format_duration(5000), "00:05");
-        assert_eq!(format_duration(65000), "01:05");
-    }
-
-    #[test]
-    fn test_format_duration_hours() {
-        assert_eq!(format_duration(3661000), "01:01:01");
-    }
 
     #[test]
     fn test_handle_key_quit() {
