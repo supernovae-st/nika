@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-19
+
+### Added
+
+- **Quickstart examples** - Two new example workflows demonstrating v0.3 features:
+  - `examples/quickstart-mcp.nika.yaml` - MCP integration with NovaNet
+  - `examples/quickstart-multilang.nika.yaml` - Multi-locale generation with `for_each`
+- Schema version: `nika/workflow@0.3`
+
+### Changed
+
+- Updated rmcp dependency for MCP client features
+
+## [0.2.0] - 2026-02-15
+
+### Added
+
+- **Two new verbs** per ADR-001:
+  - `invoke:` - MCP tool calls (connects to NovaNet)
+  - `agent:` - Multi-turn agentic loops with tool use
+- **MCP client integration** - Connect to MCP servers like NovaNet
+- **Resilience patterns**:
+  - Retry with exponential backoff + jitter
+  - Circuit breaker (Closed → Open → HalfOpen)
+  - Rate limiting per provider
+- **for_each parallelism** - Iterate over arrays with concurrency control
+- **TUI** - Terminal UI for workflow monitoring (feature-gated)
+- Schema version: `nika/workflow@0.2`
+
+### Changed
+
+- Schema bumped from @0.1 to @0.2
+- 16 EventLog variants for comprehensive observability
+
 ## [0.1.0] - 2025-01-27
 
 ### Added
