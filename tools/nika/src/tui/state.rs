@@ -465,6 +465,7 @@ impl TuiState {
                 mcp_server,
                 tool,
                 resource,
+                call_id: _,
             } => {
                 let call = McpCall {
                     seq: self.mcp_seq,
@@ -492,6 +493,10 @@ impl TuiState {
             EventKind::McpResponse {
                 task_id: _,
                 output_len,
+                call_id: _,
+                duration_ms: _,
+                cached: _,
+                is_error: _,
             } => {
                 // Mark last call as completed
                 if let Some(call) = self.mcp_calls.last_mut() {
@@ -784,6 +789,7 @@ mod tests {
         state.handle_event(
             &EventKind::McpInvoke {
                 task_id: Arc::from("task1"),
+                call_id: "test-call-1".to_string(),
                 mcp_server: "novanet".to_string(),
                 tool: Some("novanet_describe".to_string()),
                 resource: None,
@@ -798,7 +804,11 @@ mod tests {
         state.handle_event(
             &EventKind::McpResponse {
                 task_id: Arc::from("task1"),
+                call_id: "test-call-1".to_string(),
                 output_len: 1024,
+                duration_ms: 100,
+                cached: false,
+                is_error: false,
             },
             200,
         );

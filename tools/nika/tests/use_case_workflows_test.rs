@@ -23,10 +23,9 @@ use std::path::Path;
 
 fn load_workflow(filename: &str) -> Workflow {
     let path = format!("examples/{}", filename);
-    let yaml = fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("Failed to read {}: {}", path, e));
-    serde_yaml::from_str(&yaml)
-        .unwrap_or_else(|e| panic!("Failed to parse {}: {}", path, e))
+    let yaml =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("Failed to read {}: {}", path, e));
+    serde_yaml::from_str(&yaml).unwrap_or_else(|e| panic!("Failed to parse {}: {}", path, e))
 }
 
 fn assert_workflow_valid(workflow: &Workflow) {
@@ -316,5 +315,75 @@ fn test_all_use_case_workflows_have_novanet_mcp() {
     for filename in workflows {
         let workflow = load_workflow(filename);
         assert_mcp_server(&workflow, "novanet");
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MCP Transport Path Validation (Phase 2.4 Gap Fix)
+// ═══════════════════════════════════════════════════════════════
+
+/// Assert that MCP command is portable (no absolute paths)
+fn assert_mcp_path_portable(workflow: &nika::Workflow, filename: &str) {
+    let mcp = workflow.mcp.as_ref().expect("No MCP configuration");
+
+    for (server_name, config) in mcp.iter() {
+        // Command should not be an absolute path
+        assert!(
+            !config.command.starts_with('/'),
+            "{}: MCP server '{}' uses absolute path '{}' - use relative path or cargo command instead",
+            filename,
+            server_name,
+            config.command
+        );
+
+        // Args should not contain absolute paths either
+        for arg in &config.args {
+            assert!(
+                !arg.starts_with("/Users/") && !arg.starts_with("/home/"),
+                "{}: MCP server '{}' has absolute path in args: '{}' - use relative path instead",
+                filename,
+                server_name,
+                arg
+            );
+        }
+    }
+}
+
+#[test]
+fn test_all_use_case_workflows_use_portable_mcp_paths() {
+    let workflows = [
+        "uc1-generate-page-multilingual.nika.yaml",
+        "uc2-seo-content-sprint.nika.yaml",
+        "uc3-entity-knowledge-retrieval.nika.yaml",
+        "uc4-block-generation-locale-aware.nika.yaml",
+        "uc5-semantic-content-planning.nika.yaml",
+        "uc6-multi-agent-research.nika.yaml",
+        "uc7-quality-gate-pipeline.nika.yaml",
+        "uc8-cross-locale-orchestration.nika.yaml",
+        "uc9-full-page-pipeline.nika.yaml",
+        "uc10-competitive-intelligence.nika.yaml",
+    ];
+
+    for filename in workflows {
+        let path = Path::new("examples").join(filename);
+        if path.exists() {
+            let workflow = load_workflow(filename);
+            assert_mcp_path_portable(&workflow, filename);
+        }
+    }
+}
+
+#[test]
+fn test_invoke_novanet_example_uses_portable_path() {
+    let workflow = load_workflow("invoke-novanet.yaml");
+    assert_mcp_path_portable(&workflow, "invoke-novanet.yaml");
+}
+
+#[test]
+fn test_agent_novanet_example_uses_portable_path() {
+    let path = Path::new("examples/agent-novanet.yaml");
+    if path.exists() {
+        let workflow = load_workflow("agent-novanet.yaml");
+        assert_mcp_path_portable(&workflow, "agent-novanet.yaml");
     }
 }

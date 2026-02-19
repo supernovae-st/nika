@@ -27,6 +27,7 @@ tools/nika/src/
 ├── tui/              # Terminal UI (feature-gated)
 ├── binding/          # Data flow ({{use.alias}})
 ├── provider/         # LLM providers
+├── resilience/       # Retry, circuit breaker, rate limiter (v0.2)
 └── store/            # DataStore
 ```
 
@@ -45,7 +46,9 @@ tools/nika/src/
 
 ## Resilience Patterns (v0.2)
 
-Provider-level resilience for handling LLM API failures:
+Provider-level resilience for handling LLM API failures.
+
+### Configuration
 
 ```yaml
 providers:
@@ -63,15 +66,37 @@ providers:
         requests_per_minute: 60
 ```
 
-| Pattern | Purpose | Config |
-|---------|---------|--------|
-| `retry` | Automatic retry with exponential backoff | `max_attempts`, `backoff`, `initial_delay_ms` |
-| `circuit_breaker` | Fail-fast after repeated failures | `failure_threshold`, `reset_timeout_ms` |
-| `rate_limiter` | Throttle requests to stay within limits | `requests_per_minute` |
+### Patterns
+
+| Pattern | Purpose | Config | Tests |
+|---------|---------|--------|-------|
+| `retry` | Automatic retry with exponential backoff + jitter | `max_attempts`, `backoff`, `initial_delay_ms` | 21 |
+| `circuit_breaker` | Fail-fast after repeated failures | `failure_threshold`, `reset_timeout_ms` | 12 |
+| `rate_limiter` | Throttle requests to stay within API limits | `requests_per_minute` | 11 |
+
+### Circuit Breaker States
+
+```
+┌────────┐  failure_threshold  ┌──────┐  reset_timeout  ┌──────────┐
+│ Closed │ ─────────────────►  │ Open │ ─────────────►  │ HalfOpen │
+└────────┘                     └──────┘                 └──────────┘
+    ▲                                                        │
+    │                     success                            │
+    └────────────────────────────────────────────────────────┘
+```
+
+### Implementation
+
+- `resilience/retry.rs` — Exponential backoff with jitter
+- `resilience/circuit_breaker.rs` — State machine (Closed/Open/HalfOpen)
+- `resilience/rate_limiter.rs` — Token bucket algorithm
+- `resilience/metrics.rs` — Performance metrics collection
 
 ## for_each Parallelism (v0.3)
 
-Parallel iteration over arrays with concurrency control:
+Parallel iteration over arrays with concurrency control.
+
+### Configuration
 
 ```yaml
 tasks:
@@ -85,12 +110,30 @@ tasks:
     use.ctx: page_content
 ```
 
+### Properties
+
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `items` | array/binding | required | Array to iterate over |
 | `as` | string | required | Loop variable name |
 | `concurrency` | integer | 1 | Max parallel executions |
 | `fail_fast` | boolean | true | Stop all on first error |
+
+### Implementation
+
+Uses `tokio::spawn` with `JoinSet` for true concurrent execution:
+
+```
+concurrency=1:  [Task1] → [Task2] → [Task3]  (sequential)
+concurrency=3:  [Task1]
+                [Task2]  → (all in parallel)
+                [Task3]
+```
+
+- Each iteration spawns as a separate tokio task
+- `JoinSet` manages concurrent task lifecycle
+- Results collected in original order
+- `fail_fast: true` aborts remaining tasks on first error
 
 ## Commands
 

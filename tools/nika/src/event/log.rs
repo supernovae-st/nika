@@ -5,8 +5,8 @@
 //! - EventKind: 13 variants across 5 levels (workflow/task/fine-grained/MCP/context)
 //! - EventLog: thread-safe, append-only log
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use parking_lot::RwLock; // 2-3x faster than std::sync::RwLock
@@ -154,6 +154,8 @@ pub enum EventKind {
     /// MCP tool call or resource read initiated
     McpInvoke {
         task_id: Arc<str>,
+        /// Unique call ID for correlating with McpResponse
+        call_id: String,
         mcp_server: String,
         tool: Option<String>,
         resource: Option<String>,
@@ -161,7 +163,15 @@ pub enum EventKind {
     /// MCP operation completed
     McpResponse {
         task_id: Arc<str>,
+        /// Correlates with McpInvoke.call_id
+        call_id: String,
         output_len: usize,
+        /// Duration of MCP call in milliseconds
+        duration_ms: u64,
+        /// Whether response came from cache
+        cached: bool,
+        /// Whether MCP tool returned an error
+        is_error: bool,
     },
 
     // ═══════════════════════════════════════════
@@ -392,16 +402,20 @@ mod tests {
     #[test]
     fn eventkind_is_workflow_event() {
         assert!(workflow_started(3).is_workflow_event());
-        assert!(EventKind::WorkflowCompleted {
-            final_output: Arc::new(json!("done")),
-            total_duration_ms: 1000,
-        }
-        .is_workflow_event());
-        assert!(!EventKind::TaskStarted {
-            task_id: "t1".into(),
-            inputs: json!({}),
-        }
-        .is_workflow_event());
+        assert!(
+            EventKind::WorkflowCompleted {
+                final_output: Arc::new(json!("done")),
+                total_duration_ms: 1000,
+            }
+            .is_workflow_event()
+        );
+        assert!(
+            !EventKind::TaskStarted {
+                task_id: "t1".into(),
+                inputs: json!({}),
+            }
+            .is_workflow_event()
+        );
     }
 
     #[test]
@@ -502,9 +516,11 @@ mod tests {
 
         let alpha_events = log.filter_task("alpha");
         assert_eq!(alpha_events.len(), 2); // Started + Completed
-        assert!(alpha_events
-            .iter()
-            .all(|e| e.kind.task_id() == Some("alpha")));
+        assert!(
+            alpha_events
+                .iter()
+                .all(|e| e.kind.task_id() == Some("alpha"))
+        );
 
         let beta_events = log.filter_task("beta");
         assert_eq!(beta_events.len(), 1);

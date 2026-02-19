@@ -5,19 +5,21 @@
 
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
+use std::time::Instant;
 
 use dashmap::DashMap;
 use tokio::sync::OnceCell;
 use tracing::{debug, instrument};
+use uuid::Uuid;
 
 use crate::ast::{
     AgentParams, ExecParams, FetchParams, InferParams, InvokeParams, McpConfigInline, TaskAction,
 };
-use crate::binding::{template_resolve, ResolvedBindings};
+use crate::binding::{ResolvedBindings, template_resolve};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 use crate::mcp::{McpClient, McpConfig};
-use crate::provider::{create_provider, Provider};
+use crate::provider::{Provider, create_provider};
 use crate::runtime::AgentLoop;
 use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
 
@@ -289,9 +291,14 @@ impl TaskExecutor {
             .validate()
             .map_err(|e| NikaError::ValidationError { reason: e })?;
 
+        // Generate unique call_id for correlation
+        let call_id = Uuid::new_v4().to_string();
+        let start_time = Instant::now();
+
         // EMIT: McpInvoke event
         self.event_log.emit(EventKind::McpInvoke {
             task_id: Arc::clone(task_id),
+            call_id: call_id.clone(),
             mcp_server: invoke.mcp.clone(),
             tool: invoke.tool.clone(),
             resource: invoke.resource.clone(),
@@ -300,6 +307,7 @@ impl TaskExecutor {
         // Get or create MCP client (real or mock depending on config)
         let client = self.get_mcp_client(&invoke.mcp).await?;
 
+        let mut is_error = false;
         let result = if let Some(tool) = &invoke.tool {
             // Tool call path - resolve templates in params
             let params = if let Some(ref original_params) = invoke.params {
@@ -321,6 +329,17 @@ impl TaskExecutor {
 
             // Check if tool returned an error
             if tool_result.is_error {
+                is_error = true;
+                // Emit response event before returning error
+                let duration_ms = start_time.elapsed().as_millis() as u64;
+                self.event_log.emit(EventKind::McpResponse {
+                    task_id: Arc::clone(task_id),
+                    call_id: call_id.clone(),
+                    output_len: tool_result.text().len(),
+                    duration_ms,
+                    cached: false,
+                    is_error: true,
+                });
                 return Err(NikaError::McpToolError {
                     tool: tool.clone(),
                     reason: tool_result.text(),
@@ -343,9 +362,14 @@ impl TaskExecutor {
         };
 
         // EMIT: McpResponse event
+        let duration_ms = start_time.elapsed().as_millis() as u64;
         self.event_log.emit(EventKind::McpResponse {
             task_id: Arc::clone(task_id),
+            call_id,
             output_len: result.to_string().len(),
+            duration_ms,
+            cached: false, // TODO: Implement MCP response caching
+            is_error,
         });
 
         // Return JSON string representation

@@ -411,9 +411,14 @@ impl AgentLoop {
                 name: tool_call.name.clone(),
             })?;
 
+        // Generate unique call_id for correlation
+        let call_id = uuid::Uuid::new_v4().to_string();
+        let start = std::time::Instant::now();
+
         // Emit tool call event
         self.event_log.emit(EventKind::McpInvoke {
             task_id: self.task_id.clone().into(),
+            call_id: call_id.clone(),
             mcp_server: mcp_name.to_string(),
             tool: Some(tool_name.to_string()),
             resource: None,
@@ -426,16 +431,19 @@ impl AgentLoop {
                 name: mcp_name.to_string(),
             })?;
 
-        let start = std::time::Instant::now();
         let result = client
             .call_tool(tool_name, tool_call.arguments.clone())
             .await?;
-        let _duration_ms = start.elapsed().as_millis() as u64;
+        let duration_ms = start.elapsed().as_millis() as u64;
 
         // Emit response event
         self.event_log.emit(EventKind::McpResponse {
             task_id: self.task_id.clone().into(),
+            call_id,
             output_len: result.text().len(),
+            duration_ms,
+            cached: false,
+            is_error: result.is_error,
         });
 
         Ok(result.text())
