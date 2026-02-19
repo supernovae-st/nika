@@ -471,7 +471,7 @@ impl AgentLoop {
     /// - Server errors (5xx)
     /// - Network timeouts
     /// - Connection issues
-    fn is_retryable_provider_error(error: &NikaError) -> bool {
+    pub fn is_retryable_provider_error(error: &NikaError) -> bool {
         let error_str = error.to_string().to_lowercase();
 
         // Rate limits
