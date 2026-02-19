@@ -9,6 +9,7 @@ use std::time::Instant;
 
 use serde_json::Value;
 
+use crate::config::NikaConfig;
 use crate::event::{ContextSource, EventKind, ExcludedItem};
 
 use super::theme::{MissionPhase, TaskStatus};
@@ -106,6 +107,8 @@ pub enum TuiMode {
     Help,
     /// Metrics overlay
     Metrics,
+    /// Settings overlay (API keys, provider config)
+    Settings,
 }
 
 /// Workflow execution state
@@ -277,6 +280,255 @@ pub struct Metrics {
     pub latency_history: Vec<u64>,
 }
 
+/// Settings overlay field identifier
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SettingsField {
+    /// Anthropic API key field
+    #[default]
+    AnthropicKey,
+    /// OpenAI API key field
+    OpenAiKey,
+    /// Default provider selector
+    Provider,
+    /// Default model selector
+    Model,
+}
+
+impl SettingsField {
+    /// Get all fields in order
+    pub fn all() -> &'static [SettingsField] {
+        &[
+            SettingsField::AnthropicKey,
+            SettingsField::OpenAiKey,
+            SettingsField::Provider,
+            SettingsField::Model,
+        ]
+    }
+
+    /// Get next field (wrapping)
+    pub fn next(&self) -> SettingsField {
+        match self {
+            SettingsField::AnthropicKey => SettingsField::OpenAiKey,
+            SettingsField::OpenAiKey => SettingsField::Provider,
+            SettingsField::Provider => SettingsField::Model,
+            SettingsField::Model => SettingsField::AnthropicKey,
+        }
+    }
+
+    /// Get previous field (wrapping)
+    pub fn prev(&self) -> SettingsField {
+        match self {
+            SettingsField::AnthropicKey => SettingsField::Model,
+            SettingsField::OpenAiKey => SettingsField::AnthropicKey,
+            SettingsField::Provider => SettingsField::OpenAiKey,
+            SettingsField::Model => SettingsField::Provider,
+        }
+    }
+
+    /// Get field label for display
+    pub fn label(&self) -> &'static str {
+        match self {
+            SettingsField::AnthropicKey => "Anthropic API Key",
+            SettingsField::OpenAiKey => "OpenAI API Key",
+            SettingsField::Provider => "Default Provider",
+            SettingsField::Model => "Default Model",
+        }
+    }
+}
+
+/// Settings overlay state
+#[derive(Debug, Clone, Default)]
+pub struct SettingsState {
+    /// Currently focused field
+    pub focus: SettingsField,
+    /// Edit mode active (typing in field)
+    pub editing: bool,
+    /// Input buffer for current field
+    pub input_buffer: String,
+    /// Cursor position in input buffer
+    pub cursor: usize,
+    /// Loaded configuration
+    pub config: NikaConfig,
+    /// Has unsaved changes
+    pub dirty: bool,
+    /// Status message (success/error feedback)
+    pub status_message: Option<String>,
+}
+
+impl SettingsState {
+    /// Create settings state with loaded config
+    pub fn new(config: NikaConfig) -> Self {
+        Self {
+            config,
+            ..Default::default()
+        }
+    }
+
+    /// Focus next field
+    pub fn focus_next(&mut self) {
+        self.focus = self.focus.next();
+        self.editing = false;
+        self.input_buffer.clear();
+        self.cursor = 0;
+    }
+
+    /// Focus previous field
+    pub fn focus_prev(&mut self) {
+        self.focus = self.focus.prev();
+        self.editing = false;
+        self.input_buffer.clear();
+        self.cursor = 0;
+    }
+
+    /// Enter edit mode for current field
+    pub fn start_edit(&mut self) {
+        self.editing = true;
+        // Load current value into buffer
+        self.input_buffer = match self.focus {
+            SettingsField::AnthropicKey => {
+                self.config.api_keys.anthropic.clone().unwrap_or_default()
+            }
+            SettingsField::OpenAiKey => self.config.api_keys.openai.clone().unwrap_or_default(),
+            SettingsField::Provider => self.config.defaults.provider.clone().unwrap_or_default(),
+            SettingsField::Model => self.config.defaults.model.clone().unwrap_or_default(),
+        };
+        self.cursor = self.input_buffer.len();
+    }
+
+    /// Cancel edit mode, discard changes
+    pub fn cancel_edit(&mut self) {
+        self.editing = false;
+        self.input_buffer.clear();
+        self.cursor = 0;
+    }
+
+    /// Confirm edit, apply to config
+    pub fn confirm_edit(&mut self) {
+        if !self.editing {
+            return;
+        }
+
+        let value = if self.input_buffer.is_empty() {
+            None
+        } else {
+            Some(self.input_buffer.clone())
+        };
+
+        match self.focus {
+            SettingsField::AnthropicKey => {
+                self.config.api_keys.anthropic = value;
+            }
+            SettingsField::OpenAiKey => {
+                self.config.api_keys.openai = value;
+            }
+            SettingsField::Provider => {
+                self.config.defaults.provider = value;
+            }
+            SettingsField::Model => {
+                self.config.defaults.model = value;
+            }
+        }
+
+        self.dirty = true;
+        self.editing = false;
+        self.input_buffer.clear();
+        self.cursor = 0;
+    }
+
+    /// Insert character at cursor
+    pub fn insert_char(&mut self, c: char) {
+        if !self.editing {
+            return;
+        }
+        self.input_buffer.insert(self.cursor, c);
+        self.cursor += 1;
+    }
+
+    /// Delete character before cursor
+    pub fn backspace(&mut self) {
+        if !self.editing || self.cursor == 0 {
+            return;
+        }
+        self.cursor -= 1;
+        self.input_buffer.remove(self.cursor);
+    }
+
+    /// Delete character at cursor
+    pub fn delete(&mut self) {
+        if !self.editing || self.cursor >= self.input_buffer.len() {
+            return;
+        }
+        self.input_buffer.remove(self.cursor);
+    }
+
+    /// Move cursor left
+    pub fn cursor_left(&mut self) {
+        if self.cursor > 0 {
+            self.cursor -= 1;
+        }
+    }
+
+    /// Move cursor right
+    pub fn cursor_right(&mut self) {
+        if self.cursor < self.input_buffer.len() {
+            self.cursor += 1;
+        }
+    }
+
+    /// Move cursor to start
+    pub fn cursor_home(&mut self) {
+        self.cursor = 0;
+    }
+
+    /// Move cursor to end
+    pub fn cursor_end(&mut self) {
+        self.cursor = self.input_buffer.len();
+    }
+
+    /// Save config to file
+    pub fn save(&mut self) -> Result<(), String> {
+        self.config.save().map_err(|e| e.to_string())?;
+        self.dirty = false;
+        self.status_message = Some("Settings saved".to_string());
+        Ok(())
+    }
+
+    /// Check if a key is set for display
+    pub fn key_status(&self, field: SettingsField) -> (bool, String) {
+        match field {
+            SettingsField::AnthropicKey => {
+                if let Some(ref key) = self.config.api_keys.anthropic {
+                    (true, crate::config::mask_api_key(key, 12))
+                } else {
+                    (false, "Not set".to_string())
+                }
+            }
+            SettingsField::OpenAiKey => {
+                if let Some(ref key) = self.config.api_keys.openai {
+                    (true, crate::config::mask_api_key(key, 10))
+                } else {
+                    (false, "Not set".to_string())
+                }
+            }
+            SettingsField::Provider => {
+                if let Some(ref provider) = self.config.defaults.provider {
+                    (true, provider.clone())
+                } else {
+                    let auto = self.config.default_provider().unwrap_or("none");
+                    (false, format!("{} (auto)", auto))
+                }
+            }
+            SettingsField::Model => {
+                if let Some(ref model) = self.config.defaults.model {
+                    (true, model.clone())
+                } else {
+                    (false, "Default".to_string())
+                }
+            }
+        }
+    }
+}
+
 /// Main TUI state
 #[derive(Debug, Clone)]
 pub struct TuiState {
@@ -327,6 +579,8 @@ pub struct TuiState {
     pub mode: TuiMode,
     /// Scroll offset per panel
     pub scroll: HashMap<PanelId, usize>,
+    /// Settings overlay state
+    pub settings: SettingsState,
 
     // ═══════════════════════════════════════════
     // DEBUG STATE
@@ -348,6 +602,9 @@ pub struct TuiState {
 impl TuiState {
     /// Create new TUI state for a workflow
     pub fn new(workflow_path: &str) -> Self {
+        // Load config from file, merge with env vars
+        let config = NikaConfig::load().unwrap_or_default().with_env();
+
         Self {
             frame: 0,
             workflow: WorkflowState::new(workflow_path.to_string()),
@@ -363,6 +620,7 @@ impl TuiState {
             focus: PanelId::Progress,
             mode: TuiMode::Normal,
             scroll: HashMap::new(),
+            settings: SettingsState::new(config),
             breakpoints: HashSet::new(),
             paused: false,
             step_mode: false,
@@ -846,5 +1104,226 @@ mod tests {
             inputs: serde_json::json!({}),
         };
         assert!(!state.should_break(&event2));
+    }
+
+    // ═══════════════════════════════════════════
+    // SETTINGS STATE TESTS
+    // ═══════════════════════════════════════════
+
+    #[test]
+    fn test_settings_field_next_cycles() {
+        assert_eq!(SettingsField::AnthropicKey.next(), SettingsField::OpenAiKey);
+        assert_eq!(SettingsField::OpenAiKey.next(), SettingsField::Provider);
+        assert_eq!(SettingsField::Provider.next(), SettingsField::Model);
+        assert_eq!(SettingsField::Model.next(), SettingsField::AnthropicKey);
+    }
+
+    #[test]
+    fn test_settings_field_prev_cycles() {
+        assert_eq!(SettingsField::AnthropicKey.prev(), SettingsField::Model);
+        assert_eq!(SettingsField::OpenAiKey.prev(), SettingsField::AnthropicKey);
+        assert_eq!(SettingsField::Provider.prev(), SettingsField::OpenAiKey);
+        assert_eq!(SettingsField::Model.prev(), SettingsField::Provider);
+    }
+
+    #[test]
+    fn test_settings_field_all() {
+        let all = SettingsField::all();
+        assert_eq!(all.len(), 4);
+        assert_eq!(all[0], SettingsField::AnthropicKey);
+        assert_eq!(all[3], SettingsField::Model);
+    }
+
+    #[test]
+    fn test_settings_field_labels() {
+        assert_eq!(SettingsField::AnthropicKey.label(), "Anthropic API Key");
+        assert_eq!(SettingsField::OpenAiKey.label(), "OpenAI API Key");
+        assert_eq!(SettingsField::Provider.label(), "Default Provider");
+        assert_eq!(SettingsField::Model.label(), "Default Model");
+    }
+
+    #[test]
+    fn test_settings_state_default() {
+        let state = SettingsState::default();
+        assert_eq!(state.focus, SettingsField::AnthropicKey);
+        assert!(!state.editing);
+        assert!(state.input_buffer.is_empty());
+        assert_eq!(state.cursor, 0);
+        assert!(!state.dirty);
+    }
+
+    #[test]
+    fn test_settings_state_focus_navigation() {
+        let mut state = SettingsState::default();
+        assert_eq!(state.focus, SettingsField::AnthropicKey);
+
+        state.focus_next();
+        assert_eq!(state.focus, SettingsField::OpenAiKey);
+
+        state.focus_next();
+        assert_eq!(state.focus, SettingsField::Provider);
+
+        state.focus_prev();
+        assert_eq!(state.focus, SettingsField::OpenAiKey);
+    }
+
+    #[test]
+    fn test_settings_state_edit_lifecycle() {
+        use crate::config::ApiKeys;
+
+        let config = NikaConfig {
+            api_keys: ApiKeys {
+                anthropic: Some("sk-ant-test".to_string()),
+                openai: None,
+            },
+            ..Default::default()
+        };
+        let mut state = SettingsState::new(config);
+
+        // Start editing
+        state.start_edit();
+        assert!(state.editing);
+        assert_eq!(state.input_buffer, "sk-ant-test");
+        assert_eq!(state.cursor, 11); // Length of "sk-ant-test"
+
+        // Modify buffer
+        state.backspace();
+        assert_eq!(state.input_buffer, "sk-ant-tes");
+
+        state.insert_char('X');
+        assert_eq!(state.input_buffer, "sk-ant-tesX");
+
+        // Cancel edit - should restore
+        state.cancel_edit();
+        assert!(!state.editing);
+        assert!(state.input_buffer.is_empty());
+        assert!(!state.dirty);
+    }
+
+    #[test]
+    fn test_settings_state_confirm_edit() {
+        let mut state = SettingsState {
+            focus: SettingsField::OpenAiKey,
+            ..Default::default()
+        };
+
+        state.start_edit();
+        state.input_buffer = "sk-new-key".to_string();
+        state.confirm_edit();
+
+        assert!(!state.editing);
+        assert!(state.dirty);
+        assert_eq!(state.config.api_keys.openai, Some("sk-new-key".to_string()));
+    }
+
+    #[test]
+    fn test_settings_state_confirm_edit_empty_clears_value() {
+        use crate::config::ApiKeys;
+
+        let config = NikaConfig {
+            api_keys: ApiKeys {
+                anthropic: Some("sk-ant-test".to_string()),
+                openai: None,
+            },
+            ..Default::default()
+        };
+        let mut state = SettingsState::new(config);
+
+        state.start_edit();
+        state.input_buffer.clear(); // Clear to empty
+        state.confirm_edit();
+
+        assert!(state.config.api_keys.anthropic.is_none());
+        assert!(state.dirty);
+    }
+
+    #[test]
+    fn test_settings_state_cursor_movement() {
+        let mut state = SettingsState {
+            editing: true,
+            input_buffer: "hello".to_string(),
+            cursor: 3, // At 'l'
+            ..Default::default()
+        };
+
+        state.cursor_left();
+        assert_eq!(state.cursor, 2);
+
+        state.cursor_right();
+        assert_eq!(state.cursor, 3);
+
+        state.cursor_home();
+        assert_eq!(state.cursor, 0);
+
+        state.cursor_end();
+        assert_eq!(state.cursor, 5);
+
+        // Boundary checks
+        state.cursor_home();
+        state.cursor_left(); // Should stay at 0
+        assert_eq!(state.cursor, 0);
+
+        state.cursor_end();
+        state.cursor_right(); // Should stay at end
+        assert_eq!(state.cursor, 5);
+    }
+
+    #[test]
+    fn test_settings_state_key_status_displays_masked() {
+        use crate::config::ApiKeys;
+
+        let config = NikaConfig {
+            api_keys: ApiKeys {
+                anthropic: Some("sk-ant-api03-xyz123abc456".to_string()),
+                openai: None,
+            },
+            ..Default::default()
+        };
+        let state = SettingsState::new(config);
+
+        let (is_set, display) = state.key_status(SettingsField::AnthropicKey);
+        assert!(is_set);
+        assert!(display.contains("***"));
+        assert!(display.starts_with("sk-ant-api03"));
+
+        let (is_set, display) = state.key_status(SettingsField::OpenAiKey);
+        assert!(!is_set);
+        assert_eq!(display, "Not set");
+    }
+
+    #[test]
+    fn test_settings_state_provider_auto_detection() {
+        use crate::config::ApiKeys;
+
+        // With anthropic key → auto-detect claude
+        let config = NikaConfig {
+            api_keys: ApiKeys {
+                anthropic: Some("sk-ant-test".to_string()),
+                openai: None,
+            },
+            ..Default::default()
+        };
+        let state = SettingsState::new(config);
+
+        let (is_set, display) = state.key_status(SettingsField::Provider);
+        assert!(!is_set); // Not explicitly set
+        assert!(display.contains("claude"));
+        assert!(display.contains("auto"));
+    }
+
+    #[test]
+    fn test_tui_mode_settings_variant() {
+        let mode = TuiMode::Settings;
+        assert_eq!(mode, TuiMode::Settings);
+        assert_ne!(mode, TuiMode::Normal);
+        assert_ne!(mode, TuiMode::Help);
+    }
+
+    #[test]
+    fn test_tui_state_has_settings() {
+        let state = TuiState::new("test.yaml");
+        // Settings should be initialized with loaded config
+        assert_eq!(state.settings.focus, SettingsField::AnthropicKey);
+        assert!(!state.settings.editing);
     }
 }

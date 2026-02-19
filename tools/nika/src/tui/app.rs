@@ -25,8 +25,9 @@ use crate::error::{NikaError, Result};
 use crate::event::{Event as NikaEvent, EventKind};
 
 use super::panels::{ContextPanel, GraphPanel, ProgressPanel, ReasoningPanel};
-use super::state::{PanelId, TuiMode, TuiState};
+use super::state::{PanelId, SettingsField, TuiMode, TuiState};
 use super::theme::Theme;
+use crate::config::mask_api_key;
 
 /// Frame rate target (60 FPS)
 const FRAME_RATE_MS: u64 = 16;
@@ -54,6 +55,27 @@ pub enum Action {
     ScrollUp,
     /// Scroll down in focused panel
     ScrollDown,
+    // ═══ Settings Overlay Actions ═══
+    /// Focus next settings field
+    SettingsNextField,
+    /// Focus previous settings field
+    SettingsPrevField,
+    /// Toggle edit mode for current field
+    SettingsToggleEdit,
+    /// Insert character in edit buffer
+    SettingsInput(char),
+    /// Backspace in edit buffer
+    SettingsBackspace,
+    /// Delete character in edit buffer
+    SettingsDelete,
+    /// Cancel editing (restore original)
+    SettingsCancelEdit,
+    /// Save settings to config file
+    SettingsSave,
+    /// Move cursor left in edit mode
+    SettingsCursorLeft,
+    /// Move cursor right in edit mode
+    SettingsCursorRight,
 }
 
 /// Main TUI application
@@ -245,6 +267,9 @@ impl App {
                     return Action::SetMode(TuiMode::Normal);
                 }
             }
+            TuiMode::Settings => {
+                return self.handle_settings_key(code, modifiers);
+            }
             _ => {}
         }
 
@@ -273,11 +298,48 @@ impl App {
             // Overlays
             KeyCode::Char('?') | KeyCode::F(1) => Action::SetMode(TuiMode::Help),
             KeyCode::Char('m') => Action::SetMode(TuiMode::Metrics),
+            KeyCode::Char('s') => Action::SetMode(TuiMode::Settings),
 
             // Escape
             KeyCode::Esc => Action::SetMode(TuiMode::Normal),
 
             _ => Action::Continue,
+        }
+    }
+
+    /// Handle keyboard input in Settings mode
+    fn handle_settings_key(&self, code: KeyCode, modifiers: KeyModifiers) -> Action {
+        let editing = self.state.settings.editing;
+
+        if editing {
+            // Edit mode: capture text input
+            match code {
+                KeyCode::Esc => Action::SettingsCancelEdit,
+                KeyCode::Enter => Action::SettingsToggleEdit, // Confirm and exit edit
+                KeyCode::Backspace => Action::SettingsBackspace,
+                KeyCode::Delete => Action::SettingsDelete,
+                KeyCode::Left => Action::SettingsCursorLeft,
+                KeyCode::Right => Action::SettingsCursorRight,
+                KeyCode::Char(c) => Action::SettingsInput(c),
+                _ => Action::Continue,
+            }
+        } else {
+            // Navigation mode
+            match code {
+                KeyCode::Esc | KeyCode::Char('q') => Action::SetMode(TuiMode::Normal),
+                KeyCode::Up | KeyCode::Char('k') => Action::SettingsPrevField,
+                KeyCode::Down | KeyCode::Char('j') => Action::SettingsNextField,
+                KeyCode::Tab => Action::SettingsNextField,
+                KeyCode::BackTab => Action::SettingsPrevField,
+                KeyCode::Enter | KeyCode::Char('e') => Action::SettingsToggleEdit,
+                KeyCode::Char('s') if modifiers.contains(KeyModifiers::CONTROL) => {
+                    Action::SettingsSave
+                }
+                KeyCode::Char('w') if modifiers.contains(KeyModifiers::CONTROL) => {
+                    Action::SettingsSave
+                }
+                _ => Action::Continue,
+            }
         }
     }
 
@@ -302,6 +364,27 @@ impl App {
                 let scroll = self.state.scroll.entry(self.state.focus).or_insert(0);
                 *scroll += 1;
             }
+            // Settings actions
+            Action::SettingsNextField => self.state.settings.focus_next(),
+            Action::SettingsPrevField => self.state.settings.focus_prev(),
+            Action::SettingsToggleEdit => {
+                if self.state.settings.editing {
+                    self.state.settings.confirm_edit();
+                } else {
+                    self.state.settings.start_edit();
+                }
+            }
+            Action::SettingsInput(c) => self.state.settings.insert_char(c),
+            Action::SettingsBackspace => self.state.settings.backspace(),
+            Action::SettingsDelete => self.state.settings.delete(),
+            Action::SettingsCancelEdit => self.state.settings.cancel_edit(),
+            Action::SettingsSave => {
+                if let Err(e) = self.state.settings.save() {
+                    tracing::error!("Failed to save settings: {}", e);
+                }
+            }
+            Action::SettingsCursorLeft => self.state.settings.cursor_left(),
+            Action::SettingsCursorRight => self.state.settings.cursor_right(),
             Action::Continue => {}
         }
     }
@@ -373,6 +456,7 @@ fn render_frame(frame: &mut Frame, state: &TuiState, theme: &Theme) {
     match &state.mode {
         TuiMode::Help => render_help_overlay(frame, theme, size),
         TuiMode::Metrics => render_metrics_overlay(frame, state, theme, size),
+        TuiMode::Settings => render_settings_overlay(frame, state, theme, size),
         _ => {}
     }
 }
@@ -412,7 +496,8 @@ fn render_help_overlay(frame: &mut Frame, theme: &Theme, area: Rect) {
 ║  NAVIGATION           EXECUTION           OVERLAYS               ║
 ║  Tab      Next panel  Space   Pause       ?/F1  This help       ║
 ║  1-4      Jump panel  Enter   Step        m     Metrics         ║
-║  j/k      Scroll      q       Quit        Esc   Close           ║
+║  j/k      Scroll      q       Quit        s     Settings        ║
+║                                           Esc   Close           ║
 ║                                                                   ║
 ╚═══════════════════════════════════════════════════════════════════╝
 "#;
@@ -464,6 +549,157 @@ fn render_metrics_overlay(frame: &mut Frame, state: &TuiState, theme: &Theme, ar
     let paragraph = Paragraph::new(content)
         .block(block)
         .style(theme.text_style());
+
+    frame.render_widget(paragraph, overlay);
+}
+
+/// Render settings overlay
+fn render_settings_overlay(frame: &mut Frame, state: &TuiState, theme: &Theme, area: Rect) {
+    use ratatui::style::Color;
+    use ratatui::text::{Line, Span};
+
+    let settings = &state.settings;
+    let fields = SettingsField::all();
+
+    // Build field lines with initial title section
+    let mut lines: Vec<Line> = vec![
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "  API Configuration",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from("  ─────────────────────────────────────────────"),
+        Line::from(""),
+    ];
+
+    for field in fields {
+        let is_focused = settings.focus == *field;
+        let is_editing = settings.editing && is_focused;
+
+        let label = field.label();
+
+        // Get display value
+        let value = if is_editing {
+            // Show input buffer with cursor
+            let buf = &settings.input_buffer;
+            let cursor_pos = settings.cursor;
+            let before = &buf[..cursor_pos.min(buf.len())];
+            let cursor_char = buf.chars().nth(cursor_pos).unwrap_or(' ');
+            let after = if cursor_pos < buf.len() {
+                &buf[cursor_pos + 1..]
+            } else {
+                ""
+            };
+            format!("{}│{}{}", before, cursor_char, after)
+        } else {
+            // Show masked or actual value
+            match field {
+                SettingsField::AnthropicKey => {
+                    let key = settings.config.api_keys.anthropic.as_deref().unwrap_or("");
+                    if key.is_empty() {
+                        settings.key_status(*field).1
+                    } else {
+                        mask_api_key(key, 4)
+                    }
+                }
+                SettingsField::OpenAiKey => {
+                    let key = settings.config.api_keys.openai.as_deref().unwrap_or("");
+                    if key.is_empty() {
+                        settings.key_status(*field).1
+                    } else {
+                        mask_api_key(key, 4)
+                    }
+                }
+                SettingsField::Provider => settings
+                    .config
+                    .defaults
+                    .provider
+                    .clone()
+                    .unwrap_or_else(|| "auto".to_string()),
+                SettingsField::Model => settings
+                    .config
+                    .defaults
+                    .model
+                    .clone()
+                    .unwrap_or_else(|| "default".to_string()),
+            }
+        };
+
+        // Build the line
+        let prefix = if is_focused { "► " } else { "  " };
+        let label_style = if is_focused {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
+        let value_style = if is_editing {
+            Style::default().fg(Color::Green)
+        } else if is_focused {
+            Style::default().fg(Color::Cyan)
+        } else {
+            Style::default().fg(Color::DarkGray)
+        };
+
+        lines.push(Line::from(vec![
+            Span::styled(prefix, label_style),
+            Span::styled(format!("{:<18}", label), label_style),
+            Span::styled(value, value_style),
+        ]));
+    }
+
+    // Status message
+    lines.push(Line::from(""));
+    lines.push(Line::from(
+        "  ─────────────────────────────────────────────",
+    ));
+
+    if let Some(msg) = &settings.status_message {
+        let color = if msg.contains("✓") || msg.contains("Saved") {
+            Color::Green
+        } else if msg.contains("✗") || msg.contains("Error") {
+            Color::Red
+        } else {
+            Color::Yellow
+        };
+        lines.push(Line::from(vec![Span::styled(
+            format!("  {}", msg),
+            Style::default().fg(color),
+        )]));
+    } else if settings.dirty {
+        lines.push(Line::from(vec![Span::styled(
+            "  • Unsaved changes (Ctrl+S to save)",
+            Style::default().fg(Color::Yellow),
+        )]));
+    } else {
+        lines.push(Line::from(vec![Span::styled(
+            "  Config: ~/.config/nika/config.toml",
+            Style::default().fg(Color::DarkGray),
+        )]));
+    }
+
+    // Keybindings
+    lines.push(Line::from(""));
+    let keybindings = if settings.editing {
+        "  [Enter] Confirm  [Esc] Cancel  [←→] Move cursor"
+    } else {
+        "  [↑↓] Navigate  [Enter/e] Edit  [Ctrl+S] Save  [q/Esc] Close"
+    };
+    lines.push(Line::from(vec![Span::styled(
+        keybindings,
+        Style::default().fg(Color::DarkGray),
+    )]));
+
+    let overlay = centered_rect(60, 60, area);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Settings ")
+        .style(Style::default().add_modifier(Modifier::BOLD));
+
+    let paragraph = Paragraph::new(lines).block(block).style(theme.text_style());
 
     frame.render_widget(paragraph, overlay);
 }

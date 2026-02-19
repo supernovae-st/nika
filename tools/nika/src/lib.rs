@@ -63,8 +63,9 @@ pub mod tui;
 pub mod util;
 
 // ═══════════════════════════════════════════════════════════════
-// CROSS-CUTTING - Error handling
+// CROSS-CUTTING - Error handling, configuration
 // ═══════════════════════════════════════════════════════════════
+pub mod config;
 pub mod error;
 
 // ═══════════════════════════════════════════════════════════════
@@ -73,6 +74,9 @@ pub mod error;
 
 // Error types
 pub use error::NikaError;
+
+// Config types
+pub use config::{mask_api_key, NikaConfig};
 
 // AST types (Domain Model)
 pub use ast::{

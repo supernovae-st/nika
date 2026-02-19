@@ -271,6 +271,12 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     #[error("[NIKA-130] TUI error: {reason}")]
     TuiError { reason: String },
+
+    // ═══════════════════════════════════════════
+    // CONFIG ERRORS (140-149) - NEW v0.5
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-140] Config error: {reason}")]
+    ConfigError { reason: String },
 }
 
 impl NikaError {
@@ -350,6 +356,8 @@ impl NikaError {
             Self::McpToolCallFailed { .. } => "NIKA-125",
             // TUI errors
             Self::TuiError { .. } => "NIKA-130",
+            // Config errors
+            Self::ConfigError { .. } => "NIKA-140",
         }
     }
 
@@ -495,6 +503,10 @@ impl FixSuggestion for NikaError {
             }
             // TUI errors
             NikaError::TuiError { .. } => Some("Check terminal compatibility and size"),
+            // Config errors
+            NikaError::ConfigError { .. } => {
+                Some("Check ~/.config/nika/config.toml for syntax errors")
+            }
         }
     }
 }
