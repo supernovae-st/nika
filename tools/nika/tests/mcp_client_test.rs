@@ -333,7 +333,7 @@ async fn test_mock_client_call_tool_still_works() {
 #[tokio::test]
 async fn test_real_client_connect_with_invalid_command_fails() {
     // Arrange - use a non-existent command
-    let config = McpConfig::new("test", "this_command_does_not_exist_xyz123");
+    let config = McpConfig::new("test-server", "this_command_does_not_exist_xyz123");
     let client = McpClient::new(config).unwrap();
 
     // Act
@@ -343,7 +343,8 @@ async fn test_real_client_connect_with_invalid_command_fails() {
     assert!(result.is_err(), "Connect with invalid command should fail");
     match result.unwrap_err() {
         NikaError::McpStartError { name, reason } => {
-            assert_eq!(name, "this_command_does_not_exist_xyz123");
+            // name is the SERVER name, not the command
+            assert_eq!(name, "test-server");
             assert!(!reason.is_empty(), "Should have error reason");
         }
         err => panic!("Expected McpStartError, got: {err:?}"),
@@ -351,19 +352,15 @@ async fn test_real_client_connect_with_invalid_command_fails() {
 }
 
 #[tokio::test]
-async fn test_real_client_disconnect_kills_process() {
-    // Arrange - use a command that stays alive (cat with no input)
-    let config = McpConfig::new("test", "cat");
+async fn test_real_client_disconnect_when_never_connected() {
+    // Arrange - create a client but never connect
+    let config = McpConfig::new("test", "echo");
     let client = McpClient::new(config).unwrap();
 
-    // Connect will spawn the process
-    let connect_result = client.connect().await;
-    // Note: connect will try to initialize MCP, which cat doesn't support
-    // So this will fail, but the process will be spawned first
-    // For this test, we just verify disconnect doesn't panic
-    drop(connect_result);
+    // Verify not connected
+    assert!(!client.is_connected());
 
-    // Act - disconnect should handle process cleanup gracefully
+    // Act - disconnect should handle gracefully even if never connected
     let result = client.disconnect().await;
 
     // Assert

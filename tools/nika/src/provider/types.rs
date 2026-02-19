@@ -2,6 +2,18 @@
 //!
 //! This module defines the core types used for communicating with LLM providers.
 //! Supports tool calling, multi-turn conversations, and usage tracking.
+//!
+//! **DEPRECATED (v0.3.1)**: These types are deprecated in favor of rig-core types.
+//! The [`RigAgentLoop`](crate::runtime::RigAgentLoop) uses rig-core's native types directly.
+//!
+//! ## Migration Path
+//! | Old Type | New (rig-core) |
+//! |----------|----------------|
+//! | `Message` | Use rig's message types |
+//! | `ToolCall` | Use rig's `ToolCall` |
+//! | `ToolDefinition` | Use `NikaMcpToolDef` from `provider::rig` |
+//!
+//! These types remain for backward compatibility with executor.rs and agent_loop.rs.
 
 use serde::{Deserialize, Serialize};
 

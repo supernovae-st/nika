@@ -1,11 +1,50 @@
 //! Provider abstraction layer
+//!
+//! ## Provider Strategy (v0.3.1)
+//!
+//! Nika is migrating from custom providers to [rig-core](https://github.com/0xPlaygrounds/rig).
+//!
+//! | Component | Old Approach | New Approach (v0.3.1+) |
+//! |-----------|--------------|------------------------|
+//! | `agent:` verb | `AgentLoop` + `Provider` trait | [`RigAgentLoop`](crate::runtime::RigAgentLoop) + rig-core |
+//! | `infer:` verb | `executor.rs` + `Provider` trait | Pending migration to rig |
+//! | Tool calling | Manual JSON construction | [`NikaMcpTool`](rig::NikaMcpTool) (rig `ToolDyn`) |
+//!
+//! ## Current Modules
+//!
+//! - [`rig`] - **Recommended**: rig-core integration (`RigProvider`, `NikaMcpTool`)
+//! - [`claude`] - *Deprecated*: Legacy Claude provider (use rig for new code)
+//! - [`openai`] - *Deprecated*: Legacy OpenAI provider (use rig for new code)
+//! - [`types`] - *Deprecated*: Legacy types (use rig-core types)
+//!
+//! ## Example: Using rig-core (Recommended)
+//!
+//! ```rust,ignore
+//! use nika::runtime::RigAgentLoop;
+//! use nika::ast::AgentParams;
+//! use nika::event::EventLog;
+//!
+//! let params = AgentParams {
+//!     prompt: "Generate a landing page".to_string(),
+//!     mcp: vec!["novanet".to_string()],
+//!     max_turns: Some(5),
+//!     ..Default::default()
+//! };
+//! let agent = RigAgentLoop::new("task-1".into(), params, EventLog::new(), mcp_clients)?;
+//! let result = agent.run_claude().await?;
+//! ```
 
+// Allow deprecated during transition period (these are still used by executor.rs)
+#[allow(deprecated)]
 pub mod claude;
+#[allow(deprecated)]
 pub mod openai;
 pub mod rig;
 mod types;
 
+#[allow(deprecated)]
 pub use claude::ClaudeProvider;
+#[allow(deprecated)]
 pub use openai::OpenAIProvider;
 pub use types::*;
 
@@ -62,6 +101,10 @@ pub trait Provider: Send + Sync {
 }
 
 /// Create provider by name
+///
+/// **Note:** This function uses deprecated providers during transition.
+/// For new agent code, use [`crate::runtime::RigAgentLoop`] instead.
+#[allow(deprecated)]
 pub fn create_provider(name: &str) -> Result<Box<dyn Provider>> {
     if name.eq_ignore_ascii_case("claude") {
         Ok(Box::new(ClaudeProvider::new()?))

@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-02-19
+
+### Added
+
+- **rig-core integration** - New `RigAgentLoop` using rig-core's AgentBuilder for agentic execution
+- **NikaMcpTool** - Implements rig's `ToolDyn` trait for MCP tool bridging
+- **21 new rig tests** - Comprehensive test suite for rig-based agent loop
+- **Advanced workflow YAML tests** - UC-001/002/003 use cases with NovaNet integration
+
+### Changed
+
+- **Provider migration started** - Old providers (claude.rs, openai.rs) marked as deprecated
+- **Migration path documented** - Clear guidance for transitioning from old Provider trait to rig-core
+- Provider module now recommends `RigAgentLoop` for new `agent:` verb implementations
+
+### Deprecated
+
+- `ClaudeProvider` - Use `RigAgentLoop` with rig-core instead
+- `OpenAIProvider` - Use `RigAgentLoop` with rig-core instead
+- `provider::types` - Use rig-core types directly
+
 ## [0.3.0] - 2026-02-19
 
 ### Added

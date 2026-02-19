@@ -530,6 +530,23 @@ impl McpClient {
             .with_text(text)
     }
 
+    /// Get tool definitions synchronously.
+    ///
+    /// For mock clients, returns mock tool definitions.
+    /// For real clients, returns an empty vector (use list_tools() async method instead).
+    ///
+    /// This method is primarily used for building rig agents where we need
+    /// tool definitions during construction.
+    pub fn get_tool_definitions(&self) -> Vec<ToolDefinition> {
+        if self.is_mock {
+            self.mock_list_tools()
+        } else {
+            // For real clients, tools should be listed via async list_tools()
+            // Return empty for now - caller should use list_tools() for real clients
+            Vec::new()
+        }
+    }
+
     /// Generate mock tool definitions.
     fn mock_list_tools(&self) -> Vec<ToolDefinition> {
         vec![

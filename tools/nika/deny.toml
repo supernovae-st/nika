@@ -19,9 +19,11 @@ allow = [
     "Zlib",
     "MPL-2.0",
     "BSL-1.0",
-    "Unicode-DFS-2016",
     "Unicode-3.0",
     "AGPL-3.0-or-later",
+    # TLS/Cryptography licenses
+    "OpenSSL",           # aws-lc-sys (rustls TLS backend)
+    "CDLA-Permissive-2.0", # webpki-root-certs (TLS root certificates)
 ]
 confidence-threshold = 0.8
 

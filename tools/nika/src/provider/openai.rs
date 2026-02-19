@@ -1,4 +1,15 @@
 //! OpenAI provider using OpenAI API
+//!
+//! **DEPRECATED (v0.3.1)**: This module is deprecated in favor of rig-core integration.
+//! Use [`crate::runtime::RigAgentLoop`] for agentic execution instead.
+//!
+//! This module remains functional for the `infer:` verb via [`crate::runtime::executor`],
+//! but will be removed in v0.4 once executor.rs is migrated to rig-core.
+//!
+//! ## Migration Path
+//! - For `agent:` verb: Use [`RigAgentLoop`] (already uses rig-core)
+//! - For `infer:` verb: Migration pending (executor.rs → rig)
+#![deprecated(since = "0.3.1", note = "Use RigAgentLoop with rig-core instead")]
 
 use super::{
     ChatResponse, ContentBlock, Message, MessageContent, MessageRole, Provider, StopReason,
