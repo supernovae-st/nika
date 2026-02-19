@@ -14,19 +14,23 @@ tools/nika/src/
 ├── ast/              # YAML → Rust structs
 │   ├── workflow.rs   # Workflow, Task
 │   ├── action.rs     # TaskAction (5 variants)
+│   ├── decompose.rs  # ✅ DecomposeSpec (v0.5 MVP 8)
 │   └── output.rs     # OutputSpec
 ├── dag/              # DAG validation
 ├── runtime/          # Execution engine
-│   ├── executor.rs   # Task dispatch (infer/exec/fetch/invoke/agent)
+│   ├── executor.rs   # Task dispatch + decompose expansion
 │   ├── runner.rs     # Workflow orchestration
 │   ├── output.rs     # Output format handling
+│   ├── spawn.rs      # ✅ SpawnAgentTool (v0.5 MVP 8)
 │   └── rig_agent_loop.rs # ✅ rig-core AgentBuilder (v0.4+)
 ├── mcp/              # MCP client (rmcp v0.16)
 ├── event/            # Event sourcing
-│   ├── log.rs        # EventLog (16 variants)
+│   ├── log.rs        # EventLog (17 variants)
 │   └── trace.rs      # NDJSON writer
 ├── tui/              # Terminal UI (feature-gated)
-├── binding/          # Data flow ({{use.alias}})
+├── binding/          # Data flow ({{use.alias}}) + lazy bindings
+│   ├── entry.rs      # UseEntry with lazy flag (v0.5)
+│   └── resolve.rs    # LazyBinding enum (v0.5)
 ├── provider/         # LLM providers (rig-core only)
 │   └── rig.rs        # ✅ RigProvider + NikaMcpTool (rig-core v0.31)
 └── store/            # DataStore
@@ -89,6 +93,7 @@ yamllint -c .yamllint.yaml **/*.nika.yaml
 - `nika/workflow@0.1`: infer, exec, fetch verbs
 - `nika/workflow@0.2`: +invoke, +agent verbs, +mcp config
 - `nika/workflow@0.3`: +for_each parallelism, rig-core integration
+- `nika/workflow@0.5`: +decompose, +lazy bindings, +spawn_agent (MVP 8)
 
 ## rig-core Integration (v0.4)
 
@@ -130,6 +135,32 @@ let agent = RigAgentLoop::new("task-1".into(), params, EventLog::new(), mcp_clie
 let result = agent.run_claude().await?;  // or run_mock() for testing
 ```
 
+## v0.4.1 Changes (Token Tracking Fix)
+
+Token tracking in streaming mode (extended thinking) now works correctly:
+
+| Before (v0.4.0) | After (v0.4.1) |
+|-----------------|----------------|
+| `input_tokens: 0` (always) | `input_tokens: <actual>` |
+| `output_tokens: 0` (always) | `output_tokens: <actual>` |
+| `total_tokens: 0` (always) | `total_tokens: <actual>` |
+
+**Technical fix:** `run_claude_with_thinking()` now extracts token usage from `StreamedAssistantContent::Final` via rig's `GetTokenUsage` trait.
+
+**Affected files:**
+- `runtime/rig_agent_loop.rs` - Token extraction from streaming response
+- `tests/thinking_capture_test.rs` - Integration tests for token capture
+
+**AgentTurnMetadata** now contains accurate token counts when using extended thinking:
+
+```rust
+if let EventKind::AgentTurn { metadata: Some(metadata), .. } = event {
+    println!("Input tokens: {}", metadata.input_tokens);   // Now > 0
+    println!("Output tokens: {}", metadata.output_tokens); // Now > 0
+    println!("Thinking: {:?}", metadata.thinking);         // Claude's reasoning
+}
+```
+
 ## v0.4 Changes (Removed Deprecated Code)
 
 The following were **removed in v0.4**:
@@ -144,30 +175,80 @@ The following were **removed in v0.4**:
 | `from_use_wiring()` | `from_wiring_spec()` | Method removed |
 | `resilience/` module | None | Entire module deleted (was never wired) |
 
+## v0.5 MVP 8: RLM Enhancements
+
+### Lazy Bindings
+
+Defer binding resolution until first access:
+
+```yaml
+use:
+  # Eager (default) - resolved immediately
+  eager_val: task1.result
+
+  # Lazy (v0.5) - resolved on access
+  lazy_val:
+    path: future_task.result
+    lazy: true
+    default: "fallback"
+```
+
+### Decompose Modifier
+
+Runtime DAG expansion via MCP traversal:
+
+```yaml
+tasks:
+  - id: expand_entities
+    decompose:
+      strategy: semantic    # semantic | static | nested
+      traverse: HAS_CHILD   # Arc to follow
+      source: $entity       # Starting node
+      max_items: 10         # Optional limit
+    infer: "Generate for {{use.item}}"
+```
+
+### Nested Agents (spawn_agent)
+
+Internal tool for recursive agent spawning with depth protection:
+
+```yaml
+tasks:
+  - id: orchestrator
+    agent:
+      prompt: "Decompose and delegate sub-tasks"
+      depth_limit: 3  # Prevents infinite recursion
+```
+
 ## for_each Parallelism (v0.3)
 
 Parallel iteration over arrays with concurrency control.
 
-### Configuration
+### Configuration (Flat Format)
 
 ```yaml
 tasks:
   - id: generate_pages
-    for_each:
-      items: $pages
-      as: page
-      concurrency: 5      # Max parallel tasks (default: 1)
-      fail_fast: true     # Stop on first error (default: true)
-    infer: "Generate content for {{page.title}}"
+    for_each: ["fr-FR", "en-US", "de-DE"]  # Array or binding expression
+    as: page                                # Loop variable name
+    concurrency: 5                          # Max parallel tasks (default: 1)
+    fail_fast: true                         # Stop on first error (default: true)
+    infer: "Generate content for {{use.page}}"
     use.ctx: page_content
+```
+
+Binding expressions are also supported:
+```yaml
+    for_each: "{{use.items}}"  # Resolved at runtime
+    for_each: "$items"         # Alternative binding syntax
 ```
 
 ### Properties
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `items` | array/binding | required | Array to iterate over |
-| `as` | string | required | Loop variable name |
+| `for_each` | array/binding | required | Array or binding expression |
+| `as` | string | "item" | Loop variable name |
 | `concurrency` | integer | 1 | Max parallel executions |
 | `fail_fast` | boolean | true | Stop all on first error |
 

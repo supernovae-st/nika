@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Lazy bindings (MVP 8 Phase 5)** - Defer binding resolution until first access with `lazy: true`
+- **Decompose modifier (MVP 8 Phase 4)** - Runtime DAG expansion via MCP traversal
+- **SpawnAgentTool foundation (MVP 8 Phase 2)** - Internal tool for nested agent spawning (stub)
+
+## [0.4.1] - 2026-02-19
+
+### Fixed
+
+- **Token tracking in streaming mode** - `run_claude_with_thinking()` now extracts tokens from `StreamedAssistantContent::Final` via rig's `GetTokenUsage` trait
+- **AgentTurnMetadata accuracy** - `input_tokens` and `output_tokens` are now correctly populated in extended thinking mode
+
+### Added
+
+- **MVP 8 Phase 1: Reasoning capture** - `thinking` field captured in AgentTurn events
+- **15 lazy binding tests** - Comprehensive test suite for lazy binding feature
+- **11 decompose tests** - Test coverage for decompose modifier
+
+## [0.4.0] - 2026-02-19
+
+### Breaking Changes
+
+- **Removed deprecated providers** - `ClaudeProvider`, `OpenAIProvider`, `provider::types` deleted
+- **Removed `AgentLoop`** - Replaced by `RigAgentLoop` with rig's AgentBuilder
+- **Removed `resilience/` module** - Entire module deleted (was never wired into runtime)
+
+### Added
+
+- **RigAgentLoop** - Full agentic execution using rig-core's AgentBuilder
+- **NikaMcpTool** - Implements rig's `ToolDyn` trait for MCP tool bridging
+- **Pure rig-core architecture** - All LLM operations now use rig-core v0.31
+
+### Changed
+
+- **621+ tests passing** - Comprehensive test coverage after migration
+- **~1,420 lines removed** - Code reduction from removing deprecated providers
+
+### Migration Guide
+
+```rust
+// Old (v0.3)
+use nika::provider::ClaudeProvider;
+let provider = ClaudeProvider::new()?;
+let result = provider.infer("prompt", None).await?;
+
+// New (v0.4)
+use nika::provider::rig::RigProvider;
+let provider = RigProvider::claude()?;
+let result = provider.infer("prompt", None).await?;
+```
+
 ## [0.3.1] - 2026-02-19
 
 ### Added
