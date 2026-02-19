@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn noop_emitter_is_default() {
-        let noop = NoopEmitter::default();
+        let noop = NoopEmitter;
         assert_eq!(noop.emit(EventKind::WorkflowStarted {
             task_count: 1,
             generation_id: "".to_string(),

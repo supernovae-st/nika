@@ -296,7 +296,7 @@ async fn test_circuit_breaker_half_open_to_closed_on_success_threshold() {
     let _ = breaker.execute(|| async { Ok::<_, TestError>(()) }).await;
 
     // May still be half-open
-    let state_after_first = breaker.state();
+    let _state_after_first = breaker.state();
 
     // Second success should close
     let _ = breaker.execute(|| async { Ok::<_, TestError>(()) }).await;

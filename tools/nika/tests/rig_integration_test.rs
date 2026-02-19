@@ -59,7 +59,7 @@ async fn test_real_mcp_client_connect() {
         .unwrap_or_else(|_| "password".to_string());
 
     // Create MCP config pointing to real NovaNet MCP
-    let config = McpConfig::new("novanet", &novanet_mcp_bin())
+    let config = McpConfig::new("novanet", novanet_mcp_bin())
         .with_env("NOVANET_MCP_NEO4J_URI", "bolt://localhost:7687")
         .with_env("NOVANET_MCP_NEO4J_USER", "neo4j")
         .with_env("NOVANET_MCP_NEO4J_PASSWORD", &password);
@@ -89,7 +89,7 @@ async fn test_real_mcp_list_tools() {
     let password = std::env::var("NOVANET_MCP_NEO4J_PASSWORD")
         .unwrap_or_else(|_| "password".to_string());
 
-    let config = McpConfig::new("novanet", &novanet_mcp_bin())
+    let config = McpConfig::new("novanet", novanet_mcp_bin())
         .with_env("NOVANET_MCP_NEO4J_URI", "bolt://localhost:7687")
         .with_env("NOVANET_MCP_NEO4J_USER", "neo4j")
         .with_env("NOVANET_MCP_NEO4J_PASSWORD", &password);
@@ -124,7 +124,7 @@ async fn test_real_mcp_novanet_describe() {
     let password = std::env::var("NOVANET_MCP_NEO4J_PASSWORD")
         .unwrap_or_else(|_| "password".to_string());
 
-    let config = McpConfig::new("novanet", &novanet_mcp_bin())
+    let config = McpConfig::new("novanet", novanet_mcp_bin())
         .with_env("NOVANET_MCP_NEO4J_URI", "bolt://localhost:7687")
         .with_env("NOVANET_MCP_NEO4J_USER", "neo4j")
         .with_env("NOVANET_MCP_NEO4J_PASSWORD", &password);
@@ -161,7 +161,7 @@ async fn test_rig_with_real_novanet_describe() {
     let password = std::env::var("NOVANET_MCP_NEO4J_PASSWORD")
         .unwrap_or_else(|_| "password".to_string());
 
-    let config = McpConfig::new("novanet", &novanet_mcp_bin())
+    let config = McpConfig::new("novanet", novanet_mcp_bin())
         .with_env("NOVANET_MCP_NEO4J_URI", "bolt://localhost:7687")
         .with_env("NOVANET_MCP_NEO4J_USER", "neo4j")
         .with_env("NOVANET_MCP_NEO4J_PASSWORD", &password);
@@ -207,7 +207,7 @@ async fn test_rig_with_real_novanet_generate() {
     let password = std::env::var("NOVANET_MCP_NEO4J_PASSWORD")
         .unwrap_or_else(|_| "password".to_string());
 
-    let config = McpConfig::new("novanet", &novanet_mcp_bin())
+    let config = McpConfig::new("novanet", novanet_mcp_bin())
         .with_env("NOVANET_MCP_NEO4J_URI", "bolt://localhost:7687")
         .with_env("NOVANET_MCP_NEO4J_USER", "neo4j")
         .with_env("NOVANET_MCP_NEO4J_PASSWORD", &password);
@@ -273,7 +273,7 @@ async fn test_rig_full_workflow_simulation() {
     let password = std::env::var("NOVANET_MCP_NEO4J_PASSWORD")
         .unwrap_or_else(|_| "password".to_string());
 
-    let config = McpConfig::new("novanet", &novanet_mcp_bin())
+    let config = McpConfig::new("novanet", novanet_mcp_bin())
         .with_env("NOVANET_MCP_NEO4J_URI", "bolt://localhost:7687")
         .with_env("NOVANET_MCP_NEO4J_USER", "neo4j")
         .with_env("NOVANET_MCP_NEO4J_PASSWORD", &password);

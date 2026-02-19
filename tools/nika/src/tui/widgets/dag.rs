@@ -312,13 +312,11 @@ mod tests {
 
     #[test]
     fn test_status_colors_distinct() {
-        let colors = vec![
-            Dag::status_color(TaskStatus::Pending),
+        let colors = [Dag::status_color(TaskStatus::Pending),
             Dag::status_color(TaskStatus::Running),
             Dag::status_color(TaskStatus::Success),
             Dag::status_color(TaskStatus::Failed),
-            Dag::status_color(TaskStatus::Paused),
-        ];
+            Dag::status_color(TaskStatus::Paused)];
 
         // Verify colors are distinct
         let unique_count = colors.iter().collect::<std::collections::HashSet<_>>().len();

@@ -19,15 +19,18 @@ tools/nika/src/
 ├── runtime/          # Execution engine
 │   ├── executor.rs   # Task dispatch (infer/exec/fetch/invoke)
 │   ├── runner.rs     # Workflow orchestration
-│   ├── agent_loop.rs # Legacy agentic execution (v0.2, deprecated)
-│   └── rig_agent_loop.rs # NEW: rig-core AgentBuilder (v0.3.1)
-├── mcp/              # MCP client (v0.2)
+│   ├── agent_loop.rs # ⚠️ DEPRECATED v0.4: Use rig_agent_loop.rs
+│   └── rig_agent_loop.rs # ✅ rig-core AgentBuilder (v0.3.1+)
+├── mcp/              # MCP client (rmcp v0.16)
 ├── event/            # Event sourcing
-│   ├── log.rs        # EventLog
+│   ├── log.rs        # EventLog (16 variants)
 │   └── trace.rs      # NDJSON writer
 ├── tui/              # Terminal UI (feature-gated)
 ├── binding/          # Data flow ({{use.alias}})
 ├── provider/         # LLM providers
+│   ├── rig.rs        # ✅ RigProvider (rig-core v0.31)
+│   ├── claude.rs     # ⚠️ DEPRECATED v0.4
+│   └── openai.rs     # ⚠️ DEPRECATED v0.4
 ├── resilience/       # Retry, circuit breaker, rate limiter (v0.2)
 └── store/            # DataStore
 ```
@@ -46,29 +49,30 @@ tools/nika/src/
 - `nika/workflow@0.2`: +invoke, +agent verbs, +mcp config
 - `nika/workflow@0.3`: +for_each parallelism, rig-core integration
 
-## rig-core Migration (v0.3.1)
+## rig-core Migration (v0.3.1+)
 
 Nika is migrating from custom providers to [rig-core](https://github.com/0xPlaygrounds/rig).
 
 | Component | Status | Implementation |
 |-----------|--------|----------------|
-| `infer:` verb | ✅ Done | `RigProvider.infer()` via executor.rs |
-| `agent:` verb | ⏳ Partial | `RigAgentLoop` exists, executor still uses old AgentLoop |
+| `agent:` verb | ✅ Done | `RigAgentLoop` uses rig's `AgentBuilder` |
+| `infer:` verb | ⏳ Pending | Still uses executor.rs + legacy `Provider` trait |
 | MCP tools | ✅ Done | `NikaMcpTool` implements rig's `ToolDyn` |
 
-### Using RigProvider (for infer:)
+### Using RigProvider (v0.3.1+)
 
 ```rust
 use nika::provider::rig::RigProvider;
+use rig::client::CompletionClient;  // Required trait import
 
 // Create provider from environment
-let provider = RigProvider::claude();  // or RigProvider::openai()
+let provider = RigProvider::claude()?;  // or RigProvider::openai()?
 
-// Simple text completion
+// Simple text completion via rig-core
 let result = provider.infer("Summarize this text", None).await?;
 ```
 
-### Using RigAgentLoop (for agent:)
+### Using RigAgentLoop (Recommended for agent:)
 
 ```rust
 use nika::runtime::RigAgentLoop;
@@ -82,15 +86,27 @@ let params = AgentParams {
     ..Default::default()
 };
 let agent = RigAgentLoop::new("task-1".into(), params, EventLog::new(), mcp_clients)?;
-let result = agent.run_mock().await?;  // or run_claude() for real execution
+let result = agent.run_claude().await?;  // or run_mock() for testing
 ```
 
-### Deprecated Providers
+## v0.4 Deprecation Schedule
 
-These are deprecated and will be removed in v0.4:
-- `ClaudeProvider` → Use `RigAgentLoop`
-- `OpenAIProvider` → Use `RigAgentLoop`
-- `provider::types` → Use rig-core types
+The following will be **removed in v0.4**:
+
+| Deprecated | Replacement | Module |
+|------------|-------------|--------|
+| `ClaudeProvider` | `RigProvider::claude()` | `provider/claude.rs` |
+| `OpenAIProvider` | `RigProvider::openai()` | `provider/openai.rs` |
+| `provider::types` | `rig::completion::*` | `provider/types.rs` |
+| `AgentLoop` | `RigAgentLoop` | `runtime/agent_loop.rs` |
+| `UseWiring` | `WiringSpec` | `binding/entry.rs` |
+| `from_use_wiring()` | `from_wiring_spec()` | `binding/resolver.rs` |
+
+**Migration path:**
+1. Replace `ClaudeProvider::new()?` → `RigProvider::claude()?`
+2. Replace `provider.infer()` → `provider.infer()` (same API)
+3. Replace `AgentLoop::new()` → `RigAgentLoop::new()`
+4. Replace `UseWiring` → `WiringSpec` in YAML parsing
 
 ## Resilience Patterns (v0.2)
 

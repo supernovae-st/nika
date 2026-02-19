@@ -183,16 +183,16 @@ fn test_stop_reason_variants() {
 #[test]
 fn test_stop_reason_serialization_snake_case() {
     // Claude API uses snake_case for stop reasons
-    let json = serde_json::to_value(&StopReason::EndTurn).unwrap();
+    let json = serde_json::to_value(StopReason::EndTurn).unwrap();
     assert_eq!(json, "end_turn");
 
-    let json = serde_json::to_value(&StopReason::ToolUse).unwrap();
+    let json = serde_json::to_value(StopReason::ToolUse).unwrap();
     assert_eq!(json, "tool_use");
 
-    let json = serde_json::to_value(&StopReason::MaxTokens).unwrap();
+    let json = serde_json::to_value(StopReason::MaxTokens).unwrap();
     assert_eq!(json, "max_tokens");
 
-    let json = serde_json::to_value(&StopReason::StopSequence).unwrap();
+    let json = serde_json::to_value(StopReason::StopSequence).unwrap();
     assert_eq!(json, "stop_sequence");
 }
 

@@ -120,7 +120,7 @@ async fn test_agent_loop_runs_to_natural_completion() {
     )
     .unwrap();
 
-    let provider = Arc::new(MockProvider::default());
+    let provider = Arc::new(MockProvider);
 
     // Act
     let result = agent_loop.run(provider).await;
@@ -160,7 +160,7 @@ async fn test_agent_loop_respects_max_turns() {
     )
     .unwrap();
 
-    let provider = Arc::new(MockProvider::default());
+    let provider = Arc::new(MockProvider);
 
     // Act
     let result = agent_loop.run(provider).await;
@@ -193,7 +193,7 @@ async fn test_agent_loop_detects_stop_condition() {
     )
     .unwrap();
 
-    let provider = Arc::new(MockProvider::default());
+    let provider = Arc::new(MockProvider);
 
     // Act
     let result = agent_loop.run(provider).await;
@@ -228,7 +228,7 @@ async fn test_agent_loop_emits_events() {
     )
     .unwrap();
 
-    let provider = Arc::new(MockProvider::default());
+    let provider = Arc::new(MockProvider);
 
     // Act
     let result = agent_loop.run(provider).await;
@@ -280,7 +280,7 @@ async fn test_agent_loop_with_mock_mcp_client() {
     )
     .unwrap();
 
-    let provider = Arc::new(MockProvider::default());
+    let provider = Arc::new(MockProvider);
 
     // Act
     let result = agent_loop.run(provider).await;
@@ -310,7 +310,7 @@ async fn test_agent_loop_fails_with_missing_mcp_client() {
     )
     .unwrap();
 
-    let provider = Arc::new(MockProvider::default());
+    let provider = Arc::new(MockProvider);
 
     // Act
     let result = agent_loop.run(provider).await;
