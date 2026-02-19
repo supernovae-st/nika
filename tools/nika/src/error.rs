@@ -235,6 +235,12 @@ pub enum NikaError {
     #[error("[NIKA-115] Agent execution failed for task '{task_id}': {reason}")]
     AgentExecutionError { task_id: String, reason: String },
 
+    #[error("[NIKA-116] Extended thinking capture failed: {reason}")]
+    ThinkingCaptureFailed { reason: String },
+
+    #[error("[NIKA-117] Extended thinking not supported for provider '{provider}'")]
+    ThinkingNotSupported { provider: String },
+
     // ═══════════════════════════════════════════
     // RESILIENCE ERRORS (120-129) - NEW v0.2
     // ═══════════════════════════════════════════
@@ -329,6 +335,8 @@ impl NikaError {
             Self::AgentValidationError { .. } => "NIKA-113",
             Self::NotImplemented { .. } => "NIKA-114",
             Self::AgentExecutionError { .. } => "NIKA-115",
+            Self::ThinkingCaptureFailed { .. } => "NIKA-116",
+            Self::ThinkingNotSupported { .. } => "NIKA-117",
             // Resilience errors
             Self::ProviderError { .. } => "NIKA-120",
             Self::Timeout { .. } => "NIKA-121",

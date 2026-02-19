@@ -325,9 +325,48 @@ impl Widget for ReasoningPanel<'_> {
         // Check if agent is active
         let has_agent = self.state.agent_max_turns.is_some();
         let has_streaming = !self.state.streaming_buffer.is_empty();
+        let has_thinking = self.has_thinking();
 
-        // Layout depends on whether we have streaming output
-        if has_agent && has_streaming {
+        // Layout depends on whether we have streaming output and/or thinking
+        if has_agent && has_thinking && has_streaming {
+            // With thinking + streaming: Header | Progress | Turns | Thinking | Streaming | Tokens
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(1), // Header
+                    Constraint::Length(1), // Progress
+                    Constraint::Length(3), // Turns (reduced)
+                    Constraint::Min(3),    // Thinking
+                    Constraint::Length(3), // Streaming (reduced)
+                    Constraint::Length(1), // Tokens
+                ])
+                .split(inner);
+
+            self.render_header(chunks[0], buf);
+            self.render_progress(chunks[1], buf);
+            self.render_turns(chunks[2], buf);
+            self.render_thinking(chunks[3], buf);
+            self.render_streaming(chunks[4], buf);
+            self.render_tokens(chunks[5], buf);
+        } else if has_agent && has_thinking {
+            // With thinking only: Header | Progress | Turns | Thinking | Tokens
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(1), // Header
+                    Constraint::Length(1), // Progress
+                    Constraint::Length(3), // Turns (reduced)
+                    Constraint::Min(4),    // Thinking
+                    Constraint::Length(1), // Tokens
+                ])
+                .split(inner);
+
+            self.render_header(chunks[0], buf);
+            self.render_progress(chunks[1], buf);
+            self.render_turns(chunks[2], buf);
+            self.render_thinking(chunks[3], buf);
+            self.render_tokens(chunks[4], buf);
+        } else if has_agent && has_streaming {
             // With streaming: Header | Progress | Turns | Streaming | Tokens
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
@@ -384,7 +423,7 @@ fn format_number(n: u32) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tui::state::TuiState;
+    use crate::tui::state::{AgentTurnState, TuiState};
     use crate::tui::theme::Theme;
 
     #[test]
@@ -410,5 +449,63 @@ mod tests {
         assert_eq!(format_number(999), "999");
         assert_eq!(format_number(1000), "1,000");
         assert_eq!(format_number(12345), "12,345");
+    }
+
+    #[test]
+    fn test_has_thinking_returns_false_when_no_turns() {
+        let state = TuiState::new("test.yaml");
+        let theme = Theme::novanet();
+        let panel = ReasoningPanel::new(&state, &theme);
+        assert!(!panel.has_thinking());
+    }
+
+    #[test]
+    fn test_has_thinking_returns_false_when_turns_without_thinking() {
+        let mut state = TuiState::new("test.yaml");
+        state.agent_turns.push(AgentTurnState {
+            index: 1,
+            status: "completed".to_string(),
+            tokens: Some(100),
+            tool_calls: vec![],
+            thinking: None,
+            response_text: Some("Response".to_string()),
+        });
+        let theme = Theme::novanet();
+        let panel = ReasoningPanel::new(&state, &theme);
+        assert!(!panel.has_thinking());
+    }
+
+    #[test]
+    fn test_has_thinking_returns_true_when_turn_has_thinking() {
+        let mut state = TuiState::new("test.yaml");
+        state.agent_turns.push(AgentTurnState {
+            index: 1,
+            status: "completed".to_string(),
+            tokens: Some(100),
+            tool_calls: vec![],
+            thinking: Some("Let me think about this...".to_string()),
+            response_text: Some("Response".to_string()),
+        });
+        let theme = Theme::novanet();
+        let panel = ReasoningPanel::new(&state, &theme);
+        assert!(panel.has_thinking());
+    }
+
+    #[test]
+    fn test_build_turn_entries_with_thinking() {
+        let mut state = TuiState::new("test.yaml");
+        state.agent_max_turns = Some(5);
+        state.agent_turns.push(AgentTurnState {
+            index: 1,
+            status: "completed".to_string(),
+            tokens: Some(150),
+            tool_calls: vec!["tool1".to_string()],
+            thinking: Some("Analyzing the problem...".to_string()),
+            response_text: Some("Here's my analysis".to_string()),
+        });
+        let theme = Theme::novanet();
+        let panel = ReasoningPanel::new(&state, &theme);
+        let entries = panel.build_turn_entries();
+        assert_eq!(entries.len(), 1);
     }
 }
