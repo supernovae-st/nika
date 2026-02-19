@@ -1,0 +1,53 @@
+# Mon Premier Workflow Nika - REAL API
+# Run: cargo run -- run examples/thibaut-first-workflow.nika.yaml
+
+schema: "nika/workflow@0.5"
+provider: claude
+
+tasks:
+  - id: generate_headline
+    agent:
+      prompt: |
+        Tu es un copywriter expert français.
+        Génère UN headline accrocheur pour "QR Code AI" - un générateur de QR codes avec IA.
+
+        Réponds en JSON: {"headline": "...", "subheadline": "..."}
+        Termine par DONE.
+      model: claude-sonnet-4-20250514
+      max_turns: 1
+      stop_conditions:
+        - "DONE"
+
+  - id: generate_features
+    agent:
+      prompt: |
+        Liste 3 features clés d'un générateur de QR codes IA, en français.
+
+        Réponds en JSON: {"features": [{"name": "...", "desc": "..."}, ...]}
+        Termine par DONE.
+      model: claude-sonnet-4-20250514
+      max_turns: 1
+      stop_conditions:
+        - "DONE"
+
+  - id: assemble
+    use:
+      h: generate_headline
+      f: generate_features
+    agent:
+      prompt: |
+        Assemble cette landing page avec:
+        - Headline data: {{use.h}}
+        - Features data: {{use.f}}
+
+        Génère un JSON final complet. Termine par DONE.
+      model: claude-sonnet-4-20250514
+      max_turns: 1
+      stop_conditions:
+        - "DONE"
+
+flows:
+  - source: generate_headline
+    target: assemble
+  - source: generate_features
+    target: assemble
