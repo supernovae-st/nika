@@ -1,9 +1,15 @@
 {
   "project": "nika",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "primaryLanguage": "rust",
   "testCommand": "cargo nextest run",
   "buildCommand": "cargo build --release",
   "lintCommand": "cargo clippy -- -D warnings",
-  "formatCommand": "cargo fmt --check"
+  "formatCommand": "cargo fmt --check",
+  "notes": {
+    "v0.4": "rig-core migration complete (MVP 7)",
+    "provider": "RigProvider wrapper (provider/rig.rs)",
+    "agentLoop": "RigAgentLoop with rig::AgentBuilder",
+    "removed": ["ClaudeProvider", "OpenAIProvider", "old AgentLoop", "resilience module"]
+  }
 }

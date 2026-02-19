@@ -19,10 +19,13 @@
 
 use std::sync::Arc;
 
+use futures::StreamExt;
 use rig::agent::AgentBuilder;
 use rig::client::{CompletionClient, ProviderClient};
-use rig::completion::Prompt;
+use rig::completion::{CompletionModel as _, Prompt};
+use rig::message::ReasoningContent;
 use rig::providers::anthropic;
+use rig::streaming::StreamedAssistantContent;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
 
@@ -254,14 +257,20 @@ impl RigAgentLoop {
     /// This method takes `&mut self` because tools are consumed (moved to rig's AgentBuilder).
     /// The agent loop is designed for single-use execution.
     ///
-    /// ## Metadata Capture (v0.4.1)
-    /// Currently, rig's `agent.prompt()` returns a String, so we cannot capture:
-    /// - Extended thinking blocks (requires streaming API)
-    /// - Token usage (requires raw response access)
+    /// ## Extended Thinking (v0.4+)
+    /// When `extended_thinking: true` is set in AgentParams, this method uses
+    /// the streaming API to capture Claude's reasoning process. The thinking
+    /// is stored in `AgentTurnMetadata.thinking` for observability.
     ///
-    /// These will be populated in a future version using rig's streaming or
-    /// direct completion request API.
+    /// ## Metadata Capture
+    /// - With extended_thinking: Uses streaming API, captures thinking blocks
+    /// - Without extended_thinking: Uses prompt() API, no thinking captured
     pub async fn run_claude(&mut self) -> Result<RigAgentLoopResult, NikaError> {
+        // Check if extended thinking is enabled
+        if self.params.extended_thinking == Some(true) {
+            return self.run_claude_with_thinking().await;
+        }
+
         // Create Anthropic client from environment
         let client = anthropic::Client::from_env();
 
@@ -351,6 +360,134 @@ impl RigAgentLoop {
             .iter()
             .any(|cond| output.contains(cond))
     }
+
+    /// Run the agent loop with extended thinking enabled (Claude only).
+    ///
+    /// Uses rig-core's streaming API to capture thinking blocks from Claude's
+    /// extended thinking feature. The thinking is accumulated and stored in
+    /// the AgentTurnMetadata for observability.
+    ///
+    /// # Errors
+    /// - NIKA-113: Extended thinking failed
+    /// - NIKA-110: Agent execution error
+    pub async fn run_claude_with_thinking(&mut self) -> Result<RigAgentLoopResult, NikaError> {
+        // Create Anthropic client from environment
+        let client = anthropic::Client::from_env();
+
+        // Get model name
+        let model_name = self
+            .params
+            .model
+            .as_deref()
+            .unwrap_or(anthropic::completion::CLAUDE_3_5_SONNET);
+        let model = client.completion_model(model_name);
+
+        // Build completion request with thinking enabled
+        let thinking_budget = 4096; // Default thinking budget
+        let request = model
+            .completion_request(&self.params.prompt)
+            .preamble(self.params.system.clone().unwrap_or_default())
+            .additional_params(serde_json::json!({
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": thinking_budget
+                }
+            }))
+            .build();
+
+        // Emit start event
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index: 1,
+            kind: "started".to_string(),
+            metadata: None,
+        });
+
+        // Execute streaming request
+        let mut stream = model.stream(request).await.map_err(|e| {
+            NikaError::AgentExecutionError {
+                task_id: self.task_id.clone(),
+                reason: format!("Streaming request failed: {}", e),
+            }
+        })?;
+
+        // Accumulate thinking and response
+        let mut thinking_parts: Vec<String> = Vec::new();
+        let mut response_parts: Vec<String> = Vec::new();
+
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(content) => match content {
+                    StreamedAssistantContent::Text(text) => {
+                        response_parts.push(text.text);
+                    }
+                    StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
+                        thinking_parts.push(reasoning);
+                    }
+                    StreamedAssistantContent::Reasoning(reasoning) => {
+                        // Final reasoning block - extract text from content blocks
+                        for block in reasoning.content {
+                            if let ReasoningContent::Text { text, .. } = block {
+                                thinking_parts.push(text);
+                            }
+                        }
+                    }
+                    StreamedAssistantContent::Final(_) => {
+                        // Final response marker - nothing to extract
+                    }
+                    _ => {
+                        // Tool calls and other events - handled by agent loop
+                        tracing::debug!("Streaming event: {:?}", content);
+                    }
+                },
+                Err(e) => {
+                    tracing::warn!("Streaming chunk error: {}", e);
+                    // Continue processing other chunks
+                }
+            }
+        }
+
+        // Combine accumulated text
+        let thinking = if thinking_parts.is_empty() {
+            None
+        } else {
+            Some(thinking_parts.concat())
+        };
+        let response = response_parts.concat();
+
+        // Determine status
+        let status = if self.check_stop_conditions(&response) {
+            RigAgentStatus::StopConditionMet
+        } else {
+            RigAgentStatus::NaturalCompletion
+        };
+
+        // Build metadata with thinking
+        let stop_reason = status.as_canonical_str();
+        let metadata = AgentTurnMetadata {
+            thinking,
+            response_text: response.clone(),
+            input_tokens: 0,  // Token tracking requires usage from final message
+            output_tokens: 0,
+            cache_read_tokens: 0,
+            stop_reason: stop_reason.to_string(),
+        };
+
+        // Emit completion event
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index: 1,
+            kind: stop_reason.to_string(),
+            metadata: Some(metadata),
+        });
+
+        Ok(RigAgentLoopResult {
+            status,
+            turns: 1,
+            final_output: serde_json::json!({ "response": response }),
+            total_tokens: 0, // Would need message usage tracking
+        })
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -402,5 +539,92 @@ mod tests {
         assert!(agent.check_stop_conditions("Task is DONE"));
         assert!(agent.check_stop_conditions("COMPLETE!"));
         assert!(!agent.check_stop_conditions("Still working..."));
+    }
+
+    // ========================================================================
+    // Extended Thinking Tests (v0.4+)
+    // ========================================================================
+
+    #[test]
+    fn test_agent_loop_with_extended_thinking_creates_successfully() {
+        let params = AgentParams {
+            prompt: "Analyze this problem step by step".to_string(),
+            extended_thinking: Some(true),
+            provider: Some("claude".to_string()),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new(
+            "thinking-test".to_string(),
+            params,
+            event_log,
+            mcp_clients,
+        );
+
+        assert!(agent.is_ok(), "Agent with extended_thinking should be created");
+    }
+
+    #[test]
+    fn test_agent_loop_extended_thinking_false_creates_successfully() {
+        let params = AgentParams {
+            prompt: "Simple query".to_string(),
+            extended_thinking: Some(false),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new(
+            "no-thinking-test".to_string(),
+            params,
+            event_log,
+            mcp_clients,
+        );
+
+        assert!(agent.is_ok(), "Agent with extended_thinking: false should be created");
+    }
+
+    #[test]
+    fn test_agent_loop_extended_thinking_none_creates_successfully() {
+        let params = AgentParams {
+            prompt: "Default behavior".to_string(),
+            extended_thinking: None,
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new(
+            "default-test".to_string(),
+            params,
+            event_log,
+            mcp_clients,
+        );
+
+        assert!(agent.is_ok(), "Agent with extended_thinking: None should be created");
+    }
+
+    #[test]
+    fn test_agent_loop_with_system_prompt_and_thinking() {
+        let params = AgentParams {
+            prompt: "What is 2+2?".to_string(),
+            system: Some("You are a math tutor. Think step by step.".to_string()),
+            extended_thinking: Some(true),
+            provider: Some("claude".to_string()),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new(
+            "system-thinking-test".to_string(),
+            params,
+            event_log,
+            mcp_clients,
+        );
+
+        assert!(agent.is_ok(), "Agent with system prompt and thinking should be created");
     }
 }

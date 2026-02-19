@@ -1,0 +1,122 @@
+# v0.3 Feature Showcase: Denomination Forms (ADR-033)
+#
+# Demonstrates how novanet_generate returns denomination_forms
+# for prescriptive entity naming in LLM prompts.
+#
+# Run with: cargo run -- run examples/v03-denomination-forms.yaml
+#
+# Features shown:
+# - denomination_forms in generate response
+# - context_build_log for debugging
+# - Proper entity naming in generated content
+#
+# ADR-033 Rule: The LLM MUST use ONLY denomination_forms values.
+# NO invention, NO paraphrase, NO unlisted variation is allowed.
+#
+schema: "nika/workflow@0.3"
+provider: claude
+
+mcp:
+  novanet:
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+tasks:
+  # Step 1: Generate context with denomination forms
+  # The response includes:
+  # - prompt: assembled context for LLM
+  # - denomination_forms: {entity_key: {text, title, abbrev, url?, mixed?, base?}}
+  # - context_build_log: step-by-step assembly log
+  - id: generate_context
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity: "qr-code"
+        locale: "fr-FR"
+        token_budget: 4000
+    output:
+      format: json
+
+  # Step 2: Extract denomination forms for LLM instruction
+  # This step demonstrates accessing the denomination_forms from the response
+  - id: format_instructions
+    use:
+      ctx: generate_context
+    infer:
+      prompt: |
+        You are preparing content generation instructions.
+
+        CONTEXT FROM NOVANET:
+        {{use.ctx.prompt}}
+
+        DENOMINATION FORMS (ADR-033 - MANDATORY):
+        {{use.ctx.denomination_forms}}
+
+        CONTEXT BUILD LOG (for debugging):
+        {{use.ctx.context_build_log}}
+
+        Based on the denomination_forms, create a JSON instruction sheet for content writers:
+        {
+          "entity": "qr-code",
+          "locale": "fr-FR",
+          "naming_rules": {
+            "in_prose": "<use text form>",
+            "in_headings": "<use title form>",
+            "after_first_mention": "<use abbrev form>",
+            "in_urls": "<use url form if present>"
+          },
+          "examples": [
+            "CORRECT: <example using text form>",
+            "WRONG: <invented name>"
+          ]
+        }
+
+        Output only valid JSON.
+      model: claude-sonnet-4-20250514
+    output:
+      format: json
+
+  # Step 3: Generate actual content following the rules
+  - id: generate_content
+    use:
+      instructions: format_instructions
+      context: generate_context
+    infer:
+      prompt: |
+        Generate a short marketing paragraph about QR codes for the French market.
+
+        STRICT NAMING RULES:
+        {{use.instructions}}
+
+        CONTEXT:
+        {{use.context.prompt}}
+
+        Requirements:
+        1. Use ONLY the naming forms specified above
+        2. Use title form for the heading
+        3. Use text form in body content
+        4. Use abbrev form after first mention
+        5. Output in French
+
+        Format:
+        ## <heading using title form>
+
+        <paragraph using correct forms>
+      model: claude-sonnet-4-20250514
+    output:
+      format: text
+
+flows:
+  - source: generate_context
+    target: format_instructions
+  - source: format_instructions
+    target: generate_content

@@ -1,0 +1,36 @@
+# v0.4 Feature Showcase: Reasoning Capture
+#
+# Demonstrates extended thinking capture from Claude.
+# The model's reasoning process is recorded in traces.
+#
+# Run with: cargo run -- run examples/v04-reasoning-capture.yaml
+#
+schema: "nika/workflow@0.3"
+provider: claude
+
+tasks:
+  - id: analyze_with_reasoning
+    agent:
+      prompt: |
+        Analyze why QR codes are effective for marketing.
+        Think through this step by step before answering.
+      extended_thinking: true
+      model: claude-sonnet-4-20250514
+      max_turns: 1
+    output:
+      format: text
+
+  - id: summarize
+    use:
+      analysis: analyze_with_reasoning
+    infer:
+      prompt: |
+        Summarize this analysis in 2 sentences:
+        {{use.analysis}}
+      model: claude-haiku-4-20250514
+    output:
+      format: text
+
+flows:
+  - source: analyze_with_reasoning
+    target: summarize

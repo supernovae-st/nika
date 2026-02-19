@@ -237,6 +237,11 @@ pub struct AgentTurnState {
     pub tokens: Option<u32>,
     /// Tool calls made this turn
     pub tool_calls: Vec<String>,
+    /// Extended thinking content (v0.4+)
+    /// Captured from Claude's reasoning process when extended_thinking is enabled
+    pub thinking: Option<String>,
+    /// Response text from the agent turn
+    pub response_text: Option<String>,
 }
 
 /// Breakpoint definition
@@ -544,18 +549,25 @@ impl TuiState {
             } => {
                 // Extract tokens from metadata if present (v0.4.1)
                 let tokens = metadata.as_ref().map(|m| m.total_tokens());
+                // Extract thinking and response_text from metadata (v0.4 reasoning capture)
+                let thinking = metadata.as_ref().and_then(|m| m.thinking.clone());
+                let response_text = metadata.as_ref().map(|m| m.response_text.clone());
 
                 let turn = AgentTurnState {
                     index: *turn_index,
                     status: kind.clone(),
                     tokens,
                     tool_calls: Vec::new(),
+                    thinking,
+                    response_text,
                 };
                 // Update or add turn
                 if let Some(existing) = self.agent_turns.iter_mut().find(|t| t.index == *turn_index)
                 {
                     existing.status = kind.clone();
                     existing.tokens = tokens;
+                    existing.thinking = turn.thinking;
+                    existing.response_text = turn.response_text;
                 } else {
                     self.agent_turns.push(turn);
                 }

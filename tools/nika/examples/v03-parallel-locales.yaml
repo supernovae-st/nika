@@ -26,9 +26,13 @@ mcp:
 tasks:
   # Step 1: Generate for ALL locales in parallel
   # for_each iterates over the array, each iteration runs via tokio::spawn
+  # concurrency: 5 means all 5 locales run simultaneously
   - id: generate_all
-    for_each: ["fr-FR", "en-US", "es-ES", "de-DE", "ja-JP"]
-    as: locale
+    for_each:
+      items: ["fr-FR", "en-US", "es-ES", "de-DE", "ja-JP"]
+      as: locale
+      concurrency: 5  # All 5 run in parallel via JoinSet
+      fail_fast: true # Stop remaining on first error
     invoke:
       mcp: novanet
       tool: novanet_generate

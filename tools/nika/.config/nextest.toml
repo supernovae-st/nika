@@ -1,0 +1,151 @@
+# =============================================================================
+# Nika nextest configuration
+# =============================================================================
+#
+# Reference: https://nexte.st/docs/configuration
+#
+# Profiles:
+#   - default: Local development (fast feedback)
+#   - ci: CI/CD pipelines (retry flaky, JUnit reports)
+#   - coverage: Coverage runs (single-threaded for accuracy)
+#   - integration: MCP integration tests (requires NovaNet)
+#   - mutants: Mutation testing profile
+#
+# Usage:
+#   cargo nextest run                    # Default profile
+#   cargo nextest run --profile ci       # CI profile with retries
+#   cargo nextest run --profile coverage # For coverage reports
+#   cargo nextest run --profile integration -- --ignored  # MCP tests
+#
+# =============================================================================
+
+[store]
+# Cache test binaries for faster subsequent runs
+dir = "target/nextest"
+
+# =============================================================================
+# Default Profile - Local Development
+# =============================================================================
+[profile.default]
+# Fail fast for local development - stop on first failure
+fail-fast = true
+
+# Show output immediately on failure for faster debugging
+failure-output = "immediate"
+
+# Reasonable timeout for individual tests
+slow-timeout = { period = "30s", terminate-after = 2 }
+
+# No retries in local development - failures should be investigated immediately
+retries = 0
+
+# Status indicator for long-running tests
+status-level = "fail"
+
+# =============================================================================
+# CI Profile - GitHub Actions and CI/CD
+# =============================================================================
+[profile.ci]
+# Don't stop on first failure - run all tests to see full picture
+fail-fast = false
+
+# Show failures at the end for CI logs (easier to find in long output)
+failure-output = "final"
+
+# Retry flaky tests up to 2 times before marking as failed
+retries = 2
+
+# Longer timeout for CI (cold caches, shared runners)
+slow-timeout = { period = "60s", terminate-after = 3 }
+
+# JUnit report for CI integration
+[profile.ci.junit]
+path = "target/nextest/ci/junit.xml"
+report-name = "Nika Tests"
+store-success-output = false
+store-failure-output = true
+
+# Per-test overrides for CI
+[[profile.ci.overrides]]
+# MCP client tests may have network variability
+filter = "test(/^mcp::/)"
+retries = 3
+slow-timeout = "45s"
+
+[[profile.ci.overrides]]
+# Resilience tests (retry, circuit breaker) are deterministic
+filter = "test(/^resilience::/)"
+retries = 0
+
+[[profile.ci.overrides]]
+# Agent loop tests may need more time for LLM simulation
+filter = "test(/^agent::/)"
+slow-timeout = "60s"
+
+[[profile.ci.overrides]]
+# Provider tests are fast and deterministic
+filter = "test(/^provider::/)"
+slow-timeout = "15s"
+
+[[profile.ci.overrides]]
+# TUI tests may need more time for rendering
+filter = "test(/^tui::/)"
+slow-timeout = "45s"
+
+# =============================================================================
+# Coverage Profile - For cargo-llvm-cov
+# =============================================================================
+[profile.coverage]
+# No fail-fast for coverage - need all tests to run
+fail-fast = false
+
+# No retries - want accurate coverage metrics
+retries = 0
+
+# Longer timeout for instrumented code
+slow-timeout = { period = "60s", terminate-after = 3 }
+
+# Simpler output for coverage runs
+failure-output = "immediate-final"
+
+# =============================================================================
+# Integration Test Profile - NovaNet MCP required
+# =============================================================================
+[profile.integration]
+# Run all integration tests
+fail-fast = false
+
+# Longer timeout for MCP operations and LLM calls
+slow-timeout = { period = "120s", terminate-after = 2 }
+
+# Show output for debugging connection issues
+failure-output = "immediate"
+
+# Retry for transient MCP/network issues
+retries = 2
+
+# JUnit for integration test results
+[profile.integration.junit]
+path = "target/nextest/integration/junit.xml"
+report-name = "Nika Integration Tests"
+
+[[profile.integration.overrides]]
+# Agent tests with real LLM may need even more time
+filter = "test(/agent_with_real_/)"
+slow-timeout = "180s"
+
+# =============================================================================
+# Mutation Testing Profile - For cargo-mutants
+# =============================================================================
+[profile.mutants]
+# Must not fail fast - mutants need full test coverage
+fail-fast = false
+
+# Minimal output for faster mutation runs
+failure-output = "never"
+
+# No retries - mutants should fail consistently
+retries = 0
+
+# Faster timeout for mutation testing
+slow-timeout = { period = "20s", terminate-after = 1 }

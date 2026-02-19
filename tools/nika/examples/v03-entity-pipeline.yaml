@@ -1,0 +1,82 @@
+# v0.3 Feature Showcase: Entity Analysis Pipeline
+#
+# Demonstrates a multi-step pipeline combining invoke + for_each + infer.
+# Fetches entities from NovaNet, processes them in parallel, aggregates results.
+#
+# Run with: cargo run -- run examples/v03-entity-pipeline.yaml
+#
+# Features shown:
+# - invoke: MCP tool calling to NovaNet
+# - for_each: Parallel processing with concurrency control
+# - infer: LLM generation with data binding
+# - use: Data flow between tasks
+# - flows: DAG dependency declaration
+#
+schema: "nika/workflow@0.3"
+provider: claude
+
+mcp:
+  novanet:
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+tasks:
+  # Step 1: Fetch entity list from NovaNet
+  - id: fetch_entities
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: "entities"
+        limit: 10
+    output:
+      format: json
+
+  # Step 2: Process sample entities in parallel
+  # concurrency: 3 means up to 3 LLM calls running simultaneously
+  - id: process_entities
+    for_each:
+      items: ["qr-code", "dynamic-qr-code", "qr-code-art"]
+      as: entity_key
+      concurrency: 3
+      fail_fast: true
+    infer:
+      prompt: |
+        Analyze this entity briefly: {{use.entity_key}}
+
+        Output a single-sentence summary of what this entity represents.
+      model: claude-haiku-4-20250514
+    output:
+      format: text
+
+  # Step 3: Aggregate summaries into a report
+  - id: aggregate
+    use:
+      summaries: process_entities
+    infer:
+      prompt: |
+        Combine these entity summaries into a cohesive report:
+
+        {{use.summaries}}
+
+        Output a JSON with:
+        - entity_count: number of entities
+        - themes: array of common themes
+        - highlights: top 3 notable entities
+      model: claude-sonnet-4-20250514
+    output:
+      format: json
+
+flows:
+  - source: fetch_entities
+    target: process_entities
+  - source: process_entities
+    target: aggregate

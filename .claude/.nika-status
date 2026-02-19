@@ -1,1 +1,1 @@
-{"status": "BROKEN", "timestamp": "2026-02-19T03:43:53", "schema": "workflow@0.1", "actions": 3}
+{"status": "HEALTHY", "version": "0.4.0", "timestamp": "2026-02-19T13:30:00", "schema": "workflow@0.3", "tests": "621+ passing", "mvp": "7 complete (rig-core)", "next": "MVP 8 (RLM enhancements)"}

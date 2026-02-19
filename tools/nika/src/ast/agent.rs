@@ -70,6 +70,14 @@ pub struct AgentParams {
     /// Scope preset (full, minimal, debug)
     #[serde(default)]
     pub scope: Option<String>,
+
+    /// Enable extended thinking for Claude models (v0.4+)
+    ///
+    /// When enabled, the agent captures Claude's reasoning process
+    /// in the `thinking` field of AgentTurn events. Only supported
+    /// for Claude provider.
+    #[serde(default)]
+    pub extended_thinking: Option<bool>,
 }
 
 impl AgentParams {
@@ -126,6 +134,18 @@ impl AgentParams {
         if let Some(budget) = self.token_budget {
             if budget == 0 {
                 return Err("token_budget must be > 0".to_string());
+            }
+        }
+
+        // Extended thinking is only supported for Claude
+        if self.extended_thinking == Some(true) {
+            if let Some(ref provider) = self.provider {
+                if provider != "claude" {
+                    return Err(format!(
+                        "extended_thinking only supported for claude provider, got '{}'",
+                        provider
+                    ));
+                }
             }
         }
 
@@ -279,12 +299,81 @@ prompt: "User prompt"
 system: "You are a helpful assistant."
 "#;
         let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(params.system, Some("You are a helpful assistant.".to_string()));
+        assert_eq!(
+            params.system,
+            Some("You are a helpful assistant.".to_string())
+        );
     }
 
     #[test]
     fn system_prompt_defaults_to_none() {
         let params = AgentParams::default();
         assert!(params.system.is_none());
+    }
+
+    // ========================================================================
+    // Extended Thinking Tests (v0.4+)
+    // ========================================================================
+
+    #[test]
+    fn parse_extended_thinking_true() {
+        let yaml = r#"
+prompt: "Test"
+extended_thinking: true
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(params.extended_thinking, Some(true));
+    }
+
+    #[test]
+    fn parse_extended_thinking_false() {
+        let yaml = r#"
+prompt: "Test"
+extended_thinking: false
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(params.extended_thinking, Some(false));
+    }
+
+    #[test]
+    fn extended_thinking_defaults_to_none() {
+        let params = AgentParams::default();
+        assert!(params.extended_thinking.is_none());
+    }
+
+    #[test]
+    fn validate_extended_thinking_with_openai_fails() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            extended_thinking: Some(true),
+            provider: Some("openai".to_string()),
+            ..Default::default()
+        };
+        let err = params.validate().unwrap_err();
+        assert!(err.contains("extended_thinking only supported for claude"));
+    }
+
+    #[test]
+    fn validate_extended_thinking_with_claude_ok() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            extended_thinking: Some(true),
+            provider: Some("claude".to_string()),
+            ..Default::default()
+        };
+        assert!(params.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_extended_thinking_without_provider_ok() {
+        // When provider is not specified, validation passes
+        // (workflow provider will be used at runtime)
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            extended_thinking: Some(true),
+            provider: None,
+            ..Default::default()
+        };
+        assert!(params.validate().is_ok());
     }
 }

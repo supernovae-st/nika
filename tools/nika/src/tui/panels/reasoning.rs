@@ -207,6 +207,73 @@ impl<'a> ReasoningPanel<'a> {
         }
     }
 
+    /// Check if any turn has thinking content
+    fn has_thinking(&self) -> bool {
+        self.state
+            .agent_turns
+            .iter()
+            .any(|t| t.thinking.is_some())
+    }
+
+    /// Render thinking/reasoning content (v0.4 extended thinking)
+    fn render_thinking(&self, area: Rect, buf: &mut Buffer) {
+        // Find the last turn with thinking content
+        let thinking = self
+            .state
+            .agent_turns
+            .iter()
+            .rev()
+            .find_map(|t| t.thinking.as_ref());
+
+        if let Some(thinking_text) = thinking {
+            // Header with brain emoji
+            buf.set_string(
+                area.x + 2,
+                area.y,
+                "─── 🧠 Thinking ───",
+                Style::default()
+                    .fg(Color::Rgb(139, 92, 246)) // violet
+                    .add_modifier(Modifier::BOLD),
+            );
+
+            // Content area
+            if area.height > 1 {
+                let content_area = Rect {
+                    x: area.x + 2,
+                    y: area.y + 1,
+                    width: area.width.saturating_sub(4),
+                    height: area.height.saturating_sub(1),
+                };
+
+                // Truncate thinking to fit (show last lines that fit)
+                let lines: Vec<&str> = thinking_text.lines().collect();
+                let max_lines = content_area.height as usize;
+                let visible_lines = if lines.len() > max_lines {
+                    // Show "..." indicator and last lines
+                    let mut visible = vec!["..."];
+                    visible.extend(lines.iter().rev().take(max_lines - 1).rev().cloned());
+                    visible.join("\n")
+                } else {
+                    lines.join("\n")
+                };
+
+                let paragraph = Paragraph::new(visible_lines)
+                    .style(Style::default().fg(Color::Rgb(167, 139, 250))) // violet-400
+                    .wrap(Wrap { trim: true });
+
+                paragraph.render(content_area, buf);
+            }
+        } else {
+            // No thinking content - show placeholder
+            buf.set_string(
+                area.x + 2,
+                area.y,
+                "(no thinking captured)",
+                Style::default().fg(Color::DarkGray),
+            );
+        }
+    }
+
     /// Render token summary
     fn render_tokens(&self, area: Rect, buf: &mut Buffer) {
         let total_tokens: u32 = self
