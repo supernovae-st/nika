@@ -108,142 +108,166 @@ tasks:
 }
 
 // ============================================================================
-// RUNTIME TESTS (RED - decomposer not implemented yet)
+// RUNTIME UNIT TESTS (executor methods)
 // ============================================================================
 
-// These tests are marked as ignored because the runtime decomposer
-// is not implemented yet. They document expected behavior.
+#[cfg(test)]
+mod executor_unit_tests {
+    use nika::ast::decompose::{DecomposeSpec, DecomposeStrategy};
+    use nika::binding::ResolvedBindings;
+    use nika::error::NikaError;
+    use nika::event::EventLog;
+    use nika::runtime::TaskExecutor;
+    use nika::store::DataStore;
+    use serde_json::{json, Value};
 
-/// Test that decomposer calls novanet_traverse MCP tool
-#[tokio::test]
-#[ignore = "Phase 4 GREEN: decomposer not implemented yet"]
-async fn test_decomposer_calls_mcp_traverse() {
-    // Setup mock MCP client
-    // let mock_client = MockMcpClient::new();
-    // mock_client.expect_call_tool()
-    //     .with(eq("novanet_traverse"), any())
-    //     .returning(|_, _| Ok(json!({"nodes": [{"key": "child-1"}, {"key": "child-2"}]})));
+    fn create_test_executor() -> TaskExecutor {
+        TaskExecutor::new("mock", None, Default::default(), EventLog::new())
+    }
 
-    // let spec = DecomposeSpec {
-    //     strategy: DecomposeStrategy::Semantic,
-    //     traverse: "HAS_CHILD".to_string(),
-    //     source: "$entity".to_string(),
-    //     mcp_server: None,
-    //     max_items: None,
-    // };
+    #[tokio::test]
+    async fn test_expand_decompose_static_with_array() {
+        let executor = create_test_executor();
+        let datastore = DataStore::new();
 
-    // let bindings = create_test_bindings();
-    // let items = decomposer::expand(&spec, &mock_client, &bindings).await.unwrap();
+        // Pre-populate bindings with locales array
+        // Note: $alias (without .) resolves from bindings, not datastore
+        let mut bindings = ResolvedBindings::default();
+        bindings.set("locales".to_string(), json!(["en-US", "fr-FR", "de-DE"]));
 
-    // assert_eq!(items.len(), 2);
-    // assert_eq!(items[0]["key"], "child-1");
+        let spec = DecomposeSpec {
+            strategy: DecomposeStrategy::Static,
+            traverse: "IGNORED".to_string(),
+            source: "$locales".to_string(),
+            mcp_server: None,
+            max_items: None,
+        };
 
-    todo!("Implement decomposer runtime");
+        let result: Result<Vec<Value>, NikaError> = executor
+            .expand_decompose(&spec, &bindings, &datastore)
+            .await;
+
+        assert!(result.is_ok());
+        let items = result.unwrap();
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0], json!("en-US"));
+        assert_eq!(items[1], json!("fr-FR"));
+        assert_eq!(items[2], json!("de-DE"));
+    }
+
+    #[tokio::test]
+    async fn test_expand_decompose_static_with_max_items() {
+        let executor = create_test_executor();
+        let datastore = DataStore::new();
+
+        // Pre-populate bindings with 5 items
+        let mut bindings = ResolvedBindings::default();
+        bindings.set("items".to_string(), json!([1, 2, 3, 4, 5]));
+
+        let spec = DecomposeSpec {
+            strategy: DecomposeStrategy::Static,
+            traverse: "IGNORED".to_string(),
+            source: "$items".to_string(),
+            mcp_server: None,
+            max_items: Some(2), // Limit to 2
+        };
+
+        let result: Result<Vec<Value>, NikaError> = executor
+            .expand_decompose(&spec, &bindings, &datastore)
+            .await;
+
+        assert!(result.is_ok());
+        let items = result.unwrap();
+        assert_eq!(items.len(), 2); // Truncated to max_items
+        assert_eq!(items[0], json!(1));
+        assert_eq!(items[1], json!(2));
+    }
+
+    #[tokio::test]
+    async fn test_expand_decompose_static_non_array_fails() {
+        let executor = create_test_executor();
+        let datastore = DataStore::new();
+
+        // Pre-populate bindings with a string (not an array)
+        let mut bindings = ResolvedBindings::default();
+        bindings.set("scalar".to_string(), json!("not an array"));
+
+        let spec = DecomposeSpec {
+            strategy: DecomposeStrategy::Static,
+            traverse: "IGNORED".to_string(),
+            source: "$scalar".to_string(),
+            mcp_server: None,
+            max_items: None,
+        };
+
+        let result: Result<Vec<Value>, NikaError> = executor
+            .expand_decompose(&spec, &bindings, &datastore)
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("array"));
+    }
+
+    #[tokio::test]
+    async fn test_expand_decompose_nested_not_implemented() {
+        let executor = create_test_executor();
+        let datastore = DataStore::new();
+
+        let spec = DecomposeSpec {
+            strategy: DecomposeStrategy::Nested,
+            traverse: "HAS_CHILD".to_string(),
+            source: "$entity".to_string(),
+            mcp_server: None,
+            max_items: None,
+        };
+
+        let bindings = ResolvedBindings::default();
+        let result: Result<Vec<Value>, NikaError> = executor
+            .expand_decompose(&spec, &bindings, &datastore)
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("not implemented") || err.contains("NotImplemented"));
+    }
+
+    #[tokio::test]
+    async fn test_expand_decompose_semantic_missing_mcp_fails() {
+        let executor = create_test_executor();
+        let datastore = DataStore::new();
+
+        // Pre-populate bindings with entity
+        let mut bindings = ResolvedBindings::default();
+        bindings.set("entity".to_string(), json!({"key": "qr-code"}));
+
+        let spec = DecomposeSpec {
+            strategy: DecomposeStrategy::Semantic,
+            traverse: "HAS_CHILD".to_string(),
+            source: "$entity".to_string(),
+            mcp_server: None, // Uses default "novanet" which isn't connected
+            max_items: None,
+        };
+
+        let result: Result<Vec<Value>, NikaError> = executor
+            .expand_decompose(&spec, &bindings, &datastore)
+            .await;
+
+        // Should fail because MCP server isn't connected
+        assert!(result.is_err());
+    }
 }
 
-/// Test that decompose expands into for_each iterations
+// ============================================================================
+// INTEGRATION TESTS (require MCP server)
+// ============================================================================
+
+/// Test decomposer with mock MCP that returns traverse results
 #[tokio::test]
-#[ignore = "Phase 4 GREEN: decomposer not implemented yet"]
-async fn test_decompose_expands_to_iterations() {
-    // Full workflow execution with decompose
-    // let yaml = r#"
-    // schema: nika/workflow@0.4
-    // mcp:
-    //   novanet:
-    //     command: mock-mcp
-    // tasks:
-    //   - id: setup
-    //     exec:
-    //       command: echo '{"key": "parent-entity"}'
-    //     use.ctx: entity
-    //
-    //   - id: expand
-    //     decompose:
-    //       traverse: HAS_CHILD
-    //       source: $entity.key
-    //     infer: "Process {{use.item.key}}"
-    // "#;
-
-    // let workflow = parse_workflow(yaml).unwrap();
-    // let runner = Runner::new(workflow).with_mock_mcp(mock_traverse_response);
-    // let result = runner.run().await.unwrap();
-
-    // Should have executed for each decomposed item
-    // assert!(result.task_results.len() > 1);
-
-    todo!("Implement decomposer integration with runner");
-}
-
-/// Test that decompose respects max_items limit
-#[tokio::test]
-#[ignore = "Phase 4 GREEN: decomposer not implemented yet"]
-async fn test_decompose_respects_max_items() {
-    // let spec = DecomposeSpec {
-    //     strategy: DecomposeStrategy::Semantic,
-    //     traverse: "HAS_CHILD".to_string(),
-    //     source: "$entity".to_string(),
-    //     mcp_server: None,
-    //     max_items: Some(2),
-    // };
-
-    // Mock returns 5 items, but max_items is 2
-    // let mock_client = mock_client_returning_5_items();
-    // let items = decomposer::expand(&spec, &mock_client, &bindings).await.unwrap();
-
-    // assert_eq!(items.len(), 2); // Truncated to max_items
-
-    todo!("Implement max_items truncation");
-}
-
-/// Test decompose with nested strategy (recursive)
-#[tokio::test]
-#[ignore = "Phase 4 GREEN: decomposer not implemented yet"]
-async fn test_decompose_nested_strategy() {
-    // Nested strategy should recursively traverse
-    // let spec = DecomposeSpec {
-    //     strategy: DecomposeStrategy::Nested,
-    //     traverse: "HAS_CHILD".to_string(),
-    //     source: "$entity".to_string(),
-    //     mcp_server: None,
-    //     max_items: None,
-    // };
-
-    // Should flatten nested results
-    // let items = decomposer::expand(&spec, &mock_client, &bindings).await.unwrap();
-
-    todo!("Implement nested decomposition");
-}
-
-/// Test decompose with static strategy (no MCP call)
-#[tokio::test]
-#[ignore = "Phase 4 GREEN: decomposer not implemented yet"]
-async fn test_decompose_static_strategy() {
-    // Static strategy should just resolve the binding, no MCP call
-    // let spec = DecomposeSpec {
-    //     strategy: DecomposeStrategy::Static,
-    //     traverse: "IGNORED".to_string(),
-    //     source: "$locales".to_string(),
-    //     mcp_server: None,
-    //     max_items: None,
-    // };
-
-    // Bindings contain: locales = ["en-US", "fr-FR", "de-DE"]
-    // let items = decomposer::expand(&spec, &mock_client, &bindings).await.unwrap();
-
-    // assert_eq!(items.len(), 3);
-
-    todo!("Implement static decomposition");
-}
-
-/// Test decompose emits proper events
-#[tokio::test]
-#[ignore = "Phase 4 GREEN: decomposer not implemented yet"]
-async fn test_decompose_emits_events() {
-    // Should emit DecomposeStarted and DecomposeCompleted events
-    // let events = capture_events_during_decompose();
-
-    // assert!(events.iter().any(|e| matches!(e, EventKind::DecomposeStarted { .. })));
-    // assert!(events.iter().any(|e| matches!(e, EventKind::DecomposeCompleted { .. })));
-
-    todo!("Implement decompose events");
+#[ignore = "Requires running NovaNet MCP server with Neo4j"]
+async fn test_decompose_semantic_with_real_mcp() {
+    // This test requires:
+    // 1. NovaNet MCP server running
+    // 2. Neo4j with test data
+    // See tests/rig_integration_test.rs for similar setup
 }
