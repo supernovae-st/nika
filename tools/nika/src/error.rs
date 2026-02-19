@@ -373,13 +373,13 @@ impl FixSuggestion for NikaError {
         match self {
             NikaError::ParseError { .. } => Some("Check YAML syntax: indentation and quoting"),
             NikaError::InvalidSchemaVersion { .. } => {
-                Some("Use 'nika/workflow@0.2' as the schema version")
+                Some("Use 'nika/workflow@0.5' as the schema version")
             }
             NikaError::WorkflowNotFound { .. } => Some("Check the file path exists"),
             NikaError::ValidationError { .. } => Some("Check workflow structure matches schema"),
             NikaError::YamlParse(_) => Some("Check YAML syntax: indentation and quoting"),
             NikaError::InvalidSchema { .. } => {
-                Some("Use 'nika/workflow@0.2' as the schema version")
+                Some("Use 'nika/workflow@0.5' as the schema version")
             }
             NikaError::TaskFailed { .. } => Some("Check task configuration and dependencies"),
             NikaError::TaskTimeout { .. } => Some("Increase timeout or optimize the task"),

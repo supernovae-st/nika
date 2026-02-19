@@ -1,11 +1,11 @@
-//! Workflow Types - main workflow structure (v0.1, v0.2)
+//! Workflow Types - main workflow structure (v0.1 - v0.5)
 //!
 //! Contains the core YAML-parsed types:
 //! - `Workflow`: Root workflow with tasks and flows
 //! - `Task`: Individual task definition
 //! - `Flow`: DAG edge between tasks
 //! - `FlowEndpoint`: Single or multiple task references
-//! - `McpConfigInline`: Inline MCP server configuration (v0.2)
+//! - `McpConfigInline`: Inline MCP server configuration (v0.2+)
 
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
@@ -30,6 +30,9 @@ pub const SCHEMA_V03: &str = "nika/workflow@0.3";
 
 /// Expected schema version for v0.4 workflows (extended thinking)
 pub const SCHEMA_V04: &str = "nika/workflow@0.4";
+
+/// Expected schema version for v0.5 workflows (decompose, lazy bindings, spawn_agent)
+pub const SCHEMA_V05: &str = "nika/workflow@0.5";
 
 /// Inline MCP server configuration (v0.2)
 ///
@@ -139,7 +142,7 @@ impl Workflow {
     /// Validate the workflow schema version and task configuration
     ///
     /// Returns error if:
-    /// - Schema doesn't match expected version (v0.1, v0.2, v0.3, or v0.4)
+    /// - Schema doesn't match expected version (v0.1, v0.2, v0.3, v0.4, or v0.5)
     /// - Any task has invalid for_each configuration (non-array or empty)
     pub fn validate_schema(&self) -> Result<(), NikaError> {
         // Validate schema version
@@ -147,11 +150,12 @@ impl Workflow {
             && self.schema != SCHEMA_V02
             && self.schema != SCHEMA_V03
             && self.schema != SCHEMA_V04
+            && self.schema != SCHEMA_V05
         {
             return Err(NikaError::InvalidSchema {
                 expected: format!(
-                    "{} or {} or {} or {}",
-                    SCHEMA_V01, SCHEMA_V02, SCHEMA_V03, SCHEMA_V04
+                    "{} or {} or {} or {} or {}",
+                    SCHEMA_V01, SCHEMA_V02, SCHEMA_V03, SCHEMA_V04, SCHEMA_V05
                 ),
                 actual: self.schema.clone(),
             });
