@@ -9,10 +9,19 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: "-D warnings"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  check:
-    name: Check
+  # =============================================================================
+  # Formatting and Linting (fast, fail early)
+  # =============================================================================
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,21 +31,175 @@ jobs:
         with:
           components: clippy, rustfmt
 
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika -> target
+
       - name: Check formatting
         working-directory: tools/nika
         run: cargo fmt --check
 
       - name: Run clippy
         working-directory: tools/nika
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Build
+  # =============================================================================
+  # Security Audit
+  # =============================================================================
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Install security tools
+        run: |
+          cargo install cargo-deny --locked
+          cargo install cargo-audit --locked
+
+      - name: Run cargo deny
+        working-directory: tools/nika
+        run: cargo deny check
+
+      - name: Run cargo audit
+        working-directory: tools/nika
+        run: cargo audit
+
+  # =============================================================================
+  # Tests (cross-platform matrix)
+  # =============================================================================
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika -> target
+          key: ${{ matrix.os }}
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Run tests (CI profile)
+        working-directory: tools/nika
+        run: cargo nextest run --profile ci
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: tools/nika/target/nextest/ci/junit.xml
+          if-no-files-found: ignore
+
+  # =============================================================================
+  # Build (release mode verification)
+  # =============================================================================
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, security]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika -> target
+
+      - name: Build release
         working-directory: tools/nika
         run: cargo build --release
 
-  test:
-    name: Test
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: nika-linux
+          path: tools/nika/target/release/nika
+          if-no-files-found: error
+
+  # =============================================================================
+  # Coverage
+  # =============================================================================
+  coverage:
+    name: Coverage
     runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika -> target
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Generate coverage (nextest + llvm-cov)
+        working-directory: tools/nika
+        run: cargo llvm-cov nextest --profile coverage --lcov --output-path lcov.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: tools/nika/lcov.info
+          fail_ci_if_error: false
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: tools/nika/lcov.info
+
+  # =============================================================================
+  # Integration Tests (manual trigger, requires NovaNet)
+  # =============================================================================
+  integration:
+    name: Integration
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[integration]')
+    needs: [test]
+    services:
+      neo4j:
+        image: neo4j:5.26-community
+        env:
+          NEO4J_AUTH: neo4j/novanetpassword
+          NEO4J_PLUGINS: '["apoc"]'
+        ports:
+          - 7474:7474
+          - 7687:7687
+        options: >-
+          --health-cmd "wget -q --spider http://localhost:7474 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -46,30 +209,18 @@ jobs:
       - name: Install nextest
         uses: taiki-e/install-action@nextest
 
-      - name: Run tests
+      - name: Wait for Neo4j
+        run: |
+          for i in {1..30}; do
+            curl -s http://localhost:7474 && break
+            echo "Waiting for Neo4j..."
+            sleep 2
+          done
+
+      - name: Run integration tests
         working-directory: tools/nika
-        run: cargo nextest run
-
-  coverage:
-    name: Coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
-        with:
-          components: llvm-tools-preview
-
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-
-      - name: Generate coverage
-        working-directory: tools/nika
-        run: cargo llvm-cov --lcov --output-path lcov.info
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        with:
-          files: tools/nika/lcov.info
-          fail_ci_if_error: false
+        env:
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: novanetpassword
+        run: cargo nextest run --profile integration -- --ignored
