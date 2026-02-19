@@ -11,6 +11,9 @@
 //! - Sparkline: Mini chart for metrics (planned)
 //! - BigText: FIGlet-style headers (planned)
 
+// Allow unused code in widgets - many are planned for future TUI enhancements
+#![allow(dead_code)]
+
 mod agent_turns;
 mod dag;
 mod gauge;
@@ -23,5 +26,6 @@ pub use dag::{Dag, DagNode};
 pub use gauge::Gauge;
 pub use mcp_log::{McpEntry, McpLog};
 // Spinner widgets - exported for future panel use
+#[allow(unused_imports)]
 pub use spinner::{ProgressDots, Spinner, BRAILLE_SPINNER, DOT_SPINNER, PULSE_SPINNER};
 pub use timeline::{Timeline, TimelineEntry};
