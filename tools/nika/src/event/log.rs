@@ -1,9 +1,13 @@
-//! EventLog - Event sourcing implementation (v0.2)
+//! EventLog - Event sourcing implementation (v0.4)
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 13 variants across 5 levels (workflow/task/fine-grained/MCP/context)
+//! - EventKind: 16+ variants across 5 levels (workflow/task/fine-grained/MCP/context)
 //! - EventLog: thread-safe, append-only log
+//!
+//! ## v0.4.1 Changes
+//! - Added `AgentTurnMetadata` for reasoning capture (thinking, tokens, stop_reason)
+//! - Updated `AgentTurn` variant to include optional metadata
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -34,6 +38,89 @@ pub struct ExcludedItem {
     pub node: String,
     /// Reason for exclusion
     pub reason: String,
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AgentTurnMetadata for Reasoning Capture (v0.4.1)
+// ═══════════════════════════════════════════════════════════════
+
+/// Agent turn response metadata for observability (v0.4.1)
+///
+/// Captures detailed information about each agent turn, including:
+/// - Thinking content (if Claude extended thinking is enabled)
+/// - Response text
+/// - Token usage
+/// - Stop reason
+///
+/// ## Note on Thinking Capture
+/// Full thinking block capture requires using rig's streaming API or
+/// direct completion requests. When using `agent.prompt()`, thinking
+/// is not available (will be `None`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AgentTurnMetadata {
+    /// Thinking content from Claude's extended thinking (if enabled)
+    ///
+    /// This field is populated when using streaming completion or
+    /// direct completion API. It's `None` when using Agent::prompt().
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking: Option<String>,
+
+    /// Main response text from the agent
+    pub response_text: String,
+
+    /// Input tokens used for this turn
+    pub input_tokens: u32,
+
+    /// Output tokens generated for this turn
+    pub output_tokens: u32,
+
+    /// Cache read tokens (Anthropic prompt caching)
+    #[serde(default)]
+    pub cache_read_tokens: u32,
+
+    /// Stop reason: "end_turn", "tool_use", "max_tokens", "stop_sequence"
+    pub stop_reason: String,
+}
+
+impl AgentTurnMetadata {
+    /// Create metadata for a simple text response (no thinking)
+    pub fn text_only(response: impl Into<String>, stop_reason: impl Into<String>) -> Self {
+        Self {
+            thinking: None,
+            response_text: response.into(),
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_read_tokens: 0,
+            stop_reason: stop_reason.into(),
+        }
+    }
+
+    /// Create metadata with token usage
+    pub fn with_usage(
+        response: impl Into<String>,
+        input_tokens: u32,
+        output_tokens: u32,
+        stop_reason: impl Into<String>,
+    ) -> Self {
+        Self {
+            thinking: None,
+            response_text: response.into(),
+            input_tokens,
+            output_tokens,
+            cache_read_tokens: 0,
+            stop_reason: stop_reason.into(),
+        }
+    }
+
+    /// Total tokens (input + output)
+    pub fn total_tokens(&self) -> u32 {
+        self.input_tokens + self.output_tokens
+    }
+
+    /// Check if thinking was captured
+    pub fn has_thinking(&self) -> bool {
+        self.thinking.is_some()
+    }
 }
 
 /// Single event in the workflow execution log
@@ -175,7 +262,7 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
-    // AGENT EVENTS (v0.2)
+    // AGENT EVENTS (v0.4)
     // ═══════════════════════════════════════════
     /// Agent loop started
     AgentStart {
@@ -183,14 +270,21 @@ pub enum EventKind {
         max_turns: u32,
         mcp_servers: Vec<String>,
     },
-    /// Agent turn event (started, completed, stop_condition_met, etc.)
+    /// Agent turn event with optional metadata (v0.4.1)
+    ///
+    /// When `metadata` is present, it contains:
+    /// - Response text
+    /// - Token usage (input/output/cache)
+    /// - Stop reason
+    /// - Thinking content (if using streaming API)
     AgentTurn {
         task_id: Arc<str>,
         turn_index: u32,
         /// Event kind: "started", "continue", "natural_completion", "stop_condition_met"
         kind: String,
-        /// Cumulative token count (optional)
-        tokens: Option<u32>,
+        /// Turn metadata including response text, tokens, thinking (v0.4.1)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        metadata: Option<AgentTurnMetadata>,
     },
     /// Agent loop completed (reached stop condition or max turns)
     AgentComplete {
@@ -820,6 +914,132 @@ mod tests {
             assert_eq!(output_tokens, 50);
         } else {
             panic!("Expected ProviderResponded event");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // AgentTurnMetadata tests (v0.4.1)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn agent_turn_metadata_text_only() {
+        let metadata = AgentTurnMetadata::text_only("Hello world", "end_turn");
+
+        assert_eq!(metadata.response_text, "Hello world");
+        assert_eq!(metadata.stop_reason, "end_turn");
+        assert_eq!(metadata.input_tokens, 0);
+        assert_eq!(metadata.output_tokens, 0);
+        assert_eq!(metadata.cache_read_tokens, 0);
+        assert!(!metadata.has_thinking());
+        assert_eq!(metadata.total_tokens(), 0);
+    }
+
+    #[test]
+    fn agent_turn_metadata_with_usage() {
+        let metadata = AgentTurnMetadata::with_usage("Response", 100, 50, "tool_use");
+
+        assert_eq!(metadata.response_text, "Response");
+        assert_eq!(metadata.stop_reason, "tool_use");
+        assert_eq!(metadata.input_tokens, 100);
+        assert_eq!(metadata.output_tokens, 50);
+        assert_eq!(metadata.total_tokens(), 150);
+        assert!(!metadata.has_thinking());
+    }
+
+    #[test]
+    fn agent_turn_metadata_with_thinking() {
+        let metadata = AgentTurnMetadata {
+            thinking: Some("Let me think about this...".to_string()),
+            response_text: "Here's my answer".to_string(),
+            input_tokens: 200,
+            output_tokens: 100,
+            cache_read_tokens: 50,
+            stop_reason: "end_turn".to_string(),
+        };
+
+        assert!(metadata.has_thinking());
+        assert_eq!(
+            metadata.thinking.as_ref().unwrap(),
+            "Let me think about this..."
+        );
+        assert_eq!(metadata.total_tokens(), 300);
+    }
+
+    #[test]
+    fn agent_turn_metadata_serializes() {
+        let metadata = AgentTurnMetadata::with_usage("Test response", 100, 50, "end_turn");
+        let json = serde_json::to_value(&metadata).unwrap();
+
+        assert_eq!(json["response_text"], "Test response");
+        assert_eq!(json["input_tokens"], 100);
+        assert_eq!(json["output_tokens"], 50);
+        assert_eq!(json["stop_reason"], "end_turn");
+        // thinking should be skipped when None
+        assert!(json.get("thinking").is_none());
+    }
+
+    #[test]
+    fn agent_turn_metadata_with_thinking_serializes() {
+        let metadata = AgentTurnMetadata {
+            thinking: Some("My thoughts".to_string()),
+            response_text: "My response".to_string(),
+            input_tokens: 50,
+            output_tokens: 25,
+            cache_read_tokens: 0,
+            stop_reason: "end_turn".to_string(),
+        };
+        let json = serde_json::to_value(&metadata).unwrap();
+
+        assert_eq!(json["thinking"], "My thoughts");
+        assert_eq!(json["response_text"], "My response");
+    }
+
+    #[test]
+    fn agent_turn_with_metadata_serializes() {
+        let log = EventLog::new();
+
+        let metadata = AgentTurnMetadata::with_usage("Agent response", 100, 50, "end_turn");
+
+        log.emit(EventKind::AgentTurn {
+            task_id: "agent_task".into(),
+            turn_index: 1,
+            kind: "end_turn".to_string(), // Canonical snake_case (v0.4.1)
+            metadata: Some(metadata),
+        });
+
+        let events = log.filter_task("agent_task");
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::AgentTurn {
+            metadata: Some(m), ..
+        } = &events[0].kind
+        {
+            assert_eq!(m.response_text, "Agent response");
+            assert_eq!(m.total_tokens(), 150);
+        } else {
+            panic!("Expected AgentTurn with metadata");
+        }
+    }
+
+    #[test]
+    fn agent_turn_without_metadata_serializes() {
+        let log = EventLog::new();
+
+        log.emit(EventKind::AgentTurn {
+            task_id: "agent_task".into(),
+            turn_index: 1,
+            kind: "started".to_string(),
+            metadata: None,
+        });
+
+        let events = log.filter_task("agent_task");
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::AgentTurn { metadata, kind, .. } = &events[0].kind {
+            assert!(metadata.is_none());
+            assert_eq!(kind, "started");
+        } else {
+            panic!("Expected AgentTurn without metadata");
         }
     }
 }

@@ -1,0 +1,323 @@
+# UC7: Error Recovery and Resilience Patterns
+#
+# Demonstrates handling MCP failures with retry, circuit breaker, and fallback behavior.
+# This workflow models a production scenario where NovaNet MCP may be unavailable or slow.
+#
+# DAG:
+#   input
+#   ├─→ primary_generate (with resilience)
+#   │   ├─→ error on circuit open
+#   │   └─→ fallback_text (if primary fails)
+#   ├─→ parallel_traverse (3 traversals with backoff)
+#   └─→ final_report (aggregate results)
+#
+# Run with: cargo run -- run examples/uc7-error-recovery.yaml
+# Or with TUI: cargo run -- tui examples/uc7-error-recovery.yaml
+#
+# Features demonstrated:
+# - Provider-level resilience configuration
+# - Retry with exponential backoff + jitter
+# - Circuit breaker (Closed → Open → HalfOpen)
+# - Rate limiting to prevent API abuse
+# - Graceful fallback on persistent failures
+# - Parallel execution with fail_fast control
+
+schema: "nika/workflow@0.2"
+provider: claude
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PROVIDER RESILIENCE CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Each provider gets its own resilience configuration with three patterns:
+# 1. RETRY: Automatic retry with exponential backoff (handles transient errors)
+# 2. CIRCUIT BREAKER: Fail-fast after repeated failures (prevents cascade)
+# 3. RATE LIMITER: Throttle requests to stay within API limits
+#
+providers:
+  claude:
+    api_key: ${ANTHROPIC_API_KEY}
+    resilience:
+      # RETRY PATTERN
+      retry:
+        max_attempts: 4
+        backoff: exponential  # exponential or linear
+        initial_delay_ms: 500
+        max_delay_ms: 10000
+        jitter: true
+
+      # CIRCUIT BREAKER PATTERN
+      circuit_breaker:
+        failure_threshold: 3       # Open after 3 failures
+        success_threshold: 2       # Return to Closed after 2 successes
+        reset_timeout_ms: 30000    # Try HalfOpen after 30 seconds
+
+      # RATE LIMITER PATTERN
+      rate_limiter:
+        requests_per_minute: 60
+        burst_size: 10
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MCP CONFIGURATION - NovaNet MCP Server
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# The MCP server itself may fail (Neo4j down, network issues, etc).
+# Nika will retry MCP calls according to provider resilience settings.
+#
+mcp:
+  novanet:
+    # Use cargo to run MCP server from source (development mode)
+    # Run from nika-dev/tools/nika/ directory
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TASKS - Error Recovery Demonstration
+# ═══════════════════════════════════════════════════════════════════════════
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────────────
+  # INPUT - Workflow parameters
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: input_entity
+    exec:
+      command: "echo qr-code"
+
+  - id: locales
+    exec:
+      command: "echo fr-FR de-DE es-ES"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PRIMARY GENERATION WITH RESILIENCE
+  #
+  # This task demonstrates resilience patterns:
+  # 1. RETRY: Automatically retries up to 4 times
+  # 2. CIRCUIT BREAKER: If 3 failures occur, circuit opens
+  # 3. JITTER: Random delay added to backoff (prevents thundering herd)
+  #
+  # If the MCP server is slow or experiencing transient failures,
+  # the retry mechanism will handle it automatically.
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: primary_generate
+    use:
+      entity: input_entity
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        focus_key: "{{use.entity}}"
+        locale: "en-US"
+        mode: "entity"
+        token_budget: 10000
+        include_examples: true
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # FALLBACK BEHAVIOR
+  #
+  # If primary_generate fails (circuit open, all retries exhausted),
+  # this task runs to provide fallback content using only LLM inference.
+  #
+  # This demonstrates graceful degradation:
+  # If MCP is unavailable, we can still generate useful content
+  # using the LLM directly (without NovaNet context).
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: fallback_text
+    infer:
+      prompt: |
+        NovaNet MCP generation failed due to service unavailability.
+
+        Generate a brief entity description for: {{use.input_entity}}
+
+        Keep it to 2-3 sentences. Focus on core concept and use cases.
+        Output JSON: { "description": "...", "fallback": true, "retry_count": 4 }
+      model: claude-haiku-4-20250514  # Fast model for fallback
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PARALLEL TRAVERSALS WITH RESILIENCE
+  #
+  # Demonstrates parallel execution (for_each) with resilience.
+  # Each traversal is independent and benefits from retry + rate limiting.
+  #
+  # concurrency: 3 means max 3 parallel MCP calls at once.
+  # fail_fast: false allows other traversals to complete even if one fails.
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: parallel_traversals
+    use:
+      entity: input_entity
+    for_each:
+      items: ["REPRESENTS", "ENABLES", "REQUIRES"]
+      as: arc_type
+      concurrency: 3
+      fail_fast: false  # Continue even if one traversal fails
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.entity}}"
+        arc_kinds: ["{{as.arc_type}}"]
+        direction: "outgoing"
+        max_depth: 1
+        limit: 25
+        include_properties: true
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # MULTI-LOCALE GENERATION WITH BACKOFF
+  #
+  # This task demonstrates how resilience patterns work with multiple requests.
+  # Each locale generation respects:
+  # - Rate limiter: 60 req/min (won't exceed API quota)
+  # - Circuit breaker: Stops hammering if service is down
+  # - Retry: Automatically recovers from transient failures
+  #
+  # With 3 locales and rate limit of 60 req/min, spacing is automatic.
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: multi_locale_generate
+    use:
+      entity: input_entity
+    for_each:
+      items: ["fr-FR", "de-DE", "es-ES"]
+      as: locale
+      concurrency: 1  # Sequential to respect rate limiter
+      fail_fast: false
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        focus_key: "{{use.entity}}"
+        locale: "{{as.locale}}"
+        mode: "entity"
+        token_budget: 5000
+        include_examples: false
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # ERROR RECOVERY REPORT
+  #
+  # Aggregate all results (successes + failures) and generate a report.
+  # This demonstrates how to handle partially successful workflows.
+  #
+  # The report captures:
+  # - How many retries occurred
+  # - Whether circuit breaker was triggered
+  # - Which operations succeeded vs failed
+  # - Total time elapsed (retry backoff adds delays)
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: error_report
+    use:
+      primary: primary_generate
+      fallback: fallback_text
+      traversals: parallel_traversals
+      multi_locale: multi_locale_generate
+    infer:
+      prompt: |
+        Analyze this error recovery workflow execution:
+
+        PRIMARY GENERATION:
+        {{use.primary}}
+
+        FALLBACK TEXT (if primary failed):
+        {{use.fallback}}
+
+        PARALLEL TRAVERSALS (3 arc types):
+        {{use.traversals}}
+
+        MULTI-LOCALE GENERATION (3 locales):
+        {{use.multi_locale}}
+
+        Generate a JSON report with:
+        - total_operations: number of MCP calls
+        - successful_operations: count of succeeded calls
+        - failed_operations: count of failed calls
+        - primary_success: boolean (true if primary generation worked)
+        - fallback_used: boolean (true if fallback was needed)
+        - resilience_summary: "Retry X times, circuit breaker Y times, rate limited Z times"
+        - recommendation: "Service health assessment and next steps"
+      model: claude-sonnet-4-20250514
+    output:
+      format: json
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FLOWS - Execution DAG
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Defines task dependencies and execution order.
+# Tasks execute when all dependencies complete (successfully or with error).
+#
+flows:
+  # Input stage
+  - source: input_entity
+    target: [primary_generate, parallel_traversals, multi_locale_generate]
+
+  # Primary stage (primary_generate may fail, fallback_text is always ready)
+  - source: primary_generate
+    target: fallback_text
+
+  # Report aggregates all results
+  - source: [fallback_text, parallel_traversals, multi_locale_generate]
+    target: error_report
+
+# ═══════════════════════════════════════════════════════════════════════════
+# RESILIENCE BEHAVIOR EXPLANATION
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# RETRY MECHANISM (Exponential Backoff with Jitter):
+#   Attempt 1: immediate
+#   Attempt 2: wait 500ms + random jitter (0-100ms)
+#   Attempt 3: wait 1000ms + random jitter (0-200ms)
+#   Attempt 4: wait 2000ms + random jitter (0-400ms)
+#   Attempt 5: wait 4000ms + random jitter (0-800ms) → capped at max_delay_ms=10000ms
+#   Attempt 6: fail with NIKA-120 error
+#
+#   Jitter prevents "thundering herd" where all clients retry simultaneously.
+#
+# CIRCUIT BREAKER STATE MACHINE:
+#   CLOSED:
+#     - Normal operation, requests pass through
+#     - Failure count increments on errors
+#     - After 3 failures → transition to OPEN
+#
+#   OPEN:
+#     - Fail-fast mode, no requests sent to MCP
+#     - Returns cached error immediately
+#     - After reset_timeout_ms (30s) → transition to HALF_OPEN
+#
+#   HALF_OPEN:
+#     - Test mode, allow 1 request through
+#     - If succeeds → CLOSED (reset failure count)
+#     - If fails → OPEN (restart timer)
+#
+# RATE LIMITER (Token Bucket):
+#   Maintains 60 tokens for each minute window.
+#   Each request costs 1 token.
+#   Burst of 10 tokens available.
+#   Excess requests wait for token refresh (every 1 second: 60/60 = 1 token).
+#
+# GRACEFUL DEGRADATION:
+#   If MCP fails (all retries exhausted, circuit open):
+#   1. primary_generate task fails
+#   2. fallback_text task runs (with fallback: true marker)
+#   3. error_report includes both primary and fallback results
+#   4. Workflow completes successfully with degraded data
+#
+# ═══════════════════════════════════════════════════════════════════════════

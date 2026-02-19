@@ -1,0 +1,200 @@
+# UC6: Page Generation from Structure
+#
+# Demonstrates realistic page generation workflow using for_each parallelism.
+# Gets page structure from NovaNet, then generates PageNative content for each
+# block in parallel using novanet_generate.
+#
+# DAG:
+#   discover_page → get_context → generate_blocks (parallel for_each) → aggregate
+#
+# Run with: cargo run -- run examples/uc6-page-generation.yaml
+#
+schema: "nika/workflow@0.3"
+provider: claude
+
+mcp:
+  novanet:
+    # Use cargo to run MCP server from source (development mode)
+    # Run from nika-dev/tools/nika/ directory
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 1: Discover Page Structure
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: discover_page
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        target: page
+        filters:
+          key: homepage
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 2: Get Full Generation Context
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: get_context
+    use:
+      page: discover_page
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        mode: page
+        page_key: "{{use.page.key}}"
+        locale: "fr-FR"
+        token_budget: 16000
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 3: Generate Content for Each Block (Parallel)
+  #
+  # for_each iterates over page.blocks array.
+  # Each block is processed in parallel (up to 3 concurrent tasks).
+  # The binding {{use.block}} provides access to each block's properties.
+  # Results are collected in original order.
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: generate_blocks
+    use:
+      page: discover_page
+      context: get_context
+    for_each: "{{use.page.blocks}}"
+    as: block
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        mode: block
+        page_key: "{{use.page.key}}"
+        block_key: "{{use.block.key}}"
+        locale: "fr-FR"
+        token_budget: 4000
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 4: Generate Content via LLM for Each Block
+  #
+  # Take the MCP output and generate PageNative JSON for each block.
+  # This is chained after generate_blocks - receives array of contexts.
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: render_blocks
+    use:
+      page: discover_page
+      block_contexts: generate_blocks
+    for_each: "{{use.block_contexts}}"
+    as: block_ctx
+    infer:
+      prompt: |
+        Generate native French PageNative content for this page block.
+
+        PAGE CONTEXT:
+        - Title: {{use.page.title}}
+        - URL: {{use.page.url}}
+
+        BLOCK CONTEXT:
+        {{use.block_ctx}}
+
+        RULES:
+        1. Use ONLY denomination_forms values from context
+        2. NO invention, NO paraphrase of entity names
+        3. Follow @ references for brand voice and style
+        4. Keep output within token budget
+        5. Respect block type constraints (hero, feature, testimonial, etc.)
+
+        Output JSON matching this schema:
+        {
+          "block_key": "string",
+          "block_type": "string",
+          "content": {
+            "title": "string",
+            "description": "string",
+            "cta_text": "string (optional)"
+          },
+          "metadata": {
+            "generated_at": "ISO8601",
+            "tokens_used": "number",
+            "language": "fr-FR"
+          }
+        }
+      model: claude-sonnet-4-20250514
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 5: Aggregate Results
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: aggregate
+    use:
+      page: discover_page
+      generated_blocks: render_blocks
+    infer:
+      prompt: |
+        Compile the generated page blocks into a complete PageNative document.
+
+        PAGE METADATA:
+        - Key: {{use.page.key}}
+        - Title: {{use.page.title}}
+        - Locale: fr-FR
+
+        GENERATED BLOCKS:
+        {{use.generated_blocks}}
+
+        Create a summary JSON with:
+        1. page_key: The page identifier
+        2. locale: "fr-FR"
+        3. blocks: Array of {block_key, block_type, content, status}
+        4. metadata:
+           - total_blocks: number of blocks generated
+           - successful_blocks: count of successful generations
+           - total_tokens: sum of tokens used
+           - generation_timestamp: ISO8601
+           - content_language: "fr-FR"
+        5. quality_check:
+           - all_blocks_present: boolean
+           - all_titles_present: boolean
+           - average_block_length: word count
+           - ready_for_publication: boolean
+
+        Output only valid JSON. Be pedantic about structure.
+      model: claude-sonnet-4-20250514
+    output:
+      format: json
+
+flows:
+  # Chain: discover_page → get_context
+  - source: discover_page
+    target: get_context
+
+  # Chain: get_context → generate_blocks
+  # generate_blocks uses parallel for_each for block context retrieval
+  - source: get_context
+    target: generate_blocks
+
+  # Chain: generate_blocks → render_blocks
+  # render_blocks uses parallel for_each for LLM content generation
+  - source: generate_blocks
+    target: render_blocks
+
+  # Chain: render_blocks → aggregate
+  # aggregate synthesizes all generated blocks into final PageNative
+  - source: render_blocks
+    target: aggregate

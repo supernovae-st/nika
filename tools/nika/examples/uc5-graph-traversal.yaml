@@ -1,0 +1,309 @@
+# UC5: Knowledge Graph Traversal & Context Assembly
+# Traverses entity relationships across multiple arc types to build comprehensive knowledge context
+#
+# DAG: entity → [semantic, requires, enables, similar] → neighborhood → context_synthesis
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    # Use cargo to run MCP server from source (development mode)
+    # Run from nika-dev/tools/nika/ directory
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────
+  # Input: Entity to explore
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: entity_key
+    exec:
+      command: "echo dynamic-qr-code"
+
+  # ─────────────────────────────────────────────────────────────────
+  # Phase 1: Entity core knowledge (describe)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: entity_definition
+    use:
+      key: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: "entity"
+        entity_key: "{{use.key}}"
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # Phase 2: Parallel graph traversals (fan-out) — discover neighborhood
+  # ─────────────────────────────────────────────────────────────────
+
+  # Semantic relationships: what this entity is about
+  - id: semantic_links
+    use:
+      key: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.key}}"
+        arc_kinds: ["SEMANTIC_LINK"]
+        direction: "outgoing"
+        max_depth: 2
+        limit: 25
+        include_properties: true
+    output:
+      format: json
+
+  # Requires: dependencies and prerequisites
+  - id: requirements
+    use:
+      key: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.key}}"
+        arc_kinds: ["REQUIRES"]
+        direction: "outgoing"
+        max_depth: 2
+        limit: 20
+        include_properties: true
+    output:
+      format: json
+
+  # Enables: what this entity makes possible
+  - id: capabilities
+    use:
+      key: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.key}}"
+        arc_kinds: ["ENABLES"]
+        direction: "outgoing"
+        max_depth: 2
+        limit: 20
+        include_properties: true
+    output:
+      format: json
+
+  # Similar: alternatives and competitors
+  - id: similar_entities
+    use:
+      key: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.key}}"
+        arc_kinds: ["SIMILAR_TO"]
+        direction: "outgoing"
+        max_depth: 1
+        limit: 15
+        include_properties: true
+    output:
+      format: json
+
+  # Industries/Verticals: applicable sectors
+  - id: industry_applications
+    use:
+      key: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.key}}"
+        arc_kinds: ["APPLIES_TO"]
+        direction: "outgoing"
+        max_depth: 1
+        limit: 15
+        include_properties: true
+    output:
+      format: json
+
+  # Inverse: what requires or enables this entity
+  - id: dependent_entities
+    use:
+      key: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.key}}"
+        arc_kinds: ["REQUIRED_BY", "ENABLED_BY"]
+        direction: "incoming"
+        max_depth: 1
+        limit: 20
+        include_properties: true
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # Phase 3: Knowledge synthesis (fan-in)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: neighborhood_map
+    use:
+      entity: entity_definition
+      semantic: semantic_links
+      requires: requirements
+      enables: capabilities
+      similar: similar_entities
+      industries: industry_applications
+      dependent: dependent_entities
+    infer:
+      prompt: |
+        Analyze the complete semantic neighborhood for this entity.
+
+        ENTITY DEFINITION:
+        {{use.entity}}
+
+        SEMANTIC RELATIONSHIPS:
+        {{use.semantic}}
+
+        PREREQUISITES (requires):
+        {{use.requires}}
+
+        UNLOCKS (enables):
+        {{use.enables}}
+
+        SIMILAR ENTITIES:
+        {{use.similar}}
+
+        APPLICABLE INDUSTRIES:
+        {{use.industries}}
+
+        DEPENDENT ENTITIES (what needs this):
+        {{use.dependent}}
+
+        Build a comprehensive neighborhood map with:
+        1. Core definition summary
+        2. Dependency chain (prerequisites → this entity → enablements)
+        3. Competitive landscape (alternatives and differentiators)
+        4. Market applicability matrix
+        5. Semantic theme taxonomy
+        6. Key relationships (6-8 most important links)
+
+        Format as structured markdown with clear sections.
+      model: claude-sonnet-4
+    output:
+      format: text
+
+  # ─────────────────────────────────────────────────────────────────
+  # Phase 4: Deep semantic analysis (advanced traversal)
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: deep_analysis
+    use:
+      entity_key: entity_key
+      definition: entity_definition
+      neighborhood: neighborhood_map
+    infer:
+      prompt: |
+        Perform semantic deep-dive analysis for {{use.entity_key}}.
+
+        ENTITY:
+        {{use.definition}}
+
+        KNOWLEDGE NEIGHBORHOOD:
+        {{use.neighborhood}}
+
+        Provide:
+        1. Core positioning statement (1 sentence)
+        2. Semantic vectors (5 dimensions: technical, market, user, value, risk)
+        3. Knowledge gaps (what's NOT in the graph yet)
+        4. Content priorities (what should be documented next)
+        5. Relationship strength analysis (strong vs weak connections)
+        6. Recommendations for graph enrichment
+
+        Output as actionable insights for content strategy.
+      model: claude-sonnet-4
+    output:
+      format: text
+
+  # ─────────────────────────────────────────────────────────────────
+  # Phase 5: Context assembly summary
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: assembled_context
+    use:
+      entity_key: entity_key
+      entity_data: entity_definition
+      map: neighborhood_map
+      insights: deep_analysis
+      semantic: semantic_links
+      requires: requirements
+      enables: capabilities
+      similar: similar_entities
+    infer:
+      prompt: |
+        Create a comprehensive context document for {{use.entity_key}}.
+
+        SEMANTIC NEIGHBORHOOD MAP:
+        {{use.map}}
+
+        DEEP ANALYSIS:
+        {{use.insights}}
+
+        Produce a production-ready context document with:
+
+        1. EXECUTIVE SUMMARY
+           - Entity: {{use.entity_key}}
+           - Core definition
+           - Key metrics (# relations, dependency depth, etc)
+
+        2. SEMANTIC GRAPH SNAPSHOT
+           - Entities in neighborhood (count by relationship type)
+           - Relationship distribution table
+           - Graph density and connectivity metrics
+
+        3. CONTENT GENERATION GUIDANCE
+           - Recommended narratives (3 storylines)
+           - USP angles to emphasize
+           - Competitor positioning tips
+
+        4. IMPLEMENTATION ROADMAP
+           - Page structures to generate
+           - Content blocks to populate
+           - Localization priorities
+
+        5. QUALITY CHECKLIST
+           - Semantic completeness (is neighborhood dense?)
+           - Gap indicators (missing arcs?)
+           - Enrichment opportunities
+
+        Format as JSON with all sections for downstream processing.
+      model: claude-opus-4-5-20251101
+    output:
+      format: json
+
+flows:
+  # Single source (entity_key) to all initial traversals
+  - source: entity_key
+    target: [entity_definition, semantic_links, requirements, capabilities, similar_entities, industry_applications, dependent_entities]
+
+  # All traversals feed into neighborhood map
+  - source: [entity_definition, semantic_links, requirements, capabilities, similar_entities, industry_applications, dependent_entities]
+    target: neighborhood_map
+
+  # Neighborhood feeds into deep analysis
+  - source: [entity_definition, neighborhood_map]
+    target: deep_analysis
+
+  # Final assembly pulls everything together
+  - source: [entity_definition, neighborhood_map, deep_analysis, semantic_links, requirements, capabilities, similar_entities]
+    target: assembled_context

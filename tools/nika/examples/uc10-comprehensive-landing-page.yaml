@@ -1,0 +1,817 @@
+# UC10: Comprehensive Landing Page Generation Pipeline
+# Complete multi-step workflow: context → structure → generation → validation → optimization
+#
+# DAG:
+#   [entity_key, locale_key] → [entity_context, seo_context, competitive_intel, locale_voice]
+#                           → seo_strategy
+#                           → [page_structure, block_guidelines]
+#                           → [hero_generation, features_generation, benefits_generation,
+#                                social_generation, cta_generation, faq_generation]
+#                           → content_validation
+#                           → seo_optimization
+#                           → final_assembly
+#                           → deployment_readiness
+#
+# COMPLEXITY:
+#   - 4-source intelligence gathering with agent-driven analysis
+#   - Multi-turn agent research with tool use
+#   - 6 parallel block generators
+#   - 2-stage validation (content + SEO)
+#   - Context-aware optimization
+#   - Final quality gates before deployment
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    # Use cargo to run MCP server from source (development mode)
+    # Run from nika-dev/tools/nika/ directory
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 1: Input Parameters
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - id: entity_key
+    exec:
+      command: "echo dynamic-qr-code"
+
+  - id: locale_key
+    exec:
+      command: "echo fr-FR"
+
+  - id: target_audience
+    exec:
+      command: "echo marketing-teams"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 2: Parallel Intelligence Gathering
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  # Intelligence source 1: Entity Context from NovaNet
+  - id: entity_context
+    use:
+      entity: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: "entity"
+        entity_key: "{{use.entity}}"
+    output:
+      format: json
+
+  # Intelligence source 2: SEO Keywords and Metrics
+  - id: seo_context
+    use:
+      entity: entity_key
+      locale: locale_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.entity}}"
+        arc_kinds: ["HAS_SEO_KEYWORDS", "HAS_SEO_METRICS"]
+        direction: "outgoing"
+        max_depth: 2
+        limit: 30
+        include_properties: true
+    output:
+      format: json
+
+  # Intelligence source 3: Competitive Intelligence
+  - id: competitive_intel
+    use:
+      entity: entity_key
+      locale: locale_key
+    agent:
+      prompt: |
+        You are a competitive intelligence analyst researching "{{use.entity}}" for locale {{use.locale}}.
+
+        Use novanet_traverse to:
+        1. Find SIMILAR_TO entities
+        2. Find COMPETES_WITH entities
+        3. Analyze their positioning via description and traits
+
+        Build a competitive matrix with:
+        - top 3 competitors
+        - key differentiators for {{use.entity}}
+        - market positioning opportunities
+        - messaging angles vs competitors
+
+        Output JSON:
+        {
+          "primary_competitors": [],
+          "differentiation": [],
+          "market_position": "...",
+          "messaging_opportunities": []
+        }
+
+        Say "COMPETITIVE_ANALYSIS_COMPLETE" when done.
+      provider: claude
+      model: claude-sonnet-4-20250514
+      mcp:
+        - novanet
+      max_turns: 8
+      stop_conditions:
+        - "COMPETITIVE_ANALYSIS_COMPLETE"
+    output:
+      format: json
+
+  # Intelligence source 4: Locale-specific Voice & Style
+  - id: locale_voice
+    use:
+      locale: locale_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.locale}}"
+        arc_kinds: ["HAS_VOICE", "HAS_STYLE", "HAS_TERMS"]
+        direction: "outgoing"
+        max_depth: 2
+        limit: 25
+        include_properties: true
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 3: Strategy Formation (Agent-Driven)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - id: seo_strategy
+    use:
+      entity_ctx: entity_context
+      seo_ctx: seo_context
+      competitive: competitive_intel
+      locale: locale_key
+      audience: target_audience
+    agent:
+      prompt: |
+        You are a senior strategist designing a landing page for "{{use.entity}}" in {{use.locale}}.
+
+        ENTITY CONTEXT:
+        {{use.entity_ctx}}
+
+        SEO INTELLIGENCE:
+        {{use.seo_ctx}}
+
+        COMPETITIVE LANDSCAPE:
+        {{use.competitive}}
+
+        TARGET AUDIENCE: {{use.audience}}
+
+        Create a comprehensive page strategy:
+
+        1. PRIMARY MESSAGING
+           - unique value proposition (3 sentences max)
+           - proof points (3-5 key benefits)
+           - target pain points to address
+
+        2. PAGE ARCHITECTURE
+           - optimal block sequence for {{use.locale}}
+           - content hierarchy (H1 → H2 → H3)
+           - internal linking opportunities
+
+        3. SEO OPTIMIZATION
+           - primary keyword (1-2 words)
+           - long-tail variations (3-5 keywords)
+           - content freshness angles
+
+        4. CONVERSION STRATEGY
+           - primary CTA urgency level (low/medium/high)
+           - secondary micro-conversions
+           - trust building elements
+
+        5. LOCALIZATION NOTES
+           - cultural considerations for {{use.locale}}
+           - tone adjustments vs competitors
+           - local market opportunities
+
+        Output JSON:
+        {
+          "messaging": {...},
+          "architecture": {...},
+          "seo_targets": {...},
+          "conversion_strategy": {...},
+          "localization": {...}
+        }
+
+        Say "STRATEGY_COMPLETE" when done.
+      provider: claude
+      model: claude-sonnet-4-20250514
+      mcp:
+        - novanet
+      max_turns: 10
+      stop_conditions:
+        - "STRATEGY_COMPLETE"
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 4: Page Structure & Block Guidelines
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - id: page_structure
+    use:
+      strategy: seo_strategy
+      entity_ctx: entity_context
+      locale: locale_key
+    infer:
+      prompt: |
+        Design the HTML/CSS structure for the landing page based on strategy.
+
+        STRATEGY:
+        {{use.strategy}}
+
+        ENTITY:
+        {{use.entity_ctx}}
+
+        LOCALE: {{use.locale}}
+
+        Generate page structure JSON:
+        {
+          "viewport": {...},
+          "hero_section": {
+            "height_vh": 70,
+            "background": "gradient|image|solid",
+            "cta_position": "bottom|center|float"
+          },
+          "content_sections": [
+            {"type": "features", "layout": "grid|2-col|3-col"},
+            {"type": "social_proof", "layout": "carousel|grid"},
+            {"type": "cta", "prominence": "high|medium"},
+            {"type": "faq", "collapsed": true|false}
+          ],
+          "footer": {...}
+        }
+
+        Output as JSON structure definition.
+    output:
+      format: json
+
+  - id: block_guidelines
+    use:
+      strategy: seo_strategy
+      locale_voice: locale_voice
+      locale: locale_key
+    infer:
+      prompt: |
+        Create detailed content generation guidelines for each block type.
+
+        STRATEGY:
+        {{use.strategy}}
+
+        LOCALE VOICE:
+        {{use.locale_voice}}
+
+        LOCALE: {{use.locale}}
+
+        For each block type (hero, features, social_proof, cta, faq), define:
+        - tone & voice guidelines (3-5 sentences)
+        - length targets (word/character counts)
+        - keyword integration strategy
+        - culturally-specific considerations
+        - emoji/visual marker suggestions
+
+        Output JSON:
+        {
+          "hero": {...},
+          "features": {...},
+          "social_proof": {...},
+          "cta": {...},
+          "faq": {...}
+        }
+
+        Ensure all guidelines are in {{use.locale}} context.
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 5: Parallel Block Generation (6 concurrent)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - id: block_hero
+    use:
+      strategy: seo_strategy
+      guidelines: block_guidelines
+      entity_ctx: entity_context
+      seo: seo_context
+      locale: locale_key
+    infer:
+      prompt: |
+        Generate HERO block for {{use.locale}}.
+
+        STRATEGY:
+        {{use.strategy}}
+
+        GUIDELINES:
+        {{use.guidelines}}
+
+        ENTITY:
+        {{use.entity_ctx}}
+
+        SEO TARGETS:
+        {{use.seo}}
+
+        Generate natively in {{use.locale}} (NOT translated):
+        - h1: SEO-optimized headline incorporating primary keyword
+        - subheadline: Emotional value proposition (2-3 sentences)
+        - cta_primary: Action-oriented button text (2-4 words)
+        - cta_secondary: Lower-friction alternative
+        - supporting_text: Trust-building statement (1 sentence)
+        - background_theme: Visual description for design team
+
+        Output JSON: {h1, subheadline, cta_primary, cta_secondary, supporting_text, background_theme}
+    output:
+      format: json
+
+  - id: block_features
+    use:
+      strategy: seo_strategy
+      guidelines: block_guidelines
+      entity_ctx: entity_context
+      locale: locale_key
+    infer:
+      prompt: |
+        Generate FEATURES block for {{use.locale}}.
+
+        STRATEGY:
+        {{use.strategy}}
+
+        GUIDELINES:
+        {{use.guidelines}}
+
+        ENTITY:
+        {{use.entity_ctx}}
+
+        Generate 5 features natively in {{use.locale}}:
+        Each feature should have:
+        - icon: emoji or symbol
+        - title: feature name (3-6 words)
+        - description: benefit explanation (1-2 sentences)
+        - use_case: specific scenario where it matters
+
+        Features should:
+        1. Align with competitive differentiation
+        2. Address target audience pain points
+        3. Be scannable and action-oriented
+        4. Include subtle SEO keywords
+
+        Output JSON: {features: [{icon, title, description, use_case}, ...]}
+    output:
+      format: json
+
+  - id: block_benefits
+    use:
+      strategy: seo_strategy
+      guidelines: block_guidelines
+      competitive: competitive_intel
+      locale: locale_key
+    infer:
+      prompt: |
+        Generate BENEFITS block for {{use.locale}}.
+
+        STRATEGY:
+        {{use.strategy}}
+
+        COMPETITIVE POSITIONING:
+        {{use.competitive}}
+
+        GUIDELINES:
+        {{use.guidelines}}
+
+        Generate 4 key benefits natively in {{use.locale}}:
+        Each benefit should:
+        - outcome: measurable result (quantified if possible)
+        - explanation: why this entity delivers it
+        - vs_competitor: how we do it differently
+
+        Focus on ROI-oriented messaging for {{use.target_audience}}.
+
+        Output JSON: {benefits: [{outcome, explanation, vs_competitor}, ...]}
+    output:
+      format: json
+
+  - id: block_social_proof
+    use:
+      strategy: seo_strategy
+      guidelines: block_guidelines
+      locale: locale_key
+    infer:
+      prompt: |
+        Generate SOCIAL PROOF block for {{use.locale}}.
+
+        STRATEGY:
+        {{use.strategy}}
+
+        GUIDELINES:
+        {{use.guidelines}}
+
+        Generate natively in {{use.locale}}:
+        - stats: 3-4 impressive metrics (users, usage, impact) with sources
+        - testimonial: realistic customer quote (2-3 sentences) with attribution
+        - case_study: brief success story (2-3 sentences)
+        - trust_elements: certifications, partnerships, awards
+
+        Make metrics culturally relevant for {{use.locale}}.
+
+        Output JSON: {stats, testimonial, case_study, trust_elements}
+    output:
+      format: json
+
+  - id: block_cta
+    use:
+      strategy: seo_strategy
+      guidelines: block_guidelines
+      locale: locale_key
+    infer:
+      prompt: |
+        Generate CTA (Call-To-Action) block for {{use.locale}}.
+
+        STRATEGY:
+        {{use.strategy}}
+
+        GUIDELINES:
+        {{use.guidelines}}
+
+        Generate natively in {{use.locale}}:
+        - headline: urgency-driven (based on strategy)
+        - subheadline: objection handling or risk reversal
+        - primary_cta: main action verb (2-4 words)
+        - secondary_cta: softer alternative (contact/learn more)
+        - guarantee: confidence statement or guarantee
+        - urgency_element: scarcity or time-based incentive (if applicable)
+
+        Urgency level from strategy: {{use.strategy.conversion_strategy.primary_cta_urgency}}
+
+        Output JSON: {headline, subheadline, primary_cta, secondary_cta, guarantee, urgency_element}
+    output:
+      format: json
+
+  - id: block_faq
+    use:
+      strategy: seo_strategy
+      guidelines: block_guidelines
+      entity_ctx: entity_context
+      locale: locale_key
+    infer:
+      prompt: |
+        Generate FAQ block for {{use.locale}}.
+
+        STRATEGY:
+        {{use.strategy}}
+
+        ENTITY:
+        {{use.entity_ctx}}
+
+        GUIDELINES:
+        {{use.guidelines}}
+
+        Generate 6-8 FAQs natively in {{use.locale}}:
+        - "What is {{entity}}?" - definition and use case
+        - "How does it work?" - simple explanation
+        - "Why {{entity}} vs alternatives?" - competitive positioning
+        - "Is it secure/reliable?" - trust building
+        - "What is the cost?" - pricing expectations
+        - "How do I get started?" - low-friction entry
+        - 2 additional industry-specific questions
+
+        Each answer:
+        - Clear, concise (2-4 sentences max)
+        - Subtly optimized for long-tail keywords
+        - Addresses specific doubts
+
+        Output JSON: {faqs: [{question, answer}, ...]}
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 6: Content Validation (Quality Gates)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - id: content_validation
+    use:
+      hero: block_hero
+      features: block_features
+      benefits: block_benefits
+      social: block_social_proof
+      cta: block_cta
+      faq: block_faq
+      strategy: seo_strategy
+      guidelines: block_guidelines
+      locale: locale_key
+    infer:
+      prompt: |
+        Perform comprehensive content quality validation for {{use.locale}} landing page.
+
+        BLOCKS:
+        - Hero: {{use.hero}}
+        - Features: {{use.features}}
+        - Benefits: {{use.benefits}}
+        - Social Proof: {{use.social}}
+        - CTA: {{use.cta}}
+        - FAQ: {{use.faq}}
+
+        STRATEGY:
+        {{use.strategy}}
+
+        VALIDATION CRITERIA:
+
+        1. MESSAGING CONSISTENCY (0-20 points)
+           - All blocks align with primary value prop?
+           - No contradictions between sections?
+           - Brand voice consistent throughout?
+
+        2. LOCALIZATION AUTHENTICITY (0-20 points)
+           - Feels native to {{use.locale}}, not translated?
+           - Culturally appropriate tone and references?
+           - Locale-specific terminology used correctly?
+
+        3. AUDIENCE RELEVANCE (0-20 points)
+           - Addresses target audience pain points?
+           - Language matches audience sophistication?
+           - Proof points resonate with audience?
+
+        4. CONVERSION OPTIMIZATION (0-20 points)
+           - CTA is clear and compelling?
+           - Flow builds toward conversion?
+           - Objection handling present?
+
+        5. SEO COMPLIANCE (0-20 points)
+           - Primary keyword in H1 and naturally used?
+           - Long-tail keywords distributed?
+           - Semantic structure for search engines?
+
+        For each criterion:
+        - Score 0-20
+        - Detailed issues if score < 15
+        - Specific fix suggestions
+
+        Output JSON:
+        {
+          "total_score": 0-100,
+          "passed": bool (>= 80),
+          "breakdown": {
+            "messaging_consistency": {...},
+            "localization": {...},
+            "audience_relevance": {...},
+            "conversion": {...},
+            "seo": {...}
+          },
+          "blockers": [],
+          "recommendations": []
+        }
+      model: claude-sonnet-4-20250514
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 7: SEO Optimization
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - id: seo_optimization
+    use:
+      hero: block_hero
+      features: block_features
+      benefits: block_benefits
+      faq: block_faq
+      validation: content_validation
+      seo: seo_context
+      strategy: seo_strategy
+      locale: locale_key
+    agent:
+      prompt: |
+        You are an SEO optimization specialist. Enhance the page for search visibility.
+
+        CURRENT CONTENT:
+        - Hero: {{use.hero}}
+        - Features: {{use.features}}
+        - Benefits: {{use.benefits}}
+        - FAQ: {{use.faq}}
+
+        VALIDATION RESULTS:
+        {{use.validation}}
+
+        SEO TARGETS:
+        {{use.seo}}
+
+        STRATEGY:
+        {{use.strategy}}
+
+        OPTIMIZATION TASKS:
+        1. Ensure primary keyword appears 3-5 times naturally
+        2. Add schema.org structured data suggestions
+        3. Identify internal linking opportunities
+        4. Suggest H2/H3 keywords for each section
+        5. Create meta description and OG tags (155-160 chars)
+
+        SEO IMPROVEMENTS:
+        {
+          "schema_markup": [
+            {"type": "Organization|Product|BreadcrumbList", "data": {...}}
+          ],
+          "internal_links": [
+            {"from": "block", "to": "page", "anchor_text": "..."}
+          ],
+          "keyword_distribution": {
+            "hero": "...",
+            "features": "...",
+            "benefits": "...",
+            "faq": "..."
+          },
+          "meta_tags": {
+            "title": "...",
+            "description": "...",
+            "og:title": "...",
+            "og:description": "..."
+          }
+        }
+
+        Say "SEO_OPTIMIZATION_COMPLETE" when done.
+      provider: claude
+      model: claude-sonnet-4-20250514
+      mcp:
+        - novanet
+      max_turns: 8
+      stop_conditions:
+        - "SEO_OPTIMIZATION_COMPLETE"
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 8: Final Assembly
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - id: final_assembly
+    use:
+      hero: block_hero
+      features: block_features
+      benefits: block_benefits
+      social: block_social_proof
+      cta: block_cta
+      faq: block_faq
+      structure: page_structure
+      seo_opts: seo_optimization
+      validation: content_validation
+      strategy: seo_strategy
+      locale: locale_key
+    infer:
+      prompt: |
+        Assemble the complete, validated landing page for {{use.locale}}.
+
+        BLOCKS:
+        1. Hero: {{use.hero}}
+        2. Features: {{use.features}}
+        3. Benefits: {{use.benefits}}
+        4. Social Proof: {{use.social}}
+        5. CTA: {{use.cta}}
+        6. FAQ: {{use.faq}}
+
+        PAGE STRUCTURE:
+        {{use.structure}}
+
+        SEO OPTIMIZATIONS:
+        {{use.seo_opts}}
+
+        VALIDATION SCORE: {{use.validation.total_score}}/100
+
+        STRATEGY:
+        {{use.strategy}}
+
+        Assemble final deliverable:
+        {
+          "locale": "{{use.locale}}",
+          "timestamp": "ISO-8601",
+          "metadata": {
+            "title": "...",
+            "description": "...",
+            "keywords": [...],
+            "og_tags": {...},
+            "schema_markup": [...]
+          },
+          "structure": {...},
+          "sections": [
+            {"type": "hero", "content": {...}, "seo_optimized": true},
+            {"type": "features", "content": {...}, "count": 5},
+            {"type": "benefits", "content": {...}, "count": 4},
+            {"type": "social_proof", "content": {...}},
+            {"type": "cta", "content": {...}, "prominence": "high"},
+            {"type": "faq", "content": {...}, "count": 8}
+          ],
+          "internal_links": [...],
+          "quality_metrics": {
+            "content_score": N,
+            "seo_score": N,
+            "localization_score": N,
+            "conversion_readiness": "ready|needs_revision"
+          },
+          "generation_metadata": {
+            "total_blocks": 6,
+            "total_tokens_estimate": N,
+            "generation_time_seconds": N,
+            "strategy_applied": "...",
+            "competitive_positioning": "..."
+          }
+        }
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 9: Deployment Readiness Check
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - id: deployment_readiness
+    use:
+      assembled_page: final_assembly
+      validation: content_validation
+      seo_opts: seo_optimization
+      locale: locale_key
+    infer:
+      prompt: |
+        Final deployment readiness assessment for {{use.locale}} landing page.
+
+        ASSEMBLED PAGE:
+        {{use.assembled_page}}
+
+        VALIDATION RESULTS:
+        {{use.validation}}
+
+        SEO OPTIMIZATIONS:
+        {{use.seo_opts}}
+
+        DEPLOYMENT CHECKLIST:
+        ✓ Content score >= 80/100
+        ✓ SEO optimization complete
+        ✓ Localization validated
+        ✓ All blocks generated
+        ✓ Internal links defined
+        ✓ Schema markup included
+        ✓ Meta tags complete
+        ✓ CTA tracking configured
+
+        Output readiness report:
+        {
+          "deployment_ready": bool,
+          "readiness_score": 0-100,
+          "passed_checks": [...],
+          "failed_checks": [...],
+          "required_actions": [
+            {"action": "...", "priority": "critical|high|medium", "effort": "hours"}
+          ],
+          "deployment_path": "staging|production",
+          "estimated_launch_date": "...",
+          "success_criteria": [
+            {"metric": "...", "target": "..."}
+          ]
+        }
+    output:
+      format: json
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DAG Flow Definition
+# ─────────────────────────────────────────────────────────────────────────────
+
+flows:
+  # Input parameters
+  - source: [entity_key, locale_key, target_audience]
+    target: [entity_context, seo_context, competitive_intel, locale_voice]
+
+  # Intelligence → Strategy
+  - source: [entity_context, seo_context, competitive_intel, locale_voice, target_audience]
+    target: seo_strategy
+
+  # Strategy → Structure & Guidelines
+  - source: seo_strategy
+    target: [page_structure, block_guidelines]
+
+  # Structure & Guidelines → 6 Parallel Block Generators
+  - source: [seo_strategy, block_guidelines, entity_context, seo_context, locale_voice, locale_key]
+    target: [block_hero, block_features, block_benefits, block_social_proof, block_cta, block_faq]
+
+  # Blocks → Validation
+  - source: [block_hero, block_features, block_benefits, block_social_proof, block_cta, block_faq, seo_strategy, block_guidelines, locale_key]
+    target: content_validation
+
+  # Validation → SEO Optimization
+  - source: [block_hero, block_features, block_benefits, block_faq, content_validation, seo_context, seo_strategy, locale_key]
+    target: seo_optimization
+
+  # SEO Optimization → Final Assembly
+  - source: [block_hero, block_features, block_benefits, block_social_proof, block_cta, block_faq, page_structure, seo_optimization, content_validation, seo_strategy, locale_key]
+    target: final_assembly
+
+  # Assembly → Deployment Readiness
+  - source: [final_assembly, content_validation, seo_optimization, locale_key]
+    target: deployment_readiness

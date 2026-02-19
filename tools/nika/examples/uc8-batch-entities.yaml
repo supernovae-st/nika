@@ -1,0 +1,169 @@
+# UC8: Batch Entity Processing with Parallel Generation
+#
+# Demonstrates for_each parallelism for processing multiple entities simultaneously.
+# Generates native content for 5 entities across fr-FR locale in parallel.
+#
+# DAG: entities → [gen_entity_1, gen_entity_2, ..., gen_entity_5] (parallel) → batch_report
+#
+# Run with: cargo run -- run examples/uc8-batch-entities.yaml
+#
+schema: "nika/workflow@0.3"
+provider: claude
+
+description: |
+  Batch entity processing pipeline using for_each parallelism.
+  Processes 5 entities concurrently with configurable concurrency limit.
+  Demonstrates real parallel execution with tokio::spawn JoinSet.
+
+mcp:
+  novanet:
+    # Use cargo to run MCP server from source (development mode)
+    # Run from nika-dev/tools/nika/ directory
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 1: Input - Entity List
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Define the batch of entities to process
+
+  - id: entity_batch
+    exec:
+      command: |
+        echo '[
+          "qr-code",
+          "blockchain",
+          "artificial-intelligence",
+          "machine-learning",
+          "data-science"
+        ]'
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 2: Parallel Entity Processing (fan-out)
+  # ─────────────────────────────────────────────────────────────────────────────
+  # for_each spawns a tokio task for each entity, runs up to 3 concurrently
+
+  - id: generate_entities
+    for_each:
+      items: "{{use.batch}}"
+      as: entity
+      concurrency: 3        # Max 3 parallel generations (adjust for API limits)
+      fail_fast: false      # Continue on errors, collect results
+    use:
+      batch: entity_batch
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity: "{{use.entity}}"
+        locale: "fr-FR"
+        mode: "entity"
+        token_budget: 3000
+        include_examples: true
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 3: Validation - Check individual results
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Quick validation of each generation (demonstrating task composition)
+
+  - id: validate_results
+    use:
+      results: generate_entities
+    infer:
+      prompt: |
+        You received generation results for 5 entities processed in parallel.
+
+        RESULTS:
+        {{use.results}}
+
+        For each result, validate:
+        1. Entity key is present
+        2. Content is in French (fr-FR)
+        3. No empty denomination_forms
+
+        Output a JSON validation report with:
+        {
+          "entity": "entity-key",
+          "valid": true/false,
+          "reason": "validation reason"
+        }
+
+        Output a JSON array of validation objects, one per entity.
+      model: claude-sonnet-4-20250514
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 4: Batch Report (fan-in)
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Synthesize results and create deployment report
+
+  - id: batch_report
+    use:
+      generated: generate_entities
+      validated: validate_results
+    infer:
+      prompt: |
+        You successfully processed 5 entities in parallel. Analyze the batch results.
+
+        GENERATION RESULTS:
+        {{use.generated}}
+
+        VALIDATION REPORT:
+        {{use.validated}}
+
+        Create a comprehensive batch report JSON with:
+        {
+          "batch_id": "uc8-batch-entities",
+          "timestamp": "ISO8601",
+          "entities_processed": 5,
+          "entities_successful": <count>,
+          "entities_failed": <count>,
+          "success_rate": <percentage>,
+          "total_tokens_used": <estimated>,
+          "processing_time_estimate": "seconds",
+          "parallelism": "3 concurrent tasks",
+          "entities": [
+            {
+              "key": "entity-key",
+              "status": "success|failed",
+              "tokens_used": <number>,
+              "validation": "passed|failed"
+            }
+          ],
+          "recommendations": [
+            "action1",
+            "action2"
+          ]
+        }
+
+        Output only valid JSON.
+      model: claude-sonnet-4-20250514
+    output:
+      format: json
+
+flows:
+  # Input → Parallel processing
+  - source: entity_batch
+    target: generate_entities
+
+  # Parallel processing → Validation
+  - source: generate_entities
+    target: validate_results
+
+  # Validation → Report
+  - source: [generate_entities, validate_results]
+    target: batch_report

@@ -1,0 +1,189 @@
+# UC2: Multi-Locale Generation Pipeline
+#
+# Use case: Generate entity content across multiple locales in parallel
+# This workflow demonstrates:
+# - for_each: parallelism with concurrency control
+# - invoke: novanet_generate for semantic content generation
+# - Binding and result aggregation
+#
+# Entity: QR Code (qr-code)
+# Locales: French (fr-FR), English (en-US), German (de-DE)
+# Pattern: Parallel generation with tokio::spawn JoinSet (concurrency=3)
+#
+# DAG:
+#   setup → generate_all (parallel) → validate → summary
+#
+# Run with:
+#   cargo run -- run examples/uc2-multi-locale-generation.yaml
+
+schema: "nika/workflow@0.3"
+provider: claude
+
+description: |
+  Multi-Locale Generation Pipeline for Entity Content.
+
+  Generates native content for the 'qr-code' entity across 3 locales
+  using parallel for_each with full concurrency. Results are validated
+  and summarized for quality assurance.
+
+mcp:
+  novanet:
+    # Development mode: run MCP server from source via cargo
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STEP 1: Setup - Discover entity definition
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: setup
+    description: "Fetch entity definition and base content"
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        target: entity
+        filters:
+          key: "qr-code"
+    output:
+      format: json
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STEP 2: Generate - Parallel locale-specific content
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: generate_all
+    description: "Generate content for each locale in parallel"
+    depends_on: [setup]
+
+    # for_each: Iterate over 3 locales with full parallelism
+    for_each:
+      items: ["fr-FR", "en-US", "de-DE"]
+      as: locale
+      concurrency: 3        # Process all 3 locales simultaneously
+      fail_fast: true       # Stop all if any locale fails
+
+    # invoke: Call novanet_generate for each locale
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity: "qr-code"
+        locale: "{{use.locale}}"
+        forms: ["text", "title", "abbrev"]    # Denomination forms per ADR-033
+        token_budget: 3000
+
+    output:
+      format: json
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STEP 3: Validate - Check generation results for quality
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: validate
+    description: "Validate denomination_forms and coverage"
+    depends_on: [generate_all]
+
+    use:
+      base: setup
+      results: generate_all
+
+    infer:
+      prompt: |
+        You are a content quality validator. Analyze the generation results.
+
+        ENTITY (base definition):
+        {{use.base}}
+
+        GENERATION RESULTS (for 3 locales):
+        {{use.results}}
+
+        Validate the following for EACH locale:
+        1. All denomination_forms are present: text, title, abbrev, mixed, base, url
+        2. No values are empty or null
+        3. No invented/paraphrased entity names (exact denomination_forms used)
+        4. Unicode/encoding is correct for language
+        5. Character count is reasonable (10-200 chars per form)
+
+        Output JSON with structure:
+        {
+          "locale_validations": [
+            {
+              "locale": "fr-FR",
+              "valid": boolean,
+              "errors": ["error1", "error2"],
+              "forms_coverage": { "text": boolean, "title": boolean, ... }
+            }
+          ],
+          "all_valid": boolean,
+          "issues": ["issue1", "issue2"]
+        }
+
+      model: claude-sonnet-4-20250514
+
+    output:
+      format: json
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STEP 4: Summary - Aggregate and report
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: summary
+    description: "Final summary with metrics and recommendations"
+    depends_on: [validate, generate_all]
+
+    use:
+      validation: validate
+      generations: generate_all
+
+    infer:
+      prompt: |
+        Create a comprehensive summary of the multi-locale generation pipeline.
+
+        VALIDATION RESULTS:
+        {{use.validation}}
+
+        GENERATION RESULTS:
+        {{use.generations}}
+
+        Produce a JSON report with:
+        1. pipeline_status: "success" | "partial" | "failed"
+        2. locales_processed: count
+        3. locales_successful: count
+        4. coverage:
+           - fr_fr: { forms_count: int, valid: boolean }
+           - en_us: { forms_count: int, valid: boolean }
+           - de_de: { forms_count: int, valid: boolean }
+        5. metrics:
+           - total_tokens_used: estimate
+           - avg_generation_time_ms: estimate
+           - success_rate: percentage
+        6. issues: ["critical1", "warning1", ...]
+        7. next_steps: ["action1", "action2"]
+
+        Output only valid JSON.
+
+      model: claude-sonnet-4-20250514
+
+    output:
+      format: json
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DAG: Dependency graph (implicitly defines execution order)
+# ═══════════════════════════════════════════════════════════════════════════
+flows:
+  # setup → generate_all (explicit dependency in task)
+  - source: generate_all
+    target: validate
+
+  # validate + generate_all → summary (dependencies in summary task)
+  - source: validate
+    target: summary
+
+  - source: generate_all
+    target: summary

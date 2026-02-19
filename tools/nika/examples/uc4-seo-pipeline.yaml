@@ -1,0 +1,370 @@
+# UC4: SEO-Optimized Content Pipeline
+# ═════════════════════════════════════════════════════════════════════════════
+#
+# WORKFLOW: Entity → SEO Keywords → Optimized Content
+#
+# This workflow demonstrates a production-grade SEO pipeline:
+# 1. Fetch entity context from NovaNet (invoke: novanet_describe)
+# 2. Retrieve SEO keyword opportunities (invoke: novanet_traverse)
+# 3. Generate SEO-optimized page copy (infer: with keyword integration)
+# 4. Validate keyword density and readability (infer: with quality metrics)
+# 5. Create final optimized output (infer: polish & format)
+#
+# Use Cases:
+# - Homepage hero section for high-priority keywords
+# - Product landing pages optimized for organic search
+# - Multi-locale SEO adaptation
+#
+# DAG Flow:
+#
+#   entity_key
+#       ↓
+#   ┌─────────────┴──────────────┐
+#   ↓                            ↓
+# entity_ctx              seo_keywords
+#   ↓                            ↓
+#   └─────────────┬──────────────┘
+#                 ↓
+#            generate_content
+#                 ↓
+#            validate_seo
+#                 ↓
+#            final_output
+#
+# Requirements:
+# - NovaNet MCP server running (or mock mode for testing)
+# - Claude API key (ANTHROPIC_API_KEY env var)
+# - Neo4j instance with seeded data
+#
+# Run with:
+#   cargo run -- run examples/uc4-seo-pipeline.yaml
+#   cargo run -- tui examples/uc4-seo-pipeline.yaml
+#   cargo run -- trace list | head -1 && cargo run -- trace show <id>
+
+schema: "nika/workflow@0.2"
+workflow: uc4-seo-optimization-pipeline
+description: "Generate SEO-optimized content leveraging entity context and keyword research"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Provider Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+
+provider: claude
+model: claude-sonnet-4-20250514
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MCP Server Configuration (NovaNet Integration)
+# ─────────────────────────────────────────────────────────────────────────────
+
+mcp:
+  novanet:
+    # Development mode: run MCP server from source
+    # For production, use: command: /path/to/novanet-mcp binary
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      # Neo4j configuration (matches docker-compose in novanet-dev)
+      NOVANET_MCP_NEO4J_URI: "bolt://localhost:7687"
+      NOVANET_MCP_NEO4J_USER: "neo4j"
+      NOVANET_MCP_NEO4J_PASSWORD: "novanetpassword"
+      # Logging
+      RUST_LOG: "info"
+      # Tracing (optional)
+      NOVANET_MCP_TRACE: "false"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PHASE 1: Entity Input & Context Retrieval
+# ─────────────────────────────────────────────────────────────────────────────
+
+tasks:
+  # Static entity key (can be parameterized via env for dynamic runs)
+  - id: entity_key
+    exec:
+      command: "echo qr-code"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # INVOKE: Get entity semantic context
+  # ───────────────────────────────────────────────────────────────────────────
+  #
+  # Purpose: Retrieve full entity definition including:
+  # - denomination_forms: text/title/abbrev/mixed/base/url (for LLM references)
+  # - description: semantic definition
+  # - related entities: competitors, use-cases, industries
+  # - properties: brand voice, visual encoding, instructions
+  #
+  # Output used by: generate_content (context assembly)
+  #
+
+  - id: entity_ctx
+    use:
+      key: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: "entity"
+        entity_key: "{{use.key}}"
+        # Request full context for content generation
+        include_natives: false
+        include_properties: true
+        depth: 2
+    output:
+      format: json
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # PHASE 2: SEO Keyword Research
+  # ───────────────────────────────────────────────────────────────────────────
+  #
+  # Purpose: Traverse knowledge graph to find:
+  # - SEO keywords (via TARGETS_THING relationships)
+  # - Related search intents
+  # - Competitive landscape
+  # - Geographic/cultural variations
+  #
+
+  - id: seo_keywords
+    use:
+      key: entity_key
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.key}}"
+        # Arc families for SEO research
+        arc_kinds:
+          - "TARGETS_THING"       # SEO keywords targeting this entity
+          - "SATISFIES_INTENT"    # User search intents
+          - "VARIANT_OF"          # Alternative forms/use cases
+        direction: "incoming"     # Find what targets this entity
+        max_depth: 2              # Include transitive relationships
+        limit: 100                # Get comprehensive keyword set
+        include_properties: true  # Include keyword metrics (volume, difficulty)
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 3: Generate SEO-Optimized Content
+  # ─────────────────────────────────────────────────────────────────────────────
+  #
+  # Purpose: LLM synthesis of entity context + keyword research
+  # Strategy: Use denomination_forms as canonical entity references
+  # Output: JSON content object ready for page rendering
+  #
+
+  - id: generate_content
+    use:
+      entity: entity_ctx
+      keywords: seo_keywords
+      entity_key: entity_key
+    infer:
+      prompt: |
+        You are an expert SEO copywriter for technology products.
+
+        ENTITY CONTEXT (from NovaNet):
+        Key: {{use.entity_key}}
+        Data:
+        {{use.entity | json}}
+
+        SEO RESEARCH (from knowledge graph):
+        {{use.keywords | json}}
+
+        TASK: Generate SEO-optimized content for the entity's homepage hero section.
+
+        RULES (Critical - No deviation):
+        1. Use denomination_forms.title for the entity name (NEVER paraphrase)
+        2. Use denomination_forms.text for product description (NEVER rewrite)
+        3. Integrate top 3 primary keywords naturally into content (without keyword stuffing)
+        4. Maintain brand voice from the entity context
+        5. Target primary search intent identified in keyword research
+
+        OUTPUT FORMAT (JSON):
+        {
+          "h1_title": "Primary headline with keyword (60-70 chars)",
+          "subtitle": "Secondary message reinforcing search intent",
+          "body": "150-180 word hero description with keywords naturally integrated",
+          "cta_primary": "Call-to-action button text",
+          "cta_secondary": "Alternative action (optional)",
+          "schema_markup": {
+            "type": "Product",
+            "headline": "...",
+            "description": "..."
+          },
+          "meta_description": "155-160 char description for SERPs",
+          "keywords_integrated": ["keyword1", "keyword2", "keyword3"]
+        }
+
+        Ensure readability > keyword density (semantic relevance first).
+
+      model: "{{provider.model}}"
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 4: SEO Quality Validation
+  # ─────────────────────────────────────────────────────────────────────────────
+  #
+  # Purpose: Validate generated content against SEO best practices:
+  # - Keyword density (2-4% target)
+  # - Heading structure (H1 count, hierarchy)
+  # - Meta tag length and inclusion
+  # - Readability metrics (Flesch-Kincaid grade level)
+  # - Internal linking opportunities
+  #
+
+  - id: validate_seo
+    use:
+      content: generate_content
+      keywords: seo_keywords
+    infer:
+      prompt: |
+        Validate SEO compliance for generated content.
+
+        GENERATED CONTENT:
+        {{use.content | json}}
+
+        TARGET KEYWORDS:
+        {{use.keywords | json}}
+
+        VALIDATION CHECKLIST:
+        1. H1 tag count (must be exactly 1)
+        2. Keyword density per target keywords (2-4% ideal)
+        3. Meta description length (150-160 chars)
+        4. Readability grade level (8-10 ideal for tech)
+        5. Internal linking anchors (identify 3-5 opportunities)
+        6. Mobile viewport optimization (text length, CTA placement)
+        7. Schema.org markup validity
+
+        OUTPUT FORMAT (JSON):
+        {
+          "validation_status": "pass" | "warning" | "fail",
+          "score": 85,  // 0-100 SEO score
+          "issues": [
+            { "type": "meta_too_short", "severity": "warning", "fix": "Add 15 more chars" }
+          ],
+          "improvements": [
+            "Consider adding rel=\"nofollow\" links to competitor pages"
+          ]
+        }
+
+      model: "{{provider.model}}"
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 5: Final Content Polish & Export
+  # ─────────────────────────────────────────────────────────────────────────────
+  #
+  # Purpose: Apply validation feedback and produce final output
+  # Includes: SEO report, implementation guide, A/B test variants
+  #
+
+  - id: final_output
+    use:
+      content: generate_content
+      validation: validate_seo
+      entity: entity_ctx
+    infer:
+      prompt: |
+        Prepare final SEO content package for implementation.
+
+        VALIDATED CONTENT:
+        {{use.content | json}}
+
+        VALIDATION RESULTS:
+        {{use.validation | json}}
+
+        ENTITY METADATA:
+        {{use.entity | json}}
+
+        TASK: Create implementation-ready content with:
+        1. Primary version (optimized for main keyword)
+        2. Variant A (secondary keyword focus)
+        3. Implementation checklist
+        4. Analytics tracking recommendations
+
+        OUTPUT FORMAT (JSON):
+        {
+          "implementation_date": "2026-02-19",
+          "primary_version": {
+            "h1": "...",
+            "meta_description": "...",
+            "content": "..."
+          },
+          "variant_a": {
+            "h1": "...",
+            "meta_description": "...",
+            "content": "..."
+          },
+          "checklist": [
+            "Update page title tag",
+            "Add Schema.org markup",
+            "Deploy to CDN"
+          ],
+          "analytics": {
+            "ga4_events": ["page_view", "cta_click"],
+            "tracking_parameters": {"source": "seo", "campaign": "homepage"}
+          },
+          "expected_impact": {
+            "primary_keyword_ranking": "Position 1-3 (est. 3 months)",
+            "organic_traffic_increase": "40-60% (est. 6 months)",
+            "conversion_rate_baseline": "2.3%"
+          }
+        }
+
+      model: "{{provider.model}}"
+    output:
+      format: json
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DAG Flow Definition
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Defines execution dependencies:
+# - Parallel execution where possible (entity_ctx + seo_keywords)
+# - Sequential bottleneck at generate_content (depends on both contexts)
+# - Cascading validation → polish
+#
+
+flows:
+  # Initial input → parallel retrieval
+  - source: entity_key
+    target: [entity_ctx, seo_keywords]
+
+  # Both contexts required for content generation
+  - source: [entity_ctx, seo_keywords]
+    target: generate_content
+
+  # Generated content must pass validation
+  - source: generate_content
+    target: validate_seo
+
+  # Validation results inform final polish
+  - source: [generate_content, validate_seo, entity_ctx]
+    target: final_output
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Execution Notes
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# PERFORMANCE:
+# - Parallel phase (entity_ctx + seo_keywords): ~2-4 seconds
+# - Sequential phases (generate → validate → polish): ~15-20 seconds
+# - Total expected runtime: 20-25 seconds
+#
+# ERROR HANDLING:
+# - If Neo4j is unavailable: MCP client will error with NIKA-100 code
+# - If Claude API fails: Automatic retry with exponential backoff (3 attempts)
+# - If SEO validation fails: Log warning but continue (fail_fast: false)
+#
+# OBSERVABILITY:
+# - EventLog captures all MCP calls and LLM generations
+# - Trace file written to: .nika/traces/<workflow_id>.ndjson
+# - Real-time events available via TUI
+#
+# NEXT STEPS (v0.3 features):
+# - for_each: parallelization across multiple entities
+# - agent: verb for autonomous SEO research loop
+# - resilience: circuit breaker for failing MCP tools

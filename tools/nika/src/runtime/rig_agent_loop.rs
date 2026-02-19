@@ -28,7 +28,7 @@ use serde_json::Value;
 
 use crate::ast::AgentParams;
 use crate::error::NikaError;
-use crate::event::{EventKind, EventLog};
+use crate::event::{AgentTurnMetadata, EventKind, EventLog};
 use crate::mcp::McpClient;
 use crate::provider::rig::{NikaMcpTool, NikaMcpToolDef};
 
@@ -49,6 +49,20 @@ pub enum RigAgentStatus {
     TokenBudgetExceeded,
     /// Agent failed with error
     Failed,
+}
+
+impl RigAgentStatus {
+    /// Convert to canonical snake_case string for event logging.
+    /// Aligns with Anthropic API's stop_reason values.
+    pub fn as_canonical_str(&self) -> &'static str {
+        match self {
+            Self::NaturalCompletion => "end_turn",
+            Self::StopConditionMet => "stop_sequence",
+            Self::MaxTurnsReached => "max_turns",
+            Self::TokenBudgetExceeded => "max_tokens",
+            Self::Failed => "error",
+        }
+    }
 }
 
 /// Result of running the rig-based agent loop
@@ -182,17 +196,18 @@ impl RigAgentLoop {
     ///
     /// This method simulates agent execution without making real API calls.
     pub async fn run_mock(&self) -> Result<RigAgentLoopResult, NikaError> {
-        // Emit start event
+        // Emit start event (no metadata for "started")
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index: 1,
             kind: "started".to_string(),
-            tokens: Some(0),
+            metadata: None,
         });
 
         // For mock execution, we simulate a single turn with natural completion
+        let response_text = "Mock response from rig agent".to_string();
         let final_output = serde_json::json!({
-            "response": "Mock response from rig agent",
+            "response": &response_text,
             "completed": true
         });
 
@@ -203,12 +218,23 @@ impl RigAgentLoop {
             RigAgentStatus::NaturalCompletion
         };
 
-        // Emit completion event
+        // Build metadata for completion event (v0.4.1)
+        let stop_reason = status.as_canonical_str();
+        let metadata = AgentTurnMetadata {
+            thinking: None, // Mock mode doesn't have thinking
+            response_text: response_text.clone(),
+            input_tokens: 50,
+            output_tokens: 50,
+            cache_read_tokens: 0,
+            stop_reason: stop_reason.to_string(),
+        };
+
+        // Emit completion event with metadata
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index: 1,
-            kind: format!("{:?}", status),
-            tokens: Some(100),
+            kind: stop_reason.to_string(),
+            metadata: Some(metadata),
         });
 
         Ok(RigAgentLoopResult {
@@ -227,6 +253,14 @@ impl RigAgentLoop {
     /// # Note
     /// This method takes `&mut self` because tools are consumed (moved to rig's AgentBuilder).
     /// The agent loop is designed for single-use execution.
+    ///
+    /// ## Metadata Capture (v0.4.1)
+    /// Currently, rig's `agent.prompt()` returns a String, so we cannot capture:
+    /// - Extended thinking blocks (requires streaming API)
+    /// - Token usage (requires raw response access)
+    ///
+    /// These will be populated in a future version using rig's streaming or
+    /// direct completion request API.
     pub async fn run_claude(&mut self) -> Result<RigAgentLoopResult, NikaError> {
         // Create Anthropic client from environment
         let client = anthropic::Client::from_env();
@@ -239,12 +273,12 @@ impl RigAgentLoop {
         // Get max_turns
         let max_turns = self.params.max_turns.unwrap_or(10) as usize;
 
-        // Emit start event
+        // Emit start event (no metadata for "started")
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index: 1,
             kind: "started".to_string(),
-            tokens: Some(0),
+            metadata: None,
         });
 
         // Build and run agent
@@ -288,12 +322,18 @@ impl RigAgentLoop {
             RigAgentStatus::NaturalCompletion
         };
 
-        // Emit completion event
+        // Emit completion event (v0.4.1)
+        // Note: Token usage and thinking are not available from rig's Prompt trait.
+        // We emit text_only metadata - tokens show as 0 indicating "unavailable".
+        // Full metadata capture requires streaming API or direct completion requests.
+        let stop_reason = status.as_canonical_str();
+        let metadata = AgentTurnMetadata::text_only(&response, stop_reason);
+
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index: 1,
-            kind: format!("{:?}", status),
-            tokens: None, // Token tracking not available from rig's Prompt trait
+            kind: stop_reason.to_string(),
+            metadata: Some(metadata),
         });
 
         Ok(RigAgentLoopResult {

@@ -1,0 +1,489 @@
+# UC9: Content Validation Pipeline
+# Generates content, validates against multiple criteria, then uses agent to iteratively fix issues
+#
+# Pattern: Generate → Validate (Multi-Criterion) → Agent Refinement (Iterative) → Final Validation
+#
+# DAG:
+#   [inputs] → context_gathering → generate_draft
+#                                → validate_draft (infer)
+#                                → fix_issues (agent with tools)
+#                                → validate_refined (infer)
+#                                → final_report
+#
+# COMPLEXITY: Multi-stage pipeline with quality gates, agent-based refinement, and observability
+#
+# FEATURES DEMONSTRATED:
+# - Multi-turn agent loop with MCP tool access
+# - Quality scoring and gating logic
+# - Iterative refinement based on validation feedback
+# - Context binding across validation rounds
+# - Structured output with metadata
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    # Use cargo to run MCP server from source (development mode)
+    # Run from nika-dev/tools/nika/ directory
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+tasks:
+  # ───────────────────────────────────────────────────────────────────────────
+  # PHASE 1: Input Parameters
+  # ───────────────────────────────────────────────────────────────────────────
+
+  - id: params
+    exec:
+      command: |
+        cat <<'EOF'
+        {
+          "entity_key": "qr-code",
+          "page_key": "homepage",
+          "block_key": "hero",
+          "locale_key": "fr-FR",
+          "content_type": "hero_block"
+        }
+        EOF
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # PHASE 2: Context Gathering from NovaNet
+  # ───────────────────────────────────────────────────────────────────────────
+
+  - id: entity_context
+    use:
+      entity: params
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        target: entity
+        filters:
+          key: "{{use.entity}}"
+    output:
+      format: json
+
+  - id: page_structure
+    use:
+      page: params
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        target: page
+        filters:
+          key: "{{use.page}}"
+    output:
+      format: json
+
+  - id: locale_voice
+    use:
+      locale: params
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{use.locale}}"
+        arc_kinds: ["HAS_VOICE", "HAS_TERMS", "HAS_CULTURE"]
+        direction: outgoing
+        max_depth: 2
+        limit: 25
+        include_properties: true
+    output:
+      format: json
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # PHASE 3: Content Generation
+  # ───────────────────────────────────────────────────────────────────────────
+
+  - id: generate_draft
+    use:
+      entity: entity_context
+      page: page_structure
+      locale: params
+      voice: locale_voice
+    infer:
+      prompt: |
+        Generate native French content for the QR Code homepage hero block.
+
+        ENTITY CONTEXT:
+        {{use.entity}}
+
+        PAGE STRUCTURE:
+        {{use.page}}
+
+        LOCALE VOICE & CULTURE:
+        {{use.voice}}
+
+        GENERATION REQUIREMENTS:
+        - Native {{use.locale}} feel (NOT translated)
+        - Brand consistency with "QR Code AI"
+        - SEO-friendly while maintaining marketing appeal
+        - Clear call-to-action suitable for {{use.locale}} audience
+
+        Generate the following fields:
+        - title: H1 headline (8-12 words max)
+        - subtitle: Supporting tagline (15-20 words)
+        - description: Main value proposition (2-3 sentences)
+        - cta_primary: Primary button text (2-4 words)
+        - cta_secondary: Secondary action (2-4 words)
+        - metadata_title: HTML title tag (50-60 chars)
+        - metadata_description: HTML meta description (150-160 chars)
+
+        Output as JSON object with these exact keys.
+    output:
+      format: json
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # PHASE 4: Initial Validation (Infer)
+  # ───────────────────────────────────────────────────────────────────────────
+
+  - id: validate_draft
+    use:
+      content: generate_draft
+      entity: entity_context
+      locale: params
+      voice: locale_voice
+    infer:
+      prompt: |
+        Validate the generated French hero block content against quality criteria.
+
+        CONTENT TO VALIDATE:
+        {{use.content}}
+
+        ENTITY CONTEXT:
+        {{use.entity}}
+
+        LOCALE: {{use.locale}}
+        LOCALE VOICE:
+        {{use.voice}}
+
+        VALIDATION CRITERIA (score each 0-25):
+
+        1. AUTHENTICITY (0-25 points)
+           - Does it feel natively French (not a translation)?
+           - Are cultural references appropriate?
+           - Is the tone and style suitable for French audience?
+
+        2. BRAND ALIGNMENT (0-25 points)
+           - Brand name "QR Code AI" used correctly and consistently?
+           - Does it match the entity's defined purpose?
+           - Are all references accurate to provided context?
+
+        3. SEO OPTIMIZATION (0-25 points)
+           - Does metadata_title follow SEO best practices?
+           - Is metadata_description compelling and complete?
+           - Are keywords naturally integrated?
+
+        4. CTA EFFECTIVENESS (0-25 points)
+           - Are CTAs action-oriented and clear?
+           - Are they appropriately differentiated (primary vs secondary)?
+           - Are they grammatically correct and professional?
+
+        For each criterion:
+        - Assign 0-25 point score
+        - List specific issues if score < 20 (bullet points)
+        - Provide concrete fix suggestions
+
+        Output JSON structure:
+        {
+          "summary": "brief overall assessment",
+          "total_score": 0-100,
+          "passed": boolean (>= 75),
+          "criteria": {
+            "authenticity": {
+              "score": 0-25,
+              "assessment": "specific findings",
+              "issues": ["issue1", "issue2"],
+              "fixes": ["fix1", "fix2"]
+            },
+            "brand_alignment": {...},
+            "seo_optimization": {...},
+            "cta_effectiveness": {...}
+          },
+          "critical_issues": [],
+          "next_steps": "recommendation"
+        }
+    output:
+      format: json
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # PHASE 5: Decision Gate (Conditional)
+  # ───────────────────────────────────────────────────────────────────────────
+  # If validation score >= 75, skip refinement and go to final
+  # If validation score < 75, use agent to fix issues
+  #
+  # Note: This is represented as a task that checks the condition
+  # In the actual execution, this would be handled by flow logic
+  # ───────────────────────────────────────────────────────────────────────────
+
+  - id: check_quality_gate
+    use:
+      validation: validate_draft
+    exec:
+      command: |
+        python3 -c "
+        import json, sys
+        v = json.loads('''{{use.validation}}''')
+        passed = v['passed']
+        score = v['total_score']
+        print(json.dumps({'passed': passed, 'score': score, 'needs_refinement': not passed}))
+        sys.exit(0 if passed else 1)
+        "
+    output:
+      format: json
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # PHASE 6: Iterative Refinement via Agent
+  # ───────────────────────────────────────────────────────────────────────────
+  # Agent with MCP tools autonomously refines content based on validation
+  # - Reads validation results
+  # - Uses MCP tools to gather additional context if needed
+  # - Applies fixes iteratively
+  # - Outputs refined content
+  # ───────────────────────────────────────────────────────────────────────────
+
+  - id: agent_refine
+    use:
+      original_content: generate_draft
+      validation_results: validate_draft
+      entity_context: entity_context
+      locale: params
+      voice: locale_voice
+    agent:
+      prompt: |
+        You are a content quality specialist tasked with refining French marketing copy.
+
+        ORIGINAL CONTENT TO REFINE:
+        {{use.original_content}}
+
+        VALIDATION FEEDBACK:
+        {{use.validation_results}}
+
+        ENTITY CONTEXT (for accuracy):
+        {{use.entity_context}}
+
+        LOCALE: {{use.locale}}
+        VOICE & CULTURE GUIDELINES:
+        {{use.voice}}
+
+        YOUR TASK:
+        1. Analyze the validation results and identify ALL flagged issues
+        2. For each critical or high-priority issue:
+           a. Understand why it failed (read the assessment)
+           b. Apply the suggested fix from the validation report
+           c. Ensure changes maintain native {{use.locale}} feel
+           d. Verify no new issues are introduced
+        3. Use available MCP tools to:
+           - Validate brand terminology with novanet_describe
+           - Check locale-specific guidance with novanet_traverse
+           - Gather additional entity context if needed
+        4. Output refined JSON with ALL fields:
+           - title, subtitle, description
+           - cta_primary, cta_secondary
+           - metadata_title, metadata_description
+
+        REFINEMENT RULES:
+        - NEVER change the brand name "QR Code AI"
+        - NEVER add information not in entity context
+        - NEVER translate—refine for native feel
+        - MUST address all issues with score < 20
+        - Keep word counts similar to originals
+
+        When refinement is complete, output:
+        {
+          "refined_content": {your refined JSON},
+          "changes_made": ["change1", "change2", ...],
+          "rationale": "explanation of refinement strategy"
+        }
+
+        Say "REFINEMENT_COMPLETE" when done.
+
+      provider: claude
+      model: claude-sonnet-4
+      mcp:
+        - novanet
+      max_turns: 7
+      stop_conditions:
+        - "REFINEMENT_COMPLETE"
+    output:
+      format: json
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # PHASE 7: Final Validation (Post-Refinement)
+  # ───────────────────────────────────────────────────────────────────────────
+
+  - id: validate_refined
+    use:
+      content: agent_refine
+      original: generate_draft
+      initial_validation: validate_draft
+      locale: params
+      voice: locale_voice
+    infer:
+      prompt: |
+        Final validation of refined {{use.locale}} hero block.
+
+        REFINED CONTENT:
+        {{use.content}}
+
+        ORIGINAL CONTENT (for comparison):
+        {{use.original}}
+
+        INITIAL VALIDATION RESULTS:
+        {{use.initial_validation}}
+
+        LOCALE: {{use.locale}}
+        VOICE:
+        {{use.voice}}
+
+        VALIDATION TASK:
+        Using the SAME criteria as initial validation:
+        - Authenticity (0-25)
+        - Brand Alignment (0-25)
+        - SEO Optimization (0-25)
+        - CTA Effectiveness (0-25)
+
+        ASSESSMENT REQUIREMENTS:
+        1. Score each criterion (0-25 points)
+        2. Calculate total_score (0-100)
+        3. Determine if passed (>= 75)
+        4. List improvements from initial validation
+        5. List any remaining issues
+        6. Include deployment readiness assessment
+
+        Output JSON:
+        {
+          "summary": "final assessment",
+          "total_score": 0-100,
+          "passed": boolean,
+          "improvement": {
+            "initial_score": N,
+            "final_score": N,
+            "delta": N,
+            "improvements": ["improvement1", "improvement2"]
+          },
+          "criteria": {
+            "authenticity": {"score": 0-25, "notes": "..."},
+            "brand_alignment": {"score": 0-25, "notes": "..."},
+            "seo_optimization": {"score": 0-25, "notes": "..."},
+            "cta_effectiveness": {"score": 0-25, "notes": "..."}
+          },
+          "remaining_issues": [],
+          "deployment_readiness": {
+            "ready": boolean,
+            "confidence_level": "high|medium|low",
+            "caveats": []
+          }
+        }
+    output:
+      format: json
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # PHASE 8: Final Report & Metadata
+  # ───────────────────────────────────────────────────────────────────────────
+
+  - id: final_report
+    use:
+      refined_content: agent_refine
+      final_validation: validate_refined
+      initial_validation: validate_draft
+      params: params
+    infer:
+      prompt: |
+        Generate final validation report and metadata.
+
+        REFINED CONTENT:
+        {{use.refined_content}}
+
+        FINAL VALIDATION:
+        {{use.final_validation}}
+
+        INITIAL VALIDATION:
+        {{use.initial_validation}}
+
+        PARAMETERS:
+        {{use.params}}
+
+        Generate comprehensive report:
+        {
+          "workflow_id": "uc9-content-validation",
+          "timestamp": "ISO-8601 now",
+          "parameters": {...},
+          "pipeline_stages": [
+            {
+              "stage": "generate_draft",
+              "status": "completed"
+            },
+            {
+              "stage": "validate_draft",
+              "status": "completed",
+              "score": (initial score)
+            },
+            {
+              "stage": "agent_refine",
+              "status": "completed",
+              "iterations": 1
+            },
+            {
+              "stage": "validate_refined",
+              "status": "completed",
+              "score": (final score)
+            }
+          ],
+          "quality_metrics": {
+            "initial_score": N,
+            "final_score": N,
+            "improvement_percentage": N,
+            "iterations_needed": 1,
+            "quality_gates_passed": boolean
+          },
+          "final_content": {...(your refined JSON)},
+          "deployment_status": "approved|needs_review|rejected",
+          "summary": "brief executive summary",
+          "next_steps": "recommendation"
+        }
+    output:
+      format: json
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EXECUTION FLOW (DAG)
+# ─────────────────────────────────────────────────────────────────────────────
+
+flows:
+  # Input collection
+  - source: params
+    target: [entity_context, page_structure, locale_voice]
+
+  # Context gathering → Draft generation
+  - source: [entity_context, page_structure, locale_voice, params]
+    target: generate_draft
+
+  # Draft validation (2 paths)
+  - source: [generate_draft, entity_context, locale_voice, params]
+    target: validate_draft
+
+  # Quality gate check
+  - source: validate_draft
+    target: check_quality_gate
+
+  # If failed QG → Agent refinement
+  - source: [generate_draft, validate_draft, entity_context, locale_voice, params]
+    target: agent_refine
+
+  # Post-refinement validation
+  - source: [agent_refine, generate_draft, validate_draft, locale_voice, params]
+    target: validate_refined
+
+  # Final report
+  - source: [agent_refine, validate_refined, validate_draft, params]
+    target: final_report

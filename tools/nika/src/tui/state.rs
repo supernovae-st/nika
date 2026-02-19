@@ -539,20 +539,23 @@ impl TuiState {
             EventKind::AgentTurn {
                 turn_index,
                 kind,
-                tokens,
+                metadata,
                 ..
             } => {
+                // Extract tokens from metadata if present (v0.4.1)
+                let tokens = metadata.as_ref().map(|m| m.total_tokens());
+
                 let turn = AgentTurnState {
                     index: *turn_index,
                     status: kind.clone(),
-                    tokens: *tokens,
+                    tokens,
                     tool_calls: Vec::new(),
                 };
                 // Update or add turn
                 if let Some(existing) = self.agent_turns.iter_mut().find(|t| t.index == *turn_index)
                 {
                     existing.status = kind.clone();
-                    existing.tokens = *tokens;
+                    existing.tokens = tokens;
                 } else {
                     self.agent_turns.push(turn);
                 }

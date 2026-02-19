@@ -1,0 +1,170 @@
+# UC1: Single Entity Content Generation
+#
+# Use Case: Generate EntityNative content for a single entity in a single locale
+#
+# Demonstrates:
+# - invoke: verb for MCP tool calls (novanet_generate)
+# - infer: verb for LLM-based content polishing
+# - Data binding via use: and {{use.alias}} templates
+# - Multi-step workflow with dependencies
+#
+# Run with:
+#   cargo run -- run examples/uc1-entity-generation.yaml
+#
+# Mock mode (no NovaNet required):
+#   NIKA_MOCK=true cargo run -- run examples/uc1-entity-generation.yaml
+
+schema: "nika/workflow@0.2"
+provider: claude
+
+# MCP server configuration (v0.2)
+# Points to NovaNet MCP server which provides knowledge graph access
+mcp:
+  novanet:
+    # Development: Run novanet-mcp from source
+    # From nika-dev/tools/nika/, runs: cargo run --manifest-path ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      # Neo4j connection (update to your local instance)
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+# Tasks defined in DAG order
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STEP 1: FETCH - Generate context from NovaNet
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Invokes novanet_generate to get:
+  # - Entity (qr-code) definition
+  # - EntityNative template for fr-FR locale
+  # - denomination_forms: text, title, abbrev, url
+  # - Locale-specific rules (slugification, formatting)
+  #
+  # Returns JSON with:
+  #   {
+  #     entity: { key: "qr-code", display_name: "QR Code", ... },
+  #     native: { locale: "fr-FR", entity_key: "qr-code", ... },
+  #     denomination_forms: { text: "...", title: "...", ... },
+  #     context_build_log: [...]  // DEBUG: shows how context was assembled
+  #   }
+  - id: fetch_context
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity: "qr-code"
+        locale: "fr-FR"
+        forms: ["text", "title", "abbrev", "url"]
+    output:
+      format: json
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STEP 2: POLISH - Use LLM to refine generated content
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Infers (generates with LLM) a polished EntityNative node by:
+  # - Taking denomination_forms from novanet_generate
+  # - Generating French description following naming rules
+  # - Ensuring consistency with entity semantics
+  #
+  # Input: JSON context from STEP 1
+  # Output: Polish EntityNative with refined description
+  - id: polish_content
+    use:
+      ctx: fetch_context
+    infer:
+      prompt: |
+        You are a native French content specialist. Your task is to create
+        authentic French content for a QR Code entity.
+
+        ENTITY DEFINITION:
+        {{use.ctx.entity}}
+
+        LOCALE RULES:
+        - Language: French (France)
+        - Slugification: Use dashes, lowercase
+        - Name forms: Use denomination_forms from context
+
+        DENOMINATION FORMS (ABSOLUTE - NO INVENTION):
+        {{use.ctx.denomination_forms}}
+
+        TASK:
+        Generate a polished EntityNative in JSON with:
+        1. description: 2-3 sentences in French about QR codes
+        2. context_tags: 3 French keywords
+        3. examples: 2 real-world use cases in French
+        4. rules: 2 important rules for QR code generation
+
+        RULES:
+        - Use ONLY denomination_forms.text for entity name reference
+        - NO invention of names or paraphrasing
+        - Follow French linguistic conventions
+        - Reference @ branding if available
+        - Output valid JSON
+
+        Begin output with ```json and end with ```
+    output:
+      format: json
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STEP 3: VALIDATE - Verify generated content quality
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Uses infer: to validate that polished content meets quality standards:
+  # - All denomination_forms are preserved
+  # - French is grammatically correct
+  # - Description is domain-appropriate
+  # - No name inventions present
+  - id: validate_quality
+    use:
+      original: fetch_context
+      polished: polish_content
+    infer:
+      prompt: |
+        Quality assurance check for French EntityNative content.
+
+        ORIGINAL FORMS:
+        {{use.original.denomination_forms}}
+
+        POLISHED CONTENT:
+        {{use.polished}}
+
+        Check for:
+        1. preservation: All denomination_forms are preserved (text, title, abbrev, url)
+        2. language: French grammar, spelling, idiom are correct
+        3. domain: Content is appropriate for QR code entity
+        4. rules: No name inventions or paraphrasing detected
+
+        Respond with JSON:
+        {
+          "is_valid": true|false,
+          "issues": ["issue1", "issue2"],
+          "score": 0-100
+        }
+
+        Output only JSON.
+    output:
+      format: json
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DAG FLOW - Define execution dependencies
+# ═══════════════════════════════════════════════════════════════════════════
+# STEP 1 (fetch_context) runs first (no dependencies)
+# STEP 2 (polish_content) depends on STEP 1
+# STEP 3 (validate_quality) depends on STEP 1 and STEP 2
+flows:
+  # fetch_context -> polish_content
+  - source: fetch_context
+    target: polish_content
+
+  # fetch_context -> validate_quality
+  - source: fetch_context
+    target: validate_quality
+
+  # polish_content -> validate_quality
+  - source: polish_content
+    target: validate_quality
