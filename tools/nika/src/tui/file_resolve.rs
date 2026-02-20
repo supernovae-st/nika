@@ -8,7 +8,13 @@
 //! - Path traversal protection: Paths are canonicalized and checked to stay within base_dir
 //! - File size limit: Files larger than 1MB are skipped
 //! - Symlinks are followed but must resolve within base_dir
+//!
+//! # Crates Used
+//!
+//! - `camino`: UTF-8 safe path handling (no OsStr panics)
+//! - `regex`: Pattern matching with static compilation
 
+use camino::{Utf8Path, Utf8PathBuf};
 use regex::Regex;
 use std::path::Path;
 use std::sync::LazyLock;
@@ -20,6 +26,42 @@ const MAX_FILE_SIZE: u64 = 1_048_576;
 static FILE_MENTION_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?:^|[^a-zA-Z0-9])@([\w./\-]+\.\w+)").expect("Invalid regex pattern")
 });
+
+/// Result of resolving a file mention
+#[derive(Debug, Clone)]
+pub enum FileResolveResult {
+    /// File was successfully resolved
+    Resolved { path: String, content: String },
+    /// File is too large
+    TooLarge { path: String, size: u64 },
+    /// Path traversal attempt blocked
+    TraversalBlocked { path: String },
+    /// File not found or not readable
+    NotFound { path: String },
+}
+
+impl FileResolveResult {
+    /// Convert to XML representation for prompt injection
+    pub fn to_xml(&self) -> Option<String> {
+        match self {
+            Self::Resolved { path, content } => Some(format!(
+                "<file path=\"{}\">\n{}\n</file>",
+                path,
+                content.trim_end()
+            )),
+            Self::TooLarge { path, size } => Some(format!(
+                "<file path=\"{}\" error=\"too_large\">[File exceeds 1MB limit ({} bytes)]</file>",
+                path, size
+            )),
+            Self::TraversalBlocked { .. } | Self::NotFound { .. } => None,
+        }
+    }
+
+    /// Check if resolution was successful
+    pub fn is_resolved(&self) -> bool {
+        matches!(self, Self::Resolved { .. })
+    }
+}
 
 /// Resolves @file mentions in chat input
 pub struct FileResolver;
@@ -60,6 +102,83 @@ impl FileResolver {
             .collect()
     }
 
+    /// Resolve a single file mention
+    ///
+    /// Returns a `FileResolveResult` with detailed status.
+    ///
+    /// # Security
+    ///
+    /// - **Path traversal protection**: Paths are canonicalized and verified to stay within base_dir
+    /// - **File size limit**: Files larger than 1MB return `TooLarge`
+    /// - Symlinks are followed but must resolve within base_dir
+    pub fn resolve_one(mention: &str, base_dir: &Path) -> FileResolveResult {
+        // Canonicalize base_dir for path containment check
+        let base_canonical = match base_dir.canonicalize() {
+            Ok(p) => p,
+            Err(_) => {
+                return FileResolveResult::NotFound {
+                    path: mention.to_string(),
+                }
+            }
+        };
+
+        let file_path = base_dir.join(mention);
+
+        // SECURITY: Canonicalize and verify path stays within base_dir
+        let canonical = match file_path.canonicalize() {
+            Ok(p) => p,
+            Err(_) => {
+                return FileResolveResult::NotFound {
+                    path: mention.to_string(),
+                }
+            }
+        };
+
+        if !canonical.starts_with(&base_canonical) {
+            tracing::warn!(
+                "Path traversal blocked: {} resolves outside base_dir",
+                mention
+            );
+            return FileResolveResult::TraversalBlocked {
+                path: mention.to_string(),
+            };
+        }
+
+        // SECURITY: Check file size before reading
+        match std::fs::metadata(&canonical) {
+            Ok(meta) => {
+                if meta.len() > MAX_FILE_SIZE {
+                    tracing::warn!(
+                        "File too large: {} ({} bytes > {} limit)",
+                        mention,
+                        meta.len(),
+                        MAX_FILE_SIZE
+                    );
+                    return FileResolveResult::TooLarge {
+                        path: mention.to_string(),
+                        size: meta.len(),
+                    };
+                }
+            }
+            Err(_) => {
+                return FileResolveResult::NotFound {
+                    path: mention.to_string(),
+                }
+            }
+        }
+
+        // Safe to read the file
+        match std::fs::read_to_string(&canonical) {
+            Ok(content) => FileResolveResult::Resolved {
+                path: mention.to_string(),
+                content,
+            },
+            Err(_) => FileResolveResult::NotFound {
+                path: mention.to_string(),
+            },
+        }
+    }
+
     /// Resolve file mentions and return expanded prompt
     ///
     /// Replaces @file mentions with XML-wrapped file contents:
@@ -85,70 +204,32 @@ impl FileResolver {
         let mentions = Self::extract_mentions(input);
         let mut result = input.to_string();
 
-        // Canonicalize base_dir for path containment check
-        let base_canonical = match base_dir.canonicalize() {
-            Ok(p) => p,
-            Err(_) => return result, // Can't resolve base_dir, return unchanged
-        };
-
         for mention in mentions {
-            let file_path = base_dir.join(&mention);
+            let resolve_result = Self::resolve_one(&mention, base_dir);
 
-            // SECURITY: Canonicalize and verify path stays within base_dir
-            let canonical = match file_path.canonicalize() {
-                Ok(p) => p,
-                Err(_) => continue, // File doesn't exist or can't be accessed
-            };
-
-            if !canonical.starts_with(&base_canonical) {
-                // Path traversal attempt detected - skip silently
-                tracing::warn!(
-                    "Path traversal blocked: {} resolves outside base_dir",
-                    mention
-                );
-                continue;
+            if let Some(xml) = resolve_result.to_xml() {
+                result = result.replace(&format!("@{}", mention), &xml);
             }
-
-            // SECURITY: Check file size before reading
-            match std::fs::metadata(&canonical) {
-                Ok(meta) => {
-                    if meta.len() > MAX_FILE_SIZE {
-                        tracing::warn!(
-                            "File too large: {} ({} bytes > {} limit)",
-                            mention,
-                            meta.len(),
-                            MAX_FILE_SIZE
-                        );
-                        // Replace with size warning instead of content
-                        let replacement = format!(
-                            "<file path=\"{}\" error=\"too_large\">[File exceeds 1MB limit]</file>",
-                            mention
-                        );
-                        result = result.replace(&format!("@{}", mention), &replacement);
-                        continue;
-                    }
-                }
-                Err(_) => continue, // Can't read metadata, skip
-            }
-
-            // Safe to read the file
-            match std::fs::read_to_string(&canonical) {
-                Ok(content) => {
-                    let replacement = format!(
-                        "<file path=\"{}\">\n{}\n</file>",
-                        mention,
-                        content.trim_end()
-                    );
-                    result = result.replace(&format!("@{}", mention), &replacement);
-                }
-                Err(_) => {
-                    // File exists but couldn't be read - leave mention as-is
-                    continue;
-                }
-            }
+            // NotFound and TraversalBlocked leave mention as-is
         }
 
         result
+    }
+
+    /// Convert a std::path::Path to Utf8Path if valid UTF-8
+    ///
+    /// Uses camino for safer path handling.
+    #[allow(dead_code)]
+    pub fn to_utf8_path(path: &Path) -> Option<&Utf8Path> {
+        Utf8Path::from_path(path)
+    }
+
+    /// Convert a std::path::PathBuf to Utf8PathBuf if valid UTF-8
+    ///
+    /// Uses camino for safer path handling.
+    #[allow(dead_code)]
+    pub fn to_utf8_pathbuf(path: std::path::PathBuf) -> Option<Utf8PathBuf> {
+        Utf8PathBuf::from_path_buf(path).ok()
     }
 }
 
@@ -354,7 +435,7 @@ mod tests {
 
         // Large file should show error, not content
         assert!(resolved.contains("error=\"too_large\""));
-        assert!(resolved.contains("[File exceeds 1MB limit]"));
+        assert!(resolved.contains("[File exceeds 1MB limit"));
         assert!(!resolved.contains(&large_content[0..100]));
     }
 
@@ -403,5 +484,70 @@ mod tests {
             assert_eq!(mentions, vec!["test.rs"]);
         }
         // If regex was compiled each time, this would be slow
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // FileResolveResult Tests
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_resolve_result_to_xml() {
+        let resolved = FileResolveResult::Resolved {
+            path: "test.rs".to_string(),
+            content: "fn main() {}".to_string(),
+        };
+        let xml = resolved.to_xml().unwrap();
+        assert!(xml.contains("<file path=\"test.rs\">"));
+        assert!(xml.contains("fn main() {}"));
+
+        let too_large = FileResolveResult::TooLarge {
+            path: "big.bin".to_string(),
+            size: 2_000_000,
+        };
+        let xml = too_large.to_xml().unwrap();
+        assert!(xml.contains("error=\"too_large\""));
+        assert!(xml.contains("2000000 bytes"));
+
+        let not_found = FileResolveResult::NotFound {
+            path: "missing.txt".to_string(),
+        };
+        assert!(not_found.to_xml().is_none());
+
+        let blocked = FileResolveResult::TraversalBlocked {
+            path: "../secret.txt".to_string(),
+        };
+        assert!(blocked.to_xml().is_none());
+    }
+
+    #[test]
+    fn test_resolve_one_returns_result() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(temp_dir.path().join("test.txt"), "content").unwrap();
+
+        let result = FileResolver::resolve_one("test.txt", temp_dir.path());
+        assert!(result.is_resolved());
+
+        let result = FileResolver::resolve_one("missing.txt", temp_dir.path());
+        assert!(!result.is_resolved());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Camino UTF-8 Path Tests
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_to_utf8_path() {
+        let path = Path::new("/valid/utf8/path.rs");
+        let utf8 = FileResolver::to_utf8_path(path);
+        assert!(utf8.is_some());
+        assert_eq!(utf8.unwrap().as_str(), "/valid/utf8/path.rs");
+    }
+
+    #[test]
+    fn test_to_utf8_pathbuf() {
+        let path = std::path::PathBuf::from("/valid/utf8/path.rs");
+        let utf8 = FileResolver::to_utf8_pathbuf(path);
+        assert!(utf8.is_some());
+        assert_eq!(utf8.unwrap().as_str(), "/valid/utf8/path.rs");
     }
 }

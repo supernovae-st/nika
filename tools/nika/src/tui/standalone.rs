@@ -19,7 +19,13 @@
 //! │ tasks: ...                                                            │
 //! └───────────────────────────────────────────────────────────────────────┘
 //! ```
+//!
+//! # Crates Used
+//!
+//! - `ignore`: .gitignore-aware directory traversal (from ripgrep author)
+//! - `camino`: UTF-8 safe paths
 
+use ignore::WalkBuilder;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
@@ -235,6 +241,13 @@ impl StandaloneState {
         self.scan_workflows();
     }
 
+    /// Scan for .nika.yaml workflow files using the `ignore` crate.
+    ///
+    /// Uses WalkBuilder for:
+    /// - .gitignore support (automatically skips ignored files)
+    /// - .ignore file support
+    /// - Efficient traversal (from ripgrep author)
+    /// - Automatic hidden file/dir skipping
     pub fn scan_workflows(&mut self) {
         self.browser_entries.clear();
 
@@ -244,7 +257,7 @@ impl StandaloneState {
         for dir in scan_dirs {
             let dir_path = self.root.join(dir);
             if dir_path.exists() && dir_path.is_dir() {
-                self.scan_directory(&dir_path, 0);
+                self.scan_directory_with_ignore(&dir_path);
             }
         }
 
@@ -253,7 +266,51 @@ impl StandaloneState {
             .sort_by(|a, b| a.display_name.cmp(&b.display_name));
     }
 
-    fn scan_directory(&mut self, dir: &Path, depth: usize) {
+    /// Scan directory using `ignore` crate for .gitignore-aware traversal.
+    ///
+    /// Uses WalkBuilder which provides:
+    /// - .gitignore support
+    /// - .ignore file support
+    /// - Automatic hidden file filtering
+    /// - Efficient parallel traversal capability
+    fn scan_directory_with_ignore(&mut self, dir: &Path) {
+        // WalkBuilder respects .gitignore, .ignore, and hidden files
+        let walker = WalkBuilder::new(dir)
+            .git_ignore(true) // Respect .gitignore
+            .git_exclude(true) // Respect .git/info/exclude
+            .ignore(true) // Respect .ignore files
+            .hidden(true) // Skip hidden files/dirs
+            .parents(true) // Check parent directories for ignore files
+            .max_depth(Some(4)) // Limit depth to 4 levels
+            .follow_links(false) // Don't follow symlinks (security)
+            .build();
+
+        for entry in walker.flatten() {
+            let path = entry.path();
+
+            // Only include .nika.yaml files
+            if path.is_file() {
+                if let Some(name) = path.file_name() {
+                    let name_str = name.to_string_lossy();
+                    if name_str.ends_with(".nika.yaml") {
+                        // Calculate depth from root
+                        let depth = path
+                            .strip_prefix(&self.root)
+                            .map(|p| p.components().count().saturating_sub(1))
+                            .unwrap_or(0);
+
+                        self.browser_entries.push(
+                            BrowserEntry::new(path.to_path_buf(), &self.root).with_depth(depth),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Legacy scan_directory method (kept for reference, uses std::fs)
+    #[allow(dead_code)]
+    fn scan_directory_legacy(&mut self, dir: &Path, depth: usize) {
         if depth > 3 {
             return; // Limit recursion
         }
@@ -283,7 +340,7 @@ impl StandaloneState {
                         && name != "node_modules"
                         && name != ".git"
                     {
-                        self.scan_directory(&path, depth + 1);
+                        self.scan_directory_legacy(&path, depth + 1);
                     }
                 }
             }

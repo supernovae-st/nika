@@ -56,6 +56,11 @@ xxhash-rust = { version = "0.8", features = ["xxh3"] }
 chrono = "0.4"
 rand = "0.8"
 
+# File System - production-grade crates
+walkdir = "2.5"    # Efficient recursive directory traversal (ripgrep uses this)
+camino = "1.1"     # UTF-8 safe paths (Utf8PathBuf) - no OsStr panics
+ignore = "0.4"     # .gitignore/.ignore support (from ripgrep author)
+
 # MCP - Anthropic's official Rust SDK
 # See docs/research/2026-02-19-mcp-rust-crates.md for crate comparison
 rmcp = { version = "0.16", features = ["client", "transport-child-process"] }
