@@ -25,12 +25,15 @@
 mod browser;
 mod home;
 mod monitor;
+mod studio;
 mod trait_view;
 
 pub use browser::BrowserView;
 #[allow(unused_imports)] // Will be used in Task 5.1 (App integration)
 pub use home::HomeView;
 pub use monitor::{DagTab, MissionTab, MonitorView, NovanetTab, ReasoningTab};
+#[allow(unused_imports)] // Will be used in Task 5.1 (App integration)
+pub use studio::{EditorMode, StudioView, TextBuffer, ValidationResult};
 #[allow(unused_imports)] // Will be used by views in later tasks
 pub use trait_view::View;
 
