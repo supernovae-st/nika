@@ -95,6 +95,39 @@ yamllint -c .yamllint.yaml **/*.nika.yaml
 - `nika/workflow@0.3`: +for_each parallelism, rig-core integration
 - `nika/workflow@0.5`: +decompose, +lazy bindings, +spawn_agent (MVP 8)
 
+## Verb Shorthand Syntax (v0.5.1)
+
+`infer:` and `exec:` support shorthand string syntax for simple cases:
+
+```yaml
+# Shorthand (v0.5.1+)
+tasks:
+  - id: generate
+    infer: "Generate a headline for QR Code AI"
+
+  - id: build
+    exec: "npm run build"
+
+# Full form (always supported)
+tasks:
+  - id: generate
+    infer:
+      prompt: "Generate a headline for QR Code AI"
+      model: claude-sonnet-4-20250514
+
+  - id: build
+    exec:
+      command: "npm run build"
+```
+
+| Verb | Shorthand | Full Form |
+|------|-----------|-----------|
+| `infer:` | `infer: "prompt"` | `infer: { prompt: "...", model: "..." }` |
+| `exec:` | `exec: "command"` | `exec: { command: "..." }` |
+| `fetch:` | ❌ No shorthand | `fetch: { url: "...", method: "..." }` |
+| `invoke:` | ❌ No shorthand | `invoke: { tool: "...", server: "..." }` |
+| `agent:` | ❌ No shorthand | `agent: { prompt: "...", mcp: [...] }` |
+
 ## rig-core Integration (v0.4)
 
 Nika uses [rig-core](https://github.com/0xPlaygrounds/rig) for LLM providers.

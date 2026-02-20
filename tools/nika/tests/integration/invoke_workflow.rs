@@ -1,6 +1,6 @@
 //! Integration test for invoke workflow
 //!
-//! Tests the complete workflow parsing for invoke-novanet.yaml example,
+//! Tests the complete workflow parsing for invoke-novanet.nika.yaml example,
 //! verifying schema, task count, MCP config, and task action types.
 
 use nika::ast::TaskAction;
@@ -18,7 +18,7 @@ fn test_invoke_workflow_parses() {
     let workflow: Workflow = serde_yaml::from_str(&yaml).expect("Workflow should parse");
 
     assert_eq!(workflow.schema, "nika/workflow@0.2");
-    assert_eq!(workflow.tasks.len(), 3);
+    assert_eq!(workflow.tasks.len(), 4);
 
     // Verify MCP config
     let mcp = workflow.mcp.as_ref().expect("Should have MCP config");
@@ -29,18 +29,22 @@ fn test_invoke_workflow_parses() {
     assert_eq!(novanet.command, "cargo");
     assert!(!novanet.args.is_empty());
 
-    // Verify task types
+    // Verify task types: Invoke, Invoke, Invoke, Infer
     assert!(
         matches!(&workflow.tasks[0].action, TaskAction::Invoke { .. }),
-        "First task should be Invoke"
+        "First task should be Invoke (describe)"
     );
     assert!(
         matches!(&workflow.tasks[1].action, TaskAction::Invoke { .. }),
-        "Second task should be Invoke"
+        "Second task should be Invoke (entity_context)"
     );
     assert!(
-        matches!(&workflow.tasks[2].action, TaskAction::Infer { .. }),
-        "Third task should be Infer"
+        matches!(&workflow.tasks[2].action, TaskAction::Invoke { .. }),
+        "Third task should be Invoke (traverse_native)"
+    );
+    assert!(
+        matches!(&workflow.tasks[3].action, TaskAction::Infer { .. }),
+        "Fourth task should be Infer (generate_content)"
     );
 }
 
@@ -52,7 +56,15 @@ fn test_invoke_workflow_task_ids() {
     let workflow: Workflow = serde_yaml::from_str(&yaml).expect("Workflow should parse");
 
     let task_ids: Vec<&str> = workflow.tasks.iter().map(|t| t.id.as_str()).collect();
-    assert_eq!(task_ids, vec!["discover", "hero_context", "generate_hero"]);
+    assert_eq!(
+        task_ids,
+        vec![
+            "describe",
+            "entity_context",
+            "traverse_native",
+            "generate_content"
+        ]
+    );
 }
 
 #[test]
@@ -62,7 +74,7 @@ fn test_invoke_workflow_flows() {
 
     let workflow: Workflow = serde_yaml::from_str(&yaml).expect("Workflow should parse");
 
-    assert_eq!(workflow.flows.len(), 2);
+    assert_eq!(workflow.flows.len(), 3);
 
     // Verify flow edges
     let flow_edges: Vec<(Vec<&str>, Vec<&str>)> = workflow
@@ -74,8 +86,9 @@ fn test_invoke_workflow_flows() {
     assert_eq!(
         flow_edges,
         vec![
-            (vec!["discover"], vec!["hero_context"]),
-            (vec!["hero_context"], vec!["generate_hero"]),
+            (vec!["describe"], vec!["entity_context"]),
+            (vec!["entity_context"], vec!["traverse_native"]),
+            (vec!["traverse_native"], vec!["generate_content"]),
         ]
     );
 }
@@ -93,19 +106,4 @@ fn test_invoke_workflow_mcp_env() {
     // Verify env vars
     assert!(novanet.env.contains_key("RUST_LOG"));
     assert_eq!(novanet.env.get("RUST_LOG"), Some(&"info".to_string()));
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Execution Tests (require running infrastructure)
-// ═══════════════════════════════════════════════════════════════
-
-#[tokio::test]
-#[ignore] // Requires running NovaNet MCP server
-async fn test_invoke_workflow_executes() {
-    // This test requires:
-    // 1. NovaNet MCP server running
-    // 2. Neo4j with test data
-    // For now, just verify the workflow can be loaded
-    let _yaml = std::fs::read_to_string("examples/invoke-novanet.nika.yaml")
-        .expect("Example workflow should exist");
 }

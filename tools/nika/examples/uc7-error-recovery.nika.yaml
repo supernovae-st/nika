@@ -22,40 +22,13 @@
 # - Graceful fallback on persistent failures
 # - Parallel execution with fail_fast control
 
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.5"
 provider: claude
 
-# ═══════════════════════════════════════════════════════════════════════════
-# PROVIDER RESILIENCE CONFIGURATION
-# ═══════════════════════════════════════════════════════════════════════════
-#
-# Each provider gets its own resilience configuration with three patterns:
-# 1. RETRY: Automatic retry with exponential backoff (handles transient errors)
-# 2. CIRCUIT BREAKER: Fail-fast after repeated failures (prevents cascade)
-# 3. RATE LIMITER: Throttle requests to stay within API limits
-#
-providers:
-  claude:
-    api_key: ${ANTHROPIC_API_KEY}
-    resilience:
-      # RETRY PATTERN
-      retry:
-        max_attempts: 4
-        backoff: exponential  # exponential or linear
-        initial_delay_ms: 500
-        max_delay_ms: 10000
-        jitter: true
-
-      # CIRCUIT BREAKER PATTERN
-      circuit_breaker:
-        failure_threshold: 3       # Open after 3 failures
-        success_threshold: 2       # Return to Closed after 2 successes
-        reset_timeout_ms: 30000    # Try HalfOpen after 30 seconds
-
-      # RATE LIMITER PATTERN
-      rate_limiter:
-        requests_per_minute: 60
-        burst_size: 10
+# NOTE: Resilience patterns (retry, circuit breaker, rate limiting) are
+# demonstrated conceptually but not currently enforced by the runtime.
+# The resilience/ module was removed in v0.4. Retry logic should be
+# implemented at the MCP client level or via rig-core's built-in retry.
 
 # ═══════════════════════════════════════════════════════════════════════════
 # MCP CONFIGURATION - NovaNet MCP Server
@@ -135,6 +108,8 @@ tasks:
   # ─────────────────────────────────────────────────────────────────────────
 
   - id: fallback_text
+    use:
+      input_entity: input_entity
     infer:
       prompt: |
         NovaNet MCP generation failed due to service unavailability.

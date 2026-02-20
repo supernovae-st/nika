@@ -36,12 +36,27 @@ use serde_json::Value;
 use crate::error::{NikaError, Result};
 use crate::mcp::rmcp_adapter::RmcpClientAdapter;
 use crate::mcp::types::{ContentBlock, McpConfig, ResourceContent, ToolCallResult, ToolDefinition};
+use crate::mcp::validation::{ErrorEnhancer, McpValidator, ValidationConfig, ValidationErrorKind};
 
 /// MCP Client for connecting to and interacting with MCP servers.
 ///
 /// The client can operate in two modes:
 /// - **Real mode**: Uses rmcp SDK via RmcpClientAdapter
 /// - **Mock mode**: Returns canned responses for testing
+///
+/// ## Validation (v0.5.1)
+///
+/// Enable parameter validation with `with_validation()`:
+///
+/// ```rust,ignore
+/// let client = McpClient::new(config)?
+///     .with_validation(ValidationConfig::default());
+/// ```
+///
+/// When validation is enabled:
+/// 1. `connect()` caches tool schemas from `list_tools()`
+/// 2. `call_tool()` validates params before calling the server
+/// 3. Errors are enhanced with required fields and suggestions
 pub struct McpClient {
     /// Server name (from config or mock)
     name: String,
@@ -56,6 +71,9 @@ pub struct McpClient {
 
     /// rmcp adapter for real connections (None for mock clients)
     adapter: Option<RmcpClientAdapter>,
+
+    /// Parameter validator (None if validation disabled)
+    validator: Option<McpValidator>,
 }
 
 impl std::fmt::Debug for McpClient {
@@ -65,6 +83,7 @@ impl std::fmt::Debug for McpClient {
             .field("connected", &self.connected)
             .field("is_mock", &self.is_mock)
             .field("has_adapter", &self.adapter.is_some())
+            .field("has_validator", &self.validator.is_some())
             .finish()
     }
 }
@@ -111,7 +130,26 @@ impl McpClient {
             connected: AtomicBool::new(false),
             is_mock: false,
             adapter: Some(adapter),
+            validator: None,
         })
+    }
+
+    /// Enable parameter validation with the given config.
+    ///
+    /// When validation is enabled:
+    /// - `connect()` will cache tool schemas from `list_tools()`
+    /// - `call_tool()` will validate params before calling the server
+    /// - Errors will be enhanced with required fields and suggestions
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let client = McpClient::new(config)?
+    ///     .with_validation(ValidationConfig::default());
+    /// ```
+    pub fn with_validation(mut self, config: ValidationConfig) -> Self {
+        self.validator = Some(McpValidator::new(config));
+        self
     }
 
     /// Create a mock MCP client for testing.
@@ -133,6 +171,7 @@ impl McpClient {
             connected: AtomicBool::new(true), // Mock is pre-connected
             is_mock: true,
             adapter: None,
+            validator: None,
         }
     }
 
@@ -168,14 +207,28 @@ impl McpClient {
     /// For mock clients, this is a no-op that always succeeds.
     /// For real clients, this uses rmcp SDK to connect.
     ///
+    /// When validation is enabled, this also caches tool schemas from `list_tools()`.
+    ///
     /// This method is idempotent - calling it when already connected succeeds.
     ///
     /// # Errors
     ///
     /// Returns `NikaError::McpStartError` if the server process fails to start.
+    /// Returns `NikaError::McpSchemaError` if schema caching fails.
     pub async fn connect(&self) -> Result<()> {
         if self.is_mock {
             self.connected.store(true, Ordering::SeqCst);
+            // Populate mock tools if validator is enabled
+            if let Some(ref validator) = self.validator {
+                let tools = self.mock_list_tools();
+                validator
+                    .cache()
+                    .populate(&self.name, &tools)
+                    .map_err(|e| NikaError::McpSchemaError {
+                        tool: "*".to_string(),
+                        reason: format!("Failed to cache mock tool schemas: {}", e),
+                    })?;
+            }
             return Ok(());
         }
 
@@ -188,6 +241,24 @@ impl McpClient {
 
         adapter.connect().await?;
         self.connected.store(true, Ordering::SeqCst);
+
+        // Populate schema cache if validator is enabled
+        if let Some(ref validator) = self.validator {
+            let tools = adapter.list_tools().await?;
+            validator
+                .cache()
+                .populate(&self.name, &tools)
+                .map_err(|e| NikaError::McpSchemaError {
+                    tool: "*".to_string(),
+                    reason: format!("Failed to cache tool schemas: {}", e),
+                })?;
+            tracing::debug!(
+                mcp_server = %self.name,
+                tools_cached = tools.len(),
+                "Cached tool schemas for validation"
+            );
+        }
+
         Ok(())
     }
 
@@ -264,8 +335,15 @@ impl McpClient {
     /// * `name` - Tool name (e.g., "novanet_generate", "read_file")
     /// * `params` - Tool parameters as JSON value
     ///
+    /// # Validation (v0.5.1)
+    ///
+    /// When validation is enabled via `with_validation()`:
+    /// - Parameters are validated against the tool schema before calling
+    /// - Errors include required fields and suggestions
+    ///
     /// # Errors
     ///
+    /// Returns `NikaError::McpValidationFailed` if parameter validation fails.
     /// Returns `NikaError::McpNotConnected` if the client is not connected.
     /// Returns `NikaError::McpToolError` if the tool call fails.
     ///
@@ -278,6 +356,54 @@ impl McpClient {
     /// })).await?;
     /// ```
     pub async fn call_tool(&self, name: &str, params: Value) -> Result<ToolCallResult> {
+        // Pre-call validation (if enabled)
+        if let Some(ref validator) = self.validator {
+            if validator.config().pre_validate {
+                let result = validator.validate(&self.name, name, &params);
+                if !result.is_valid {
+                    // Convert validation errors to NikaError
+                    let missing: Vec<String> = result
+                        .errors
+                        .iter()
+                        .filter_map(|e| {
+                            if let ValidationErrorKind::MissingRequired { field } = &e.kind {
+                                Some(field.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    let suggestions: Vec<String> = result
+                        .errors
+                        .iter()
+                        .filter_map(|e| {
+                            if let ValidationErrorKind::UnknownField { suggestions, .. } = &e.kind {
+                                Some(suggestions.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .flatten()
+                        .collect();
+
+                    let details = result
+                        .errors
+                        .iter()
+                        .map(|e| e.message.clone())
+                        .collect::<Vec<_>>()
+                        .join("; ");
+
+                    return Err(NikaError::McpValidationFailed {
+                        tool: name.to_string(),
+                        details,
+                        missing,
+                        suggestions,
+                    });
+                }
+            }
+        }
+
         if self.is_mock {
             if !self.connected.load(Ordering::SeqCst) {
                 return Err(NikaError::McpNotConnected {
@@ -302,12 +428,24 @@ impl McpClient {
             match adapter.call_tool(name, params.clone()).await {
                 Ok(result) => return Ok(result),
                 Err(e) => {
-                    if Self::is_connection_error(&e) && attempt < max_retries {
+                    // Enhance error if validator is enabled
+                    let enhanced_error = if let Some(ref validator) = self.validator {
+                        if validator.config().enhance_errors {
+                            let enhancer = ErrorEnhancer::new(validator.cache());
+                            enhancer.enhance(&self.name, name, e)
+                        } else {
+                            e
+                        }
+                    } else {
+                        e
+                    };
+
+                    if Self::is_connection_error(&enhanced_error) && attempt < max_retries {
                         tracing::warn!(
                             mcp_server = %self.name,
                             tool = %name,
                             attempt = attempt + 1,
-                            error = %e,
+                            error = %enhanced_error,
                             "Connection error, attempting reconnect"
                         );
 
@@ -317,16 +455,16 @@ impl McpClient {
                                 error = %reconnect_err,
                                 "Failed to reconnect"
                             );
-                            last_error = Some(e);
+                            last_error = Some(enhanced_error);
                             break;
                         }
 
                         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                        last_error = Some(e);
+                        last_error = Some(enhanced_error);
                         continue;
                     }
 
-                    return Err(e);
+                    return Err(enhanced_error);
                 }
             }
         }
@@ -728,5 +866,141 @@ mod tests {
         assert!(!client.is_mock);
         // No process was spawned, drop should be safe
         drop(client);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // VALIDATION TESTS (v0.5.1)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_with_validation_enables_validator() {
+        let config = McpConfig::new("test", "echo");
+        let client = McpClient::new(config)
+            .unwrap()
+            .with_validation(ValidationConfig::default());
+
+        // Should have validator
+        assert!(client.validator.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_mock_connect_populates_schema_cache_when_validation_enabled() {
+        let client = McpClient::mock("novanet").with_validation(ValidationConfig::default());
+
+        // Connect should populate cache
+        client.connect().await.unwrap();
+
+        // Cache should have mock tools
+        let validator = client.validator.as_ref().unwrap();
+        let stats = validator.cache().stats();
+        assert!(stats.tool_count > 0, "Should have cached tools");
+    }
+
+    #[tokio::test]
+    async fn test_call_tool_validates_missing_required_field() {
+        let client = McpClient::mock("novanet").with_validation(ValidationConfig::default());
+        client.connect().await.unwrap();
+
+        // novanet_generate requires "entity"
+        let result = client
+            .call_tool(
+                "novanet_generate",
+                serde_json::json!({
+                    "locale": "fr-FR"
+                    // Missing "entity"
+                }),
+            )
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, NikaError::McpValidationFailed { .. }));
+
+        if let NikaError::McpValidationFailed {
+            missing, details, ..
+        } = err
+        {
+            assert!(missing.contains(&"entity".to_string()));
+            assert!(details.contains("entity"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_call_tool_passes_validation_with_valid_params() {
+        let client = McpClient::mock("novanet").with_validation(ValidationConfig::default());
+        client.connect().await.unwrap();
+
+        // Valid params - has required "entity"
+        let result = client
+            .call_tool(
+                "novanet_generate",
+                serde_json::json!({
+                    "entity": "qr-code",
+                    "locale": "fr-FR"
+                }),
+            )
+            .await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_call_tool_skips_validation_when_disabled() {
+        let config = ValidationConfig {
+            pre_validate: false, // Disabled
+            ..Default::default()
+        };
+        let client = McpClient::mock("novanet").with_validation(config);
+        client.connect().await.unwrap();
+
+        // Missing required field, but validation is disabled
+        let result = client
+            .call_tool(
+                "novanet_generate",
+                serde_json::json!({
+                    "locale": "fr-FR"
+                    // Missing "entity" - but validation disabled
+                }),
+            )
+            .await;
+
+        // Should pass because validation is disabled
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_call_tool_without_validation_works() {
+        // Client without validation
+        let client = McpClient::mock("novanet");
+
+        // No connect needed for mock without validation
+        let result = client
+            .call_tool(
+                "novanet_generate",
+                serde_json::json!({
+                    // Missing "entity" but no validator
+                }),
+            )
+            .await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_validation_for_unknown_tool_passes() {
+        let client = McpClient::mock("novanet").with_validation(ValidationConfig::default());
+        client.connect().await.unwrap();
+
+        // Unknown tool - no schema cached, should pass through
+        let result = client
+            .call_tool(
+                "unknown_tool",
+                serde_json::json!({
+                    "anything": "goes"
+                }),
+            )
+            .await;
+
+        assert!(result.is_ok());
     }
 }

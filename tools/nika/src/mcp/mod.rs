@@ -1,4 +1,4 @@
-//! MCP Integration Module (v0.4)
+//! MCP Integration Module (v0.5.1)
 //!
 //! Provides MCP (Model Context Protocol) client capabilities for Nika workflows.
 //! Uses Anthropic's official rmcp SDK for real MCP connections.
@@ -9,6 +9,7 @@
 //! - [`rmcp_adapter`]: Thin wrapper around rmcp SDK (internal)
 //! - [`types`]: Core MCP types (McpConfig, ToolCallRequest, ToolCallResult, etc.)
 //! - [`protocol`]: JSON-RPC 2.0 types (utility, for testing/debugging)
+//! - [`validation`]: Parameter validation with schema caching (v0.5.1)
 //!
 //! ## Usage
 //!
@@ -76,6 +77,7 @@ pub mod client;
 pub mod protocol;
 pub mod rmcp_adapter;
 pub mod types;
+pub mod validation;
 
 // Re-export core types for convenience
 pub use client::McpClient;
@@ -83,4 +85,8 @@ pub use protocol::{JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcRes
 pub use rmcp_adapter::RmcpClientAdapter;
 pub use types::{
     ContentBlock, McpConfig, ResourceContent, ToolCallRequest, ToolCallResult, ToolDefinition,
+};
+pub use validation::{
+    CacheStats, CachedSchema, ErrorEnhancer, McpValidator, ToolSchemaCache, ValidationConfig,
+    ValidationError, ValidationErrorKind, ValidationResult,
 };

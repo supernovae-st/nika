@@ -6,8 +6,12 @@ use std::fs;
 use std::path::PathBuf;
 
 // Import from lib modules
-use nika::ast::Workflow;
+use nika::ast::schema_validator::WorkflowSchemaValidator;
+use nika::ast::{TaskAction, Workflow};
+use nika::dag::{validate_use_wiring, FlowGraph};
 use nika::error::{FixSuggestion, NikaError};
+use nika::mcp::validation::{McpValidator, ValidationConfig};
+use nika::mcp::{McpClient, McpConfig};
 use nika::runtime::Runner;
 use nika::Event;
 
@@ -40,6 +44,10 @@ enum Commands {
     Validate {
         /// Path to .nika.yaml file
         file: String,
+
+        /// Enable strict mode: connect to MCP servers and validate invoke params
+        #[arg(long)]
+        strict: bool,
     },
 
     /// Manage execution traces
@@ -48,11 +56,11 @@ enum Commands {
         action: TraceAction,
     },
 
-    /// Run workflow with interactive TUI
+    /// Run interactive TUI (standalone browser or workflow observer)
     #[cfg(feature = "tui")]
     Tui {
-        /// Path to workflow YAML file
-        workflow: PathBuf,
+        /// Path to workflow YAML file (optional: runs standalone browser if omitted)
+        workflow: Option<PathBuf>,
     },
 }
 
@@ -112,10 +120,19 @@ async fn main() {
             provider,
             model,
         } => run_workflow(&file, provider, model).await,
-        Commands::Validate { file } => validate_workflow(&file),
+        Commands::Validate { file, strict } => {
+            if strict {
+                validate_workflow_strict(&file).await
+            } else {
+                validate_workflow(&file)
+            }
+        }
         Commands::Trace { action } => handle_trace_command(action),
         #[cfg(feature = "tui")]
-        Commands::Tui { workflow } => nika::tui::run_tui(&workflow).await,
+        Commands::Tui { workflow } => match workflow {
+            Some(path) => nika::tui::run_tui(&path).await,
+            None => nika::tui::run_tui_standalone().await,
+        },
     };
 
     if let Err(e) = result {
@@ -134,9 +151,15 @@ async fn run_workflow(
 ) -> Result<(), NikaError> {
     // Read and parse (async to not block runtime)
     let yaml = tokio::fs::read_to_string(file).await?;
+
+    // Validate YAML against JSON Schema (catches structural errors early)
+    let validator = WorkflowSchemaValidator::new()?;
+    validator.validate_yaml(&yaml)?;
+
+    // Parse into Workflow struct (now we know structure is valid)
     let mut workflow: Workflow = serde_yaml::from_str(&yaml)?;
 
-    // Validate schema
+    // Validate schema version and task config
     workflow.validate_schema()?;
 
     // Apply CLI overrides
@@ -169,12 +192,171 @@ async fn run_workflow(
 
 fn validate_workflow(file: &str) -> Result<(), NikaError> {
     let yaml = fs::read_to_string(file)?;
+
+    // Validate YAML against JSON Schema (catches structural errors early)
+    let validator = WorkflowSchemaValidator::new()?;
+    validator.validate_yaml(&yaml)?;
+
+    // Parse into Workflow struct (now we know structure is valid)
     let workflow: Workflow = serde_yaml::from_str(&yaml)?;
 
-    // Validate schema
+    // Validate schema version and task config
     workflow.validate_schema()?;
 
+    // Build flow graph and validate use: bindings (NIKA-080, NIKA-081, NIKA-082)
+    let flow_graph = FlowGraph::from_workflow(&workflow);
+    validate_use_wiring(&workflow, &flow_graph)?;
+
     println!("{} Workflow '{}' is valid", "✓".green(), file);
+    println!("  Provider: {}", workflow.provider);
+    println!(
+        "  Model: {}",
+        workflow.model.as_deref().unwrap_or("(default)")
+    );
+    println!("  Tasks: {}", workflow.tasks.len());
+    println!("  Flows: {}", workflow.flows.len());
+
+    Ok(())
+}
+
+/// Validate a workflow with --strict mode (connects to MCP servers)
+async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
+    let yaml = tokio::fs::read_to_string(file).await?;
+
+    // Phase 1: JSON Schema validation
+    let schema_validator = WorkflowSchemaValidator::new()?;
+    schema_validator.validate_yaml(&yaml)?;
+
+    // Parse into Workflow struct
+    let workflow: Workflow = serde_yaml::from_str(&yaml)?;
+
+    // Validate schema version and task config
+    workflow.validate_schema()?;
+
+    // Phase 2: Binding validation
+    let flow_graph = FlowGraph::from_workflow(&workflow);
+    validate_use_wiring(&workflow, &flow_graph)?;
+
+    // Phase 3: MCP parameter validation (strict mode)
+    println!(
+        "{} Strict mode: validating invoke parameters...",
+        "→".cyan()
+    );
+
+    // Collect invoke tasks
+    let invoke_tasks: Vec<_> = workflow
+        .tasks
+        .iter()
+        .filter_map(|t| {
+            if let TaskAction::Invoke { invoke: ref params } = t.action {
+                Some((t.id.as_str(), params))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if invoke_tasks.is_empty() {
+        println!("  {} No invoke tasks to validate", "✓".green());
+    } else {
+        // Create validator
+        let mcp_validator = McpValidator::new(ValidationConfig::default());
+
+        // Collect unique MCP servers needed
+        let mcp_servers: std::collections::HashSet<&str> =
+            invoke_tasks.iter().map(|(_, p)| p.mcp.as_str()).collect();
+
+        // Get MCP configs (workflow.mcp is Option<FxHashMap<...>>)
+        let mcp_configs = workflow
+            .mcp
+            .as_ref()
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "Workflow has invoke tasks but no mcp: configuration".to_string(),
+            })?;
+
+        // Connect to each MCP server and list tools
+        for server_name in mcp_servers {
+            let Some(inline_config) = mcp_configs.get(server_name) else {
+                return Err(NikaError::McpNotConnected {
+                    name: server_name.to_string(),
+                });
+            };
+
+            println!(
+                "  {} Connecting to MCP server '{}'...",
+                "→".cyan(),
+                server_name
+            );
+
+            // Build McpConfig from McpConfigInline (add server name)
+            let mut config = McpConfig::new(server_name, &inline_config.command)
+                .with_args(inline_config.args.iter().cloned());
+            for (key, value) in &inline_config.env {
+                config = config.with_env(key, value);
+            }
+            if let Some(ref cwd) = inline_config.cwd {
+                config = config.with_cwd(cwd);
+            }
+
+            // Create client (sync) and connect (async)
+            let client = McpClient::new(config)?;
+            client.connect().await?;
+
+            // List tools
+            let tools = client.list_tools().await?;
+            println!("    {} Found {} tools", "✓".green(), tools.len());
+
+            // Populate validator cache
+            mcp_validator.cache().populate(server_name, &tools)?;
+        }
+
+        // Validate each invoke task
+        let mut all_valid = true;
+        for (task_id, params) in &invoke_tasks {
+            let tool_name = params.tool.as_deref().unwrap_or("(resource read)");
+
+            // Only validate tool calls, not resource reads
+            if let Some(ref tool) = params.tool {
+                let invoke_params = params.params.clone().unwrap_or_default();
+                let result = mcp_validator.validate(&params.mcp, tool, &invoke_params);
+
+                if result.is_valid {
+                    println!(
+                        "    {} Task '{}': {} parameters valid",
+                        "✓".green(),
+                        task_id,
+                        tool_name
+                    );
+                } else {
+                    all_valid = false;
+                    println!(
+                        "    {} Task '{}': {} validation errors",
+                        "✗".red(),
+                        task_id,
+                        result.errors.len()
+                    );
+                    for error in &result.errors {
+                        println!("      {} [{}] {}", "→".yellow(), error.path, error.message);
+                    }
+                }
+            } else {
+                println!(
+                    "    {} Task '{}': resource read (no params to validate)",
+                    "•".cyan(),
+                    task_id
+                );
+            }
+        }
+
+        if !all_valid {
+            return Err(NikaError::ValidationError {
+                reason: "Strict validation failed: invoke parameters don't match tool schemas"
+                    .to_string(),
+            });
+        }
+    }
+
+    println!("{} Workflow '{}' is valid (strict)", "✓".green(), file);
     println!("  Provider: {}", workflow.provider);
     println!(
         "  Model: {}",

@@ -177,7 +177,15 @@ tasks:
 # ═══════════════════════════════════════════════════════════════════════════
 flows:
   # setup → generate_all (explicit dependency in task)
+  - source: setup
+    target: generate_all
+
+  # generate_all → validate (use binding references generate_all results)
   - source: generate_all
+    target: validate
+
+  # setup → validate (use.base references setup output)
+  - source: setup
     target: validate
 
   # validate + generate_all → summary (dependencies in summary task)

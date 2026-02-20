@@ -6,28 +6,101 @@
 //! - `FetchParams`: HTTP request
 //! - `InvokeParams`: MCP tool call / resource read (v0.2)
 //! - `AgentParams`: Agentic execution with tool calling (v0.2)
+//!
+//! ## Shorthand Syntax (v0.5.1)
+//!
+//! `infer:` and `exec:` support shorthand string syntax:
+//! ```yaml
+//! # Shorthand
+//! infer: "Generate a headline"
+//! exec: "echo hello"
+//!
+//! # Full form (equivalent)
+//! infer:
+//!   prompt: "Generate a headline"
+//! exec:
+//!   command: "echo hello"
+//! ```
 
 use rustc_hash::FxHashMap;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 use crate::ast::{AgentParams, InvokeParams};
 
 /// Infer action - one-shot LLM call
-#[derive(Debug, Clone, Deserialize)]
+///
+/// Supports shorthand: `infer: "prompt"` or full form `infer: { prompt: "..." }`
+#[derive(Debug, Clone)]
 pub struct InferParams {
     pub prompt: String,
     /// Override provider for this task
-    #[serde(default)]
     pub provider: Option<String>,
     /// Override model for this task
-    #[serde(default)]
     pub model: Option<String>,
 }
 
+impl<'de> Deserialize<'de> for InferParams {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum InferParamsHelper {
+            Short(String),
+            Full {
+                prompt: String,
+                #[serde(default)]
+                provider: Option<String>,
+                #[serde(default)]
+                model: Option<String>,
+            },
+        }
+
+        match InferParamsHelper::deserialize(deserializer)? {
+            InferParamsHelper::Short(prompt) => Ok(InferParams {
+                prompt,
+                provider: None,
+                model: None,
+            }),
+            InferParamsHelper::Full {
+                prompt,
+                provider,
+                model,
+            } => Ok(InferParams {
+                prompt,
+                provider,
+                model,
+            }),
+        }
+    }
+}
+
 /// Exec action - shell command
-#[derive(Debug, Clone, Deserialize)]
+///
+/// Supports shorthand: `exec: "command"` or full form `exec: { command: "..." }`
+#[derive(Debug, Clone)]
 pub struct ExecParams {
     pub command: String,
+}
+
+impl<'de> Deserialize<'de> for ExecParams {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum ExecParamsHelper {
+            Short(String),
+            Full { command: String },
+        }
+
+        match ExecParamsHelper::deserialize(deserializer)? {
+            ExecParamsHelper::Short(command) => Ok(ExecParams { command }),
+            ExecParamsHelper::Full { command } => Ok(ExecParams { command }),
+        }
+    }
 }
 
 /// Fetch action - HTTP request

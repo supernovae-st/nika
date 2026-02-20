@@ -25,6 +25,7 @@ use crate::error::{NikaError, Result};
 use crate::event::{Event as NikaEvent, EventKind};
 
 use super::panels::{ContextPanel, GraphPanel, ProgressPanel, ReasoningPanel};
+use super::standalone::StandaloneState;
 use super::state::{PanelId, SettingsField, TuiMode, TuiState};
 use super::theme::Theme;
 use crate::config::mask_api_key;
@@ -80,12 +81,14 @@ pub enum Action {
 
 /// Main TUI application
 pub struct App {
-    /// Path to the workflow being observed
+    /// Path to the workflow being observed (None in standalone mode)
     workflow_path: std::path::PathBuf,
     /// Terminal backend (initialized on run)
     terminal: Option<Terminal<CrosstermBackend<Stdout>>>,
-    /// TUI state
+    /// TUI state (execution mode)
     state: TuiState,
+    /// Standalone state (file browser mode)
+    standalone_state: Option<StandaloneState>,
     /// Color theme
     theme: Theme,
     /// Event receiver from runtime (mpsc - legacy)
@@ -116,6 +119,26 @@ impl App {
             workflow_path: workflow_path.to_path_buf(),
             terminal: None,
             state,
+            standalone_state: None,
+            theme: Theme::novanet(),
+            event_rx: None,
+            broadcast_rx: None,
+            should_quit: false,
+            workflow_done: false,
+        })
+    }
+
+    /// Create a new TUI application in standalone mode (file browser)
+    pub fn new_standalone(standalone_state: StandaloneState) -> Result<Self> {
+        // Use a dummy workflow path for standalone mode
+        let workflow_path = standalone_state.root.clone();
+        let state = TuiState::new("Standalone Mode");
+
+        Ok(Self {
+            workflow_path,
+            terminal: None,
+            state,
+            standalone_state: Some(standalone_state),
             theme: Theme::novanet(),
             event_rx: None,
             broadcast_rx: None,
@@ -409,6 +432,148 @@ impl App {
 
         Ok(())
     }
+
+    /// Run the TUI in standalone mode (file browser + history)
+    pub async fn run_standalone(mut self) -> Result<()> {
+        // Initialize terminal
+        self.init_terminal()?;
+
+        let tick_rate = Duration::from_millis(FRAME_RATE_MS);
+
+        loop {
+            // Render standalone UI
+            if let Some(ref mut terminal) = self.terminal {
+                if let Some(ref standalone) = self.standalone_state {
+                    terminal
+                        .draw(|f| render_standalone_frame(f, standalone, &self.theme))
+                        .map_err(|e| NikaError::TuiError {
+                            reason: format!("Failed to draw frame: {}", e),
+                        })?;
+                }
+            }
+
+            // Handle input with timeout
+            if event::poll(tick_rate).map_err(|e| NikaError::TuiError {
+                reason: format!("Failed to poll events: {}", e),
+            })? {
+                if let Event::Key(key) = event::read().map_err(|e| NikaError::TuiError {
+                    reason: format!("Failed to read event: {}", e),
+                })? {
+                    let action = self.handle_standalone_input(key);
+                    match action {
+                        StandaloneAction::Quit => break,
+                        StandaloneAction::Run => {
+                            // Get selected workflow path (clone before cleanup)
+                            let workflow_path = self
+                                .standalone_state
+                                .as_ref()
+                                .and_then(|s| s.selected_workflow())
+                                .map(|p| p.to_path_buf());
+
+                            if let Some(path) = workflow_path {
+                                // Cleanup terminal before running workflow TUI
+                                self.cleanup()?;
+                                // Run the workflow TUI
+                                return crate::tui::run_tui(&path).await;
+                            }
+                        }
+                        StandaloneAction::Validate => {
+                            // Validate selected workflow
+                            if let Some(ref state) = self.standalone_state {
+                                if let Some(path) = state.selected_workflow() {
+                                    // TODO: Show validation result in preview panel
+                                    let _ = path; // silence unused warning for now
+                                }
+                            }
+                        }
+                        StandaloneAction::Continue => {}
+                    }
+                }
+            }
+        }
+
+        self.cleanup()
+    }
+
+    /// Handle input in standalone mode
+    fn handle_standalone_input(&mut self, key: event::KeyEvent) -> StandaloneAction {
+        use super::standalone::StandalonePanel;
+
+        if let Some(ref mut state) = self.standalone_state {
+            match key.code {
+                // Quit
+                KeyCode::Char('q') | KeyCode::Esc => StandaloneAction::Quit,
+
+                // Navigation
+                KeyCode::Up | KeyCode::Char('k') => {
+                    match state.focused_panel {
+                        StandalonePanel::Browser => state.browser_up(),
+                        StandalonePanel::History => state.history_up(),
+                        StandalonePanel::Preview => state.preview_up(),
+                    }
+                    StandaloneAction::Continue
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    match state.focused_panel {
+                        StandalonePanel::Browser => state.browser_down(),
+                        StandalonePanel::History => state.history_down(),
+                        StandalonePanel::Preview => state.preview_down(),
+                    }
+                    StandaloneAction::Continue
+                }
+
+                // Panel switching
+                KeyCode::Tab => {
+                    state.focused_panel = state.focused_panel.next();
+                    StandaloneAction::Continue
+                }
+                KeyCode::BackTab => {
+                    state.focused_panel = state.focused_panel.prev();
+                    StandaloneAction::Continue
+                }
+                KeyCode::Char('1') => {
+                    state.focused_panel = StandalonePanel::Browser;
+                    StandaloneAction::Continue
+                }
+                KeyCode::Char('2') => {
+                    state.focused_panel = StandalonePanel::History;
+                    StandaloneAction::Continue
+                }
+                KeyCode::Char('3') => {
+                    state.focused_panel = StandalonePanel::Preview;
+                    StandaloneAction::Continue
+                }
+
+                // Actions
+                KeyCode::Enter => StandaloneAction::Run,
+                KeyCode::Char('v') => StandaloneAction::Validate,
+                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    state.clear_history();
+                    StandaloneAction::Continue
+                }
+
+                // Refresh
+                KeyCode::Char('r') => {
+                    state.scan_workflows();
+                    state.update_preview();
+                    StandaloneAction::Continue
+                }
+
+                _ => StandaloneAction::Continue,
+            }
+        } else {
+            StandaloneAction::Quit
+        }
+    }
+}
+
+/// Action from standalone input handling
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum StandaloneAction {
+    Continue,
+    Quit,
+    Run,
+    Validate,
 }
 
 impl Drop for App {
@@ -727,6 +892,216 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// STANDALONE MODE RENDER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════
+
+use super::standalone::StandalonePanel;
+
+/// Render standalone mode frame (file browser + history + preview)
+fn render_standalone_frame(frame: &mut Frame, state: &StandaloneState, theme: &Theme) {
+    let size = frame.area();
+
+    // Layout: Top row (browser | history), bottom row (preview), status bar
+    let main_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage(45), // Browser + History
+            Constraint::Percentage(45), // Preview
+            Constraint::Length(3),      // Status bar
+        ])
+        .split(size);
+
+    let top_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(main_chunks[0]);
+
+    // Render panels
+    render_browser_panel(frame, state, theme, top_chunks[0]);
+    render_history_panel(frame, state, theme, top_chunks[1]);
+    render_preview_panel(frame, state, theme, main_chunks[1]);
+    render_status_bar(frame, state, theme, main_chunks[2]);
+}
+
+/// Render the workflow browser panel
+fn render_browser_panel(frame: &mut Frame, state: &StandaloneState, theme: &Theme, area: Rect) {
+    let focused = state.focused_panel == StandalonePanel::Browser;
+    let border_style = if focused {
+        Style::default().fg(theme.border_focused)
+    } else {
+        Style::default().fg(theme.border_normal)
+    };
+
+    let block = Block::default()
+        .title(format!(" [1] {} ", StandalonePanel::Browser.title()))
+        .borders(Borders::ALL)
+        .border_style(border_style);
+
+    let inner_area = block.inner(area);
+    frame.render_widget(block, area);
+
+    // Render file list
+    let entries = state.filtered_entries();
+    let items: Vec<ratatui::widgets::ListItem> = entries
+        .iter()
+        .enumerate()
+        .map(|(i, entry)| {
+            let prefix = if i == state.browser_index {
+                "▶ "
+            } else {
+                "  "
+            };
+            let indent = "  ".repeat(entry.depth);
+            let icon = if entry.is_dir { "📁 " } else { "📄 " };
+            let style = if i == state.browser_index {
+                Style::default()
+                    .fg(theme.border_focused)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.text_primary)
+            };
+            ratatui::widgets::ListItem::new(format!(
+                "{}{}{}{}",
+                prefix, indent, icon, entry.display_name
+            ))
+            .style(style)
+        })
+        .collect();
+
+    let list = ratatui::widgets::List::new(items);
+    frame.render_widget(list, inner_area);
+}
+
+/// Render the history panel
+fn render_history_panel(frame: &mut Frame, state: &StandaloneState, theme: &Theme, area: Rect) {
+    let focused = state.focused_panel == StandalonePanel::History;
+    let border_style = if focused {
+        Style::default().fg(theme.border_focused)
+    } else {
+        Style::default().fg(theme.border_normal)
+    };
+
+    let block = Block::default()
+        .title(format!(" [2] {} ", StandalonePanel::History.title()))
+        .borders(Borders::ALL)
+        .border_style(border_style);
+
+    let inner_area = block.inner(area);
+    frame.render_widget(block, area);
+
+    if state.history.is_empty() {
+        let empty_msg =
+            Paragraph::new("No execution history").style(Style::default().fg(theme.text_muted));
+        frame.render_widget(empty_msg, inner_area);
+        return;
+    }
+
+    // Render history entries (most recent first)
+    let items: Vec<ratatui::widgets::ListItem> = state
+        .history
+        .iter()
+        .rev()
+        .enumerate()
+        .map(|(i, entry)| {
+            let prefix = if i == state.history_index {
+                "▶ "
+            } else {
+                "  "
+            };
+            let status = if entry.success { "✓" } else { "✗" };
+            let name = entry
+                .workflow_path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let style = if i == state.history_index {
+                Style::default()
+                    .fg(theme.border_focused)
+                    .add_modifier(Modifier::BOLD)
+            } else if entry.success {
+                Style::default().fg(theme.status_success)
+            } else {
+                Style::default().fg(theme.status_failed)
+            };
+            ratatui::widgets::ListItem::new(format!(
+                "{}{} {} | {} | {} tasks",
+                prefix,
+                status,
+                name,
+                entry.duration_display(),
+                entry.task_count
+            ))
+            .style(style)
+        })
+        .collect();
+
+    let list = ratatui::widgets::List::new(items);
+    frame.render_widget(list, inner_area);
+}
+
+/// Render the preview panel
+fn render_preview_panel(frame: &mut Frame, state: &StandaloneState, theme: &Theme, area: Rect) {
+    let focused = state.focused_panel == StandalonePanel::Preview;
+    let border_style = if focused {
+        Style::default().fg(theme.border_focused)
+    } else {
+        Style::default().fg(theme.border_normal)
+    };
+
+    let title = if let Some(entry) = state.browser_entries.get(state.browser_index) {
+        format!(
+            " [3] {} - {} ",
+            StandalonePanel::Preview.title(),
+            entry.display_name
+        )
+    } else {
+        format!(" [3] {} ", StandalonePanel::Preview.title())
+    };
+
+    let block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .border_style(border_style);
+
+    let inner_area = block.inner(area);
+    frame.render_widget(block, area);
+
+    // Render YAML preview with scroll
+    let lines: Vec<&str> = state.preview_content.lines().collect();
+    let visible_lines = lines
+        .iter()
+        .skip(state.preview_scroll)
+        .take(inner_area.height as usize)
+        .cloned()
+        .collect::<Vec<&str>>()
+        .join("\n");
+
+    let preview = Paragraph::new(visible_lines).style(Style::default().fg(theme.text_primary));
+    frame.render_widget(preview, inner_area);
+}
+
+/// Render the status bar
+fn render_status_bar(frame: &mut Frame, state: &StandaloneState, theme: &Theme, area: Rect) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.border_normal));
+
+    let inner_area = block.inner(area);
+    frame.render_widget(block, area);
+
+    let file_count = state.browser_entries.len();
+    let history_count = state.history.len();
+
+    let status_text = format!(
+        " [q]Quit  [Enter]Run  [v]Validate  [Tab]Switch Panel  [r]Refresh │ {} files │ {} history entries ",
+        file_count, history_count
+    );
+
+    let status = Paragraph::new(status_text).style(Style::default().fg(theme.text_muted));
+    frame.render_widget(status, inner_area);
 }
 
 #[cfg(test)]

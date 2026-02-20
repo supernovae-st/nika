@@ -13,7 +13,8 @@
         "nika/workflow@0.1",
         "nika/workflow@0.2",
         "nika/workflow@0.3",
-        "nika/workflow@0.4"
+        "nika/workflow@0.4",
+        "nika/workflow@0.5"
       ],
       "description": "Workflow schema version"
     },
@@ -140,6 +141,10 @@
           "type": "boolean",
           "default": true,
           "description": "Stop all iterations on first error"
+        },
+        "decompose": {
+          "$ref": "#/$defs/DecomposeSpec",
+          "description": "Runtime DAG expansion via semantic traversal (v0.5+)"
         },
         "infer": {
           "$ref": "#/$defs/InferParams",
@@ -328,15 +333,76 @@
           "minimum": 1,
           "default": 4096,
           "description": "Token budget for extended thinking"
+        },
+        "depth_limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Max recursion depth for nested agents (v0.5+)"
+        }
+      }
+    },
+    "DecomposeSpec": {
+      "type": "object",
+      "required": ["strategy", "traverse", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": ["semantic", "static", "nested"],
+          "description": "Decomposition strategy"
+        },
+        "traverse": {
+          "type": "string",
+          "description": "Arc type to follow for semantic decomposition"
+        },
+        "source": {
+          "type": "string",
+          "description": "Starting node (binding expression)"
+        },
+        "max_items": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum items to generate"
         }
       }
     },
     "UseWiring": {
       "type": "object",
       "additionalProperties": {
-        "type": "string"
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Simple binding: task_id.field"
+          },
+          {
+            "$ref": "#/$defs/LazyBinding",
+            "description": "Lazy binding with deferred resolution (v0.5+)"
+          }
+        ]
       },
-      "description": "Map of alias -> task_id for data binding"
+      "description": "Map of alias -> task_id or lazy binding spec"
+    },
+    "LazyBinding": {
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Binding path (e.g., future_task.result)"
+        },
+        "lazy": {
+          "type": "boolean",
+          "default": false,
+          "description": "Defer resolution until first access"
+        },
+        "default": {
+          "type": "string",
+          "description": "Fallback value if binding fails"
+        }
+      }
     },
     "OutputPolicy": {
       "type": "object",

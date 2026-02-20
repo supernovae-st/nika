@@ -2,22 +2,36 @@
 //!
 //! Feature-gated TUI for workflow observability.
 //!
+//! # Two Modes
+//!
+//! 1. **Standalone Mode** (`nika tui` without args):
+//!    - File browser for `.nika.yaml` files
+//!    - Execution history
+//!    - YAML preview
+//!
+//! 2. **Execution Mode** (`nika tui workflow.yaml`):
+//!    - 4-panel workflow observer
+//!    - Real-time event streaming
+//!
 //! # Architecture
 //!
 //! ```text
-//! ┌─────────────────────────────────────────────────────────────────────┐
-//! │ [1] WORKFLOW PROGRESS                                               │
-//! ├─────────────────────────────┬───────────────────────────────────────┤
-//! │ [2] GRAPH TRAVERSAL         │ [3] CONTEXT ASSEMBLED                 │
-//! ├─────────────────────────────┴───────────────────────────────────────┤
-//! │ [4] AGENT REASONING                                                 │
-//! └─────────────────────────────────────────────────────────────────────┘
+//! STANDALONE MODE (Home)                    EXECUTION MODE (Run)
+//! ┌───────────────┬───────────────┐        ┌─────────────────────────────┐
+//! │ [1] BROWSER   │ [2] HISTORY   │        │ [1] MISSION CONTROL         │
+//! ├───────────────┴───────────────┤        ├──────────────┬──────────────┤
+//! │ [3] PREVIEW                   │        │ [2] DAG      │ [3] NOVANET  │
+//! └───────────────────────────────┘        ├──────────────┴──────────────┤
+//!                                          │ [4] AGENT REASONING         │
+//!                                          └─────────────────────────────┘
 //! ```
 
 #[cfg(feature = "tui")]
 mod app;
 #[cfg(feature = "tui")]
 mod panels;
+#[cfg(feature = "tui")]
+mod standalone;
 #[cfg(feature = "tui")]
 mod state;
 #[cfg(feature = "tui")]
@@ -27,6 +41,8 @@ mod widgets;
 
 #[cfg(feature = "tui")]
 pub use app::App;
+#[cfg(feature = "tui")]
+pub use standalone::{BrowserEntry, HistoryEntry, StandalonePanel, StandaloneState};
 #[cfg(feature = "tui")]
 pub use state::{AgentTurnState, PanelId, TuiMode, TuiState};
 #[cfg(feature = "tui")]
@@ -92,8 +108,49 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
     tui_result
 }
 
+/// Run the TUI in standalone mode (file browser + history)
+///
+/// This function:
+/// 1. Scans for .nika.yaml files in the project
+/// 2. Shows file browser, history, and preview
+/// 3. Allows user to select and run workflows
+#[cfg(feature = "tui")]
+pub async fn run_tui_standalone() -> crate::error::Result<()> {
+    // Find project root (look for Cargo.toml or .git)
+    let root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+    // Create standalone state
+    let state = StandaloneState::new(root);
+
+    // Create and run standalone app
+    let app = App::new_standalone(state)?;
+    app.run_standalone().await
+}
+
+/// Find project root by looking for Cargo.toml or .git
+#[cfg(feature = "tui")]
+fn find_project_root() -> Option<std::path::PathBuf> {
+    let mut current = std::env::current_dir().ok()?;
+
+    loop {
+        if current.join("Cargo.toml").exists() || current.join(".git").exists() {
+            return Some(current);
+        }
+        if !current.pop() {
+            return None;
+        }
+    }
+}
+
 #[cfg(not(feature = "tui"))]
 pub async fn run_tui(_workflow_path: &std::path::Path) -> crate::error::Result<()> {
+    Err(crate::error::NikaError::ValidationError {
+        reason: "TUI feature not enabled. Rebuild with --features tui".to_string(),
+    })
+}
+
+#[cfg(not(feature = "tui"))]
+pub async fn run_tui_standalone() -> crate::error::Result<()> {
     Err(crate::error::NikaError::ValidationError {
         reason: "TUI feature not enabled. Rebuild with --features tui".to_string(),
     })

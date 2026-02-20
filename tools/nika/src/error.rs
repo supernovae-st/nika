@@ -11,7 +11,7 @@
 //! - NIKA-070-079: Use block validation errors
 //! - NIKA-080-089: DAG validation errors
 //! - NIKA-090-099: JSONPath/IO errors
-//! - NIKA-100-109: MCP errors (v0.2)
+//! - NIKA-100-109: MCP errors (v0.2, v0.5.1: +validation)
 //! - NIKA-110-119: Agent errors (v0.2)
 //! - NIKA-120-129: Resilience errors (v0.2) [122-124 deprecated in v0.4]
 //! - NIKA-130-139: TUI errors (v0.2)
@@ -19,6 +19,25 @@
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, NikaError>;
+
+/// Format schema validation errors for display
+fn format_schema_errors(errors: &[crate::ast::schema_validator::SchemaError]) -> String {
+    if errors.is_empty() {
+        return "no errors".to_string();
+    }
+    if errors.len() == 1 {
+        return errors[0].message.clone();
+    }
+    format!(
+        "{} errors: {}",
+        errors.len(),
+        errors
+            .iter()
+            .map(|e| format!("[{}] {}", e.path, e.message))
+            .collect::<Vec<_>>()
+            .join("; ")
+    )
+}
 
 /// Trait for errors that provide fix suggestions
 pub trait FixSuggestion {
@@ -42,6 +61,11 @@ pub enum NikaError {
 
     #[error("[NIKA-004] Workflow validation failed: {reason}")]
     ValidationError { reason: String },
+
+    #[error("[NIKA-005] Schema validation failed: {}", format_schema_errors(.errors))]
+    SchemaValidationFailed {
+        errors: Vec<crate::ast::schema_validator::SchemaError>,
+    },
 
     // ═══════════════════════════════════════════
     // SCHEMA ERRORS (010-019) - v0.1 compat
@@ -227,6 +251,19 @@ pub enum NikaError {
     #[error("[NIKA-106] MCP tool '{tool}' returned invalid response: {reason}")]
     McpInvalidResponse { tool: String, reason: String },
 
+    #[error("[NIKA-107] MCP parameter validation failed for '{tool}': {details}")]
+    McpValidationFailed {
+        tool: String,
+        details: String,
+        /// Required fields that are missing
+        missing: Vec<String>,
+        /// Suggested corrections
+        suggestions: Vec<String>,
+    },
+
+    #[error("[NIKA-108] MCP schema error for '{tool}': {reason}")]
+    McpSchemaError { tool: String, reason: String },
+
     // ═══════════════════════════════════════════
     // AGENT ERRORS (110-119) - NEW v0.2
     // ═══════════════════════════════════════════
@@ -288,6 +325,7 @@ impl NikaError {
             Self::InvalidSchemaVersion { .. } => "NIKA-002",
             Self::WorkflowNotFound { .. } => "NIKA-003",
             Self::ValidationError { .. } => "NIKA-004",
+            Self::SchemaValidationFailed { .. } => "NIKA-005",
             // Schema errors
             Self::InvalidSchema { .. } => "NIKA-010",
             Self::TaskFailed { .. } => "NIKA-011",
@@ -341,6 +379,8 @@ impl NikaError {
             Self::McpProtocolError { .. } => "NIKA-104",
             Self::McpNotConfigured { .. } => "NIKA-105",
             Self::McpInvalidResponse { .. } => "NIKA-106",
+            Self::McpValidationFailed { .. } => "NIKA-107",
+            Self::McpSchemaError { .. } => "NIKA-108",
             // Agent errors
             Self::AgentMaxTurns { .. } => "NIKA-110",
             Self::AgentStopConditionFailed { .. } => "NIKA-111",
@@ -385,6 +425,9 @@ impl FixSuggestion for NikaError {
             }
             NikaError::WorkflowNotFound { .. } => Some("Check the file path exists"),
             NikaError::ValidationError { .. } => Some("Check workflow structure matches schema"),
+            NikaError::SchemaValidationFailed { .. } => {
+                Some("Check YAML against schemas/nika-workflow.schema.json")
+            }
             NikaError::YamlParse(_) => Some("Check YAML syntax: indentation and quoting"),
             NikaError::InvalidSchema { .. } => {
                 Some("Use 'nika/workflow@0.5' as the schema version")
@@ -463,6 +506,20 @@ impl FixSuggestion for NikaError {
             NikaError::McpInvalidResponse { .. } => {
                 Some("Check MCP server is returning valid JSON responses")
             }
+            NikaError::McpValidationFailed {
+                missing,
+                suggestions,
+                ..
+            } => {
+                if !missing.is_empty() {
+                    Some("Add the required fields to your params")
+                } else if !suggestions.is_empty() {
+                    Some("Check spelling of field names")
+                } else {
+                    Some("Review the tool's parameter schema")
+                }
+            }
+            NikaError::McpSchemaError { .. } => Some("Check MCP server's tool schema definitions"),
             // Binding errors (decompose)
             NikaError::BindingNotFound { .. } => {
                 Some("Verify the binding alias exists in use: block or task outputs")

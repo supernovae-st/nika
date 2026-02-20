@@ -88,7 +88,7 @@ pub use ast::{
 pub use runtime::{Runner, TaskExecutor};
 
 // DAG types
-pub use dag::FlowGraph;
+pub use dag::{validate_use_wiring, FlowGraph};
 
 // Binding types
 pub use binding::{validate_task_id, ResolvedBindings, UseEntry, WiringSpec};

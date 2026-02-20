@@ -63,9 +63,14 @@ impl RigProvider {
     }
 
     /// Get the default model for this provider
+    ///
+    /// Claude: claude-sonnet-4-20250514 (latest stable as of 2025-05)
+    /// OpenAI: gpt-4o (latest stable)
     pub fn default_model(&self) -> &'static str {
         match self {
-            RigProvider::Claude(_) => anthropic::completion::CLAUDE_3_5_SONNET,
+            // Note: rig-core's CLAUDE_3_5_SONNET constant is outdated
+            // Using explicit model name for stability
+            RigProvider::Claude(_) => "claude-sonnet-4-20250514",
             RigProvider::OpenAI(_) => openai::GPT_4O,
         }
     }
@@ -255,10 +260,9 @@ mod tests {
         std::env::set_var("ANTHROPIC_API_KEY", "test-key-for-unit-test");
         let provider = RigProvider::claude();
 
-        assert_eq!(
-            provider.default_model(),
-            anthropic::completion::CLAUDE_3_5_SONNET
-        );
+        // Using explicit model name instead of rig-core constant
+        // rig-core's CLAUDE_3_5_SONNET is outdated
+        assert_eq!(provider.default_model(), "claude-sonnet-4-20250514");
     }
 
     #[test]

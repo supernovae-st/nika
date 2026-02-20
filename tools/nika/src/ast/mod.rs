@@ -15,6 +15,7 @@ mod agent;
 pub mod decompose;
 mod invoke;
 mod output;
+pub mod schema_validator;
 mod workflow;
 
 // Re-export all public types
