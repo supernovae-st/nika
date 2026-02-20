@@ -130,6 +130,12 @@ pub enum ViewAction {
     SwitchView(TuiView),
     /// Run a workflow at the given path
     RunWorkflow(std::path::PathBuf),
+    /// Open a workflow in Studio for editing
+    OpenInStudio(std::path::PathBuf),
+    /// Send a message to the chat agent
+    SendChatMessage(String),
+    /// Toggle chat overlay
+    ToggleChatOverlay,
     /// Show an error message
     Error(String),
 }
@@ -200,5 +206,34 @@ mod tests {
         assert_eq!(TuiView::Home.icon(), "◆");
         assert_eq!(TuiView::Studio.icon(), "◆");
         assert_eq!(TuiView::Monitor.icon(), "◆");
+    }
+
+    #[test]
+    fn test_view_action_switch_to_all_views() {
+        let actions = [
+            ViewAction::SwitchView(TuiView::Chat),
+            ViewAction::SwitchView(TuiView::Home),
+            ViewAction::SwitchView(TuiView::Studio),
+            ViewAction::SwitchView(TuiView::Monitor),
+        ];
+        assert_eq!(actions.len(), 4);
+    }
+
+    #[test]
+    fn test_view_action_open_in_studio() {
+        let action = ViewAction::OpenInStudio(std::path::PathBuf::from("test.nika.yaml"));
+        match action {
+            ViewAction::OpenInStudio(path) => assert_eq!(path.to_str(), Some("test.nika.yaml")),
+            _ => panic!("Expected OpenInStudio"),
+        }
+    }
+
+    #[test]
+    fn test_view_action_send_chat_message() {
+        let action = ViewAction::SendChatMessage("Hello Nika".to_string());
+        match action {
+            ViewAction::SendChatMessage(msg) => assert_eq!(msg, "Hello Nika"),
+            _ => panic!("Expected SendChatMessage"),
+        }
     }
 }
