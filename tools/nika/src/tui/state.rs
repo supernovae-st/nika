@@ -110,6 +110,8 @@ pub enum TuiMode {
     Metrics,
     /// Settings overlay (API keys, provider config)
     Settings,
+    /// Chat overlay (contextual AI assistance)
+    ChatOverlay,
 }
 
 /// Workflow execution state
@@ -634,6 +636,215 @@ impl SettingsState {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// CHAT OVERLAY STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Message role in chat overlay conversation
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChatOverlayMessageRole {
+    /// User input
+    User,
+    /// Nika response
+    Nika,
+    /// System message (context, hints)
+    System,
+}
+
+/// A message in the chat overlay
+#[derive(Debug, Clone)]
+pub struct ChatOverlayMessage {
+    /// Who sent the message
+    pub role: ChatOverlayMessageRole,
+    /// Message content
+    pub content: String,
+}
+
+impl ChatOverlayMessage {
+    /// Create a new message
+    pub fn new(role: ChatOverlayMessageRole, content: impl Into<String>) -> Self {
+        Self {
+            role,
+            content: content.into(),
+        }
+    }
+}
+
+/// Chat overlay state - contextual AI assistance panel
+#[derive(Debug, Clone)]
+pub struct ChatOverlayState {
+    /// Conversation history
+    pub messages: Vec<ChatOverlayMessage>,
+    /// Current input buffer
+    pub input: String,
+    /// Cursor position in input buffer
+    pub cursor: usize,
+    /// Scroll offset in message list
+    pub scroll: usize,
+    /// Command history (for up/down navigation)
+    pub history: Vec<String>,
+    /// History navigation index (None = not navigating)
+    pub history_index: Option<usize>,
+}
+
+impl Default for ChatOverlayState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ChatOverlayState {
+    /// Create new chat overlay state with welcome message
+    pub fn new() -> Self {
+        Self {
+            messages: vec![ChatOverlayMessage::new(
+                ChatOverlayMessageRole::System,
+                "Chat overlay active. Ask for help with the current view.",
+            )],
+            input: String::new(),
+            cursor: 0,
+            scroll: 0,
+            history: Vec::new(),
+            history_index: None,
+        }
+    }
+
+    /// Insert a character at cursor position
+    pub fn insert_char(&mut self, c: char) {
+        self.input.insert(self.cursor, c);
+        self.cursor += 1;
+    }
+
+    /// Delete character before cursor (backspace)
+    pub fn backspace(&mut self) {
+        if self.cursor > 0 {
+            self.cursor -= 1;
+            self.input.remove(self.cursor);
+        }
+    }
+
+    /// Delete character at cursor
+    pub fn delete(&mut self) {
+        if self.cursor < self.input.len() {
+            self.input.remove(self.cursor);
+        }
+    }
+
+    /// Move cursor left
+    pub fn cursor_left(&mut self) {
+        if self.cursor > 0 {
+            self.cursor -= 1;
+        }
+    }
+
+    /// Move cursor right
+    pub fn cursor_right(&mut self) {
+        if self.cursor < self.input.len() {
+            self.cursor += 1;
+        }
+    }
+
+    /// Move cursor to start
+    pub fn cursor_home(&mut self) {
+        self.cursor = 0;
+    }
+
+    /// Move cursor to end
+    pub fn cursor_end(&mut self) {
+        self.cursor = self.input.len();
+    }
+
+    /// Add a user message and clear input
+    pub fn add_user_message(&mut self) -> Option<String> {
+        let trimmed = self.input.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        let message = self.input.clone();
+        self.messages.push(ChatOverlayMessage::new(
+            ChatOverlayMessageRole::User,
+            &message,
+        ));
+
+        // Add to history
+        self.history.push(message.clone());
+        self.history_index = None;
+
+        // Clear input
+        self.input.clear();
+        self.cursor = 0;
+
+        Some(message)
+    }
+
+    /// Add a Nika response message
+    pub fn add_nika_message(&mut self, content: impl Into<String>) {
+        self.messages.push(ChatOverlayMessage::new(
+            ChatOverlayMessageRole::Nika,
+            content,
+        ));
+    }
+
+    /// Navigate history up (previous message)
+    pub fn history_up(&mut self) {
+        if self.history.is_empty() {
+            return;
+        }
+
+        match self.history_index {
+            None => {
+                self.history_index = Some(self.history.len() - 1);
+            }
+            Some(i) if i > 0 => {
+                self.history_index = Some(i - 1);
+            }
+            _ => {}
+        }
+
+        if let Some(i) = self.history_index {
+            self.input = self.history[i].clone();
+            self.cursor = self.input.len();
+        }
+    }
+
+    /// Navigate history down (next message)
+    pub fn history_down(&mut self) {
+        match self.history_index {
+            Some(i) if i < self.history.len() - 1 => {
+                self.history_index = Some(i + 1);
+                self.input = self.history[i + 1].clone();
+                self.cursor = self.input.len();
+            }
+            Some(_) => {
+                self.history_index = None;
+                self.input.clear();
+                self.cursor = 0;
+            }
+            None => {}
+        }
+    }
+
+    /// Clear all messages except welcome
+    pub fn clear(&mut self) {
+        self.messages = vec![ChatOverlayMessage::new(
+            ChatOverlayMessageRole::System,
+            "Chat cleared.",
+        )];
+        self.scroll = 0;
+    }
+
+    /// Scroll up in message history
+    pub fn scroll_up(&mut self) {
+        self.scroll = self.scroll.saturating_add(1);
+    }
+
+    /// Scroll down in message history
+    pub fn scroll_down(&mut self) {
+        self.scroll = self.scroll.saturating_sub(1);
+    }
+}
+
 /// Main TUI state
 #[derive(Debug, Clone)]
 pub struct TuiState {
@@ -688,6 +899,8 @@ pub struct TuiState {
     pub scroll: HashMap<PanelId, usize>,
     /// Settings overlay state
     pub settings: SettingsState,
+    /// Chat overlay state (contextual AI assistance)
+    pub chat_overlay: ChatOverlayState,
     /// Theme mode: dark or light (TIER 2.4)
     pub theme_mode: ThemeMode,
 
@@ -901,6 +1114,7 @@ impl TuiState {
             mode: TuiMode::Normal,
             scroll: HashMap::new(),
             settings: SettingsState::new(config),
+            chat_overlay: ChatOverlayState::new(),
             theme_mode: ThemeMode::default(),
             mission_tab: MissionTab::default(),
             dag_tab: DagTab::default(),
@@ -3626,5 +3840,247 @@ mod tests {
         );
 
         assert_eq!(state.json_cache.stats().0, 1); // call-456 remains
+    }
+
+    // ═══════════════════════════════════════════
+    // CHAT OVERLAY STATE TESTS
+    // ═══════════════════════════════════════════
+
+    #[test]
+    fn test_chat_overlay_state_new() {
+        let state = ChatOverlayState::new();
+        assert_eq!(state.messages.len(), 1);
+        assert_eq!(state.messages[0].role, ChatOverlayMessageRole::System);
+        assert!(state.input.is_empty());
+        assert_eq!(state.cursor, 0);
+        assert_eq!(state.scroll, 0);
+        assert!(state.history.is_empty());
+        assert!(state.history_index.is_none());
+    }
+
+    #[test]
+    fn test_chat_overlay_insert_char() {
+        let mut state = ChatOverlayState::new();
+        state.insert_char('h');
+        state.insert_char('i');
+        assert_eq!(state.input, "hi");
+        assert_eq!(state.cursor, 2);
+    }
+
+    #[test]
+    fn test_chat_overlay_backspace() {
+        let mut state = ChatOverlayState::new();
+        state.input = "hello".to_string();
+        state.cursor = 5;
+
+        state.backspace();
+        assert_eq!(state.input, "hell");
+        assert_eq!(state.cursor, 4);
+
+        // Backspace at start does nothing
+        state.cursor = 0;
+        state.backspace();
+        assert_eq!(state.input, "hell");
+        assert_eq!(state.cursor, 0);
+    }
+
+    #[test]
+    fn test_chat_overlay_delete() {
+        let mut state = ChatOverlayState::new();
+        state.input = "hello".to_string();
+        state.cursor = 0;
+
+        state.delete();
+        assert_eq!(state.input, "ello");
+        assert_eq!(state.cursor, 0);
+
+        // Delete at end does nothing
+        state.cursor = 4;
+        state.delete();
+        assert_eq!(state.input, "ello");
+    }
+
+    #[test]
+    fn test_chat_overlay_cursor_movement() {
+        let mut state = ChatOverlayState::new();
+        state.input = "hello".to_string();
+        state.cursor = 3;
+
+        state.cursor_left();
+        assert_eq!(state.cursor, 2);
+
+        state.cursor_right();
+        assert_eq!(state.cursor, 3);
+
+        state.cursor_home();
+        assert_eq!(state.cursor, 0);
+
+        state.cursor_end();
+        assert_eq!(state.cursor, 5);
+
+        // Boundary checks
+        state.cursor_home();
+        state.cursor_left();
+        assert_eq!(state.cursor, 0);
+
+        state.cursor_end();
+        state.cursor_right();
+        assert_eq!(state.cursor, 5);
+    }
+
+    #[test]
+    fn test_chat_overlay_add_user_message() {
+        let mut state = ChatOverlayState::new();
+        state.input = "hello Nika".to_string();
+        state.cursor = 10;
+
+        let result = state.add_user_message();
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), "hello Nika");
+
+        // Input should be cleared
+        assert!(state.input.is_empty());
+        assert_eq!(state.cursor, 0);
+
+        // Message should be added
+        assert_eq!(state.messages.len(), 2);
+        assert_eq!(state.messages[1].role, ChatOverlayMessageRole::User);
+        assert_eq!(state.messages[1].content, "hello Nika");
+
+        // History should be updated
+        assert_eq!(state.history.len(), 1);
+        assert_eq!(state.history[0], "hello Nika");
+    }
+
+    #[test]
+    fn test_chat_overlay_add_user_message_empty_returns_none() {
+        let mut state = ChatOverlayState::new();
+        state.input = "   ".to_string(); // Just whitespace
+
+        let result = state.add_user_message();
+        assert!(result.is_none());
+        assert_eq!(state.messages.len(), 1); // No new message added
+    }
+
+    #[test]
+    fn test_chat_overlay_add_nika_message() {
+        let mut state = ChatOverlayState::new();
+        state.add_nika_message("Hello there!");
+
+        assert_eq!(state.messages.len(), 2);
+        assert_eq!(state.messages[1].role, ChatOverlayMessageRole::Nika);
+        assert_eq!(state.messages[1].content, "Hello there!");
+    }
+
+    #[test]
+    fn test_chat_overlay_history_navigation() {
+        let mut state = ChatOverlayState::new();
+
+        // Add some history
+        state.history = vec![
+            "first message".to_string(),
+            "second message".to_string(),
+            "third message".to_string(),
+        ];
+
+        // Navigate up through history
+        state.history_up();
+        assert_eq!(state.history_index, Some(2));
+        assert_eq!(state.input, "third message");
+
+        state.history_up();
+        assert_eq!(state.history_index, Some(1));
+        assert_eq!(state.input, "second message");
+
+        state.history_up();
+        assert_eq!(state.history_index, Some(0));
+        assert_eq!(state.input, "first message");
+
+        // At oldest, doesn't go further
+        state.history_up();
+        assert_eq!(state.history_index, Some(0));
+
+        // Navigate down
+        state.history_down();
+        assert_eq!(state.history_index, Some(1));
+        assert_eq!(state.input, "second message");
+
+        state.history_down();
+        assert_eq!(state.history_index, Some(2));
+        assert_eq!(state.input, "third message");
+
+        // Past newest clears input
+        state.history_down();
+        assert!(state.history_index.is_none());
+        assert!(state.input.is_empty());
+    }
+
+    #[test]
+    fn test_chat_overlay_history_up_empty() {
+        let mut state = ChatOverlayState::new();
+        // No history
+        state.history_up();
+        assert!(state.history_index.is_none());
+        assert!(state.input.is_empty());
+    }
+
+    #[test]
+    fn test_chat_overlay_clear() {
+        let mut state = ChatOverlayState::new();
+        state.add_nika_message("Message 1");
+        state.add_nika_message("Message 2");
+        state.scroll = 5;
+
+        state.clear();
+
+        assert_eq!(state.messages.len(), 1);
+        assert_eq!(state.messages[0].role, ChatOverlayMessageRole::System);
+        assert!(state.messages[0].content.contains("cleared"));
+        assert_eq!(state.scroll, 0);
+    }
+
+    #[test]
+    fn test_chat_overlay_scroll() {
+        let mut state = ChatOverlayState::new();
+        assert_eq!(state.scroll, 0);
+
+        state.scroll_up();
+        assert_eq!(state.scroll, 1);
+
+        state.scroll_up();
+        assert_eq!(state.scroll, 2);
+
+        state.scroll_down();
+        assert_eq!(state.scroll, 1);
+
+        state.scroll_down();
+        assert_eq!(state.scroll, 0);
+
+        // Can't go below 0
+        state.scroll_down();
+        assert_eq!(state.scroll, 0);
+    }
+
+    #[test]
+    fn test_tui_mode_chat_overlay_variant() {
+        let mode = TuiMode::ChatOverlay;
+        assert_eq!(mode, TuiMode::ChatOverlay);
+        assert_ne!(mode, TuiMode::Normal);
+        assert_ne!(mode, TuiMode::Settings);
+    }
+
+    #[test]
+    fn test_tui_state_has_chat_overlay() {
+        let state = TuiState::new("test.yaml");
+        // Chat overlay should be initialized with welcome message
+        assert_eq!(state.chat_overlay.messages.len(), 1);
+        assert!(state.chat_overlay.input.is_empty());
+    }
+
+    #[test]
+    fn test_chat_overlay_message_new() {
+        let msg = ChatOverlayMessage::new(ChatOverlayMessageRole::User, "test message");
+        assert_eq!(msg.role, ChatOverlayMessageRole::User);
+        assert_eq!(msg.content, "test message");
     }
 }

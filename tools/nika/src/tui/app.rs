@@ -134,6 +134,29 @@ pub enum Action {
     NextView,
     /// Switch to previous view (Shift+Tab)
     PrevView,
+    // ═══ Chat Overlay Actions ═══
+    /// Insert character in chat overlay input
+    ChatOverlayInput(char),
+    /// Backspace in chat overlay input
+    ChatOverlayBackspace,
+    /// Delete character in chat overlay input
+    ChatOverlayDelete,
+    /// Move cursor left in chat overlay
+    ChatOverlayCursorLeft,
+    /// Move cursor right in chat overlay
+    ChatOverlayCursorRight,
+    /// Navigate history up in chat overlay
+    ChatOverlayHistoryUp,
+    /// Navigate history down in chat overlay
+    ChatOverlayHistoryDown,
+    /// Send message in chat overlay
+    ChatOverlaySend,
+    /// Clear chat overlay messages
+    ChatOverlayClear,
+    /// Scroll up in chat overlay
+    ChatOverlayScrollUp,
+    /// Scroll down in chat overlay
+    ChatOverlayScrollDown,
 }
 
 /// Main TUI application
@@ -600,6 +623,9 @@ impl App {
             TuiMode::Search => {
                 return self.handle_search_key(code, modifiers);
             }
+            TuiMode::ChatOverlay => {
+                return self.handle_chat_overlay_key(code, modifiers);
+            }
             _ => {}
         }
 
@@ -705,8 +731,12 @@ impl App {
                 Action::Continue
             }
             ViewAction::ToggleChatOverlay => {
-                // TODO: Implement chat overlay
-                Action::Continue
+                // Toggle chat overlay mode
+                if self.state.mode == TuiMode::ChatOverlay {
+                    Action::SetMode(TuiMode::Normal)
+                } else {
+                    Action::SetMode(TuiMode::ChatOverlay)
+                }
             }
             ViewAction::Error(msg) => {
                 tracing::error!("View error: {}", msg);
@@ -740,6 +770,9 @@ impl App {
             }
             TuiMode::Search => {
                 return self.handle_search_key(code, modifiers);
+            }
+            TuiMode::ChatOverlay => {
+                return self.handle_chat_overlay_key(code, modifiers);
             }
             _ => {}
         }
@@ -778,7 +811,8 @@ impl App {
             KeyCode::Char('/') => Action::EnterFilter, // TIER 1.5: Filter mode
 
             // Quick actions (TIER 1)
-            KeyCode::Char('c') => Action::CopyToClipboard,
+            KeyCode::Char('c') => Action::SetMode(TuiMode::ChatOverlay), // Toggle chat overlay
+            KeyCode::Char('C') => Action::CopyToClipboard,               // Copy (Shift+C)
             KeyCode::Char('r') => Action::RetryWorkflow,
             KeyCode::Char('e') => Action::ExportTrace,
             KeyCode::Char('b') => Action::ToggleBreakpoint, // TIER 2.3: Breakpoints
@@ -844,6 +878,34 @@ impl App {
             KeyCode::Char('u') if _modifiers.contains(KeyModifiers::CONTROL) => Action::FilterClear,
             // Character input
             KeyCode::Char(c) => Action::FilterInput(c),
+            _ => Action::Continue,
+        }
+    }
+
+    /// Handle keyboard input in Chat Overlay mode
+    fn handle_chat_overlay_key(&self, code: KeyCode, modifiers: KeyModifiers) -> Action {
+        match code {
+            // Exit chat overlay
+            KeyCode::Esc => Action::SetMode(TuiMode::Normal),
+            // Send message
+            KeyCode::Enter => Action::ChatOverlaySend,
+            // Text editing
+            KeyCode::Backspace => Action::ChatOverlayBackspace,
+            KeyCode::Delete => Action::ChatOverlayDelete,
+            KeyCode::Left => Action::ChatOverlayCursorLeft,
+            KeyCode::Right => Action::ChatOverlayCursorRight,
+            // History navigation
+            KeyCode::Up => Action::ChatOverlayHistoryUp,
+            KeyCode::Down => Action::ChatOverlayHistoryDown,
+            // Scroll message history
+            KeyCode::PageUp => Action::ChatOverlayScrollUp,
+            KeyCode::PageDown => Action::ChatOverlayScrollDown,
+            // Clear chat (Ctrl+L)
+            KeyCode::Char('l') if modifiers.contains(KeyModifiers::CONTROL) => {
+                Action::ChatOverlayClear
+            }
+            // Character input
+            KeyCode::Char(c) => Action::ChatOverlayInput(c),
             _ => Action::Continue,
         }
     }
@@ -1026,6 +1088,46 @@ impl App {
             }
             Action::PrevView => {
                 self.current_view = self.current_view.prev();
+            }
+            // Chat overlay actions
+            Action::ChatOverlayInput(c) => {
+                self.state.chat_overlay.insert_char(c);
+            }
+            Action::ChatOverlayBackspace => {
+                self.state.chat_overlay.backspace();
+            }
+            Action::ChatOverlayDelete => {
+                self.state.chat_overlay.delete();
+            }
+            Action::ChatOverlayCursorLeft => {
+                self.state.chat_overlay.cursor_left();
+            }
+            Action::ChatOverlayCursorRight => {
+                self.state.chat_overlay.cursor_right();
+            }
+            Action::ChatOverlayHistoryUp => {
+                self.state.chat_overlay.history_up();
+            }
+            Action::ChatOverlayHistoryDown => {
+                self.state.chat_overlay.history_down();
+            }
+            Action::ChatOverlaySend => {
+                if let Some(message) = self.state.chat_overlay.add_user_message() {
+                    // For now, add a placeholder response
+                    // TODO: Integrate with actual agent when ready
+                    self.state
+                        .chat_overlay
+                        .add_nika_message(format!("Received: {}", message));
+                }
+            }
+            Action::ChatOverlayClear => {
+                self.state.chat_overlay.clear();
+            }
+            Action::ChatOverlayScrollUp => {
+                self.state.chat_overlay.scroll_up();
+            }
+            Action::ChatOverlayScrollDown => {
+                self.state.chat_overlay.scroll_down();
             }
             Action::Continue => {}
         }
@@ -1433,6 +1535,7 @@ fn render_frame(frame: &mut Frame, state: &TuiState, theme: &Theme) {
         TuiMode::Metrics => render_metrics_overlay(frame, state, theme, size),
         TuiMode::Settings => render_settings_overlay(frame, state, theme, size),
         TuiMode::Search => render_search_bar(frame, state, theme, size),
+        TuiMode::ChatOverlay => render_chat_overlay(frame, state, theme, size),
         _ => {
             // Show filter indicator if filter is active (not in Search mode)
             if state.has_filter() {
@@ -1783,6 +1886,148 @@ fn render_filter_indicator(frame: &mut Frame, state: &TuiState, _theme: &Theme, 
 
     let paragraph = Paragraph::new(indicator);
     frame.render_widget(paragraph, indicator_area);
+}
+
+/// Render chat overlay as a right-side panel (40% width)
+fn render_chat_overlay(frame: &mut Frame, state: &TuiState, theme: &Theme, area: Rect) {
+    use ratatui::style::Color;
+    use ratatui::text::{Line, Span};
+
+    let chat = &state.chat_overlay;
+
+    // Calculate overlay area (right 40% of screen)
+    let overlay_width = (area.width * 40) / 100;
+    let overlay = Rect {
+        x: area.width.saturating_sub(overlay_width),
+        y: 0,
+        width: overlay_width,
+        height: area.height,
+    };
+
+    // Clear the overlay area with background
+    let clear = Block::default().style(Style::default().bg(theme.background));
+    frame.render_widget(clear, overlay);
+
+    // Split into messages area and input area
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(5),    // Messages
+            Constraint::Length(3), // Input
+            Constraint::Length(2), // Keybindings
+        ])
+        .split(overlay);
+
+    // Render messages
+    let mut message_lines: Vec<Line> = Vec::new();
+    for msg in &chat.messages {
+        let (prefix, style) = match msg.role {
+            crate::tui::state::ChatOverlayMessageRole::User => (
+                "You",
+                Style::default()
+                    .fg(theme.highlight)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            crate::tui::state::ChatOverlayMessageRole::Nika => (
+                "Nika",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            crate::tui::state::ChatOverlayMessageRole::System => {
+                ("System", Style::default().fg(Color::DarkGray))
+            }
+        };
+
+        message_lines.push(Line::from(vec![
+            Span::styled(format!("─ {} ", prefix), style),
+            Span::styled("─".repeat(20), Style::default().fg(Color::DarkGray)),
+        ]));
+
+        // Word-wrap message content to fit width
+        let max_width = overlay_width.saturating_sub(4) as usize;
+        for line in msg.content.lines() {
+            // Simple word wrap
+            let mut current_line = String::new();
+            for word in line.split_whitespace() {
+                if current_line.len() + word.len() + 1 > max_width {
+                    if !current_line.is_empty() {
+                        message_lines.push(Line::from(format!("  {}", current_line)));
+                    }
+                    current_line = word.to_string();
+                } else {
+                    if !current_line.is_empty() {
+                        current_line.push(' ');
+                    }
+                    current_line.push_str(word);
+                }
+            }
+            if !current_line.is_empty() {
+                message_lines.push(Line::from(format!("  {}", current_line)));
+            } else if line.is_empty() {
+                message_lines.push(Line::from(""));
+            }
+        }
+        message_lines.push(Line::from("")); // Spacing between messages
+    }
+
+    let messages_block = Block::default()
+        .borders(Borders::ALL)
+        .title(" 💬 Chat ")
+        .border_style(Style::default().fg(theme.border_focused));
+
+    let messages_paragraph = Paragraph::new(message_lines)
+        .block(messages_block)
+        .scroll((chat.scroll as u16, 0));
+
+    frame.render_widget(messages_paragraph, chunks[0]);
+
+    // Render input with cursor
+    let input = &chat.input;
+    let cursor = chat.cursor;
+
+    let (before, cursor_char, after) = if input.is_empty() {
+        ("", ' ', "")
+    } else {
+        let before = &input[..cursor.min(input.len())];
+        let cursor_char = input.chars().nth(cursor).unwrap_or(' ');
+        let after = if cursor < input.len() {
+            &input[cursor + 1..]
+        } else {
+            ""
+        };
+        (before, cursor_char, after)
+    };
+
+    let input_line = Line::from(vec![
+        Span::styled(" > ", Style::default().fg(theme.highlight)),
+        Span::raw(before),
+        Span::styled(
+            cursor_char.to_string(),
+            Style::default().bg(theme.highlight).fg(Color::Black),
+        ),
+        Span::raw(after),
+    ]);
+
+    let input_block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.border_normal));
+
+    let input_paragraph = Paragraph::new(input_line).block(input_block);
+    frame.render_widget(input_paragraph, chunks[1]);
+
+    // Render keybindings
+    let keybindings = Line::from(vec![
+        Span::styled("[Enter]", Style::default().fg(theme.highlight)),
+        Span::styled(" Send  ", Style::default().fg(Color::DarkGray)),
+        Span::styled("[Up/Dn]", Style::default().fg(theme.highlight)),
+        Span::styled(" History  ", Style::default().fg(Color::DarkGray)),
+        Span::styled("[Esc]", Style::default().fg(theme.highlight)),
+        Span::styled(" Close", Style::default().fg(Color::DarkGray)),
+    ]);
+
+    let hint_paragraph = Paragraph::new(keybindings).alignment(ratatui::layout::Alignment::Center);
+    frame.render_widget(hint_paragraph, chunks[2]);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2314,5 +2559,217 @@ mod tests {
 
         // Should have added a response message
         assert_eq!(app.chat_view.messages.len(), initial_count + 1);
+    }
+
+    // ═══════════════════════════════════════════
+    // CHAT OVERLAY TESTS
+    // ═══════════════════════════════════════════
+
+    #[test]
+    fn test_chat_overlay_toggle() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Start in Normal mode
+        assert_eq!(app.state.mode, TuiMode::Normal);
+
+        // Toggle to ChatOverlay
+        let action = app.convert_view_action(ViewAction::ToggleChatOverlay);
+        assert_eq!(action, Action::SetMode(TuiMode::ChatOverlay));
+
+        // Apply the action
+        app.state.mode = TuiMode::ChatOverlay;
+
+        // Toggle back to Normal
+        let action = app.convert_view_action(ViewAction::ToggleChatOverlay);
+        assert_eq!(action, Action::SetMode(TuiMode::Normal));
+    }
+
+    #[test]
+    fn test_chat_overlay_input_action() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Apply input action
+        app.apply_action(Action::ChatOverlayInput('h'));
+        app.apply_action(Action::ChatOverlayInput('i'));
+
+        assert_eq!(app.state.chat_overlay.input, "hi");
+        assert_eq!(app.state.chat_overlay.cursor, 2);
+    }
+
+    #[test]
+    fn test_chat_overlay_backspace_action() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Set up initial state
+        app.state.chat_overlay.input = "hello".to_string();
+        app.state.chat_overlay.cursor = 5;
+
+        // Apply backspace action
+        app.apply_action(Action::ChatOverlayBackspace);
+
+        assert_eq!(app.state.chat_overlay.input, "hell");
+        assert_eq!(app.state.chat_overlay.cursor, 4);
+    }
+
+    #[test]
+    fn test_chat_overlay_send_action() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Set up message
+        app.state.chat_overlay.input = "test message".to_string();
+        app.state.chat_overlay.cursor = 12;
+
+        let initial_count = app.state.chat_overlay.messages.len();
+
+        // Apply send action
+        app.apply_action(Action::ChatOverlaySend);
+
+        // Input should be cleared
+        assert!(app.state.chat_overlay.input.is_empty());
+
+        // Should have 2 new messages: user message and Nika response
+        assert_eq!(app.state.chat_overlay.messages.len(), initial_count + 2);
+    }
+
+    #[test]
+    fn test_chat_overlay_clear_action() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Add some messages
+        app.state.chat_overlay.add_nika_message("Message 1");
+        app.state.chat_overlay.add_nika_message("Message 2");
+
+        // Apply clear action
+        app.apply_action(Action::ChatOverlayClear);
+
+        // Should only have 1 system message
+        assert_eq!(app.state.chat_overlay.messages.len(), 1);
+    }
+
+    #[test]
+    fn test_chat_overlay_history_actions() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Add history
+        app.state.chat_overlay.history = vec!["first".to_string(), "second".to_string()];
+
+        // Navigate up
+        app.apply_action(Action::ChatOverlayHistoryUp);
+        assert_eq!(app.state.chat_overlay.input, "second");
+
+        app.apply_action(Action::ChatOverlayHistoryUp);
+        assert_eq!(app.state.chat_overlay.input, "first");
+
+        // Navigate down
+        app.apply_action(Action::ChatOverlayHistoryDown);
+        assert_eq!(app.state.chat_overlay.input, "second");
+    }
+
+    #[test]
+    fn test_chat_overlay_scroll_actions() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        assert_eq!(app.state.chat_overlay.scroll, 0);
+
+        app.apply_action(Action::ChatOverlayScrollUp);
+        assert_eq!(app.state.chat_overlay.scroll, 1);
+
+        app.apply_action(Action::ChatOverlayScrollDown);
+        assert_eq!(app.state.chat_overlay.scroll, 0);
+    }
+
+    #[test]
+    fn test_chat_overlay_cursor_actions() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        app.state.chat_overlay.input = "hello".to_string();
+        app.state.chat_overlay.cursor = 3;
+
+        app.apply_action(Action::ChatOverlayCursorLeft);
+        assert_eq!(app.state.chat_overlay.cursor, 2);
+
+        app.apply_action(Action::ChatOverlayCursorRight);
+        assert_eq!(app.state.chat_overlay.cursor, 3);
+    }
+
+    #[test]
+    fn test_handle_chat_overlay_key_escape_returns_normal() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let app = App::new(&workflow_path).unwrap();
+
+        let action = app.handle_chat_overlay_key(KeyCode::Esc, KeyModifiers::empty());
+        assert_eq!(action, Action::SetMode(TuiMode::Normal));
+    }
+
+    #[test]
+    fn test_handle_chat_overlay_key_enter_sends_message() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let app = App::new(&workflow_path).unwrap();
+
+        let action = app.handle_chat_overlay_key(KeyCode::Enter, KeyModifiers::empty());
+        assert_eq!(action, Action::ChatOverlaySend);
+    }
+
+    #[test]
+    fn test_handle_chat_overlay_key_char_input() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let app = App::new(&workflow_path).unwrap();
+
+        let action = app.handle_chat_overlay_key(KeyCode::Char('x'), KeyModifiers::empty());
+        assert_eq!(action, Action::ChatOverlayInput('x'));
+    }
+
+    #[test]
+    fn test_handle_key_c_opens_chat_overlay() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let app = App::new(&workflow_path).unwrap();
+
+        // In Monitor mode, 'c' should open chat overlay
+        let action = app.handle_key(KeyCode::Char('c'), KeyModifiers::empty());
+        assert_eq!(action, Action::SetMode(TuiMode::ChatOverlay));
+    }
+
+    #[test]
+    fn test_handle_key_shift_c_copies_to_clipboard() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let app = App::new(&workflow_path).unwrap();
+
+        // In Monitor mode, 'C' (Shift+c) should copy to clipboard
+        let action = app.handle_key(KeyCode::Char('C'), KeyModifiers::empty());
+        assert_eq!(action, Action::CopyToClipboard);
     }
 }
