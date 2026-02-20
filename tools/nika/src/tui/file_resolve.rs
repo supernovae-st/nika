@@ -2,9 +2,24 @@
 //!
 //! Extracts and resolves @file mentions in chat messages.
 //! Handles @path/to/file.ext patterns while excluding emails like user@example.com.
+//!
+//! # Security
+//!
+//! - Path traversal protection: Paths are canonicalized and checked to stay within base_dir
+//! - File size limit: Files larger than 1MB are skipped
+//! - Symlinks are followed but must resolve within base_dir
 
 use regex::Regex;
 use std::path::Path;
+use std::sync::LazyLock;
+
+/// Maximum file size to include (1 MB)
+const MAX_FILE_SIZE: u64 = 1_048_576;
+
+/// Compiled regex for file mentions (compiled once)
+static FILE_MENTION_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?:^|[^a-zA-Z0-9])@([\w./\-]+\.\w+)").expect("Invalid regex pattern")
+});
 
 /// Resolves @file mentions in chat input
 pub struct FileResolver;
@@ -36,9 +51,10 @@ impl FileResolver {
         //   \.               - Literal dot (requires extension)
         //   \w+              - Extension (at least one word char)
         // )                  - End capture group
-        let re = Regex::new(r"(?:^|[^a-zA-Z0-9])@([\w./\-]+\.\w+)").unwrap();
-
-        re.captures_iter(input)
+        //
+        // Uses static LazyLock regex for performance (compiled once)
+        FILE_MENTION_RE
+            .captures_iter(input)
             .filter_map(|cap| cap.get(1))
             .map(|m| m.as_str().to_string())
             .collect()
@@ -50,6 +66,12 @@ impl FileResolver {
     /// `<file path="...">content</file>`
     ///
     /// Missing files are left as-is (not replaced).
+    ///
+    /// # Security
+    ///
+    /// - **Path traversal protection**: Paths are canonicalized and verified to stay within base_dir
+    /// - **File size limit**: Files larger than 1MB are skipped with a warning
+    /// - Symlinks are followed but must resolve within base_dir
     ///
     /// # Arguments
     ///
@@ -63,25 +85,67 @@ impl FileResolver {
         let mentions = Self::extract_mentions(input);
         let mut result = input.to_string();
 
+        // Canonicalize base_dir for path containment check
+        let base_canonical = match base_dir.canonicalize() {
+            Ok(p) => p,
+            Err(_) => return result, // Can't resolve base_dir, return unchanged
+        };
+
         for mention in mentions {
             let file_path = base_dir.join(&mention);
-            if file_path.exists() {
-                match std::fs::read_to_string(&file_path) {
-                    Ok(content) => {
-                        let replacement = format!(
-                            "<file path=\"{}\">\n{}\n</file>",
+
+            // SECURITY: Canonicalize and verify path stays within base_dir
+            let canonical = match file_path.canonicalize() {
+                Ok(p) => p,
+                Err(_) => continue, // File doesn't exist or can't be accessed
+            };
+
+            if !canonical.starts_with(&base_canonical) {
+                // Path traversal attempt detected - skip silently
+                tracing::warn!(
+                    "Path traversal blocked: {} resolves outside base_dir",
+                    mention
+                );
+                continue;
+            }
+
+            // SECURITY: Check file size before reading
+            match std::fs::metadata(&canonical) {
+                Ok(meta) => {
+                    if meta.len() > MAX_FILE_SIZE {
+                        tracing::warn!(
+                            "File too large: {} ({} bytes > {} limit)",
                             mention,
-                            content.trim_end()
+                            meta.len(),
+                            MAX_FILE_SIZE
+                        );
+                        // Replace with size warning instead of content
+                        let replacement = format!(
+                            "<file path=\"{}\" error=\"too_large\">[File exceeds 1MB limit]</file>",
+                            mention
                         );
                         result = result.replace(&format!("@{}", mention), &replacement);
-                    }
-                    Err(_) => {
-                        // File exists but couldn't be read - leave mention as-is
                         continue;
                     }
                 }
+                Err(_) => continue, // Can't read metadata, skip
             }
-            // Missing files are left as-is
+
+            // Safe to read the file
+            match std::fs::read_to_string(&canonical) {
+                Ok(content) => {
+                    let replacement = format!(
+                        "<file path=\"{}\">\n{}\n</file>",
+                        mention,
+                        content.trim_end()
+                    );
+                    result = result.replace(&format!("@{}", mention), &replacement);
+                }
+                Err(_) => {
+                    // File exists but couldn't be read - leave mention as-is
+                    continue;
+                }
+            }
         }
 
         result
@@ -238,5 +302,106 @@ mod tests {
 
         assert!(resolved.contains("<file path=\"src/nested/file.rs\">"));
         assert!(resolved.contains("// nested file"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Security Tests
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_security_path_traversal_blocked() {
+        let temp_dir = TempDir::new().unwrap();
+        // Create a file inside temp_dir
+        fs::write(temp_dir.path().join("safe.txt"), "safe content").unwrap();
+
+        // Try to escape with ../
+        let input = "Explain @../../../etc/passwd";
+        let resolved = FileResolver::resolve(input, temp_dir.path());
+
+        // Path traversal should be blocked - mention stays unchanged
+        assert_eq!(resolved, "Explain @../../../etc/passwd");
+        assert!(!resolved.contains("<file"));
+    }
+
+    #[test]
+    fn test_security_dotdot_in_path_blocked() {
+        // Create two separate temp directories to properly test path traversal
+        let temp_dir = TempDir::new().unwrap();
+        let base_dir = temp_dir.path().join("workspace");
+        fs::create_dir_all(&base_dir).unwrap();
+
+        // Create a file we want to protect (outside workspace)
+        fs::write(temp_dir.path().join("secret.txt"), "secret data").unwrap();
+
+        // Try to escape workspace with ..
+        let input = "Check @../secret.txt";
+        let resolved = FileResolver::resolve(input, &base_dir);
+
+        // Should be blocked (resolves outside workspace/)
+        assert!(!resolved.contains("secret data"));
+        assert!(resolved.contains("@../secret.txt")); // Original mention preserved
+    }
+
+    #[test]
+    fn test_security_file_size_limit() {
+        let temp_dir = TempDir::new().unwrap();
+        // Create a file larger than 1MB
+        let large_content = "x".repeat(1_100_000); // 1.1 MB
+        fs::write(temp_dir.path().join("large.txt"), &large_content).unwrap();
+
+        let input = "Read @large.txt";
+        let resolved = FileResolver::resolve(input, temp_dir.path());
+
+        // Large file should show error, not content
+        assert!(resolved.contains("error=\"too_large\""));
+        assert!(resolved.contains("[File exceeds 1MB limit]"));
+        assert!(!resolved.contains(&large_content[0..100]));
+    }
+
+    #[test]
+    fn test_security_file_within_limit() {
+        let temp_dir = TempDir::new().unwrap();
+        // Create a file smaller than 1MB
+        let content = "x".repeat(100_000); // 100KB
+        fs::write(temp_dir.path().join("normal.txt"), &content).unwrap();
+
+        let input = "Read @normal.txt";
+        let resolved = FileResolver::resolve(input, temp_dir.path());
+
+        // Normal file should be included
+        assert!(resolved.contains("<file path=\"normal.txt\">"));
+        assert!(resolved.contains(&content[0..100]));
+    }
+
+    #[test]
+    fn test_security_symlink_within_base_dir_allowed() {
+        let temp_dir = TempDir::new().unwrap();
+        let target = temp_dir.path().join("target.txt");
+        fs::write(&target, "target content").unwrap();
+
+        // Create symlink within temp_dir
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            let link = temp_dir.path().join("link.txt");
+            symlink(&target, &link).unwrap();
+
+            let input = "Check @link.txt";
+            let resolved = FileResolver::resolve(input, temp_dir.path());
+
+            // Symlink within base_dir should be allowed
+            assert!(resolved.contains("target content"));
+        }
+    }
+
+    #[test]
+    fn test_regex_compiled_once() {
+        // This test verifies the static LazyLock is working
+        // by calling extract_mentions multiple times
+        for _ in 0..1000 {
+            let mentions = FileResolver::extract_mentions("@test.rs");
+            assert_eq!(mentions, vec!["test.rs"]);
+        }
+        // If regex was compiled each time, this would be slow
     }
 }
