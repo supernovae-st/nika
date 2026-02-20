@@ -29,6 +29,8 @@
 #[cfg(feature = "tui")]
 mod app;
 #[cfg(feature = "tui")]
+pub mod chat_agent;
+#[cfg(feature = "tui")]
 pub mod command;
 #[cfg(feature = "tui")]
 pub mod file_resolve;
@@ -49,6 +51,8 @@ mod widgets;
 
 #[cfg(feature = "tui")]
 pub use app::App;
+#[cfg(feature = "tui")]
+pub use chat_agent::{ChatAgent, ChatMessage, ChatRole, StreamingState};
 #[cfg(feature = "tui")]
 pub use command::{Command, HELP_TEXT};
 #[cfg(feature = "tui")]
