@@ -31,6 +31,8 @@
 //! let result = adapter.call_tool("novanet_describe", json!({})).await?;
 //! ```
 
+use std::process::Stdio;
+
 use parking_lot::Mutex;
 use rmcp::model::{CallToolRequestParams, ListToolsResult};
 use rmcp::service::{RoleClient, RunningService};
@@ -135,6 +137,10 @@ impl RmcpClientAdapter {
         // Build command from config
         let mut cmd = Command::new(&self.config.command);
         cmd.args(&self.config.args);
+
+        // Suppress stderr to avoid polluting TUI output
+        // MCP communication happens over stdin/stdout, stderr is only for logging
+        cmd.stderr(Stdio::null());
 
         // Add environment variables
         for (key, value) in &self.config.env {
