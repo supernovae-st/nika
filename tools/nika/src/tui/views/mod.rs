@@ -24,9 +24,12 @@
 
 mod browser;
 mod monitor;
+mod trait_view;
 
 pub use browser::BrowserView;
 pub use monitor::{DagTab, MissionTab, MonitorView, NovanetTab, ReasoningTab};
+#[allow(unused_imports)] // Will be used by views in later tasks
+pub use trait_view::View;
 
 /// Active view in the TUI - 4 views navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
