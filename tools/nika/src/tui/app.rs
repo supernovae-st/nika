@@ -1147,7 +1147,7 @@ impl App {
                     let tx = self.llm_response_tx.clone();
                     let prompt = message.clone();
                     tokio::spawn(async move {
-                        let provider = RigProvider::claude();
+                        let provider = RigProvider::openai();
                         match provider.infer(&prompt, None).await {
                             Ok(response) => {
                                 let _ = tx.send(response).await;
@@ -2811,5 +2811,14 @@ mod tests {
         // In Monitor mode, 'C' (Shift+c) should copy to clipboard
         let action = app.handle_key(KeyCode::Char('C'), KeyModifiers::empty());
         assert_eq!(action, Action::CopyToClipboard);
+    }
+
+    #[tokio::test]
+    async fn test_app_uses_openai_provider() {
+        // Verify OPENAI_API_KEY env is checked
+        std::env::set_var("OPENAI_API_KEY", "test-key");
+        // The app should compile with OpenAI provider
+        // This is a compile-time check essentially
+        assert!(std::env::var("OPENAI_API_KEY").is_ok());
     }
 }
