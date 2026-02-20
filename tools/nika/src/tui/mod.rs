@@ -29,6 +29,8 @@
 #[cfg(feature = "tui")]
 mod app;
 #[cfg(feature = "tui")]
+pub mod command;
+#[cfg(feature = "tui")]
 mod panels;
 #[cfg(feature = "tui")]
 mod standalone;
@@ -45,6 +47,8 @@ mod widgets;
 
 #[cfg(feature = "tui")]
 pub use app::App;
+#[cfg(feature = "tui")]
+pub use command::{Command, HELP_TEXT};
 #[cfg(feature = "tui")]
 pub use standalone::{BrowserEntry, HistoryEntry, StandalonePanel, StandaloneState};
 #[cfg(feature = "tui")]
