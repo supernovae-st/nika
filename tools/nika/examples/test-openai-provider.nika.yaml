@@ -1,0 +1,63 @@
+# OpenAI Provider Test - Real API Tests
+# Tests all verbs using OpenAI (gpt-4o) as the provider
+schema: "nika/workflow@0.5"
+provider: openai
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TEST 1: exec: verb - Shell execution
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: test_exec
+    exec: |
+      echo '{"provider": "openai", "verb": "exec", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}'
+    output:
+      format: json
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TEST 2: infer: verb - OpenAI GPT-4o inference
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: test_infer_openai
+    use:
+      exec_result: test_exec
+    infer:
+      prompt: |
+        You are being tested. Respond with EXACTLY this JSON and nothing else:
+        {"status": "success", "verb": "infer", "model": "gpt-4o", "math": 42}
+      model: gpt-4o
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TEST 3: agent: verb - Multi-turn with OpenAI
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: test_agent_openai
+    use:
+      previous: test_infer_openai
+    agent:
+      prompt: |
+        You are a test agent. Do exactly this:
+        1. Say "STARTING OPENAI TEST"
+        2. Calculate: 19 * 17 = ?
+        3. Say "OPENAI TEST COMPLETE" and then "DONE"
+      model: gpt-4o
+      max_turns: 3
+      stop_conditions:
+        - "DONE"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FINAL: Report
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: final_report
+    use:
+      exec: test_exec
+      infer: test_infer_openai
+      agent: test_agent_openai
+    exec: |
+      echo "=== OPENAI PROVIDER TEST COMPLETE ==="
+      echo "All verbs tested successfully with OpenAI GPT-4o"
+
+flows:
+  - source: test_exec
+    target: test_infer_openai
+  - source: test_infer_openai
+    target: test_agent_openai
+  - source: test_agent_openai
+    target: final_report

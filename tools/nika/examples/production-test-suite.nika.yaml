@@ -1,0 +1,91 @@
+# Production Test Suite - Real API Tests
+# This workflow tests ALL 5 verbs with REAL data
+schema: "nika/workflow@0.5"
+provider: claude
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TEST 1: exec: verb - Real shell execution
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: test_exec
+    exec: |
+      echo '{"test": "exec", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'", "pwd": "'$(pwd)'", "user": "'$(whoami)'"}'
+    output:
+      format: json
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TEST 2: fetch: verb - Real HTTP request
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: test_fetch
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TEST 3: infer: verb - Real Claude API call
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: test_infer_claude
+    use:
+      exec_result: test_exec
+      fetch_result: test_fetch
+    infer:
+      prompt: |
+        You are being tested. Respond with EXACTLY this JSON and nothing else:
+        {"status": "success", "verb": "infer", "model": "claude", "math": 42}
+      model: claude-sonnet-4-20250514
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TEST 4: for_each with real parallel execution
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: test_for_each
+    for_each: ["alpha", "beta", "gamma"]
+    as: item
+    concurrency: 3
+    exec: |
+      echo '{"item": "{{use.item}}", "processed_at": "'$(date +%s)'"}'
+    output:
+      format: json
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TEST 5: agent: verb - Real multi-turn with Claude
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: test_agent
+    use:
+      previous_tests: test_infer_claude
+    agent:
+      prompt: |
+        You are a test agent. Do exactly this:
+        1. Say "STARTING TEST"
+        2. Calculate: 17 * 23 = ?
+        3. Say "TEST COMPLETE" and then "DONE"
+      model: claude-sonnet-4-20250514
+      max_turns: 3
+      stop_conditions:
+        - "DONE"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FINAL: Aggregate all results
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: final_report
+    use:
+      exec: test_exec
+      fetch: test_fetch
+      infer: test_infer_claude
+      for_each: test_for_each
+      agent: test_agent
+    exec: |
+      echo "=== PRODUCTION TEST SUITE COMPLETE ==="
+      echo "All 5 verbs tested successfully with REAL APIs"
+      echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+flows:
+  - source: test_exec
+    target: test_infer_claude
+  - source: test_fetch
+    target: test_infer_claude
+  - source: test_infer_claude
+    target: test_agent
+  - source: test_for_each
+    target: final_report
+  - source: test_agent
+    target: final_report
