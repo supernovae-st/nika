@@ -19,6 +19,7 @@
 mod agent_turns;
 mod dag;
 mod gauge;
+mod header;
 mod mcp_log;
 mod scroll_indicator;
 mod sparkline;
@@ -30,6 +31,9 @@ mod yaml_view;
 pub use agent_turns::{AgentTurns, TurnEntry};
 pub use dag::{Dag, DagNode};
 pub use gauge::Gauge;
+// Header widget - exported for future view use
+#[allow(unused_imports)]
+pub use header::Header;
 pub use mcp_log::{McpEntry, McpLog};
 // Sparkline widgets - some exported for future panel use
 #[allow(unused_imports)]
