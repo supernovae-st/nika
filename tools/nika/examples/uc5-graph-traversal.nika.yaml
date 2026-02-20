@@ -199,7 +199,7 @@ tasks:
         6. Key relationships (6-8 most important links)
 
         Format as structured markdown with clear sections.
-      model: claude-sonnet-4
+      model: claude-sonnet-4-20250514
     output:
       format: text
 
@@ -231,7 +231,7 @@ tasks:
         6. Recommendations for graph enrichment
 
         Output as actionable insights for content strategy.
-      model: claude-sonnet-4
+      model: claude-sonnet-4-20250514
     output:
       format: text
 

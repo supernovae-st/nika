@@ -37,6 +37,8 @@ mod state;
 #[cfg(feature = "tui")]
 mod theme;
 #[cfg(feature = "tui")]
+mod views;
+#[cfg(feature = "tui")]
 mod widgets;
 
 #[cfg(feature = "tui")]
@@ -47,6 +49,10 @@ pub use standalone::{BrowserEntry, HistoryEntry, StandalonePanel, StandaloneStat
 pub use state::{AgentTurnState, PanelId, TuiMode, TuiState};
 #[cfg(feature = "tui")]
 pub use theme::{MissionPhase, TaskStatus, Theme};
+#[cfg(feature = "tui")]
+pub use views::{
+    BrowserView, DagTab, MissionTab, MonitorView, NovanetTab, ReasoningTab, TuiView, ViewAction,
+};
 
 /// Run the TUI for a workflow
 ///
@@ -83,8 +89,9 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
     // 2. Create EventLog with broadcast channel for TUI
     let (event_log, event_rx) = EventLog::new_with_broadcast();
 
-    // 3. Create Runner with the broadcast-enabled EventLog
-    let runner = Runner::with_event_log(workflow, event_log);
+    // 3. Create Runner with the broadcast-enabled EventLog and quiet mode
+    // quiet() suppresses console output that would interfere with the TUI
+    let runner = Runner::with_event_log(workflow, event_log).quiet();
 
     // 4. Spawn Runner in background task
     let runner_handle = tokio::spawn(async move {

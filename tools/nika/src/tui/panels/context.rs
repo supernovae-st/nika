@@ -16,7 +16,7 @@ use ratatui::{
 
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
-use crate::tui::widgets::{Gauge, McpEntry, McpLog};
+use crate::tui::widgets::{Gauge, LatencySparkline, McpEntry, McpLog};
 
 /// NovaNet Station panel (Panel 3)
 pub struct ContextPanel<'a> {
@@ -268,6 +268,35 @@ impl<'a> ContextPanel<'a> {
         let paragraph = Paragraph::new(line);
         paragraph.render(area, buf);
     }
+
+    /// Render latency sparkline
+    fn render_latency_sparkline(&self, area: Rect, buf: &mut Buffer) {
+        let metrics = &self.state.metrics;
+        if metrics.latency_history.is_empty() || area.width < 15 {
+            return;
+        }
+
+        // Label
+        buf.set_string(
+            area.x + 2,
+            area.y,
+            "Latency:",
+            Style::default().fg(Color::DarkGray),
+        );
+
+        // Sparkline
+        let sparkline_area = Rect {
+            x: area.x + 11,
+            y: area.y,
+            width: area.width.saturating_sub(13),
+            height: 1,
+        };
+
+        let sparkline = LatencySparkline::new(&metrics.latency_history)
+            .warn_threshold(500)
+            .error_threshold(2000);
+        sparkline.render(sparkline_area, buf);
+    }
 }
 
 impl Widget for ContextPanel<'_> {
@@ -286,12 +315,13 @@ impl Widget for ContextPanel<'_> {
             return;
         }
 
-        // Layout: MCP Header | MCP Log | Context | Servers
+        // Layout: MCP Header | MCP Log | Latency | Context | Servers
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(1), // MCP Header
                 Constraint::Min(3),    // MCP Log
+                Constraint::Length(1), // Latency sparkline
                 Constraint::Length(3), // Context Assembly
                 Constraint::Length(1), // Servers
             ])
@@ -299,8 +329,9 @@ impl Widget for ContextPanel<'_> {
 
         self.render_mcp_header(chunks[0], buf);
         self.render_mcp_log(chunks[1], buf);
-        self.render_context(chunks[2], buf);
-        self.render_servers(chunks[3], buf);
+        self.render_latency_sparkline(chunks[2], buf);
+        self.render_context(chunks[3], buf);
+        self.render_servers(chunks[4], buf);
     }
 }
 

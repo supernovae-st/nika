@@ -42,7 +42,7 @@ tasks:
         When complete, output the JSON and say "GENERATION_COMPLETE".
 
       provider: claude
-      model: claude-sonnet-4
+      model: claude-sonnet-4-20250514
       mcp:
         - novanet
       max_turns: 5

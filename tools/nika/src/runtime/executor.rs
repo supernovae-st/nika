@@ -511,13 +511,14 @@ impl TaskExecutor {
         let call_id = Uuid::new_v4().to_string();
         let start_time = Instant::now();
 
-        // EMIT: McpInvoke event
+        // EMIT: McpInvoke event (with params for TUI display)
         self.event_log.emit(EventKind::McpInvoke {
             task_id: Arc::clone(task_id),
             call_id: call_id.clone(),
             mcp_server: invoke.mcp.clone(),
             tool: invoke.tool.clone(),
             resource: invoke.resource.clone(),
+            params: invoke.params.clone(),
         });
 
         // Get or create MCP client (real or mock depending on config)
@@ -547,17 +548,19 @@ impl TaskExecutor {
             if tool_result.is_error {
                 // Emit response event before returning error
                 let duration_ms = start_time.elapsed().as_millis() as u64;
+                let error_text = tool_result.text();
                 self.event_log.emit(EventKind::McpResponse {
                     task_id: Arc::clone(task_id),
                     call_id: call_id.clone(),
-                    output_len: tool_result.text().len(),
+                    output_len: error_text.len(),
                     duration_ms,
                     cached: false,
                     is_error: true,
+                    response: Some(serde_json::json!({"error": error_text.clone()})),
                 });
                 return Err(NikaError::McpToolError {
                     tool: tool.clone(),
-                    reason: tool_result.text(),
+                    reason: error_text,
                 });
             }
 
@@ -576,7 +579,7 @@ impl TaskExecutor {
             unreachable!("validate() ensures tool or resource is set")
         };
 
-        // EMIT: McpResponse event
+        // EMIT: McpResponse event (with full response for TUI display)
         let duration_ms = start_time.elapsed().as_millis() as u64;
         self.event_log.emit(EventKind::McpResponse {
             task_id: Arc::clone(task_id),
@@ -585,6 +588,7 @@ impl TaskExecutor {
             duration_ms,
             cached: false, // TODO: Implement MCP response caching
             is_error,
+            response: Some(result.clone()),
         });
 
         // Return JSON string representation

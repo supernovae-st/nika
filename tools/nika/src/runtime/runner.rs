@@ -45,6 +45,8 @@ pub struct Runner {
     datastore: DataStore,
     executor: TaskExecutor,
     event_log: EventLog,
+    /// Suppress console output (for TUI mode)
+    quiet: bool,
 }
 
 impl Runner {
@@ -72,7 +74,17 @@ impl Runner {
             datastore,
             executor,
             event_log,
+            quiet: false,
         }
+    }
+
+    /// Enable quiet mode to suppress console output (for TUI mode)
+    ///
+    /// When quiet is true, Runner will not print to stdout/stderr.
+    /// All events are still emitted to the EventLog for TUI display.
+    pub fn quiet(mut self) -> Self {
+        self.quiet = true;
+        self
     }
 
     /// Get the event log for inspection/export
@@ -244,11 +256,13 @@ impl Runner {
             nika_version: env!("CARGO_PKG_VERSION").to_string(),
         });
 
-        println!(
-            "{} Running workflow with {} tasks...\n",
-            "→".cyan(),
-            total_tasks
-        );
+        if !self.quiet {
+            println!(
+                "{} Running workflow with {} tasks...\n",
+                "→".cyan(),
+                total_tasks
+            );
+        }
 
         loop {
             let ready = self.get_ready_tasks();
@@ -282,12 +296,14 @@ impl Runner {
                     dependencies: deps.to_vec(), // Arc::clone is O(1)
                 });
 
-                println!(
-                    "  {} {} {}",
-                    "[⟳]".yellow(),
-                    &task_id,
-                    "running...".dimmed()
-                );
+                if !self.quiet {
+                    println!(
+                        "  {} {} {}",
+                        "[⟳]".yellow(),
+                        &task_id,
+                        "running...".dimmed()
+                    );
+                }
 
                 // Check if task has decompose (v0.5) - expands to for_each items
                 // decompose takes priority over for_each (they're mutually exclusive)
@@ -460,13 +476,15 @@ impl Runner {
                         let duration_str =
                             format!("({:.1}s)", task_result.duration.as_secs_f32()).dimmed();
 
-                        println!(
-                            "  {} {} {} {}",
-                            status, &*store_id, symbol_colored, duration_str
-                        );
+                        if !self.quiet {
+                            println!(
+                                "  {} {} {} {}",
+                                status, &*store_id, symbol_colored, duration_str
+                            );
 
-                        if let Some(err) = task_result.error() {
-                            println!("      {} {}", "Error:".red(), err);
+                            if let Some(err) = task_result.error() {
+                                println!("      {} {}", "Error:".red(), err);
+                            }
                         }
 
                         // Store individual result
@@ -539,7 +557,9 @@ impl Runner {
             total_duration_ms: workflow_start.elapsed().as_millis() as u64,
         });
 
-        println!("\n{} Done!\n", "✓".green());
+        if !self.quiet {
+            println!("\n{} Done!\n", "✓".green());
+        }
 
         Ok(output)
     }
@@ -550,6 +570,37 @@ mod tests {
     use super::*;
     use crate::ast::{ExecParams, Flow, FlowEndpoint, Task, TaskAction};
     use std::sync::Arc;
+
+    // ═══════════════════════════════════════════════════════════════
+    // QUIET MODE TEST
+    // ═══════════════════════════════════════════════════════════════
+
+    fn make_empty_workflow() -> Workflow {
+        Workflow {
+            schema: "nika/workflow@0.3".to_string(),
+            provider: "mock".to_string(),
+            model: None,
+            mcp: None,
+            tasks: vec![],
+            flows: vec![],
+        }
+    }
+
+    #[test]
+    fn test_runner_quiet_mode() {
+        // Default should not be quiet
+        let runner = Runner::new(make_empty_workflow());
+        assert!(!runner.quiet, "Runner should not be quiet by default");
+
+        // quiet() should enable quiet mode
+        let runner = Runner::new(make_empty_workflow()).quiet();
+        assert!(runner.quiet, "Runner should be quiet after .quiet()");
+
+        // Can chain with with_event_log
+        let event_log = crate::event::EventLog::new();
+        let runner = Runner::with_event_log(make_empty_workflow(), event_log).quiet();
+        assert!(runner.quiet, "Runner should be quiet when chained");
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // FOR_EACH RESULT AGGREGATION TESTS

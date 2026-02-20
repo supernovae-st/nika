@@ -17,7 +17,7 @@ use ratatui::{
 
 use crate::tui::state::TuiState;
 use crate::tui::theme::{MissionPhase, TaskStatus, Theme};
-use crate::tui::widgets::{Gauge, Timeline, TimelineEntry};
+use crate::tui::widgets::{Gauge, LatencySparkline, Timeline, TimelineEntry};
 
 /// Progress panel (Panel 1: Mission Control)
 pub struct ProgressPanel<'a> {
@@ -107,6 +107,8 @@ impl<'a> ProgressPanel<'a> {
                     if self.state.current_task.as_ref() == Some(&task.id) {
                         entry = entry.current();
                     }
+                    // Add breakpoint indicator (TIER 2.3)
+                    entry = entry.with_breakpoint(self.state.has_breakpoint(&task.id));
                     entry
                 })
             })
@@ -349,6 +351,20 @@ impl<'a> ProgressPanel<'a> {
                 &mcp_str,
                 Style::default().fg(Color::Rgb(59, 130, 246)), // blue
             );
+
+            // Latency sparkline if we have data
+            if !metrics.latency_history.is_empty() && area.width > 30 {
+                let sparkline_area = Rect {
+                    x: area.x + 20,
+                    y: area.y + 1,
+                    width: area.width.saturating_sub(22),
+                    height: 1,
+                };
+                let sparkline = LatencySparkline::new(&metrics.latency_history)
+                    .warn_threshold(500)
+                    .error_threshold(2000);
+                sparkline.render(sparkline_area, buf);
+            }
         }
     }
 }

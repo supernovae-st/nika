@@ -237,7 +237,7 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
-    // MCP EVENTS (v0.2)
+    // MCP EVENTS (v0.2, enhanced v0.5.2)
     // ═══════════════════════════════════════════
     /// MCP tool call or resource read initiated
     McpInvoke {
@@ -247,6 +247,9 @@ pub enum EventKind {
         mcp_server: String,
         tool: Option<String>,
         resource: Option<String>,
+        /// Full params passed to MCP tool (for TUI display)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        params: Option<Value>,
     },
     /// MCP operation completed
     McpResponse {
@@ -260,6 +263,9 @@ pub enum EventKind {
         cached: bool,
         /// Whether MCP tool returned an error
         is_error: bool,
+        /// Full response JSON (for TUI display)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        response: Option<Value>,
     },
 
     // ═══════════════════════════════════════════

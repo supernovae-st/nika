@@ -12,7 +12,8 @@ use serde_json::Value;
 use crate::config::NikaConfig;
 use crate::event::{ContextSource, EventKind, ExcludedItem};
 
-use super::theme::{MissionPhase, TaskStatus};
+use super::theme::{MissionPhase, TaskStatus, ThemeMode};
+use super::views::{DagTab, MissionTab, NovanetTab, ReasoningTab};
 
 /// Panel identifier for focus management
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -128,6 +129,12 @@ pub struct WorkflowState {
     pub elapsed_ms: u64,
     /// Generation ID
     pub generation_id: Option<String>,
+    /// Final output JSON (when completed)
+    pub final_output: Option<Arc<Value>>,
+    /// Total duration from workflow event (when completed)
+    pub total_duration_ms: Option<u64>,
+    /// Error message (when failed)
+    pub error_message: Option<String>,
 }
 
 impl WorkflowState {
@@ -140,6 +147,9 @@ impl WorkflowState {
             started_at: None,
             elapsed_ms: 0,
             generation_id: None,
+            final_output: None,
+            total_duration_ms: None,
+            error_message: None,
         }
     }
 
@@ -168,6 +178,8 @@ pub struct TaskState {
     pub started_at: Option<Instant>,
     /// Duration in ms (when completed)
     pub duration_ms: Option<u64>,
+    /// Input (when started) - for TUI Task I/O display
+    pub input: Option<Arc<Value>>,
     /// Output (when completed)
     pub output: Option<Arc<Value>>,
     /// Error message (when failed)
@@ -185,6 +197,7 @@ impl TaskState {
             dependencies,
             started_at: None,
             duration_ms: None,
+            input: None,
             output: None,
             error: None,
             tokens: None,
@@ -192,9 +205,11 @@ impl TaskState {
     }
 }
 
-/// MCP call record
+/// MCP call record (enhanced v0.5.2 with full params/response)
 #[derive(Debug, Clone)]
 pub struct McpCall {
+    /// Unique call ID for correlation with McpResponse
+    pub call_id: String,
     /// Call sequence number
     pub seq: usize,
     /// Server name
@@ -211,6 +226,14 @@ pub struct McpCall {
     pub output_len: Option<usize>,
     /// Call timestamp
     pub timestamp_ms: u64,
+    /// Parameters passed to MCP tool (for TUI display)
+    pub params: Option<serde_json::Value>,
+    /// Full response JSON (for TUI display)
+    pub response: Option<serde_json::Value>,
+    /// Whether the MCP call returned an error
+    pub is_error: bool,
+    /// Duration of MCP call in milliseconds
+    pub duration_ms: Option<u64>,
 }
 
 /// Context assembly state
@@ -278,6 +301,88 @@ pub struct Metrics {
     pub token_history: Vec<u32>,
     /// Latency history in ms (for sparkline)
     pub latency_history: Vec<u64>,
+}
+
+// ═══════════════════════════════════════════
+// TIER 3.4: NOTIFICATIONS
+// ═══════════════════════════════════════════
+
+/// Notification severity level
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotificationLevel {
+    /// Informational (workflow complete, etc.)
+    Info,
+    /// Warning (task slow, high token usage)
+    Warning,
+    /// Alert (critical issues)
+    Alert,
+    /// Success (workflow completed successfully)
+    Success,
+    /// Error (workflow failed)
+    Error,
+}
+
+impl NotificationLevel {
+    /// Get icon for this level
+    pub fn icon(&self) -> &'static str {
+        match self {
+            NotificationLevel::Info => "ℹ",
+            NotificationLevel::Warning => "⚠",
+            NotificationLevel::Alert => "🔔",
+            NotificationLevel::Success => "✓",
+            NotificationLevel::Error => "✗",
+        }
+    }
+}
+
+/// A system notification (TIER 3.4)
+#[derive(Debug, Clone)]
+pub struct Notification {
+    /// Notification level/severity
+    pub level: NotificationLevel,
+    /// Notification message
+    pub message: String,
+    /// Timestamp (ms since workflow start)
+    pub timestamp_ms: u64,
+    /// Whether this notification has been dismissed
+    pub dismissed: bool,
+}
+
+impl Notification {
+    /// Create a new notification
+    pub fn new(level: NotificationLevel, message: impl Into<String>, timestamp_ms: u64) -> Self {
+        Self {
+            level,
+            message: message.into(),
+            timestamp_ms,
+            dismissed: false,
+        }
+    }
+
+    /// Create an info notification
+    pub fn info(message: impl Into<String>, timestamp_ms: u64) -> Self {
+        Self::new(NotificationLevel::Info, message, timestamp_ms)
+    }
+
+    /// Create a warning notification
+    pub fn warning(message: impl Into<String>, timestamp_ms: u64) -> Self {
+        Self::new(NotificationLevel::Warning, message, timestamp_ms)
+    }
+
+    /// Create an alert notification
+    pub fn alert(message: impl Into<String>, timestamp_ms: u64) -> Self {
+        Self::new(NotificationLevel::Alert, message, timestamp_ms)
+    }
+
+    /// Create a success notification
+    pub fn success(message: impl Into<String>, timestamp_ms: u64) -> Self {
+        Self::new(NotificationLevel::Success, message, timestamp_ms)
+    }
+
+    /// Create an error notification
+    pub fn error(message: impl Into<String>, timestamp_ms: u64) -> Self {
+        Self::new(NotificationLevel::Error, message, timestamp_ms)
+    }
 }
 
 /// Settings overlay field identifier
@@ -557,6 +662,8 @@ pub struct TuiState {
     pub mcp_calls: Vec<McpCall>,
     /// Next MCP call sequence number
     pub mcp_seq: usize,
+    /// Selected MCP call index for Full JSON view
+    pub selected_mcp_idx: Option<usize>,
     /// Current context assembly
     pub context_assembly: ContextAssembly,
 
@@ -581,6 +688,20 @@ pub struct TuiState {
     pub scroll: HashMap<PanelId, usize>,
     /// Settings overlay state
     pub settings: SettingsState,
+    /// Theme mode: dark or light (TIER 2.4)
+    pub theme_mode: ThemeMode,
+
+    // ═══════════════════════════════════════════
+    // TAB STATE
+    // ═══════════════════════════════════════════
+    /// Mission Control panel tab (Progress / IO / Output)
+    pub mission_tab: MissionTab,
+    /// DAG panel tab (Graph / YAML)
+    pub dag_tab: DagTab,
+    /// NovaNet panel tab (Summary / Full JSON)
+    pub novanet_tab: NovanetTab,
+    /// Reasoning panel tab (Turns / Thinking)
+    pub reasoning_tab: ReasoningTab,
 
     // ═══════════════════════════════════════════
     // DEBUG STATE
@@ -597,6 +718,164 @@ pub struct TuiState {
     // ═══════════════════════════════════════════
     /// Aggregated metrics
     pub metrics: Metrics,
+
+    // ═══════════════════════════════════════════
+    // FILTER STATE
+    // ═══════════════════════════════════════════
+    /// Current filter/search query
+    pub filter_query: String,
+    /// Filter cursor position
+    pub filter_cursor: usize,
+
+    // ═══════════════════════════════════════════
+    // NOTIFICATIONS (TIER 3.4)
+    // ═══════════════════════════════════════════
+    /// System notifications
+    pub notifications: Vec<Notification>,
+    /// Maximum number of notifications to keep
+    pub max_notifications: usize,
+
+    // ═══════════════════════════════════════════
+    // LAZY RENDERING (TIER 4.1)
+    // ═══════════════════════════════════════════
+    /// Dirty flags for lazy rendering
+    pub dirty: DirtyFlags,
+
+    // ═══════════════════════════════════════════
+    // JSON MEMOIZATION (TIER 4.4)
+    // ═══════════════════════════════════════════
+    /// Cache for formatted JSON strings
+    pub json_cache: JsonFormatCache,
+}
+
+/// Dirty flags for lazy rendering (TIER 4.1)
+///
+/// Tracks which parts of the UI need re-rendering.
+/// Set flags when state changes, clear after rendering.
+#[derive(Debug, Clone, Default)]
+pub struct DirtyFlags {
+    /// All panels need re-render (full redraw)
+    pub all: bool,
+    /// Progress panel needs re-render
+    pub progress: bool,
+    /// DAG panel needs re-render
+    pub dag: bool,
+    /// NovaNet panel needs re-render
+    pub novanet: bool,
+    /// Reasoning panel needs re-render
+    pub reasoning: bool,
+    /// Status bar needs re-render
+    pub status: bool,
+    /// Notifications changed
+    pub notifications: bool,
+}
+
+impl DirtyFlags {
+    /// Mark all panels as dirty
+    pub fn mark_all(&mut self) {
+        self.all = true;
+    }
+
+    /// Clear all dirty flags after rendering
+    pub fn clear(&mut self) {
+        self.all = false;
+        self.progress = false;
+        self.dag = false;
+        self.novanet = false;
+        self.reasoning = false;
+        self.status = false;
+        self.notifications = false;
+    }
+
+    /// Check if any panel is dirty
+    pub fn any(&self) -> bool {
+        self.all
+            || self.progress
+            || self.dag
+            || self.novanet
+            || self.reasoning
+            || self.status
+            || self.notifications
+    }
+
+    /// Check if specific panel is dirty
+    pub fn is_panel_dirty(&self, panel: PanelId) -> bool {
+        if self.all {
+            return true;
+        }
+        match panel {
+            PanelId::Progress => self.progress,
+            PanelId::Dag => self.dag,
+            PanelId::NovaNet => self.novanet,
+            PanelId::Agent => self.reasoning,
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TIER 4.4: JSON FORMAT CACHE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Cache for formatted JSON strings to avoid repeated serde_json::to_string_pretty calls
+#[derive(Debug, Clone, Default)]
+pub struct JsonFormatCache {
+    /// Cached formatted JSON by key (task_id, mcp_call_id, or "final_output")
+    cache: HashMap<String, String>,
+    /// Maximum cache entries before eviction
+    max_entries: usize,
+}
+
+impl JsonFormatCache {
+    /// Create a new cache with default capacity
+    pub fn new() -> Self {
+        Self {
+            cache: HashMap::new(),
+            max_entries: 50,
+        }
+    }
+
+    /// Get cached JSON for a key, or format and cache it
+    pub fn get_or_format<T: serde::Serialize>(&mut self, key: &str, value: &T) -> String {
+        if let Some(cached) = self.cache.get(key) {
+            return cached.clone();
+        }
+
+        let formatted = serde_json::to_string_pretty(value).unwrap_or_default();
+
+        // Simple LRU-style eviction: clear oldest entries if over limit
+        if self.cache.len() >= self.max_entries {
+            // Remove first 10% of entries, minimum 1 (oldest by insertion order)
+            let to_remove = (self.max_entries / 10).max(1);
+            let keys: Vec<String> = self.cache.keys().take(to_remove).cloned().collect();
+            for k in keys {
+                self.cache.remove(&k);
+            }
+        }
+
+        self.cache.insert(key.to_string(), formatted.clone());
+        formatted
+    }
+
+    /// Invalidate specific cache entries
+    pub fn invalidate(&mut self, key: &str) {
+        self.cache.remove(key);
+    }
+
+    /// Invalidate all entries starting with a prefix
+    pub fn invalidate_prefix(&mut self, prefix: &str) {
+        self.cache.retain(|k, _| !k.starts_with(prefix));
+    }
+
+    /// Clear the entire cache
+    pub fn clear(&mut self) {
+        self.cache.clear();
+    }
+
+    /// Get cache stats for debugging
+    #[allow(dead_code)]
+    pub fn stats(&self) -> (usize, usize) {
+        (self.cache.len(), self.max_entries)
+    }
 }
 
 impl TuiState {
@@ -613,6 +892,7 @@ impl TuiState {
             task_order: Vec::new(),
             mcp_calls: Vec::new(),
             mcp_seq: 0,
+            selected_mcp_idx: None,
             context_assembly: ContextAssembly::default(),
             agent_turns: Vec::new(),
             streaming_buffer: String::new(),
@@ -621,10 +901,21 @@ impl TuiState {
             mode: TuiMode::Normal,
             scroll: HashMap::new(),
             settings: SettingsState::new(config),
+            theme_mode: ThemeMode::default(),
+            mission_tab: MissionTab::default(),
+            dag_tab: DagTab::default(),
+            novanet_tab: NovanetTab::default(),
+            reasoning_tab: ReasoningTab::default(),
             breakpoints: HashSet::new(),
             paused: false,
             step_mode: false,
             metrics: Metrics::default(),
+            filter_query: String::new(),
+            filter_cursor: 0,
+            notifications: Vec::new(),
+            max_notifications: 10,
+            dirty: DirtyFlags::default(),
+            json_cache: JsonFormatCache::new(),
         }
     }
 
@@ -643,15 +934,48 @@ impl TuiState {
                 self.workflow.phase = MissionPhase::Countdown;
                 self.workflow.started_at = Some(Instant::now());
                 self.workflow.generation_id = Some(generation_id.clone());
+                // TIER 4.1: Mark all panels dirty on workflow start
+                self.dirty.mark_all();
+                // TIER 4.4: Clear JSON cache on workflow start
+                self.json_cache.clear();
             }
 
-            EventKind::WorkflowCompleted { .. } => {
+            EventKind::WorkflowCompleted {
+                final_output,
+                total_duration_ms,
+            } => {
                 self.workflow.phase = MissionPhase::MissionSuccess;
+                self.workflow.final_output = Some(Arc::clone(final_output));
+                self.workflow.total_duration_ms = Some(*total_duration_ms);
                 self.current_task = None;
+
+                // TIER 3.4: Add success notification
+                let duration_secs = *total_duration_ms as f64 / 1000.0;
+                self.add_notification(Notification::success(
+                    format!(
+                        "Workflow completed in {:.1}s ({}/{} tasks)",
+                        duration_secs, self.workflow.tasks_completed, self.workflow.task_count
+                    ),
+                    timestamp_ms,
+                ));
+                // TIER 4.1: Mark progress and status dirty
+                self.dirty.progress = true;
+                self.dirty.status = true;
             }
 
-            EventKind::WorkflowFailed { .. } => {
+            EventKind::WorkflowFailed { error, .. } => {
                 self.workflow.phase = MissionPhase::Abort;
+                self.workflow.error_message = Some(error.clone());
+
+                // TIER 3.4: Add error notification
+                self.add_notification(Notification::error(
+                    format!("Workflow failed: {}", error),
+                    timestamp_ms,
+                ));
+                // TIER 4.1: Mark progress, status, and notifications dirty
+                self.dirty.progress = true;
+                self.dirty.status = true;
+                self.dirty.notifications = true;
             }
 
             // ═══════════════════════════════════════════
@@ -668,12 +992,16 @@ impl TuiState {
                 let task = TaskState::new(task_id.to_string(), deps);
                 self.tasks.insert(task_id.to_string(), task);
                 self.task_order.push(task_id.to_string());
+                // TIER 4.1: Mark progress and dag dirty
+                self.dirty.progress = true;
+                self.dirty.dag = true;
             }
 
-            EventKind::TaskStarted { task_id, .. } => {
+            EventKind::TaskStarted { task_id, inputs } => {
                 if let Some(task) = self.tasks.get_mut(task_id.as_ref()) {
                     task.status = TaskStatus::Running;
                     task.started_at = Some(Instant::now());
+                    task.input = Some(Arc::new(inputs.clone()));
                 }
                 self.current_task = Some(task_id.to_string());
 
@@ -683,6 +1011,11 @@ impl TuiState {
                 } else {
                     self.workflow.phase = MissionPhase::Orbital;
                 }
+                // TIER 4.1: Mark progress and dag dirty
+                self.dirty.progress = true;
+                self.dirty.dag = true;
+                // TIER 4.4: Invalidate task cache on start (will need re-format later)
+                self.json_cache.invalidate(&format!("task:{}", task_id));
             }
 
             EventKind::TaskCompleted {
@@ -697,10 +1030,29 @@ impl TuiState {
                 }
                 self.workflow.tasks_completed += 1;
 
+                // TIER 3.4: Notify on slow tasks
+                let duration_secs = *duration_ms as f64 / 1000.0;
+                if *duration_ms > 30_000 {
+                    self.add_notification(Notification::alert(
+                        format!("Task '{}' took {:.1}s (>30s)", task_id, duration_secs),
+                        timestamp_ms,
+                    ));
+                } else if *duration_ms > 10_000 {
+                    self.add_notification(Notification::warning(
+                        format!("Task '{}' took {:.1}s (>10s)", task_id, duration_secs),
+                        timestamp_ms,
+                    ));
+                }
+
                 // Clear agent state if this was an agent task
                 self.agent_turns.clear();
                 self.streaming_buffer.clear();
                 self.agent_max_turns = None;
+                // TIER 4.1: Mark progress and dag dirty
+                self.dirty.progress = true;
+                self.dirty.dag = true;
+                // TIER 4.4: Invalidate task cache on completion (new output)
+                self.json_cache.invalidate(&format!("task:{}", task_id));
             }
 
             EventKind::TaskFailed {
@@ -713,6 +1065,10 @@ impl TuiState {
                     task.duration_ms = Some(*duration_ms);
                     task.error = Some(error.clone());
                 }
+                // TIER 4.1: Mark progress, dag, and status dirty
+                self.dirty.progress = true;
+                self.dirty.dag = true;
+                self.dirty.status = true;
             }
 
             // ═══════════════════════════════════════════
@@ -723,9 +1079,11 @@ impl TuiState {
                 mcp_server,
                 tool,
                 resource,
-                call_id: _,
+                call_id,
+                params,
             } => {
                 let call = McpCall {
+                    call_id: call_id.clone(),
                     seq: self.mcp_seq,
                     server: mcp_server.clone(),
                     tool: tool.clone(),
@@ -734,6 +1092,10 @@ impl TuiState {
                     completed: false,
                     output_len: None,
                     timestamp_ms,
+                    params: params.clone(),
+                    response: None,
+                    is_error: false,
+                    duration_ms: None,
                 };
                 self.mcp_calls.push(call);
                 self.mcp_seq += 1;
@@ -746,24 +1108,59 @@ impl TuiState {
                     let entry = self.metrics.mcp_calls.entry(tool_name.clone()).or_insert(0);
                     *entry += 1;
                 }
+                // TIER 4.1: Mark novanet panel dirty
+                self.dirty.novanet = true;
             }
 
             EventKind::McpResponse {
                 task_id: _,
                 output_len,
-                call_id: _,
-                duration_ms: _,
+                call_id,
+                duration_ms,
                 cached: _,
-                is_error: _,
+                is_error,
+                response,
             } => {
-                // Mark last call as completed
-                if let Some(call) = self.mcp_calls.last_mut() {
+                // Find and update the matching call by call_id
+                let tool_name = self
+                    .mcp_calls
+                    .iter()
+                    .find(|c| c.call_id == *call_id)
+                    .and_then(|c| c.tool.clone());
+
+                if let Some(call) = self.mcp_calls.iter_mut().find(|c| c.call_id == *call_id) {
                     call.completed = true;
                     call.output_len = Some(*output_len);
+                    call.response = response.clone();
+                    call.is_error = *is_error;
+                    call.duration_ms = Some(*duration_ms);
+                }
+
+                // Track MCP latency for sparkline (keep last 20 values)
+                if self.metrics.latency_history.len() >= 20 {
+                    self.metrics.latency_history.remove(0);
+                }
+                self.metrics.latency_history.push(*duration_ms);
+
+                // TIER 3.4: Notify on slow MCP responses (> 5s)
+                if *duration_ms > 5_000 {
+                    let duration_secs = *duration_ms as f64 / 1000.0;
+                    let tool_display = tool_name.as_deref().unwrap_or("resource");
+                    self.add_notification(Notification::warning(
+                        format!(
+                            "MCP call '{}' took {:.1}s (>5s)",
+                            tool_display, duration_secs
+                        ),
+                        timestamp_ms,
+                    ));
                 }
 
                 // Return to orbital phase
                 self.workflow.phase = MissionPhase::Orbital;
+                // TIER 4.1: Mark novanet panel dirty
+                self.dirty.novanet = true;
+                // TIER 4.4: Invalidate MCP call cache on response
+                self.json_cache.invalidate(&format!("mcp:{}", call_id));
             }
 
             // ═══════════════════════════════════════════
@@ -793,6 +1190,8 @@ impl TuiState {
                 self.agent_turns.clear();
                 self.streaming_buffer.clear();
                 self.agent_max_turns = Some(*max_turns);
+                // TIER 4.1: Mark reasoning panel dirty
+                self.dirty.reasoning = true;
             }
 
             EventKind::AgentTurn {
@@ -825,6 +1224,8 @@ impl TuiState {
                 } else {
                     self.agent_turns.push(turn);
                 }
+                // TIER 4.1: Mark reasoning panel dirty
+                self.dirty.reasoning = true;
             }
 
             EventKind::AgentComplete { turns, .. } => {
@@ -835,6 +1236,8 @@ impl TuiState {
                     }
                 }
                 let _ = turns; // Used for logging
+                               // TIER 4.1: Mark reasoning panel dirty
+                self.dirty.reasoning = true;
             }
 
             // ═══════════════════════════════════════════
@@ -857,6 +1260,36 @@ impl TuiState {
                 if let Some(ttft) = ttft_ms {
                     self.metrics.latency_history.push(*ttft);
                 }
+
+                // TIER 3.4: Notify on high token usage (>80% of typical context window)
+                // Using 100k as typical context window for Claude models
+                const CONTEXT_WINDOW: u32 = 100_000;
+                const WARNING_THRESHOLD: u32 = (CONTEXT_WINDOW as f64 * 0.8) as u32; // 80%
+                const ALERT_THRESHOLD: u32 = (CONTEXT_WINDOW as f64 * 0.95) as u32; // 95%
+
+                if self.metrics.total_tokens > ALERT_THRESHOLD {
+                    self.add_notification(Notification::alert(
+                        format!(
+                            "Token usage at {:.0}% ({}/{}k) - approaching limit!",
+                            (self.metrics.total_tokens as f64 / CONTEXT_WINDOW as f64) * 100.0,
+                            self.metrics.total_tokens,
+                            CONTEXT_WINDOW / 1000
+                        ),
+                        timestamp_ms,
+                    ));
+                } else if self.metrics.total_tokens > WARNING_THRESHOLD {
+                    self.add_notification(Notification::warning(
+                        format!(
+                            "Token usage at {:.0}% ({}/{}k)",
+                            (self.metrics.total_tokens as f64 / CONTEXT_WINDOW as f64) * 100.0,
+                            self.metrics.total_tokens,
+                            CONTEXT_WINDOW / 1000
+                        ),
+                        timestamp_ms,
+                    ));
+                }
+                // TIER 4.1: Mark progress dirty (for metrics display)
+                self.dirty.progress = true;
             }
 
             // Other events we don't track in state
@@ -912,6 +1345,168 @@ impl TuiState {
         };
     }
 
+    /// Cycle tab in the currently focused panel
+    pub fn cycle_tab(&mut self) {
+        match self.focus {
+            PanelId::Progress => self.mission_tab = self.mission_tab.next(),
+            PanelId::Dag => self.dag_tab = self.dag_tab.next(),
+            PanelId::NovaNet => self.novanet_tab = self.novanet_tab.next(),
+            PanelId::Agent => self.reasoning_tab = self.reasoning_tab.next(),
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // MCP NAVIGATION (TIER 1.3)
+    // ═══════════════════════════════════════════
+
+    /// Select previous MCP call (↑ in NovaNet panel)
+    pub fn select_prev_mcp(&mut self) {
+        if self.mcp_calls.is_empty() {
+            return;
+        }
+
+        self.selected_mcp_idx = match self.selected_mcp_idx {
+            None => Some(self.mcp_calls.len().saturating_sub(1)), // Start from last
+            Some(0) => Some(0),                                   // Stay at first
+            Some(idx) => Some(idx - 1),
+        };
+    }
+
+    /// Select next MCP call (↓ in NovaNet panel)
+    pub fn select_next_mcp(&mut self) {
+        if self.mcp_calls.is_empty() {
+            return;
+        }
+
+        let max_idx = self.mcp_calls.len().saturating_sub(1);
+        self.selected_mcp_idx = match self.selected_mcp_idx {
+            None => Some(0),                              // Start from first
+            Some(idx) if idx >= max_idx => Some(max_idx), // Stay at last
+            Some(idx) => Some(idx + 1),
+        };
+    }
+
+    /// Select MCP call by index (for direct access)
+    pub fn select_mcp(&mut self, idx: usize) {
+        if idx < self.mcp_calls.len() {
+            self.selected_mcp_idx = Some(idx);
+        }
+    }
+
+    /// Get currently selected MCP call
+    pub fn get_selected_mcp(&self) -> Option<&McpCall> {
+        self.selected_mcp_idx
+            .and_then(|idx| self.mcp_calls.get(idx))
+    }
+
+    // ═══════════════════════════════════════════
+    // FILTER METHODS (TIER 1.5)
+    // ═══════════════════════════════════════════
+
+    /// Add character to filter query
+    pub fn filter_push(&mut self, c: char) {
+        self.filter_query.insert(self.filter_cursor, c);
+        self.filter_cursor += 1;
+    }
+
+    /// Remove character before cursor (backspace)
+    pub fn filter_backspace(&mut self) {
+        if self.filter_cursor > 0 {
+            self.filter_cursor -= 1;
+            self.filter_query.remove(self.filter_cursor);
+        }
+    }
+
+    /// Remove character at cursor (delete)
+    pub fn filter_delete(&mut self) {
+        if self.filter_cursor < self.filter_query.len() {
+            self.filter_query.remove(self.filter_cursor);
+        }
+    }
+
+    /// Move cursor left
+    pub fn filter_cursor_left(&mut self) {
+        if self.filter_cursor > 0 {
+            self.filter_cursor -= 1;
+        }
+    }
+
+    /// Move cursor right
+    pub fn filter_cursor_right(&mut self) {
+        if self.filter_cursor < self.filter_query.len() {
+            self.filter_cursor += 1;
+        }
+    }
+
+    /// Clear filter query
+    pub fn filter_clear(&mut self) {
+        self.filter_query.clear();
+        self.filter_cursor = 0;
+    }
+
+    /// Check if filter is active
+    pub fn has_filter(&self) -> bool {
+        !self.filter_query.is_empty()
+    }
+
+    /// Get filtered task IDs
+    pub fn filtered_task_ids(&self) -> Vec<&String> {
+        if self.filter_query.is_empty() {
+            return self.task_order.iter().collect();
+        }
+
+        let query = self.filter_query.to_lowercase();
+        self.task_order
+            .iter()
+            .filter(|id| {
+                // Match task ID
+                if id.to_lowercase().contains(&query) {
+                    return true;
+                }
+                // Match task type
+                if let Some(task) = self.tasks.get(*id) {
+                    if let Some(task_type) = &task.task_type {
+                        if task_type.to_lowercase().contains(&query) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            })
+            .collect()
+    }
+
+    /// Get filtered MCP calls
+    pub fn filtered_mcp_calls(&self) -> Vec<&McpCall> {
+        if self.filter_query.is_empty() {
+            return self.mcp_calls.iter().collect();
+        }
+
+        let query = self.filter_query.to_lowercase();
+        self.mcp_calls
+            .iter()
+            .filter(|call| {
+                // Match server name
+                if call.server.to_lowercase().contains(&query) {
+                    return true;
+                }
+                // Match tool name
+                if let Some(tool) = &call.tool {
+                    if tool.to_lowercase().contains(&query) {
+                        return true;
+                    }
+                }
+                // Match resource URI
+                if let Some(resource) = &call.resource {
+                    if resource.to_lowercase().contains(&query) {
+                        return true;
+                    }
+                }
+                false
+            })
+            .collect()
+    }
+
     /// Toggle pause state
     pub fn toggle_pause(&mut self) {
         self.paused = !self.paused;
@@ -945,6 +1540,279 @@ impl TuiState {
                 .contains(&Breakpoint::OnAgentTurn(task_id.to_string(), *turn_index)),
             _ => false,
         }
+    }
+
+    /// Check if a task has a breakpoint set (TIER 2.3)
+    pub fn has_breakpoint(&self, task_id: &str) -> bool {
+        self.breakpoints
+            .contains(&Breakpoint::BeforeTask(task_id.to_string()))
+            || self
+                .breakpoints
+                .contains(&Breakpoint::AfterTask(task_id.to_string()))
+            || self
+                .breakpoints
+                .contains(&Breakpoint::OnError(task_id.to_string()))
+            || self
+                .breakpoints
+                .contains(&Breakpoint::OnMcp(task_id.to_string()))
+    }
+
+    /// Get content suitable for clipboard copy based on focused panel and current tab
+    ///
+    /// Returns the most relevant content for the current view:
+    /// - Progress panel: Final output JSON or current task output
+    /// - DAG panel: YAML content or task list
+    /// - NovaNet panel: Selected MCP call (params + response)
+    /// - Agent panel: Agent turns or thinking content
+    pub fn get_copyable_content(&self) -> Option<String> {
+        match self.focus {
+            PanelId::Progress => {
+                // Priority: final output > current task output > metrics summary
+                if let Some(ref output) = self.workflow.final_output {
+                    Some(serde_json::to_string_pretty(output.as_ref()).unwrap_or_default())
+                } else if let Some(ref task_id) = self.current_task {
+                    self.tasks.get(task_id).and_then(|task| {
+                        task.output
+                            .as_ref()
+                            .map(|o| serde_json::to_string_pretty(o.as_ref()).unwrap_or_default())
+                    })
+                } else {
+                    // Return metrics summary
+                    Some(format!(
+                        "Workflow: {}\nTasks: {}/{}\nTokens: {}\nMCP calls: {}",
+                        self.workflow.path,
+                        self.workflow.tasks_completed,
+                        self.workflow.task_count,
+                        self.metrics.total_tokens,
+                        self.mcp_calls.len()
+                    ))
+                }
+            }
+            PanelId::Dag => {
+                // Return task list with statuses
+                let mut lines = vec!["# DAG Tasks".to_string()];
+                for task_id in &self.task_order {
+                    if let Some(task) = self.tasks.get(task_id) {
+                        let status = match task.status {
+                            crate::tui::theme::TaskStatus::Pending => "○",
+                            crate::tui::theme::TaskStatus::Running => "◐",
+                            crate::tui::theme::TaskStatus::Success => "✓",
+                            crate::tui::theme::TaskStatus::Failed => "✗",
+                            crate::tui::theme::TaskStatus::Paused => "⏸",
+                        };
+                        let deps = if task.dependencies.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" → {}", task.dependencies.join(", "))
+                        };
+                        lines.push(format!("{} {}{}", status, task_id, deps));
+                    }
+                }
+                Some(lines.join("\n"))
+            }
+            PanelId::NovaNet => {
+                // Return selected MCP call or all calls
+                if let Some(idx) = self.selected_mcp_idx {
+                    self.mcp_calls.get(idx).map(|call| {
+                        let mut content = format!(
+                            "# MCP Call #{}: {}\n\n",
+                            call.seq + 1,
+                            call.tool.as_deref().unwrap_or("resource")
+                        );
+                        content.push_str("## Request\n");
+                        if let Some(ref params) = call.params {
+                            content.push_str(
+                                &serde_json::to_string_pretty(params).unwrap_or_default(),
+                            );
+                        }
+                        content.push_str("\n\n## Response\n");
+                        if let Some(ref response) = call.response {
+                            content.push_str(
+                                &serde_json::to_string_pretty(response).unwrap_or_default(),
+                            );
+                        } else if !call.completed {
+                            content.push_str("(pending...)");
+                        }
+                        content
+                    })
+                } else if !self.mcp_calls.is_empty() {
+                    // Return summary of all MCP calls
+                    let mut lines = vec!["# MCP Calls".to_string()];
+                    for call in &self.mcp_calls {
+                        let status = if call.completed { "✓" } else { "◐" };
+                        let tool = call.tool.as_deref().unwrap_or("resource");
+                        let duration = call
+                            .duration_ms
+                            .map(|d| format!(" {}ms", d))
+                            .unwrap_or_default();
+                        lines.push(format!(
+                            "{} #{} {}:{}{}",
+                            status,
+                            call.seq + 1,
+                            call.server,
+                            tool,
+                            duration
+                        ));
+                    }
+                    Some(lines.join("\n"))
+                } else {
+                    None
+                }
+            }
+            PanelId::Agent => {
+                // Return agent turns or thinking content
+                if self.agent_turns.is_empty() {
+                    return None;
+                }
+
+                let mut content = String::from("# Agent Turns\n\n");
+                for turn in &self.agent_turns {
+                    content.push_str(&format!("## Turn {}\n", turn.index + 1));
+                    if let Some(ref thinking) = turn.thinking {
+                        content.push_str("### Thinking\n");
+                        content.push_str(thinking);
+                        content.push_str("\n\n");
+                    }
+                    if let Some(ref response) = turn.response_text {
+                        content.push_str("### Response\n");
+                        content.push_str(response);
+                        content.push_str("\n\n");
+                    }
+                    if !turn.tool_calls.is_empty() {
+                        content.push_str("### Tool Calls\n");
+                        for tool in &turn.tool_calls {
+                            content.push_str(&format!("- {}\n", tool));
+                        }
+                        content.push('\n');
+                    }
+                }
+                Some(content)
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // RETRY SUPPORT (TIER 1.2)
+    // ═══════════════════════════════════════════
+
+    /// Check if the workflow is in a failed state (can be retried)
+    pub fn is_failed(&self) -> bool {
+        self.workflow.phase == MissionPhase::Abort || self.workflow.error_message.is_some()
+    }
+
+    /// Check if the workflow completed successfully
+    pub fn is_success(&self) -> bool {
+        self.workflow.phase == MissionPhase::MissionSuccess
+    }
+
+    /// Check if the workflow is still running
+    pub fn is_running(&self) -> bool {
+        matches!(
+            self.workflow.phase,
+            MissionPhase::Countdown
+                | MissionPhase::Launch
+                | MissionPhase::Orbital
+                | MissionPhase::Rendezvous
+        )
+    }
+
+    /// Reset state for retry - clears failed tasks and resets workflow phase
+    ///
+    /// Returns the list of task IDs that were reset (previously failed)
+    pub fn reset_for_retry(&mut self) -> Vec<String> {
+        let mut reset_tasks = Vec::new();
+
+        // Reset workflow state
+        self.workflow.phase = MissionPhase::Preflight;
+        self.workflow.error_message = None;
+        self.workflow.final_output = None;
+        self.workflow.total_duration_ms = None;
+        self.workflow.tasks_completed = 0;
+        self.workflow.started_at = None;
+
+        // Reset all failed tasks to pending
+        for (task_id, task) in &mut self.tasks {
+            if task.status == TaskStatus::Failed {
+                task.status = TaskStatus::Pending;
+                task.duration_ms = None;
+                task.error = None;
+                task.output = None;
+                reset_tasks.push(task_id.clone());
+            }
+        }
+
+        // Clear current task
+        self.current_task = None;
+
+        // Clear agent turns
+        self.agent_turns.clear();
+
+        // Reset metrics
+        self.metrics = Metrics::default();
+
+        // Clear MCP calls (keep for reference? or clear?)
+        // For now, keep them as history but mark workflow as ready for retry
+        self.mcp_seq = 0;
+
+        reset_tasks
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NOTIFICATION METHODS (TIER 3.4)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Add a notification (TIER 3.4)
+    ///
+    /// Automatically trims old notifications when exceeding max_notifications.
+    pub fn add_notification(&mut self, notification: Notification) {
+        self.notifications.push(notification);
+
+        // Trim old notifications if we exceed max
+        while self.notifications.len() > self.max_notifications {
+            self.notifications.remove(0);
+        }
+
+        // TIER 4.1: Mark notifications dirty
+        self.dirty.notifications = true;
+    }
+
+    /// Get active (non-dismissed) notifications
+    pub fn active_notifications(&self) -> impl Iterator<Item = &Notification> {
+        self.notifications.iter().filter(|n| !n.dismissed)
+    }
+
+    /// Get count of active notifications
+    pub fn active_notification_count(&self) -> usize {
+        self.notifications.iter().filter(|n| !n.dismissed).count()
+    }
+
+    /// Dismiss the most recent notification
+    pub fn dismiss_notification(&mut self) {
+        // Dismiss the most recent non-dismissed notification
+        for n in self.notifications.iter_mut().rev() {
+            if !n.dismissed {
+                n.dismissed = true;
+                // TIER 4.1: Mark notifications dirty
+                self.dirty.notifications = true;
+                break;
+            }
+        }
+    }
+
+    /// Dismiss all notifications
+    pub fn dismiss_all_notifications(&mut self) {
+        for n in &mut self.notifications {
+            n.dismissed = true;
+        }
+        // TIER 4.1: Mark notifications dirty
+        self.dirty.notifications = true;
+    }
+
+    /// Clear all notifications (removes from list entirely)
+    pub fn clear_notifications(&mut self) {
+        self.notifications.clear();
+        // TIER 4.1: Mark notifications dirty
+        self.dirty.notifications = true;
     }
 }
 
@@ -988,6 +1856,47 @@ mod tests {
 
         state.focus_prev();
         assert_eq!(state.focus, PanelId::NovaNet);
+    }
+
+    #[test]
+    fn test_tui_state_cycle_tab() {
+        use crate::tui::views::{DagTab, MissionTab, NovanetTab, ReasoningTab};
+
+        let mut state = TuiState::new("test.yaml");
+
+        // Test Mission tab cycling (Progress → TaskIO → Output → Progress)
+        state.focus = PanelId::Progress;
+        assert_eq!(state.mission_tab, MissionTab::Progress);
+        state.cycle_tab();
+        assert_eq!(state.mission_tab, MissionTab::TaskIO);
+        state.cycle_tab();
+        assert_eq!(state.mission_tab, MissionTab::Output);
+        state.cycle_tab();
+        assert_eq!(state.mission_tab, MissionTab::Progress);
+
+        // Test Dag tab cycling (Graph ↔ Yaml)
+        state.focus = PanelId::Dag;
+        assert_eq!(state.dag_tab, DagTab::Graph);
+        state.cycle_tab();
+        assert_eq!(state.dag_tab, DagTab::Yaml);
+        state.cycle_tab();
+        assert_eq!(state.dag_tab, DagTab::Graph);
+
+        // Test NovaNet tab cycling (Summary ↔ FullJson)
+        state.focus = PanelId::NovaNet;
+        assert_eq!(state.novanet_tab, NovanetTab::Summary);
+        state.cycle_tab();
+        assert_eq!(state.novanet_tab, NovanetTab::FullJson);
+        state.cycle_tab();
+        assert_eq!(state.novanet_tab, NovanetTab::Summary);
+
+        // Test Reasoning tab cycling (Turns ↔ Thinking)
+        state.focus = PanelId::Agent;
+        assert_eq!(state.reasoning_tab, ReasoningTab::Turns);
+        state.cycle_tab();
+        assert_eq!(state.reasoning_tab, ReasoningTab::Thinking);
+        state.cycle_tab();
+        assert_eq!(state.reasoning_tab, ReasoningTab::Turns);
     }
 
     #[test]
@@ -1052,6 +1961,7 @@ mod tests {
     fn test_tui_state_handle_mcp_events() {
         let mut state = TuiState::new("test.yaml");
 
+        let test_params = serde_json::json!({"entity": "qr-code"});
         state.handle_event(
             &EventKind::McpInvoke {
                 task_id: Arc::from("task1"),
@@ -1059,17 +1969,21 @@ mod tests {
                 mcp_server: "novanet".to_string(),
                 tool: Some("novanet_describe".to_string()),
                 resource: None,
+                params: Some(test_params.clone()),
             },
             100,
         );
 
         assert_eq!(state.mcp_calls.len(), 1);
+        assert_eq!(state.mcp_calls[0].call_id, "test-call-1");
         assert_eq!(
             state.mcp_calls[0].tool,
             Some("novanet_describe".to_string())
         );
         assert!(!state.mcp_calls[0].completed);
+        assert_eq!(state.mcp_calls[0].params, Some(test_params));
 
+        let test_response = serde_json::json!({"name": "QR Code", "locale": "en-US"});
         state.handle_event(
             &EventKind::McpResponse {
                 task_id: Arc::from("task1"),
@@ -1078,12 +1992,127 @@ mod tests {
                 duration_ms: 100,
                 cached: false,
                 is_error: false,
+                response: Some(test_response.clone()),
             },
             200,
         );
 
         assert!(state.mcp_calls[0].completed);
         assert_eq!(state.mcp_calls[0].output_len, Some(1024));
+        assert_eq!(state.mcp_calls[0].response, Some(test_response));
+        assert_eq!(state.mcp_calls[0].duration_ms, Some(100));
+        assert!(!state.mcp_calls[0].is_error);
+    }
+
+    #[test]
+    fn test_tui_state_handle_mcp_error_response() {
+        let mut state = TuiState::new("test.yaml");
+
+        state.handle_event(
+            &EventKind::McpInvoke {
+                task_id: Arc::from("task1"),
+                call_id: "error-call-1".to_string(),
+                mcp_server: "novanet".to_string(),
+                tool: Some("novanet_traverse".to_string()),
+                resource: None,
+                params: Some(serde_json::json!({"invalid": "params"})),
+            },
+            100,
+        );
+
+        state.handle_event(
+            &EventKind::McpResponse {
+                task_id: Arc::from("task1"),
+                call_id: "error-call-1".to_string(),
+                output_len: 50,
+                duration_ms: 25,
+                cached: false,
+                is_error: true,
+                response: Some(serde_json::json!({"error": "Invalid params"})),
+            },
+            125,
+        );
+
+        assert!(state.mcp_calls[0].is_error);
+        assert_eq!(state.mcp_calls[0].duration_ms, Some(25));
+        assert_eq!(
+            state.mcp_calls[0].response,
+            Some(serde_json::json!({"error": "Invalid params"}))
+        );
+    }
+
+    #[test]
+    fn test_tui_state_handle_mcp_parallel_calls() {
+        let mut state = TuiState::new("test.yaml");
+
+        // Simulate parallel MCP calls (for_each scenario)
+        state.handle_event(
+            &EventKind::McpInvoke {
+                task_id: Arc::from("task1"),
+                call_id: "call-fr".to_string(),
+                mcp_server: "novanet".to_string(),
+                tool: Some("novanet_generate".to_string()),
+                resource: None,
+                params: Some(serde_json::json!({"locale": "fr-FR"})),
+            },
+            100,
+        );
+        state.handle_event(
+            &EventKind::McpInvoke {
+                task_id: Arc::from("task1"),
+                call_id: "call-en".to_string(),
+                mcp_server: "novanet".to_string(),
+                tool: Some("novanet_generate".to_string()),
+                resource: None,
+                params: Some(serde_json::json!({"locale": "en-US"})),
+            },
+            110,
+        );
+
+        assert_eq!(state.mcp_calls.len(), 2);
+        assert!(!state.mcp_calls[0].completed);
+        assert!(!state.mcp_calls[1].completed);
+
+        // Response for second call arrives first
+        state.handle_event(
+            &EventKind::McpResponse {
+                task_id: Arc::from("task1"),
+                call_id: "call-en".to_string(),
+                output_len: 500,
+                duration_ms: 50,
+                cached: false,
+                is_error: false,
+                response: Some(serde_json::json!({"content": "English content"})),
+            },
+            160,
+        );
+
+        // First call still pending, second completed
+        assert!(!state.mcp_calls[0].completed);
+        assert!(state.mcp_calls[1].completed);
+        assert_eq!(state.mcp_calls[1].call_id, "call-en");
+
+        // Response for first call arrives
+        state.handle_event(
+            &EventKind::McpResponse {
+                task_id: Arc::from("task1"),
+                call_id: "call-fr".to_string(),
+                output_len: 600,
+                duration_ms: 120,
+                cached: false,
+                is_error: false,
+                response: Some(serde_json::json!({"content": "French content"})),
+            },
+            220,
+        );
+
+        // Both completed, correct correlation
+        assert!(state.mcp_calls[0].completed);
+        assert_eq!(state.mcp_calls[0].call_id, "call-fr");
+        assert_eq!(state.mcp_calls[0].duration_ms, Some(120));
+        assert!(state.mcp_calls[1].completed);
+        assert_eq!(state.mcp_calls[1].call_id, "call-en");
+        assert_eq!(state.mcp_calls[1].duration_ms, Some(50));
     }
 
     #[test]
@@ -1325,5 +2354,1275 @@ mod tests {
         // Settings should be initialized with loaded config
         assert_eq!(state.settings.focus, SettingsField::AnthropicKey);
         assert!(!state.settings.editing);
+    }
+
+    // ═══════════════════════════════════════════
+    // RETRY TESTS (TIER 1.2)
+    // ═══════════════════════════════════════════
+
+    #[test]
+    fn test_is_failed_returns_true_on_abort() {
+        let mut state = TuiState::new("test.yaml");
+        state.workflow.phase = MissionPhase::Abort;
+        assert!(state.is_failed());
+    }
+
+    #[test]
+    fn test_is_failed_returns_true_on_error_message() {
+        let mut state = TuiState::new("test.yaml");
+        state.workflow.error_message = Some("Something went wrong".to_string());
+        assert!(state.is_failed());
+    }
+
+    #[test]
+    fn test_is_failed_returns_false_on_success() {
+        let mut state = TuiState::new("test.yaml");
+        state.workflow.phase = MissionPhase::MissionSuccess;
+        assert!(!state.is_failed());
+        assert!(state.is_success());
+    }
+
+    #[test]
+    fn test_is_running_returns_true_during_execution() {
+        let mut state = TuiState::new("test.yaml");
+
+        state.workflow.phase = MissionPhase::Countdown;
+        assert!(state.is_running());
+
+        state.workflow.phase = MissionPhase::Launch;
+        assert!(state.is_running());
+
+        state.workflow.phase = MissionPhase::Orbital;
+        assert!(state.is_running());
+
+        state.workflow.phase = MissionPhase::Rendezvous;
+        assert!(state.is_running());
+    }
+
+    #[test]
+    fn test_is_running_returns_false_when_not_executing() {
+        let mut state = TuiState::new("test.yaml");
+
+        state.workflow.phase = MissionPhase::Preflight;
+        assert!(!state.is_running());
+
+        state.workflow.phase = MissionPhase::MissionSuccess;
+        assert!(!state.is_running());
+
+        state.workflow.phase = MissionPhase::Abort;
+        assert!(!state.is_running());
+    }
+
+    #[test]
+    fn test_reset_for_retry_resets_workflow_state() {
+        let mut state = TuiState::new("test.yaml");
+
+        // Simulate workflow failure
+        state.workflow.phase = MissionPhase::Abort;
+        state.workflow.error_message = Some("Test error".to_string());
+        state.workflow.task_count = 3;
+        state.workflow.tasks_completed = 2;
+
+        // Reset for retry
+        let reset_tasks = state.reset_for_retry();
+
+        // Verify reset
+        assert_eq!(state.workflow.phase, MissionPhase::Preflight);
+        assert!(state.workflow.error_message.is_none());
+        assert!(state.workflow.final_output.is_none());
+        assert_eq!(state.workflow.tasks_completed, 0);
+        assert!(reset_tasks.is_empty()); // No tasks were failed in this simple test
+    }
+
+    #[test]
+    fn test_reset_for_retry_resets_failed_tasks() {
+        let mut state = TuiState::new("test.yaml");
+
+        // Add tasks
+        state.tasks.insert(
+            "task1".to_string(),
+            TaskState {
+                id: "task1".to_string(),
+                task_type: Some("infer".to_string()),
+                status: TaskStatus::Success,
+                dependencies: vec![],
+                started_at: None,
+                duration_ms: Some(100),
+                input: None,
+                output: None,
+                error: None,
+                tokens: None,
+            },
+        );
+        state.tasks.insert(
+            "task2".to_string(),
+            TaskState {
+                id: "task2".to_string(),
+                task_type: Some("exec".to_string()),
+                status: TaskStatus::Failed,
+                dependencies: vec!["task1".to_string()],
+                started_at: None,
+                duration_ms: Some(50),
+                input: None,
+                output: None,
+                error: Some("Command failed".to_string()),
+                tokens: None,
+            },
+        );
+
+        // Set workflow to failed
+        state.workflow.phase = MissionPhase::Abort;
+
+        // Reset for retry
+        let reset_tasks = state.reset_for_retry();
+
+        // Verify task1 unchanged (was success)
+        assert_eq!(state.tasks["task1"].status, TaskStatus::Success);
+
+        // Verify task2 reset (was failed)
+        assert_eq!(state.tasks["task2"].status, TaskStatus::Pending);
+        assert!(state.tasks["task2"].error.is_none());
+        assert!(state.tasks["task2"].duration_ms.is_none());
+
+        // Verify reset list
+        assert_eq!(reset_tasks.len(), 1);
+        assert!(reset_tasks.contains(&"task2".to_string()));
+    }
+
+    // ═══════════════════════════════════════════
+    // MCP NAVIGATION TESTS (TIER 1.3)
+    // ═══════════════════════════════════════════
+
+    #[test]
+    fn test_mcp_navigation_empty_list() {
+        let mut state = TuiState::new("test.yaml");
+        assert!(state.mcp_calls.is_empty());
+        assert!(state.selected_mcp_idx.is_none());
+
+        // Navigation on empty list should not panic
+        state.select_prev_mcp();
+        state.select_next_mcp();
+        assert!(state.selected_mcp_idx.is_none());
+    }
+
+    #[test]
+    fn test_mcp_navigation_select_prev() {
+        let mut state = TuiState::new("test.yaml");
+
+        // Add some MCP calls
+        for i in 0..3 {
+            state.mcp_calls.push(McpCall {
+                call_id: format!("call-{}", i),
+                seq: i,
+                server: "novanet".to_string(),
+                tool: Some(format!("tool{}", i)),
+                resource: None,
+                task_id: "task1".to_string(),
+                completed: true,
+                output_len: Some(100),
+                timestamp_ms: 1000 + (i as u64) * 100,
+                params: None,
+                response: None,
+                is_error: false,
+                duration_ms: Some(10),
+            });
+        }
+
+        // First prev should select last item
+        state.select_prev_mcp();
+        assert_eq!(state.selected_mcp_idx, Some(2));
+
+        // Prev again should go to index 1
+        state.select_prev_mcp();
+        assert_eq!(state.selected_mcp_idx, Some(1));
+
+        // Prev again should go to index 0
+        state.select_prev_mcp();
+        assert_eq!(state.selected_mcp_idx, Some(0));
+
+        // Prev again should stay at 0 (boundary)
+        state.select_prev_mcp();
+        assert_eq!(state.selected_mcp_idx, Some(0));
+    }
+
+    #[test]
+    fn test_mcp_navigation_select_next() {
+        let mut state = TuiState::new("test.yaml");
+
+        // Add some MCP calls
+        for i in 0..3 {
+            state.mcp_calls.push(McpCall {
+                call_id: format!("call-{}", i),
+                seq: i,
+                server: "novanet".to_string(),
+                tool: Some(format!("tool{}", i)),
+                resource: None,
+                task_id: "task1".to_string(),
+                completed: true,
+                output_len: Some(100),
+                timestamp_ms: 1000 + (i as u64) * 100,
+                params: None,
+                response: None,
+                is_error: false,
+                duration_ms: Some(10),
+            });
+        }
+
+        // First next should select first item
+        state.select_next_mcp();
+        assert_eq!(state.selected_mcp_idx, Some(0));
+
+        // Next again should go to index 1
+        state.select_next_mcp();
+        assert_eq!(state.selected_mcp_idx, Some(1));
+
+        // Next again should go to index 2
+        state.select_next_mcp();
+        assert_eq!(state.selected_mcp_idx, Some(2));
+
+        // Next again should stay at 2 (boundary)
+        state.select_next_mcp();
+        assert_eq!(state.selected_mcp_idx, Some(2));
+    }
+
+    #[test]
+    fn test_mcp_navigation_get_selected() {
+        let mut state = TuiState::new("test.yaml");
+
+        // Add MCP call
+        state.mcp_calls.push(McpCall {
+            call_id: "call-0".to_string(),
+            seq: 0,
+            server: "novanet".to_string(),
+            tool: Some("novanet_describe".to_string()),
+            resource: None,
+            task_id: "task1".to_string(),
+            completed: true,
+            output_len: Some(100),
+            timestamp_ms: 1000,
+            params: None,
+            response: None,
+            is_error: false,
+            duration_ms: Some(10),
+        });
+
+        // No selection yet
+        assert!(state.get_selected_mcp().is_none());
+
+        // Select
+        state.select_mcp(0);
+        let selected = state.get_selected_mcp().unwrap();
+        assert_eq!(selected.tool.as_deref(), Some("novanet_describe"));
+    }
+
+    // ═══════════════════════════════════════════
+    // FILTER TESTS (TIER 1.5)
+    // ═══════════════════════════════════════════
+
+    #[test]
+    fn test_filter_push_adds_characters() {
+        let mut state = TuiState::new("test.yaml");
+        assert!(state.filter_query.is_empty());
+        assert_eq!(state.filter_cursor, 0);
+
+        state.filter_push('h');
+        state.filter_push('e');
+        state.filter_push('l');
+        state.filter_push('l');
+        state.filter_push('o');
+
+        assert_eq!(state.filter_query, "hello");
+        assert_eq!(state.filter_cursor, 5);
+    }
+
+    #[test]
+    fn test_filter_backspace_removes_before_cursor() {
+        let mut state = TuiState::new("test.yaml");
+        state.filter_query = "hello".to_string();
+        state.filter_cursor = 5;
+
+        state.filter_backspace();
+        assert_eq!(state.filter_query, "hell");
+        assert_eq!(state.filter_cursor, 4);
+
+        state.filter_backspace();
+        state.filter_backspace();
+        assert_eq!(state.filter_query, "he");
+        assert_eq!(state.filter_cursor, 2);
+
+        // Backspace at start does nothing
+        state.filter_cursor = 0;
+        state.filter_backspace();
+        assert_eq!(state.filter_query, "he");
+        assert_eq!(state.filter_cursor, 0);
+    }
+
+    #[test]
+    fn test_filter_delete_removes_at_cursor() {
+        let mut state = TuiState::new("test.yaml");
+        state.filter_query = "hello".to_string();
+        state.filter_cursor = 0;
+
+        state.filter_delete();
+        assert_eq!(state.filter_query, "ello");
+        assert_eq!(state.filter_cursor, 0);
+
+        // Delete at end does nothing
+        state.filter_cursor = state.filter_query.len();
+        state.filter_delete();
+        assert_eq!(state.filter_query, "ello");
+    }
+
+    #[test]
+    fn test_filter_cursor_movement() {
+        let mut state = TuiState::new("test.yaml");
+        state.filter_query = "hello".to_string();
+        state.filter_cursor = 2;
+
+        state.filter_cursor_left();
+        assert_eq!(state.filter_cursor, 1);
+
+        state.filter_cursor_right();
+        assert_eq!(state.filter_cursor, 2);
+
+        // Boundary: left at start
+        state.filter_cursor = 0;
+        state.filter_cursor_left();
+        assert_eq!(state.filter_cursor, 0);
+
+        // Boundary: right at end
+        state.filter_cursor = 5;
+        state.filter_cursor_right();
+        assert_eq!(state.filter_cursor, 5);
+    }
+
+    #[test]
+    fn test_filter_clear_resets_all() {
+        let mut state = TuiState::new("test.yaml");
+        state.filter_query = "hello".to_string();
+        state.filter_cursor = 3;
+
+        state.filter_clear();
+        assert!(state.filter_query.is_empty());
+        assert_eq!(state.filter_cursor, 0);
+    }
+
+    #[test]
+    fn test_has_filter() {
+        let mut state = TuiState::new("test.yaml");
+        assert!(!state.has_filter());
+
+        state.filter_query = "test".to_string();
+        assert!(state.has_filter());
+
+        state.filter_clear();
+        assert!(!state.has_filter());
+    }
+
+    #[test]
+    fn test_filtered_task_ids_no_filter() {
+        let mut state = TuiState::new("test.yaml");
+        state.task_order = vec![
+            "task1".to_string(),
+            "task2".to_string(),
+            "task3".to_string(),
+        ];
+
+        // No filter - returns all
+        let filtered = state.filtered_task_ids();
+        assert_eq!(filtered.len(), 3);
+    }
+
+    #[test]
+    fn test_filtered_task_ids_matches_id() {
+        let mut state = TuiState::new("test.yaml");
+        state.task_order = vec![
+            "generate".to_string(),
+            "fetch_data".to_string(),
+            "transform".to_string(),
+        ];
+
+        state.filter_query = "gen".to_string();
+        let filtered = state.filtered_task_ids();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(*filtered[0], "generate");
+    }
+
+    #[test]
+    fn test_filtered_task_ids_matches_type() {
+        let mut state = TuiState::new("test.yaml");
+        state.task_order = vec!["task1".to_string(), "task2".to_string()];
+        state.tasks.insert(
+            "task1".to_string(),
+            TaskState {
+                id: "task1".to_string(),
+                task_type: Some("infer".to_string()),
+                status: TaskStatus::Pending,
+                dependencies: vec![],
+                started_at: None,
+                duration_ms: None,
+                input: None,
+                output: None,
+                error: None,
+                tokens: None,
+            },
+        );
+        state.tasks.insert(
+            "task2".to_string(),
+            TaskState {
+                id: "task2".to_string(),
+                task_type: Some("exec".to_string()),
+                status: TaskStatus::Pending,
+                dependencies: vec![],
+                started_at: None,
+                duration_ms: None,
+                input: None,
+                output: None,
+                error: None,
+                tokens: None,
+            },
+        );
+
+        state.filter_query = "infer".to_string();
+        let filtered = state.filtered_task_ids();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(*filtered[0], "task1");
+    }
+
+    #[test]
+    fn test_filtered_task_ids_case_insensitive() {
+        let mut state = TuiState::new("test.yaml");
+        state.task_order = vec!["GeneratePage".to_string()];
+
+        state.filter_query = "page".to_string();
+        let filtered = state.filtered_task_ids();
+        assert_eq!(filtered.len(), 1);
+
+        state.filter_query = "PAGE".to_string();
+        let filtered = state.filtered_task_ids();
+        assert_eq!(filtered.len(), 1);
+    }
+
+    #[test]
+    fn test_filtered_mcp_calls_no_filter() {
+        let mut state = TuiState::new("test.yaml");
+        state.mcp_calls.push(McpCall {
+            call_id: "call-0".to_string(),
+            seq: 0,
+            server: "novanet".to_string(),
+            tool: Some("novanet_describe".to_string()),
+            resource: None,
+            task_id: "task1".to_string(),
+            completed: true,
+            output_len: Some(100),
+            timestamp_ms: 1000,
+            params: None,
+            response: None,
+            is_error: false,
+            duration_ms: Some(10),
+        });
+
+        // No filter - returns all
+        let filtered = state.filtered_mcp_calls();
+        assert_eq!(filtered.len(), 1);
+    }
+
+    #[test]
+    fn test_filtered_mcp_calls_matches_server() {
+        let mut state = TuiState::new("test.yaml");
+        state.mcp_calls.push(McpCall {
+            call_id: "call-0".to_string(),
+            seq: 0,
+            server: "novanet".to_string(),
+            tool: Some("novanet_describe".to_string()),
+            resource: None,
+            task_id: "task1".to_string(),
+            completed: true,
+            output_len: Some(100),
+            timestamp_ms: 1000,
+            params: None,
+            response: None,
+            is_error: false,
+            duration_ms: Some(10),
+        });
+        state.mcp_calls.push(McpCall {
+            call_id: "call-1".to_string(),
+            seq: 1,
+            server: "other_server".to_string(),
+            tool: Some("other_tool".to_string()),
+            resource: None,
+            task_id: "task1".to_string(),
+            completed: true,
+            output_len: Some(100),
+            timestamp_ms: 1100,
+            params: None,
+            response: None,
+            is_error: false,
+            duration_ms: Some(10),
+        });
+
+        state.filter_query = "nova".to_string();
+        let filtered = state.filtered_mcp_calls();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].server, "novanet");
+    }
+
+    #[test]
+    fn test_filtered_mcp_calls_matches_tool() {
+        let mut state = TuiState::new("test.yaml");
+        state.mcp_calls.push(McpCall {
+            call_id: "call-0".to_string(),
+            seq: 0,
+            server: "novanet".to_string(),
+            tool: Some("novanet_describe".to_string()),
+            resource: None,
+            task_id: "task1".to_string(),
+            completed: true,
+            output_len: Some(100),
+            timestamp_ms: 1000,
+            params: None,
+            response: None,
+            is_error: false,
+            duration_ms: Some(10),
+        });
+        state.mcp_calls.push(McpCall {
+            call_id: "call-1".to_string(),
+            seq: 1,
+            server: "novanet".to_string(),
+            tool: Some("novanet_traverse".to_string()),
+            resource: None,
+            task_id: "task1".to_string(),
+            completed: true,
+            output_len: Some(100),
+            timestamp_ms: 1100,
+            params: None,
+            response: None,
+            is_error: false,
+            duration_ms: Some(10),
+        });
+
+        state.filter_query = "describe".to_string();
+        let filtered = state.filtered_mcp_calls();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].tool.as_deref(), Some("novanet_describe"));
+    }
+
+    #[test]
+    fn test_filtered_mcp_calls_matches_resource() {
+        let mut state = TuiState::new("test.yaml");
+        state.mcp_calls.push(McpCall {
+            call_id: "call-0".to_string(),
+            seq: 0,
+            server: "novanet".to_string(),
+            tool: None,
+            resource: Some("neo4j://entity/qr-code".to_string()),
+            task_id: "task1".to_string(),
+            completed: true,
+            output_len: Some(100),
+            timestamp_ms: 1000,
+            params: None,
+            response: None,
+            is_error: false,
+            duration_ms: Some(10),
+        });
+
+        state.filter_query = "qr-code".to_string();
+        let filtered = state.filtered_mcp_calls();
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered[0].resource.as_ref().unwrap().contains("qr-code"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NOTIFICATION TESTS (TIER 3.4)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_notification_level_icons() {
+        assert_eq!(NotificationLevel::Info.icon(), "ℹ");
+        assert_eq!(NotificationLevel::Warning.icon(), "⚠");
+        assert_eq!(NotificationLevel::Alert.icon(), "🔔");
+        assert_eq!(NotificationLevel::Success.icon(), "✓");
+        assert_eq!(NotificationLevel::Error.icon(), "✗");
+    }
+
+    #[test]
+    fn test_notification_constructors() {
+        let n = Notification::info("Test info", 1000);
+        assert_eq!(n.level, NotificationLevel::Info);
+        assert_eq!(n.message, "Test info");
+        assert_eq!(n.timestamp_ms, 1000);
+        assert!(!n.dismissed);
+
+        let n = Notification::warning("Test warning", 2000);
+        assert_eq!(n.level, NotificationLevel::Warning);
+
+        let n = Notification::alert("Test alert", 3000);
+        assert_eq!(n.level, NotificationLevel::Alert);
+
+        let n = Notification::success("Test success", 4000);
+        assert_eq!(n.level, NotificationLevel::Success);
+
+        let n = Notification::error("Test error", 5000);
+        assert_eq!(n.level, NotificationLevel::Error);
+    }
+
+    #[test]
+    fn test_add_notification() {
+        let mut state = TuiState::new("test.yaml");
+        assert_eq!(state.notifications.len(), 0);
+
+        state.add_notification(Notification::info("Test 1", 1000));
+        assert_eq!(state.notifications.len(), 1);
+        assert_eq!(state.notifications[0].message, "Test 1");
+
+        state.add_notification(Notification::warning("Test 2", 2000));
+        assert_eq!(state.notifications.len(), 2);
+    }
+
+    #[test]
+    fn test_notification_max_limit() {
+        let mut state = TuiState::new("test.yaml");
+        state.max_notifications = 3;
+
+        // Add 5 notifications
+        for i in 0..5 {
+            state.add_notification(Notification::info(format!("Test {}", i), i * 1000));
+        }
+
+        // Should only keep last 3
+        assert_eq!(state.notifications.len(), 3);
+        assert_eq!(state.notifications[0].message, "Test 2");
+        assert_eq!(state.notifications[1].message, "Test 3");
+        assert_eq!(state.notifications[2].message, "Test 4");
+    }
+
+    #[test]
+    fn test_active_notifications() {
+        let mut state = TuiState::new("test.yaml");
+
+        state.add_notification(Notification::info("Active 1", 1000));
+        state.add_notification(Notification::info("Active 2", 2000));
+        state.notifications[0].dismissed = true;
+
+        let active: Vec<_> = state.active_notifications().collect();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].message, "Active 2");
+    }
+
+    #[test]
+    fn test_active_notification_count() {
+        let mut state = TuiState::new("test.yaml");
+
+        state.add_notification(Notification::info("1", 1000));
+        state.add_notification(Notification::info("2", 2000));
+        state.add_notification(Notification::info("3", 3000));
+        assert_eq!(state.active_notification_count(), 3);
+
+        state.notifications[1].dismissed = true;
+        assert_eq!(state.active_notification_count(), 2);
+    }
+
+    #[test]
+    fn test_dismiss_notification() {
+        let mut state = TuiState::new("test.yaml");
+
+        state.add_notification(Notification::info("1", 1000));
+        state.add_notification(Notification::info("2", 2000));
+        state.add_notification(Notification::info("3", 3000));
+
+        // Dismiss most recent
+        state.dismiss_notification();
+        assert!(state.notifications[2].dismissed);
+        assert!(!state.notifications[1].dismissed);
+        assert!(!state.notifications[0].dismissed);
+
+        // Dismiss next most recent
+        state.dismiss_notification();
+        assert!(state.notifications[1].dismissed);
+        assert!(!state.notifications[0].dismissed);
+    }
+
+    #[test]
+    fn test_dismiss_all_notifications() {
+        let mut state = TuiState::new("test.yaml");
+
+        state.add_notification(Notification::info("1", 1000));
+        state.add_notification(Notification::info("2", 2000));
+        state.add_notification(Notification::info("3", 3000));
+
+        state.dismiss_all_notifications();
+
+        assert!(state.notifications.iter().all(|n| n.dismissed));
+        assert_eq!(state.active_notification_count(), 0);
+    }
+
+    #[test]
+    fn test_clear_notifications() {
+        let mut state = TuiState::new("test.yaml");
+
+        state.add_notification(Notification::info("1", 1000));
+        state.add_notification(Notification::info("2", 2000));
+        assert_eq!(state.notifications.len(), 2);
+
+        state.clear_notifications();
+        assert_eq!(state.notifications.len(), 0);
+    }
+
+    #[test]
+    fn test_workflow_completed_adds_notification() {
+        let mut state = TuiState::new("test.yaml");
+        state.workflow.task_count = 4;
+        state.workflow.tasks_completed = 4;
+
+        state.handle_event(
+            &EventKind::WorkflowCompleted {
+                final_output: std::sync::Arc::new(serde_json::Value::Null),
+                total_duration_ms: 5000,
+            },
+            5000,
+        );
+
+        assert_eq!(state.notifications.len(), 1);
+        assert_eq!(state.notifications[0].level, NotificationLevel::Success);
+        assert!(state.notifications[0].message.contains("completed"));
+    }
+
+    #[test]
+    fn test_workflow_failed_adds_notification() {
+        let mut state = TuiState::new("test.yaml");
+
+        state.handle_event(
+            &EventKind::WorkflowFailed {
+                error: "Something went wrong".to_string(),
+                failed_task: None,
+            },
+            5000,
+        );
+
+        assert_eq!(state.notifications.len(), 1);
+        assert_eq!(state.notifications[0].level, NotificationLevel::Error);
+        assert!(state.notifications[0].message.contains("failed"));
+    }
+
+    #[test]
+    fn test_slow_task_adds_warning() {
+        let mut state = TuiState::new("test.yaml");
+
+        // First create the task
+        state.tasks.insert(
+            "slow-task".to_string(),
+            TaskState::new("slow-task".to_string(), vec![]),
+        );
+
+        // Slow task (>10s but <30s) should add warning
+        state.handle_event(
+            &EventKind::TaskCompleted {
+                task_id: "slow-task".into(),
+                output: std::sync::Arc::new(serde_json::Value::Null),
+                duration_ms: 15000,
+            },
+            15000,
+        );
+
+        assert_eq!(state.notifications.len(), 1);
+        assert_eq!(state.notifications[0].level, NotificationLevel::Warning);
+        assert!(state.notifications[0].message.contains("15.0s"));
+    }
+
+    #[test]
+    fn test_very_slow_task_adds_alert() {
+        let mut state = TuiState::new("test.yaml");
+
+        // First create the task
+        state.tasks.insert(
+            "very-slow-task".to_string(),
+            TaskState::new("very-slow-task".to_string(), vec![]),
+        );
+
+        // Very slow task (>30s) should add alert
+        state.handle_event(
+            &EventKind::TaskCompleted {
+                task_id: "very-slow-task".into(),
+                output: std::sync::Arc::new(serde_json::Value::Null),
+                duration_ms: 35000,
+            },
+            35000,
+        );
+
+        assert_eq!(state.notifications.len(), 1);
+        assert_eq!(state.notifications[0].level, NotificationLevel::Alert);
+        assert!(state.notifications[0].message.contains("35.0s"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TIER 4.1: Dirty Flags Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_dirty_flags_default() {
+        let flags = DirtyFlags::default();
+        assert!(!flags.all);
+        assert!(!flags.progress);
+        assert!(!flags.dag);
+        assert!(!flags.novanet);
+        assert!(!flags.reasoning);
+        assert!(!flags.status);
+        assert!(!flags.notifications);
+        assert!(!flags.any());
+    }
+
+    #[test]
+    fn test_dirty_flags_mark_all() {
+        let mut flags = DirtyFlags::default();
+        flags.mark_all();
+        assert!(flags.all);
+        assert!(flags.any());
+    }
+
+    #[test]
+    fn test_dirty_flags_clear() {
+        let mut flags = DirtyFlags::default();
+        flags.all = true;
+        flags.progress = true;
+        flags.dag = true;
+        flags.novanet = true;
+        flags.reasoning = true;
+        flags.status = true;
+        flags.notifications = true;
+
+        flags.clear();
+
+        assert!(!flags.all);
+        assert!(!flags.progress);
+        assert!(!flags.dag);
+        assert!(!flags.novanet);
+        assert!(!flags.reasoning);
+        assert!(!flags.status);
+        assert!(!flags.notifications);
+        assert!(!flags.any());
+    }
+
+    #[test]
+    fn test_dirty_flags_any() {
+        let mut flags = DirtyFlags::default();
+        assert!(!flags.any());
+
+        flags.progress = true;
+        assert!(flags.any());
+
+        flags.progress = false;
+        flags.dag = true;
+        assert!(flags.any());
+    }
+
+    #[test]
+    fn test_dirty_flags_is_panel_dirty() {
+        let mut flags = DirtyFlags::default();
+
+        // When all is true, all panels are dirty
+        flags.all = true;
+        assert!(flags.is_panel_dirty(PanelId::Progress));
+        assert!(flags.is_panel_dirty(PanelId::Dag));
+        assert!(flags.is_panel_dirty(PanelId::NovaNet));
+        assert!(flags.is_panel_dirty(PanelId::Agent));
+
+        // Individual flags
+        flags.all = false;
+        assert!(!flags.is_panel_dirty(PanelId::Progress));
+
+        flags.progress = true;
+        assert!(flags.is_panel_dirty(PanelId::Progress));
+        assert!(!flags.is_panel_dirty(PanelId::Dag));
+
+        flags.dag = true;
+        assert!(flags.is_panel_dirty(PanelId::Dag));
+
+        flags.novanet = true;
+        assert!(flags.is_panel_dirty(PanelId::NovaNet));
+
+        flags.reasoning = true;
+        assert!(flags.is_panel_dirty(PanelId::Agent));
+    }
+
+    #[test]
+    fn test_workflow_started_marks_all_dirty() {
+        let mut state = TuiState::new("test.yaml");
+
+        state.handle_event(
+            &EventKind::WorkflowStarted {
+                task_count: 5,
+                generation_id: "gen-123".to_string(),
+                workflow_hash: "abc".to_string(),
+                nika_version: TEST_VERSION.to_string(),
+            },
+            0,
+        );
+
+        assert!(state.dirty.all);
+    }
+
+    #[test]
+    fn test_workflow_completed_marks_progress_status_dirty() {
+        let mut state = TuiState::new("test.yaml");
+        state.dirty.clear();
+
+        state.handle_event(
+            &EventKind::WorkflowCompleted {
+                final_output: std::sync::Arc::new(serde_json::Value::Null),
+                total_duration_ms: 1000,
+            },
+            1000,
+        );
+
+        assert!(state.dirty.progress);
+        assert!(state.dirty.status);
+        assert!(state.dirty.notifications); // from add_notification
+    }
+
+    #[test]
+    fn test_task_events_mark_progress_dag_dirty() {
+        let mut state = TuiState::new("test.yaml");
+
+        // TaskScheduled
+        state.dirty.clear();
+        state.handle_event(
+            &EventKind::TaskScheduled {
+                task_id: "task1".into(),
+                dependencies: vec![],
+            },
+            100,
+        );
+        assert!(state.dirty.progress);
+        assert!(state.dirty.dag);
+
+        // TaskStarted
+        state.dirty.clear();
+        state.handle_event(
+            &EventKind::TaskStarted {
+                task_id: "task1".into(),
+                inputs: serde_json::json!({}),
+            },
+            200,
+        );
+        assert!(state.dirty.progress);
+        assert!(state.dirty.dag);
+
+        // TaskCompleted
+        state.dirty.clear();
+        state.handle_event(
+            &EventKind::TaskCompleted {
+                task_id: "task1".into(),
+                output: std::sync::Arc::new(serde_json::Value::Null),
+                duration_ms: 500,
+            },
+            300,
+        );
+        assert!(state.dirty.progress);
+        assert!(state.dirty.dag);
+    }
+
+    #[test]
+    fn test_task_failed_marks_status_dirty() {
+        let mut state = TuiState::new("test.yaml");
+        state.tasks.insert(
+            "task1".to_string(),
+            TaskState::new("task1".to_string(), vec![]),
+        );
+        state.dirty.clear();
+
+        state.handle_event(
+            &EventKind::TaskFailed {
+                task_id: "task1".into(),
+                error: "error".into(),
+                duration_ms: 100,
+            },
+            100,
+        );
+
+        assert!(state.dirty.progress);
+        assert!(state.dirty.dag);
+        assert!(state.dirty.status);
+    }
+
+    #[test]
+    fn test_mcp_events_mark_novanet_dirty() {
+        let mut state = TuiState::new("test.yaml");
+        state.dirty.clear();
+
+        state.handle_event(
+            &EventKind::McpInvoke {
+                task_id: "task1".into(),
+                mcp_server: "novanet".to_string(),
+                tool: Some("describe".to_string()),
+                resource: None,
+                call_id: "call1".to_string(),
+                params: None,
+            },
+            100,
+        );
+        assert!(state.dirty.novanet);
+
+        state.dirty.clear();
+        state.handle_event(
+            &EventKind::McpResponse {
+                task_id: "task1".into(),
+                output_len: 100,
+                call_id: "call1".to_string(),
+                duration_ms: 50,
+                cached: false,
+                is_error: false,
+                response: None,
+            },
+            150,
+        );
+        assert!(state.dirty.novanet);
+    }
+
+    #[test]
+    fn test_agent_events_mark_reasoning_dirty() {
+        let mut state = TuiState::new("test.yaml");
+        state.dirty.clear();
+
+        state.handle_event(
+            &EventKind::AgentStart {
+                task_id: "task1".into(),
+                max_turns: 5,
+                mcp_servers: vec![],
+            },
+            100,
+        );
+        assert!(state.dirty.reasoning);
+
+        state.dirty.clear();
+        state.handle_event(
+            &EventKind::AgentTurn {
+                task_id: "task1".into(),
+                turn_index: 0,
+                kind: "started".to_string(),
+                metadata: None,
+            },
+            200,
+        );
+        assert!(state.dirty.reasoning);
+
+        state.dirty.clear();
+        state.handle_event(
+            &EventKind::AgentComplete {
+                task_id: "task1".into(),
+                turns: 1,
+                stop_reason: "natural".to_string(),
+            },
+            300,
+        );
+        assert!(state.dirty.reasoning);
+    }
+
+    #[test]
+    fn test_add_notification_marks_notifications_dirty() {
+        let mut state = TuiState::new("test.yaml");
+        state.dirty.clear();
+
+        state.add_notification(Notification::info("test", 100));
+        assert!(state.dirty.notifications);
+    }
+
+    #[test]
+    fn test_dismiss_notification_marks_notifications_dirty() {
+        let mut state = TuiState::new("test.yaml");
+        state.add_notification(Notification::info("test", 100));
+        state.dirty.clear();
+
+        state.dismiss_notification();
+        assert!(state.dirty.notifications);
+    }
+
+    #[test]
+    fn test_dismiss_all_marks_notifications_dirty() {
+        let mut state = TuiState::new("test.yaml");
+        state.add_notification(Notification::info("test", 100));
+        state.dirty.clear();
+
+        state.dismiss_all_notifications();
+        assert!(state.dirty.notifications);
+    }
+
+    #[test]
+    fn test_clear_notifications_marks_dirty() {
+        let mut state = TuiState::new("test.yaml");
+        state.add_notification(Notification::info("test", 100));
+        state.dirty.clear();
+
+        state.clear_notifications();
+        assert!(state.dirty.notifications);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // TIER 4.4: JSON FORMAT CACHE TESTS
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_json_cache_new() {
+        let cache = JsonFormatCache::new();
+        assert_eq!(cache.stats(), (0, 50)); // 0 entries, max 50
+    }
+
+    #[test]
+    fn test_json_cache_get_or_format_caches() {
+        let mut cache = JsonFormatCache::new();
+
+        // First call should format and cache
+        let value = serde_json::json!({"name": "test"});
+        let result1 = cache.get_or_format("key1", &value);
+        assert!(result1.contains("name"));
+
+        // Second call should return cached
+        let result2 = cache.get_or_format("key1", &value);
+        assert_eq!(result1, result2);
+        assert_eq!(cache.stats().0, 1); // 1 entry
+    }
+
+    #[test]
+    fn test_json_cache_different_keys() {
+        let mut cache = JsonFormatCache::new();
+
+        let value1 = serde_json::json!({"a": 1});
+        let value2 = serde_json::json!({"b": 2});
+
+        cache.get_or_format("key1", &value1);
+        cache.get_or_format("key2", &value2);
+
+        assert_eq!(cache.stats().0, 2); // 2 entries
+    }
+
+    #[test]
+    fn test_json_cache_invalidate() {
+        let mut cache = JsonFormatCache::new();
+        let value = serde_json::json!({"test": true});
+
+        cache.get_or_format("key1", &value);
+        cache.get_or_format("key2", &value);
+        assert_eq!(cache.stats().0, 2);
+
+        cache.invalidate("key1");
+        assert_eq!(cache.stats().0, 1);
+    }
+
+    #[test]
+    fn test_json_cache_invalidate_prefix() {
+        let mut cache = JsonFormatCache::new();
+        let value = serde_json::json!({"test": true});
+
+        cache.get_or_format("task:abc", &value);
+        cache.get_or_format("task:def", &value);
+        cache.get_or_format("mcp:xyz", &value);
+        assert_eq!(cache.stats().0, 3);
+
+        cache.invalidate_prefix("task:");
+        assert_eq!(cache.stats().0, 1); // Only mcp:xyz remains
+    }
+
+    #[test]
+    fn test_json_cache_clear() {
+        let mut cache = JsonFormatCache::new();
+        let value = serde_json::json!({"test": true});
+
+        cache.get_or_format("key1", &value);
+        cache.get_or_format("key2", &value);
+        assert_eq!(cache.stats().0, 2);
+
+        cache.clear();
+        assert_eq!(cache.stats().0, 0);
+    }
+
+    #[test]
+    fn test_json_cache_eviction_on_limit() {
+        let mut cache = JsonFormatCache {
+            cache: HashMap::new(),
+            max_entries: 5, // Small limit for testing
+        };
+
+        let value = serde_json::json!({"test": true});
+
+        // Fill cache to limit
+        for i in 0..5 {
+            cache.get_or_format(&format!("key{}", i), &value);
+        }
+        assert_eq!(cache.stats().0, 5);
+
+        // Adding one more should trigger eviction
+        cache.get_or_format("key_new", &value);
+        // Should have fewer entries due to eviction (removes ~10%)
+        assert!(cache.stats().0 < 6);
+    }
+
+    #[test]
+    fn test_workflow_start_clears_json_cache() {
+        let mut state = TuiState::new("test.yaml");
+        let value = serde_json::json!({"test": true});
+
+        state.json_cache.get_or_format("key1", &value);
+        assert_eq!(state.json_cache.stats().0, 1);
+
+        // Workflow start should clear the cache
+        state.handle_event(
+            &EventKind::WorkflowStarted {
+                task_count: 1,
+                workflow_hash: "hash-123".into(),
+                generation_id: "gen-123".into(),
+                nika_version: "0.5.1".into(),
+            },
+            100,
+        );
+
+        assert_eq!(state.json_cache.stats().0, 0);
+    }
+
+    #[test]
+    fn test_task_started_invalidates_task_cache() {
+        let mut state = TuiState::new("test.yaml");
+        let value = serde_json::json!({"test": true});
+
+        // Pre-populate cache
+        state.json_cache.get_or_format("task:my_task", &value);
+        state.json_cache.get_or_format("task:other_task", &value);
+        assert_eq!(state.json_cache.stats().0, 2);
+
+        // Task start should invalidate only that task's cache
+        state.handle_event(
+            &EventKind::TaskStarted {
+                task_id: "my_task".into(),
+                inputs: serde_json::json!({}),
+            },
+            100,
+        );
+
+        assert_eq!(state.json_cache.stats().0, 1); // other_task remains
+    }
+
+    #[test]
+    fn test_mcp_response_invalidates_mcp_cache() {
+        let mut state = TuiState::new("test.yaml");
+        let value = serde_json::json!({"test": true});
+
+        // Pre-populate cache
+        state.json_cache.get_or_format("mcp:call-123", &value);
+        state.json_cache.get_or_format("mcp:call-456", &value);
+        assert_eq!(state.json_cache.stats().0, 2);
+
+        // MCP response should invalidate that call's cache
+        state.handle_event(
+            &EventKind::McpResponse {
+                task_id: "task1".into(),
+                output_len: 100,
+                call_id: "call-123".into(),
+                duration_ms: 50,
+                cached: false,
+                is_error: false,
+                response: None,
+            },
+            100,
+        );
+
+        assert_eq!(state.json_cache.stats().0, 1); // call-456 remains
     }
 }

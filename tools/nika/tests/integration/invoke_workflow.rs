@@ -32,7 +32,7 @@ fn test_invoke_workflow_parses() {
     // Verify task types: Invoke, Invoke, Invoke, Infer
     assert!(
         matches!(&workflow.tasks[0].action, TaskAction::Invoke { .. }),
-        "First task should be Invoke (describe)"
+        "First task should be Invoke (schema)"
     );
     assert!(
         matches!(&workflow.tasks[1].action, TaskAction::Invoke { .. }),
@@ -59,7 +59,7 @@ fn test_invoke_workflow_task_ids() {
     assert_eq!(
         task_ids,
         vec![
-            "describe",
+            "schema",
             "entity_context",
             "traverse_native",
             "generate_content"
@@ -86,7 +86,7 @@ fn test_invoke_workflow_flows() {
     assert_eq!(
         flow_edges,
         vec![
-            (vec!["describe"], vec!["entity_context"]),
+            (vec!["schema"], vec!["entity_context"]),
             (vec!["entity_context"], vec!["traverse_native"]),
             (vec!["traverse_native"], vec!["generate_content"]),
         ]
@@ -103,7 +103,10 @@ fn test_invoke_workflow_mcp_env() {
     let mcp = workflow.mcp.as_ref().expect("Should have MCP config");
     let novanet = mcp.get("novanet").expect("Should have novanet config");
 
-    // Verify env vars
-    assert!(novanet.env.contains_key("RUST_LOG"));
-    assert_eq!(novanet.env.get("RUST_LOG"), Some(&"info".to_string()));
+    // Verify essential Neo4j env vars are present
+    // Note: RUST_LOG is intentionally NOT set in workflow config to avoid TUI pollution
+    // The MCP child process gets RUST_LOG=off from rmcp_adapter.rs
+    assert!(novanet.env.contains_key("NOVANET_MCP_NEO4J_URI"));
+    assert!(novanet.env.contains_key("NOVANET_MCP_NEO4J_USER"));
+    assert!(novanet.env.contains_key("NOVANET_MCP_NEO4J_PASSWORD"));
 }

@@ -5,6 +5,32 @@
 
 use ratatui::style::{Color, Modifier, Style};
 
+/// Theme mode selector (TIER 2.4)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ThemeMode {
+    #[default]
+    Dark,
+    Light,
+}
+
+impl ThemeMode {
+    /// Toggle between dark and light
+    pub fn toggle(&self) -> Self {
+        match self {
+            Self::Dark => Self::Light,
+            Self::Light => Self::Dark,
+        }
+    }
+
+    /// Get the theme for this mode
+    pub fn theme(&self) -> Theme {
+        match self {
+            Self::Dark => Theme::dark(),
+            Self::Light => Theme::light(),
+        }
+    }
+}
+
 /// NovaNet-inspired color theme for the TUI
 #[derive(Debug, Clone)]
 pub struct Theme {
@@ -94,9 +120,53 @@ impl Default for Theme {
 }
 
 impl Theme {
-    /// Create the default NovaNet theme
+    /// Create the default NovaNet theme (dark)
     pub fn novanet() -> Self {
+        Self::dark()
+    }
+
+    /// Create dark theme (default)
+    pub fn dark() -> Self {
         Self::default()
+    }
+
+    /// Create light theme (TIER 2.4)
+    pub fn light() -> Self {
+        Self {
+            // Realms
+            realm_shared: Color::Rgb(37, 99, 235), // #2563EB blue-600
+            realm_org: Color::Rgb(5, 150, 105),    // #059669 emerald-600
+
+            // Traits
+            trait_defined: Color::Rgb(75, 85, 99), // #4B5563 gray-600
+            trait_authored: Color::Rgb(124, 58, 237), // #7C3AED violet-600
+            trait_imported: Color::Rgb(217, 119, 6), // #D97706 amber-600
+            trait_generated: Color::Rgb(5, 150, 105), // #059669 emerald-600
+            trait_retrieved: Color::Rgb(8, 145, 178), // #0891B2 cyan-600
+
+            // Status
+            status_pending: Color::Rgb(75, 85, 99), // #4B5563 gray-600
+            status_running: Color::Rgb(217, 119, 6), // #D97706 amber-600
+            status_success: Color::Rgb(22, 163, 74), // #16A34A green-600
+            status_failed: Color::Rgb(220, 38, 38), // #DC2626 red-600
+            status_paused: Color::Rgb(8, 145, 178), // #0891B2 cyan-600
+
+            // MCP tools
+            mcp_describe: Color::Rgb(37, 99, 235), // #2563EB blue-600
+            mcp_traverse: Color::Rgb(219, 39, 119), // #DB2777 pink-600
+            mcp_search: Color::Rgb(217, 119, 6),   // #D97706 amber-600
+            mcp_atoms: Color::Rgb(124, 58, 237),   // #7C3AED violet-600
+            mcp_generate: Color::Rgb(5, 150, 105), // #059669 emerald-600
+
+            // UI elements - light theme
+            border_normal: Color::Rgb(209, 213, 219), // #D1D5DB gray-300
+            border_focused: Color::Rgb(79, 70, 229),  // #4F46E5 indigo-600
+            text_primary: Color::Rgb(17, 24, 39),     // #111827 gray-900
+            text_secondary: Color::Rgb(75, 85, 99),   // #4B5563 gray-600
+            text_muted: Color::Rgb(156, 163, 175),    // #9CA3AF gray-400
+            background: Color::Rgb(249, 250, 251),    // #F9FAFB gray-50
+            highlight: Color::Rgb(79, 70, 229),       // #4F46E5 indigo-600
+        }
     }
 
     /// Get color for MCP tool by name
@@ -264,5 +334,43 @@ mod tests {
     fn test_mission_phase_names() {
         assert_eq!(MissionPhase::Countdown.name(), "COUNTDOWN");
         assert_eq!(MissionPhase::MissionSuccess.name(), "MISSION SUCCESS");
+    }
+
+    // ═══ TIER 2.4: Theme Mode Tests ═══
+    #[test]
+    fn test_theme_mode_default_is_dark() {
+        let mode = ThemeMode::default();
+        assert_eq!(mode, ThemeMode::Dark);
+    }
+
+    #[test]
+    fn test_theme_mode_toggle() {
+        let mode = ThemeMode::Dark;
+        assert_eq!(mode.toggle(), ThemeMode::Light);
+
+        let mode = ThemeMode::Light;
+        assert_eq!(mode.toggle(), ThemeMode::Dark);
+    }
+
+    #[test]
+    fn test_theme_mode_theme_returns_correct_theme() {
+        let dark_theme = ThemeMode::Dark.theme();
+        let light_theme = ThemeMode::Light.theme();
+
+        // Dark has dark background
+        assert_eq!(dark_theme.background, Color::Rgb(17, 24, 39));
+
+        // Light has light background
+        assert_eq!(light_theme.background, Color::Rgb(249, 250, 251));
+    }
+
+    #[test]
+    fn test_light_theme_colors_differ_from_dark() {
+        let dark = Theme::dark();
+        let light = Theme::light();
+
+        // Text colors should be inverted
+        assert_ne!(dark.text_primary, light.text_primary);
+        assert_ne!(dark.background, light.background);
     }
 }

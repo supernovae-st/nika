@@ -12,7 +12,7 @@
 //!       Generate native content for the homepage hero block.
 //!       Use @entity:qr-code-generator for the main concept.
 //!     provider: claude
-//!     model: claude-sonnet-4
+//!     model: claude-sonnet-4-20250514
 //!     mcp:
 //!       - novanet
 //!     max_turns: 10
@@ -215,12 +215,12 @@ mod tests {
         let yaml = r#"
 prompt: "Test prompt"
 provider: claude
-model: claude-sonnet-4
+model: claude-sonnet-4-20250514
 "#;
         let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(params.prompt, "Test prompt");
         assert_eq!(params.provider, Some("claude".to_string()));
-        assert_eq!(params.model, Some("claude-sonnet-4".to_string()));
+        assert_eq!(params.model, Some("claude-sonnet-4-20250514".to_string()));
     }
 
     #[test]

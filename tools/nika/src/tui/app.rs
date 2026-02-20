@@ -8,7 +8,10 @@ use std::path::Path;
 use std::time::Duration;
 
 use crossterm::{
-    event::{self, Event, KeyCode, KeyModifiers},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers, MouseButton,
+        MouseEvent, MouseEventKind,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -50,12 +53,56 @@ pub enum Action {
     FocusPrev,
     /// Focus specific panel
     FocusPanel(u8),
+    /// Cycle tabs in focused panel
+    CycleTab,
     /// Toggle mode
     SetMode(TuiMode),
     /// Scroll up in focused panel
     ScrollUp,
     /// Scroll down in focused panel
     ScrollDown,
+    // ═══ Quick Actions (TIER 1) ═══
+    /// Copy current panel content to clipboard [c]
+    CopyToClipboard,
+    /// Retry failed workflow [r]
+    RetryWorkflow,
+    /// Export trace to file [e]
+    ExportTrace,
+    // ═══ Breakpoint Actions (TIER 2.3) ═══
+    /// Toggle breakpoint on current task [b]
+    ToggleBreakpoint,
+    // ═══ Theme Actions (TIER 2.4) ═══
+    /// Toggle theme dark/light [t]
+    ToggleTheme,
+    // ═══ Mouse Actions (TIER 3.1) ═══
+    /// Click on a panel to focus it
+    MouseClickPanel(PanelId),
+    /// Scroll up
+    MouseScrollUp,
+    /// Scroll down
+    MouseScrollDown,
+    // ═══ Notification Actions (TIER 3.4) ═══
+    /// Dismiss the most recent notification [n]
+    DismissNotification,
+    /// Dismiss all notifications [N]
+    DismissAllNotifications,
+    // ═══ Filter/Search Actions (TIER 1.5) ═══
+    /// Enter search/filter mode
+    EnterFilter,
+    /// Exit search/filter mode
+    ExitFilter,
+    /// Insert character in filter query
+    FilterInput(char),
+    /// Backspace in filter query
+    FilterBackspace,
+    /// Delete character in filter query
+    FilterDelete,
+    /// Move filter cursor left
+    FilterCursorLeft,
+    /// Move filter cursor right
+    FilterCursorRight,
+    /// Clear filter query
+    FilterClear,
     // ═══ Settings Overlay Actions ═══
     /// Focus next settings field
     SettingsNextField,
@@ -99,6 +146,10 @@ pub struct App {
     should_quit: bool,
     /// Workflow completed flag
     workflow_done: bool,
+    /// Status message for feedback (clipboard copy, export, etc.)
+    status_message: Option<(String, std::time::Instant)>,
+    /// Retry requested flag (TIER 1.2) - caller should re-run workflow
+    retry_requested: bool,
 }
 
 impl App {
@@ -125,6 +176,8 @@ impl App {
             broadcast_rx: None,
             should_quit: false,
             workflow_done: false,
+            status_message: None,
+            retry_requested: false,
         })
     }
 
@@ -144,6 +197,8 @@ impl App {
             broadcast_rx: None,
             should_quit: false,
             workflow_done: false,
+            status_message: None,
+            retry_requested: false,
         })
     }
 
@@ -158,8 +213,10 @@ impl App {
         })?;
 
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen).map_err(|e| NikaError::TuiError {
-            reason: format!("Failed to enter alternate screen: {}", e),
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture).map_err(|e| {
+            NikaError::TuiError {
+                reason: format!("Failed to enter alternate screen: {}", e),
+            }
         })?;
 
         let backend = CrosstermBackend::new(stdout);
@@ -257,16 +314,30 @@ impl App {
                     })?;
             }
 
-            // 4. Poll keyboard input (with timeout for frame rate)
+            // 4. Get terminal size for mouse coordinate mapping (TIER 3.1)
+            let terminal_size = if let Some(ref terminal) = self.terminal {
+                terminal
+                    .size()
+                    .ok()
+                    .map(|size| Rect::new(0, 0, size.width, size.height))
+            } else {
+                None
+            };
+
+            // 5. Poll input events (with timeout for frame rate)
             if event::poll(tick_rate).map_err(|e| NikaError::TuiError {
                 reason: format!("Failed to poll events: {}", e),
             })? {
-                if let Event::Key(key) = event::read().map_err(|e| NikaError::TuiError {
+                let event = event::read().map_err(|e| NikaError::TuiError {
                     reason: format!("Failed to read event: {}", e),
-                })? {
-                    let action = self.handle_key(key.code, key.modifiers);
-                    self.apply_action(action);
-                }
+                })?;
+
+                let action = match event {
+                    Event::Key(key) => self.handle_key(key.code, key.modifiers),
+                    Event::Mouse(mouse) => self.handle_mouse(mouse, terminal_size),
+                    _ => Action::Continue,
+                };
+                self.apply_action(action);
             }
 
             // 5. Check quit flag
@@ -293,6 +364,9 @@ impl App {
             TuiMode::Settings => {
                 return self.handle_settings_key(code, modifiers);
             }
+            TuiMode::Search => {
+                return self.handle_search_key(code, modifiers);
+            }
             _ => {}
         }
 
@@ -302,13 +376,18 @@ impl App {
             KeyCode::Char('q') => Action::Quit,
             KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => Action::Quit,
 
-            // Navigation
-            KeyCode::Tab => Action::FocusNext,
-            KeyCode::BackTab => Action::FocusPrev,
+            // Panel navigation (direct panel access)
             KeyCode::Char('1') => Action::FocusPanel(1),
             KeyCode::Char('2') => Action::FocusPanel(2),
             KeyCode::Char('3') => Action::FocusPanel(3),
             KeyCode::Char('4') => Action::FocusPanel(4),
+            // h/l for panel cycling (vim-style)
+            KeyCode::Char('h') => Action::FocusPrev,
+            KeyCode::Char('l') => Action::FocusNext,
+
+            // Tab cycling within focused panel
+            KeyCode::Tab | KeyCode::Char('t') => Action::CycleTab,
+            KeyCode::BackTab => Action::CycleTab, // Cycle in same direction (simple)
 
             // Execution control
             KeyCode::Char(' ') => Action::TogglePause,
@@ -322,6 +401,16 @@ impl App {
             KeyCode::Char('?') | KeyCode::F(1) => Action::SetMode(TuiMode::Help),
             KeyCode::Char('m') => Action::SetMode(TuiMode::Metrics),
             KeyCode::Char('s') => Action::SetMode(TuiMode::Settings),
+            KeyCode::Char('/') => Action::EnterFilter, // TIER 1.5: Filter mode
+
+            // Quick actions (TIER 1)
+            KeyCode::Char('c') => Action::CopyToClipboard,
+            KeyCode::Char('r') => Action::RetryWorkflow,
+            KeyCode::Char('e') => Action::ExportTrace,
+            KeyCode::Char('b') => Action::ToggleBreakpoint, // TIER 2.3: Breakpoints
+            KeyCode::Char('T') => Action::ToggleTheme,      // TIER 2.4: Theme toggle (Shift+T)
+            KeyCode::Char('n') => Action::DismissNotification, // TIER 3.4: Dismiss notification
+            KeyCode::Char('N') => Action::DismissAllNotifications, // TIER 3.4: Dismiss all notifications
 
             // Escape
             KeyCode::Esc => Action::SetMode(TuiMode::Normal),
@@ -366,6 +455,70 @@ impl App {
         }
     }
 
+    /// Handle keyboard input in Search/Filter mode (TIER 1.5)
+    fn handle_search_key(&self, code: KeyCode, _modifiers: KeyModifiers) -> Action {
+        match code {
+            // Exit search mode
+            KeyCode::Esc => Action::ExitFilter,
+            KeyCode::Enter => Action::ExitFilter, // Confirm and exit
+            // Text editing
+            KeyCode::Backspace => Action::FilterBackspace,
+            KeyCode::Delete => Action::FilterDelete,
+            KeyCode::Left => Action::FilterCursorLeft,
+            KeyCode::Right => Action::FilterCursorRight,
+            // Clear filter
+            KeyCode::Char('u') if _modifiers.contains(KeyModifiers::CONTROL) => Action::FilterClear,
+            // Character input
+            KeyCode::Char(c) => Action::FilterInput(c),
+            _ => Action::Continue,
+        }
+    }
+
+    /// Handle mouse input (TIER 3.1)
+    ///
+    /// Maps mouse clicks to panel focus and scroll wheel to scrolling.
+    fn handle_mouse(&self, mouse: MouseEvent, terminal_size: Option<Rect>) -> Action {
+        let Some(size) = terminal_size else {
+            return Action::Continue;
+        };
+
+        match mouse.kind {
+            // Left click - focus panel at click position
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some(panel_id) = self.panel_at_position(mouse.column, mouse.row, size) {
+                    Action::MouseClickPanel(panel_id)
+                } else {
+                    Action::Continue
+                }
+            }
+            // Scroll wheel - scroll focused panel content
+            MouseEventKind::ScrollUp => Action::MouseScrollUp,
+            MouseEventKind::ScrollDown => Action::MouseScrollDown,
+            // Other mouse events - ignore
+            _ => Action::Continue,
+        }
+    }
+
+    /// Determine which panel is at the given screen position (TIER 3.1)
+    ///
+    /// Uses the same 2x2 layout as render_frame.
+    fn panel_at_position(&self, x: u16, y: u16, size: Rect) -> Option<PanelId> {
+        // Calculate panel boundaries (2x2 grid)
+        let half_width = size.width / 2;
+        let half_height = size.height / 2;
+
+        // Determine row and column
+        let is_top = y < half_height;
+        let is_left = x < half_width;
+
+        Some(match (is_top, is_left) {
+            (true, true) => PanelId::Progress, // Top-left: Mission Control
+            (true, false) => PanelId::Dag,     // Top-right: DAG View
+            (false, true) => PanelId::NovaNet, // Bottom-left: NovaNet MCP
+            (false, false) => PanelId::Agent,  // Bottom-right: Agent Reasoning
+        })
+    }
+
     /// Apply an action to the state
     fn apply_action(&mut self, action: Action) {
         match action {
@@ -378,14 +531,25 @@ impl App {
             Action::FocusNext => self.state.focus_next(),
             Action::FocusPrev => self.state.focus_prev(),
             Action::FocusPanel(n) => self.state.focus_panel(n),
+            Action::CycleTab => self.state.cycle_tab(),
             Action::SetMode(mode) => self.state.mode = mode,
             Action::ScrollUp => {
-                let scroll = self.state.scroll.entry(self.state.focus).or_insert(0);
-                *scroll = scroll.saturating_sub(1);
+                // TIER 1.3: MCP navigation when NovaNet is focused
+                if self.state.focus == PanelId::NovaNet {
+                    self.state.select_prev_mcp();
+                } else {
+                    let scroll = self.state.scroll.entry(self.state.focus).or_insert(0);
+                    *scroll = scroll.saturating_sub(1);
+                }
             }
             Action::ScrollDown => {
-                let scroll = self.state.scroll.entry(self.state.focus).or_insert(0);
-                *scroll += 1;
+                // TIER 1.3: MCP navigation when NovaNet is focused
+                if self.state.focus == PanelId::NovaNet {
+                    self.state.select_next_mcp();
+                } else {
+                    let scroll = self.state.scroll.entry(self.state.focus).or_insert(0);
+                    *scroll += 1;
+                }
             }
             // Settings actions
             Action::SettingsNextField => self.state.settings.focus_next(),
@@ -408,8 +572,263 @@ impl App {
             }
             Action::SettingsCursorLeft => self.state.settings.cursor_left(),
             Action::SettingsCursorRight => self.state.settings.cursor_right(),
+            // Filter/Search actions (TIER 1.5)
+            Action::EnterFilter => {
+                self.state.mode = TuiMode::Search;
+            }
+            Action::ExitFilter => {
+                self.state.mode = TuiMode::Normal;
+                // Keep filter active but exit edit mode
+            }
+            Action::FilterInput(c) => self.state.filter_push(c),
+            Action::FilterBackspace => self.state.filter_backspace(),
+            Action::FilterDelete => self.state.filter_delete(),
+            Action::FilterCursorLeft => self.state.filter_cursor_left(),
+            Action::FilterCursorRight => self.state.filter_cursor_right(),
+            Action::FilterClear => self.state.filter_clear(),
+            // Quick actions (TIER 1)
+            Action::CopyToClipboard => {
+                self.copy_to_clipboard();
+            }
+            Action::RetryWorkflow => {
+                self.retry_workflow();
+            }
+            Action::ExportTrace => {
+                self.export_trace();
+            }
+            // Breakpoint actions (TIER 2.3)
+            Action::ToggleBreakpoint => {
+                self.toggle_breakpoint();
+            }
+            // Theme actions (TIER 2.4)
+            Action::ToggleTheme => {
+                self.toggle_theme();
+            }
+            // Mouse actions (TIER 3.1)
+            Action::MouseClickPanel(panel_id) => {
+                self.state.focus = panel_id;
+            }
+            Action::MouseScrollUp => {
+                // Use same logic as ScrollUp but for mouse wheel
+                if self.state.focus == PanelId::NovaNet {
+                    self.state.select_prev_mcp();
+                } else {
+                    let scroll = self.state.scroll.entry(self.state.focus).or_insert(0);
+                    *scroll = scroll.saturating_sub(3); // Scroll 3 lines at a time for mouse
+                }
+            }
+            Action::MouseScrollDown => {
+                // Use same logic as ScrollDown but for mouse wheel
+                if self.state.focus == PanelId::NovaNet {
+                    self.state.select_next_mcp();
+                } else {
+                    let scroll = self.state.scroll.entry(self.state.focus).or_insert(0);
+                    *scroll += 3; // Scroll 3 lines at a time for mouse
+                }
+            }
+            // Notification actions (TIER 3.4)
+            Action::DismissNotification => {
+                let count = self.state.active_notification_count();
+                self.state.dismiss_notification();
+                if count > 0 {
+                    let msg = format!("Dismissed notification ({} remaining)", count - 1);
+                    self.set_status(&msg);
+                }
+            }
+            Action::DismissAllNotifications => {
+                let count = self.state.active_notification_count();
+                self.state.dismiss_all_notifications();
+                if count > 0 {
+                    let msg = format!("Dismissed all {} notifications", count);
+                    self.set_status(&msg);
+                }
+            }
             Action::Continue => {}
         }
+    }
+
+    /// Copy current panel content to system clipboard
+    fn copy_to_clipboard(&mut self) {
+        #[cfg(feature = "tui")]
+        {
+            if let Some(content) = self.state.get_copyable_content() {
+                match arboard::Clipboard::new() {
+                    Ok(mut clipboard) => match clipboard.set_text(&content) {
+                        Ok(_) => {
+                            let preview = if content.len() > 50 {
+                                format!("{}...", &content[..50])
+                            } else {
+                                content.clone()
+                            };
+                            self.set_status(&format!("✓ Copied: {}", preview.replace('\n', " ")));
+                        }
+                        Err(e) => {
+                            self.set_status(&format!("✗ Clipboard error: {}", e));
+                        }
+                    },
+                    Err(e) => {
+                        self.set_status(&format!("✗ Clipboard unavailable: {}", e));
+                    }
+                }
+            } else {
+                self.set_status("Nothing to copy");
+            }
+        }
+    }
+
+    /// Export trace to file
+    fn export_trace(&mut self) {
+        use std::io::Write;
+
+        // Generate trace filename
+        let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+        let workflow_name = self
+            .workflow_path
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "workflow".to_string());
+        let filename = format!("{}_{}.json", workflow_name, timestamp);
+
+        // Build trace content
+        let trace = serde_json::json!({
+            "workflow": self.workflow_path.display().to_string(),
+            "generation_id": self.state.workflow.generation_id,
+            "status": format!("{:?}", self.state.workflow.phase),
+            "tasks_completed": self.state.workflow.tasks_completed,
+            "task_count": self.state.workflow.task_count,
+            "elapsed_ms": self.state.workflow.elapsed_ms,
+            "metrics": {
+                "total_tokens": self.state.metrics.total_tokens,
+                "input_tokens": self.state.metrics.input_tokens,
+                "output_tokens": self.state.metrics.output_tokens,
+                "cost_usd": self.state.metrics.cost_usd,
+            },
+            "mcp_calls": self.state.mcp_calls.len(),
+            "agent_turns": self.state.agent_turns.len(),
+        });
+
+        // Write to file
+        match std::fs::File::create(&filename) {
+            Ok(mut file) => match serde_json::to_string_pretty(&trace) {
+                Ok(json) => match file.write_all(json.as_bytes()) {
+                    Ok(_) => {
+                        self.set_status(&format!("✓ Exported: {}", filename));
+                    }
+                    Err(e) => {
+                        self.set_status(&format!("✗ Write error: {}", e));
+                    }
+                },
+                Err(e) => {
+                    self.set_status(&format!("✗ JSON error: {}", e));
+                }
+            },
+            Err(e) => {
+                self.set_status(&format!("✗ File error: {}", e));
+            }
+        }
+    }
+
+    /// Toggle breakpoint on the current task (TIER 2.3)
+    fn toggle_breakpoint(&mut self) {
+        use super::state::Breakpoint;
+
+        // Get current task from state
+        if let Some(ref task_id) = self.state.current_task.clone() {
+            let bp = Breakpoint::BeforeTask(task_id.clone());
+            if self.state.breakpoints.contains(&bp) {
+                self.state.breakpoints.remove(&bp);
+                self.set_status(&format!("🔴 Breakpoint removed: {}", task_id));
+            } else {
+                self.state.breakpoints.insert(bp);
+                self.set_status(&format!("🔴 Breakpoint set: {}", task_id));
+            }
+        } else if !self.state.task_order.is_empty() {
+            // No current task, use first task
+            let task_id = self.state.task_order[0].clone();
+            let bp = Breakpoint::BeforeTask(task_id.clone());
+            if self.state.breakpoints.contains(&bp) {
+                self.state.breakpoints.remove(&bp);
+                self.set_status(&format!("🔴 Breakpoint removed: {}", task_id));
+            } else {
+                self.state.breakpoints.insert(bp);
+                self.set_status(&format!("🔴 Breakpoint set: {}", task_id));
+            }
+        } else {
+            self.set_status("No tasks to set breakpoint on");
+        }
+    }
+
+    /// Toggle theme between dark and light (TIER 2.4)
+    fn toggle_theme(&mut self) {
+        self.state.theme_mode = self.state.theme_mode.toggle();
+        let mode_name = match self.state.theme_mode {
+            super::theme::ThemeMode::Dark => "Dark",
+            super::theme::ThemeMode::Light => "Light",
+        };
+        self.set_status(&format!("🎨 Theme: {}", mode_name));
+    }
+
+    /// Set status message with auto-clear timer
+    fn set_status(&mut self, message: &str) {
+        self.status_message = Some((message.to_string(), std::time::Instant::now()));
+    }
+
+    /// Get status message if still valid (clears after 3 seconds)
+    #[allow(dead_code)] // Reserved for future status bar display
+    fn get_status(&mut self) -> Option<String> {
+        if let Some((msg, time)) = &self.status_message {
+            if time.elapsed() < Duration::from_secs(3) {
+                return Some(msg.clone());
+            }
+            self.status_message = None;
+        }
+        None
+    }
+
+    /// Request workflow retry (TIER 1.2)
+    ///
+    /// Resets failed tasks and signals that caller should re-run the workflow.
+    /// Only works when workflow is in failed state.
+    fn retry_workflow(&mut self) {
+        if self.state.is_running() {
+            self.set_status("⚠ Cannot retry: workflow is still running");
+            return;
+        }
+
+        if self.state.is_success() {
+            self.set_status("⚠ Cannot retry: workflow completed successfully");
+            return;
+        }
+
+        if !self.state.is_failed() {
+            self.set_status("⚠ Nothing to retry");
+            return;
+        }
+
+        // Reset state for retry
+        let reset_tasks = self.state.reset_for_retry();
+        self.retry_requested = true;
+        self.workflow_done = false;
+
+        if reset_tasks.is_empty() {
+            self.set_status("✓ Ready to retry (no failed tasks found)");
+        } else {
+            self.set_status(&format!(
+                "✓ Ready to retry: {} task(s) reset ({})",
+                reset_tasks.len(),
+                reset_tasks.join(", ")
+            ));
+        }
+    }
+
+    /// Check if retry was requested (for caller to re-run workflow)
+    pub fn wants_retry(&self) -> bool {
+        self.retry_requested
+    }
+
+    /// Clear retry request flag
+    pub fn clear_retry_request(&mut self) {
+        self.retry_requested = false;
     }
 
     /// Cleanup terminal state
@@ -419,10 +838,13 @@ impl App {
                 reason: format!("Failed to disable raw mode: {}", e),
             })?;
 
-            execute!(terminal.backend_mut(), LeaveAlternateScreen).map_err(|e| {
-                NikaError::TuiError {
-                    reason: format!("Failed to leave alternate screen: {}", e),
-                }
+            execute!(
+                terminal.backend_mut(),
+                LeaveAlternateScreen,
+                DisableMouseCapture
+            )
+            .map_err(|e| NikaError::TuiError {
+                reason: format!("Failed to leave alternate screen: {}", e),
             })?;
 
             terminal.show_cursor().map_err(|e| NikaError::TuiError {
@@ -581,7 +1003,11 @@ impl Drop for App {
         // Best effort cleanup
         if let Some(ref mut terminal) = self.terminal {
             let _ = disable_raw_mode();
-            let _ = execute!(terminal.backend_mut(), LeaveAlternateScreen);
+            let _ = execute!(
+                terminal.backend_mut(),
+                LeaveAlternateScreen,
+                DisableMouseCapture
+            );
             let _ = terminal.show_cursor();
         }
     }
@@ -622,7 +1048,13 @@ fn render_frame(frame: &mut Frame, state: &TuiState, theme: &Theme) {
         TuiMode::Help => render_help_overlay(frame, theme, size),
         TuiMode::Metrics => render_metrics_overlay(frame, state, theme, size),
         TuiMode::Settings => render_settings_overlay(frame, state, theme, size),
-        _ => {}
+        TuiMode::Search => render_search_bar(frame, state, theme, size),
+        _ => {
+            // Show filter indicator if filter is active (not in Search mode)
+            if state.has_filter() {
+                render_filter_indicator(frame, state, theme, size);
+            }
+        }
     }
 }
 
@@ -654,17 +1086,21 @@ fn render_panel(frame: &mut Frame, state: &TuiState, theme: &Theme, panel_id: Pa
 /// Render help overlay
 fn render_help_overlay(frame: &mut Frame, theme: &Theme, area: Rect) {
     let help_text = r#"
-╔═══════════════════════════════════════════════════════════════════╗
-║  KEYBOARD SHORTCUTS                                               ║
-╠═══════════════════════════════════════════════════════════════════╣
-║                                                                   ║
-║  NAVIGATION           EXECUTION           OVERLAYS               ║
-║  Tab      Next panel  Space   Pause       ?/F1  This help       ║
-║  1-4      Jump panel  Enter   Step        m     Metrics         ║
-║  j/k      Scroll      q       Quit        s     Settings        ║
-║                                           Esc   Close           ║
-║                                                                   ║
-╚═══════════════════════════════════════════════════════════════════╝
+╔═══════════════════════════════════════════════════════════════════════╗
+║  KEYBOARD SHORTCUTS                                                   ║
+╠═══════════════════════════════════════════════════════════════════════╣
+║                                                                       ║
+║  NAVIGATION             EXECUTION           QUICK ACTIONS            ║
+║  Tab       Next panel   Space  Pause        c    Copy to clipboard   ║
+║  1-4       Jump panel   Enter  Step         e    Export trace        ║
+║  h/l       Cycle panel  q      Quit         r    Retry workflow      ║
+║  j/k       Scroll       /      Filter       n    Dismiss notification║
+║                                             N    Dismiss all notifs  ║
+║  OVERLAYS               SETTINGS                                      ║
+║  ?/F1      This help    s       Open settings                        ║
+║  m         Metrics      Esc    Close overlay                         ║
+║                                                                       ║
+╚═══════════════════════════════════════════════════════════════════════╝
 "#;
 
     let overlay = centered_rect(70, 50, area);
@@ -867,6 +1303,102 @@ fn render_settings_overlay(frame: &mut Frame, state: &TuiState, theme: &Theme, a
     let paragraph = Paragraph::new(lines).block(block).style(theme.text_style());
 
     frame.render_widget(paragraph, overlay);
+}
+
+/// Render search bar at bottom of screen (TIER 1.5)
+fn render_search_bar(frame: &mut Frame, state: &TuiState, theme: &Theme, area: Rect) {
+    use ratatui::style::Color;
+    use ratatui::text::{Line, Span};
+
+    // Position at bottom of screen
+    let bar_area = Rect {
+        x: area.x,
+        y: area.height.saturating_sub(3),
+        width: area.width,
+        height: 3,
+    };
+
+    // Build search input with cursor
+    let query = &state.filter_query;
+    let cursor = state.filter_cursor;
+
+    let (before, cursor_char, after) = if query.is_empty() {
+        ("", ' ', "")
+    } else {
+        let before = &query[..cursor.min(query.len())];
+        let cursor_char = query.chars().nth(cursor).unwrap_or(' ');
+        let after = if cursor < query.len() {
+            &query[cursor + 1..]
+        } else {
+            ""
+        };
+        (before, cursor_char, after)
+    };
+
+    let content = Line::from(vec![
+        Span::styled(
+            "  🔍 /",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(before, Style::default().fg(Color::White)),
+        Span::styled(
+            cursor_char.to_string(),
+            Style::default().fg(Color::Black).bg(Color::Cyan),
+        ),
+        Span::styled(after, Style::default().fg(Color::White)),
+    ]);
+
+    let hint = Line::from(vec![Span::styled(
+        "  [Enter] Apply  [Esc] Cancel  [Ctrl+U] Clear",
+        Style::default().fg(Color::DarkGray),
+    )]);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Filter ")
+        .border_style(Style::default().fg(theme.border_focused))
+        .style(Style::default());
+
+    let paragraph = Paragraph::new(vec![content, hint]).block(block);
+    frame.render_widget(paragraph, bar_area);
+}
+
+/// Render filter indicator at bottom right (when filter is active but not in Search mode)
+fn render_filter_indicator(frame: &mut Frame, state: &TuiState, _theme: &Theme, area: Rect) {
+    use ratatui::style::Color;
+    use ratatui::text::{Line, Span};
+
+    let query = &state.filter_query;
+    let filtered_tasks = state.filtered_task_ids();
+    let total_tasks = state.task_order.len();
+
+    // Count matching/total for display
+    let match_info = format!("{}/{}", filtered_tasks.len(), total_tasks);
+
+    let indicator = Line::from(vec![
+        Span::styled("🔍 /", Style::default().fg(Color::Cyan)),
+        Span::styled(query, Style::default().fg(Color::Yellow)),
+        Span::styled(" ", Style::default()),
+        Span::styled(
+            format!("({})", match_info),
+            Style::default().fg(Color::DarkGray),
+        ),
+        Span::styled(" [/] edit", Style::default().fg(Color::DarkGray)),
+    ]);
+
+    // Position at bottom right
+    let indicator_width = (query.len() + match_info.len() + 20) as u16;
+    let indicator_area = Rect {
+        x: area.width.saturating_sub(indicator_width + 2),
+        y: area.height.saturating_sub(1),
+        width: indicator_width,
+        height: 1,
+    };
+
+    let paragraph = Paragraph::new(indicator);
+    frame.render_widget(paragraph, indicator_area);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1133,9 +1665,13 @@ mod tests {
             Action::FocusNext,
             Action::FocusPrev,
             Action::FocusPanel(1),
+            Action::CycleTab, // Phase 2: Tab cycling
             Action::SetMode(TuiMode::Help),
             Action::ScrollUp,
             Action::ScrollDown,
+            Action::CopyToClipboard, // TIER 1
+            Action::RetryWorkflow,   // TIER 1
+            Action::ExportTrace,     // TIER 1
         ];
 
         // All should be different
@@ -1146,5 +1682,94 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_cycle_tab_action_exists() {
+        // Verify CycleTab action is distinct from other actions
+        let cycle = Action::CycleTab;
+        assert_ne!(cycle, Action::Continue);
+        assert_ne!(cycle, Action::FocusNext);
+        assert_ne!(cycle, Action::FocusPrev);
+        assert_eq!(cycle, Action::CycleTab);
+    }
+
+    // ═══ TIER 3.1: Mouse Support Tests ═══
+
+    #[test]
+    fn test_mouse_action_variants() {
+        // Verify mouse action variants exist and are distinct
+        let click = Action::MouseClickPanel(PanelId::Progress);
+        let scroll_up = Action::MouseScrollUp;
+        let scroll_down = Action::MouseScrollDown;
+
+        assert_ne!(click, scroll_up);
+        assert_ne!(click, scroll_down);
+        assert_ne!(scroll_up, scroll_down);
+        assert_ne!(click, Action::Continue);
+    }
+
+    #[test]
+    fn test_mouse_click_panel_contains_panel_id() {
+        // Verify different panels produce different actions
+        let click_progress = Action::MouseClickPanel(PanelId::Progress);
+        let click_dag = Action::MouseClickPanel(PanelId::Dag);
+        let click_novanet = Action::MouseClickPanel(PanelId::NovaNet);
+        let click_agent = Action::MouseClickPanel(PanelId::Agent);
+
+        assert_ne!(click_progress, click_dag);
+        assert_ne!(click_progress, click_novanet);
+        assert_ne!(click_progress, click_agent);
+        assert_ne!(click_dag, click_novanet);
+        assert_ne!(click_dag, click_agent);
+        assert_ne!(click_novanet, click_agent);
+    }
+
+    #[test]
+    fn test_panel_at_position_quadrants() {
+        use ratatui::layout::Rect;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+
+        let app = App::new(&workflow_path).unwrap();
+        let size = Rect::new(0, 0, 100, 50);
+
+        // Top-left quadrant (0-49, 0-24) -> Progress
+        assert_eq!(app.panel_at_position(10, 10, size), Some(PanelId::Progress));
+
+        // Top-right quadrant (50-99, 0-24) -> Dag
+        assert_eq!(app.panel_at_position(60, 10, size), Some(PanelId::Dag));
+
+        // Bottom-left quadrant (0-49, 25-49) -> NovaNet
+        assert_eq!(app.panel_at_position(10, 30, size), Some(PanelId::NovaNet));
+
+        // Bottom-right quadrant (50-99, 25-49) -> Agent
+        assert_eq!(app.panel_at_position(60, 30, size), Some(PanelId::Agent));
+    }
+
+    #[test]
+    fn test_panel_at_position_boundaries() {
+        use ratatui::layout::Rect;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+
+        let app = App::new(&workflow_path).unwrap();
+        let size = Rect::new(0, 0, 100, 50);
+
+        // Boundary at (49, 24) - still in top-left
+        assert_eq!(app.panel_at_position(49, 24, size), Some(PanelId::Progress));
+
+        // Boundary at (50, 24) - now in top-right
+        assert_eq!(app.panel_at_position(50, 24, size), Some(PanelId::Dag));
+
+        // Boundary at (49, 25) - now in bottom-left
+        assert_eq!(app.panel_at_position(49, 25, size), Some(PanelId::NovaNet));
+
+        // Boundary at (50, 25) - now in bottom-right
+        assert_eq!(app.panel_at_position(50, 25, size), Some(PanelId::Agent));
     }
 }

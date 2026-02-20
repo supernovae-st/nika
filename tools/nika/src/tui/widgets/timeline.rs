@@ -22,6 +22,8 @@ pub struct TimelineEntry {
     pub duration_ms: Option<u64>,
     /// Is this the current task?
     pub is_current: bool,
+    /// Has a breakpoint set (TIER 2.3)
+    pub has_breakpoint: bool,
 }
 
 impl TimelineEntry {
@@ -31,6 +33,7 @@ impl TimelineEntry {
             status,
             duration_ms: None,
             is_current: false,
+            has_breakpoint: false,
         }
     }
 
@@ -41,6 +44,12 @@ impl TimelineEntry {
 
     pub fn current(mut self) -> Self {
         self.is_current = true;
+        self
+    }
+
+    /// Mark this entry as having a breakpoint (TIER 2.3)
+    pub fn with_breakpoint(mut self, has_bp: bool) -> Self {
+        self.has_breakpoint = has_bp;
         self
     }
 }
@@ -151,6 +160,11 @@ impl Widget for Timeline<'_> {
             let color = Self::status_color(entry.status);
             let icon = self.status_icon(entry.status, entry.is_current);
 
+            // Draw breakpoint indicator above track (TIER 2.3)
+            if entry.has_breakpoint && area.y > 0 {
+                buf.set_string(x, area.y, "🔴", Style::default().fg(Color::Red));
+            }
+
             // Draw marker on track
             buf.set_string(x, track_y, icon, Style::default().fg(color));
 
@@ -226,5 +240,20 @@ mod tests {
             Timeline::status_color(TaskStatus::Running),
             Timeline::status_color(TaskStatus::Success)
         );
+    }
+
+    #[test]
+    fn test_timeline_entry_breakpoint() {
+        // Default: no breakpoint
+        let entry = TimelineEntry::new("task1", TaskStatus::Pending);
+        assert!(!entry.has_breakpoint);
+
+        // With breakpoint
+        let entry = TimelineEntry::new("task1", TaskStatus::Pending).with_breakpoint(true);
+        assert!(entry.has_breakpoint);
+
+        // With breakpoint false
+        let entry = TimelineEntry::new("task1", TaskStatus::Pending).with_breakpoint(false);
+        assert!(!entry.has_breakpoint);
     }
 }

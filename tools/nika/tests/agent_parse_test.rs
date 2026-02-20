@@ -15,7 +15,7 @@ prompt: |
   Generate native content for the homepage hero block.
   Use @entity:qr-code-generator for the main concept.
 provider: claude
-model: claude-sonnet-4
+model: claude-sonnet-4-20250514
 mcp:
   - novanet
 max_turns: 10
@@ -28,7 +28,7 @@ stop_conditions:
 
     assert!(params.prompt.contains("homepage hero"));
     assert_eq!(params.provider, Some("claude".to_string()));
-    assert_eq!(params.model, Some("claude-sonnet-4".to_string()));
+    assert_eq!(params.model, Some("claude-sonnet-4-20250514".to_string()));
     assert_eq!(params.mcp, vec!["novanet"]);
     assert_eq!(params.max_turns, Some(10));
     assert_eq!(params.stop_conditions.len(), 2);

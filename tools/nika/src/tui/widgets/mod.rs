@@ -8,7 +8,8 @@
 //! - McpLog: MCP call history display
 //! - AgentTurns: Agent turn history display
 //! - Spinner: Animated spinner for loading states
-//! - Sparkline: Mini chart for metrics (planned)
+//! - TabBar: Tab bar for panel switching
+//! - Sparkline: Mini chart for metrics
 //! - BigText: FIGlet-style headers (planned)
 
 // Allow unused code in widgets - many are planned for future TUI enhancements
@@ -18,14 +19,26 @@ mod agent_turns;
 mod dag;
 mod gauge;
 mod mcp_log;
+mod sparkline;
 mod spinner;
+mod tabs;
 mod timeline;
+mod yaml_view;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
 pub use dag::{Dag, DagNode};
 pub use gauge::Gauge;
 pub use mcp_log::{McpEntry, McpLog};
+// Sparkline widgets - some exported for future panel use
+#[allow(unused_imports)]
+pub use sparkline::{BorderedSparkline, LatencyHistory, LatencySparkline, MiniSparkline};
 // Spinner widgets - exported for future panel use
 #[allow(unused_imports)]
 pub use spinner::{ProgressDots, Spinner, BRAILLE_SPINNER, DOT_SPINNER, PULSE_SPINNER};
+// Tab widgets - exported for future panel use
+#[allow(unused_imports)]
+pub use tabs::{TabBar, TabIndicator};
 pub use timeline::{Timeline, TimelineEntry};
+// YAML view widget - exported for future panel use
+#[allow(unused_imports)]
+pub use yaml_view::YamlView;

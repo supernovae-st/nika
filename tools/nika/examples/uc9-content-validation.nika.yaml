@@ -309,7 +309,7 @@ tasks:
         Say "REFINEMENT_COMPLETE" when done.
 
       provider: claude
-      model: claude-sonnet-4
+      model: claude-sonnet-4-20250514
       mcp:
         - novanet
       max_turns: 7

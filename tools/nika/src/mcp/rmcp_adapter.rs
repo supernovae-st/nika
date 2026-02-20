@@ -142,7 +142,11 @@ impl RmcpClientAdapter {
         // MCP communication happens over stdin/stdout, stderr is only for logging
         cmd.stderr(Stdio::null());
 
-        // Add environment variables
+        // Suppress logging in child process to avoid TUI pollution
+        // This must be set BEFORE adding config env vars to allow override if needed
+        cmd.env("RUST_LOG", "off");
+
+        // Add environment variables from workflow config
         for (key, value) in &self.config.env {
             cmd.env(key, value);
         }
