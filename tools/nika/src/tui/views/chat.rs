@@ -161,7 +161,7 @@ impl ChatView {
         }
         if let Some(i) = self.history_index {
             self.input = self.history[i].clone();
-            self.cursor = self.input.len();
+            self.cursor = self.input.chars().count(); // Use char count, not byte len
         }
     }
 
@@ -171,7 +171,7 @@ impl ChatView {
             Some(i) if i < self.history.len() - 1 => {
                 self.history_index = Some(i + 1);
                 self.input = self.history[i + 1].clone();
-                self.cursor = self.input.len();
+                self.cursor = self.input.chars().count(); // Use char count, not byte len
             }
             Some(_) => {
                 self.history_index = None;
@@ -182,17 +182,31 @@ impl ChatView {
         }
     }
 
-    /// Insert character at cursor
+    /// Insert character at cursor (cursor is char index, not byte index)
     pub fn insert_char(&mut self, c: char) {
-        self.input.insert(self.cursor, c);
+        // Convert char index to byte index for insertion
+        let byte_idx = self
+            .input
+            .char_indices()
+            .nth(self.cursor)
+            .map(|(i, _)| i)
+            .unwrap_or(self.input.len());
+        self.input.insert(byte_idx, c);
         self.cursor += 1;
     }
 
-    /// Delete character before cursor
+    /// Delete character before cursor (cursor is char index, not byte index)
     pub fn backspace(&mut self) {
         if self.cursor > 0 {
             self.cursor -= 1;
-            self.input.remove(self.cursor);
+            // Convert char index to byte index for removal
+            let byte_idx = self
+                .input
+                .char_indices()
+                .nth(self.cursor)
+                .map(|(i, _)| i)
+                .unwrap_or(0);
+            self.input.remove(byte_idx);
         }
     }
 
@@ -203,9 +217,9 @@ impl ChatView {
         }
     }
 
-    /// Move cursor right
+    /// Move cursor right (cursor is char index, not byte index)
     pub fn cursor_right(&mut self) {
-        if self.cursor < self.input.len() {
+        if self.cursor < self.input.chars().count() {
             self.cursor += 1;
         }
     }
@@ -376,14 +390,10 @@ impl ChatView {
     }
 
     fn render_input(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        // Show input with cursor
-        let before_cursor = &self.input[..self.cursor];
+        // Show input with cursor (use char-based slicing for unicode safety)
+        let before_cursor: String = self.input.chars().take(self.cursor).collect();
         let cursor_char = self.input.chars().nth(self.cursor).unwrap_or(' ');
-        let after_cursor = if self.cursor < self.input.len() {
-            &self.input[self.cursor + 1..]
-        } else {
-            ""
-        };
+        let after_cursor: String = self.input.chars().skip(self.cursor + 1).collect();
 
         let line = Line::from(vec![
             Span::raw(" > "),
@@ -579,5 +589,83 @@ mod tests {
         let view = ChatView::default();
         assert_eq!(view.messages.len(), 1);
         assert!(view.input.is_empty());
+    }
+
+    #[test]
+    fn test_chat_view_unicode_input() {
+        let mut view = ChatView::new();
+
+        // Test emoji input (4 bytes per char)
+        view.insert_char('\u{1F980}'); // Rust crab emoji
+        view.insert_char('!');
+        assert_eq!(view.input, "\u{1F980}!");
+        assert_eq!(view.cursor, 2); // 2 chars, not 5 bytes
+
+        // Test backspace removes whole emoji
+        view.backspace();
+        assert_eq!(view.input, "\u{1F980}");
+        assert_eq!(view.cursor, 1);
+
+        // Test cursor navigation with unicode
+        view.insert_char('\u{1F600}'); // Grinning face emoji
+        assert_eq!(view.input, "\u{1F980}\u{1F600}");
+        assert_eq!(view.cursor, 2);
+
+        view.cursor_left();
+        assert_eq!(view.cursor, 1);
+
+        // Insert in middle
+        view.insert_char('A');
+        assert_eq!(view.input, "\u{1F980}A\u{1F600}");
+        assert_eq!(view.cursor, 2);
+
+        // Cursor right should work correctly
+        view.cursor_right();
+        assert_eq!(view.cursor, 3);
+
+        // Should not go past end
+        view.cursor_right();
+        assert_eq!(view.cursor, 3);
+    }
+
+    #[test]
+    fn test_chat_view_unicode_history() {
+        let mut view = ChatView::new();
+        view.add_user_message("Hello \u{1F44B}".to_string()); // Wave emoji
+
+        view.history_up();
+        assert_eq!(view.input, "Hello \u{1F44B}");
+        assert_eq!(view.cursor, 7); // 7 chars (H-e-l-l-o-space-emoji), not 10 bytes
+    }
+
+    #[test]
+    fn test_chat_view_multibyte_backspace() {
+        let mut view = ChatView::new();
+
+        // Build string with mixed byte-width chars
+        view.insert_char('a'); // 1 byte
+        view.insert_char('\u{00E9}'); // 2 bytes (e with acute)
+        view.insert_char('\u{4E2D}'); // 3 bytes (Chinese character)
+        view.insert_char('\u{1F980}'); // 4 bytes (crab emoji)
+
+        assert_eq!(view.input, "a\u{00E9}\u{4E2D}\u{1F980}");
+        assert_eq!(view.cursor, 4);
+
+        // Backspace should remove each char correctly
+        view.backspace();
+        assert_eq!(view.input, "a\u{00E9}\u{4E2D}");
+        assert_eq!(view.cursor, 3);
+
+        view.backspace();
+        assert_eq!(view.input, "a\u{00E9}");
+        assert_eq!(view.cursor, 2);
+
+        view.backspace();
+        assert_eq!(view.input, "a");
+        assert_eq!(view.cursor, 1);
+
+        view.backspace();
+        assert_eq!(view.input, "");
+        assert_eq!(view.cursor, 0);
     }
 }
