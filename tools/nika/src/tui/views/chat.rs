@@ -39,6 +39,7 @@ pub enum MessageRole {
     User,
     Nika,
     System,
+    Tool,
 }
 
 /// A chat message
@@ -93,10 +94,25 @@ pub struct ChatView {
     pub history: Vec<String>,
     /// History navigation index
     pub history_index: Option<usize>,
+    /// Whether streaming response is in progress
+    pub is_streaming: bool,
+    /// Partial response accumulated during streaming
+    pub partial_response: String,
+    /// Current model name for display
+    pub current_model: String,
 }
 
 impl ChatView {
     pub fn new() -> Self {
+        // Detect initial model from environment
+        let initial_model = if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+            "claude-sonnet-4".to_string()
+        } else if std::env::var("OPENAI_API_KEY").is_ok() {
+            "gpt-4o".to_string()
+        } else {
+            "No API Key".to_string()
+        };
+
         Self {
             messages: vec![ChatMessage {
                 role: MessageRole::System,
@@ -110,7 +126,42 @@ impl ChatView {
             session: SessionInfo::default(),
             history: vec![],
             history_index: None,
+            is_streaming: false,
+            partial_response: String::new(),
+            current_model: initial_model,
         }
+    }
+
+    /// Start streaming mode
+    pub fn start_streaming(&mut self) {
+        self.is_streaming = true;
+        self.partial_response.clear();
+    }
+
+    /// Append chunk to partial response during streaming
+    pub fn append_streaming(&mut self, chunk: &str) {
+        self.partial_response.push_str(chunk);
+    }
+
+    /// Finish streaming and return the full response
+    pub fn finish_streaming(&mut self) -> String {
+        self.is_streaming = false;
+        std::mem::take(&mut self.partial_response)
+    }
+
+    /// Set the current model name
+    pub fn set_model(&mut self, model: impl Into<String>) {
+        self.current_model = model.into();
+    }
+
+    /// Add a tool message
+    pub fn add_tool_message(&mut self, content: String) {
+        self.messages.push(ChatMessage {
+            role: MessageRole::Tool,
+            content,
+            timestamp: Instant::now(),
+            execution: None,
+        });
     }
 
     /// Add a user message
@@ -348,45 +399,60 @@ impl View for ChatView {
     }
 
     fn status_line(&self, _state: &TuiState) -> String {
+        let streaming_status = if self.is_streaming {
+            " | Streaming..."
+        } else {
+            ""
+        };
         format!(
-            "{} messages | {} in history",
+            "{} messages | {} in history | Model: {}{}",
             self.messages.len(),
-            self.history.len()
+            self.history.len(),
+            self.current_model,
+            streaming_status
         )
     }
 }
 
 impl ChatView {
     fn render_messages(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        let items: Vec<ListItem> = self
+        let mut items: Vec<ListItem> = self
             .messages
             .iter()
             .flat_map(|msg| {
-                let (prefix, style) = match msg.role {
-                    MessageRole::User => ("You", Style::default().fg(theme.highlight)),
-                    MessageRole::Nika => ("Nika", Style::default().fg(theme.status_success)),
-                    MessageRole::System => ("System", Style::default().fg(theme.text_muted)),
+                // Color-coded message bubbles based on role
+                let (prefix, color) = match msg.role {
+                    // User: Cyan color
+                    MessageRole::User => ("[You]", theme.trait_retrieved),
+                    // AI/Nika: Green color
+                    MessageRole::Nika => ("[AI]", theme.status_success),
+                    // System: Yellow/Amber color
+                    MessageRole::System => ("[System]", theme.status_running),
+                    // Tool: Magenta/Pink color
+                    MessageRole::Tool => ("[Tool]", theme.mcp_traverse),
                 };
 
+                let style = Style::default().fg(color);
+
                 let mut lines = vec![ListItem::new(Line::from(vec![
-                    Span::styled(
-                        format!("-- {} ", prefix),
-                        style.add_modifier(Modifier::BOLD),
-                    ),
-                    Span::raw("-".repeat(20)),
+                    Span::styled(format!("{} ", prefix), style.add_modifier(Modifier::BOLD)),
+                    Span::styled("-".repeat(20), Style::default().fg(theme.text_muted)),
                 ]))];
 
-                // Wrap message content
+                // Wrap message content with colored prefix indicator
                 for line in msg.content.lines() {
-                    lines.push(ListItem::new(format!("  {}", line)));
+                    lines.push(ListItem::new(Line::from(vec![
+                        Span::styled("  | ", Style::default().fg(color)),
+                        Span::raw(line.to_string()),
+                    ])));
                 }
 
                 // Add execution result if present
                 if let Some(exec) = &msg.execution {
-                    let status_icon = match exec.status {
-                        ExecutionStatus::Running => ">",
-                        ExecutionStatus::Completed => "+",
-                        ExecutionStatus::Failed => "x",
+                    let (status_icon, status_color) = match exec.status {
+                        ExecutionStatus::Running => (">", theme.status_running),
+                        ExecutionStatus::Completed => ("+", theme.status_success),
+                        ExecutionStatus::Failed => ("x", theme.status_failed),
                     };
                     lines.push(ListItem::new(Line::from(vec![
                         Span::raw("  "),
@@ -398,7 +464,7 @@ impl ChatView {
                                 exec.tasks_completed,
                                 exec.tasks_total
                             ),
-                            Style::default().fg(theme.text_secondary),
+                            Style::default().fg(status_color),
                         ),
                     ])));
                 }
@@ -407,6 +473,40 @@ impl ChatView {
                 lines
             })
             .collect();
+
+        // Add streaming indicator if streaming is in progress
+        if self.is_streaming {
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled(
+                    "[AI] ",
+                    Style::default()
+                        .fg(theme.status_success)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled("-".repeat(20), Style::default().fg(theme.text_muted)),
+            ])));
+
+            // Show partial response if any
+            if !self.partial_response.is_empty() {
+                for line in self.partial_response.lines() {
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::styled("  | ", Style::default().fg(theme.status_success)),
+                        Span::raw(line.to_string()),
+                    ])));
+                }
+            }
+
+            // Add thinking indicator with animation
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled("  | ", Style::default().fg(theme.status_success)),
+                Span::styled(
+                    "Thinking...",
+                    Style::default()
+                        .fg(theme.status_running)
+                        .add_modifier(Modifier::ITALIC),
+                ),
+            ])));
+        }
 
         let list = List::new(items).block(
             Block::default()
@@ -720,5 +820,68 @@ mod tests {
         view.backspace();
         assert_eq!(view.input, "");
         assert_eq!(view.cursor, 0);
+    }
+
+    #[test]
+    fn test_chat_view_streaming() {
+        let mut view = ChatView::new();
+        assert!(!view.is_streaming);
+
+        view.start_streaming();
+        assert!(view.is_streaming);
+        assert!(view.partial_response.is_empty());
+
+        view.append_streaming("Hello ");
+        view.append_streaming("world!");
+        assert_eq!(view.partial_response, "Hello world!");
+
+        let result = view.finish_streaming();
+        assert_eq!(result, "Hello world!");
+        assert!(!view.is_streaming);
+        assert!(view.partial_response.is_empty());
+    }
+
+    #[test]
+    fn test_chat_view_set_model() {
+        let mut view = ChatView::new();
+        view.set_model("gpt-4o-mini");
+        assert_eq!(view.current_model, "gpt-4o-mini");
+    }
+
+    #[test]
+    fn test_chat_view_tool_message() {
+        let mut view = ChatView::new();
+        view.add_tool_message("Tool output: OK".to_string());
+        assert_eq!(view.messages.len(), 2);
+        assert_eq!(view.messages[1].role, MessageRole::Tool);
+        assert_eq!(view.messages[1].content, "Tool output: OK");
+    }
+
+    #[test]
+    fn test_message_role_tool() {
+        assert_eq!(MessageRole::Tool, MessageRole::Tool);
+        assert_ne!(MessageRole::Tool, MessageRole::User);
+        assert_ne!(MessageRole::Tool, MessageRole::Nika);
+        assert_ne!(MessageRole::Tool, MessageRole::System);
+    }
+
+    #[test]
+    fn test_chat_view_status_line_with_model() {
+        let view = ChatView::new();
+        let state = TuiState::new("test.nika.yaml");
+        let status = view.status_line(&state);
+        assert!(status.contains("Model:"));
+        // Model name depends on env vars, so just check format
+        assert!(status.contains("1 messages"));
+        assert!(status.contains("0 in history"));
+    }
+
+    #[test]
+    fn test_chat_view_status_line_streaming() {
+        let mut view = ChatView::new();
+        view.start_streaming();
+        let state = TuiState::new("test.nika.yaml");
+        let status = view.status_line(&state);
+        assert!(status.contains("Streaming..."));
     }
 }

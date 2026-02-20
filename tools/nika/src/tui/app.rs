@@ -2233,20 +2233,29 @@ fn render_chat_overlay(frame: &mut Frame, state: &TuiState, theme: &Theme, area:
     for msg in &chat.messages {
         let (prefix, style) = match msg.role {
             crate::tui::state::ChatOverlayMessageRole::User => (
-                "You",
+                "[You]",
                 Style::default()
-                    .fg(theme.highlight)
+                    .fg(theme.trait_retrieved) // Cyan
                     .add_modifier(Modifier::BOLD),
             ),
             crate::tui::state::ChatOverlayMessageRole::Nika => (
-                "Nika",
+                "[AI]",
                 Style::default()
-                    .fg(Color::Green)
+                    .fg(theme.status_success) // Green
                     .add_modifier(Modifier::BOLD),
             ),
-            crate::tui::state::ChatOverlayMessageRole::System => {
-                ("System", Style::default().fg(Color::DarkGray))
-            }
+            crate::tui::state::ChatOverlayMessageRole::System => (
+                "[System]",
+                Style::default()
+                    .fg(theme.status_running) // Yellow/Amber
+                    .add_modifier(Modifier::BOLD),
+            ),
+            crate::tui::state::ChatOverlayMessageRole::Tool => (
+                "[Tool]",
+                Style::default()
+                    .fg(theme.mcp_traverse) // Magenta/Pink
+                    .add_modifier(Modifier::BOLD),
+            ),
         };
 
         message_lines.push(Line::from(vec![
@@ -2281,9 +2290,44 @@ fn render_chat_overlay(frame: &mut Frame, state: &TuiState, theme: &Theme, area:
         message_lines.push(Line::from("")); // Spacing between messages
     }
 
+    // Add streaming indicator if streaming is in progress
+    if chat.is_streaming {
+        message_lines.push(Line::from(vec![
+            Span::styled(
+                "[AI] ",
+                Style::default()
+                    .fg(theme.status_success)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("─".repeat(20), Style::default().fg(Color::DarkGray)),
+        ]));
+
+        // Show partial response if any
+        if !chat.partial_response.is_empty() {
+            for line in chat.partial_response.lines() {
+                message_lines.push(Line::from(format!("  {}", line)));
+            }
+        }
+
+        // Add thinking indicator
+        message_lines.push(Line::from(vec![Span::styled(
+            "  Thinking...",
+            Style::default()
+                .fg(theme.status_running)
+                .add_modifier(Modifier::ITALIC),
+        )]));
+    }
+
+    // Show current model in title
+    let title = if chat.is_streaming {
+        format!(" Chat | {} | Streaming... ", chat.current_model)
+    } else {
+        format!(" Chat | {} ", chat.current_model)
+    };
+
     let messages_block = Block::default()
         .borders(Borders::ALL)
-        .title(" 💬 Chat ")
+        .title(title)
         .border_style(Style::default().fg(theme.border_focused));
 
     let messages_paragraph = Paragraph::new(message_lines)

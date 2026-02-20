@@ -645,10 +645,12 @@ impl SettingsState {
 pub enum ChatOverlayMessageRole {
     /// User input
     User,
-    /// Nika response
+    /// Nika/AI response
     Nika,
     /// System message (context, hints)
     System,
+    /// Tool execution result
+    Tool,
 }
 
 /// A message in the chat overlay
@@ -685,6 +687,12 @@ pub struct ChatOverlayState {
     pub history: Vec<String>,
     /// History navigation index (None = not navigating)
     pub history_index: Option<usize>,
+    /// Whether streaming response is in progress
+    pub is_streaming: bool,
+    /// Partial response accumulated during streaming
+    pub partial_response: String,
+    /// Current model name for display
+    pub current_model: String,
 }
 
 impl Default for ChatOverlayState {
@@ -696,6 +704,15 @@ impl Default for ChatOverlayState {
 impl ChatOverlayState {
     /// Create new chat overlay state with welcome message
     pub fn new() -> Self {
+        // Detect initial model from environment
+        let initial_model = if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+            "claude-sonnet-4".to_string()
+        } else if std::env::var("OPENAI_API_KEY").is_ok() {
+            "gpt-4o".to_string()
+        } else {
+            "No API Key".to_string()
+        };
+
         Self {
             messages: vec![ChatOverlayMessage::new(
                 ChatOverlayMessageRole::System,
@@ -706,7 +723,40 @@ impl ChatOverlayState {
             scroll: 0,
             history: Vec::new(),
             history_index: None,
+            is_streaming: false,
+            partial_response: String::new(),
+            current_model: initial_model,
         }
+    }
+
+    /// Start streaming mode
+    pub fn start_streaming(&mut self) {
+        self.is_streaming = true;
+        self.partial_response.clear();
+    }
+
+    /// Append chunk to partial response during streaming
+    pub fn append_streaming(&mut self, chunk: &str) {
+        self.partial_response.push_str(chunk);
+    }
+
+    /// Finish streaming and return the full response
+    pub fn finish_streaming(&mut self) -> String {
+        self.is_streaming = false;
+        std::mem::take(&mut self.partial_response)
+    }
+
+    /// Set the current model name
+    pub fn set_model(&mut self, model: impl Into<String>) {
+        self.current_model = model.into();
+    }
+
+    /// Add a tool message
+    pub fn add_tool_message(&mut self, content: impl Into<String>) {
+        self.messages.push(ChatOverlayMessage::new(
+            ChatOverlayMessageRole::Tool,
+            content,
+        ));
     }
 
     /// Insert a character at cursor position
@@ -3858,6 +3908,46 @@ mod tests {
         assert_eq!(state.scroll, 0);
         assert!(state.history.is_empty());
         assert!(state.history_index.is_none());
+        // New streaming fields
+        assert!(!state.is_streaming);
+        assert!(state.partial_response.is_empty());
+        // Model name depends on env vars, so just check it's not empty
+        assert!(!state.current_model.is_empty());
+    }
+
+    #[test]
+    fn test_chat_overlay_streaming() {
+        let mut state = ChatOverlayState::new();
+        assert!(!state.is_streaming);
+
+        state.start_streaming();
+        assert!(state.is_streaming);
+        assert!(state.partial_response.is_empty());
+
+        state.append_streaming("Hello ");
+        state.append_streaming("world!");
+        assert_eq!(state.partial_response, "Hello world!");
+
+        let result = state.finish_streaming();
+        assert_eq!(result, "Hello world!");
+        assert!(!state.is_streaming);
+        assert!(state.partial_response.is_empty());
+    }
+
+    #[test]
+    fn test_chat_overlay_set_model() {
+        let mut state = ChatOverlayState::new();
+        state.set_model("gpt-4o-mini");
+        assert_eq!(state.current_model, "gpt-4o-mini");
+    }
+
+    #[test]
+    fn test_chat_overlay_tool_message() {
+        let mut state = ChatOverlayState::new();
+        state.add_tool_message("Tool output: OK");
+        assert_eq!(state.messages.len(), 2);
+        assert_eq!(state.messages[1].role, ChatOverlayMessageRole::Tool);
+        assert_eq!(state.messages[1].content, "Tool output: OK");
     }
 
     #[test]
