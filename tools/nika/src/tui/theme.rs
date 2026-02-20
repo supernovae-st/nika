@@ -5,6 +5,67 @@
 
 use ratatui::style::{Color, Modifier, Style};
 
+// ═══════════════════════════════════════════════════════════════════════════
+// VERB COLORS (DAG Visualization)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Verb-specific colors for DAG visualization
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerbColor {
+    Infer,  // Violet #8B5CF6
+    Exec,   // Amber #F59E0B
+    Fetch,  // Cyan #06B6D4
+    Invoke, // Emerald #10B981
+    Agent,  // Rose #F43F5E
+}
+
+impl VerbColor {
+    /// Get the RGB color for this verb
+    pub fn rgb(&self) -> Color {
+        match self {
+            Self::Infer => Color::Rgb(139, 92, 246),  // Violet
+            Self::Exec => Color::Rgb(245, 158, 11),   // Amber
+            Self::Fetch => Color::Rgb(6, 182, 212),   // Cyan
+            Self::Invoke => Color::Rgb(16, 185, 129), // Emerald
+            Self::Agent => Color::Rgb(244, 63, 94),   // Rose
+        }
+    }
+
+    /// Get muted version (50% opacity simulation)
+    pub fn muted(&self) -> Color {
+        match self {
+            Self::Infer => Color::Rgb(97, 64, 171),
+            Self::Exec => Color::Rgb(171, 110, 8),
+            Self::Fetch => Color::Rgb(4, 127, 148),
+            Self::Invoke => Color::Rgb(11, 129, 90),
+            Self::Agent => Color::Rgb(170, 44, 66),
+        }
+    }
+
+    /// Get icon for this verb
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Self::Infer => "🧠",
+            Self::Exec => "⚡",
+            Self::Fetch => "🌐",
+            Self::Invoke => "🔧",
+            Self::Agent => "🤖",
+        }
+    }
+
+    /// Parse from verb name string
+    pub fn from_verb(verb: &str) -> Self {
+        match verb.to_lowercase().as_str() {
+            "infer" => Self::Infer,
+            "exec" => Self::Exec,
+            "fetch" => Self::Fetch,
+            "invoke" => Self::Invoke,
+            "agent" => Self::Agent,
+            _ => Self::Infer, // default
+        }
+    }
+}
+
 /// Theme mode selector (TIER 2.4)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ThemeMode {
@@ -225,6 +286,16 @@ impl Theme {
             .fg(self.highlight)
             .add_modifier(Modifier::BOLD)
     }
+
+    /// Get verb color (full saturation)
+    pub fn verb_color(&self, verb: VerbColor) -> Color {
+        verb.rgb()
+    }
+
+    /// Get verb color muted (50% opacity simulation)
+    pub fn verb_color_muted(&self, verb: VerbColor) -> Color {
+        verb.muted()
+    }
 }
 
 /// Task status for styling
@@ -372,5 +443,103 @@ mod tests {
         // Text colors should be inverted
         assert_ne!(dark.text_primary, light.text_primary);
         assert_ne!(dark.background, light.background);
+    }
+
+    // ═══ VERB COLOR TESTS ═══
+
+    #[test]
+    fn test_verb_color_rgb_returns_correct_colors() {
+        assert_eq!(VerbColor::Infer.rgb(), Color::Rgb(139, 92, 246)); // Violet
+        assert_eq!(VerbColor::Exec.rgb(), Color::Rgb(245, 158, 11)); // Amber
+        assert_eq!(VerbColor::Fetch.rgb(), Color::Rgb(6, 182, 212)); // Cyan
+        assert_eq!(VerbColor::Invoke.rgb(), Color::Rgb(16, 185, 129)); // Emerald
+        assert_eq!(VerbColor::Agent.rgb(), Color::Rgb(244, 63, 94)); // Rose
+    }
+
+    #[test]
+    fn test_verb_color_muted_returns_darker_colors() {
+        // Muted colors should be different from full saturation
+        assert_ne!(VerbColor::Infer.muted(), VerbColor::Infer.rgb());
+        assert_ne!(VerbColor::Exec.muted(), VerbColor::Exec.rgb());
+        assert_ne!(VerbColor::Fetch.muted(), VerbColor::Fetch.rgb());
+        assert_ne!(VerbColor::Invoke.muted(), VerbColor::Invoke.rgb());
+        assert_ne!(VerbColor::Agent.muted(), VerbColor::Agent.rgb());
+
+        // Verify actual muted values
+        assert_eq!(VerbColor::Infer.muted(), Color::Rgb(97, 64, 171));
+        assert_eq!(VerbColor::Agent.muted(), Color::Rgb(170, 44, 66));
+    }
+
+    #[test]
+    fn test_verb_color_icons() {
+        assert_eq!(VerbColor::Infer.icon(), "🧠");
+        assert_eq!(VerbColor::Exec.icon(), "⚡");
+        assert_eq!(VerbColor::Fetch.icon(), "🌐");
+        assert_eq!(VerbColor::Invoke.icon(), "🔧");
+        assert_eq!(VerbColor::Agent.icon(), "🤖");
+    }
+
+    #[test]
+    fn test_verb_color_from_verb_string() {
+        assert_eq!(VerbColor::from_verb("infer"), VerbColor::Infer);
+        assert_eq!(VerbColor::from_verb("exec"), VerbColor::Exec);
+        assert_eq!(VerbColor::from_verb("fetch"), VerbColor::Fetch);
+        assert_eq!(VerbColor::from_verb("invoke"), VerbColor::Invoke);
+        assert_eq!(VerbColor::from_verb("agent"), VerbColor::Agent);
+    }
+
+    #[test]
+    fn test_verb_color_from_verb_case_insensitive() {
+        assert_eq!(VerbColor::from_verb("INFER"), VerbColor::Infer);
+        assert_eq!(VerbColor::from_verb("Exec"), VerbColor::Exec);
+        assert_eq!(VerbColor::from_verb("FeTcH"), VerbColor::Fetch);
+    }
+
+    #[test]
+    fn test_verb_color_from_verb_unknown_defaults_to_infer() {
+        assert_eq!(VerbColor::from_verb("unknown"), VerbColor::Infer);
+        assert_eq!(VerbColor::from_verb(""), VerbColor::Infer);
+        assert_eq!(VerbColor::from_verb("transform"), VerbColor::Infer);
+    }
+
+    #[test]
+    fn test_theme_verb_color_methods() {
+        let theme = Theme::novanet();
+
+        // verb_color should return full RGB
+        assert_eq!(theme.verb_color(VerbColor::Infer), Color::Rgb(139, 92, 246));
+        assert_eq!(theme.verb_color(VerbColor::Agent), Color::Rgb(244, 63, 94));
+
+        // verb_color_muted should return muted version
+        assert_eq!(
+            theme.verb_color_muted(VerbColor::Infer),
+            Color::Rgb(97, 64, 171)
+        );
+        assert_eq!(
+            theme.verb_color_muted(VerbColor::Agent),
+            Color::Rgb(170, 44, 66)
+        );
+    }
+
+    #[test]
+    fn test_verb_color_all_variants_have_distinct_colors() {
+        let colors = [
+            VerbColor::Infer.rgb(),
+            VerbColor::Exec.rgb(),
+            VerbColor::Fetch.rgb(),
+            VerbColor::Invoke.rgb(),
+            VerbColor::Agent.rgb(),
+        ];
+
+        // All colors should be unique
+        for i in 0..colors.len() {
+            for j in (i + 1)..colors.len() {
+                assert_ne!(
+                    colors[i], colors[j],
+                    "Verb colors {} and {} are identical",
+                    i, j
+                );
+            }
+        }
     }
 }

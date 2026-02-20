@@ -1,0 +1,7 @@
+---
+source: tests/tui_render_snapshot_test.rs
+expression: output
+---
+                                  00:00 
+─●───────────⠋───────────○──────────────
+ a           b           c

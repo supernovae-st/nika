@@ -129,6 +129,33 @@ jobs:
         run: cargo nextest run --all-features test_phase5 lazy_binding
 
   # ============================================================================
+  # CHAT UX v2 VERIFICATION
+  # ============================================================================
+
+  chat-ux:
+    name: Chat UX v2 Verification
+    runs-on: ubuntu-latest
+    needs: verify
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+
+      - name: Run Chat UX widget tests
+        run: cargo nextest run --all-features --test chat_ux_test
+
+      - name: Run conversational agent tests
+        run: cargo nextest run --all-features --test conversational_agent_test
+
+      - name: Validate Chat UX workflows
+        run: |
+          cargo build --release
+          cargo run --release -- validate examples/test-conversational-agent.nika.yaml
+          cargo run --release -- validate examples/test-chat-ux-integration.nika.yaml
+
+  # ============================================================================
   # BUILD RELEASE ARTIFACTS
   # Only runs after verification passes
   # ============================================================================
@@ -136,7 +163,7 @@ jobs:
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
-    needs: [verify, integration, mvp8]  # Require all verification to pass
+    needs: [verify, integration, mvp8, chat-ux]  # Require all verification to pass
 
     strategy:
       matrix:

@@ -1,0 +1,203 @@
+name: Chat UX Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/tui/**'
+      - 'tests/chat_ux_test.rs'
+      - 'tests/conversational_agent_test.rs'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/tui/**'
+      - 'tests/chat_ux_test.rs'
+      - 'tests/conversational_agent_test.rs'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ============================================================================
+  # TUI WIDGET TESTS
+  # ============================================================================
+
+  tui-widgets:
+    name: TUI Widget Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+
+      - name: Run TUI widget tests
+        run: |
+          cargo nextest run --all-features \
+            session_context \
+            activity_stack \
+            command_palette \
+            infer_stream \
+            mcp_call
+
+      - name: Run Chat UX test suite
+        run: cargo nextest run --all-features --test chat_ux_test
+
+  # ============================================================================
+  # CHAT VIEW TESTS
+  # ============================================================================
+
+  chat-view:
+    name: Chat View Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+
+      - name: Run Chat view tests
+        run: |
+          cargo nextest run --all-features \
+            chat_view \
+            chat_ux \
+            message_bubble
+
+      - name: Verify TUI feature compiles
+        run: cargo check --features tui
+
+  # ============================================================================
+  # CONVERSATIONAL AGENT TESTS
+  # ============================================================================
+
+  conversational:
+    name: Conversational Agent Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+
+      - name: Run conversational agent unit tests
+        run: cargo nextest run --all-features --test conversational_agent_test
+
+      - name: Run agent event tests
+        run: |
+          cargo nextest run --all-features \
+            agent_turn \
+            agent_spawn \
+            context_accumulation
+
+  # ============================================================================
+  # KEYBOARD HANDLING TESTS
+  # ============================================================================
+
+  keyboard:
+    name: Keyboard Handling Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+
+      - name: Run keyboard handling tests
+        run: |
+          cargo nextest run --all-features \
+            keyboard \
+            handle_key \
+            palette_key \
+            input_char
+
+  # ============================================================================
+  # WORKFLOW VALIDATION
+  # ============================================================================
+
+  workflow-validation:
+    name: Validate Chat UX Workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Validate conversational workflow
+        run: |
+          cargo run --release -- validate examples/test-conversational-agent.nika.yaml
+
+      - name: Validate chat UX workflow
+        run: |
+          cargo run --release -- validate examples/test-chat-ux-integration.nika.yaml
+
+  # ============================================================================
+  # VERIFICATION SUMMARY
+  # ============================================================================
+
+  summary:
+    name: Chat UX Verification Summary
+    needs: [tui-widgets, chat-view, conversational, keyboard, workflow-validation]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate summary
+        env:
+          TUI_RESULT: ${{ needs.tui-widgets.result }}
+          VIEW_RESULT: ${{ needs.chat-view.result }}
+          CONV_RESULT: ${{ needs.conversational.result }}
+          KEY_RESULT: ${{ needs.keyboard.result }}
+          WF_RESULT: ${{ needs.workflow-validation.result }}
+        run: |
+          echo "## Chat UX Verification Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Component | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-----------|--------|" >> "$GITHUB_STEP_SUMMARY"
+
+          # Use env vars safely
+          if [ "$TUI_RESULT" = "success" ]; then
+            echo "| TUI Widgets | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| TUI Widgets | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ "$VIEW_RESULT" = "success" ]; then
+            echo "| Chat View | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Chat View | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ "$CONV_RESULT" = "success" ]; then
+            echo "| Conversational | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Conversational | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ "$KEY_RESULT" = "success" ]; then
+            echo "| Keyboard | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Keyboard | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ "$WF_RESULT" = "success" ]; then
+            echo "| Workflows | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Workflows | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          # Fail if any job failed
+          if [ "$TUI_RESULT" != "success" ] || \
+             [ "$VIEW_RESULT" != "success" ] || \
+             [ "$CONV_RESULT" != "success" ] || \
+             [ "$KEY_RESULT" != "success" ] || \
+             [ "$WF_RESULT" != "success" ]; then
+            echo "❌ Some Chat UX tests failed" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          echo "✅ All Chat UX tests passed!" >> "$GITHUB_STEP_SUMMARY"

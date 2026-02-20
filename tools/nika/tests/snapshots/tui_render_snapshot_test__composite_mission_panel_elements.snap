@@ -1,0 +1,11 @@
+---
+source: tests/tui_render_snapshot_test.rs
+expression: result
+---
+=== GAUGE ===
+███████████████2/4 (50%)                
+
+=== TIMELINE ===
+                                                      00:02 
+─●─────────────⠋─────────────○─────────────○────────────────
+ init          build         test          deploy

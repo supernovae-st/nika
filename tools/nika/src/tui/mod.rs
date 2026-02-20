@@ -47,7 +47,7 @@ mod views;
 #[cfg(feature = "tui")]
 mod watcher;
 #[cfg(feature = "tui")]
-mod widgets;
+pub mod widgets;
 
 #[cfg(feature = "tui")]
 pub use app::App;

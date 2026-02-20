@@ -1,0 +1,83 @@
+schema: nika/workflow@0.5
+workflow: test_conversational_agent
+description: |
+  Tests conversational agent capabilities with multi-turn interactions.
+  Validates context accumulation, tool calling, and spawn_agent.
+
+# ============================================================================
+# TEST: Basic Conversational Agent
+# ============================================================================
+
+tasks:
+  - id: simple_conversation
+    description: "Test basic agent conversation"
+    agent:
+      prompt: |
+        You are a helpful assistant testing Nika's conversational capabilities.
+        When asked a question, provide a brief, accurate answer.
+
+        User question: What is 2 + 2?
+
+        Respond with just the answer.
+      max_turns: 1
+    use.answer: simple_result
+
+  # ============================================================================
+  # TEST: Multi-turn Conversation
+  # ============================================================================
+
+  - id: multi_turn
+    description: "Test multi-turn context accumulation"
+    depends_on:
+      - simple_conversation
+    agent:
+      prompt: |
+        You are continuing a conversation about mathematics.
+        The previous answer was: {{use.simple_result}}
+
+        Now, what is that result multiplied by 3?
+        Respond with just the number.
+      max_turns: 2
+    use.answer: multi_result
+
+  # ============================================================================
+  # TEST: Agent with Depth Limit (spawn_agent)
+  # ============================================================================
+
+  - id: orchestrator
+    description: "Test spawn_agent capability"
+    depends_on:
+      - multi_turn
+    agent:
+      prompt: |
+        You are an orchestrator agent that can delegate tasks.
+        You have access to spawn_agent tool to create child agents.
+
+        Task: Calculate the sum of 1+2+3+4+5 by delegating to a child agent.
+
+        Use spawn_agent with:
+        - task_id: "calculator"
+        - prompt: "Calculate 1+2+3+4+5 and return the result"
+
+        Then report the final answer.
+      depth_limit: 2
+      max_turns: 5
+    use.answer: orchestrator_result
+
+  # ============================================================================
+  # TEST: Agent with Context Data (via prompt)
+  # ============================================================================
+
+  - id: contextualized
+    description: "Test agent with pre-loaded context"
+    agent:
+      prompt: |
+        You have access to the following entity information:
+
+        Entity Name: QR Code
+        Entity Type: Technology
+        Description: A two-dimensional barcode that can be scanned by smartphones
+
+        Summarize this entity in one sentence.
+      max_turns: 1
+    use.summary: entity_summary

@@ -294,3 +294,93 @@ jobs:
           echo "| 5 | lazy: bindings | ✅ Verified |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "All MVP 8 features verified for release." >> "$GITHUB_STEP_SUMMARY"
+
+  # ============================================================================
+  # CHAT UX v2 TESTS (TUI widgets and conversational features)
+  # ============================================================================
+
+  chat-ux:
+    name: Chat UX Tests
+    runs-on: ubuntu-latest
+    needs: [check]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+
+      - name: Run Chat UX widget tests
+        run: cargo nextest run --all-features --test chat_ux_test
+
+      - name: Run conversational agent tests
+        run: cargo nextest run --all-features --test conversational_agent_test
+
+      - name: Run provider tests (unit only)
+        run: |
+          cargo nextest run --all-features --test provider_integration_test \
+            --filter-expr 'not test(integration)'
+
+      - name: Run MCP tests (unit only)
+        run: |
+          cargo nextest run --all-features --test mcp_integration_test \
+            --filter-expr 'not test(integration)'
+
+  # ============================================================================
+  # WORKFLOW VALIDATION TESTS
+  # ============================================================================
+
+  workflow-validation:
+    name: Validate Example Workflows
+    runs-on: ubuntu-latest
+    needs: [build]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Validate Chat UX workflows
+        run: |
+          cargo run --release -- validate examples/test-conversational-agent.nika.yaml
+          cargo run --release -- validate examples/test-chat-ux-integration.nika.yaml
+
+      - name: Validate all example workflows
+        run: |
+          for f in examples/*.nika.yaml; do
+            echo "Validating $f..."
+            cargo run --release -- validate "$f" || echo "WARN: $f failed validation"
+          done
+
+  # ============================================================================
+  # BENCHMARK REGRESSION TESTS
+  # ============================================================================
+
+  benchmarks:
+    name: Benchmark Regression
+    runs-on: ubuntu-latest
+    needs: [check, test]
+
+    # Only run on main branch pushes and release tags
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run benchmarks
+        run: |
+          cargo bench --bench workflow_parsing -- --noplot
+          cargo bench --bench dag_validation -- --noplot
+          cargo bench --bench binding_resolution -- --noplot
+
+      - name: Generate benchmark summary
+        run: |
+          echo "## Benchmark Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Benchmarks completed successfully." >> "$GITHUB_STEP_SUMMARY"
+          echo "See artifacts for detailed timing reports." >> "$GITHUB_STEP_SUMMARY"

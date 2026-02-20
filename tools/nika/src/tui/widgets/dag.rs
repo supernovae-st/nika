@@ -38,7 +38,7 @@ impl VerbType {
     }
 
     /// Parse verb type from string
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "infer" => Self::Infer,
             "exec" => Self::Exec,
@@ -143,7 +143,7 @@ impl DagNode {
 
     pub fn with_type(mut self, task_type: impl Into<String>) -> Self {
         let type_str = task_type.into();
-        self.verb_type = VerbType::from_str(&type_str);
+        self.verb_type = VerbType::parse(&type_str);
         self.task_type = Some(type_str);
         self
     }
@@ -466,13 +466,13 @@ mod tests {
 
     #[test]
     fn test_verb_type_from_str() {
-        assert_eq!(VerbType::from_str("infer"), VerbType::Infer);
-        assert_eq!(VerbType::from_str("INFER"), VerbType::Infer);
-        assert_eq!(VerbType::from_str("exec"), VerbType::Exec);
-        assert_eq!(VerbType::from_str("fetch"), VerbType::Fetch);
-        assert_eq!(VerbType::from_str("invoke"), VerbType::Invoke);
-        assert_eq!(VerbType::from_str("agent"), VerbType::Agent);
-        assert_eq!(VerbType::from_str("unknown_verb"), VerbType::Unknown);
+        assert_eq!(VerbType::parse("infer"), VerbType::Infer);
+        assert_eq!(VerbType::parse("INFER"), VerbType::Infer);
+        assert_eq!(VerbType::parse("exec"), VerbType::Exec);
+        assert_eq!(VerbType::parse("fetch"), VerbType::Fetch);
+        assert_eq!(VerbType::parse("invoke"), VerbType::Invoke);
+        assert_eq!(VerbType::parse("agent"), VerbType::Agent);
+        assert_eq!(VerbType::parse("unknown_verb"), VerbType::Unknown);
     }
 
     #[test]

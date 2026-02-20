@@ -45,8 +45,9 @@ use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Wrap};
 
 use crate::ast::{Task, TaskAction, Workflow};
 use crate::tui::standalone::StandaloneState;
-use crate::tui::theme::Theme;
+use crate::tui::theme::{Theme, VerbColor};
 use crate::tui::watcher::FileEvent;
+use crate::tui::widgets::{DagAscii, NodeBoxData, NodeBoxMode};
 use std::sync::Arc;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -477,6 +478,8 @@ pub struct BrowserView {
     pub workflow_cache: HashMap<PathBuf, WorkflowInfo>,
     /// Run history per workflow (duration in ms, max 10 entries)
     pub run_history: HashMap<PathBuf, Vec<u64>>,
+    /// DAG expanded mode (E key toggles between Minimal and Expanded)
+    pub dag_expanded: bool,
 }
 
 impl BrowserView {
@@ -499,6 +502,7 @@ impl BrowserView {
             info_scroll: 0,
             workflow_cache: HashMap::new(),
             run_history: HashMap::new(),
+            dag_expanded: false,
         };
 
         // Scan all workflow files for validation
@@ -705,6 +709,11 @@ impl BrowserView {
         };
     }
 
+    /// Toggle DAG expanded/minimal mode
+    pub fn toggle_dag_mode(&mut self) {
+        self.dag_expanded = !self.dag_expanded;
+    }
+
     /// Render the browser view
     pub fn render(&self, area: Rect, buf: &mut Buffer, theme: &Theme) {
         // Split into top and bottom halves
@@ -903,7 +912,7 @@ impl BrowserView {
 
     /// Render DAG preview panel
     fn render_dag_preview(&self, area: Rect, buf: &mut Buffer, theme: &Theme) {
-        use crate::tui::widgets::ScrollIndicator;
+        use crate::tui::theme::TaskStatus;
 
         let is_focused = self.focused_panel == BrowserPanel::DagPreview;
         let border_style = if is_focused {
@@ -912,67 +921,95 @@ impl BrowserView {
             Style::default().fg(theme.border_normal)
         };
 
-        let block = Block::default()
-            .title(format!(
-                " {} {} ",
+        // Update title to show mode state
+        let title = if self.dag_expanded {
+            format!(
+                " {} {} [E]xpanded ",
                 BrowserPanel::DagPreview.icon(),
                 BrowserPanel::DagPreview.title()
-            ))
+            )
+        } else {
+            format!(
+                " {} {} [E]->expand ",
+                BrowserPanel::DagPreview.icon(),
+                BrowserPanel::DagPreview.title()
+            )
+        };
+
+        let block = Block::default()
+            .title(title)
             .borders(Borders::ALL)
             .border_style(border_style);
 
         let inner = block.inner(area);
         block.render(area, buf);
 
-        // Generate ASCII DAG from workflow info
-        let dag_text = if let Some(info) = &self.workflow_info {
-            if let Some(error) = &info.error {
-                format!("⚠️ Parse error:\n{}", error)
+        // Check if we have valid workflow info to render with DagAscii
+        if let Some(info) = &self.workflow_info {
+            if info.error.is_some() {
+                // Fall back to text rendering for parse errors
+                let error_text = format!(
+                    "Parse error:\n{}",
+                    info.error.as_ref().unwrap_or(&"Unknown error".to_string())
+                );
+                let paragraph = Paragraph::new(error_text)
+                    .style(Style::default().fg(Color::Red))
+                    .wrap(Wrap { trim: false });
+                paragraph.render(inner, buf);
+            } else if info.tasks.is_empty() {
+                // Empty workflow - show placeholder
+                let placeholder = Paragraph::new("(no tasks)")
+                    .style(Style::default().fg(theme.text_muted))
+                    .wrap(Wrap { trim: false });
+                placeholder.render(inner, buf);
             } else {
-                self.generate_dag_ascii(info)
+                // Convert TaskSummary to NodeBoxData
+                let nodes: Vec<NodeBoxData> = info
+                    .tasks
+                    .iter()
+                    .map(|task| {
+                        let verb = VerbColor::from_verb(task.verb);
+                        NodeBoxData::new(&task.id, verb)
+                            .with_estimate(task.estimate)
+                            .with_status(TaskStatus::Pending)
+                    })
+                    .collect();
+
+                // Build dependencies map (node_id -> [dep_ids])
+                let deps: HashMap<String, Vec<String>> = info
+                    .tasks
+                    .iter()
+                    .map(|t| (t.id.clone(), t.depends_on.clone()))
+                    .collect();
+
+                let mode = if self.dag_expanded {
+                    NodeBoxMode::Expanded
+                } else {
+                    NodeBoxMode::Minimal
+                };
+
+                let widget = DagAscii::new(&nodes)
+                    .with_dependencies(deps)
+                    .mode(mode)
+                    .scroll(0, self.dag_scroll);
+
+                Widget::render(widget, inner, buf);
             }
         } else {
-            "No workflow selected".to_string()
-        };
+            // No workflow selected - show placeholder
+            let placeholder = Paragraph::new("No workflow selected")
+                .style(Style::default().fg(theme.text_muted))
+                .wrap(Wrap { trim: false });
+            placeholder.render(inner, buf);
+        }
 
-        let total_lines = dag_text.lines().count();
-        let visible_height = inner.height as usize;
-        let scroll_offset = self.dag_scroll as usize;
-
-        // Reserve 1 column for scrollbar
-        let content_area = Rect {
-            x: inner.x,
-            y: inner.y,
-            width: inner.width.saturating_sub(1),
-            height: inner.height,
-        };
-        let scrollbar_area = Rect {
-            x: inner.x + inner.width.saturating_sub(1),
-            y: inner.y,
-            width: 1,
-            height: inner.height,
-        };
-
-        let paragraph = Paragraph::new(dag_text)
-            .style(Style::default().fg(theme.text_primary))
-            .wrap(Wrap { trim: false })
-            .scroll((self.dag_scroll, 0));
-
-        paragraph.render(content_area, buf);
-
-        // Render scrollbar
-        let scroll_indicator = ScrollIndicator::new()
-            .position(scroll_offset, total_lines, visible_height)
-            .track_style(Style::default().fg(theme.border_normal))
-            .thumb_style(Style::default().fg(if is_focused {
-                theme.border_focused
-            } else {
-                Color::DarkGray
-            }));
-        Widget::render(scroll_indicator, scrollbar_area, buf);
+        // Note: DagAscii handles its own footer, so we skip the scrollbar
+        // for valid workflows. For error states, we render without scrollbar
+        // since the content is typically short.
     }
 
-    /// Generate ASCII DAG visualization
+    /// Generate ASCII DAG visualization (kept as fallback)
+    #[allow(dead_code)]
     fn generate_dag_ascii(&self, info: &WorkflowInfo) -> String {
         let mut lines = Vec::new();
 
@@ -2186,5 +2223,33 @@ tasks:
         assert_eq!(tools[1].count, 2);
         assert_eq!(tools[2].tool, "tool_a");
         assert_eq!(tools[2].count, 1);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // DAG MODE TOGGLE TESTS
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_toggle_dag_mode() {
+        let mut view = BrowserView::new(PathBuf::from("."));
+
+        // Default should be minimal (not expanded)
+        assert!(!view.dag_expanded);
+
+        // Toggle to expanded
+        view.toggle_dag_mode();
+        assert!(view.dag_expanded);
+
+        // Toggle back to minimal
+        view.toggle_dag_mode();
+        assert!(!view.dag_expanded);
+    }
+
+    #[test]
+    fn test_dag_expanded_initial_state() {
+        let view = BrowserView::new(PathBuf::from("."));
+
+        // Should start in minimal mode
+        assert!(!view.dag_expanded);
     }
 }

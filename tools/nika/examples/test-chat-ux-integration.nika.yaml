@@ -1,0 +1,87 @@
+schema: nika/workflow@0.5
+workflow: test_chat_ux_integration
+description: |
+  Tests Chat UX v2 integration scenarios.
+  Validates event emissions for session context, activity tracking,
+  and inline content display.
+
+# ============================================================================
+# TEST: Token Tracking for SessionContextBar
+# ============================================================================
+
+tasks:
+  - id: token_tracking
+    description: "Generate content to track token usage"
+    infer:
+      prompt: |
+        Generate a short poem about coding.
+        Keep it under 50 words.
+      model: claude-sonnet-4-20250514
+    use.poem: generated_poem
+
+  # ============================================================================
+  # TEST: Activity Stack - Hot/Warm/Queued States
+  # ============================================================================
+
+  - id: activity_hot
+    description: "First task - will be HOT then WARM"
+    exec: "echo 'Task 1 executing - should show as HOT'"
+    use.output: task1_output
+
+  - id: activity_queued
+    description: "Queued task - waiting on activity_hot"
+    depends_on:
+      - activity_hot
+    exec: "echo 'Task 2 executing - was QUEUED, now HOT'"
+    use.output: task2_output
+
+  - id: activity_parallel_1
+    description: "Parallel task 1 - multiple HOT"
+    depends_on:
+      - activity_queued
+    exec: "sleep 1 && echo 'Parallel 1 done'"
+    use.output: parallel1
+
+  - id: activity_parallel_2
+    description: "Parallel task 2 - multiple HOT"
+    depends_on:
+      - activity_queued
+    exec: "sleep 1 && echo 'Parallel 2 done'"
+    use.output: parallel2
+
+  # ============================================================================
+  # TEST: Inline MCP Call Display (McpCallBox)
+  # ============================================================================
+
+  # Note: This would require MCP server to be running
+  # For CI, we test the workflow parsing only
+  # Uncomment when MCP server is available:
+  #
+  # - id: mcp_inline
+  #   description: "MCP call for inline display"
+  #   invoke:
+  #     mcp: novanet
+  #     tool: novanet_describe
+  #     params:
+  #       entity: "qr-code"
+  #   use.entity: entity_data
+
+  # ============================================================================
+  # TEST: Streaming Inference Display (InferStreamBox)
+  # ============================================================================
+
+  - id: streaming_display
+    description: "Long inference for streaming display test"
+    depends_on:
+      - activity_parallel_1
+      - activity_parallel_2
+    infer:
+      prompt: |
+        Write a brief technical summary of:
+        Task 1 output: {{use.task1_output}}
+        Task 2 output: {{use.task2_output}}
+        Parallel 1: {{use.parallel1}}
+        Parallel 2: {{use.parallel2}}
+
+        Keep it to 2-3 sentences.
+    use.summary: workflow_summary

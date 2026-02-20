@@ -1,13 +1,19 @@
 //! Chat View - AI Agent conversation interface
 //!
-//! Layout:
+//! Layout (v2 - Chat UX Enrichment):
 //! ```text
+//! +-----------------------------------------------------------------------------+
+//! | SESSION CONTEXT: tokens 1.2k/200k | cost $0.42 | MCP: ◉ novanet | ⏱ 3m 12s |
 //! +-----------------------------------------------------+-----------------------+
-//! | Conversation history                                | SESSION               |
-//! | - User messages                                     | Actions & context     |
-//! | - Nika responses with inline results                |                       |
+//! | Conversation history                                | 🎯 ACTIVITY STACK     |
+//! | - User messages                                     | 🔥 HOT (executing)    |
+//! | - Nika responses with inline MCP/Infer boxes        | 🟡 WARM (recent)      |
+//! | ╭─ 🔧 MCP CALL: novanet_describe ─────── ✅ 1.2s ─╮ | ⚪ QUEUED (waiting)   |
+//! | │ 📥 params: { "entity": "qr-code" }              │ |                       |
+//! | │ 📤 result: { "display_name": "QR Code" }        │ |                       |
+//! | ╰─────────────────────────────────────────────────╯ |                       |
 //! +-----------------------------------------------------+-----------------------+
-//! | > Input field                                                               |
+//! | > Input field                                              [⌘K] commands   |
 //! +-----------------------------------------------------------------------------+
 //! ```
 
@@ -16,12 +22,12 @@
 
 use std::time::Instant;
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Widget},
     Frame,
 };
 
@@ -32,6 +38,11 @@ use crate::tui::file_resolve::FileResolver;
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
 use crate::tui::views::TuiView;
+use crate::tui::widgets::{
+    ActivityItem, ActivityStack, ActivityTemp, CommandPalette, CommandPaletteState,
+    InferStreamData, McpCallData, McpCallStatus, McpServerInfo, McpStatus, SessionContext,
+    SessionContextBar,
+};
 
 /// Message role in conversation
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,6 +89,15 @@ pub struct SessionInfo {
     pub current_context: Option<String>,
 }
 
+/// Inline content that can appear in a message
+#[derive(Debug, Clone)]
+pub enum InlineContent {
+    /// MCP tool call with params and result
+    McpCall(McpCallData),
+    /// Streaming inference with token counter
+    InferStream(InferStreamData),
+}
+
 /// Chat view state
 pub struct ChatView {
     /// Conversation history
@@ -88,7 +108,7 @@ pub struct ChatView {
     pub cursor: usize,
     /// Scroll offset in message list
     pub scroll: usize,
-    /// Session info
+    /// Session info (legacy)
     pub session: SessionInfo,
     /// Command history (for up/down navigation)
     pub history: Vec<String>,
@@ -100,6 +120,18 @@ pub struct ChatView {
     pub partial_response: String,
     /// Current model name for display
     pub current_model: String,
+
+    // === Chat UX Enrichment (v2) ===
+    /// Session context with tokens, cost, MCP status
+    pub session_context: SessionContext,
+    /// Activity stack items (hot/warm/queued)
+    pub activity_items: Vec<ActivityItem>,
+    /// Command palette state (⌘K)
+    pub command_palette: CommandPaletteState,
+    /// Inline content for current streaming (MCP calls, infer boxes)
+    pub inline_content: Vec<InlineContent>,
+    /// Animation frame counter (for spinners)
+    pub frame: u8,
 }
 
 impl ChatView {
@@ -112,6 +144,12 @@ impl ChatView {
         } else {
             "No API Key".to_string()
         };
+
+        // Initialize session context with detected MCP servers
+        let mut session_context = SessionContext::new();
+        session_context
+            .mcp_servers
+            .push(McpServerInfo::new("novanet"));
 
         Self {
             messages: vec![ChatMessage {
@@ -129,6 +167,13 @@ impl ChatView {
             is_streaming: false,
             partial_response: String::new(),
             current_model: initial_model,
+
+            // Chat UX Enrichment (v2)
+            session_context,
+            activity_items: vec![],
+            command_palette: CommandPaletteState::new(),
+            inline_content: vec![],
+            frame: 0,
         }
     }
 
@@ -161,6 +206,129 @@ impl ChatView {
             content,
             timestamp: Instant::now(),
             execution: None,
+        });
+    }
+
+    // === Chat UX Enrichment (v2) Methods ===
+
+    /// Tick animation frame (call at 10Hz for smooth animations)
+    pub fn tick(&mut self) {
+        self.frame = self.frame.wrapping_add(1);
+        // Update inline content animation frames
+        for content in &mut self.inline_content {
+            match content {
+                InlineContent::McpCall(data) => data.tick(),
+                InlineContent::InferStream(data) => data.tick(),
+            }
+        }
+    }
+
+    /// Add an MCP call to the inline content
+    pub fn add_mcp_call(&mut self, tool: &str, server: &str, params: &str) {
+        let data = McpCallData::new(tool, server).with_params(params);
+        self.inline_content.push(InlineContent::McpCall(data));
+
+        // Add to activity stack as hot
+        self.activity_items.push(ActivityItem::hot(
+            format!("mcp-{}", self.inline_content.len()),
+            "invoke",
+        ));
+
+        // Update MCP server status to hot
+        if let Some(server_info) = self
+            .session_context
+            .mcp_servers
+            .iter_mut()
+            .find(|s| s.name == server)
+        {
+            server_info.status = McpStatus::Hot;
+            server_info.last_call = Some(Instant::now());
+        }
+    }
+
+    /// Complete an MCP call with result
+    pub fn complete_mcp_call(&mut self, result: &str) {
+        if let Some(InlineContent::McpCall(data)) = self.inline_content.last_mut() {
+            data.result = Some(result.to_string());
+            data.status = McpCallStatus::Success;
+        }
+        // Move activity from hot to warm
+        self.transition_activity_to_warm("invoke");
+    }
+
+    /// Fail an MCP call with error
+    pub fn fail_mcp_call(&mut self, error: &str) {
+        if let Some(InlineContent::McpCall(data)) = self.inline_content.last_mut() {
+            data.error = Some(error.to_string());
+            data.status = McpCallStatus::Failed;
+        }
+    }
+
+    /// Start an inference stream
+    pub fn start_infer_stream(&mut self, model: &str, tokens_in: u32, max_tokens: u32) {
+        let data = InferStreamData::new(model)
+            .with_tokens(tokens_in, 0)
+            .with_max_tokens(max_tokens);
+        self.inline_content.push(InlineContent::InferStream(data));
+
+        // Add to activity stack as hot
+        self.activity_items.push(ActivityItem::hot(
+            format!("infer-{}", self.inline_content.len()),
+            "infer",
+        ));
+    }
+
+    /// Append content to current inference stream
+    pub fn append_infer_content(&mut self, chunk: &str, tokens_out: u32) {
+        if let Some(InlineContent::InferStream(data)) = self.inline_content.last_mut() {
+            data.append_content(chunk);
+            data.update_tokens(tokens_out);
+        }
+        // Also update the partial response for backwards compatibility
+        self.partial_response.push_str(chunk);
+    }
+
+    /// Complete current inference stream
+    pub fn complete_infer_stream(&mut self) {
+        if let Some(InlineContent::InferStream(data)) = self.inline_content.last_mut() {
+            data.complete();
+        }
+        // Move activity from hot to warm
+        self.transition_activity_to_warm("infer");
+    }
+
+    /// Update session token usage
+    pub fn update_tokens(&mut self, tokens_used: u64, cost: f64) {
+        self.session_context.tokens_used = tokens_used;
+        self.session_context.total_cost = cost;
+    }
+
+    /// Toggle command palette visibility
+    pub fn toggle_command_palette(&mut self) {
+        self.command_palette.toggle();
+    }
+
+    /// Transition activity from hot to warm
+    fn transition_activity_to_warm(&mut self, verb: &str) {
+        if let Some(item) = self
+            .activity_items
+            .iter_mut()
+            .find(|i| i.verb == verb && i.temp == ActivityTemp::Hot)
+        {
+            item.temp = ActivityTemp::Warm;
+            item.duration = item.elapsed();
+        }
+    }
+
+    /// Clear completed (warm) activities older than duration
+    pub fn clear_old_activities(&mut self, max_age_secs: u64) {
+        use std::time::Duration;
+        self.activity_items.retain(|item| {
+            item.temp != ActivityTemp::Warm
+                || item
+                    .duration
+                    .map(|d| d < Duration::from_secs(max_age_secs))
+                    .unwrap_or(true)
         });
     }
 
@@ -286,28 +454,61 @@ impl Default for ChatView {
 
 impl View for ChatView {
     fn render(&self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
-        // Layout: Messages (75%) | Session (25%) above, Input below
+        // Layout v2: Session Context Bar | Messages + Activity Stack | Input + Hints
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Min(10), Constraint::Length(3)])
+            .constraints([
+                Constraint::Length(3), // Session context bar (compact)
+                Constraint::Min(10),   // Main content area
+                Constraint::Length(3), // Input field
+                Constraint::Length(1), // Command hints
+            ])
             .split(area);
 
+        // 1. Session Context Bar (compact mode at top)
+        SessionContextBar::new(&self.session_context)
+            .compact()
+            .render(chunks[0], frame.buffer_mut());
+
+        // 2. Main content: Messages (70%) | Activity Stack (30%)
         let main_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(75), Constraint::Percentage(25)])
-            .split(chunks[0]);
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+            .split(chunks[1]);
 
-        // Messages panel
-        self.render_messages(frame, main_chunks[0], theme);
+        // Messages panel with inline MCP/Infer boxes
+        self.render_messages_v2(frame, main_chunks[0], theme);
 
-        // Session panel
-        self.render_session(frame, main_chunks[1], theme);
+        // Activity Stack panel
+        ActivityStack::new(&self.activity_items)
+            .frame(self.frame)
+            .render(main_chunks[1], frame.buffer_mut());
 
-        // Input panel
-        self.render_input(frame, chunks[1], theme);
+        // 3. Input panel
+        self.render_input(frame, chunks[2], theme);
+
+        // 4. Command hints
+        self.render_hints(frame, chunks[3], theme);
+
+        // 5. Command palette overlay (if visible)
+        if self.command_palette.visible {
+            let palette_area = centered_rect(60, 50, area);
+            CommandPalette::new(&self.command_palette).render(palette_area, frame.buffer_mut());
+        }
     }
 
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
+        // Handle command palette when visible
+        if self.command_palette.visible {
+            return self.handle_palette_key(key);
+        }
+
+        // Check for Ctrl+K (command palette toggle)
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('k') {
+            self.toggle_command_palette();
+            return ViewAction::None;
+        }
+
         match key.code {
             KeyCode::Char('q') if self.input.is_empty() => ViewAction::Quit,
             KeyCode::Enter => {
@@ -415,6 +616,66 @@ impl View for ChatView {
 }
 
 impl ChatView {
+    /// Handle key events when command palette is visible
+    fn handle_palette_key(&mut self, key: KeyEvent) -> ViewAction {
+        match key.code {
+            KeyCode::Esc => {
+                self.command_palette.close();
+                ViewAction::None
+            }
+            KeyCode::Enter => {
+                if let Some(cmd_id) = self.command_palette.execute_selected() {
+                    // Execute the selected command
+                    self.input = format!("/{}", cmd_id);
+                    self.cursor = self.input.chars().count();
+                    // Trigger submit with the command
+                    if let Some(message) = self.submit() {
+                        let cmd = Command::parse(&message);
+                        return match cmd {
+                            Command::Help => {
+                                self.add_nika_message(HELP_TEXT.to_string(), None);
+                                ViewAction::None
+                            }
+                            Command::Clear => ViewAction::ChatClear,
+                            Command::Exec { command } => ViewAction::ChatExec(command),
+                            Command::Fetch { url, method } => ViewAction::ChatFetch(url, method),
+                            Command::Invoke {
+                                tool,
+                                server,
+                                params,
+                            } => ViewAction::ChatInvoke(tool, server, params),
+                            Command::Agent { goal, max_turns } => {
+                                ViewAction::ChatAgent(goal, max_turns)
+                            }
+                            Command::Model { provider } => ViewAction::ChatModelSwitch(provider),
+                            Command::Infer { prompt } | Command::Chat { message: prompt } => {
+                                ViewAction::ChatInfer(prompt)
+                            }
+                        };
+                    }
+                }
+                ViewAction::None
+            }
+            KeyCode::Up => {
+                self.command_palette.select_prev();
+                ViewAction::None
+            }
+            KeyCode::Down => {
+                self.command_palette.select_next();
+                ViewAction::None
+            }
+            KeyCode::Char(c) => {
+                self.command_palette.input_char(c);
+                ViewAction::None
+            }
+            KeyCode::Backspace => {
+                self.command_palette.backspace();
+                ViewAction::None
+            }
+            _ => ViewAction::None,
+        }
+    }
+
     fn render_messages(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let mut items: Vec<ListItem> = self
             .messages
@@ -566,6 +827,268 @@ impl ChatView {
 
         frame.render_widget(paragraph, area);
     }
+
+    /// Render messages v2 with inline MCP/Infer boxes
+    fn render_messages_v2(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let mut items: Vec<ListItem> = self
+            .messages
+            .iter()
+            .flat_map(|msg| {
+                // Color-coded message bubbles based on role
+                let (prefix, color) = match msg.role {
+                    MessageRole::User => ("👤 You", theme.trait_retrieved),
+                    MessageRole::Nika => ("🤖 AI", theme.status_success),
+                    MessageRole::System => ("💡 System", theme.status_running),
+                    MessageRole::Tool => ("🔧 Tool", theme.mcp_traverse),
+                };
+
+                let style = Style::default().fg(color);
+
+                let mut lines = vec![ListItem::new(Line::from(vec![
+                    Span::styled(format!("{} ", prefix), style.add_modifier(Modifier::BOLD)),
+                    Span::styled("─".repeat(20), Style::default().fg(theme.text_muted)),
+                ]))];
+
+                // Wrap message content with colored prefix indicator
+                for line in msg.content.lines() {
+                    lines.push(ListItem::new(Line::from(vec![
+                        Span::styled("│ ", Style::default().fg(color)),
+                        Span::raw(line.to_string()),
+                    ])));
+                }
+
+                // Add execution result if present
+                if let Some(exec) = &msg.execution {
+                    let (status_icon, status_color) = match exec.status {
+                        ExecutionStatus::Running => ("⏳", theme.status_running),
+                        ExecutionStatus::Completed => ("✅", theme.status_success),
+                        ExecutionStatus::Failed => ("❌", theme.status_failed),
+                    };
+                    lines.push(ListItem::new(Line::from(vec![
+                        Span::raw("  "),
+                        Span::styled(
+                            format!(
+                                "└─ {} {} ({}/{}) ",
+                                status_icon,
+                                exec.workflow_name,
+                                exec.tasks_completed,
+                                exec.tasks_total
+                            ),
+                            Style::default().fg(status_color),
+                        ),
+                    ])));
+                }
+
+                lines.push(ListItem::new("")); // spacing
+                lines
+            })
+            .collect();
+
+        // Render inline content (MCP calls, Infer streams)
+        for content in &self.inline_content {
+            match content {
+                InlineContent::McpCall(data) => {
+                    // Render inline MCP call box representation
+                    let (status_char, status_color) = data.status.indicator(data.frame);
+                    let duration_str = format!("{:.1}s", data.duration.as_secs_f64());
+
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::styled(
+                            format!("╭─ 🔧 MCP: {} ", data.tool),
+                            Style::default().fg(Color::Rgb(16, 185, 129)), // Emerald
+                        ),
+                        Span::styled(
+                            format!("{} {} ─╮", status_char, duration_str),
+                            Style::default().fg(status_color),
+                        ),
+                    ])));
+
+                    if !data.params.is_empty() {
+                        let params_display = if data.params.len() > 40 {
+                            format!("{}...", &data.params[..37])
+                        } else {
+                            data.params.clone()
+                        };
+                        items.push(ListItem::new(Line::from(vec![
+                            Span::styled("│ ", Style::default().fg(Color::Rgb(16, 185, 129))),
+                            Span::styled("📥 ", Style::default().fg(Color::Rgb(107, 114, 128))),
+                            Span::raw(params_display),
+                        ])));
+                    }
+
+                    if let Some(ref result) = data.result {
+                        let result_display = if result.len() > 40 {
+                            format!("{}...", &result[..37])
+                        } else {
+                            result.clone()
+                        };
+                        items.push(ListItem::new(Line::from(vec![
+                            Span::styled("│ ", Style::default().fg(Color::Rgb(16, 185, 129))),
+                            Span::styled("📤 ", Style::default().fg(Color::Rgb(34, 197, 94))),
+                            Span::raw(result_display),
+                        ])));
+                    } else if let Some(ref error) = data.error {
+                        let error_display = if error.len() > 40 {
+                            format!("{}...", &error[..37])
+                        } else {
+                            error.clone()
+                        };
+                        items.push(ListItem::new(Line::from(vec![
+                            Span::styled("│ ", Style::default().fg(Color::Rgb(16, 185, 129))),
+                            Span::styled("❌ ", Style::default().fg(Color::Rgb(239, 68, 68))),
+                            Span::raw(error_display),
+                        ])));
+                    }
+
+                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                        "╰───────────────────────────────────────────────────╯",
+                        Style::default().fg(Color::Rgb(16, 185, 129)),
+                    )])));
+                    items.push(ListItem::new("")); // spacing
+                }
+                InlineContent::InferStream(data) => {
+                    // Render inline Infer stream box representation
+                    let (status_char, _) = data.status.indicator(data.frame);
+                    let duration_str = format!("{:.1}s", data.duration.as_secs_f64());
+
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::styled(
+                            format!("╭─ 🧠 INFER: {} ", data.model),
+                            Style::default().fg(Color::Rgb(139, 92, 246)), // Violet
+                        ),
+                        Span::styled(
+                            format!("{} {} ─╮", status_char, duration_str),
+                            Style::default().fg(Color::Rgb(250, 204, 21)), // Yellow
+                        ),
+                    ])));
+
+                    // Token info
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::styled("│ ", Style::default().fg(Color::Rgb(139, 92, 246))),
+                        Span::styled(
+                            format!("📊 {} in → {} out", data.tokens_in, data.tokens_out),
+                            Style::default().fg(Color::Rgb(107, 114, 128)),
+                        ),
+                    ])));
+
+                    // Last lines of content
+                    let content_lines: Vec<&str> = data.content.lines().collect();
+                    let start = content_lines.len().saturating_sub(3);
+                    for line in content_lines.iter().skip(start) {
+                        let display = if line.len() > 50 {
+                            format!("{}...", &line[..47])
+                        } else {
+                            line.to_string()
+                        };
+                        items.push(ListItem::new(Line::from(vec![
+                            Span::styled("│ ", Style::default().fg(Color::Rgb(139, 92, 246))),
+                            Span::raw(display),
+                        ])));
+                    }
+
+                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                        "╰───────────────────────────────────────────────────╯",
+                        Style::default().fg(Color::Rgb(139, 92, 246)),
+                    )])));
+                    items.push(ListItem::new("")); // spacing
+                }
+            }
+        }
+
+        // Add streaming indicator if streaming is in progress
+        if self.is_streaming && self.inline_content.is_empty() {
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled(
+                    "🤖 AI ",
+                    Style::default()
+                        .fg(theme.status_success)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled("─".repeat(20), Style::default().fg(theme.text_muted)),
+            ])));
+
+            if !self.partial_response.is_empty() {
+                for line in self.partial_response.lines() {
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::styled("│ ", Style::default().fg(theme.status_success)),
+                        Span::raw(line.to_string()),
+                    ])));
+                }
+            }
+
+            // Animated thinking indicator
+            let spinners = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
+            let spinner = spinners[(self.frame as usize) % spinners.len()];
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled("│ ", Style::default().fg(theme.status_success)),
+                Span::styled(
+                    format!("{} Thinking...", spinner),
+                    Style::default()
+                        .fg(theme.status_running)
+                        .add_modifier(Modifier::ITALIC),
+                ),
+            ])));
+        }
+
+        let list = List::new(items).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" 💬 CONVERSATION ")
+                .border_style(Style::default().fg(theme.border_normal)),
+        );
+
+        frame.render_widget(list, area);
+    }
+
+    /// Render command hints bar
+    fn render_hints(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let hints = Line::from(vec![
+            Span::styled(
+                " ⌘K ",
+                Style::default().fg(Color::Black).bg(theme.highlight),
+            ),
+            Span::raw(" commands  "),
+            Span::styled(
+                " Tab ",
+                Style::default().fg(Color::Black).bg(theme.highlight),
+            ),
+            Span::raw(" switch view  "),
+            Span::styled(
+                " Esc ",
+                Style::default().fg(Color::Black).bg(theme.highlight),
+            ),
+            Span::raw(" back  "),
+            Span::styled(
+                " ↑↓ ",
+                Style::default().fg(Color::Black).bg(theme.highlight),
+            ),
+            Span::raw(" history"),
+        ]);
+
+        let paragraph = Paragraph::new(hints);
+        frame.render_widget(paragraph, area);
+    }
+}
+
+/// Helper function to create a centered rectangle for overlays
+fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(area);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
 }
 
 #[cfg(test)]
@@ -883,5 +1406,183 @@ mod tests {
         let state = TuiState::new("test.nika.yaml");
         let status = view.status_line(&state);
         assert!(status.contains("Streaming..."));
+    }
+
+    // === Chat UX Enrichment (v2) Tests ===
+
+    #[test]
+    fn test_chat_view_session_context_initialized() {
+        let view = ChatView::new();
+        assert_eq!(view.session_context.token_limit, 200_000);
+        assert!(view.session_context.started.is_some());
+        assert_eq!(view.session_context.mcp_servers.len(), 1);
+        assert_eq!(view.session_context.mcp_servers[0].name, "novanet");
+    }
+
+    #[test]
+    fn test_chat_view_activity_items_empty_by_default() {
+        let view = ChatView::new();
+        assert!(view.activity_items.is_empty());
+    }
+
+    #[test]
+    fn test_chat_view_command_palette_closed_by_default() {
+        let view = ChatView::new();
+        assert!(!view.command_palette.visible);
+    }
+
+    #[test]
+    fn test_chat_view_toggle_command_palette() {
+        let mut view = ChatView::new();
+        assert!(!view.command_palette.visible);
+
+        view.toggle_command_palette();
+        assert!(view.command_palette.visible);
+
+        view.toggle_command_palette();
+        assert!(!view.command_palette.visible);
+    }
+
+    #[test]
+    fn test_chat_view_tick_increments_frame() {
+        let mut view = ChatView::new();
+        assert_eq!(view.frame, 0);
+
+        view.tick();
+        assert_eq!(view.frame, 1);
+
+        view.tick();
+        assert_eq!(view.frame, 2);
+    }
+
+    #[test]
+    fn test_chat_view_add_mcp_call() {
+        let mut view = ChatView::new();
+        view.add_mcp_call("novanet_describe", "novanet", r#"{"entity": "qr-code"}"#);
+
+        assert_eq!(view.inline_content.len(), 1);
+        if let InlineContent::McpCall(data) = &view.inline_content[0] {
+            assert_eq!(data.tool, "novanet_describe");
+            assert_eq!(data.server, "novanet");
+            assert_eq!(data.status, McpCallStatus::Running);
+        } else {
+            panic!("Expected McpCall");
+        }
+
+        // Should add activity item
+        assert_eq!(view.activity_items.len(), 1);
+        assert_eq!(view.activity_items[0].verb, "invoke");
+        assert_eq!(view.activity_items[0].temp, ActivityTemp::Hot);
+
+        // Should update MCP server status to hot
+        assert_eq!(view.session_context.mcp_servers[0].status, McpStatus::Hot);
+    }
+
+    #[test]
+    fn test_chat_view_complete_mcp_call() {
+        let mut view = ChatView::new();
+        view.add_mcp_call("novanet_describe", "novanet", "params");
+        view.complete_mcp_call(r#"{"result": "success"}"#);
+
+        if let InlineContent::McpCall(data) = &view.inline_content[0] {
+            assert_eq!(data.status, McpCallStatus::Success);
+            assert!(data.result.is_some());
+        } else {
+            panic!("Expected McpCall");
+        }
+    }
+
+    #[test]
+    fn test_chat_view_fail_mcp_call() {
+        let mut view = ChatView::new();
+        view.add_mcp_call("novanet_describe", "novanet", "params");
+        view.fail_mcp_call("Connection error");
+
+        if let InlineContent::McpCall(data) = &view.inline_content[0] {
+            assert_eq!(data.status, McpCallStatus::Failed);
+            assert!(data.error.is_some());
+            assert_eq!(data.error.as_ref().unwrap(), "Connection error");
+        } else {
+            panic!("Expected McpCall");
+        }
+    }
+
+    #[test]
+    fn test_chat_view_start_infer_stream() {
+        let mut view = ChatView::new();
+        view.start_infer_stream("claude-sonnet-4", 100, 2000);
+
+        assert_eq!(view.inline_content.len(), 1);
+        if let InlineContent::InferStream(data) = &view.inline_content[0] {
+            assert_eq!(data.model, "claude-sonnet-4");
+            assert_eq!(data.tokens_in, 100);
+            assert_eq!(data.max_tokens, 2000);
+        } else {
+            panic!("Expected InferStream");
+        }
+
+        // Should add activity item
+        assert_eq!(view.activity_items.len(), 1);
+        assert_eq!(view.activity_items[0].verb, "infer");
+    }
+
+    #[test]
+    fn test_chat_view_append_infer_content() {
+        let mut view = ChatView::new();
+        view.start_infer_stream("claude-sonnet-4", 100, 2000);
+        view.append_infer_content("Hello ", 10);
+        view.append_infer_content("World!", 20);
+
+        if let InlineContent::InferStream(data) = &view.inline_content[0] {
+            assert_eq!(data.content, "Hello World!");
+            assert_eq!(data.tokens_out, 20);
+        } else {
+            panic!("Expected InferStream");
+        }
+
+        // Should also update partial_response for backwards compatibility
+        assert_eq!(view.partial_response, "Hello World!");
+    }
+
+    #[test]
+    fn test_chat_view_update_tokens() {
+        let mut view = ChatView::new();
+        view.update_tokens(5000, 0.25);
+
+        assert_eq!(view.session_context.tokens_used, 5000);
+        assert_eq!(view.session_context.total_cost, 0.25);
+    }
+
+    #[test]
+    fn test_centered_rect() {
+        let area = Rect::new(0, 0, 100, 50);
+        let centered = centered_rect(60, 50, area);
+
+        // Should be roughly centered
+        assert!(centered.x > 0);
+        assert!(centered.y > 0);
+        assert!(centered.width < 100);
+        assert!(centered.height < 50);
+    }
+
+    #[test]
+    fn test_inline_content_enum() {
+        let mcp_data = McpCallData::new("tool", "server");
+        let content = InlineContent::McpCall(mcp_data);
+
+        if let InlineContent::McpCall(data) = content {
+            assert_eq!(data.tool, "tool");
+        } else {
+            panic!("Expected McpCall variant");
+        }
+
+        let infer_data = InferStreamData::new("model");
+        let content = InlineContent::InferStream(infer_data);
+
+        if let InlineContent::InferStream(data) = content {
+            assert_eq!(data.model, "model");
+        } else {
+            panic!("Expected InferStream variant");
+        }
     }
 }
