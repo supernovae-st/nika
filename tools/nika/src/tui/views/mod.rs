@@ -1,29 +1,26 @@
 //! TUI Views Module
 //!
-//! Two-view architecture for Nika TUI:
+//! Four-view architecture for Nika TUI:
 //!
-//! 1. **Browser View** - Workflow selection and preview (default)
-//! 2. **Monitor View** - Real-time execution monitoring
+//! 1. **Chat View** - AI agent conversation interface
+//! 2. **Home View** - Workflow browser (default)
+//! 3. **Studio View** - YAML editor with validation
+//! 4. **Monitor View** - Real-time execution monitoring
 //!
-//! # State Machine
+//! # Navigation
 //!
 //! ```text
-//!                     ┌─────────────┐
-//!                     │   BROWSER   │ ◄─── Default view
-//!                     │   (View 1)  │
-//!                     └──────┬──────┘
-//!                            │ [Enter] or [▶]
-//!                            ▼
-//!                     ┌─────────────┐
-//!                     │   MONITOR   │
-//!                     │   (View 2)  │
-//!                     └──────┬──────┘
-//!                            │ [Esc] or workflow complete
-//!                            ▼
-//!                     ┌─────────────┐
-//!                     │   BROWSER   │ ◄─── Back to browser
-//!                     └─────────────┘
+//!     [1/a]          [2/h]           [3/s]          [4/m]
+//!  ┌─────────┐   ┌─────────┐    ┌─────────┐    ┌─────────┐
+//!  │  CHAT   │◄─►│  HOME   │◄──►│ STUDIO  │◄──►│ MONITOR │
+//!  │  Agent  │   │ Browser │    │  Editor │    │ Execute │
+//!  └─────────┘   └─────────┘    └─────────┘    └─────────┘
+//!                     ▲
+//!                     │ Default view
 //! ```
+//!
+//! Navigation: [Tab] cycles forward, [Shift+Tab] cycles backward.
+//! Shortcuts: [1-4] or [a/h/s/m] jump directly to view.
 
 mod browser;
 mod monitor;
@@ -31,39 +28,94 @@ mod monitor;
 pub use browser::BrowserView;
 pub use monitor::{DagTab, MissionTab, MonitorView, NovanetTab, ReasoningTab};
 
-/// Active view in the TUI
+/// Active view in the TUI - 4 views navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TuiView {
-    /// Workflow browser - select and preview workflows before execution
+    /// Chat agent - command Nika conversationally
+    Chat,
+    /// Home browser - browse and select workflows (default)
     #[default]
-    Browser,
-    /// Execution monitor - real-time 4-panel execution display
+    Home,
+    /// Studio editor - edit YAML with validation
+    Studio,
+    /// Monitor execution - real-time 4-panel display
     Monitor,
 }
 
 impl TuiView {
+    /// Get all views in order
+    pub fn all() -> &'static [TuiView] {
+        &[
+            TuiView::Chat,
+            TuiView::Home,
+            TuiView::Studio,
+            TuiView::Monitor,
+        ]
+    }
+
+    /// Get next view (cycling)
+    pub fn next(&self) -> Self {
+        match self {
+            TuiView::Chat => TuiView::Home,
+            TuiView::Home => TuiView::Studio,
+            TuiView::Studio => TuiView::Monitor,
+            TuiView::Monitor => TuiView::Chat,
+        }
+    }
+
+    /// Get previous view (cycling)
+    pub fn prev(&self) -> Self {
+        match self {
+            TuiView::Chat => TuiView::Monitor,
+            TuiView::Home => TuiView::Chat,
+            TuiView::Studio => TuiView::Home,
+            TuiView::Monitor => TuiView::Studio,
+        }
+    }
+
+    /// Get view number (1-indexed for display)
+    pub fn number(&self) -> u8 {
+        match self {
+            TuiView::Chat => 1,
+            TuiView::Home => 2,
+            TuiView::Studio => 3,
+            TuiView::Monitor => 4,
+        }
+    }
+
+    /// Get keyboard shortcut
+    pub fn shortcut(&self) -> char {
+        match self {
+            TuiView::Chat => 'a',    // [a]gent
+            TuiView::Home => 'h',    // [h]ome
+            TuiView::Studio => 's',  // [s]tudio
+            TuiView::Monitor => 'm', // [m]onitor
+        }
+    }
+
     /// Get the title for the header bar
     pub fn title(&self) -> &'static str {
         match self {
-            TuiView::Browser => "NIKA WORKFLOW STUDIO",
-            TuiView::Monitor => "NIKA EXECUTION",
+            TuiView::Chat => "NIKA AGENT",
+            TuiView::Home => "NIKA HOME",
+            TuiView::Studio => "NIKA STUDIO",
+            TuiView::Monitor => "NIKA MONITOR",
         }
     }
 
-    /// Get the emoji for the view
+    /// Get the icon for the view (terminal-friendly diamond)
     pub fn icon(&self) -> &'static str {
         match self {
-            TuiView::Browser => "⚡",
-            TuiView::Monitor => "🚀",
+            TuiView::Chat => "◆",
+            TuiView::Home => "◆",
+            TuiView::Studio => "◆",
+            TuiView::Monitor => "◆",
         }
     }
 
-    /// Toggle to the other view
+    /// Toggle to the next view (for backwards compatibility)
     pub fn toggle(&self) -> Self {
-        match self {
-            TuiView::Browser => TuiView::Monitor,
-            TuiView::Monitor => TuiView::Browser,
-        }
+        self.next()
     }
 }
 
@@ -89,27 +141,64 @@ mod tests {
     #[test]
     fn test_tui_view_default() {
         let view = TuiView::default();
-        assert_eq!(view, TuiView::Browser);
+        assert_eq!(view, TuiView::Home);
     }
 
     #[test]
-    fn test_tui_view_toggle() {
-        let browser = TuiView::Browser;
-        assert_eq!(browser.toggle(), TuiView::Monitor);
+    fn test_tui_view_all_four_variants() {
+        let views = TuiView::all();
+        assert_eq!(views.len(), 4);
+        assert_eq!(views[0], TuiView::Chat);
+        assert_eq!(views[1], TuiView::Home);
+        assert_eq!(views[2], TuiView::Studio);
+        assert_eq!(views[3], TuiView::Monitor);
+    }
 
-        let monitor = TuiView::Monitor;
-        assert_eq!(monitor.toggle(), TuiView::Browser);
+    #[test]
+    fn test_tui_view_next_cycles() {
+        assert_eq!(TuiView::Chat.next(), TuiView::Home);
+        assert_eq!(TuiView::Home.next(), TuiView::Studio);
+        assert_eq!(TuiView::Studio.next(), TuiView::Monitor);
+        assert_eq!(TuiView::Monitor.next(), TuiView::Chat);
+    }
+
+    #[test]
+    fn test_tui_view_prev_cycles() {
+        assert_eq!(TuiView::Chat.prev(), TuiView::Monitor);
+        assert_eq!(TuiView::Home.prev(), TuiView::Chat);
+        assert_eq!(TuiView::Studio.prev(), TuiView::Home);
+        assert_eq!(TuiView::Monitor.prev(), TuiView::Studio);
+    }
+
+    #[test]
+    fn test_tui_view_number() {
+        assert_eq!(TuiView::Chat.number(), 1);
+        assert_eq!(TuiView::Home.number(), 2);
+        assert_eq!(TuiView::Studio.number(), 3);
+        assert_eq!(TuiView::Monitor.number(), 4);
+    }
+
+    #[test]
+    fn test_tui_view_shortcut() {
+        assert_eq!(TuiView::Chat.shortcut(), 'a');
+        assert_eq!(TuiView::Home.shortcut(), 'h');
+        assert_eq!(TuiView::Studio.shortcut(), 's');
+        assert_eq!(TuiView::Monitor.shortcut(), 'm');
     }
 
     #[test]
     fn test_tui_view_titles() {
-        assert_eq!(TuiView::Browser.title(), "NIKA WORKFLOW STUDIO");
-        assert_eq!(TuiView::Monitor.title(), "NIKA EXECUTION");
+        assert_eq!(TuiView::Chat.title(), "NIKA AGENT");
+        assert_eq!(TuiView::Home.title(), "NIKA HOME");
+        assert_eq!(TuiView::Studio.title(), "NIKA STUDIO");
+        assert_eq!(TuiView::Monitor.title(), "NIKA MONITOR");
     }
 
     #[test]
     fn test_tui_view_icons() {
-        assert_eq!(TuiView::Browser.icon(), "⚡");
-        assert_eq!(TuiView::Monitor.icon(), "🚀");
+        assert_eq!(TuiView::Chat.icon(), "◆");
+        assert_eq!(TuiView::Home.icon(), "◆");
+        assert_eq!(TuiView::Studio.icon(), "◆");
+        assert_eq!(TuiView::Monitor.icon(), "◆");
     }
 }
