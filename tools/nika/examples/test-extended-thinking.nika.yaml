@@ -1,0 +1,12 @@
+schema: nika/workflow@0.5
+workflow: test-extended-thinking
+description: Test extended thinking with Claude
+
+tasks:
+  - id: think
+    agent:
+      prompt: "What is 15 + 27? Think step by step."
+      extended_thinking: true
+      thinking_budget: 2048
+      max_turns: 1
+      model: claude-sonnet-4-20250514
