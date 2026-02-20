@@ -24,6 +24,7 @@ mod mcp_log;
 mod scroll_indicator;
 mod sparkline;
 mod spinner;
+mod status_bar;
 mod tabs;
 mod timeline;
 mod yaml_view;
@@ -34,7 +35,10 @@ pub use gauge::Gauge;
 // Header widget - exported for future view use
 #[allow(unused_imports)]
 pub use header::Header;
+// StatusBar widget - exported for future view use
 pub use mcp_log::{McpEntry, McpLog};
+#[allow(unused_imports)]
+pub use status_bar::{KeyHint, StatusBar};
 // Sparkline widgets - some exported for future panel use
 #[allow(unused_imports)]
 pub use sparkline::{BorderedSparkline, LatencyHistory, LatencySparkline, MiniSparkline};
