@@ -35,7 +35,6 @@ use crate::tui::views::TuiView;
 
 /// Editor mode (vim-like)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[allow(dead_code)] // Will be used in Task 5.1 (App integration)
 pub enum EditorMode {
     #[default]
     Normal,
@@ -44,7 +43,6 @@ pub enum EditorMode {
 
 /// Validation result
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Will be used in Task 5.1 (App integration)
 pub struct ValidationResult {
     pub yaml_valid: bool,
     pub schema_valid: bool,
@@ -65,7 +63,6 @@ impl Default for ValidationResult {
 
 /// Simple line-based text buffer for the editor
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Will be used in Task 5.1 (App integration)
 pub struct TextBuffer {
     /// Lines of text
     lines: Vec<String>,
@@ -88,7 +85,6 @@ impl Default for TextBuffer {
     }
 }
 
-#[allow(dead_code)] // Will be used in Task 5.1 (App integration)
 impl TextBuffer {
     /// Create a new text buffer from content
     pub fn from_content(content: &str) -> Self {
@@ -240,6 +236,7 @@ impl TextBuffer {
     }
 
     /// Adjust scroll for viewport height
+    #[allow(dead_code)] // Will be used when viewport integration is complete
     pub fn adjust_scroll_for_height(&mut self, height: usize) {
         let visible_end = self.scroll_offset + height.saturating_sub(1);
         if self.cursor_row >= visible_end {
@@ -256,7 +253,6 @@ impl TextBuffer {
 }
 
 /// Studio view state
-#[allow(dead_code)] // Will be used in Task 5.1 (App integration)
 pub struct StudioView {
     /// File path being edited
     pub path: Option<PathBuf>,
@@ -270,7 +266,6 @@ pub struct StudioView {
     pub modified: bool,
 }
 
-#[allow(dead_code)] // Will be used in Task 5.1 (App integration)
 impl StudioView {
     pub fn new() -> Self {
         Self {
@@ -323,11 +318,13 @@ impl StudioView {
     }
 
     /// Get current line number (1-indexed)
+    #[allow(dead_code)] // Will be used for status line display
     pub fn current_line(&self) -> usize {
         self.buffer.cursor().0 + 1
     }
 
     /// Get current column (1-indexed)
+    #[allow(dead_code)] // Will be used for status line display
     pub fn current_col(&self) -> usize {
         self.buffer.cursor().1 + 1
     }
@@ -385,7 +382,6 @@ impl View for StudioView {
     }
 }
 
-#[allow(dead_code)] // Will be used in Task 5.1 (App integration)
 impl StudioView {
     fn handle_normal_mode(&mut self, key: KeyEvent) -> ViewAction {
         match key.code {

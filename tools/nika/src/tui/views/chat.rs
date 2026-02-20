@@ -11,7 +11,7 @@
 //! +-----------------------------------------------------------------------------+
 //! ```
 
-// Allow dead code - ChatView will be integrated in Task 5.1 (App integration)
+// Allow dead code for types that will be used when agent integration is complete
 #![allow(dead_code)]
 
 use std::time::Instant;

@@ -30,14 +30,13 @@ mod studio;
 mod trait_view;
 
 pub use browser::BrowserView;
-#[allow(unused_imports)] // Will be used in Task 5.1 (App integration)
-pub use chat::{ChatMessage, ChatView, ExecutionResult, ExecutionStatus, MessageRole, SessionInfo};
-#[allow(unused_imports)] // Will be used in Task 5.1 (App integration)
+pub use chat::ChatView;
+// Future exports when agent integration is complete:
+// pub use chat::{ChatMessage, ExecutionResult, ExecutionStatus, MessageRole, SessionInfo};
 pub use home::HomeView;
 pub use monitor::{DagTab, MissionTab, MonitorView, NovanetTab, ReasoningTab};
-#[allow(unused_imports)] // Will be used in Task 5.1 (App integration)
-pub use studio::{EditorMode, StudioView, ValidationResult};
-#[allow(unused_imports)] // Will be used by views in later tasks
+pub use studio::{EditorMode, StudioView};
+// Future export: ValidationResult
 pub use trait_view::View;
 
 /// Active view in the TUI - 4 views navigation

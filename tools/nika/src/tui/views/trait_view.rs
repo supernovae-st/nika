@@ -14,7 +14,6 @@ use crate::tui::theme::Theme;
 ///
 /// Each view (Chat, Home, Studio, Monitor) implements this trait
 /// for consistent rendering and input handling.
-#[allow(dead_code)] // Will be used by HomeView, StudioView, ChatView in later tasks
 pub trait View {
     /// Render the view to the frame
     fn render(&self, frame: &mut Frame, area: Rect, state: &TuiState, theme: &Theme);
@@ -23,6 +22,7 @@ pub trait View {
     fn handle_key(&mut self, key: KeyEvent, state: &mut TuiState) -> ViewAction;
 
     /// Get the view's status line text (for footer)
+    #[allow(dead_code)] // Will be used when StatusBar integration is complete
     fn status_line(&self, state: &TuiState) -> String;
 }
 

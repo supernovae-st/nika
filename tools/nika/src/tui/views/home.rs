@@ -10,9 +10,6 @@
 //! +---------------------------------------------------------------------------------+
 //! ```
 
-// Allow dead code - HomeView will be integrated in Task 5.1
-#![allow(dead_code)]
-
 use std::path::PathBuf;
 
 use crossterm::event::{KeyCode, KeyEvent};

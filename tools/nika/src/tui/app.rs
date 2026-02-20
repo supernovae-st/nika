@@ -31,7 +31,10 @@ use super::panels::{ContextPanel, GraphPanel, ProgressPanel, ReasoningPanel};
 use super::standalone::StandaloneState;
 use super::state::{PanelId, SettingsField, TuiMode, TuiState};
 use super::theme::Theme;
+use super::views::{ChatView, HomeView, StudioView, TuiView, View, ViewAction};
+use super::widgets::{Header, StatusBar};
 use crate::config::mask_api_key;
+use crossterm::event::KeyEvent;
 
 /// Frame rate target (60 FPS)
 const FRAME_RATE_MS: u64 = 16;
@@ -124,6 +127,13 @@ pub enum Action {
     SettingsCursorLeft,
     /// Move cursor right in edit mode
     SettingsCursorRight,
+    // ═══ View Navigation Actions ═══
+    /// Switch to a specific view
+    SwitchView(TuiView),
+    /// Switch to next view (Tab)
+    NextView,
+    /// Switch to previous view (Shift+Tab)
+    PrevView,
 }
 
 /// Main TUI application
@@ -150,6 +160,15 @@ pub struct App {
     status_message: Option<(String, std::time::Instant)>,
     /// Retry requested flag (TIER 1.2) - caller should re-run workflow
     retry_requested: bool,
+    // ═══ 4-View Architecture ═══
+    /// Current active view
+    current_view: TuiView,
+    /// Chat view state
+    chat_view: ChatView,
+    /// Home view state (file browser)
+    home_view: Option<HomeView>,
+    /// Studio view state (YAML editor)
+    studio_view: StudioView,
 }
 
 impl App {
@@ -166,6 +185,12 @@ impl App {
 
         let state = TuiState::new(&workflow_path.display().to_string());
 
+        // Initialize views
+        let chat_view = ChatView::new();
+        let mut studio_view = StudioView::new();
+        // Load workflow file into studio view
+        let _ = studio_view.load_file(workflow_path.to_path_buf());
+
         Ok(Self {
             workflow_path: workflow_path.to_path_buf(),
             terminal: None,
@@ -178,6 +203,11 @@ impl App {
             workflow_done: false,
             status_message: None,
             retry_requested: false,
+            // 4-view architecture - start in Monitor mode for workflow execution
+            current_view: TuiView::Monitor,
+            chat_view,
+            home_view: None, // No home view in execution mode
+            studio_view,
         })
     }
 
@@ -186,6 +216,11 @@ impl App {
         // Use a dummy workflow path for standalone mode
         let workflow_path = standalone_state.root.clone();
         let state = TuiState::new("Standalone Mode");
+
+        // Initialize views
+        let chat_view = ChatView::new();
+        let home_view = HomeView::new(standalone_state.root.clone());
+        let studio_view = StudioView::new();
 
         Ok(Self {
             workflow_path,
@@ -199,6 +234,11 @@ impl App {
             workflow_done: false,
             status_message: None,
             retry_requested: false,
+            // 4-view architecture - start in Home mode for standalone
+            current_view: TuiView::Home,
+            chat_view,
+            home_view: Some(home_view),
+            studio_view,
         })
     }
 
@@ -350,6 +390,340 @@ impl App {
         self.cleanup()?;
 
         Ok(())
+    }
+
+    /// Run the TUI with unified 4-view architecture
+    ///
+    /// This is the new entry point that supports all 4 views with unified
+    /// navigation. The views are:
+    /// - Chat (1/a): AI agent conversation
+    /// - Home (2/h): Workflow browser
+    /// - Studio (3/s): YAML editor
+    /// - Monitor (4/m): Execution monitoring (existing 4-panel view)
+    pub async fn run_unified(mut self) -> Result<()> {
+        tracing::info!("TUI (unified) started");
+
+        // Initialize terminal
+        self.init_terminal()?;
+
+        let tick_rate = Duration::from_millis(FRAME_RATE_MS);
+
+        loop {
+            // 1. Poll runtime events (same as run())
+            self.poll_runtime_events();
+
+            // 2. Update elapsed time
+            self.state.tick();
+
+            // 3. Render frame based on current view
+            self.render_unified_frame()?;
+
+            // 4. Get terminal size for input handling
+            let terminal_size = if let Some(ref terminal) = self.terminal {
+                terminal
+                    .size()
+                    .ok()
+                    .map(|size| Rect::new(0, 0, size.width, size.height))
+            } else {
+                None
+            };
+
+            // 5. Poll input events
+            if event::poll(tick_rate).map_err(|e| NikaError::TuiError {
+                reason: format!("Failed to poll events: {}", e),
+            })? {
+                let event = event::read().map_err(|e| NikaError::TuiError {
+                    reason: format!("Failed to read event: {}", e),
+                })?;
+
+                let action = match event {
+                    Event::Key(key) => self.handle_unified_key(key.code, key.modifiers),
+                    Event::Mouse(mouse) => self.handle_mouse(mouse, terminal_size),
+                    _ => Action::Continue,
+                };
+                self.apply_action(action);
+            }
+
+            // 6. Check quit flag
+            if self.should_quit {
+                break;
+            }
+        }
+
+        // Cleanup
+        self.cleanup()?;
+
+        Ok(())
+    }
+
+    /// Poll runtime events from broadcast/mpsc receivers
+    fn poll_runtime_events(&mut self) {
+        // Check broadcast receiver (v0.4.1 preferred)
+        if let Some(ref mut rx) = self.broadcast_rx {
+            loop {
+                match rx.try_recv() {
+                    Ok(event) => {
+                        if matches!(
+                            event.kind,
+                            EventKind::WorkflowCompleted { .. } | EventKind::WorkflowFailed { .. }
+                        ) {
+                            self.workflow_done = true;
+                        }
+                        if self.state.should_break(&event.kind) {
+                            self.state.paused = true;
+                        }
+                        self.state.handle_event(&event.kind, event.timestamp_ms);
+                    }
+                    Err(broadcast::error::TryRecvError::Empty) => break,
+                    Err(broadcast::error::TryRecvError::Lagged(n)) => {
+                        tracing::warn!("TUI lagged behind by {} events", n);
+                    }
+                    Err(broadcast::error::TryRecvError::Closed) => {
+                        self.workflow_done = true;
+                        break;
+                    }
+                }
+            }
+        }
+        // Fallback to legacy mpsc receiver
+        if let Some(ref mut rx) = self.event_rx {
+            while let Ok(event) = rx.try_recv() {
+                if self.state.should_break(&event.kind) {
+                    self.state.paused = true;
+                }
+                self.state.handle_event(&event.kind, event.timestamp_ms);
+            }
+        }
+    }
+
+    /// Render frame based on current view
+    fn render_unified_frame(&mut self) -> Result<()> {
+        let current_view = self.current_view;
+
+        if let Some(ref mut terminal) = self.terminal {
+            // For Monitor view, use the existing full-screen render (backward compatible)
+            if current_view == TuiView::Monitor {
+                let state = &self.state;
+                let theme = &self.theme;
+                terminal
+                    .draw(|frame| render_frame(frame, state, theme))
+                    .map_err(|e| NikaError::TuiError {
+                        reason: format!("Failed to draw frame: {}", e),
+                    })?;
+                return Ok(());
+            }
+
+            // For other views, use unified layout with Header + Content + StatusBar
+            // Extract references to avoid borrow issues with the closure
+            let theme = &self.theme;
+            let state = &self.state;
+            let chat_view = &self.chat_view;
+            let home_view = &self.home_view;
+            let studio_view = &self.studio_view;
+            let workflow_path = &self.state.workflow.path;
+            let paused = self.state.paused;
+
+            terminal
+                .draw(|frame| {
+                    let size = frame.area();
+
+                    // Layout: Header (1) + Content (dynamic) + StatusBar (1)
+                    let chunks = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints([
+                            Constraint::Length(1), // Header
+                            Constraint::Min(0),    // Content
+                            Constraint::Length(1), // StatusBar
+                        ])
+                        .split(size);
+
+                    // Render header
+                    let workflow_name = std::path::Path::new(workflow_path)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("No workflow");
+                    let header = Header::new(current_view, theme)
+                        .context(workflow_name)
+                        .status(if paused { "PAUSED" } else { "" });
+                    frame.render_widget(header, chunks[0]);
+
+                    // Render view content based on current view
+                    match current_view {
+                        TuiView::Chat => {
+                            chat_view.render(frame, chunks[1], state, theme);
+                        }
+                        TuiView::Home => {
+                            if let Some(ref hv) = home_view {
+                                hv.render(frame, chunks[1], state, theme);
+                            } else {
+                                // Fallback: show placeholder if no home view
+                                let placeholder = Paragraph::new("No workspace loaded")
+                                    .block(Block::default().borders(Borders::ALL).title(" HOME "));
+                                frame.render_widget(placeholder, chunks[1]);
+                            }
+                        }
+                        TuiView::Studio => {
+                            studio_view.render(frame, chunks[1], state, theme);
+                        }
+                        TuiView::Monitor => {
+                            // Already handled above, but needed for exhaustive match
+                            unreachable!()
+                        }
+                    }
+
+                    // Render status bar
+                    let status_bar = StatusBar::new(current_view, theme);
+                    frame.render_widget(status_bar, chunks[2]);
+                })
+                .map_err(|e| NikaError::TuiError {
+                    reason: format!("Failed to draw frame: {}", e),
+                })?;
+        }
+        Ok(())
+    }
+
+    /// Handle keyboard input in unified mode
+    ///
+    /// This method delegates to each view's `handle_key` method and converts
+    /// `ViewAction` to `Action` for the main event loop.
+    fn handle_unified_key(&mut self, code: KeyCode, modifiers: KeyModifiers) -> Action {
+        // Handle mode-specific keys first (overlays)
+        match &self.state.mode {
+            TuiMode::Help | TuiMode::Metrics | TuiMode::Inspect(_) | TuiMode::Edit(_) => {
+                if code == KeyCode::Esc {
+                    return Action::SetMode(TuiMode::Normal);
+                }
+            }
+            TuiMode::Settings => {
+                return self.handle_settings_key(code, modifiers);
+            }
+            TuiMode::Search => {
+                return self.handle_search_key(code, modifiers);
+            }
+            _ => {}
+        }
+
+        // Global view-switching keys (work in all views, including during Chat input)
+        // We check these first so users can always navigate views
+        match code {
+            // Ctrl+C always quits
+            KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => return Action::Quit,
+
+            // View navigation by number (when not capturing input)
+            KeyCode::Char('1') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Chat)
+            }
+            KeyCode::Char('2') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Home)
+            }
+            KeyCode::Char('3') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Studio)
+            }
+            KeyCode::Char('4') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Monitor)
+            }
+
+            // Tab cycles views (when not in Monitor, which uses Tab for panel cycling)
+            KeyCode::Tab
+                if !modifiers.contains(KeyModifiers::SHIFT)
+                    && self.current_view != TuiView::Monitor =>
+            {
+                return Action::NextView
+            }
+            KeyCode::BackTab if self.current_view != TuiView::Monitor => return Action::PrevView,
+
+            _ => {}
+        }
+
+        // View-specific key handling using the View trait
+        let key_event = KeyEvent::new(code, modifiers);
+
+        match self.current_view {
+            TuiView::Monitor => {
+                // Monitor uses the existing 4-panel key handling
+                self.handle_key(code, modifiers)
+            }
+            TuiView::Chat => {
+                let view_action = self.chat_view.handle_key(key_event, &mut self.state);
+                self.convert_view_action(view_action)
+            }
+            TuiView::Home => {
+                if let Some(ref mut home_view) = self.home_view {
+                    let view_action = home_view.handle_key(key_event, &mut self.state);
+                    self.convert_view_action(view_action)
+                } else {
+                    // No home view, handle basic navigation
+                    match code {
+                        KeyCode::Char('q') => Action::Quit,
+                        _ => Action::Continue,
+                    }
+                }
+            }
+            TuiView::Studio => {
+                let view_action = self.studio_view.handle_key(key_event, &mut self.state);
+                self.convert_view_action(view_action)
+            }
+        }
+    }
+
+    /// Check if the current view is capturing text input
+    /// (e.g., Chat with non-empty input, Studio in Insert mode)
+    fn is_view_capturing_input(&self) -> bool {
+        match self.current_view {
+            TuiView::Chat => !self.chat_view.input.is_empty(),
+            TuiView::Studio => self.studio_view.mode == super::views::EditorMode::Insert,
+            _ => false,
+        }
+    }
+
+    /// Convert a ViewAction to an Action
+    fn convert_view_action(&mut self, view_action: ViewAction) -> Action {
+        match view_action {
+            ViewAction::None => Action::Continue,
+            ViewAction::Quit => Action::Quit,
+            ViewAction::SwitchView(view) => Action::SwitchView(view),
+            ViewAction::RunWorkflow(path) => {
+                // Switch to Monitor view and store path for execution
+                // The actual workflow execution will be handled by apply_action
+                self.workflow_path = path;
+                self.current_view = TuiView::Monitor;
+                // TODO: Trigger workflow execution
+                Action::Continue
+            }
+            ViewAction::OpenInStudio(path) => {
+                // Load the file into studio and switch to Studio view
+                if let Err(e) = self.studio_view.load_file(path) {
+                    tracing::error!("Failed to load file in studio: {}", e);
+                }
+                Action::SwitchView(TuiView::Studio)
+            }
+            ViewAction::SendChatMessage(msg) => {
+                // TODO: Integrate with agent for actual processing
+                // For now, add a placeholder response
+                self.chat_view
+                    .add_nika_message(format!("Received: {}", msg), None);
+                Action::Continue
+            }
+            ViewAction::ToggleChatOverlay => {
+                // TODO: Implement chat overlay
+                Action::Continue
+            }
+            ViewAction::Error(msg) => {
+                tracing::error!("View error: {}", msg);
+                self.set_status(&format!("Error: {}", msg));
+                Action::Continue
+            }
+        }
+    }
+
+    /// Get current view
+    pub fn current_view(&self) -> TuiView {
+        self.current_view
+    }
+
+    /// Switch to a specific view
+    pub fn switch_view(&mut self, view: TuiView) {
+        self.current_view = view;
     }
 
     /// Handle keyboard input
@@ -642,6 +1016,16 @@ impl App {
                     let msg = format!("Dismissed all {} notifications", count);
                     self.set_status(&msg);
                 }
+            }
+            // View navigation actions
+            Action::SwitchView(view) => {
+                self.current_view = view;
+            }
+            Action::NextView => {
+                self.current_view = self.current_view.next();
+            }
+            Action::PrevView => {
+                self.current_view = self.current_view.prev();
             }
             Action::Continue => {}
         }
@@ -1639,6 +2023,7 @@ fn render_status_bar(frame: &mut Frame, state: &StandaloneState, theme: &Theme, 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tui::views::EditorMode;
 
     #[test]
     fn test_handle_key_quit() {
@@ -1771,5 +2156,163 @@ mod tests {
 
         // Boundary at (50, 25) - now in bottom-right
         assert_eq!(app.panel_at_position(50, 25, size), Some(PanelId::Agent));
+    }
+
+    // ═══ Task 5.1: 4-View Integration Tests ═══
+
+    #[test]
+    fn test_app_initial_view_standalone() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let state = StandaloneState::new(temp_dir.path().to_path_buf());
+        let app = App::new_standalone(state).unwrap();
+        assert_eq!(app.current_view, TuiView::Home);
+    }
+
+    #[test]
+    fn test_app_initial_view_execution() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let app = App::new(&workflow_path).unwrap();
+        assert_eq!(app.current_view, TuiView::Monitor);
+    }
+
+    #[test]
+    fn test_app_view_switch() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Initial view is Monitor
+        assert_eq!(app.current_view, TuiView::Monitor);
+
+        // Switch to Home
+        app.switch_view(TuiView::Home);
+        assert_eq!(app.current_view, TuiView::Home);
+
+        // Switch to Chat
+        app.switch_view(TuiView::Chat);
+        assert_eq!(app.current_view, TuiView::Chat);
+
+        // Switch to Studio
+        app.switch_view(TuiView::Studio);
+        assert_eq!(app.current_view, TuiView::Studio);
+
+        // Switch back to Monitor
+        app.switch_view(TuiView::Monitor);
+        assert_eq!(app.current_view, TuiView::Monitor);
+    }
+
+    #[test]
+    fn test_app_view_next_prev() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Start at Monitor
+        app.current_view = TuiView::Chat;
+
+        // Next should go Chat -> Home -> Studio -> Monitor -> Chat
+        app.current_view = app.current_view.next();
+        assert_eq!(app.current_view, TuiView::Home);
+
+        app.current_view = app.current_view.next();
+        assert_eq!(app.current_view, TuiView::Studio);
+
+        app.current_view = app.current_view.next();
+        assert_eq!(app.current_view, TuiView::Monitor);
+
+        app.current_view = app.current_view.next();
+        assert_eq!(app.current_view, TuiView::Chat);
+
+        // Prev should go Chat -> Monitor -> Studio -> Home -> Chat
+        app.current_view = app.current_view.prev();
+        assert_eq!(app.current_view, TuiView::Monitor);
+    }
+
+    #[test]
+    fn test_app_is_view_capturing_input() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Chat with empty input is not capturing
+        app.current_view = TuiView::Chat;
+        app.chat_view.input.clear();
+        assert!(!app.is_view_capturing_input());
+
+        // Chat with input is capturing
+        app.chat_view.input = "typing...".to_string();
+        assert!(app.is_view_capturing_input());
+
+        // Studio in Normal mode is not capturing
+        app.current_view = TuiView::Studio;
+        app.studio_view.mode = EditorMode::Normal;
+        assert!(!app.is_view_capturing_input());
+
+        // Studio in Insert mode is capturing
+        app.studio_view.mode = EditorMode::Insert;
+        assert!(app.is_view_capturing_input());
+
+        // Home and Monitor never capture
+        app.current_view = TuiView::Home;
+        assert!(!app.is_view_capturing_input());
+
+        app.current_view = TuiView::Monitor;
+        assert!(!app.is_view_capturing_input());
+    }
+
+    #[test]
+    fn test_convert_view_action_none() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        let action = app.convert_view_action(ViewAction::None);
+        assert_eq!(action, Action::Continue);
+    }
+
+    #[test]
+    fn test_convert_view_action_quit() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        let action = app.convert_view_action(ViewAction::Quit);
+        assert_eq!(action, Action::Quit);
+    }
+
+    #[test]
+    fn test_convert_view_action_switch_view() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        let action = app.convert_view_action(ViewAction::SwitchView(TuiView::Home));
+        assert_eq!(action, Action::SwitchView(TuiView::Home));
+    }
+
+    #[test]
+    fn test_convert_view_action_send_chat_message() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Record initial message count
+        let initial_count = app.chat_view.messages.len();
+
+        // Send a message
+        let action = app.convert_view_action(ViewAction::SendChatMessage("Hello".to_string()));
+        assert_eq!(action, Action::Continue);
+
+        // Should have added a response message
+        assert_eq!(app.chat_view.messages.len(), initial_count + 1);
     }
 }
