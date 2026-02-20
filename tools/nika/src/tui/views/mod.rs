@@ -23,12 +23,15 @@
 //! Shortcuts: [1-4] or [a/h/s/m] jump directly to view.
 
 mod browser;
+mod chat;
 mod home;
 mod monitor;
 mod studio;
 mod trait_view;
 
 pub use browser::BrowserView;
+#[allow(unused_imports)] // Will be used in Task 5.1 (App integration)
+pub use chat::{ChatMessage, ChatView, ExecutionResult, ExecutionStatus, MessageRole, SessionInfo};
 #[allow(unused_imports)] // Will be used in Task 5.1 (App integration)
 pub use home::HomeView;
 pub use monitor::{DagTab, MissionTab, MonitorView, NovanetTab, ReasoningTab};
