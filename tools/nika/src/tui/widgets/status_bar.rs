@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────────────────┐
-//! │ [Enter] Send  [Up/Down] History  [Tab] Views  [Ctrl+L] Clear  [q] Quit       │
+//! │ [Enter] Send  [Up/Down] History     Claude | 1.2k tokens | MCP: 2 connected │
 //! └─────────────────────────────────────────────────────────────────────────────┘
 //! ```
 
@@ -30,6 +30,115 @@ impl KeyHint {
     }
 }
 
+/// LLM Provider indicator
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Provider {
+    #[default]
+    None,
+    Claude,
+    OpenAI,
+    Mock,
+}
+
+impl Provider {
+    /// Get provider icon
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Self::None => "  ",
+            Self::Claude => "🧠", // Brain for Claude
+            Self::OpenAI => "🤖", // Robot for OpenAI
+            Self::Mock => "🧪",   // Test tube for mock
+        }
+    }
+
+    /// Get provider display name
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::None => "---",
+            Self::Claude => "Claude",
+            Self::OpenAI => "OpenAI",
+            Self::Mock => "Mock",
+        }
+    }
+}
+
+/// MCP Connection status
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ConnectionStatus {
+    #[default]
+    Disconnected,
+    Connecting,
+    Connected,
+    Error,
+}
+
+impl ConnectionStatus {
+    /// Get status icon
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Self::Disconnected => "○",
+            Self::Connecting => "◔",
+            Self::Connected => "●",
+            Self::Error => "⊗",
+        }
+    }
+}
+
+/// Metrics to display on the right side of status bar
+#[derive(Debug, Clone, Default)]
+pub struct StatusMetrics {
+    /// Current LLM provider
+    pub provider: Provider,
+    /// Total tokens used in session
+    pub tokens: Option<u64>,
+    /// Number of connected MCP servers
+    pub mcp_connected: usize,
+    /// Total MCP servers configured
+    pub mcp_total: usize,
+    /// Connection status
+    pub connection: ConnectionStatus,
+}
+
+impl StatusMetrics {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn provider(mut self, provider: Provider) -> Self {
+        self.provider = provider;
+        self
+    }
+
+    pub fn tokens(mut self, tokens: u64) -> Self {
+        self.tokens = Some(tokens);
+        self
+    }
+
+    pub fn mcp(mut self, connected: usize, total: usize) -> Self {
+        self.mcp_connected = connected;
+        self.mcp_total = total;
+        self
+    }
+
+    pub fn connection(mut self, status: ConnectionStatus) -> Self {
+        self.connection = status;
+        self
+    }
+
+    /// Format token count for display
+    fn format_tokens(&self) -> Option<String> {
+        self.tokens.map(|t| {
+            if t >= 1_000_000 {
+                format!("{:.1}M", t as f64 / 1_000_000.0)
+            } else if t >= 1_000 {
+                format!("{:.1}k", t as f64 / 1_000.0)
+            } else {
+                format!("{}", t)
+            }
+        })
+    }
+}
+
 /// Status bar configuration
 pub struct StatusBar<'a> {
     /// Current view (determines which hints to show)
@@ -38,6 +147,8 @@ pub struct StatusBar<'a> {
     pub hints: Option<Vec<KeyHint>>,
     /// Theme for colors
     pub theme: &'a Theme,
+    /// Metrics to display on the right
+    pub metrics: Option<StatusMetrics>,
 }
 
 impl<'a> StatusBar<'a> {
@@ -46,11 +157,17 @@ impl<'a> StatusBar<'a> {
             view,
             hints: None,
             theme,
+            metrics: None,
         }
     }
 
     pub fn hints(mut self, hints: Vec<KeyHint>) -> Self {
         self.hints = Some(hints);
+        self
+    }
+
+    pub fn metrics(mut self, metrics: StatusMetrics) -> Self {
+        self.metrics = Some(metrics);
         self
     }
 
@@ -98,29 +215,124 @@ impl Widget for StatusBar<'_> {
         let default = self.default_hints();
         let hints = self.hints.unwrap_or(default);
 
-        let mut spans = vec![Span::raw(" ")];
+        // Build left side (key hints)
+        let mut left_spans = vec![Span::raw(" ")];
 
         for (i, hint) in hints.iter().enumerate() {
             if i > 0 {
-                spans.push(Span::raw("  "));
+                left_spans.push(Span::raw("  "));
             }
-            spans.push(Span::styled(
+            left_spans.push(Span::styled(
                 format!("[{}]", hint.key),
                 Style::default()
                     .fg(self.theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ));
-            spans.push(Span::raw(" "));
-            spans.push(Span::styled(
+            left_spans.push(Span::raw(" "));
+            left_spans.push(Span::styled(
                 hint.action,
                 Style::default().fg(self.theme.text_secondary),
             ));
         }
 
-        let line = Line::from(spans);
-        let paragraph = Paragraph::new(line).style(Style::default().bg(self.theme.background));
+        // Build right side (metrics) if available
+        let mut right_spans: Vec<Span> = Vec::new();
 
-        paragraph.render(area, buf);
+        if let Some(ref metrics) = self.metrics {
+            // Provider indicator
+            if metrics.provider != Provider::None {
+                right_spans.push(Span::raw(metrics.provider.icon()));
+                right_spans.push(Span::raw(" "));
+                right_spans.push(Span::styled(
+                    metrics.provider.name(),
+                    Style::default()
+                        .fg(self.theme.text_primary)
+                        .add_modifier(Modifier::BOLD),
+                ));
+            }
+
+            // Token counter
+            if let Some(token_str) = metrics.format_tokens() {
+                if !right_spans.is_empty() {
+                    right_spans.push(Span::styled(
+                        " | ",
+                        Style::default().fg(self.theme.text_muted),
+                    ));
+                }
+                right_spans.push(Span::styled(
+                    token_str,
+                    Style::default().fg(self.theme.status_running), // Amber for attention
+                ));
+                right_spans.push(Span::styled(
+                    " tokens",
+                    Style::default().fg(self.theme.text_secondary),
+                ));
+            }
+
+            // MCP connection status
+            if metrics.mcp_total > 0 {
+                if !right_spans.is_empty() {
+                    right_spans.push(Span::styled(
+                        " | ",
+                        Style::default().fg(self.theme.text_muted),
+                    ));
+                }
+
+                // Connection status icon with color
+                let conn_color = match metrics.connection {
+                    ConnectionStatus::Connected => self.theme.status_success,
+                    ConnectionStatus::Connecting => self.theme.status_running,
+                    ConnectionStatus::Disconnected => self.theme.text_muted,
+                    ConnectionStatus::Error => self.theme.status_failed,
+                };
+
+                right_spans.push(Span::styled(
+                    metrics.connection.icon(),
+                    Style::default().fg(conn_color),
+                ));
+                right_spans.push(Span::raw(" "));
+                right_spans.push(Span::styled(
+                    "MCP:",
+                    Style::default().fg(self.theme.text_secondary),
+                ));
+                right_spans.push(Span::styled(
+                    format!(" {}/{}", metrics.mcp_connected, metrics.mcp_total),
+                    Style::default().fg(if metrics.mcp_connected == metrics.mcp_total {
+                        self.theme.status_success
+                    } else {
+                        self.theme.text_primary
+                    }),
+                ));
+            }
+
+            right_spans.push(Span::raw(" "));
+        }
+
+        // Calculate widths for layout
+        let left_width: usize = left_spans.iter().map(|s| s.content.len()).sum();
+        let right_width: usize = right_spans.iter().map(|s| s.content.len()).sum();
+
+        // Render left side
+        let left_line = Line::from(left_spans);
+        let left_paragraph =
+            Paragraph::new(left_line).style(Style::default().bg(self.theme.background));
+        left_paragraph.render(area, buf);
+
+        // Render right side (right-aligned)
+        if !right_spans.is_empty() && area.width as usize > left_width + right_width {
+            let right_x = area.x + area.width - right_width as u16;
+            let right_line = Line::from(right_spans);
+
+            for (i, span) in right_line.spans.iter().enumerate() {
+                let x_offset: usize = right_line.spans[..i].iter().map(|s| s.content.len()).sum();
+                buf.set_string(
+                    right_x + x_offset as u16,
+                    area.y,
+                    span.content.as_ref(),
+                    span.style,
+                );
+            }
+        }
     }
 }
 
@@ -155,5 +367,67 @@ mod tests {
         let bar = StatusBar::new(TuiView::Chat, &theme).hints(custom);
         assert!(bar.hints.is_some());
         assert_eq!(bar.hints.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_provider_icons() {
+        assert_eq!(Provider::Claude.icon(), "🧠");
+        assert_eq!(Provider::OpenAI.icon(), "🤖");
+        assert_eq!(Provider::Mock.icon(), "🧪");
+        assert_eq!(Provider::None.icon(), "  ");
+    }
+
+    #[test]
+    fn test_provider_names() {
+        assert_eq!(Provider::Claude.name(), "Claude");
+        assert_eq!(Provider::OpenAI.name(), "OpenAI");
+        assert_eq!(Provider::Mock.name(), "Mock");
+        assert_eq!(Provider::None.name(), "---");
+    }
+
+    #[test]
+    fn test_connection_status_icons() {
+        assert_eq!(ConnectionStatus::Connected.icon(), "●");
+        assert_eq!(ConnectionStatus::Connecting.icon(), "◔");
+        assert_eq!(ConnectionStatus::Disconnected.icon(), "○");
+        assert_eq!(ConnectionStatus::Error.icon(), "⊗");
+    }
+
+    #[test]
+    fn test_status_metrics_token_formatting() {
+        let m1 = StatusMetrics::new().tokens(500);
+        assert_eq!(m1.format_tokens(), Some("500".to_string()));
+
+        let m2 = StatusMetrics::new().tokens(1500);
+        assert_eq!(m2.format_tokens(), Some("1.5k".to_string()));
+
+        let m3 = StatusMetrics::new().tokens(1_500_000);
+        assert_eq!(m3.format_tokens(), Some("1.5M".to_string()));
+
+        let m4 = StatusMetrics::new();
+        assert_eq!(m4.format_tokens(), None);
+    }
+
+    #[test]
+    fn test_status_metrics_builder() {
+        let metrics = StatusMetrics::new()
+            .provider(Provider::Claude)
+            .tokens(1234)
+            .mcp(2, 3)
+            .connection(ConnectionStatus::Connected);
+
+        assert_eq!(metrics.provider, Provider::Claude);
+        assert_eq!(metrics.tokens, Some(1234));
+        assert_eq!(metrics.mcp_connected, 2);
+        assert_eq!(metrics.mcp_total, 3);
+        assert_eq!(metrics.connection, ConnectionStatus::Connected);
+    }
+
+    #[test]
+    fn test_status_bar_with_metrics() {
+        let theme = Theme::dark();
+        let metrics = StatusMetrics::new().provider(Provider::Claude).tokens(5000);
+        let bar = StatusBar::new(TuiView::Monitor, &theme).metrics(metrics);
+        assert!(bar.metrics.is_some());
     }
 }

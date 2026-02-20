@@ -30,7 +30,9 @@ mod timeline;
 mod yaml_view;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
-pub use dag::{Dag, DagNode};
+// DAG widgets - some exported for future TUI features
+#[allow(unused_imports)]
+pub use dag::{Dag, DagNode, EdgeState, VerbType};
 pub use gauge::Gauge;
 // Header widget - exported for future view use
 #[allow(unused_imports)]
@@ -38,13 +40,16 @@ pub use header::Header;
 // StatusBar widget - exported for future view use
 pub use mcp_log::{McpEntry, McpLog};
 #[allow(unused_imports)]
-pub use status_bar::{KeyHint, StatusBar};
+pub use status_bar::{ConnectionStatus, KeyHint, Provider, StatusBar, StatusMetrics};
 // Sparkline widgets - some exported for future panel use
 #[allow(unused_imports)]
 pub use sparkline::{BorderedSparkline, LatencyHistory, LatencySparkline, MiniSparkline};
 // Spinner widgets - exported for future panel use
 #[allow(unused_imports)]
-pub use spinner::{ProgressDots, Spinner, BRAILLE_SPINNER, DOT_SPINNER, PULSE_SPINNER};
+pub use spinner::{
+    ParticleBurst, ProgressDots, PulseText, ShakeText, Spinner, BRAILLE_SPINNER, COSMIC_SPINNER,
+    DOT_SPINNER, ORBIT_SPINNER, PULSE_SPINNER, ROCKET_SPINNER, STARS_SPINNER,
+};
 // Tab widgets - exported for future panel use
 #[allow(unused_imports)]
 pub use tabs::{TabBar, TabIndicator};
