@@ -33,7 +33,7 @@ pub use browser::BrowserView;
 pub use home::HomeView;
 pub use monitor::{DagTab, MissionTab, MonitorView, NovanetTab, ReasoningTab};
 #[allow(unused_imports)] // Will be used in Task 5.1 (App integration)
-pub use studio::{EditorMode, StudioView, TextBuffer, ValidationResult};
+pub use studio::{EditorMode, StudioView, ValidationResult};
 #[allow(unused_imports)] // Will be used by views in later tasks
 pub use trait_view::View;
 

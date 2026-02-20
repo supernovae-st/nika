@@ -10,9 +10,11 @@
 //! └─────────────────────────────────────────────────────────────────────────────┘
 //! ```
 //!
-//! Note: This implementation uses a simple line-based editor. Full tui-textarea
-//! integration is planned once ratatui 0.30 compatibility is available in
-//! tui-textarea (currently requires ratatui 0.29).
+//! Note: This implementation uses a simple line-based editor (`TextBuffer`).
+//! Full tui-textarea integration is planned once ratatui 0.30 compatibility
+//! is available (tui-textarea 0.7 requires ratatui 0.29).
+//!
+//! TODO: Track https://github.com/rhysd/tui-textarea/issues for ratatui 0.30 support
 
 use std::path::PathBuf;
 
@@ -372,7 +374,7 @@ impl View for StudioView {
             EditorMode::Normal => "NORMAL",
             EditorMode::Insert => "INSERT",
         };
-        let modified = if self.modified { " [+]" } else { "" };
+        let modified = if self.modified { " ●" } else { "" };
         format!(
             "{} | Ln {}, Col {}{}",
             mode,
@@ -811,7 +813,7 @@ mod tests {
         view.modified = true;
         let state = TuiState::new("test.nika.yaml");
         let status = view.status_line(&state);
-        assert!(status.contains("[+]"));
+        assert!(status.contains("●"));
     }
 
     #[test]
