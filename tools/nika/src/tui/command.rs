@@ -44,6 +44,23 @@ pub enum Command {
 
     /// /help or /? - Show help
     Help,
+
+    /// /model <provider> - Switch LLM provider (openai, claude)
+    Model { provider: ModelProvider },
+
+    /// /clear - Clear chat history
+    Clear,
+}
+
+/// Available LLM providers via rig-core
+#[derive(Debug, Clone, PartialEq)]
+pub enum ModelProvider {
+    /// OpenAI (gpt-4o, gpt-4, etc.)
+    OpenAI,
+    /// Anthropic Claude (claude-sonnet-4, etc.)
+    Claude,
+    /// List available providers
+    List,
 }
 
 impl Command {
@@ -86,6 +103,8 @@ impl Command {
                 "/invoke" => Self::parse_invoke_args(args),
                 "/agent" => Self::parse_agent_args(args),
                 "/help" | "/?" => Command::Help,
+                "/model" => Self::parse_model_args(args),
+                "/clear" => Command::Clear,
                 _ => {
                     // Unknown command, treat as chat message
                     Command::Chat {
@@ -155,6 +174,25 @@ impl Command {
         }
     }
 
+    /// Parse /model arguments: /model <provider>
+    fn parse_model_args(args: &str) -> Command {
+        let provider = args.trim().to_lowercase();
+        match provider.as_str() {
+            "openai" | "gpt" | "gpt-4" | "gpt-4o" => Command::Model {
+                provider: ModelProvider::OpenAI,
+            },
+            "claude" | "anthropic" | "sonnet" => Command::Model {
+                provider: ModelProvider::Claude,
+            },
+            "list" | "" => Command::Model {
+                provider: ModelProvider::List,
+            },
+            _ => Command::Model {
+                provider: ModelProvider::List,
+            },
+        }
+    }
+
     /// Parse /agent arguments: /agent <goal> [--max-turns N]
     fn parse_agent_args(args: &str) -> Command {
         let args = args.trim();
@@ -183,6 +221,8 @@ impl Command {
             Command::Agent { .. } => "agent",
             Command::Chat { .. } => "chat",
             Command::Help => "help",
+            Command::Model { .. } => "model",
+            Command::Clear => "clear",
         }
     }
 
@@ -196,6 +236,36 @@ impl Command {
             Command::Invoke { tool, .. } => tool.is_empty(),
             Command::Agent { goal, .. } => goal.is_empty(),
             Command::Help => false,
+            Command::Model { .. } => false,
+            Command::Clear => false,
+        }
+    }
+}
+
+impl ModelProvider {
+    /// Get the display name for the provider
+    pub fn name(&self) -> &'static str {
+        match self {
+            ModelProvider::OpenAI => "OpenAI (gpt-4o)",
+            ModelProvider::Claude => "Anthropic Claude (claude-sonnet-4)",
+            ModelProvider::List => "list",
+        }
+    }
+
+    /// Get the environment variable name required for this provider
+    pub fn env_var(&self) -> &'static str {
+        match self {
+            ModelProvider::OpenAI => "OPENAI_API_KEY",
+            ModelProvider::Claude => "ANTHROPIC_API_KEY",
+            ModelProvider::List => "",
+        }
+    }
+
+    /// Check if the provider is available (env var is set)
+    pub fn is_available(&self) -> bool {
+        match self {
+            ModelProvider::List => true,
+            _ => std::env::var(self.env_var()).is_ok(),
         }
     }
 }
@@ -209,7 +279,17 @@ Nika Chat Commands:
   /fetch <url> [method]     HTTP request (default: GET)
   /invoke [server:]tool     MCP tool call (params as JSON)
   /agent <goal>             Multi-turn agent (--max-turns N)
+  /model <provider>         Switch LLM provider (openai, claude)
+  /clear                    Clear chat history
   /help or /?               Show this help
+
+Model Switching:
+  /model openai             Switch to OpenAI (gpt-4o)
+  /model claude             Switch to Anthropic Claude
+  /model list               Show available providers
+
+File Mentions:
+  @src/main.rs              Include file content in prompt
 
 Examples:
   /infer explain this code
@@ -217,8 +297,9 @@ Examples:
   /fetch https://api.example.com GET
   /invoke novanet:describe {"entity":"qr-code"}
   /agent generate a landing page --max-turns 5
+  Explain @src/main.rs      Include file content
 
-Plain text is treated as chat messages for the default agent.
+Plain text is treated as chat messages for the current model.
 "#;
 
 #[cfg(test)]
@@ -466,6 +547,108 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // /model tests
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_parse_model_openai() {
+        let input = "/model openai";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Model {
+                provider: ModelProvider::OpenAI
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_model_claude() {
+        let input = "/model claude";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Model {
+                provider: ModelProvider::Claude
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_model_gpt_alias() {
+        let input = "/model gpt";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Model {
+                provider: ModelProvider::OpenAI
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_model_anthropic_alias() {
+        let input = "/model anthropic";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Model {
+                provider: ModelProvider::Claude
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_model_list() {
+        let input = "/model list";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Model {
+                provider: ModelProvider::List
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_model_empty() {
+        let input = "/model";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Model {
+                provider: ModelProvider::List
+            }
+        ));
+    }
+
+    #[test]
+    fn test_model_provider_name() {
+        assert_eq!(ModelProvider::OpenAI.name(), "OpenAI (gpt-4o)");
+        assert_eq!(
+            ModelProvider::Claude.name(),
+            "Anthropic Claude (claude-sonnet-4)"
+        );
+    }
+
+    #[test]
+    fn test_model_provider_env_var() {
+        assert_eq!(ModelProvider::OpenAI.env_var(), "OPENAI_API_KEY");
+        assert_eq!(ModelProvider::Claude.env_var(), "ANTHROPIC_API_KEY");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // /clear tests
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_parse_clear() {
+        let input = "/clear";
+        let cmd = Command::parse(input);
+        assert!(matches!(cmd, Command::Clear));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // Case insensitivity tests
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -530,6 +713,14 @@ mod tests {
             "chat"
         );
         assert_eq!(Command::Help.verb(), "help");
+        assert_eq!(
+            Command::Model {
+                provider: ModelProvider::OpenAI
+            }
+            .verb(),
+            "model"
+        );
+        assert_eq!(Command::Clear.verb(), "clear");
     }
 
     #[test]
@@ -541,5 +732,10 @@ mod tests {
         .is_empty());
         assert!(Command::Infer { prompt: "".into() }.is_empty());
         assert!(!Command::Help.is_empty());
+        assert!(!Command::Model {
+            provider: ModelProvider::OpenAI
+        }
+        .is_empty());
+        assert!(!Command::Clear.is_empty());
     }
 }
