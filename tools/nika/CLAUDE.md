@@ -327,6 +327,69 @@ concurrency=3:  [Task1]
 - Results collected in original order
 - `fail_fast: true` aborts remaining tasks on first error
 
+## Benchmarks (v0.5.1)
+
+Criterion benchmarks for performance testing:
+
+```bash
+# Run all benchmarks
+cargo bench
+
+# Run specific benchmark
+cargo bench --bench workflow_parsing
+cargo bench --bench dag_validation
+cargo bench --bench binding_resolution
+cargo bench --bench task_execution
+```
+
+| Benchmark | Target | Measured |
+|-----------|--------|----------|
+| YAML parsing (1 task) | <10µs | ~4.6µs |
+| YAML parsing (100 tasks) | <500µs | ~340µs |
+| DAG validation (10 nodes) | <1µs | ~800ns |
+| Binding resolution (3 entries) | <1µs | ~450ns |
+| DataStore get | <10ns | ~6ns |
+
+Benchmarks are in `benches/`:
+- `workflow_parsing.rs` — YAML parsing, schema validation
+- `dag_validation.rs` — FlowGraph construction, cycle detection
+- `binding_resolution.rs` — UseEntry parsing, lazy binding resolution
+- `task_execution.rs` — DataStore operations, TaskResult creation
+
+## TUI Enhancements (v0.5.1)
+
+### Spinners
+
+4 themed spinner types in `src/tui/widgets/spinner.rs`:
+
+```rust
+ROCKET_SPINNER: &[char] = &['🚀', '🔥', '✨', '💫', '⭐'];
+STARS_SPINNER:  &[char] = &['✦', '✧', '★', '☆', '✵', '✶'];
+ORBIT_SPINNER:  &[char] = &['◐', '◓', '◑', '◒'];
+COSMIC_SPINNER: &[char] = &['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'];
+```
+
+### Animation Widgets
+
+- **PulseText** — Breathing color animation effect
+- **ParticleBurst** — Success celebration animation
+- **ShakeText** — Error shake effect
+
+### Status Bar Enhancements
+
+- Provider indicator: 🧠 Claude | 🤖 OpenAI | 🧪 Mock
+- Token counter with smart formatting (K/M suffixes)
+- MCP connection status
+
+### DAG Visualization
+
+Verb-specific icons:
+- 🤖 `infer:` — LLM generation
+- 🖥️ `exec:` — Shell command
+- 🌐 `fetch:` — HTTP request
+- 🔧 `invoke:` — MCP tool
+- 🤝 `agent:` — Agentic loop
+
 ## Commands
 
 ```bash
@@ -344,14 +407,41 @@ cargo nextest run
 
 # Run with coverage
 cargo llvm-cov nextest
+
+# Run benchmarks
+cargo bench
 ```
 
 ## Testing Strategy
 
-- **Unit tests:** In-file `#[cfg(test)]` modules
+- **Unit tests:** In-file `#[cfg(test)]` modules (886+ tests)
 - **Integration tests:** `tests/` directory
 - **Snapshot tests:** insta for YAML/JSON outputs
 - **Property tests:** proptest for parser fuzzing
+- **Real API tests:** `examples/test-*.nika.yaml` (require API keys)
+
+### Real API Testing
+
+Test workflows with live API calls:
+
+```bash
+# Set API keys
+export ANTHROPIC_API_KEY=sk-ant-...
+export PERPLEXITY_API_KEY=pplx-...
+
+# Run real API tests
+cargo run -- run examples/test-parallel-stress.nika.yaml
+cargo run -- run examples/test-multi-mcp-agent.nika.yaml
+cargo run -- run examples/test-context-propagation.nika.yaml
+```
+
+| Test | Features Validated |
+|------|-------------------|
+| `test-parallel-stress.nika.yaml` | 5 concurrent Claude API calls with `for_each` |
+| `test-multi-mcp-agent.nika.yaml` | Agent with MCP tools, spawn_agent, stop_conditions |
+| `test-deep-context-chain.nika.yaml` | 6-level context propagation with `use:` bindings |
+| `test-agent-stop-conditions.nika.yaml` | Agent stop condition triggering |
+| `test-perplexity-mcp.nika.yaml` | External MCP server integration |
 
 ## Error Codes
 

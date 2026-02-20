@@ -1,0 +1,63 @@
+# Quick Brainstorm Skill
+#
+# Lightweight brainstorming without web research.
+# Use when you already have context or want fast ideation.
+#
+# Run with: cargo run -- run examples/skill-brainstorm-quick.nika.yaml
+
+schema: "nika/workflow@0.5"
+workflow: skill-brainstorm-quick
+description: "Fast ideation without research phase"
+provider: claude
+
+tasks:
+  - id: setup
+    description: "Define brainstorm parameters"
+    exec: |
+      echo '{"topic": "Improve QR code scanning UX", "context": "Mobile app for QR code AI generation"}'
+    output:
+      format: json
+
+  - id: ideate
+    description: "Generate ideas with Socratic refinement"
+    use:
+      params: setup
+    infer:
+      prompt: |
+        You are a brainstorming partner using the Socratic method.
+
+        TOPIC: {{use.params.topic}}
+        CONTEXT: {{use.params.context}}
+
+        PROCESS:
+        1. First, ask 3 clarifying questions about the topic
+        2. Answer them yourself based on context
+        3. Generate 5 ideas based on your understanding
+        4. For each idea, play devil's advocate (one challenge)
+        5. Refine the top 3 ideas based on challenges
+
+        OUTPUT FORMAT (JSON):
+        {
+          "topic": "...",
+          "clarifying_questions": [
+            {"question": "...", "answer": "..."}
+          ],
+          "initial_ideas": [
+            {"name": "...", "description": "...", "challenge": "..."}
+          ],
+          "refined_top_3": [
+            {
+              "rank": 1,
+              "name": "...",
+              "description": "...",
+              "why_it_survives": "...",
+              "next_action": "..."
+            }
+          ]
+        }
+
+      model: claude-sonnet-4-20250514
+
+flows:
+  - source: setup
+    target: ideate

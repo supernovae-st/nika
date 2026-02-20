@@ -11,21 +11,29 @@
 
 perplexity:
   # Perplexity AI search - web research with AI synthesis
-  # Tools: perplexity_search_web
+  # Tools: perplexity_search_web, perplexity_ask, perplexity_research, perplexity_reason
   command: npx
   args:
     - -y
-    - "@anthropic/mcp-perplexity"
+    - "@perplexity-ai/mcp-server"
   env:
     PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
 
 context7:
-  # Context7 - library documentation lookup
-  # Tools: resolve-library-id, query-docs
+  # Context7 - library documentation lookup (HTTP MCP)
+  # Tools: resolve-library-id, get-library-docs
+  type: http
+  url: https://mcp.context7.com/mcp
+  headers:
+    Authorization: "Bearer ${CONTEXT7_API_KEY}"
+
+sequential-thinking:
+  # Sequential Thinking - step-by-step reasoning chains
+  # Tools: sequentialthinking
   command: npx
   args:
     - -y
-    - "@anthropic/mcp-context7"
+    - "@modelcontextprotocol/server-sequential-thinking"
 
 # ============================================================================
 # WEB SCRAPING
@@ -33,11 +41,12 @@ context7:
 
 firecrawl:
   # Firecrawl - advanced web scraping with LLM extraction
-  # Tools: firecrawl_scrape, firecrawl_map, firecrawl_search, firecrawl_crawl, firecrawl_extract
+  # Tools: firecrawl_scrape, firecrawl_map, firecrawl_search, firecrawl_crawl,
+  #        firecrawl_extract, firecrawl_agent, firecrawl_browser_*
   command: npx
   args:
     - -y
-    - "@anthropic/mcp-firecrawl"
+    - "firecrawl-mcp"
   env:
     FIRECRAWL_API_KEY: "${FIRECRAWL_API_KEY}"
 
@@ -47,9 +56,30 @@ supadata:
   command: npx
   args:
     - -y
-    - "@anthropic/mcp-supadata"
+    - "@supadata/mcp"
   env:
     SUPADATA_API_KEY: "${SUPADATA_API_KEY}"
+
+# ============================================================================
+# BROWSER & UI
+# ============================================================================
+
+playwright:
+  # Playwright - browser automation
+  # Tools: browser actions, screenshots, page navigation
+  command: npx
+  args:
+    - "@playwright/mcp@latest"
+
+# ============================================================================
+# SEO & MARKETING
+# ============================================================================
+
+ahrefs:
+  # Ahrefs - SEO data and analysis (HTTP MCP)
+  # Tools: keyword research, backlink analysis, site audit
+  type: http
+  url: https://api.ahrefs.com/mcp/mcp
 
 # ============================================================================
 # NOVANET (Knowledge Graph)
@@ -57,7 +87,8 @@ supadata:
 
 novanet:
   # NovaNet MCP Server - knowledge graph access
-  # Tools: novanet_describe, novanet_search, novanet_traverse, novanet_generate, novanet_atoms, novanet_introspect
+  # Tools: novanet_describe, novanet_search, novanet_traverse, novanet_generate,
+  #        novanet_atoms, novanet_introspect, novanet_query, novanet_assemble
   command: cargo
   args:
     - run

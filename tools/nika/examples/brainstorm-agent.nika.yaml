@@ -1,0 +1,173 @@
+# Brainstorm Agent Workflow
+#
+# A research-driven brainstorming agent that uses multiple MCP tools
+# to gather information before ideation.
+#
+# Run with: cargo run -- run examples/brainstorm-agent.nika.yaml
+#
+# Required env vars (in .env):
+#   - ANTHROPIC_API_KEY or OPENAI_API_KEY
+#   - PERPLEXITY_API_KEY
+#   - FIRECRAWL_API_KEY
+
+schema: "nika/workflow@0.5"
+workflow: brainstorm-agent
+description: "Research-driven brainstorming with web search and content analysis"
+provider: claude
+
+mcp:
+  perplexity:
+    command: npx
+    args:
+      - -y
+      - "@perplexity-ai/mcp-server"
+
+  firecrawl:
+    command: npx
+    args:
+      - -y
+      - "firecrawl-mcp"
+
+tasks:
+  # ========================================================================
+  # PHASE 0: Input
+  # ========================================================================
+
+  - id: input
+    description: "Define research topic"
+    exec: |
+      echo '{"topic": "AI-powered QR code generation for marketing"}'
+    output:
+      format: json
+
+  # ========================================================================
+  # PHASE 1: Research & Discovery
+  # ========================================================================
+
+  - id: research
+    description: "Gather context and research the topic"
+    use:
+      input: input
+    agent:
+      prompt: |
+        You are a research assistant preparing for a brainstorming session.
+
+        TOPIC: {{use.input.topic}}
+
+        INSTRUCTIONS:
+        1. Use perplexity_search_web to find recent information about this topic
+        2. If URLs are mentioned, use firecrawl_scrape to extract detailed content
+        3. Synthesize your findings into a structured research brief
+
+        OUTPUT FORMAT (JSON):
+        {
+          "topic": "...",
+          "key_findings": ["...", "..."],
+          "trends": ["...", "..."],
+          "competitors_or_examples": ["...", "..."],
+          "opportunities": ["...", "..."],
+          "sources": ["url1", "url2"]
+        }
+
+        When complete, output the JSON and say "RESEARCH_COMPLETE".
+
+      provider: claude
+      model: claude-sonnet-4-20250514
+      mcp:
+        - perplexity
+        - firecrawl
+      max_turns: 10
+      stop_conditions:
+        - "RESEARCH_COMPLETE"
+
+  # ========================================================================
+  # PHASE 2: Ideation
+  # ========================================================================
+
+  - id: brainstorm
+    description: "Generate ideas based on research"
+    use:
+      research: research
+    infer:
+      prompt: |
+        Based on the following research brief, generate creative ideas.
+
+        RESEARCH:
+        {{use.research}}
+
+        BRAINSTORMING RULES:
+        1. Generate 5-7 distinct ideas
+        2. For each idea, provide:
+           - Name (catchy, memorable)
+           - Description (2-3 sentences)
+           - Why it works (based on research)
+           - Implementation complexity (Low/Medium/High)
+           - Potential impact (Low/Medium/High)
+        3. Include at least one "wild card" unconventional idea
+        4. Rank ideas by potential ROI
+
+        OUTPUT FORMAT (JSON):
+        {
+          "session_topic": "...",
+          "ideas": [
+            {
+              "rank": 1,
+              "name": "...",
+              "description": "...",
+              "rationale": "...",
+              "complexity": "Low|Medium|High",
+              "impact": "Low|Medium|High",
+              "is_wild_card": false
+            }
+          ],
+          "recommended_next_steps": ["...", "..."]
+        }
+
+      model: claude-sonnet-4-20250514
+
+  # ========================================================================
+  # PHASE 3: Refinement
+  # ========================================================================
+
+  - id: refine
+    description: "Deep dive on top idea"
+    use:
+      ideas: brainstorm
+    infer:
+      prompt: |
+        Take the #1 ranked idea from the brainstorm and develop it further.
+
+        BRAINSTORM RESULTS:
+        {{use.ideas}}
+
+        REFINEMENT TASKS:
+        1. Expand the concept with specific features
+        2. Identify potential challenges and mitigations
+        3. Define success metrics
+        4. Create a rough implementation timeline (phases, not dates)
+        5. List required resources/skills
+
+        OUTPUT FORMAT (JSON):
+        {
+          "idea_name": "...",
+          "expanded_concept": "...",
+          "key_features": ["...", "..."],
+          "challenges": [
+            {"challenge": "...", "mitigation": "..."}
+          ],
+          "success_metrics": ["...", "..."],
+          "implementation_phases": [
+            {"phase": "...", "deliverables": ["..."]}
+          ],
+          "required_resources": ["...", "..."]
+        }
+
+      model: claude-sonnet-4-20250514
+
+flows:
+  - source: input
+    target: research
+  - source: research
+    target: brainstorm
+  - source: brainstorm
+    target: refine

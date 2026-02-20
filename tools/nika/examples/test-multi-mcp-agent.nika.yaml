@@ -1,0 +1,52 @@
+schema: nika/workflow@0.5
+workflow: test-multi-mcp-agent
+description: Test agent with multiple MCP servers connected simultaneously
+
+mcp:
+  perplexity:
+    command: npx
+    args:
+      - -y
+      - "perplexity-mcp"
+    env:
+      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
+
+tasks:
+  # Agent with access to multiple MCP tools
+  - id: research_agent
+    agent:
+      prompt: |
+        You are a research agent. Your task is to:
+        1. Search the web for "Rust async runtime tokio vs async-std comparison 2024"
+        2. Summarize the key differences in a structured format
+
+        Use the perplexity_search_web tool to search.
+        After you have the information, format your response as:
+
+        ## Comparison Results
+        - **Tokio**: [key points]
+        - **async-std**: [key points]
+        - **Recommendation**: [your recommendation]
+
+        End with "RESEARCH_COMPLETE"
+      mcp:
+        - perplexity
+      max_turns: 5
+      stop_conditions:
+        - "RESEARCH_COMPLETE"
+      model: claude-sonnet-4-20250514
+
+  # Second task uses the research result
+  - id: generate_summary
+    use:
+      research: research_agent
+    infer:
+      prompt: |
+        Based on this research: {{use.research}}
+
+        Generate a one-paragraph executive summary (max 3 sentences)
+        suitable for a technical blog post introduction.
+
+flows:
+  - source: research_agent
+    target: generate_summary

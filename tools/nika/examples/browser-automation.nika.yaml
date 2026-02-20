@@ -1,0 +1,80 @@
+# Browser Automation Workflow
+#
+# Uses Playwright MCP for browser automation tasks.
+# Screenshots, scraping, E2E testing, UI verification.
+#
+# Run with: cargo run -- run examples/browser-automation.nika.yaml
+
+schema: "nika/workflow@0.5"
+workflow: browser-automation
+description: "Browser automation using Playwright MCP"
+provider: claude
+
+mcp:
+  playwright:
+    command: npx
+    args:
+      - "@playwright/mcp@latest"
+
+tasks:
+  - id: input
+    description: "Define browser task parameters"
+    exec: |
+      echo '{"url": "https://qrcode-ai.com", "task": "capture_screenshot", "viewport": {"width": 1280, "height": 720}}'
+    output:
+      format: json
+
+  - id: browse
+    description: "Execute browser automation"
+    use:
+      params: input
+    agent:
+      prompt: |
+        You are a browser automation specialist with Playwright MCP tools.
+
+        TARGET URL: {{use.params.url}}
+        TASK: {{use.params.task}}
+        VIEWPORT: {{use.params.viewport}}
+
+        AVAILABLE PLAYWRIGHT TOOLS:
+        - browser_navigate: Go to a URL
+        - browser_screenshot: Take screenshot
+        - browser_click: Click element
+        - browser_fill: Fill form field
+        - browser_evaluate: Run JavaScript
+
+        INSTRUCTIONS:
+        1. Navigate to the target URL
+        2. Wait for page to fully load
+        3. Execute the requested task
+        4. Capture evidence (screenshot or data)
+
+        For screenshot task:
+        - Take full page screenshot
+        - Note any interesting UI elements
+        - Report page load time and any errors
+
+        OUTPUT FORMAT:
+        ```json
+        {
+          "url": "...",
+          "task_completed": true,
+          "page_title": "...",
+          "screenshot_path": "...",
+          "observations": ["..."],
+          "errors": []
+        }
+        ```
+
+        Say "BROWSE_COMPLETE" when done.
+
+      model: claude-sonnet-4-20250514
+      mcp:
+        - playwright
+      max_turns: 10
+      stop_conditions:
+        - "BROWSE_COMPLETE"
+
+flows:
+  - source: input
+    target: browse

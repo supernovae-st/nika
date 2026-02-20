@@ -1,0 +1,288 @@
+# Systematic Debugging Workflow
+#
+# Implements the systematic-debugging skill as a Nika workflow.
+# Four phases: Root Cause → Pattern Analysis → Hypothesis Testing → Fix
+#
+# Run with: cargo run -- run examples/skill-debugging.nika.yaml
+
+schema: "nika/workflow@0.5"
+workflow: skill-debugging
+description: "Systematic debugging: Understand BEFORE fixing"
+provider: claude
+
+tasks:
+  # ========================================================================
+  # INPUT: Bug description
+  # ========================================================================
+
+  - id: input
+    description: "Define the bug to investigate"
+    exec: |
+      echo '{
+        "symptom": "API returns 500 error on POST /users when email contains unicode characters",
+        "reproduction_steps": ["1. POST /users with email containing é", "2. Observe 500 response"],
+        "expected": "User created successfully",
+        "actual": "Internal server error",
+        "context": "Rust Actix-web API with PostgreSQL",
+        "files": ["src/handlers/user.rs", "src/models/user.rs"]
+      }'
+    output:
+      format: json
+
+  # ========================================================================
+  # PHASE 1: Root Cause Investigation
+  # ========================================================================
+
+  - id: root_cause
+    description: "Investigate root cause - understand before fixing"
+    use:
+      bug: input
+    infer:
+      prompt: |
+        You are debugging a bug. DO NOT propose fixes yet. Only INVESTIGATE.
+
+        SYMPTOM: {{use.bug.symptom}}
+        REPRODUCTION: {{use.bug.reproduction_steps}}
+        EXPECTED: {{use.bug.expected}}
+        ACTUAL: {{use.bug.actual}}
+        CONTEXT: {{use.bug.context}}
+        FILES: {{use.bug.files}}
+
+        INVESTIGATION PROTOCOL:
+        1. Trace the error from symptom to source
+        2. Identify the EXACT line where failure occurs
+        3. Determine what data/state causes the failure
+        4. Find the boundary where correct → incorrect
+
+        QUESTIONS TO ANSWER:
+        - What is the exact error message/stack trace?
+        - What input triggers the bug?
+        - What code path leads to the failure?
+        - At what point does data become invalid?
+
+        OUTPUT FORMAT:
+        ```json
+        {
+          "error_chain": ["step1", "step2", "..."],
+          "failure_point": "file.rs:42 - specific function/line",
+          "trigger_condition": "What input/state triggers this",
+          "data_flow": "How data becomes invalid",
+          "unanswered_questions": ["Need to verify X", "..."]
+        }
+        ```
+
+        DO NOT PROPOSE FIXES. Only investigate.
+
+      model: claude-sonnet-4-20250514
+
+  # ========================================================================
+  # PHASE 2: Pattern Analysis
+  # ========================================================================
+
+  - id: pattern_analysis
+    description: "Analyze patterns and similar bugs"
+    use:
+      bug: input
+      investigation: root_cause
+    infer:
+      prompt: |
+        Analyze patterns related to this bug.
+
+        BUG: {{use.bug.symptom}}
+        INVESTIGATION: {{use.investigation}}
+
+        PATTERN ANALYSIS:
+        1. Is this a known bug pattern? (off-by-one, null handling, encoding, etc.)
+        2. Could this bug exist elsewhere in the codebase?
+        3. What made this bug possible? (missing validation, wrong assumption, etc.)
+        4. Has this type of bug been fixed before?
+
+        SIMILAR BUG PATTERNS TO CHECK:
+        - Unicode/encoding issues in other handlers
+        - Similar validation gaps
+        - Same error handling patterns
+
+        OUTPUT FORMAT:
+        ```json
+        {
+          "bug_pattern": "Name of the pattern (e.g., 'Unicode encoding mismatch')",
+          "pattern_description": "Why this pattern causes bugs",
+          "other_locations": ["Other places this might exist"],
+          "root_weakness": "What systemic issue allowed this",
+          "prevention": "How to prevent in future"
+        }
+        ```
+
+      model: claude-sonnet-4-20250514
+
+  # ========================================================================
+  # PHASE 3: Hypothesis Testing
+  # ========================================================================
+
+  - id: hypothesis
+    description: "Form and test hypotheses"
+    use:
+      bug: input
+      investigation: root_cause
+      patterns: pattern_analysis
+    infer:
+      prompt: |
+        Form hypotheses about the bug cause.
+
+        BUG: {{use.bug.symptom}}
+        INVESTIGATION: {{use.investigation}}
+        PATTERNS: {{use.patterns}}
+
+        HYPOTHESIS FORMATION RULES:
+        1. Each hypothesis must be TESTABLE
+        2. Include how to VERIFY each hypothesis
+        3. Rank by likelihood
+        4. Consider MULTIPLE possible causes
+
+        For each hypothesis:
+        - HYPOTHESIS: What you believe is causing the bug
+        - TEST: How to verify this hypothesis
+        - EXPECTED RESULT: What proves/disproves it
+        - CONFIDENCE: High/Medium/Low
+
+        OUTPUT FORMAT:
+        ```json
+        {
+          "hypotheses": [
+            {
+              "hypothesis": "The email field is being truncated at the database level due to VARCHAR limit",
+              "test": "Check PostgreSQL email column definition and try inserting unicode directly",
+              "expected_result": "If VARCHAR(100) and unicode expands to >100 bytes, insertion fails",
+              "confidence": "High"
+            }
+          ],
+          "most_likely": "Index of most likely hypothesis",
+          "tests_to_run": ["List of concrete tests to verify"]
+        }
+        ```
+
+      model: claude-sonnet-4-20250514
+
+  # ========================================================================
+  # PHASE 4: Fix Implementation
+  # ========================================================================
+
+  - id: fix_implementation
+    description: "Implement the fix (only after understanding)"
+    use:
+      bug: input
+      investigation: root_cause
+      patterns: pattern_analysis
+      hypothesis: hypothesis
+    infer:
+      prompt: |
+        NOW you may propose a fix. You have completed investigation.
+
+        BUG: {{use.bug.symptom}}
+        ROOT CAUSE: {{use.investigation}}
+        PATTERN: {{use.patterns}}
+        VERIFIED HYPOTHESIS: {{use.hypothesis}}
+
+        FIX REQUIREMENTS:
+        1. Fix the IMMEDIATE bug
+        2. Add tests to prevent regression
+        3. Consider fixing pattern across codebase
+        4. Document the fix
+
+        FIX PRINCIPLES:
+        - Minimal change to fix the bug
+        - No unrelated refactoring
+        - Tests MUST cover the bug scenario
+        - Consider edge cases similar to the bug
+
+        OUTPUT FORMAT:
+        ```markdown
+        ## Root Cause Summary
+        [One paragraph explanation]
+
+        ## The Fix
+
+        ### Code Changes
+        ```{{use.bug.context}}
+        // Before:
+        ...
+
+        // After:
+        ...
+        ```
+
+        ### Test to Add
+        ```
+        #[test]
+        fn test_unicode_email_handling() {
+            // Test that reproduces and verifies fix
+        }
+        ```
+
+        ## Related Fixes
+        [Other places to apply this fix]
+
+        ## Prevention
+        [How to prevent this bug pattern in future]
+        ```
+
+      model: claude-sonnet-4-20250514
+
+  # ========================================================================
+  # PHASE 5: Verification Plan
+  # ========================================================================
+
+  - id: verification
+    description: "Create verification plan"
+    use:
+      bug: input
+      fix: fix_implementation
+    infer:
+      prompt: |
+        Create a verification plan for the fix.
+
+        ORIGINAL BUG: {{use.bug.symptom}}
+        FIX APPLIED: {{use.fix}}
+
+        VERIFICATION CHECKLIST:
+        1. Does the original reproduction case pass?
+        2. Do all existing tests still pass?
+        3. Does the new test cover the bug?
+        4. Are edge cases covered?
+        5. Is there any performance impact?
+
+        OUTPUT FORMAT:
+        ```markdown
+        # Verification Plan
+
+        ## Manual Verification
+        - [ ] Reproduce original bug scenario
+        - [ ] Verify fix resolves the issue
+        - [ ] Test edge cases: [list specific cases]
+
+        ## Automated Verification
+        - [ ] Run: `cargo test`
+        - [ ] Run: `cargo test test_unicode_email_handling`
+        - [ ] Run: Integration tests
+
+        ## Regression Check
+        - [ ] No existing tests broken
+        - [ ] Performance unchanged
+
+        ## Sign-off Criteria
+        [What must pass before merging]
+        ```
+
+      model: claude-sonnet-4-20250514
+
+flows:
+  - source: input
+    target: root_cause
+  - source: root_cause
+    target: pattern_analysis
+  - source: pattern_analysis
+    target: hypothesis
+  - source: hypothesis
+    target: fix_implementation
+  - source: fix_implementation
+    target: verification

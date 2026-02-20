@@ -1,0 +1,271 @@
+# Code Review Workflow
+#
+# Implements a systematic code review as a Nika workflow.
+# Checks for bugs, security issues, and code quality.
+#
+# Run with: cargo run -- run examples/skill-code-review.nika.yaml
+
+schema: "nika/workflow@0.5"
+workflow: skill-code-review
+description: "Systematic code review for bugs, security, and quality"
+provider: claude
+
+tasks:
+  # ========================================================================
+  # INPUT: What to review
+  # ========================================================================
+
+  - id: input
+    description: "Define the code to review"
+    exec: |
+      echo '{
+        "files": ["src/lib.rs", "src/main.rs"],
+        "focus_areas": ["security", "performance", "error_handling"],
+        "language": "rust",
+        "context": "Production Rust CLI tool"
+      }'
+    output:
+      format: json
+
+  # ========================================================================
+  # PHASE 1: Static Analysis
+  # ========================================================================
+
+  - id: static_analysis
+    description: "Run static analysis tools"
+    use:
+      spec: input
+    infer:
+      prompt: |
+        You are reviewing {{use.spec.language}} code.
+
+        FILES TO REVIEW: {{use.spec.files}}
+        CONTEXT: {{use.spec.context}}
+
+        STATIC ANALYSIS CHECKLIST:
+        1. Identify unused imports/variables
+        2. Find code duplication
+        3. Check naming conventions
+        4. Verify documentation coverage
+        5. Check for TODO/FIXME comments
+
+        OUTPUT FORMAT:
+        ```json
+        {
+          "unused_code": ["..."],
+          "duplication": ["..."],
+          "naming_issues": ["..."],
+          "missing_docs": ["..."],
+          "todos": ["..."]
+        }
+        ```
+
+      model: claude-sonnet-4-20250514
+
+  # ========================================================================
+  # PHASE 2: Security Review
+  # ========================================================================
+
+  - id: security_review
+    description: "Check for security vulnerabilities"
+    use:
+      spec: input
+    infer:
+      prompt: |
+        Security review for {{use.spec.language}} code.
+
+        CONTEXT: {{use.spec.context}}
+
+        SECURITY CHECKLIST (OWASP-aligned):
+        1. Input validation - Are all inputs sanitized?
+        2. Authentication/Authorization - Proper access control?
+        3. Injection risks - SQL, command, path injection?
+        4. Sensitive data - Passwords, keys, PII exposed?
+        5. Error handling - Do errors leak sensitive info?
+        6. Dependencies - Known vulnerable packages?
+
+        For each issue found:
+        - SEVERITY: Critical / High / Medium / Low
+        - LOCATION: File and line number
+        - DESCRIPTION: What's wrong
+        - FIX: How to remediate
+
+        OUTPUT FORMAT:
+        ```json
+        {
+          "vulnerabilities": [
+            {
+              "severity": "High",
+              "location": "file.rs:42",
+              "description": "...",
+              "fix": "..."
+            }
+          ],
+          "secure_practices_missing": ["..."],
+          "recommendations": ["..."]
+        }
+        ```
+
+      model: claude-sonnet-4-20250514
+
+  # ========================================================================
+  # PHASE 3: Logic & Bug Review
+  # ========================================================================
+
+  - id: bug_review
+    description: "Find logic errors and potential bugs"
+    use:
+      spec: input
+    infer:
+      prompt: |
+        Bug hunting in {{use.spec.language}} code.
+
+        CONTEXT: {{use.spec.context}}
+
+        BUG DETECTION CHECKLIST:
+        1. Off-by-one errors
+        2. Null/None/undefined handling
+        3. Race conditions (if concurrent)
+        4. Resource leaks (files, connections)
+        5. Integer overflow/underflow
+        6. Incorrect error handling
+        7. Edge cases not handled
+
+        CONFIDENCE LEVELS:
+        - HIGH: Definitely a bug
+        - MEDIUM: Likely a bug, needs verification
+        - LOW: Potential issue, context-dependent
+
+        Only report issues with HIGH or MEDIUM confidence.
+
+        OUTPUT FORMAT:
+        ```json
+        {
+          "bugs": [
+            {
+              "confidence": "HIGH",
+              "location": "file.rs:42",
+              "description": "...",
+              "impact": "...",
+              "fix": "..."
+            }
+          ]
+        }
+        ```
+
+      model: claude-sonnet-4-20250514
+
+  # ========================================================================
+  # PHASE 4: Performance Review
+  # ========================================================================
+
+  - id: performance_review
+    description: "Check for performance issues"
+    use:
+      spec: input
+    infer:
+      prompt: |
+        Performance review for {{use.spec.language}} code.
+
+        CONTEXT: {{use.spec.context}}
+
+        PERFORMANCE CHECKLIST:
+        1. Unnecessary allocations
+        2. N+1 query patterns
+        3. Inefficient algorithms (O(n²) when O(n) possible)
+        4. Missing caching opportunities
+        5. Blocking operations in async context
+        6. Excessive cloning/copying
+
+        Only flag issues that matter at scale or in hot paths.
+
+        OUTPUT FORMAT:
+        ```json
+        {
+          "performance_issues": [
+            {
+              "severity": "High",
+              "location": "file.rs:42",
+              "issue": "...",
+              "impact": "...",
+              "optimization": "..."
+            }
+          ],
+          "optimization_opportunities": ["..."]
+        }
+        ```
+
+      model: claude-sonnet-4-20250514
+
+  # ========================================================================
+  # PHASE 5: Synthesis
+  # ========================================================================
+
+  - id: synthesis
+    description: "Combine all reviews into final report"
+    use:
+      spec: input
+      static: static_analysis
+      security: security_review
+      bugs: bug_review
+      perf: performance_review
+    infer:
+      prompt: |
+        Create a final code review report.
+
+        STATIC ANALYSIS: {{use.static}}
+        SECURITY REVIEW: {{use.security}}
+        BUG REVIEW: {{use.bugs}}
+        PERFORMANCE REVIEW: {{use.perf}}
+
+        SYNTHESIS RULES:
+        1. Prioritize by impact (Critical > High > Medium > Low)
+        2. Group related issues
+        3. Provide actionable recommendations
+        4. Include positive observations (what's done well)
+
+        OUTPUT FORMAT:
+        ```markdown
+        # Code Review Report
+
+        ## Summary
+        - Critical issues: X
+        - High priority: X
+        - Medium priority: X
+        - Low priority: X
+
+        ## Critical Issues (Fix Immediately)
+        ...
+
+        ## High Priority Issues
+        ...
+
+        ## Medium Priority Issues
+        ...
+
+        ## What's Done Well
+        ...
+
+        ## Recommendations
+        ...
+        ```
+
+      model: claude-sonnet-4-20250514
+
+flows:
+  - source: input
+    target: static_analysis
+  - source: input
+    target: security_review
+  - source: input
+    target: bug_review
+  - source: input
+    target: performance_review
+  - source: static_analysis
+    target: synthesis
+  - source: security_review
+    target: synthesis
+  - source: bug_review
+    target: synthesis
+  - source: performance_review
+    target: synthesis
