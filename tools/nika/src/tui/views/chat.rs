@@ -27,6 +27,8 @@ use ratatui::{
 
 use super::trait_view::View;
 use super::ViewAction;
+use crate::tui::command::{Command, ModelProvider, HELP_TEXT};
+use crate::tui::file_resolve::FileResolver;
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
 use crate::tui::views::TuiView;
@@ -259,7 +261,58 @@ impl View for ChatView {
             KeyCode::Char('q') if self.input.is_empty() => ViewAction::Quit,
             KeyCode::Enter => {
                 if let Some(message) = self.submit() {
-                    ViewAction::SendChatMessage(message)
+                    // Parse the message as a command
+                    let cmd = Command::parse(&message);
+
+                    // Handle each command type
+                    match cmd {
+                        Command::Help => {
+                            // Show help text inline
+                            self.add_nika_message(HELP_TEXT.to_string(), None);
+                            ViewAction::None
+                        }
+                        Command::Clear => ViewAction::ChatClear,
+                        Command::Exec { command } => ViewAction::ChatExec(command),
+                        Command::Fetch { url, method } => ViewAction::ChatFetch(url, method),
+                        Command::Invoke {
+                            tool,
+                            server,
+                            params,
+                        } => ViewAction::ChatInvoke(tool, server, params),
+                        Command::Agent { goal, max_turns } => {
+                            ViewAction::ChatAgent(goal, max_turns)
+                        }
+                        Command::Model { provider } => {
+                            // Handle /model list inline
+                            if provider == ModelProvider::List {
+                                let list_text = format!(
+                                    "Available providers:\n  - openai: {} {}\n  - claude: {} {}",
+                                    ModelProvider::OpenAI.name(),
+                                    if ModelProvider::OpenAI.is_available() {
+                                        "(available)"
+                                    } else {
+                                        "(missing API key)"
+                                    },
+                                    ModelProvider::Claude.name(),
+                                    if ModelProvider::Claude.is_available() {
+                                        "(available)"
+                                    } else {
+                                        "(missing API key)"
+                                    },
+                                );
+                                self.add_nika_message(list_text, None);
+                                ViewAction::None
+                            } else {
+                                ViewAction::ChatModelSwitch(provider)
+                            }
+                        }
+                        Command::Infer { prompt } | Command::Chat { message: prompt } => {
+                            // Resolve @file mentions in the prompt
+                            let base_dir = std::env::current_dir().unwrap_or_default();
+                            let expanded = FileResolver::resolve(&prompt, &base_dir);
+                            ViewAction::ChatInfer(expanded)
+                        }
+                    }
                 } else {
                     ViewAction::None
                 }

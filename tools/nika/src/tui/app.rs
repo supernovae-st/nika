@@ -27,6 +27,8 @@ use tokio::sync::{broadcast, mpsc};
 use crate::error::{NikaError, Result};
 use crate::event::{Event as NikaEvent, EventKind};
 use crate::provider::rig::RigProvider;
+use crate::tui::chat_agent::ChatAgent;
+use crate::tui::command::ModelProvider;
 
 use super::panels::{ContextPanel, GraphPanel, ProgressPanel, ReasoningPanel};
 use super::standalone::StandaloneState;
@@ -198,6 +200,9 @@ pub struct App {
     llm_response_rx: mpsc::Receiver<String>,
     /// Sender for spawning LLM tasks
     llm_response_tx: mpsc::Sender<String>,
+    // ═══ ChatAgent for full AI interface (Task 5.1) ═══
+    /// ChatAgent for handling 5 verb commands in ChatView
+    chat_agent: Option<ChatAgent>,
 }
 
 impl App {
@@ -223,6 +228,9 @@ impl App {
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
 
+        // Initialize ChatAgent (may fail if no API keys are set, but that's OK)
+        let chat_agent = ChatAgent::new().ok();
+
         Ok(Self {
             workflow_path: workflow_path.to_path_buf(),
             terminal: None,
@@ -242,6 +250,7 @@ impl App {
             studio_view,
             llm_response_rx,
             llm_response_tx,
+            chat_agent,
         })
     }
 
@@ -258,6 +267,9 @@ impl App {
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
+
+        // Initialize ChatAgent (may fail if no API keys are set, but that's OK)
+        let chat_agent = ChatAgent::new().ok();
 
         Ok(Self {
             workflow_path,
@@ -278,6 +290,7 @@ impl App {
             studio_view,
             llm_response_rx,
             llm_response_tx,
+            chat_agent,
         })
     }
 
@@ -768,6 +781,37 @@ impl App {
             ViewAction::Error(msg) => {
                 tracing::error!("View error: {}", msg);
                 self.set_status(&format!("Error: {}", msg));
+                Action::Continue
+            }
+            // ═══════════════════════════════════════════════════════════════════════
+            // Chat Agent Command Actions (Task 5.1)
+            // ═══════════════════════════════════════════════════════════════════════
+            ViewAction::ChatInfer(prompt) => {
+                self.handle_chat_infer(prompt);
+                Action::Continue
+            }
+            ViewAction::ChatExec(command) => {
+                self.handle_chat_exec(command);
+                Action::Continue
+            }
+            ViewAction::ChatFetch(url, method) => {
+                self.handle_chat_fetch(url, method);
+                Action::Continue
+            }
+            ViewAction::ChatInvoke(tool, server, params) => {
+                self.handle_chat_invoke(tool, server, params);
+                Action::Continue
+            }
+            ViewAction::ChatAgent(goal, max_turns) => {
+                self.handle_chat_agent(goal, max_turns);
+                Action::Continue
+            }
+            ViewAction::ChatModelSwitch(provider) => {
+                self.handle_chat_model_switch(provider);
+                Action::Continue
+            }
+            ViewAction::ChatClear => {
+                self.handle_chat_clear();
                 Action::Continue
             }
         }
@@ -1354,6 +1398,233 @@ impl App {
     /// Clear retry request flag
     pub fn clear_retry_request(&mut self) {
         self.retry_requested = false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Chat Agent Command Handlers (Task 5.1)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Handle /infer command - LLM inference
+    fn handle_chat_infer(&mut self, prompt: String) {
+        if prompt.is_empty() {
+            self.chat_view
+                .add_nika_message("Usage: /infer <prompt>".to_string(), None);
+            return;
+        }
+
+        // Show "Thinking..." indicator
+        self.chat_view
+            .add_nika_message("Thinking...".to_string(), None);
+
+        // Spawn async task to call ChatAgent.infer()
+        let tx = self.llm_response_tx.clone();
+
+        // Clone the chat_agent provider if available, otherwise create a new one
+        if self.chat_agent.is_some() {
+            tokio::spawn(async move {
+                // Create a new agent for the async task (agents are not Send)
+                match ChatAgent::new() {
+                    Ok(mut agent) => match agent.infer(&prompt).await {
+                        Ok(response) => {
+                            let _ = tx.send(response).await;
+                        }
+                        Err(e) => {
+                            let _ = tx.send(format!("Error: {}", e)).await;
+                        }
+                    },
+                    Err(e) => {
+                        let _ = tx.send(format!("Error creating agent: {}", e)).await;
+                    }
+                }
+            });
+        } else {
+            // No API key available
+            self.chat_view.messages.pop(); // Remove "Thinking..."
+            self.chat_view.add_nika_message(
+                "No API key configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.".to_string(),
+                None,
+            );
+        }
+    }
+
+    /// Handle /exec command - shell execution
+    fn handle_chat_exec(&mut self, command: String) {
+        if command.is_empty() {
+            self.chat_view
+                .add_nika_message("Usage: /exec <command>".to_string(), None);
+            return;
+        }
+
+        // Show "Running..." indicator
+        self.chat_view
+            .add_nika_message(format!("$ {}", command), None);
+
+        // Spawn async task for shell execution
+        let tx = self.llm_response_tx.clone();
+        tokio::spawn(async move {
+            match ChatAgent::new() {
+                Ok(agent) => match agent.exec_command(&command).await {
+                    Ok(output) => {
+                        let _ = tx.send(output).await;
+                    }
+                    Err(e) => {
+                        let _ = tx.send(format!("Error: {}", e)).await;
+                    }
+                },
+                Err(e) => {
+                    let _ = tx.send(format!("Error: {}", e)).await;
+                }
+            }
+        });
+    }
+
+    /// Handle /fetch command - HTTP request
+    fn handle_chat_fetch(&mut self, url: String, method: String) {
+        if url.is_empty() {
+            self.chat_view
+                .add_nika_message("Usage: /fetch <url> [method]".to_string(), None);
+            return;
+        }
+
+        // Show "Fetching..." indicator
+        self.chat_view
+            .add_nika_message(format!("Fetching {} {}...", method, url), None);
+
+        // Spawn async task for HTTP request
+        let tx = self.llm_response_tx.clone();
+        tokio::spawn(async move {
+            match ChatAgent::new() {
+                Ok(agent) => match agent.fetch(&url, &method).await {
+                    Ok(response) => {
+                        // Truncate very long responses
+                        let truncated = if response.len() > 2000 {
+                            format!(
+                                "{}...\n\n[Truncated, {} bytes total]",
+                                &response[..2000],
+                                response.len()
+                            )
+                        } else {
+                            response
+                        };
+                        let _ = tx.send(truncated).await;
+                    }
+                    Err(e) => {
+                        let _ = tx.send(format!("Error: {}", e)).await;
+                    }
+                },
+                Err(e) => {
+                    let _ = tx.send(format!("Error: {}", e)).await;
+                }
+            }
+        });
+    }
+
+    /// Handle /invoke command - MCP tool call (placeholder)
+    fn handle_chat_invoke(
+        &mut self,
+        tool: String,
+        server: Option<String>,
+        params: serde_json::Value,
+    ) {
+        if tool.is_empty() {
+            self.chat_view.add_nika_message(
+                "Usage: /invoke [server:]tool [json_params]".to_string(),
+                None,
+            );
+            return;
+        }
+
+        // TODO: Integrate with MCP client for real tool invocation
+        let server_str = server.unwrap_or_else(|| "default".to_string());
+        self.chat_view.add_nika_message(
+            format!(
+                "MCP invoke: {}:{}\nParams: {}",
+                server_str,
+                tool,
+                serde_json::to_string_pretty(&params).unwrap_or_default()
+            ),
+            None,
+        );
+        self.chat_view.add_nika_message(
+            "MCP tool invocation not yet implemented. Coming in Phase 6.".to_string(),
+            None,
+        );
+    }
+
+    /// Handle /agent command - multi-turn agent (placeholder)
+    fn handle_chat_agent(&mut self, goal: String, max_turns: Option<u32>) {
+        if goal.is_empty() {
+            self.chat_view
+                .add_nika_message("Usage: /agent <goal> [--max-turns N]".to_string(), None);
+            return;
+        }
+
+        // TODO: Integrate with RigAgentLoop for multi-turn agent
+        let turns_str = max_turns
+            .map(|t| format!(" (max {} turns)", t))
+            .unwrap_or_default();
+        self.chat_view
+            .add_nika_message(format!("Starting agent{}: {}", turns_str, goal), None);
+        self.chat_view.add_nika_message(
+            "Multi-turn agent not yet implemented. Coming in Phase 6.".to_string(),
+            None,
+        );
+    }
+
+    /// Handle /model command - switch LLM provider
+    fn handle_chat_model_switch(&mut self, provider: ModelProvider) {
+        if let Some(ref mut agent) = self.chat_agent {
+            match agent.set_provider(provider.clone()) {
+                Ok(()) => {
+                    let msg = format!("Switched to {} provider", provider.name());
+                    self.chat_view.add_nika_message(msg.clone(), None);
+                    self.set_status(&msg);
+                }
+                Err(e) => {
+                    let msg = format!("Failed to switch provider: {}", e);
+                    self.chat_view.add_nika_message(msg.clone(), None);
+                    self.set_status(&msg);
+                }
+            }
+        } else {
+            // Try to create a new ChatAgent with the requested provider
+            match ChatAgent::new() {
+                Ok(mut agent) => {
+                    if let Err(e) = agent.set_provider(provider.clone()) {
+                        self.chat_view
+                            .add_nika_message(format!("Failed to switch provider: {}", e), None);
+                    } else {
+                        self.chat_agent = Some(agent);
+                        let msg = format!("Switched to {} provider", provider.name());
+                        self.chat_view.add_nika_message(msg.clone(), None);
+                        self.set_status(&msg);
+                    }
+                }
+                Err(e) => {
+                    self.chat_view
+                        .add_nika_message(format!("Failed to create agent: {}", e), None);
+                }
+            }
+        }
+    }
+
+    /// Handle /clear command - clear chat history
+    fn handle_chat_clear(&mut self) {
+        // Clear ChatView messages
+        self.chat_view.messages.clear();
+        self.chat_view.history.clear();
+
+        // Clear ChatAgent history if available
+        if let Some(ref mut agent) = self.chat_agent {
+            agent.clear_history();
+        }
+
+        // Add welcome message back
+        self.chat_view.add_nika_message(
+            "Chat cleared. Ready for new conversation.".to_string(),
+            None,
+        );
+        self.set_status("Chat history cleared");
     }
 
     /// Cleanup terminal state

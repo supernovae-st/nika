@@ -130,6 +130,9 @@ impl TuiView {
     }
 }
 
+/// Model provider for LLM switching
+pub use crate::tui::command::ModelProvider;
+
 /// Result of handling a key event in a view
 #[derive(Debug, Clone)]
 pub enum ViewAction {
@@ -149,6 +152,23 @@ pub enum ViewAction {
     ToggleChatOverlay,
     /// Show an error message
     Error(String),
+    // ═══════════════════════════════════════════════════════════════════════
+    // Chat Agent Command Actions (Task 5.1)
+    // ═══════════════════════════════════════════════════════════════════════
+    /// Execute /infer command - LLM inference with expanded prompt
+    ChatInfer(String),
+    /// Execute /exec command - shell command execution
+    ChatExec(String),
+    /// Execute /fetch command - HTTP request (url, method)
+    ChatFetch(String, String),
+    /// Execute /invoke command - MCP tool call (tool, server, params)
+    ChatInvoke(String, Option<String>, serde_json::Value),
+    /// Execute /agent command - multi-turn agent (goal, max_turns)
+    ChatAgent(String, Option<u32>),
+    /// Execute /model command - switch LLM provider
+    ChatModelSwitch(ModelProvider),
+    /// Execute /clear command - clear chat history
+    ChatClear,
 }
 
 #[cfg(test)]
