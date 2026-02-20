@@ -761,18 +761,20 @@ impl ChatOverlayState {
             return None;
         }
 
-        let message = self.input.clone();
+        // Take ownership to avoid cloning twice
+        let message = std::mem::take(&mut self.input);
+
+        // Add to history first (clone once)
+        self.history.push(message.clone());
+        self.history_index = None;
+
+        // Add to messages (move)
         self.messages.push(ChatOverlayMessage::new(
             ChatOverlayMessageRole::User,
             &message,
         ));
 
-        // Add to history
-        self.history.push(message.clone());
-        self.history_index = None;
-
-        // Clear input
-        self.input.clear();
+        // Reset cursor
         self.cursor = 0;
 
         Some(message)

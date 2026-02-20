@@ -26,6 +26,7 @@ use tokio::sync::{broadcast, mpsc};
 
 use crate::error::{NikaError, Result};
 use crate::event::{Event as NikaEvent, EventKind};
+use crate::provider::rig::RigProvider;
 
 use super::panels::{ContextPanel, GraphPanel, ProgressPanel, ReasoningPanel};
 use super::standalone::StandaloneState;
@@ -192,6 +193,11 @@ pub struct App {
     home_view: Option<HomeView>,
     /// Studio view state (YAML editor)
     studio_view: StudioView,
+    // ═══ LLM Integration for ChatOverlay ═══
+    /// Channel for receiving LLM responses
+    llm_response_rx: mpsc::Receiver<String>,
+    /// Sender for spawning LLM tasks
+    llm_response_tx: mpsc::Sender<String>,
 }
 
 impl App {
@@ -214,6 +220,9 @@ impl App {
         // Load workflow file into studio view
         let _ = studio_view.load_file(workflow_path.to_path_buf());
 
+        // Initialize LLM response channel
+        let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
+
         Ok(Self {
             workflow_path: workflow_path.to_path_buf(),
             terminal: None,
@@ -231,6 +240,8 @@ impl App {
             chat_view,
             home_view: None, // No home view in execution mode
             studio_view,
+            llm_response_rx,
+            llm_response_tx,
         })
     }
 
@@ -244,6 +255,9 @@ impl App {
         let chat_view = ChatView::new();
         let home_view = HomeView::new(standalone_state.root.clone());
         let studio_view = StudioView::new();
+
+        // Initialize LLM response channel
+        let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
 
         Ok(Self {
             workflow_path,
@@ -262,6 +276,8 @@ impl App {
             chat_view,
             home_view: Some(home_view),
             studio_view,
+            llm_response_rx,
+            llm_response_tx,
         })
     }
 
@@ -516,6 +532,17 @@ impl App {
                 }
                 self.state.handle_event(&event.kind, event.timestamp_ms);
             }
+        }
+
+        // Poll LLM responses for ChatOverlay
+        while let Ok(response) = self.llm_response_rx.try_recv() {
+            // Remove "Thinking..." message and add actual response
+            if let Some(last) = self.state.chat_overlay.messages.last() {
+                if last.content == "Thinking..." {
+                    self.state.chat_overlay.messages.pop();
+                }
+            }
+            self.state.chat_overlay.add_nika_message(response);
         }
     }
 
@@ -1113,11 +1140,23 @@ impl App {
             }
             Action::ChatOverlaySend => {
                 if let Some(message) = self.state.chat_overlay.add_user_message() {
-                    // For now, add a placeholder response
-                    // TODO: Integrate with actual agent when ready
-                    self.state
-                        .chat_overlay
-                        .add_nika_message(format!("Received: {}", message));
+                    // Show "thinking" indicator
+                    self.state.chat_overlay.add_nika_message("Thinking...");
+
+                    // Spawn async task to call LLM
+                    let tx = self.llm_response_tx.clone();
+                    let prompt = message.clone();
+                    tokio::spawn(async move {
+                        let provider = RigProvider::claude();
+                        match provider.infer(&prompt, None).await {
+                            Ok(response) => {
+                                let _ = tx.send(response).await;
+                            }
+                            Err(e) => {
+                                let _ = tx.send(format!("Error: {}", e)).await;
+                            }
+                        }
+                    });
                 }
             }
             Action::ChatOverlayClear => {
@@ -2620,8 +2659,8 @@ mod tests {
         assert_eq!(app.state.chat_overlay.cursor, 4);
     }
 
-    #[test]
-    fn test_chat_overlay_send_action() {
+    #[tokio::test]
+    async fn test_chat_overlay_send_action() {
         let temp_dir = tempfile::tempdir().unwrap();
         let workflow_path = temp_dir.path().join("test.yaml");
         std::fs::write(&workflow_path, "schema: test").unwrap();
@@ -2639,7 +2678,8 @@ mod tests {
         // Input should be cleared
         assert!(app.state.chat_overlay.input.is_empty());
 
-        // Should have 2 new messages: user message and Nika response
+        // Should have 2 new messages: user message and "Thinking..." placeholder
+        // The actual LLM response comes asynchronously via the channel
         assert_eq!(app.state.chat_overlay.messages.len(), initial_count + 2);
     }
 
