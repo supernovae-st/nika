@@ -39,6 +39,8 @@ mod theme;
 #[cfg(feature = "tui")]
 mod views;
 #[cfg(feature = "tui")]
+mod watcher;
+#[cfg(feature = "tui")]
 mod widgets;
 
 #[cfg(feature = "tui")]
@@ -53,6 +55,8 @@ pub use theme::{MissionPhase, TaskStatus, Theme};
 pub use views::{
     BrowserView, DagTab, MissionTab, MonitorView, NovanetTab, ReasoningTab, TuiView, ViewAction,
 };
+#[cfg(feature = "tui")]
+pub use watcher::{FileEvent, FileWatcher};
 
 /// Run the TUI for a workflow
 ///

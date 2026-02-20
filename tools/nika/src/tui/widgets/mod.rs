@@ -10,6 +10,7 @@
 //! - Spinner: Animated spinner for loading states
 //! - TabBar: Tab bar for panel switching
 //! - Sparkline: Mini chart for metrics
+//! - ScrollIndicator: Vertical scrollbar for panels
 //! - BigText: FIGlet-style headers (planned)
 
 // Allow unused code in widgets - many are planned for future TUI enhancements
@@ -19,6 +20,7 @@ mod agent_turns;
 mod dag;
 mod gauge;
 mod mcp_log;
+mod scroll_indicator;
 mod sparkline;
 mod spinner;
 mod tabs;
@@ -39,6 +41,9 @@ pub use spinner::{ProgressDots, Spinner, BRAILLE_SPINNER, DOT_SPINNER, PULSE_SPI
 #[allow(unused_imports)]
 pub use tabs::{TabBar, TabIndicator};
 pub use timeline::{Timeline, TimelineEntry};
+// Scroll indicator widgets - for scrollable panels
+#[allow(unused_imports)]
+pub use scroll_indicator::{ScrollHint, ScrollIndicator};
 // YAML view widget - exported for future panel use
 #[allow(unused_imports)]
 pub use yaml_view::YamlView;

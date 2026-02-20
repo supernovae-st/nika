@@ -228,6 +228,13 @@ impl StandaloneState {
     }
 
     /// Scan for .nika.yaml files in the project
+    /// Refresh the browser entries by rescanning directories
+    ///
+    /// Alias for `scan_workflows()` - used by the file watcher
+    pub fn refresh_entries(&mut self) {
+        self.scan_workflows();
+    }
+
     pub fn scan_workflows(&mut self) {
         self.browser_entries.clear();
 

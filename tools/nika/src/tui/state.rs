@@ -3181,14 +3181,15 @@ mod tests {
 
     #[test]
     fn test_dirty_flags_clear() {
-        let mut flags = DirtyFlags::default();
-        flags.all = true;
-        flags.progress = true;
-        flags.dag = true;
-        flags.novanet = true;
-        flags.reasoning = true;
-        flags.status = true;
-        flags.notifications = true;
+        let mut flags = DirtyFlags {
+            all: true,
+            progress: true,
+            dag: true,
+            novanet: true,
+            reasoning: true,
+            status: true,
+            notifications: true,
+        };
 
         flags.clear();
 
@@ -3217,10 +3218,11 @@ mod tests {
 
     #[test]
     fn test_dirty_flags_is_panel_dirty() {
-        let mut flags = DirtyFlags::default();
-
         // When all is true, all panels are dirty
-        flags.all = true;
+        let mut flags = DirtyFlags {
+            all: true,
+            ..Default::default()
+        };
         assert!(flags.is_panel_dirty(PanelId::Progress));
         assert!(flags.is_panel_dirty(PanelId::Dag));
         assert!(flags.is_panel_dirty(PanelId::NovaNet));
