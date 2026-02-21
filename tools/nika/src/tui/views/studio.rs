@@ -16,6 +16,7 @@
 //!
 //! See: https://github.com/ratatui/ratatui-textarea (replaces rhysd/tui-textarea)
 
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -67,7 +68,7 @@ impl Default for ValidationResult {
 }
 
 /// Simple line-based text buffer for the editor
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TextBuffer {
     /// Lines of text
     lines: Vec<String>,
@@ -77,6 +78,20 @@ pub struct TextBuffer {
     cursor_col: usize,
     /// Scroll offset (first visible line)
     scroll_offset: usize,
+    /// Last known viewport height — Cell allows update via &self from render path
+    visible_height: Cell<usize>,
+}
+
+impl Clone for TextBuffer {
+    fn clone(&self) -> Self {
+        Self {
+            lines: self.lines.clone(),
+            cursor_row: self.cursor_row,
+            cursor_col: self.cursor_col,
+            scroll_offset: self.scroll_offset,
+            visible_height: Cell::new(self.visible_height.get()),
+        }
+    }
 }
 
 impl Default for TextBuffer {
@@ -86,6 +101,7 @@ impl Default for TextBuffer {
             cursor_row: 0,
             cursor_col: 0,
             scroll_offset: 0,
+            visible_height: Cell::new(20),
         }
     }
 }
@@ -103,6 +119,14 @@ impl TextBuffer {
             cursor_row: 0,
             cursor_col: 0,
             scroll_offset: 0,
+            visible_height: Cell::new(20),
+        }
+    }
+
+    /// Update the known viewport height (called by renderer each frame via &self)
+    pub fn set_visible_height(&self, height: usize) {
+        if height > 0 {
+            self.visible_height.set(height);
         }
     }
 
@@ -232,11 +256,16 @@ impl TextBuffer {
         self.cursor_col = self.cursor_col.min(line_len);
     }
 
-    /// Adjust scroll to keep cursor visible
+    /// Adjust scroll to keep cursor visible (both up and down)
     fn adjust_scroll(&mut self) {
-        // Keep 2 lines of context if possible
+        let height = self.visible_height.get();
+        // Scroll up: cursor above viewport
         if self.cursor_row < self.scroll_offset {
             self.scroll_offset = self.cursor_row;
+        }
+        // Scroll down: cursor below viewport
+        if height > 0 && self.cursor_row >= self.scroll_offset + height {
+            self.scroll_offset = self.cursor_row - height + 1;
         }
     }
 
@@ -538,8 +567,9 @@ impl StudioView {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        // Calculate visible height (excluding borders)
+        // Calculate visible height (excluding borders) and sync to buffer
         let visible_height = inner.height as usize;
+        self.buffer.set_visible_height(visible_height);
 
         // Build lines with line numbers and syntax highlighting
         let lines: Vec<Line> = self

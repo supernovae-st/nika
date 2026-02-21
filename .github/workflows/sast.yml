@@ -1,0 +1,159 @@
+name: SAST
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly scan every Monday at 03:00 UTC
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# NOTE: cargo-audit and cargo-deny already run in ci.yml (security job).
+# This workflow adds: cargo-geiger + CodeQL + Semgrep
+
+jobs:
+  # =============================================================================
+  # cargo-geiger — Unsafe code inventory
+  # =============================================================================
+  cargo-geiger:
+    name: cargo-geiger (unsafe code)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (nightly for geiger)
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika -> target
+
+      - name: Install cargo-geiger
+        run: cargo install cargo-geiger --locked
+
+      - name: Run cargo-geiger (unsafe inventory)
+        working-directory: tools/nika
+        run: cargo geiger --all-features 2>&1 | tee geiger-report.txt
+
+      - name: Upload geiger report
+        uses: actions/upload-artifact@v4
+        with:
+          name: geiger-report
+          path: tools/nika/geiger-report.txt
+
+      - name: Warn on unsafe code threshold
+        working-directory: tools/nika
+        run: |
+          # Count unsafe occurrences in our own crate (informational, not blocking)
+          UNSAFE_COUNT=$(grep -c "unsafe" src/**/*.rs 2>/dev/null || echo 0)
+          echo "Unsafe keyword occurrences in src/: $UNSAFE_COUNT"
+          if [ "$UNSAFE_COUNT" -gt 10 ]; then
+            echo "::warning::$UNSAFE_COUNT unsafe blocks found in nika/src/ — review geiger-report artifact"
+          fi
+
+  # =============================================================================
+  # CodeQL — Semantic SAST analysis
+  # =============================================================================
+  codeql:
+    name: CodeQL (Rust)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: rust
+          queries: security-extended
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika -> target
+
+      - name: Build for CodeQL
+        working-directory: tools/nika
+        run: cargo build --all-features
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:rust"
+          upload: true
+
+  # =============================================================================
+  # Semgrep — Pattern-based SAST (shell injection, path traversal, etc.)
+  # =============================================================================
+  semgrep:
+    name: Semgrep (patterns)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep on Rust sources
+        run: >
+          semgrep scan
+          --sarif
+          --output=semgrep-results.sarif
+          --config=auto
+          --severity=WARNING
+          tools/nika/src/
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        continue-on-error: true
+
+      - name: Upload Semgrep SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep-results.sarif
+          category: semgrep
+
+  # =============================================================================
+  # Summary — aggregate results (uses env vars to avoid expression injection)
+  # =============================================================================
+  sast-summary:
+    name: SAST Summary
+    runs-on: ubuntu-latest
+    needs: [cargo-geiger, codeql, semgrep]
+    if: always()
+    steps:
+      - name: Check SAST job results
+        env:
+          GEIGER_RESULT: ${{ needs.cargo-geiger.result }}
+          CODEQL_RESULT: ${{ needs.codeql.result }}
+          SEMGREP_RESULT: ${{ needs.semgrep.result }}
+        run: |
+          echo "=== SAST Results ==="
+          echo "cargo-geiger: $GEIGER_RESULT"
+          echo "codeql      : $CODEQL_RESULT"
+          echo "semgrep     : $SEMGREP_RESULT"
+          echo ""
+          echo "Note: cargo-audit (RustSec) and cargo-deny (license) run in ci.yml"
+
+          # Warn only on analysis tools (may have false positives)
+          if [ "$CODEQL_RESULT" = "failure" ]; then
+            echo "::warning::CodeQL analysis found issues — review Security tab"
+          fi
+          if [ "$SEMGREP_RESULT" = "failure" ]; then
+            echo "::warning::Semgrep found patterns — review Security tab"
+          fi

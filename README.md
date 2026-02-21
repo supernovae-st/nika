@@ -6,7 +6,7 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg?logo=rust)](https://www.rust-lang.org/)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.4.0-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.7.1-green.svg)](CHANGELOG.md)
 
 *DAG workflow runner for AI tasks*
 
