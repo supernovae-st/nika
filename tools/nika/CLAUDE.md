@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.5.2 | CLI DX refresh with TUI Home/Chat/Studio/Monitor views | 1700+ tests | MVP 8 complete
+**Current version:** v0.5.2 | CLI DX refresh with TUI Home/Chat/Studio/Monitor views | 1133 tests | MVP 8 complete
 
 ## Architecture
 
@@ -486,7 +486,7 @@ The TUI provides 4 interactive views:
 
 ## Testing Strategy
 
-- **Unit tests:** In-file `#[cfg(test)]` modules (1130+ tests)
+- **Unit tests:** In-file `#[cfg(test)]` modules (1133 tests)
 - **Integration tests:** `tests/` directory
 - **Snapshot tests:** insta for YAML/JSON outputs
 - **Property tests:** proptest for parser fuzzing

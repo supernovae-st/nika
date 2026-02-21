@@ -713,7 +713,7 @@ impl TaskExecutor {
             call_id,
             output_len: result.to_string().len(),
             duration_ms,
-            cached: false, // v0.5.2: McpClient.with_cache() enables caching; event doesn't track hits yet
+            cached: client.was_last_call_cached(),
             is_error,
             response: Some(result.clone()),
         });

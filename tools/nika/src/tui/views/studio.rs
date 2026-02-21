@@ -11,10 +11,10 @@
 //! ```
 //!
 //! Note: This implementation uses a simple line-based editor (`TextBuffer`).
-//! Full tui-textarea integration is planned once ratatui 0.30 compatibility
-//! is available (tui-textarea 0.7 requires ratatui 0.29).
+//! Full text editor integration is planned via `ratatui-textarea` (the ratatui org's
+//! hard fork of tui-textarea with ratatui 0.30 support).
 //!
-//! TODO: Track https://github.com/rhysd/tui-textarea/issues for ratatui 0.30 support
+//! See: https://github.com/ratatui/ratatui-textarea (replaces rhysd/tui-textarea)
 
 use std::collections::HashMap;
 use std::path::PathBuf;

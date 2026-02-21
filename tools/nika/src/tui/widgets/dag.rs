@@ -301,15 +301,28 @@ impl<'a> Dag<'a> {
     }
 
     /// Calculate node positions for layout
-    fn calculate_layout(&self, _width: u16, _height: u16) -> Vec<(u16, u16)> {
+    ///
+    /// Dynamically adjusts row spacing based on available height:
+    /// - If nodes fit comfortably, spreads them evenly for better visibility
+    /// - If space is tight, uses compact 1-row layout with overflow indicator
+    fn calculate_layout(&self, _width: u16, height: u16) -> Vec<(u16, u16)> {
         let node_count = self.nodes.len();
         if node_count == 0 {
             return Vec::new();
         }
 
-        // Simple vertical list layout for now
-        // Each node gets a row (TODO: variable height based on available space)
-        let row_height = 1;
+        // Reserve 1 row for potential overflow indicator
+        let usable_height = height.saturating_sub(1).max(1);
+
+        // Calculate optimal row spacing
+        // Each node needs at least 2 rows for proper edge drawing (1 for node, 1 for connector)
+        // Use max spacing of 3 rows for very spacious layouts
+        let row_height = if node_count == 0 {
+            1
+        } else {
+            let ideal_spacing = (usable_height as usize) / node_count;
+            ideal_spacing.clamp(1, 3) as u16
+        };
 
         self.nodes
             .iter()
