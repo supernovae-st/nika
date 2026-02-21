@@ -22,13 +22,10 @@
 //! Navigation: [Tab] cycles forward, [Shift+Tab] cycles backward.
 //! Shortcuts: [1-4] or [a/h/s/m] jump directly to view.
 
-mod browser;
 mod chat;
 mod home;
 mod studio;
 mod trait_view;
-
-pub use browser::BrowserView;
 // ChatMode exported for future external use (mode indicator in status bar)
 #[allow(unused_imports)]
 pub use chat::{ChatMode, ChatView, MessageRole};
@@ -233,7 +230,7 @@ impl TuiView {
 }
 
 /// Model provider for LLM switching
-pub use crate::tui::command::ModelProvider;
+pub use crate::tui::command::{McpAction, ModelProvider};
 
 /// Result of handling a key event in a view
 #[derive(Debug, Clone)]
@@ -265,10 +262,12 @@ pub enum ViewAction {
     ChatFetch(String, String),
     /// Execute /invoke command - MCP tool call (tool, server, params)
     ChatInvoke(String, Option<String>, serde_json::Value),
-    /// Execute /agent command - multi-turn agent (goal, max_turns, extended_thinking)
-    ChatAgent(String, Option<u32>, bool),
+    /// Execute /agent command - multi-turn agent (goal, max_turns, extended_thinking, mcp_servers)
+    ChatAgent(String, Option<u32>, bool, Vec<String>),
     /// Execute /model command - switch LLM provider
     ChatModelSwitch(ModelProvider),
+    /// Execute /mcp command - MCP server management (v0.5.2)
+    ChatMcp(McpAction),
     /// Execute /clear command - clear chat history
     ChatClear,
 }

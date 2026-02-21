@@ -199,6 +199,8 @@ impl ChatMessage {
 pub struct ChatAgent {
     /// Current LLM provider
     provider: RigProvider,
+    /// Optional model override (uses provider default if None)
+    model_override: Option<String>,
     /// Conversation history
     history: Vec<ChatMessage>,
     /// Optional streaming channel for real-time updates (String for backward compat)
@@ -209,6 +211,10 @@ pub struct ChatAgent {
     streaming_state: StreamingState,
     /// HTTP client for fetch operations
     http_client: reqwest::Client,
+    /// Cumulative input tokens used
+    pub total_input_tokens: u64,
+    /// Cumulative output tokens used
+    pub total_output_tokens: u64,
 }
 
 impl ChatAgent {
@@ -224,11 +230,14 @@ impl ChatAgent {
             if std::env::var("ANTHROPIC_API_KEY").is_ok() {
                 return Ok(Self {
                     provider: RigProvider::claude(),
+                    model_override: None,
                     history: Vec::new(),
                     streaming_tx: None,
                     stream_chunk_tx: None,
                     streaming_state: StreamingState::new(),
                     http_client: reqwest::Client::new(),
+                    total_input_tokens: 0,
+                    total_output_tokens: 0,
                 });
             }
             // No API key available, but we still create the agent
@@ -237,12 +246,70 @@ impl ChatAgent {
 
         Ok(Self {
             provider: RigProvider::openai(),
+            model_override: None,
             history: Vec::new(),
             streaming_tx: None,
             stream_chunk_tx: None,
             streaming_state: StreamingState::new(),
             http_client: reqwest::Client::new(),
+            total_input_tokens: 0,
+            total_output_tokens: 0,
         })
+    }
+
+    /// Create a new ChatAgent with specific provider and model overrides
+    ///
+    /// # Arguments
+    ///
+    /// * `provider` - Optional provider name ("claude" or "openai")
+    /// * `model` - Optional model name override
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use nika::tui::chat_agent::ChatAgent;
+    ///
+    /// let agent = ChatAgent::with_overrides(
+    ///     Some("claude"),
+    ///     Some("claude-sonnet-4-20250514")
+    /// ).unwrap();
+    /// ```
+    pub fn with_overrides(provider: Option<&str>, model: Option<&str>) -> Result<Self, NikaError> {
+        let mut agent = Self::new()?;
+
+        // Apply provider override
+        if let Some(p) = provider {
+            match p.to_lowercase().as_str() {
+                "claude" | "anthropic" => {
+                    if std::env::var("ANTHROPIC_API_KEY").is_err() {
+                        return Err(NikaError::MissingApiKey {
+                            provider: "Claude".to_string(),
+                        });
+                    }
+                    agent.provider = RigProvider::claude();
+                }
+                "openai" | "gpt" => {
+                    if std::env::var("OPENAI_API_KEY").is_err() {
+                        return Err(NikaError::MissingApiKey {
+                            provider: "OpenAI".to_string(),
+                        });
+                    }
+                    agent.provider = RigProvider::openai();
+                }
+                _ => {
+                    return Err(NikaError::InvalidConfig {
+                        message: format!("Unknown provider: '{}'. Use 'claude' or 'openai'", p),
+                    });
+                }
+            }
+        }
+
+        // Apply model override
+        if let Some(m) = model {
+            agent.model_override = Some(m.to_string());
+        }
+
+        Ok(agent)
     }
 
     /// Set streaming channel for real-time updates (legacy String channel)
@@ -313,6 +380,11 @@ impl ChatAgent {
         self.provider.name()
     }
 
+    /// Get total tokens used (input + output) for status bar display
+    pub fn total_tokens(&self) -> u64 {
+        self.total_input_tokens + self.total_output_tokens
+    }
+
     /// Execute an infer command (LLM text generation)
     ///
     /// # Arguments
@@ -347,12 +419,30 @@ impl ChatAgent {
 
         // Use streaming if stream_chunk_tx is set, otherwise blocking
         let response = if let Some(tx) = self.stream_chunk_tx.clone() {
+            // Clone tx for metrics send (infer_stream takes ownership)
+            let metrics_tx = tx.clone();
+
             // Real-time streaming - tokens appear as they arrive
-            self.provider.infer_stream(prompt, tx).await.map_err(|e| {
-                NikaError::ProviderApiError {
+            let result = self
+                .provider
+                .infer_stream(prompt, tx, self.model_override.as_deref())
+                .await
+                .map_err(|e| NikaError::ProviderApiError {
                     message: e.to_string(),
-                }
-            })?
+                })?;
+            // Accumulate token metrics for status bar display
+            self.total_input_tokens += result.input_tokens;
+            self.total_output_tokens += result.output_tokens;
+
+            // Send metrics to UI for status bar update
+            let _ = metrics_tx
+                .send(StreamChunk::Metrics {
+                    input_tokens: result.input_tokens,
+                    output_tokens: result.output_tokens,
+                })
+                .await;
+
+            result.text
         } else {
             // Blocking call - full response at once
             self.provider

@@ -499,12 +499,14 @@ impl TaskExecutor {
             .map_err(|e| NikaError::Provider(e.to_string()))?;
 
         // EMIT: ProviderResponded
-        // TODO(v0.2): Get actual token counts from provider response
+        // Note: Token counts only available via infer_stream() (streaming mode).
+        // The executor uses non-streaming for simplicity. TUI uses streaming for
+        // real-time display with accurate token metrics via StreamResult.
         self.event_log.emit(EventKind::ProviderResponded {
             task_id: Arc::clone(task_id),
-            request_id: None, // TODO: Get from provider response
-            input_tokens: 0,  // TODO: Get from provider response
-            output_tokens: 0, // TODO: Get from provider response
+            request_id: None,
+            input_tokens: 0,  // Non-streaming: token metrics unavailable
+            output_tokens: 0, // Use TUI streaming mode for accurate counts
             cache_read_tokens: 0,
             ttft_ms: None,
             finish_reason: "stop".to_string(),
@@ -711,7 +713,7 @@ impl TaskExecutor {
             call_id,
             output_len: result.to_string().len(),
             duration_ms,
-            cached: false, // TODO: Implement MCP response caching
+            cached: false, // v0.5.2: McpClient.with_cache() enables caching; event doesn't track hits yet
             is_error,
             response: Some(result.clone()),
         });

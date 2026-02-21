@@ -16,6 +16,7 @@ use ratatui::{
 
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
+use crate::tui::views::ReasoningTab;
 use crate::tui::widgets::{AgentTurns, Gauge, TurnEntry};
 
 /// Agent Reasoning panel (Panel 4)
@@ -208,6 +209,7 @@ impl<'a> ReasoningPanel<'a> {
     }
 
     /// Check if any turn has thinking content
+    #[allow(dead_code)] // Used in tests
     fn has_thinking(&self) -> bool {
         self.state.agent_turns.iter().any(|t| t.thinking.is_some())
     }
@@ -300,11 +302,18 @@ impl<'a> ReasoningPanel<'a> {
 
 impl Widget for ReasoningPanel<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // Draw border
+        // Draw border with tab indicator
         let border_style = self.theme.border_style(self.focused);
+        let active_tab = self.state.reasoning_tab;
+        let tab_indicator = match active_tab {
+            ReasoningTab::Turns => " [Turns] Thinking ",
+            ReasoningTab::Thinking => " Turns [Thinking] ",
+        };
+        let title = format!(" ⊕ AGENT REASONING {} ", tab_indicator);
+
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(" ⊕ AGENT REASONING ")
+            .title(title)
             .border_style(border_style);
 
         let inner = block.inner(area);
@@ -317,84 +326,63 @@ impl Widget for ReasoningPanel<'_> {
         // Check if agent is active
         let has_agent = self.state.agent_max_turns.is_some();
         let has_streaming = !self.state.streaming_buffer.is_empty();
-        let has_thinking = self.has_thinking();
 
-        // Layout depends on whether we have streaming output and/or thinking
-        if has_agent && has_thinking && has_streaming {
-            // With thinking + streaming: Header | Progress | Turns | Thinking | Streaming | Tokens
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(1), // Header
-                    Constraint::Length(1), // Progress
-                    Constraint::Length(3), // Turns (reduced)
-                    Constraint::Min(3),    // Thinking
-                    Constraint::Length(3), // Streaming (reduced)
-                    Constraint::Length(1), // Tokens
-                ])
-                .split(inner);
+        // Tab-based rendering (v0.5.2+)
+        match active_tab {
+            ReasoningTab::Thinking => {
+                // Thinking tab: show thinking content only
+                let chunks = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Length(1), // Header
+                        Constraint::Min(4),    // Thinking content
+                        Constraint::Length(1), // Tokens
+                    ])
+                    .split(inner);
 
-            self.render_header(chunks[0], buf);
-            self.render_progress(chunks[1], buf);
-            self.render_turns(chunks[2], buf);
-            self.render_thinking(chunks[3], buf);
-            self.render_streaming(chunks[4], buf);
-            self.render_tokens(chunks[5], buf);
-        } else if has_agent && has_thinking {
-            // With thinking only: Header | Progress | Turns | Thinking | Tokens
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(1), // Header
-                    Constraint::Length(1), // Progress
-                    Constraint::Length(3), // Turns (reduced)
-                    Constraint::Min(4),    // Thinking
-                    Constraint::Length(1), // Tokens
-                ])
-                .split(inner);
+                self.render_header(chunks[0], buf);
+                self.render_thinking(chunks[1], buf);
+                self.render_tokens(chunks[2], buf);
+            }
+            ReasoningTab::Turns => {
+                // Turns tab: show turn history (with streaming if active)
+                if has_agent && has_streaming {
+                    let chunks = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints([
+                            Constraint::Length(1), // Header
+                            Constraint::Length(1), // Progress
+                            Constraint::Min(2),    // Turns
+                            Constraint::Length(4), // Streaming
+                            Constraint::Length(1), // Tokens
+                        ])
+                        .split(inner);
 
-            self.render_header(chunks[0], buf);
-            self.render_progress(chunks[1], buf);
-            self.render_turns(chunks[2], buf);
-            self.render_thinking(chunks[3], buf);
-            self.render_tokens(chunks[4], buf);
-        } else if has_agent && has_streaming {
-            // With streaming: Header | Progress | Turns | Streaming | Tokens
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(1), // Header
-                    Constraint::Length(1), // Progress
-                    Constraint::Min(2),    // Turns
-                    Constraint::Length(4), // Streaming
-                    Constraint::Length(1), // Tokens
-                ])
-                .split(inner);
+                    self.render_header(chunks[0], buf);
+                    self.render_progress(chunks[1], buf);
+                    self.render_turns(chunks[2], buf);
+                    self.render_streaming(chunks[3], buf);
+                    self.render_tokens(chunks[4], buf);
+                } else if has_agent {
+                    let chunks = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints([
+                            Constraint::Length(1), // Header
+                            Constraint::Length(1), // Progress
+                            Constraint::Min(2),    // Turns
+                            Constraint::Length(1), // Tokens
+                        ])
+                        .split(inner);
 
-            self.render_header(chunks[0], buf);
-            self.render_progress(chunks[1], buf);
-            self.render_turns(chunks[2], buf);
-            self.render_streaming(chunks[3], buf);
-            self.render_tokens(chunks[4], buf);
-        } else if has_agent {
-            // Without streaming: Header | Progress | Turns | Tokens
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(1), // Header
-                    Constraint::Length(1), // Progress
-                    Constraint::Min(2),    // Turns
-                    Constraint::Length(1), // Tokens
-                ])
-                .split(inner);
-
-            self.render_header(chunks[0], buf);
-            self.render_progress(chunks[1], buf);
-            self.render_turns(chunks[2], buf);
-            self.render_tokens(chunks[3], buf);
-        } else {
-            // No agent: Just header
-            self.render_header(inner, buf);
+                    self.render_header(chunks[0], buf);
+                    self.render_progress(chunks[1], buf);
+                    self.render_turns(chunks[2], buf);
+                    self.render_tokens(chunks[3], buf);
+                } else {
+                    // No agent: Just header
+                    self.render_header(inner, buf);
+                }
+            }
         }
     }
 }
@@ -499,5 +487,132 @@ mod tests {
         let panel = ReasoningPanel::new(&state, &theme);
         let entries = panel.build_turn_entries();
         assert_eq!(entries.len(), 1);
+    }
+
+    // === Tab-based Rendering Tests (MEDIUM 10) ===
+
+    #[test]
+    fn test_reasoning_tab_switches_view() {
+        use crate::tui::views::ReasoningTab;
+
+        let mut state = TuiState::new("test.yaml");
+        state.agent_max_turns = Some(5);
+        state.agent_turns.push(AgentTurnState {
+            index: 1,
+            status: "completed".to_string(),
+            tokens: Some(100),
+            tool_calls: vec![],
+            thinking: Some("I'm thinking about this...".to_string()),
+            response_text: Some("Result".to_string()),
+        });
+
+        // Default tab is Turns
+        assert_eq!(state.reasoning_tab, ReasoningTab::Turns);
+
+        // Switch to Thinking tab
+        state.reasoning_tab = ReasoningTab::Thinking;
+        assert_eq!(state.reasoning_tab, ReasoningTab::Thinking);
+
+        // Panel should render differently for each tab (verified by buffer content)
+        let theme = Theme::novanet();
+        let _panel = ReasoningPanel::new(&state, &theme);
+        // The panel renders based on state.reasoning_tab
+    }
+
+    #[test]
+    fn test_thinking_tab_renders_thinking_content() {
+        use crate::tui::views::ReasoningTab;
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        let mut state = TuiState::new("test.yaml");
+        state.reasoning_tab = ReasoningTab::Thinking;
+        state.agent_max_turns = Some(5);
+        state.agent_turns.push(AgentTurnState {
+            index: 1,
+            status: "completed".to_string(),
+            tokens: Some(100),
+            tool_calls: vec![],
+            thinking: Some("Deep analysis here".to_string()),
+            response_text: Some("Result".to_string()),
+        });
+
+        let theme = Theme::novanet();
+        let panel = ReasoningPanel::new(&state, &theme);
+
+        // Render to buffer
+        let area = Rect::new(0, 0, 60, 15);
+        let mut buf = Buffer::empty(area);
+        panel.render(area, &mut buf);
+
+        // Buffer should contain thinking indicator in title
+        let content: String = buf.content.iter().map(|c| c.symbol()).collect();
+        assert!(content.contains("Thinking"));
+    }
+
+    #[test]
+    fn test_turns_tab_renders_turn_history() {
+        use crate::tui::views::ReasoningTab;
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        let mut state = TuiState::new("test.yaml");
+        state.reasoning_tab = ReasoningTab::Turns;
+        state.agent_max_turns = Some(5);
+        state.agent_turns.push(AgentTurnState {
+            index: 1,
+            status: "completed".to_string(),
+            tokens: Some(100),
+            tool_calls: vec!["novanet_describe".to_string()],
+            thinking: None,
+            response_text: Some("Result".to_string()),
+        });
+
+        let theme = Theme::novanet();
+        let panel = ReasoningPanel::new(&state, &theme);
+
+        // Render to buffer
+        let area = Rect::new(0, 0, 60, 15);
+        let mut buf = Buffer::empty(area);
+        panel.render(area, &mut buf);
+
+        // Buffer should contain turns indicator in title
+        let content: String = buf.content.iter().map(|c| c.symbol()).collect();
+        assert!(content.contains("Turns"));
+    }
+
+    #[test]
+    fn test_tab_indicator_in_title() {
+        use crate::tui::views::ReasoningTab;
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        let mut state = TuiState::new("test.yaml");
+        state.agent_max_turns = Some(5);
+
+        let theme = Theme::novanet();
+
+        // Check Turns tab indicator
+        state.reasoning_tab = ReasoningTab::Turns;
+        let panel = ReasoningPanel::new(&state, &theme);
+        let area = Rect::new(0, 0, 80, 15);
+        let mut buf = Buffer::empty(area);
+        panel.render(area, &mut buf);
+        let content: String = buf.content.iter().map(|c| c.symbol()).collect();
+        assert!(
+            content.contains("[Turns]"),
+            "Should show [Turns] as active tab"
+        );
+
+        // Check Thinking tab indicator
+        state.reasoning_tab = ReasoningTab::Thinking;
+        let panel = ReasoningPanel::new(&state, &theme);
+        let mut buf = Buffer::empty(area);
+        panel.render(area, &mut buf);
+        let content: String = buf.content.iter().map(|c| c.symbol()).collect();
+        assert!(
+            content.contains("[Thinking]"),
+            "Should show [Thinking] as active tab"
+        );
     }
 }

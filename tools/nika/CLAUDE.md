@@ -4,6 +4,8 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
+**Current version:** v0.5.2 | CLI DX refresh with TUI Home/Chat/Studio/Monitor views | 1700+ tests | MVP 8 complete
+
 ## Architecture
 
 ```
@@ -25,7 +27,7 @@ tools/nika/src/
 │   └── rig_agent_loop.rs # ✅ rig-core AgentBuilder (v0.4+)
 ├── mcp/              # MCP client (rmcp v0.16)
 ├── event/            # Event sourcing
-│   ├── log.rs        # EventLog (17 variants)
+│   ├── log.rs        # EventLog (20 variants)
 │   └── trace.rs      # NDJSON writer
 ├── tui/              # Terminal UI (feature-gated)
 ├── binding/          # Data flow ({{use.alias}}) + lazy bindings
@@ -369,11 +371,14 @@ ORBIT_SPINNER:  &[char] = &['◐', '◓', '◑', '◒'];
 COSMIC_SPINNER: &[char] = &['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'];
 ```
 
-### Animation Widgets
+### Chat UX Widgets (v0.5.2)
 
-- **PulseText** — Breathing color animation effect
-- **ParticleBurst** — Success celebration animation
-- **ShakeText** — Error shake effect
+- **SessionContextBar** — Token/cost/MCP status (full + compact modes)
+- **McpCallBox** — Inline MCP call visualization with retry support
+- **InferStreamBox** — Streaming LLM inference with progress bar
+- **ActivityStack** — Hot/warm/queued task activity monitor
+- **CommandPalette** — ⌘K fuzzy command search overlay
+- **AgentTurns** — Agent turn history with verb icons
 
 ### Status Bar Enhancements
 
@@ -391,19 +396,74 @@ Verb-specific icons (canonical):
 - 🐔 `agent:` — Agentic loop (parent)
 - 🐤 subagent — Spawned via spawn_agent
 
-## Commands
+## Commands (v0.5.2 CLI Refresh)
+
+### Direct Execution
 
 ```bash
-# Run workflow
-cargo run -- run workflow.yaml
+# Run workflow directly (simplest form)
+nika workflow.nika.yaml
 
-# Validate without executing
-cargo run -- validate workflow.yaml
+# Run with TUI observer (default, real-time execution)
+nika tui workflow.nika.yaml
 
-# Run with TUI (default feature)
-cargo run -- tui workflow.yaml
+# Run without TUI (headless)
+nika run workflow.nika.yaml
+```
 
-# Run tests
+### Interactive Modes
+
+```bash
+# Home view — Browse and select .nika.yaml workflows
+nika
+
+# Chat view — Conversational agent with 5-verb support
+nika chat
+
+# Chat with specific provider (auto-detects from env by default)
+nika chat --provider openai
+nika chat --provider claude
+
+# Studio view — YAML editor with live validation
+nika studio
+
+# Studio with file loaded
+nika studio workflow.nika.yaml
+```
+
+### Workflow Management
+
+```bash
+# Validate syntax
+nika check workflow.nika.yaml
+
+# Strict validation (includes MCP connection check)
+nika check flow.yaml --strict
+
+# Initialize project (.nika/ directory with config)
+nika init
+```
+
+### Traces & Observability
+
+```bash
+# List all execution traces
+nika trace list
+
+# Show trace details
+nika trace show <id>
+
+# Export trace (JSON/NDJSON)
+nika trace export <id>
+
+# Clean old traces
+nika trace clean
+```
+
+### Development & Testing
+
+```bash
+# Run tests (via cargo)
 cargo nextest run
 
 # Run with coverage
@@ -413,9 +473,20 @@ cargo llvm-cov nextest
 cargo bench
 ```
 
+### TUI Views (Tab Navigation)
+
+The TUI provides 4 interactive views:
+
+| View | Key | Purpose |
+|------|-----|---------|
+| **Chat** | `a` | Conversational agent (supports infer:, exec:, fetch:, invoke:, agent:) |
+| **Home** | `h` | Browse and launch .nika.yaml workflows from project |
+| **Studio** | `s` | YAML editor with schema validation and syntax highlighting |
+| **Monitor** | `m` | Real-time execution observer (4 panels: DAG, events, tokens, output) |
+
 ## Testing Strategy
 
-- **Unit tests:** In-file `#[cfg(test)]` modules (886+ tests)
+- **Unit tests:** In-file `#[cfg(test)]` modules (1130+ tests)
 - **Integration tests:** `tests/` directory
 - **Snapshot tests:** insta for YAML/JSON outputs
 - **Property tests:** proptest for parser fuzzing

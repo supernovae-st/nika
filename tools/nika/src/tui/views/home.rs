@@ -36,6 +36,8 @@ pub struct HomeView {
     pub list_state: ListState,
     /// Whether history bar is expanded
     pub history_expanded: bool,
+    /// Show welcome screen (v0.5.2+)
+    pub show_welcome: bool,
 }
 
 impl HomeView {
@@ -43,6 +45,7 @@ impl HomeView {
     pub fn new(root: PathBuf) -> Self {
         let standalone = StandaloneState::new(root);
         let mut list_state = ListState::default();
+        let show_welcome = standalone.browser_entries.is_empty();
         if !standalone.browser_entries.is_empty() {
             list_state.select(Some(0));
         }
@@ -50,6 +53,7 @@ impl HomeView {
             standalone,
             list_state,
             history_expanded: false,
+            show_welcome,
         }
     }
 
@@ -176,6 +180,128 @@ impl HomeView {
         frame.render_widget(paragraph, area);
     }
 
+    /// Render the welcome screen (v0.5.2+)
+    fn render_welcome(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let welcome_lines = vec![
+            Line::from(vec![
+                Span::styled("🐔 ", Style::default()),
+                Span::styled(
+                    "Welcome to Nika",
+                    Style::default()
+                        .fg(theme.highlight)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(" v0.5.2", Style::default().fg(theme.text_muted)),
+            ]),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Semantic YAML workflow engine for AI tasks",
+                Style::default().fg(theme.text_primary),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                "── Quick Start ──",
+                Style::default()
+                    .fg(theme.highlight)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  1. ", Style::default().fg(theme.text_muted)),
+                Span::raw("Create a workflow: "),
+                Span::styled("example.nika.yaml", Style::default().fg(theme.highlight)),
+            ]),
+            Line::from(vec![
+                Span::styled("  2. ", Style::default().fg(theme.text_muted)),
+                Span::raw("Run it: "),
+                Span::styled(
+                    "nika run example.nika.yaml",
+                    Style::default().fg(theme.highlight),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled("  3. ", Style::default().fg(theme.text_muted)),
+                Span::raw("Or browse files here with "),
+                Span::styled("↑/↓", Style::default().fg(theme.highlight)),
+                Span::raw(" and "),
+                Span::styled("Enter", Style::default().fg(theme.highlight)),
+            ]),
+            Line::from(""),
+            Line::from(Span::styled(
+                "── Keybindings ──",
+                Style::default()
+                    .fg(theme.highlight)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  Tab     ", Style::default().fg(theme.highlight)),
+                Span::raw("Switch view (Chat/Home/Studio/Monitor)"),
+            ]),
+            Line::from(vec![
+                Span::styled("  ↑/↓     ", Style::default().fg(theme.highlight)),
+                Span::raw("Navigate files"),
+            ]),
+            Line::from(vec![
+                Span::styled("  Enter   ", Style::default().fg(theme.highlight)),
+                Span::raw("Run workflow / Open folder"),
+            ]),
+            Line::from(vec![
+                Span::styled("  e       ", Style::default().fg(theme.highlight)),
+                Span::raw("Edit in Studio"),
+            ]),
+            Line::from(vec![
+                Span::styled("  h       ", Style::default().fg(theme.highlight)),
+                Span::raw("Toggle history"),
+            ]),
+            Line::from(vec![
+                Span::styled("  ?       ", Style::default().fg(theme.highlight)),
+                Span::raw("Help overlay"),
+            ]),
+            Line::from(vec![
+                Span::styled("  q       ", Style::default().fg(theme.highlight)),
+                Span::raw("Quit"),
+            ]),
+            Line::from(""),
+            Line::from(Span::styled(
+                "── 5 Verbs ──",
+                Style::default()
+                    .fg(theme.highlight)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  ⚡ infer:  ", Style::default().fg(theme.highlight)),
+                Span::raw("LLM text generation"),
+            ]),
+            Line::from(vec![
+                Span::styled("  📟 exec:   ", Style::default().fg(theme.highlight)),
+                Span::raw("Shell command"),
+            ]),
+            Line::from(vec![
+                Span::styled("  🛰️ fetch:  ", Style::default().fg(theme.highlight)),
+                Span::raw("HTTP request"),
+            ]),
+            Line::from(vec![
+                Span::styled("  🔌 invoke: ", Style::default().fg(theme.highlight)),
+                Span::raw("MCP tool call"),
+            ]),
+            Line::from(vec![
+                Span::styled("  🐔 agent:  ", Style::default().fg(theme.highlight)),
+                Span::raw("Multi-turn agentic loop"),
+            ]),
+        ];
+
+        let paragraph = Paragraph::new(welcome_lines).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" WELCOME ")
+                .border_style(Style::default().fg(theme.border_normal)),
+        );
+
+        frame.render_widget(paragraph, area);
+    }
+
     /// Render the history bar (bottom, toggleable)
     fn render_history(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let max_items = if self.history_expanded { 10 } else { 5 };
@@ -229,7 +355,25 @@ impl HomeView {
 
 impl View for HomeView {
     fn render(&self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
-        // Layout: Files (40%) | Preview (60%) above, History bar below
+        // Show welcome screen when no files or explicitly requested
+        if self.show_welcome || self.standalone.browser_entries.is_empty() {
+            // Layout: Welcome (60%) | Tips (40%) above, History bar below
+            let history_height = if self.history_expanded { 6 } else { 3 };
+
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Min(10), Constraint::Length(history_height)])
+                .split(area);
+
+            // Render welcome screen in main area
+            self.render_welcome(frame, chunks[0], theme);
+
+            // History bar (bottom)
+            self.render_history(frame, chunks[1], theme);
+            return;
+        }
+
+        // Normal layout: Files (40%) | Preview (60%) above, History bar below
         let history_height = if self.history_expanded { 6 } else { 3 };
 
         let chunks = Layout::default()
@@ -305,8 +449,8 @@ impl View for HomeView {
             KeyCode::Char('3') | KeyCode::Char('s') => ViewAction::SwitchView(TuiView::Studio),
             KeyCode::Char('4') | KeyCode::Char('m') => ViewAction::SwitchView(TuiView::Monitor),
 
-            // Tab: cycle to next view (Studio)
-            KeyCode::Tab => ViewAction::SwitchView(TuiView::Studio),
+            // Tab: handled at app level for view cycling
+            KeyCode::Tab => ViewAction::None,
 
             _ => ViewAction::None,
         }
@@ -403,5 +547,139 @@ mod tests {
         let status = view.status_line(&state);
         assert!(status.contains("1 workflows"));
         assert!(status.contains("0 in history"));
+    }
+
+    // === Welcome Screen Tests (MEDIUM 13) ===
+
+    #[test]
+    fn test_welcome_shows_when_no_workflows() {
+        // Use a non-existent directory so StandaloneState starts empty
+        let view = HomeView::new(PathBuf::from("/nonexistent/path/that/has/no/nika/files"));
+
+        // show_welcome should be true when no entries exist
+        assert!(
+            view.standalone.browser_entries.is_empty(),
+            "Browser should be empty for non-existent path"
+        );
+        assert!(view.show_welcome, "Welcome should show when no workflows");
+    }
+
+    #[test]
+    fn test_welcome_hides_when_workflows_exist() {
+        let mut view = HomeView::new(PathBuf::from("."));
+        view.standalone.browser_entries.clear();
+        view.standalone.browser_entries.push(BrowserEntry::new(
+            PathBuf::from("test.nika.yaml"),
+            &PathBuf::from("."),
+        ));
+
+        // Re-evaluate show_welcome based on entries
+        view.show_welcome = view.standalone.browser_entries.is_empty();
+
+        assert!(
+            !view.show_welcome,
+            "Welcome should hide when workflows exist"
+        );
+    }
+
+    #[test]
+    fn test_welcome_screen_renders_without_panic() {
+        use ratatui::backend::TestBackend;
+        use ratatui::Terminal;
+
+        let mut view = HomeView::new(PathBuf::from("."));
+        view.standalone.browser_entries.clear();
+        view.show_welcome = true;
+
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = TuiState::new("test.nika.yaml");
+        let theme = Theme::novanet();
+
+        terminal
+            .draw(|frame| {
+                view.render(frame, frame.area(), &state, &theme);
+            })
+            .unwrap();
+
+        // Check that the welcome screen contains expected elements
+        let buffer = terminal.backend().buffer();
+        let content: String = buffer.content.iter().map(|c| c.symbol()).collect();
+
+        // Check for branding
+        assert!(
+            content.contains("Nika"),
+            "Welcome should show Nika branding"
+        );
+
+        // Check for version
+        assert!(
+            content.contains("v0.5.2"),
+            "Welcome should show version number"
+        );
+    }
+
+    #[test]
+    fn test_welcome_screen_contains_quick_start() {
+        use ratatui::backend::TestBackend;
+        use ratatui::Terminal;
+
+        let mut view = HomeView::new(PathBuf::from("."));
+        view.standalone.browser_entries.clear();
+        view.show_welcome = true;
+
+        let backend = TestBackend::new(100, 30);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = TuiState::new("test.nika.yaml");
+        let theme = Theme::novanet();
+
+        terminal
+            .draw(|frame| {
+                view.render(frame, frame.area(), &state, &theme);
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer();
+        let content: String = buffer.content.iter().map(|c| c.symbol()).collect();
+
+        // Check for quick start hints
+        assert!(
+            content.contains("QUICK START") || content.contains("Quick Start"),
+            "Welcome should contain quick start section"
+        );
+    }
+
+    #[test]
+    fn test_welcome_screen_contains_keybindings() {
+        use ratatui::backend::TestBackend;
+        use ratatui::Terminal;
+
+        let mut view = HomeView::new(PathBuf::from("."));
+        view.standalone.browser_entries.clear();
+        view.show_welcome = true;
+
+        let backend = TestBackend::new(100, 30);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = TuiState::new("test.nika.yaml");
+        let theme = Theme::novanet();
+
+        terminal
+            .draw(|frame| {
+                view.render(frame, frame.area(), &state, &theme);
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer();
+        let content: String = buffer.content.iter().map(|c| c.symbol()).collect();
+
+        // Check for keybinding hints
+        assert!(
+            content.contains("Tab") || content.contains("⇥"),
+            "Welcome should show Tab keybinding"
+        );
+        assert!(
+            content.contains("Enter") || content.contains("⏎"),
+            "Welcome should show Enter keybinding"
+        );
     }
 }

@@ -12,7 +12,7 @@ use std::time::Instant;
 
 use colored::Colorize;
 use serde_json::Value;
-use tokio::sync::Semaphore;
+use tokio::sync::{Notify, Semaphore};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument};
@@ -52,6 +52,10 @@ pub struct Runner {
     quiet: bool,
     /// Cancellation token for aborting workflow (v0.5.2)
     cancel_token: CancellationToken,
+    /// Pause state (v0.5.2+) - when true, runner waits between layers
+    paused: Arc<AtomicBool>,
+    /// Notify to wake runner from pause (v0.5.2+)
+    resume_notify: Arc<Notify>,
 }
 
 impl Runner {
@@ -85,6 +89,8 @@ impl Runner {
             generation_id,
             quiet: false,
             cancel_token: CancellationToken::new(),
+            paused: Arc::new(AtomicBool::new(false)),
+            resume_notify: Arc::new(Notify::new()),
         }
     }
 
@@ -116,6 +122,35 @@ impl Runner {
     /// Check if the workflow has been cancelled (v0.5.2)
     pub fn is_cancelled(&self) -> bool {
         self.cancel_token.is_cancelled()
+    }
+
+    /// Pause workflow execution (v0.5.2+)
+    ///
+    /// When paused, the runner will complete current tasks but won't start new ones.
+    /// Use `resume()` to continue execution.
+    pub fn pause(&self) {
+        self.paused.store(true, Ordering::SeqCst);
+        self.event_log.emit(EventKind::WorkflowPaused);
+    }
+
+    /// Resume workflow execution after pause (v0.5.2+)
+    pub fn resume(&self) {
+        self.paused.store(false, Ordering::SeqCst);
+        self.resume_notify.notify_one();
+        self.event_log.emit(EventKind::WorkflowResumed);
+    }
+
+    /// Check if the workflow is paused (v0.5.2+)
+    pub fn is_paused(&self) -> bool {
+        self.paused.load(Ordering::SeqCst)
+    }
+
+    /// Get cloneable handles for external pause/resume control (v0.5.2+)
+    ///
+    /// Returns (paused_flag, resume_notify) that can be used by the TUI
+    /// to control pause state externally.
+    pub fn pause_handles(&self) -> (Arc<AtomicBool>, Arc<Notify>) {
+        (Arc::clone(&self.paused), Arc::clone(&self.resume_notify))
     }
 
     /// Get the event log for inspection/export
@@ -332,6 +367,36 @@ impl Runner {
                 return Err(NikaError::Execution(
                     "Workflow cancelled by user".to_string(),
                 ));
+            }
+
+            // Check for pause at start of each loop iteration (v0.5.2+)
+            // Waits until resumed, while also checking for cancellation
+            while self.paused.load(Ordering::SeqCst) {
+                tokio::select! {
+                    _ = self.resume_notify.notified() => {
+                        // Resumed, continue loop
+                    }
+                    _ = self.cancel_token.cancelled() => {
+                        // Cancelled while paused
+                        let duration = workflow_start.elapsed();
+                        let running_tasks: Vec<Arc<str>> = self
+                            .workflow
+                            .tasks
+                            .iter()
+                            .filter(|t| !self.datastore.contains(&t.id))
+                            .map(|t| Arc::from(t.id.as_str()))
+                            .collect();
+
+                        self.event_log.emit(EventKind::WorkflowAborted {
+                            reason: "Workflow cancelled while paused".to_string(),
+                            duration_ms: duration.as_millis() as u64,
+                            running_tasks,
+                        });
+                        return Err(NikaError::Execution(
+                            "Workflow cancelled while paused".to_string(),
+                        ));
+                    }
+                }
             }
 
             let ready = self.get_ready_tasks();
@@ -1582,5 +1647,147 @@ mod tests {
                 "Should have captured running tasks (0-2 expected)"
             );
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PAUSE/RESUME TESTS (v0.5.2+)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_pause_state_default() {
+        let workflow = make_empty_workflow();
+        let runner = Runner::new(workflow);
+
+        // Should not be paused by default
+        assert!(
+            !runner.is_paused(),
+            "Runner should not be paused by default"
+        );
+    }
+
+    #[test]
+    fn test_pause_and_resume() {
+        let workflow = make_empty_workflow();
+        let runner = Runner::new(workflow);
+
+        // Initially not paused
+        assert!(!runner.is_paused());
+
+        // Pause
+        runner.pause();
+        assert!(runner.is_paused(), "Runner should be paused after pause()");
+
+        // Resume
+        runner.resume();
+        assert!(
+            !runner.is_paused(),
+            "Runner should not be paused after resume()"
+        );
+    }
+
+    #[test]
+    fn test_pause_handles_cloning() {
+        let workflow = make_empty_workflow();
+        let runner = Runner::new(workflow);
+
+        let (paused1, notify1) = runner.pause_handles();
+        let (paused2, _notify2) = runner.pause_handles();
+
+        // Both should share the same underlying state
+        runner.pause();
+        assert!(
+            paused1.load(Ordering::SeqCst),
+            "First handle should see paused state"
+        );
+        assert!(
+            paused2.load(Ordering::SeqCst),
+            "Second handle should see paused state"
+        );
+
+        // Resume via runner
+        runner.resume();
+        assert!(
+            !paused1.load(Ordering::SeqCst),
+            "First handle should see resumed state"
+        );
+        assert!(
+            !paused2.load(Ordering::SeqCst),
+            "Second handle should see resumed state"
+        );
+
+        // Verify notify exists (just access it to prove it's valid)
+        notify1.notify_one();
+    }
+
+    #[test]
+    fn test_pause_emits_events() {
+        let workflow = make_empty_workflow();
+        let event_log = EventLog::new();
+        let runner = Runner::with_event_log(workflow, event_log.clone());
+
+        // Pause and resume
+        runner.pause();
+        runner.resume();
+
+        // Check events
+        let events = event_log.events();
+        let paused = events
+            .iter()
+            .find(|e| matches!(&e.kind, EventKind::WorkflowPaused));
+        let resumed = events
+            .iter()
+            .find(|e| matches!(&e.kind, EventKind::WorkflowResumed));
+
+        assert!(paused.is_some(), "WorkflowPaused event should be emitted");
+        assert!(resumed.is_some(), "WorkflowResumed event should be emitted");
+    }
+
+    #[tokio::test]
+    async fn test_pause_waits_for_resume() {
+        use std::sync::atomic::AtomicUsize;
+        use std::time::Duration;
+
+        // Create a simple workflow
+        let workflow = create_exec_workflow(vec![("task1", "echo done")], vec![]);
+        let event_log = EventLog::new();
+        let event_log_clone = event_log.clone();
+        let runner = Runner::with_event_log(workflow, event_log);
+
+        // Pause before running
+        runner.pause();
+
+        let (paused, notify) = runner.pause_handles();
+        let resume_count = Arc::new(AtomicUsize::new(0));
+        let resume_count_clone = Arc::clone(&resume_count);
+
+        // Spawn the workflow
+        let handle = tokio::spawn(async move { runner.run().await });
+
+        // Wait a bit - workflow should be waiting
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Check events - should not have completed yet
+        {
+            let events = event_log_clone.events();
+            let completed = events
+                .iter()
+                .find(|e| matches!(&e.kind, EventKind::WorkflowCompleted { .. }));
+            assert!(
+                completed.is_none(),
+                "Workflow should be paused, not completed"
+            );
+        }
+
+        // Resume
+        paused.store(false, Ordering::SeqCst);
+        notify.notify_one();
+        resume_count_clone.fetch_add(1, Ordering::SeqCst);
+
+        // Now it should complete
+        let result = tokio::time::timeout(Duration::from_secs(5), handle).await;
+        assert!(result.is_ok(), "Workflow should complete after resume");
+
+        let inner_result = result.unwrap().unwrap();
+        assert!(inner_result.is_ok(), "Workflow should succeed");
     }
 }

@@ -30,4 +30,4 @@
 pub mod rig;
 
 // Re-export main types for convenience
-pub use rig::{NikaMcpTool, RigProvider};
+pub use rig::{NikaMcpTool, RigProvider, StreamResult};

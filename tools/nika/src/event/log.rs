@@ -170,6 +170,10 @@ pub enum EventKind {
         /// Tasks that were still running when aborted
         running_tasks: Vec<Arc<str>>,
     },
+    /// Workflow execution paused (v0.5.2+)
+    WorkflowPaused,
+    /// Workflow execution resumed (v0.5.2+)
+    WorkflowResumed,
 
     // ═══════════════════════════════════════════
     // TASK LEVEL
@@ -348,7 +352,9 @@ impl EventKind {
             Self::WorkflowStarted { .. }
             | Self::WorkflowCompleted { .. }
             | Self::WorkflowFailed { .. }
-            | Self::WorkflowAborted { .. } => None,
+            | Self::WorkflowAborted { .. }
+            | Self::WorkflowPaused
+            | Self::WorkflowResumed => None,
         }
     }
 
@@ -361,6 +367,8 @@ impl EventKind {
                 | Self::WorkflowCompleted { .. }
                 | Self::WorkflowFailed { .. }
                 | Self::WorkflowAborted { .. }
+                | Self::WorkflowPaused
+                | Self::WorkflowResumed
         )
     }
 }

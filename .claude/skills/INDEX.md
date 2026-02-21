@@ -1,6 +1,6 @@
 # Nika Skills Index
 
-**Nika Version:** v0.4.1 | **5 verbs** | for_each parallelism | rig-core v0.31 | Extended thinking
+**Nika Version:** v0.5.2 | **5 verbs** | decompose + lazy bindings + spawn_agent | rig-core v0.31 | Extended thinking
 
 ## Available Skills
 
@@ -15,45 +15,67 @@
 | **workflow-validate** | `/workflow-validate` | Validate YAML syntax and DAG |
 | **nika-spec** | `/nika-spec` | Workflow specification reference |
 
-## v0.3 Features (Reference)
+## v0.5.2 MVP 8 Features
 
-Features added in v0.2 and v0.3 are documented in:
+Features added in v0.5 MVP 8:
 
 | Feature | Documentation |
 |---------|--------------|
-| `invoke:` verb (MCP) | `README.md` → "invoke (MCP)" |
-| `agent:` verb (agentic loop) | `README.md` → "agent (Agentic Loop)" |
-| `for_each:` parallelism | `README.md` → "for_each Parallelism" |
-| Resilience (retry, circuit breaker) | `CLAUDE.md` → "Resilience Patterns" |
-| MCP configuration | `README.md` → "MCP Configuration" |
+| `decompose:` modifier | `CLAUDE.md` → "Decompose Modifier" |
+| Lazy bindings | `CLAUDE.md` → "Lazy Bindings" |
+| `spawn_agent` tool | `CLAUDE.md` → "Nested Agents" |
+| Shorthand syntax | `CLAUDE.md` → "Verb Shorthand Syntax" |
+| Event sourcing | `CLAUDE.md` → "Event Sourcing" |
+
+## v0.3-0.4 Features (Reference)
+
+Features from earlier versions:
+
+| Feature | Documentation |
+|---------|--------------|
+| `invoke:` verb (MCP) | `CLAUDE.md` → "MCP Integration" |
+| `agent:` verb (agentic loop) | `CLAUDE.md` → "rig-core Integration" |
+| `for_each:` parallelism | `CLAUDE.md` → "for_each Parallelism" |
+| Token tracking fix | `CLAUDE.md` → "v0.4.1 Changes" |
 
 ## Quick Reference
 
-### Starting a Workflow
+### CLI Commands (v0.5.2)
 
 ```bash
-# Always validate first
-cargo run -- validate workflow.yaml
+# TUI Home view (default)
+cargo run -- nika
 
-# Then run
-cargo run -- run workflow.yaml
+# TUI Chat mode
+cargo run -- nika chat
+
+# TUI Studio editor
+cargo run -- nika studio
+
+# Run workflow directly
+cargo run -- nika workflow.nika.yaml
+
+# Explicit run command
+cargo run -- run workflow.nika.yaml
+
+# Validate without executing
+cargo run -- check workflow.nika.yaml
+
+# Initialize project
+cargo run -- init
 ```
 
-### Debugging
+### Debugging & Observation
 
 ```bash
-# Verbose logging
-RUST_LOG=debug cargo run -- run workflow.yaml
+# Verbose logging with run
+RUST_LOG=debug cargo run -- run workflow.nika.yaml
 
-# View traces
-cargo run -- trace list
-cargo run -- trace show <id>
-```
+# View event trace (NDJSON)
+cat .nika/trace.ndjson | jq .
 
-### TUI Mode
-
-```bash
-cargo run -- tui workflow.yaml
+# Check syntax and DAG
+cargo run -- check workflow.nika.yaml
 ```
 
 ## Skill Categories

@@ -395,6 +395,30 @@ impl App {
         self
     }
 
+    /// Set provider and model overrides for ChatAgent
+    ///
+    /// Used by `nika chat --provider claude --model claude-sonnet-4-20250514`.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider` - Optional provider name ("claude" or "openai")
+    /// * `model` - Optional model name override
+    pub fn with_chat_overrides(mut self, provider: Option<String>, model: Option<String>) -> Self {
+        // Create ChatAgent with overrides (or use existing if no overrides)
+        if provider.is_some() || model.is_some() {
+            match ChatAgent::with_overrides(provider.as_deref(), model.as_deref()) {
+                Ok(agent) => {
+                    self.chat_agent = Some(agent);
+                }
+                Err(e) => {
+                    // Log error but don't fail - agent will be created later
+                    tracing::warn!("Failed to create ChatAgent with overrides: {}", e);
+                }
+            }
+        }
+        self
+    }
+
     /// Ensure chat agent exists, creating one if necessary
     ///
     /// Returns a mutable reference to the chat agent.
@@ -680,6 +704,18 @@ impl App {
                         last.content = format!("Error: {}", err);
                     }
                 }
+                StreamChunk::Metrics {
+                    input_tokens,
+                    output_tokens,
+                } => {
+                    // Update session context with token usage for status bar display
+                    self.chat_view.add_tokens(input_tokens, output_tokens);
+                    tracing::debug!(
+                        input = input_tokens,
+                        output = output_tokens,
+                        "Token metrics received"
+                    );
+                }
             }
         }
 
@@ -790,7 +826,7 @@ impl App {
                 .iter()
                 .filter(|entry| entry.value().get().is_some())
                 .count();
-            let total_tokens = state.metrics.total_tokens;
+            let total_tokens = chat_view.total_tokens();
             let model_name = chat_view.current_model.to_lowercase();
             let provider = if model_name.contains("claude") {
                 Provider::Claude
@@ -856,15 +892,18 @@ impl App {
                             studio_view.render(frame, chunks[1], state, theme);
                         }
                         TuiView::Monitor => {
-                            // Already handled above, but needed for exhaustive match
-                            unreachable!()
+                            // Monitor view returns early above (line 794-803) using render_frame()
+                            // If we reach here, something is wrong - render placeholder safely
+                            let placeholder = Paragraph::new("Monitor view - use render_frame()")
+                                .block(Block::default().borders(Borders::ALL).title(" MONITOR "));
+                            frame.render_widget(placeholder, chunks[1]);
                         }
                     }
 
                     // Render status bar with metrics and custom status text
                     let metrics = StatusMetrics::new()
                         .provider(provider)
-                        .tokens(total_tokens as u64)
+                        .tokens(total_tokens)
                         .mcp(mcp_connected, mcp_total)
                         .connection(if mcp_total > 0 {
                             ConnectionStatus::Connected
@@ -929,13 +968,19 @@ impl App {
             }
 
             // Tab cycles views (when not in Monitor, which uses Tab for panel cycling)
+            // Also skip when capturing input (Studio Insert mode, Chat with text)
             KeyCode::Tab
                 if !modifiers.contains(KeyModifiers::SHIFT)
-                    && self.current_view != TuiView::Monitor =>
+                    && self.current_view != TuiView::Monitor
+                    && !self.is_view_capturing_input() =>
             {
                 return Action::NextView
             }
-            KeyCode::BackTab if self.current_view != TuiView::Monitor => return Action::PrevView,
+            KeyCode::BackTab
+                if self.current_view != TuiView::Monitor && !self.is_view_capturing_input() =>
+            {
+                return Action::PrevView
+            }
 
             _ => {}
         }
@@ -3374,6 +3419,103 @@ mod tests {
 
         app.current_view = TuiView::Monitor;
         assert!(!app.is_view_capturing_input());
+    }
+
+    // === Tab Key Behavior Tests (MEDIUM 14) ===
+
+    #[test]
+    fn test_tab_switches_view_in_normal_mode() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Start in Home view
+        app.current_view = TuiView::Home;
+        app.input_mode = InputMode::Normal;
+
+        // Tab should return NextView
+        let action = app.handle_unified_key(KeyCode::Tab, KeyModifiers::empty());
+        assert_eq!(action, Action::NextView, "Tab should cycle to next view");
+    }
+
+    #[test]
+    fn test_tab_blocked_in_studio_insert_mode() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Studio in Insert mode
+        app.current_view = TuiView::Studio;
+        app.studio_view.mode = EditorMode::Insert;
+
+        // Tab should NOT switch views (Insert mode inserts spaces)
+        let action = app.handle_unified_key(KeyCode::Tab, KeyModifiers::empty());
+        assert_ne!(
+            action,
+            Action::NextView,
+            "Tab in Studio Insert mode should not switch views"
+        );
+    }
+
+    #[test]
+    fn test_tab_blocked_in_chat_with_input() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Chat view with text in input
+        app.current_view = TuiView::Chat;
+        app.chat_view.input = tui_input::Input::new("typing...".to_string());
+
+        // Tab should NOT switch views when input has text
+        let action = app.handle_unified_key(KeyCode::Tab, KeyModifiers::empty());
+        assert_ne!(
+            action,
+            Action::NextView,
+            "Tab in Chat with input should not switch views"
+        );
+    }
+
+    #[test]
+    fn test_tab_allowed_in_chat_empty_input() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Chat view with empty input
+        app.current_view = TuiView::Chat;
+        app.chat_view.input = tui_input::Input::default();
+
+        // Tab SHOULD switch views when input is empty
+        let action = app.handle_unified_key(KeyCode::Tab, KeyModifiers::empty());
+        assert_eq!(
+            action,
+            Action::NextView,
+            "Tab in Chat with empty input should switch views"
+        );
+    }
+
+    #[test]
+    fn test_shift_tab_cycles_backward() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
+
+        // Start in Home view
+        app.current_view = TuiView::Home;
+
+        // Shift+Tab should return PrevView
+        let action = app.handle_unified_key(KeyCode::BackTab, KeyModifiers::SHIFT);
+        assert_eq!(
+            action,
+            Action::PrevView,
+            "Shift+Tab should cycle to previous view"
+        );
     }
 
     #[test]

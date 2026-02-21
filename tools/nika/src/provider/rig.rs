@@ -26,7 +26,7 @@
 use crate::mcp::McpClient;
 use futures::StreamExt;
 use rig::client::{CompletionClient, ProviderClient};
-use rig::completion::{CompletionModel as _, Prompt, PromptError, ToolDefinition};
+use rig::completion::{CompletionModel as _, GetTokenUsage, Prompt, PromptError, ToolDefinition};
 use rig::providers::{anthropic, openai};
 use rig::streaming::StreamedAssistantContent;
 use rig::tool::{ToolDyn, ToolError};
@@ -204,6 +204,40 @@ pub enum StreamChunk {
     Done(String),
     /// Stream failed with error
     Error(String),
+    /// Token usage metrics (sent after completion)
+    Metrics {
+        input_tokens: u64,
+        output_tokens: u64,
+    },
+}
+
+// =============================================================================
+// StreamResult - Complete streaming response with token usage
+// =============================================================================
+
+/// Complete streaming response with text and token usage metrics
+#[derive(Debug, Clone, Default)]
+pub struct StreamResult {
+    /// The complete response text
+    pub text: String,
+    /// Number of input tokens used
+    pub input_tokens: u64,
+    /// Number of output tokens generated
+    pub output_tokens: u64,
+    /// Total tokens (input + output)
+    pub total_tokens: u64,
+    /// Cached input tokens (from prompt caching)
+    pub cached_input_tokens: u64,
+}
+
+impl StreamResult {
+    /// Create a new StreamResult with just text (zero tokens)
+    pub fn from_text(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            ..Default::default()
+        }
+    }
 }
 
 impl RigProvider {
@@ -217,14 +251,16 @@ impl RigProvider {
     /// * `tx` - Channel sender for streaming chunks
     ///
     /// # Returns
-    /// The complete response text after streaming finishes
+    /// `StreamResult` containing complete response text and token usage metrics
     pub async fn infer_stream(
         &self,
         prompt: &str,
         tx: mpsc::Sender<StreamChunk>,
-    ) -> Result<String, RigInferError> {
-        let model_id = self.default_model();
+        model: Option<&str>,
+    ) -> Result<StreamResult, RigInferError> {
+        let model_id = model.unwrap_or_else(|| self.default_model());
         let mut response_parts: Vec<String> = Vec::new();
+        let mut result = StreamResult::default();
 
         match self {
             RigProvider::Claude(client) => {
@@ -246,8 +282,14 @@ impl RigProvider {
                             StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
                                 let _ = tx.send(StreamChunk::Thinking(reasoning)).await;
                             }
-                            StreamedAssistantContent::Final(_) => {
-                                // Final chunk - token usage available but we just need text
+                            StreamedAssistantContent::Final(response) => {
+                                // Extract token usage from final response
+                                if let Some(usage) = response.token_usage() {
+                                    result.input_tokens = usage.input_tokens;
+                                    result.output_tokens = usage.output_tokens;
+                                    result.total_tokens = usage.total_tokens;
+                                    result.cached_input_tokens = usage.cached_input_tokens;
+                                }
                             }
                             _ => {
                                 // ToolCall, ToolCallDelta, Reasoning - not used in simple infer
@@ -276,8 +318,14 @@ impl RigProvider {
                                 response_parts.push(text.text.clone());
                                 let _ = tx.send(StreamChunk::Token(text.text)).await;
                             }
-                            StreamedAssistantContent::Final(_) => {
-                                // Final chunk
+                            StreamedAssistantContent::Final(response) => {
+                                // Extract token usage from final response
+                                if let Some(usage) = response.token_usage() {
+                                    result.input_tokens = usage.input_tokens;
+                                    result.output_tokens = usage.output_tokens;
+                                    result.total_tokens = usage.total_tokens;
+                                    result.cached_input_tokens = usage.cached_input_tokens;
+                                }
                             }
                             _ => {}
                         },
@@ -292,7 +340,8 @@ impl RigProvider {
 
         let complete_response = response_parts.concat();
         let _ = tx.send(StreamChunk::Done(complete_response.clone())).await;
-        Ok(complete_response)
+        result.text = complete_response;
+        Ok(result)
     }
 }
 

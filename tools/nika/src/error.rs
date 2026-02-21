@@ -104,6 +104,9 @@ pub enum NikaError {
     #[error("[NIKA-032] Missing API key for provider '{provider}'")]
     MissingApiKey { provider: String },
 
+    #[error("[NIKA-033] Invalid configuration: {message}")]
+    InvalidConfig { message: String },
+
     // ═══════════════════════════════════════════
     // TEMPLATE/BINDING ERRORS (040-049)
     // ═══════════════════════════════════════════
@@ -344,6 +347,7 @@ impl NikaError {
             Self::ProviderNotConfigured { .. } => "NIKA-030",
             Self::ProviderApiError { .. } => "NIKA-031",
             Self::MissingApiKey { .. } => "NIKA-032",
+            Self::InvalidConfig { .. } => "NIKA-033",
             // Binding/Template errors
             Self::Template(_) => "NIKA-040",  // legacy
             Self::Execution(_) => "NIKA-041", // legacy
@@ -456,6 +460,7 @@ impl FixSuggestion for NikaError {
             NikaError::MissingApiKey { .. } => {
                 Some("Set the API key env var (ANTHROPIC_API_KEY or OPENAI_API_KEY)")
             }
+            NikaError::InvalidConfig { .. } => Some("Check configuration value is valid"),
             NikaError::Template(_) => Some("Use {{use.alias}} format with use: block"),
             NikaError::Execution(_) => Some("Check command/URL is valid"),
             NikaError::BindingError { .. } => Some("Check binding syntax and source task output"),

@@ -13,29 +13,36 @@ description: Run Nika workflows with proper validation and setup
 cd nika-dev/tools/nika
 
 # Step 1: Validate (required)
-cargo run -- validate workflow.yaml
+nika check workflow.nika.yaml
 
 # Step 2: Run (only after validation passes)
-cargo run -- run workflow.yaml
+nika workflow.nika.yaml
 ```
 
-## Run Options
+## Direct Execution (Recommended)
 
 ```bash
-# Basic run
-cargo run -- run workflow.yaml
+# Run workflow directly (opens Monitor view)
+nika workflow.nika.yaml
 
-# With trace output
-cargo run -- run workflow.yaml --trace
+# Explicit run command (same as above)
+nika run workflow.nika.yaml
 
-# With TUI (real-time monitoring)
-cargo run -- tui workflow.yaml
+# With provider override
+nika run workflow.nika.yaml --provider openai
 
-# With custom provider
-cargo run -- run workflow.yaml --provider openai
+# With model override
+nika run workflow.nika.yaml --model gpt-4-turbo
+```
 
-# With custom model
-cargo run -- run workflow.yaml --model gpt-4-turbo
+## Validation
+
+```bash
+# Basic validation
+nika check workflow.nika.yaml
+
+# Strict validation (includes MCP connection checks)
+nika check workflow.nika.yaml --strict
 ```
 
 ## Environment Setup
@@ -51,10 +58,11 @@ export NIKA_TRACE_DIR=".nika/traces"
 
 ## Pre-Run Checklist
 
-- [ ] `cargo run -- validate workflow.yaml` passes
+- [ ] `nika check workflow.nika.yaml --strict` passes
 - [ ] API keys set (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`)
 - [ ] MCP servers running (if using `invoke:`)
 - [ ] No NIKA-XXX error codes
+- [ ] Workflow file ends with `.nika.yaml`
 
 ## Example Workflows
 
@@ -63,33 +71,58 @@ export NIKA_TRACE_DIR=".nika/traces"
 ls examples/
 
 # Run basic example
-cargo run -- run examples/basic.nika.yaml
+nika run examples/basic.nika.yaml
 
 # Run with NovaNet integration
-cargo run -- run examples/uc1-multi-locale-page.nika.yaml
+nika run examples/uc1-multi-locale-page.nika.yaml
+
+# Run with monitoring
+nika examples/test-parallel-stress.nika.yaml
 ```
 
-## Output
+## Monitor View (TUI)
+
+When you run a workflow directly, it opens a 4-panel Monitor view:
+
+```
+┌─────────────────────────────────────────────────────┐
+│ Task Graph              │ Event Log                 │
+├─────────────────────────────────────────────────────┤
+│ Status Bar              │ Output / Details          │
+└─────────────────────────────────────────────────────┘
+```
+
+**Panel controls:**
+- `Tab` — Switch between panels
+- `j/k` — Scroll up/down
+- `q` — Quit
+- `c` — Clear output
+
+## Output & Traces
 
 Workflow outputs are stored in:
 - **DataStore:** In-memory during execution
-- **Traces:** `.nika/traces/<trace_id>.ndjson`
+- **Traces:** `.nika/traces/<trace_id>.ndjson` (if `NIKA_TRACE_DIR` set)
 
 ```bash
-# View recent traces
-cargo run -- trace list
+# View recent traces (after run)
+nika traces list
 
-# Export specific trace
-cargo run -- trace show <id>
+# View specific trace
+nika traces show <id>
+
+# Export as JSON
+nika traces export <id> --format json
 ```
 
 ## Troubleshooting
 
 | Issue | Command |
 |-------|---------|
-| See errors | `RUST_LOG=debug cargo run -- run ...` |
+| See debug logs | `RUST_LOG=debug nika run workflow.nika.yaml` |
 | Check MCP | `curl localhost:3000/health` |
-| View trace | `cargo run -- trace show <id>` |
+| Validate schema | `nika check workflow.nika.yaml --strict` |
+| View trace | `nika traces show <id>` |
 
 ## Related Skills
 

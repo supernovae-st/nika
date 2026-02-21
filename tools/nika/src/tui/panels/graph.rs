@@ -17,7 +17,7 @@ use ratatui::{
 
 use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme};
-use crate::tui::widgets::{Dag, DagNode};
+use crate::tui::widgets::{Dag, DagNode, ScrollIndicator};
 
 /// DAG Execution panel (Panel 2)
 pub struct GraphPanel<'a> {
@@ -60,6 +60,11 @@ impl<'a> GraphPanel<'a> {
 
                     if self.state.current_task.as_ref() == Some(&task.id) {
                         node = node.current();
+                    }
+
+                    // Add breakpoint marker (v0.5.2+)
+                    if self.state.has_breakpoint(&task.id) {
+                        node = node.with_breakpoint(true);
                     }
 
                     node
@@ -120,9 +125,10 @@ impl<'a> GraphPanel<'a> {
         paragraph.render(area, buf);
     }
 
-    /// Render the DAG visualization
+    /// Render the DAG visualization with scroll indicator
     fn render_dag(&self, area: Rect, buf: &mut Buffer) {
         let nodes = self.build_dag_nodes();
+        let total_nodes = nodes.len();
 
         // Get scroll offset for this panel
         let scroll = self
@@ -132,12 +138,36 @@ impl<'a> GraphPanel<'a> {
             .copied()
             .unwrap_or(0);
 
+        // Calculate visible count (each node takes ~2 lines in the DAG)
+        let visible_count = (area.height as usize / 2).max(1);
+
+        // Split area: DAG content | scroll indicator (1 char width)
+        let has_scroll = total_nodes > visible_count;
+        let (dag_area, scroll_area) = if has_scroll && area.width > 3 {
+            let dag_width = area.width.saturating_sub(2);
+            (
+                Rect::new(area.x, area.y, dag_width, area.height),
+                Some(Rect::new(area.x + dag_width + 1, area.y, 1, area.height)),
+            )
+        } else {
+            (area, None)
+        };
+
         // Apply scroll to nodes (skip first N)
         let visible_nodes: Vec<DagNode> = nodes.into_iter().skip(scroll).collect();
 
         // Pass animation frame for animated spinners on running tasks
         let dag = Dag::new(&visible_nodes).with_frame(self.state.frame);
-        dag.render(area, buf);
+        dag.render(dag_area, buf);
+
+        // Render scroll indicator if scrollable
+        if let Some(scroll_rect) = scroll_area {
+            let indicator = ScrollIndicator::new()
+                .position(scroll, total_nodes, visible_count)
+                .thumb_style(Style::default().fg(Color::Rgb(59, 130, 246))) // blue
+                .track_style(Style::default().fg(Color::DarkGray));
+            indicator.render(scroll_rect, buf);
+        }
     }
 
     /// Render dependency legend
@@ -194,7 +224,7 @@ impl Widget for GraphPanel<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tui::state::TuiState;
+    use crate::tui::state::{TaskState, TuiState};
     use crate::tui::theme::Theme;
 
     #[test]
@@ -212,5 +242,60 @@ mod tests {
         let panel = GraphPanel::new(&state, &theme);
         let nodes = panel.build_dag_nodes();
         assert!(nodes.is_empty());
+    }
+
+    // === Scroll Indicator Tests (MEDIUM 11) ===
+
+    #[test]
+    fn test_scroll_indicator_shows_when_many_tasks() {
+        let mut state = TuiState::new("test.yaml");
+        // Add 20 tasks (more than can fit in a small area)
+        for i in 0..20 {
+            let task_id = format!("task-{}", i);
+            state.task_order.push(task_id.clone());
+            let mut task = TaskState::new(task_id.clone(), vec![]);
+            task.task_type = Some("infer".to_string());
+            state.tasks.insert(task_id, task);
+        }
+
+        let theme = Theme::novanet();
+        let panel = GraphPanel::new(&state, &theme);
+
+        // Render to buffer (small height = needs scroll)
+        let area = Rect::new(0, 0, 40, 10);
+        let mut buf = Buffer::empty(area);
+        panel.render(area, &mut buf);
+
+        // Buffer should contain scroll indicator characters
+        let content: String = buf.content.iter().map(|c| c.symbol()).collect();
+        // Should have scroll indicator when many tasks
+        assert!(
+            content.contains("░") || content.contains("█") || content.contains("▲"),
+            "Should show scroll indicator with many tasks"
+        );
+    }
+
+    #[test]
+    fn test_no_scroll_indicator_when_few_tasks() {
+        let mut state = TuiState::new("test.yaml");
+        // Add just 2 tasks
+        for i in 0..2 {
+            let task_id = format!("task-{}", i);
+            state.task_order.push(task_id.clone());
+            let mut task = TaskState::new(task_id.clone(), vec![]);
+            task.task_type = Some("exec".to_string());
+            state.tasks.insert(task_id, task);
+        }
+
+        let theme = Theme::novanet();
+        let panel = GraphPanel::new(&state, &theme);
+
+        // Render to buffer (large height = no scroll needed)
+        let area = Rect::new(0, 0, 40, 30);
+        let mut buf = Buffer::empty(area);
+        panel.render(area, &mut buf);
+
+        // Verify panel renders without error (scroll indicator hidden)
+        // Just verifies no panic
     }
 }

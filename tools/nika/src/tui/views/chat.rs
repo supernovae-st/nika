@@ -357,6 +357,16 @@ impl ChatView {
         std::mem::take(&mut self.partial_response)
     }
 
+    /// Get total tokens used in this session
+    pub fn total_tokens(&self) -> u64 {
+        self.session_context.tokens_used
+    }
+
+    /// Add tokens to session context (for status bar display)
+    pub fn add_tokens(&mut self, input_tokens: u64, output_tokens: u64) {
+        self.session_context.add_tokens(input_tokens, output_tokens);
+    }
+
     /// Append thinking content during streaming (v0.5.2+)
     pub fn append_thinking(&mut self, thinking: &str) {
         match &mut self.pending_thinking {
@@ -1079,7 +1089,9 @@ impl View for ChatView {
                 self.scroll_to_bottom();
                 ViewAction::None
             }
-            KeyCode::Tab => ViewAction::SwitchView(TuiView::Home),
+            // Tab is handled at app level for view switching
+            // In Insert mode, Tab is ignored (no autocomplete yet)
+            KeyCode::Tab => ViewAction::None,
             KeyCode::Esc => ViewAction::SwitchView(TuiView::Home),
             _ => ViewAction::None,
         }

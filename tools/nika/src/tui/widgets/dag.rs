@@ -130,6 +130,12 @@ pub struct DagNode {
     pub duration_ms: Option<u64>,
     /// Edge state for incoming edges
     pub incoming_edge_state: EdgeState,
+    /// Has breakpoint set (v0.5.2+)
+    pub has_breakpoint: bool,
+    /// for_each loop count (v0.5.2+)
+    pub for_each_count: Option<usize>,
+    /// for_each loop group ID (v0.5.2+) - shared by all tasks in same loop
+    pub loop_group_id: Option<String>,
 }
 
 impl DagNode {
@@ -143,6 +149,9 @@ impl DagNode {
             is_current: false,
             duration_ms: None,
             incoming_edge_state: EdgeState::Inactive,
+            has_breakpoint: false,
+            for_each_count: None,
+            loop_group_id: None,
         }
     }
 
@@ -176,6 +185,29 @@ impl DagNode {
     pub fn with_edge_state(mut self, state: EdgeState) -> Self {
         self.incoming_edge_state = state;
         self
+    }
+
+    /// Set breakpoint flag (v0.5.2+)
+    pub fn with_breakpoint(mut self, has_bp: bool) -> Self {
+        self.has_breakpoint = has_bp;
+        self
+    }
+
+    /// Set for_each loop count (v0.5.2+)
+    pub fn with_for_each_count(mut self, count: usize) -> Self {
+        self.for_each_count = Some(count);
+        self
+    }
+
+    /// Set loop group ID (v0.5.2+) - for visual grouping of parallel tasks
+    pub fn with_loop_group(mut self, group_id: impl Into<String>) -> Self {
+        self.loop_group_id = Some(group_id.into());
+        self
+    }
+
+    /// Check if this node is part of a for_each loop
+    pub fn is_loop_task(&self) -> bool {
+        self.for_each_count.is_some() || self.loop_group_id.is_some()
     }
 }
 
@@ -358,6 +390,11 @@ impl Widget for Dag<'_> {
             );
             buf.set_string(area.x + x, area.y + y, icon, icon_style);
 
+            // Draw breakpoint marker (v0.5.2+)
+            if node.has_breakpoint {
+                buf.set_string(area.x + x + 1, area.y + y, "🔴", Style::default());
+            }
+
             // Draw task ID
             let max_id_len = (area.width as usize).saturating_sub(x as usize + 4);
             let display_id = if node.id.len() > max_id_len {
@@ -382,10 +419,26 @@ impl Widget for Dag<'_> {
 
             // Draw type icon and duration if space allows
             if !self.compact && area.width > 30 {
-                let type_x = area.x + x + 2 + display_id.len() as u16 + 1;
-                if type_x < area.x + area.width - 10 {
+                let mut next_x = area.x + x + 2 + display_id.len() as u16 + 1;
+
+                // Type icon
+                if next_x < area.x + area.width - 10 {
                     let type_icon = Self::type_icon(node.verb_type);
-                    buf.set_string(type_x, area.y + y, type_icon, Style::default());
+                    buf.set_string(next_x, area.y + y, type_icon, Style::default());
+                    next_x += 2;
+                }
+
+                // for_each loop indicator (v0.5.2+)
+                if let Some(count) = node.for_each_count {
+                    if next_x < area.x + area.width - 10 {
+                        let loop_indicator = format!("🔁×{}", count);
+                        buf.set_string(
+                            next_x,
+                            area.y + y,
+                            &loop_indicator,
+                            Style::default().fg(Color::Rgb(139, 92, 246)), // violet
+                        );
+                    }
                 }
 
                 // Draw duration for completed tasks
@@ -545,5 +598,130 @@ mod tests {
     fn test_dag_node_edge_state() {
         let node = DagNode::new("task1", TaskStatus::Running).with_edge_state(EdgeState::Active);
         assert_eq!(node.incoming_edge_state, EdgeState::Active);
+    }
+
+    // === Breakpoint Tests (MEDIUM 12) ===
+
+    #[test]
+    fn test_dag_node_breakpoint_default() {
+        let node = DagNode::new("task1", TaskStatus::Pending);
+        assert!(!node.has_breakpoint, "Should default to no breakpoint");
+    }
+
+    #[test]
+    fn test_dag_node_with_breakpoint() {
+        let node = DagNode::new("task1", TaskStatus::Pending).with_breakpoint(true);
+        assert!(
+            node.has_breakpoint,
+            "Should have breakpoint after with_breakpoint(true)"
+        );
+    }
+
+    #[test]
+    fn test_dag_breakpoint_renders_marker() {
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        let nodes = vec![DagNode::new("task1", TaskStatus::Pending).with_breakpoint(true)];
+
+        let dag = Dag::new(&nodes);
+        let area = Rect::new(0, 0, 40, 5);
+        let mut buf = Buffer::empty(area);
+        dag.render(area, &mut buf);
+
+        // Buffer should contain breakpoint marker 🔴
+        let content: String = buf.content.iter().map(|c| c.symbol()).collect();
+        assert!(content.contains("🔴"), "Should render breakpoint marker");
+    }
+
+    #[test]
+    fn test_dag_no_breakpoint_no_marker() {
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        let nodes = vec![
+            DagNode::new("task1", TaskStatus::Pending), // No breakpoint
+        ];
+
+        let dag = Dag::new(&nodes);
+        let area = Rect::new(0, 0, 40, 5);
+        let mut buf = Buffer::empty(area);
+        dag.render(area, &mut buf);
+
+        // Buffer should NOT contain breakpoint marker
+        let content: String = buf.content.iter().map(|c| c.symbol()).collect();
+        assert!(
+            !content.contains("🔴"),
+            "Should not render breakpoint marker when not set"
+        );
+    }
+
+    // === for_each Loop Grouping Tests (LOW 15) ===
+
+    #[test]
+    fn test_dag_node_for_each_default() {
+        let node = DagNode::new("task1", TaskStatus::Pending);
+        assert!(node.for_each_count.is_none(), "Should default to None");
+        assert!(node.loop_group_id.is_none(), "Should default to None");
+        assert!(!node.is_loop_task(), "Should not be a loop task by default");
+    }
+
+    #[test]
+    fn test_dag_node_with_for_each_count() {
+        let node = DagNode::new("task1", TaskStatus::Pending).with_for_each_count(5);
+        assert_eq!(node.for_each_count, Some(5));
+        assert!(
+            node.is_loop_task(),
+            "Should be a loop task with for_each_count"
+        );
+    }
+
+    #[test]
+    fn test_dag_node_with_loop_group() {
+        let node = DagNode::new("task1", TaskStatus::Pending).with_loop_group("generate_all");
+        assert_eq!(node.loop_group_id, Some("generate_all".to_string()));
+        assert!(node.is_loop_task(), "Should be a loop task with loop_group");
+    }
+
+    #[test]
+    fn test_dag_for_each_renders_indicator() {
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        let nodes = vec![DagNode::new("generate", TaskStatus::Running)
+            .with_type("infer")
+            .with_for_each_count(10)];
+
+        let dag = Dag::new(&nodes);
+        // Use wide area to see the for_each indicator
+        let area = Rect::new(0, 0, 60, 5);
+        let mut buf = Buffer::empty(area);
+        dag.render(area, &mut buf);
+
+        let content: String = buf.content.iter().map(|c| c.symbol()).collect();
+        assert!(
+            content.contains("🔁") || content.contains("×10"),
+            "Should render for_each indicator: {}",
+            content
+        );
+    }
+
+    #[test]
+    fn test_dag_no_for_each_no_indicator() {
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        let nodes = vec![DagNode::new("task1", TaskStatus::Pending).with_type("infer")];
+
+        let dag = Dag::new(&nodes);
+        let area = Rect::new(0, 0, 60, 5);
+        let mut buf = Buffer::empty(area);
+        dag.render(area, &mut buf);
+
+        let content: String = buf.content.iter().map(|c| c.symbol()).collect();
+        assert!(
+            !content.contains("🔁"),
+            "Should not render loop indicator when not set"
+        );
     }
 }

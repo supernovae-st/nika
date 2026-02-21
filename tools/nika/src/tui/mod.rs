@@ -1,30 +1,34 @@
 //! Terminal User Interface Module
 //!
-//! Feature-gated TUI for workflow observability.
+//! Feature-gated TUI with 4-view architecture (v0.5.2+).
 //!
-//! # Two Modes
+//! # Entry Points
 //!
-//! 1. **Standalone Mode** (`nika tui` without args):
-//!    - File browser for `.nika.yaml` files
-//!    - Execution history
-//!    - YAML preview
+//! - `nika` → Home view (browse workflows)
+//! - `nika chat` → Chat view (conversational agent)
+//! - `nika studio` → Studio view (YAML editor)
+//! - `nika workflow.yaml` → Monitor view (run workflow)
 //!
-//! 2. **Execution Mode** (`nika tui workflow.yaml`):
-//!    - 4-panel workflow observer
-//!    - Real-time event streaming
-//!
-//! # Architecture
+//! # 4-View Architecture
 //!
 //! ```text
-//! STANDALONE MODE (Home)                    EXECUTION MODE (Run)
-//! ┌───────────────┬───────────────┐        ┌─────────────────────────────┐
-//! │ [1] BROWSER   │ [2] HISTORY   │        │ [1] MISSION CONTROL         │
-//! ├───────────────┴───────────────┤        ├──────────────┬──────────────┤
-//! │ [3] PREVIEW                   │        │ [2] DAG      │ [3] NOVANET  │
-//! └───────────────────────────────┘        ├──────────────┴──────────────┤
-//!                                          │ [4] AGENT REASONING         │
-//!                                          └─────────────────────────────┘
+//! ┌─────────────────────────────────────────────────────────────────┐
+//! │  [a] Chat  │  [h] Home  │  [s] Studio  │  [m] Monitor          │
+//! ├─────────────────────────────────────────────────────────────────┤
+//! │                                                                 │
+//! │  Chat:    Conversational agent, 5-verb support, MCP tools      │
+//! │  Home:    File browser for .nika.yaml, execution history       │
+//! │  Studio:  YAML editor with live validation, schema hints       │
+//! │  Monitor: Real-time 4-panel observer (DAG, Reasoning, NovaNet) │
+//! │                                                                 │
+//! └─────────────────────────────────────────────────────────────────┘
 //! ```
+//!
+//! # Navigation
+//!
+//! - `Tab` / `a/h/s/m` - Switch views
+//! - `?` - Show help
+//! - `q` - Quit
 
 #[cfg(feature = "tui")]
 mod app;
@@ -76,7 +80,7 @@ pub use state::{AgentTurnState, PanelId, TuiMode, TuiState};
 #[cfg(feature = "tui")]
 pub use theme::{MissionPhase, TaskStatus, Theme};
 #[cfg(feature = "tui")]
-pub use views::{BrowserView, DagTab, MissionTab, NovanetTab, ReasoningTab, TuiView, ViewAction};
+pub use views::{DagTab, MissionTab, NovanetTab, ReasoningTab, TuiView, ViewAction};
 #[cfg(feature = "tui")]
 pub use watcher::{FileEvent, FileWatcher};
 
@@ -132,8 +136,9 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
     });
 
     // 5. Create and run TUI with event receiver
+    // Use run_unified() for the 4-view architecture (Chat/Home/Studio/Monitor)
     let app = App::new(workflow_path)?.with_broadcast_receiver(event_rx);
-    let tui_result = app.run().await;
+    let tui_result = app.run_unified().await;
 
     // 6. Abort runner if TUI exits early (user pressed q)
     runner_handle.abort();
@@ -155,9 +160,70 @@ pub async fn run_tui_standalone() -> crate::error::Result<()> {
     // Create standalone state
     let state = StandaloneState::new(root);
 
-    // Create and run standalone app
+    // Create and run standalone app with unified 4-view architecture
+    // Starts in Home view (file browser) with Chat/Studio/Monitor available
     let app = App::new_standalone(state)?;
-    app.run_standalone().await
+    app.run_unified().await
+}
+
+/// Run the TUI in Chat mode (conversational agent)
+///
+/// This is the entry point for `nika chat` command.
+/// Starts directly in Chat view for conversational interactions.
+///
+/// # Arguments
+///
+/// * `provider` - Optional provider override ("claude" or "openai")
+/// * `model` - Optional model override (e.g., "claude-sonnet-4-20250514")
+#[cfg(feature = "tui")]
+pub async fn run_tui_chat(
+    provider: Option<String>,
+    model: Option<String>,
+) -> crate::error::Result<()> {
+    use views::TuiView;
+
+    // Find project root
+    let root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+    // Create standalone state (Chat mode needs file context)
+    let state = StandaloneState::new(root);
+
+    // Create app with provider/model overrides
+    let app = App::new_standalone(state)?
+        .with_initial_view(TuiView::Chat)
+        .with_chat_overrides(provider, model);
+
+    app.run_unified().await
+}
+
+/// Run the TUI in Studio mode (workflow editor)
+///
+/// This is the entry point for `nika studio [workflow]` command.
+/// Starts directly in Studio view for YAML editing with live validation.
+#[cfg(feature = "tui")]
+pub async fn run_tui_studio(workflow: Option<std::path::PathBuf>) -> crate::error::Result<()> {
+    use views::TuiView;
+
+    // Find project root
+    let root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+    // Create standalone state
+    let state = StandaloneState::new(root.clone());
+
+    // Create app and set initial view to Studio
+    let mut app = App::new_standalone(state)?.with_initial_view(TuiView::Studio);
+
+    // If workflow provided, load it into Studio view
+    if let Some(path) = workflow {
+        let full_path = if path.is_absolute() {
+            path
+        } else {
+            root.join(path)
+        };
+        app = app.with_studio_file(full_path);
+    }
+
+    app.run_unified().await
 }
 
 /// Find project root by looking for Cargo.toml or .git
@@ -184,6 +250,23 @@ pub async fn run_tui(_workflow_path: &std::path::Path) -> crate::error::Result<(
 
 #[cfg(not(feature = "tui"))]
 pub async fn run_tui_standalone() -> crate::error::Result<()> {
+    Err(crate::error::NikaError::ValidationError {
+        reason: "TUI feature not enabled. Rebuild with --features tui".to_string(),
+    })
+}
+
+#[cfg(not(feature = "tui"))]
+pub async fn run_tui_chat(
+    _provider: Option<String>,
+    _model: Option<String>,
+) -> crate::error::Result<()> {
+    Err(crate::error::NikaError::ValidationError {
+        reason: "TUI feature not enabled. Rebuild with --features tui".to_string(),
+    })
+}
+
+#[cfg(not(feature = "tui"))]
+pub async fn run_tui_studio(_workflow: Option<std::path::PathBuf>) -> crate::error::Result<()> {
     Err(crate::error::NikaError::ValidationError {
         reason: "TUI feature not enabled. Rebuild with --features tui".to_string(),
     })

@@ -7,11 +7,10 @@
 //! - Dag: Task dependency graph visualization
 //! - McpLog: MCP call history display
 //! - AgentTurns: Agent turn history display
-//! - Spinner: Animated spinner for loading states
-//! - TabBar: Tab bar for panel switching
 //! - Sparkline: Mini chart for metrics
 //! - ScrollIndicator: Vertical scrollbar for panels
-//! - BigText: FIGlet-style headers (planned)
+//! - StatusBar: Bottom status bar with provider/MCP status
+//! - Header: Top header with view title and navigation hints
 
 // Allow unused code in widgets - many are planned for future TUI enhancements
 #![allow(dead_code)]
@@ -32,11 +31,8 @@ mod mcp_log;
 mod scroll_indicator;
 mod session_context;
 mod sparkline;
-mod spinner;
 mod status_bar;
-mod tabs;
 mod timeline;
-mod yaml_view;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
 
@@ -45,9 +41,9 @@ pub use agent_turns::{AgentTurns, TurnEntry};
 pub use session_context::{
     ActiveOperation, McpServerInfo, McpStatus, SessionContext, SessionContextBar,
 };
-// MCP call visualization box
-pub use mcp_call_box::{McpCallBox, McpCallData, McpCallStatus};
-// Streaming inference display
+// MCP call visualization (data types + widget for ChatView)
+pub use mcp_call_box::{McpCallBox, McpCallData, McpCallStatus, DEFAULT_MAX_RETRIES};
+// Streaming inference display (data types + widget for ChatView)
 pub use infer_stream_box::{InferStatus, InferStreamBox, InferStreamData};
 // Hot/warm/cold activity stack
 pub use activity_stack::{ActivityItem, ActivityStack, ActivityTemp};
@@ -64,9 +60,7 @@ pub use dag_ascii::DagAscii;
 pub use gauge::Gauge;
 pub use header::Header;
 pub use mcp_log::{McpEntry, McpLog};
-pub use scroll_indicator::ScrollIndicator;
+pub use scroll_indicator::{ScrollHint, ScrollIndicator};
 pub use sparkline::LatencySparkline;
 pub use status_bar::{ConnectionStatus, Provider, StatusBar, StatusMetrics};
 pub use timeline::{Timeline, TimelineEntry};
-// Note: TabBar and YamlView are kept as modules but not re-exported.
-// They're prepared for future TUI enhancements.
