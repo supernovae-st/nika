@@ -48,11 +48,20 @@ mod tests {
         assert!(INFER_TIMEOUT.as_secs() > 0);
         assert!(CONNECT_TIMEOUT.as_secs() > 0);
         assert!(MCP_CALL_TIMEOUT.as_secs() > 0);
+        assert!(WORKFLOW_TIMEOUT.as_secs() > 0);
     }
 
     #[test]
-    fn infer_timeout_is_longest() {
-        // LLM calls need more time than other operations
+    fn workflow_timeout_is_longest() {
+        // Workflow execution can run for a long time
+        assert!(WORKFLOW_TIMEOUT > INFER_TIMEOUT);
+        assert!(WORKFLOW_TIMEOUT > EXEC_TIMEOUT);
+        assert!(WORKFLOW_TIMEOUT > FETCH_TIMEOUT);
+    }
+
+    #[test]
+    fn infer_timeout_is_longer_than_exec() {
+        // LLM calls need more time than shell commands
         assert!(INFER_TIMEOUT > EXEC_TIMEOUT);
         assert!(INFER_TIMEOUT > FETCH_TIMEOUT);
     }
