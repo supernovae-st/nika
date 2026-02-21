@@ -179,6 +179,25 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                     category: KeyCategory::Chat,
                 });
             }
+            // Ctrl+K/T/M available in all Chat modes (v0.7.0)
+            bindings.push(Keybinding {
+                code: KeyCode::Char('k'),
+                modifiers: KeyModifiers::CONTROL,
+                description: "Command palette",
+                category: KeyCategory::Chat,
+            });
+            bindings.push(Keybinding {
+                code: KeyCode::Char('t'),
+                modifiers: KeyModifiers::CONTROL,
+                description: "Toggle deep thinking",
+                category: KeyCategory::Chat,
+            });
+            bindings.push(Keybinding {
+                code: KeyCode::Char('m'),
+                modifiers: KeyModifiers::CONTROL,
+                description: "Toggle Infer/Agent mode",
+                category: KeyCategory::Chat,
+            });
         }
         TuiView::Monitor => {
             if mode == InputMode::Normal {
@@ -293,6 +312,16 @@ mod tests {
         let bindings = keybindings_for_context(TuiView::Chat, InputMode::Normal);
         assert!(bindings.iter().any(|b| b.code == KeyCode::Char('i')));
         assert!(bindings.iter().any(|b| b.code == KeyCode::Char('q')));
+        // Ctrl+K/T/M available in Chat (v0.7.0)
+        assert!(bindings
+            .iter()
+            .any(|b| b.code == KeyCode::Char('k') && b.modifiers == KeyModifiers::CONTROL));
+        assert!(bindings
+            .iter()
+            .any(|b| b.code == KeyCode::Char('t') && b.modifiers == KeyModifiers::CONTROL));
+        assert!(bindings
+            .iter()
+            .any(|b| b.code == KeyCode::Char('m') && b.modifiers == KeyModifiers::CONTROL));
     }
 
     #[test]
@@ -300,6 +329,10 @@ mod tests {
         let bindings = keybindings_for_context(TuiView::Chat, InputMode::Insert);
         assert!(bindings.iter().any(|b| b.code == KeyCode::Esc));
         assert!(bindings.iter().any(|b| b.code == KeyCode::Enter));
+        // Ctrl+K/T/M also available in Insert mode
+        assert!(bindings
+            .iter()
+            .any(|b| b.code == KeyCode::Char('k') && b.modifiers == KeyModifiers::CONTROL));
     }
 
     #[test]

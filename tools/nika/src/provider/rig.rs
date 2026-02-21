@@ -326,6 +326,10 @@ pub enum StreamChunk {
         input_tokens: u64,
         output_tokens: u64,
     },
+    /// MCP server connected successfully (v0.7.0)
+    McpConnected(String),
+    /// MCP server connection failed (v0.7.0)
+    McpError { server_name: String, error: String },
 }
 
 // =============================================================================
@@ -713,8 +717,10 @@ impl ToolDyn for NikaMcpTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_rig_provider_claude_returns_claude_variant() {
         // This test verifies that RigProvider::claude() creates a Claude variant
         // It will fail initially because we need ANTHROPIC_API_KEY env var
@@ -729,6 +735,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_rig_provider_openai_returns_openai_variant() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
         let provider = RigProvider::openai();
@@ -738,6 +745,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_rig_provider_default_model_claude() {
         std::env::set_var("ANTHROPIC_API_KEY", "test-key-for-unit-test");
         let provider = RigProvider::claude();
@@ -748,6 +756,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_rig_provider_default_model_openai() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
         let provider = RigProvider::openai();
@@ -766,6 +775,7 @@ mod tests {
     // =========================================================================
 
     #[test]
+    #[serial]
     fn test_rig_provider_mistral_returns_mistral_variant() {
         std::env::set_var("MISTRAL_API_KEY", "test-key-for-unit-test");
         let provider = RigProvider::mistral();
@@ -784,6 +794,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_rig_provider_groq_returns_groq_variant() {
         std::env::set_var("GROQ_API_KEY", "test-key-for-unit-test");
         let provider = RigProvider::groq();
@@ -793,6 +804,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_rig_provider_deepseek_returns_deepseek_variant() {
         std::env::set_var("DEEPSEEK_API_KEY", "test-key-for-unit-test");
         let provider = RigProvider::deepseek();

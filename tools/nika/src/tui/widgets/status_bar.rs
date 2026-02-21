@@ -32,13 +32,17 @@ impl KeyHint {
     }
 }
 
-/// LLM Provider indicator
+/// LLM Provider indicator (v0.7.0: 6 providers)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Provider {
     #[default]
     None,
     Claude,
     OpenAI,
+    Mistral,
+    Ollama,
+    Groq,
+    DeepSeek,
     Mock,
 }
 
@@ -47,9 +51,13 @@ impl Provider {
     pub fn icon(&self) -> &'static str {
         match self {
             Self::None => "  ",
-            Self::Claude => "🧠", // Brain for Claude
-            Self::OpenAI => "🤖", // Robot for OpenAI
-            Self::Mock => "🧪",   // Test tube for mock
+            Self::Claude => "🧠",   // Brain for Claude
+            Self::OpenAI => "🤖",   // Robot for OpenAI
+            Self::Mistral => "🌬️",  // Wind for Mistral (mistral wind)
+            Self::Ollama => "🦙",   // Llama for Ollama
+            Self::Groq => "⚡",     // Lightning for Groq (fast inference)
+            Self::DeepSeek => "🔍", // Magnifying glass for DeepSeek
+            Self::Mock => "🧪",     // Test tube for mock
         }
     }
 
@@ -59,6 +67,10 @@ impl Provider {
             Self::None => "---",
             Self::Claude => "Claude",
             Self::OpenAI => "OpenAI",
+            Self::Mistral => "Mistral",
+            Self::Ollama => "Ollama",
+            Self::Groq => "Groq",
+            Self::DeepSeek => "DeepSeek",
             Self::Mock => "Mock",
         }
     }
@@ -467,6 +479,10 @@ mod tests {
     fn test_provider_icons() {
         assert_eq!(Provider::Claude.icon(), "🧠");
         assert_eq!(Provider::OpenAI.icon(), "🤖");
+        assert_eq!(Provider::Mistral.icon(), "🌬️");
+        assert_eq!(Provider::Ollama.icon(), "🦙");
+        assert_eq!(Provider::Groq.icon(), "⚡");
+        assert_eq!(Provider::DeepSeek.icon(), "🔍");
         assert_eq!(Provider::Mock.icon(), "🧪");
         assert_eq!(Provider::None.icon(), "  ");
     }
@@ -475,6 +491,10 @@ mod tests {
     fn test_provider_names() {
         assert_eq!(Provider::Claude.name(), "Claude");
         assert_eq!(Provider::OpenAI.name(), "OpenAI");
+        assert_eq!(Provider::Mistral.name(), "Mistral");
+        assert_eq!(Provider::Ollama.name(), "Ollama");
+        assert_eq!(Provider::Groq.name(), "Groq");
+        assert_eq!(Provider::DeepSeek.name(), "DeepSeek");
         assert_eq!(Provider::Mock.name(), "Mock");
         assert_eq!(Provider::None.name(), "---");
     }

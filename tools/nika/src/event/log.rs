@@ -282,6 +282,18 @@ pub enum EventKind {
         #[serde(skip_serializing_if = "Option::is_none")]
         response: Option<Value>,
     },
+    /// MCP server connection established (v0.7.0)
+    McpConnected {
+        /// Name of the connected MCP server
+        server_name: String,
+    },
+    /// MCP server connection failed (v0.7.0)
+    McpError {
+        /// Name of the MCP server
+        server_name: String,
+        /// Error description
+        error: String,
+    },
 
     // ═══════════════════════════════════════════
     // AGENT EVENTS (v0.4)
@@ -354,7 +366,9 @@ impl EventKind {
             | Self::WorkflowFailed { .. }
             | Self::WorkflowAborted { .. }
             | Self::WorkflowPaused
-            | Self::WorkflowResumed => None,
+            | Self::WorkflowResumed
+            | Self::McpConnected { .. }
+            | Self::McpError { .. } => None,
         }
     }
 

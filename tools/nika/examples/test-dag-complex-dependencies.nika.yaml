@@ -1,0 +1,97 @@
+# DAG Complex Dependencies Test
+# Validates correct execution order with diamond dependencies
+# Requires: ANTHROPIC_API_KEY
+
+schema: nika/workflow@0.5
+workflow: dag-complex-dependencies
+description: |
+  Tests DAG execution with diamond dependency pattern:
+  A → B,C → D (parallel branches that converge)
+
+tasks:
+  # Level 0: Root
+  - id: root
+    infer: "Say only: 'ROOT at position 1'"
+
+  # Level 1: Two parallel branches
+  - id: branch_a
+    use:
+      prev: root
+    infer:
+      prompt: "Previous: {{use.prev}}. Say only: 'BRANCH_A at position 2'"
+
+  - id: branch_b
+    use:
+      prev: root
+    infer:
+      prompt: "Previous: {{use.prev}}. Say only: 'BRANCH_B at position 2'"
+
+  # Level 2: More branches from A
+  - id: branch_a1
+    use:
+      prev: branch_a
+    infer:
+      prompt: "Previous: {{use.prev}}. Say only: 'BRANCH_A1 at position 3'"
+
+  - id: branch_a2
+    use:
+      prev: branch_a
+    infer:
+      prompt: "Previous: {{use.prev}}. Say only: 'BRANCH_A2 at position 3'"
+
+  # Level 3: Diamond convergence
+  - id: converge
+    use:
+      a1: branch_a1
+      a2: branch_a2
+      b: branch_b
+    infer:
+      prompt: |
+        Merging:
+        - {{use.a1}}
+        - {{use.a2}}
+        - {{use.b}}
+        Say only: 'CONVERGE at position 4'
+
+  # Level 4: Final validation
+  - id: validate
+    use:
+      r: root
+      a: branch_a
+      b: branch_b
+      a1: branch_a1
+      a2: branch_a2
+      conv: converge
+    infer:
+      prompt: |
+        All results:
+        1. {{use.r}}
+        2a. {{use.a}}
+        2b. {{use.b}}
+        3a. {{use.a1}}
+        3b. {{use.a2}}
+        4. {{use.conv}}
+
+        Confirm topological order is valid. Say "DAG TEST: PASS" if correct.
+
+flows:
+  # Level 0 → Level 1
+  - source: root
+    target: branch_a
+  - source: root
+    target: branch_b
+  # Level 1 → Level 2
+  - source: branch_a
+    target: branch_a1
+  - source: branch_a
+    target: branch_a2
+  # Level 2 + Level 1 → Level 3 (diamond)
+  - source: branch_a1
+    target: converge
+  - source: branch_a2
+    target: converge
+  - source: branch_b
+    target: converge
+  # Level 3 → Level 4
+  - source: converge
+    target: validate

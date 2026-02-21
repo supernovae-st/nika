@@ -720,6 +720,17 @@ impl App {
                         "Token metrics received"
                     );
                 }
+                // MCP connection status (v0.7.0)
+                StreamChunk::McpConnected(server_name) => {
+                    self.chat_view.mark_mcp_server_connected(&server_name);
+                    self.state.dirty.status = true;
+                    tracing::info!(server = %server_name, "MCP server connected");
+                }
+                StreamChunk::McpError { server_name, error } => {
+                    self.chat_view.mark_mcp_server_error(&server_name);
+                    self.state.dirty.status = true;
+                    tracing::warn!(server = %server_name, error = %error, "MCP server connection failed");
+                }
             }
         }
 
@@ -789,6 +800,17 @@ impl App {
                     self.chat_view.session_context.tokens_used + total_tokens,
                     self.chat_view.session_context.total_cost + cost_usd,
                 );
+                // Mark status bar as dirty to refresh token display
+                self.state.dirty.status = true;
+            }
+            // MCP connection status events (v0.7.0)
+            EventKind::McpConnected { server_name } => {
+                self.chat_view.mark_mcp_server_connected(server_name);
+                self.state.dirty.status = true;
+            }
+            EventKind::McpError { server_name, .. } => {
+                self.chat_view.mark_mcp_server_error(server_name);
+                self.state.dirty.status = true;
             }
             _ => {}
         }
@@ -836,6 +858,14 @@ impl App {
                 Provider::Claude
             } else if model_name.contains("gpt") || model_name.contains("openai") {
                 Provider::OpenAI
+            } else if model_name.contains("mistral") || model_name.contains("mixtral") {
+                Provider::Mistral
+            } else if model_name.contains("llama") || model_name.contains("ollama") {
+                Provider::Ollama
+            } else if model_name.contains("groq") {
+                Provider::Groq
+            } else if model_name.contains("deepseek") {
+                Provider::DeepSeek
             } else if model_name.contains("mock") {
                 Provider::Mock
             } else {
@@ -1973,6 +2003,7 @@ impl App {
         };
 
         let tx = self.llm_response_tx.clone();
+        let status_tx = self.stream_chunk_tx.clone();
         let mcp_configs = self.mcp_configs.clone();
         let mcp_client_cache = Arc::clone(&self.mcp_client_cache);
 
@@ -2036,8 +2067,17 @@ impl App {
                     })
                     .await
                 {
-                    Ok(c) => Arc::clone(c),
+                    Ok(c) => {
+                        // Notify TUI of successful MCP connection (v0.7.0)
+                        let _ = status_tx.send(StreamChunk::McpConnected(server_name_clone.clone())).await;
+                        Arc::clone(c)
+                    }
                     Err(e) => {
+                        // Notify TUI of MCP connection failure (v0.7.0)
+                        let _ = status_tx.send(StreamChunk::McpError {
+                            server_name: server_name_clone.clone(),
+                            error: e.to_string(),
+                        }).await;
                         let _ = tx.send(format!("❌ Failed to connect to {}: {}", server_name_clone, e)).await;
                         return;
                     }
@@ -2150,8 +2190,9 @@ impl App {
                 .unwrap_or(0)
         );
 
-        // Clone channel sender for async task
+        // Clone channel senders for async task
         let response_tx = self.llm_response_tx.clone();
+        let status_tx = self.stream_chunk_tx.clone();
 
         // Spawn async task to connect MCP servers and run the agent
         tokio::spawn(async move {
@@ -2210,9 +2251,16 @@ impl App {
                 {
                     Ok(client) => {
                         mcp_clients.insert(server_name.clone(), Arc::clone(client));
+                        // Notify TUI of successful MCP connection (v0.7.0)
+                        let _ = status_tx.send(StreamChunk::McpConnected(server_name.clone())).await;
                     }
                     Err(e) => {
                         tracing::warn!(server = %server_name, error = %e, "Failed to connect MCP server");
+                        // Notify TUI of MCP connection failure (v0.7.0)
+                        let _ = status_tx.send(StreamChunk::McpError {
+                            server_name: server_name.clone(),
+                            error: e.to_string(),
+                        }).await;
                     }
                 }
             }

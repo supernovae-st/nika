@@ -1,0 +1,45 @@
+# v0.7 Streaming Validation Test
+# Tests that streaming works correctly with token-by-token delivery
+# Requires: ANTHROPIC_API_KEY
+
+schema: nika/workflow@0.5
+workflow: v07-streaming-validation
+description: |
+  Validates v0.7 streaming implementation:
+  1. Token-by-token delivery works
+  2. Token counts are captured
+  3. Context chaining works
+
+tasks:
+  # Test 1: Simple streaming inference
+  - id: simple_stream
+    infer: "Count from 1 to 5, one number per line. Be concise."
+
+  # Test 2: Longer response to verify chunking
+  - id: chunked_stream
+    infer: "Write a haiku about coding. Then explain it in one sentence."
+
+  # Test 3: Structured output
+  - id: structured_output
+    infer: 'Generate JSON: {"name": "Nika", "version": "0.7.0", "features": ["streaming"]}. Return ONLY JSON.'
+
+  # Test 4: Context chaining (validates binding + streaming)
+  - id: validate_chain
+    use:
+      numbers: simple_stream
+      haiku: chunked_stream
+    infer:
+      prompt: |
+        Previous outputs:
+        - Numbers: {{use.numbers}}
+        - Haiku: {{use.haiku}}
+
+        Confirm you received both by saying "STREAMING TEST: PASS - received X numbers and a haiku about Y"
+
+flows:
+  - source: simple_stream
+    target: chunked_stream
+  - source: chunked_stream
+    target: structured_output
+  - source: structured_output
+    target: validate_chain

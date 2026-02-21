@@ -1766,6 +1766,27 @@ impl TuiState {
                 self.dirty.progress = true;
                 self.dirty.status = true;
             }
+
+            // ═══════════════════════════════════════════
+            // MCP CONNECTION EVENTS (v0.7)
+            // ═══════════════════════════════════════════
+            EventKind::McpConnected { server_name, .. } => {
+                self.add_notification(Notification::success(
+                    format!("🔌 MCP server '{}' connected", server_name),
+                    timestamp_ms,
+                ));
+                self.dirty.status = true;
+            }
+
+            EventKind::McpError {
+                server_name, error, ..
+            } => {
+                self.add_notification(Notification::error(
+                    format!("❌ MCP '{}' error: {}", server_name, error),
+                    timestamp_ms,
+                ));
+                self.dirty.status = true;
+            }
         }
     }
 

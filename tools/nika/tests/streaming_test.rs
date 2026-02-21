@@ -47,6 +47,12 @@ async fn test_claude_streaming() {
                 } => {
                     eprintln!("METRICS: input={}, output={}", input_tokens, output_tokens);
                 }
+                StreamChunk::McpConnected(server) => {
+                    eprintln!("MCP CONNECTED: '{}'", server);
+                }
+                StreamChunk::McpError { server_name, error } => {
+                    eprintln!("MCP ERROR: '{}' - {}", server_name, error);
+                }
             }
         }
         (tokens, done)
