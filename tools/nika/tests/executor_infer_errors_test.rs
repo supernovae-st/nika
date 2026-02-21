@@ -72,11 +72,12 @@ impl EnvGuard {
 impl Drop for EnvGuard {
     fn drop(&mut self) {
         // Restore all env vars to their original values
+        // Use catch_unwind to prevent panics during cleanup
         for (name, value) in &self.vars {
-            match value {
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match value {
                 Some(v) => std::env::set_var(name, v),
                 None => std::env::remove_var(name),
-            }
+            }));
         }
     }
 }

@@ -12,10 +12,10 @@
 
 | | |
 |---|---|
-| **Version** | 0.4.1 |
-| **Updated** | 2026-02-19 |
+| **Version** | 0.5.3 |
+| **Updated** | 2026-02-21 |
 | **Status** | Production-ready |
-| **Tests** | 621+ passing |
+| **Tests** | 1200+ passing |
 | **Provider** | rig-core v0.31 |
 | **MCP** | rmcp v0.16 |
 

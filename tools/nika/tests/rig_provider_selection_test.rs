@@ -61,18 +61,23 @@ impl EnvGuard {
 
 impl Drop for EnvGuard {
     fn drop(&mut self) {
-        // Restore original values
-        if let Some(ref key) = self.anthropic_key {
-            std::env::set_var("ANTHROPIC_API_KEY", key);
-        } else {
-            std::env::remove_var("ANTHROPIC_API_KEY");
-        }
+        // Restore original values with panic protection
+        let anthropic_key = self.anthropic_key.clone();
+        let openai_key = self.openai_key.clone();
 
-        if let Some(ref key) = self.openai_key {
-            std::env::set_var("OPENAI_API_KEY", key);
-        } else {
-            std::env::remove_var("OPENAI_API_KEY");
-        }
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if let Some(ref key) = anthropic_key {
+                std::env::set_var("ANTHROPIC_API_KEY", key);
+            } else {
+                std::env::remove_var("ANTHROPIC_API_KEY");
+            }
+
+            if let Some(ref key) = openai_key {
+                std::env::set_var("OPENAI_API_KEY", key);
+            } else {
+                std::env::remove_var("OPENAI_API_KEY");
+            }
+        }));
     }
 }
 

@@ -27,7 +27,7 @@ tools/nika/src/
 │   └── rig_agent_loop.rs # ✅ rig-core AgentBuilder (v0.4+)
 ├── mcp/              # MCP client (rmcp v0.16)
 ├── event/            # Event sourcing
-│   ├── log.rs        # EventLog (20 variants)
+│   ├── log.rs        # EventLog (24 variants)
 │   └── trace.rs      # NDJSON writer
 ├── tui/              # Terminal UI (feature-gated)
 ├── binding/          # Data flow ({{use.alias}}) + lazy bindings
@@ -523,18 +523,17 @@ cargo bench
 
 ### TUI Views (Tab Navigation)
 
-The TUI provides 4 interactive views:
+The TUI provides 3 interactive views:
 
 | View | Key | Purpose |
 |------|-----|---------|
 | **Chat** | `a` | Conversational agent (supports infer:, exec:, fetch:, invoke:, agent:) |
 | **Home** | `h` | Browse and launch .nika.yaml workflows from project |
 | **Studio** | `s` | YAML editor with schema validation and syntax highlighting |
-| **Monitor** | `m` | Real-time execution observer (4 panels: DAG, events, tokens, output) |
 
 ## Testing Strategy
 
-- **Unit tests:** In-file `#[cfg(test)]` modules (1133 tests)
+- **Unit tests:** In-file `#[cfg(test)]` modules (1200+ tests)
 - **Integration tests:** `tests/` directory
 - **Snapshot tests:** insta for YAML/JSON outputs
 - **Property tests:** proptest for parser fuzzing
