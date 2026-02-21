@@ -10,11 +10,12 @@
 //! - NIKA-080: use.alias references unknown task
 //! - NIKA-081: use.alias references non-upstream task
 //! - NIKA-082: use.alias creates self-reference
+//! - NIKA-083: Template {{use.alias}} references undeclared alias
 
 use rustc_hash::FxHashSet;
 
-use crate::ast::Workflow;
-use crate::binding::{validate_task_id, WiringSpec};
+use crate::ast::{TaskAction, Workflow};
+use crate::binding::{validate_refs, validate_task_id, WiringSpec};
 use crate::error::NikaError;
 
 use super::flow::FlowGraph;
@@ -28,9 +29,96 @@ pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &FlowGraph) -> Resul
         if let Some(ref wiring) = task.use_wiring {
             validate_wiring(&task.id, wiring, &all_task_ids, flow_graph)?;
         }
+
+        // FIX: Validate that {{use.alias}} refs in templates match declared aliases
+        validate_template_refs(task)?;
     }
 
     Ok(())
+}
+
+/// Validate that {{use.alias}} references in task templates match declared aliases
+///
+/// BUG FIX (2026-02-21): Previously validate_refs() existed but was never called.
+/// Now it's called during `nika check` to catch template typos early.
+fn validate_template_refs(task: &crate::ast::Task) -> Result<(), NikaError> {
+    // Collect declared aliases from use: block
+    let mut declared_aliases: FxHashSet<String> = task
+        .use_wiring
+        .as_ref()
+        .map(|w| w.keys().cloned().collect())
+        .unwrap_or_default();
+
+    // BUG FIX (2026-02-21): Add for_each loop variable to declared aliases
+    // If task has for_each, the loop variable (for_each_as) is a valid alias
+    if task.for_each.is_some() {
+        let loop_var = task.for_each_as.as_deref().unwrap_or("item");
+        declared_aliases.insert(loop_var.to_string());
+    }
+
+    // If no use: block, {{use.alias}} refs are invalid (catch early)
+    // Extract templates from the task action and validate each
+    let templates = extract_templates_from_action(&task.action);
+
+    for template in templates {
+        validate_refs(&template, &declared_aliases, &task.id)?;
+    }
+
+    Ok(())
+}
+
+/// Extract all template strings from a task action
+fn extract_templates_from_action(action: &TaskAction) -> Vec<String> {
+    let mut templates = Vec::new();
+
+    match action {
+        TaskAction::Infer { infer } => {
+            templates.push(infer.prompt.clone());
+        }
+        TaskAction::Exec { exec } => {
+            templates.push(exec.command.clone());
+        }
+        TaskAction::Fetch { fetch } => {
+            templates.push(fetch.url.clone());
+            if let Some(ref body) = fetch.body {
+                templates.push(body.clone());
+            }
+        }
+        TaskAction::Invoke { invoke } => {
+            // params can contain templates in values
+            if let Some(params) = &invoke.params {
+                collect_string_values(params, &mut templates);
+            }
+        }
+        TaskAction::Agent { agent } => {
+            templates.push(agent.prompt.clone());
+            if let Some(ref system) = agent.system {
+                templates.push(system.clone());
+            }
+        }
+    }
+
+    templates
+}
+
+/// Recursively collect string values from JSON that might contain templates
+fn collect_string_values(value: &serde_json::Value, templates: &mut Vec<String>) {
+    match value {
+        serde_json::Value::String(s) => {
+            templates.push(s.clone());
+        }
+        serde_json::Value::Array(arr) => {
+            for item in arr {
+                collect_string_values(item, templates);
+            }
+        }
+        serde_json::Value::Object(obj) => {
+            for v in obj.values() {
+                collect_string_values(v, templates);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Validate a single use: wiring

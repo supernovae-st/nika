@@ -55,8 +55,6 @@ mod theme;
 #[cfg(feature = "tui")]
 mod views;
 #[cfg(feature = "tui")]
-mod watcher;
-#[cfg(feature = "tui")]
 pub mod widgets;
 
 #[cfg(feature = "tui")]
@@ -81,8 +79,6 @@ pub use state::{AgentTurnState, PanelId, TuiMode, TuiState};
 pub use theme::{MissionPhase, TaskStatus, Theme};
 #[cfg(feature = "tui")]
 pub use views::{DagTab, MissionTab, NovanetTab, ReasoningTab, TuiView, ViewAction};
-#[cfg(feature = "tui")]
-pub use watcher::{FileEvent, FileWatcher};
 
 /// Run the TUI for a workflow
 ///
