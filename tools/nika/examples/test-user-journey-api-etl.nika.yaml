@@ -1,0 +1,104 @@
+schema: nika/workflow@0.5
+workflow: test-user-journey-api-etl
+description: |
+  Real user journey: API data extraction and transformation.
+  Simulates a typical ETL workflow:
+  1. Fetch data from public API
+  2. Parse and transform the response
+  3. Enrich with AI analysis
+  4. Output structured result
+
+tasks:
+  # Step 1: Fetch data from a public API (JSONPlaceholder)
+  - id: fetch_data
+    fetch:
+      url: https://jsonplaceholder.typicode.com/posts/1
+      method: GET
+      headers:
+        Accept: application/json
+
+  # Step 2: Parse and validate the response
+  - id: validate_response
+    use:
+      raw: fetch_data
+    infer:
+      prompt: |
+        Validate this API response:
+        {{use.raw}}
+
+        Check that it contains:
+        - userId (number)
+        - id (number)
+        - title (string)
+        - body (string)
+
+        Return JSON: {"valid": true/false, "fields": ["list", "of", "present", "fields"]}
+
+  # Step 3: Enrich with AI analysis
+  - id: analyze_content
+    use:
+      data: fetch_data
+    infer:
+      prompt: |
+        Analyze this post data:
+        {{use.data}}
+
+        Provide:
+        1. Sentiment (positive/negative/neutral)
+        2. Topic category
+        3. Key themes (3 bullet points)
+        4. Suggested tags (comma-separated)
+
+        Format as structured text.
+
+  # Step 4: Transform to internal format
+  - id: transform_output
+    use:
+      original: fetch_data
+      validation: validate_response
+      analysis: analyze_content
+    infer:
+      prompt: |
+        Transform this data into our internal format:
+
+        Original: {{use.original}}
+        Validation: {{use.validation}}
+        Analysis: {{use.analysis}}
+
+        Output JSON with structure:
+        {
+          "source": "jsonplaceholder",
+          "content": { /* original data */ },
+          "metadata": {
+            "validated": true/false,
+            "sentiment": "...",
+            "topics": ["..."],
+            "tags": ["..."],
+            "processed_at": "2026-02-21T00:00:00Z"
+          }
+        }
+
+        Return ONLY valid JSON.
+
+  # Step 5: Verify final output
+  - id: verify_output
+    use:
+      result: transform_output
+    exec: |
+      echo "=== ETL Pipeline Result ==="
+      echo "{{use.result}}"
+      echo "=== Pipeline Complete ==="
+
+flows:
+  - source: fetch_data
+    target: validate_response
+  - source: fetch_data
+    target: analyze_content
+  - source: fetch_data
+    target: transform_output
+  - source: validate_response
+    target: transform_output
+  - source: analyze_content
+    target: transform_output
+  - source: transform_output
+    target: verify_output

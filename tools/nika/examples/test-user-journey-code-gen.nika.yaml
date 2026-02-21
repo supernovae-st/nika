@@ -1,0 +1,114 @@
+schema: nika/workflow@0.5
+workflow: test-user-journey-code-gen
+description: |
+  Real user journey: Code generation and validation workflow.
+  Simulates a typical code generation pipeline:
+  1. Analyze requirements
+  2. Generate code
+  3. Create tests
+  4. Validate syntax
+
+tasks:
+  # Step 1: Define the requirement
+  - id: define_requirements
+    infer: |
+      Create a specification for a TypeScript function that:
+      - Takes an array of numbers
+      - Returns the moving average with a configurable window size
+      - Handles edge cases (empty array, window > array length)
+
+      Output as JSON with: name, parameters, return_type, description, edge_cases
+
+  # Step 2: Generate the implementation
+  - id: generate_code
+    use:
+      spec: define_requirements
+    infer:
+      prompt: |
+        Based on this specification:
+        {{use.spec}}
+
+        Generate a TypeScript implementation that:
+        - Uses modern ES6+ syntax
+        - Includes JSDoc comments
+        - Handles all edge cases
+        - Is production-ready
+
+        Return ONLY the code, no explanation.
+
+  # Step 3: Generate unit tests
+  - id: generate_tests
+    use:
+      spec: define_requirements
+      code: generate_code
+    infer:
+      prompt: |
+        Given this specification:
+        {{use.spec}}
+
+        And this implementation:
+        {{use.code}}
+
+        Generate Jest/Vitest unit tests that cover:
+        - Normal operation with various inputs
+        - Edge cases from the spec
+        - Error handling
+
+        Return ONLY the test code with imports.
+
+  # Step 4: Validate with syntax check (simulated)
+  - id: validate_syntax
+    use:
+      code: generate_code
+      tests: generate_tests
+    exec: |
+      echo "=== Code Generation Validation ==="
+      echo ""
+      echo "--- Implementation ---"
+      echo "{{use.code}}" | head -20
+      echo "..."
+      echo ""
+      echo "--- Tests ---"
+      echo "{{use.tests}}" | head -20
+      echo "..."
+      echo ""
+      echo "Syntax validation: SIMULATED PASS"
+      echo "=== Generation Complete ==="
+
+  # Step 5: Generate documentation
+  - id: generate_docs
+    use:
+      spec: define_requirements
+      code: generate_code
+    infer:
+      prompt: |
+        Generate README documentation for this function:
+
+        Spec: {{use.spec}}
+        Code: {{use.code}}
+
+        Include:
+        # Function Name
+        ## Description
+        ## Installation
+        ## Usage (with examples)
+        ## API Reference
+        ## Edge Cases
+
+        Return as markdown.
+
+flows:
+  - source: define_requirements
+    target: generate_code
+  - source: define_requirements
+    target: generate_tests
+  - source: generate_code
+    target: generate_tests
+  - source: generate_code
+    target: validate_syntax
+  - source: generate_tests
+    target: validate_syntax
+  - source: define_requirements
+    target: generate_docs
+  - source: generate_code
+    target: generate_docs
