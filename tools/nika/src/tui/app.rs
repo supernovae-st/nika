@@ -1997,9 +1997,9 @@ impl App {
         self.chat_view
             .add_nika_message(format!("Fetching {} {}...", method, url), None);
 
-        // Spawn async task for HTTP request with timeout protection
+        // Spawn tracked task for HTTP request with timeout protection
         let tx = self.llm_response_tx.clone();
-        tokio::spawn(async move {
+        self.spawn_tracked(async move {
             match ChatAgent::new() {
                 Ok(agent) => {
                     match timeout(FETCH_TIMEOUT, agent.fetch(&url, &method)).await {
@@ -2089,10 +2089,10 @@ impl App {
         self.chat_view
             .add_nika_message(format!("🔧 Invoking {}:{} ...", server_name, tool), None);
 
-        // Spawn async task to connect (if needed) and call the tool
+        // Spawn tracked task to connect (if needed) and call the tool
         let tool_name = tool.clone();
         let server_name_clone = server_name.clone();
-        tokio::spawn(async move {
+        self.spawn_tracked(async move {
             // Lazy-initialize MCP client connection
             let client = {
                 let cell = mcp_client_cache
@@ -2272,8 +2272,8 @@ impl App {
         let response_tx = self.llm_response_tx.clone();
         let status_tx = self.stream_chunk_tx.clone();
 
-        // Spawn async task to connect MCP servers and run the agent
-        tokio::spawn(async move {
+        // Spawn tracked task to connect MCP servers and run the agent
+        self.spawn_tracked(async move {
             // Connect MCP servers lazily
             let mut mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
             for server_name in &mcp_server_names {
@@ -2601,8 +2601,8 @@ impl App {
         // Store the receiver for poll_events()
         self.broadcast_rx = Some(event_rx);
 
-        // Spawn async task to load and run workflow
-        tokio::spawn(async move {
+        // Spawn tracked task to load and run workflow
+        self.spawn_tracked(async move {
             // Read workflow file
             let yaml = match tokio::fs::read_to_string(&workflow_path).await {
                 Ok(content) => content,
@@ -3978,5 +3978,107 @@ mod tests {
         // The app should compile with OpenAI provider
         // This is a compile-time check essentially
         assert!(std::env::var("OPENAI_API_KEY").is_ok());
+    }
+
+    // ═══════════════════════════════════════════
+    // BACKGROUND TASK TRACKING TESTS (v0.7.0)
+    // ═══════════════════════════════════════════
+
+    #[test]
+    fn test_background_handles_initialization() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let app = App::new(&workflow_path).unwrap();
+
+        // Background handles should start empty
+        let handles = app.background_handles.lock().unwrap();
+        assert!(handles.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_spawn_tracked_adds_handle() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let app = App::new(&workflow_path).unwrap();
+
+        // Spawn a quick task
+        app.spawn_tracked(async {
+            // Empty task for testing
+        });
+
+        // Give it a moment to spawn
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        // Should have one handle
+        let handles = app.background_handles.lock().unwrap();
+        assert_eq!(handles.len(), 1, "spawn_tracked should add one handle");
+    }
+
+    #[tokio::test]
+    async fn test_spawn_tracked_multiple_tasks() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let app = App::new(&workflow_path).unwrap();
+
+        // Spawn multiple tasks
+        for _ in 0..5 {
+            app.spawn_tracked(async {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            });
+        }
+
+        // Give them a moment to spawn
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        // Should have 5 handles
+        let handles = app.background_handles.lock().unwrap();
+        assert_eq!(handles.len(), 5, "spawn_tracked should track all tasks");
+    }
+
+    #[tokio::test]
+    async fn test_cancel_background_tasks_aborts_all() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let app = App::new(&workflow_path).unwrap();
+
+        // Spawn some long-running tasks
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let completed = Arc::new(AtomicBool::new(false));
+        let completed_clone = Arc::clone(&completed);
+
+        app.spawn_tracked(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            completed_clone.store(true, Ordering::SeqCst);
+        });
+
+        // Give it a moment to spawn
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        // Cancel all tasks
+        app.cancel_background_tasks();
+
+        // Wait a bit
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // Task should NOT have completed (was aborted)
+        assert!(
+            !completed.load(Ordering::SeqCst),
+            "Task should be aborted, not completed"
+        );
+    }
+
+    #[test]
+    fn test_cancel_background_tasks_empty() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let app = App::new(&workflow_path).unwrap();
+
+        // Should not panic when called with no tasks
+        app.cancel_background_tasks();
     }
 }
