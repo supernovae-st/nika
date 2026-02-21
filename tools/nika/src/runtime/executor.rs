@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use dashmap::DashMap;
-use tokio::sync::OnceCell;
+use tokio::sync::{mpsc, OnceCell};
 use tracing::{debug, instrument};
 use uuid::Uuid;
 
@@ -20,7 +20,7 @@ use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
 use crate::event::{ContextSource, EventKind, EventLog};
 use crate::mcp::{McpClient, McpConfig};
-use crate::provider::rig::RigProvider;
+use crate::provider::rig::{RigProvider, StreamChunk};
 use crate::runtime::RigAgentLoop;
 use crate::store::DataStore;
 use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
@@ -533,27 +533,27 @@ impl TaskExecutor {
             prompt_len: prompt.len(),
         });
 
-        let result = provider
-            .infer(&prompt, model)
+        // Use infer_stream to capture token usage. We discard the stream chunks
+        // (no TUI display in executor mode) but keep the StreamResult metrics.
+        let (tx, _rx) = mpsc::channel::<StreamChunk>(64);
+        let stream_result = provider
+            .infer_stream(&prompt, tx, model)
             .await
             .map_err(|e| NikaError::Provider(e.to_string()))?;
 
-        // EMIT: ProviderResponded
-        // Note: Token counts only available via infer_stream() (streaming mode).
-        // The executor uses non-streaming for simplicity. TUI uses streaming for
-        // real-time display with accurate token metrics via StreamResult.
+        // EMIT: ProviderResponded with accurate token counts from streaming response
         self.event_log.emit(EventKind::ProviderResponded {
             task_id: Arc::clone(task_id),
             request_id: None,
-            input_tokens: 0,  // Non-streaming: token metrics unavailable
-            output_tokens: 0, // Use TUI streaming mode for accurate counts
-            cache_read_tokens: 0,
+            input_tokens: stream_result.input_tokens as u32,
+            output_tokens: stream_result.output_tokens as u32,
+            cache_read_tokens: stream_result.cached_input_tokens as u32,
             ttft_ms: None,
             finish_reason: "stop".to_string(),
             cost_usd: 0.0,
         });
 
-        Ok(result)
+        Ok(stream_result.text)
     }
 
     async fn run_exec(
