@@ -174,17 +174,17 @@ Task modifiers encoded via **badges and border thickness**.
 
 LLM provider identity for `infer:` and `agent:` tasks.
 
-### Provider Icons
+### Provider Icons & Colors
 
-| Provider | Icon | Color | Env Var | Default Model |
-|----------|------|-------|---------|---------------|
-| **Claude** | 🧠 | Orange | ANTHROPIC_API_KEY | claude-sonnet-4 |
-| **OpenAI** | 🤖 | Green | OPENAI_API_KEY | gpt-4o |
-| **Mistral** | 🌬️ | Blue | MISTRAL_API_KEY | mistral-large |
-| **Ollama** | 🦙 | Brown | OLLAMA_API_BASE_URL | llama3.2 |
-| **Groq** | ⚡ | Purple | GROQ_API_KEY | llama-3.3-70b |
-| **DeepSeek** | 🔍 | Teal | DEEPSEEK_API_KEY | deepseek-chat |
-| **Mock** | 🧪 | Gray | (none) | mock-model |
+| Provider | Icon | Color Name | RGB | Hex | Env Var | Default Model |
+|----------|------|------------|-----|-----|---------|---------------|
+| **Claude** | 🧠 | Orange-400 | (251, 146, 60) | #FB923C | ANTHROPIC_API_KEY | claude-sonnet-4-20250514 |
+| **OpenAI** | 🤖 | Green-500 | (34, 197, 94) | #22C55E | OPENAI_API_KEY | gpt-4o |
+| **Mistral** | 🌬️ | Blue-500 | (59, 130, 246) | #3B82F6 | MISTRAL_API_KEY | mistral-large-latest |
+| **Ollama** | 🦙 | Amber-700 | (161, 98, 7) | #A16207 | OLLAMA_API_BASE_URL | llama3.2 |
+| **Groq** | ⚡ | Purple-500 | (168, 85, 247) | #A855F7 | GROQ_API_KEY | llama-3.3-70b-versatile |
+| **DeepSeek** | 🔍 | Teal-500 | (20, 184, 166) | #14B8A6 | DEEPSEEK_API_KEY | deepseek-chat |
+| **Mock** | 🧪 | Gray-500 | (107, 114, 128) | #6B7280 | (none) | mock-model |
 
 ### Provider in Task Box
 
@@ -253,20 +253,20 @@ Events grouped into 6 categories with distinct visual treatment.
 
 ---
 
-## 6. MCP Tool Colors
+## 6. MCP Tool Colors (8 Tools)
 
-NovaNet MCP tools with semantic colors.
+NovaNet MCP tools with semantic colors for TUI visualization.
 
-| Tool | Color | RGB | Purpose |
-|------|-------|-----|---------|
-| **novanet_describe** | Blue | (59, 130, 246) | Entity information |
-| **novanet_traverse** | Pink | (236, 72, 153) | Graph navigation |
-| **novanet_search** | Amber | (245, 158, 11) | Query operations |
-| **novanet_atoms** | Violet | (139, 92, 246) | Knowledge atoms |
-| **novanet_generate** | Emerald | (16, 185, 129) | Content generation |
-| **novanet_assemble** | Cyan | (6, 182, 212) | Context assembly |
-| **novanet_query** | Gray | (107, 114, 128) | Raw queries |
-| **novanet_introspect** | Rose | (244, 63, 94) | Schema introspection |
+| Tool | Color | RGB | Hex | Purpose |
+|------|-------|-----|-----|---------|
+| **novanet_describe** | Blue-500 | (59, 130, 246) | #3B82F6 | Entity information |
+| **novanet_traverse** | Pink-500 | (236, 72, 153) | #EC4899 | Graph navigation |
+| **novanet_search** | Amber-500 | (245, 158, 11) | #F59E0B | Query operations |
+| **novanet_atoms** | Violet-500 | (139, 92, 246) | #8B5CF6 | Knowledge atoms |
+| **novanet_generate** | Emerald-500 | (16, 185, 129) | #10B981 | Content generation |
+| **novanet_assemble** | Cyan-500 | (6, 182, 212) | #06B6D4 | Context assembly |
+| **novanet_query** | Gray-500 | (107, 114, 128) | #6B7280 | Raw queries |
+| **novanet_introspect** | Rose-500 | (244, 63, 94) | #F43F5E | Schema introspection |
 
 ---
 
@@ -295,7 +295,66 @@ Unified spinner system for consistent visual rhythm.
 
 ---
 
-## 8. Complete Component Hierarchy
+## 8. Streaming Response Taxonomy (v0.7.0)
+
+Real-time streaming chunks for TUI display via `tokio::sync::mpsc` channels.
+
+### StreamChunk Variants (7)
+
+| Variant | Purpose | Visual Treatment | Color |
+|---------|---------|------------------|-------|
+| **Token(String)** | Model output token | Append to response buffer | Text color |
+| **Thinking(String)** | Extended reasoning (Claude) | Display in thinking pane | Gray-400 |
+| **Done(String)** | Stream complete | Finalize text, hide spinner | Green-500 |
+| **Error(String)** | Stream failed | Show error badge | Red-500 |
+| **Metrics { input, output }** | Token usage | Update status bar counters | Violet-400 |
+| **McpConnected(String)** | MCP server ready | 🔌 Green badge | Emerald-500 |
+| **McpError { server, error }** | MCP connection failed | 🔌 Red badge + message | Red-500 |
+
+### StreamResult Struct
+
+Complete response after streaming finishes:
+
+```rust
+pub struct StreamResult {
+    pub text: String,           // Final response text
+    pub input_tokens: u64,      // Tokens consumed
+    pub output_tokens: u64,     // Tokens generated
+    pub total_tokens: u64,      // Sum of above
+    pub cached_input_tokens: u64, // Prompt cache hits
+}
+```
+
+### Streaming Visualization
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  STREAMING RESPONSE                                                             │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌───────────────────────────────────────────────────────────────┐              │
+│  │ ⚡ infer: generate-headline                           ◐ 1.2s │              │
+│  ├───────────────────────────────────────────────────────────────┤              │
+│  │ 🧠 claude-sonnet-4-20250514                                   │              │
+│  ├───────────────────────────────────────────────────────────────┤              │
+│  │ The quick brown fox jumps over the lazy dog. This is         │              │
+│  │ a headline that captures the essence of your product_        │ ← cursor     │
+│  │ ⠋ streaming...                                    45 tokens  │              │
+│  └───────────────────────────────────────────────────────────────┘              │
+│                                                                                 │
+│  Stream events:                                                                 │
+│  ├── Token("The ")     → append + render                                       │
+│  ├── Token("quick ")   → append + render                                       │
+│  ├── ...               → incremental updates                                   │
+│  ├── Done("...text")   → finalize + stop spinner                               │
+│  └── Metrics(150, 45)  → update status bar                                     │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 9. Complete Component Hierarchy (Updated)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -342,7 +401,7 @@ Unified spinner system for consistent visual rhythm.
 
 ---
 
-## 9. Color Mode Degradation
+## 10. Color Mode Degradation
 
 Support for terminals with limited color.
 
@@ -370,7 +429,7 @@ RGB → 16-color:
 
 ---
 
-## 10. Accessibility
+## 11. Accessibility
 
 ### Colorblind Safety
 
@@ -399,21 +458,19 @@ SPINNER ASCII:  - \ | /
 
 ---
 
-## 11. Implementation Files
+## 12. Implementation Files
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `src/tui/theme.rs` | Master color definitions | ✅ Complete |
+| `src/tui/theme.rs` | Master color definitions (VerbColor, TaskStatus, MissionPhase) | ✅ Complete |
 | `src/tui/unicode.rs` | Width calculations | ✅ Complete |
 | `src/ast/task.rs` | Verb icons | ✅ Complete |
-| `src/tui/widgets/*.rs` | Widget-specific | ⚠️ Needs consolidation |
+| `src/provider/rig.rs` | StreamChunk enum (7 variants) | ✅ Complete (v0.7.0) |
+| `src/event/log.rs` | EventKind enum (22 variants) | ✅ Complete |
+| `src/tui/widgets/*.rs` | Widget-specific colors | ✅ Complete (v0.7.0) |
+| `src/tui/views/chat.rs` | MCP status tracking | ✅ Complete (v0.7.0) |
 
-### Recommended Consolidation
-
-1. Move all spinner definitions to `theme.rs`
-2. Add `SpinnerStyle` enum
-3. Add `IconSet` struct for centralized icons
-4. Pass `Theme` to all widget render methods
+**Note:** All color/icon definitions consolidated in `theme.rs` as of v0.7.0.
 
 ---
 
@@ -425,8 +482,10 @@ Nika's visual encoding system provides:
 - **5 verb types** with distinct colors and icons
 - **6 status states** with border styles
 - **6 context modifiers** with badges
-- **7 providers** with icons
+- **7 providers** with colors and icons
+- **7 StreamChunk variants** for real-time streaming (v0.7.0)
 - **22 event types** across 6 categories
+- **8 MCP tools** with semantic colors
 - **4 spinner styles** for animations
 - **3 color modes** with graceful degradation
 - **Full accessibility** with ASCII fallbacks
