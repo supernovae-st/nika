@@ -12,7 +12,7 @@ path = "src/main.rs"
 
 [features]
 default = ["tui"]
-tui = ["dep:ratatui", "dep:crossterm", "dep:tui-textarea", "dep:arboard", "dep:notify"]
+tui = ["dep:ratatui", "dep:crossterm", "dep:tui-textarea", "dep:tui-input", "dep:arboard", "dep:notify"]
 integration = []  # Enable integration tests with real MCP servers
 notifications = ["dep:notify-rust"]  # Desktop notifications on workflow completion
 test-fixtures = []  # Export test_fixtures module for external test crates
@@ -74,6 +74,7 @@ rig-core = { version = "0.31", features = ["rmcp"] }
 ratatui = { version = "0.30", optional = true }
 crossterm = { version = "0.29", optional = true }
 tui-textarea = { version = "0.7", optional = true }  # YAML editor
+tui-input = { version = "0.11", features = ["crossterm"], optional = true }  # Chat input
 arboard = { version = "3.4", optional = true }  # Clipboard support
 notify = { version = "8", optional = true }  # File watching for auto-refresh
 

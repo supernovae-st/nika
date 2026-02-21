@@ -667,9 +667,15 @@ impl App {
                     tracing::debug!("Stream completed");
                 }
                 StreamChunk::Error(err) => {
-                    // Replace last message with error
-                    self.chat_view
-                        .replace_last_message(format!("Error: {}", err));
+                    // Remove "Thinking..." message and show categorized error (v0.5.2+)
+                    if let Some(last) = self.chat_view.messages.last() {
+                        if last.content == "Thinking..." {
+                            self.chat_view.messages.pop();
+                        }
+                    }
+                    self.chat_view.show_error(&err);
+
+                    // Also update overlay
                     if let Some(last) = self.state.chat_overlay.messages.last_mut() {
                         last.content = format!("Error: {}", err);
                     }
@@ -993,7 +999,7 @@ impl App {
     /// (e.g., Chat with non-empty input, Studio in Insert mode)
     fn is_view_capturing_input(&self) -> bool {
         match self.current_view {
-            TuiView::Chat => !self.chat_view.input.is_empty(),
+            TuiView::Chat => !self.chat_view.input.value().is_empty(),
             TuiView::Studio => self.studio_view.mode == super::views::EditorMode::Insert,
             _ => false,
         }
@@ -3346,11 +3352,11 @@ mod tests {
 
         // Chat with empty input is not capturing
         app.current_view = TuiView::Chat;
-        app.chat_view.input.clear();
+        app.chat_view.input.reset();
         assert!(!app.is_view_capturing_input());
 
         // Chat with input is capturing
-        app.chat_view.input = "typing...".to_string();
+        app.chat_view.input = tui_input::Input::new("typing...".to_string());
         assert!(app.is_view_capturing_input());
 
         // Studio in Normal mode is not capturing

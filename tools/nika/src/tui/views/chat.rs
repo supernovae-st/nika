@@ -20,8 +20,11 @@
 // Allow dead code for types that will be used when agent integration is complete
 #![allow(dead_code)]
 
+use std::fs;
+use std::path::Path;
 use std::time::Instant;
 
+use arboard::Clipboard;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -30,6 +33,8 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Paragraph, Widget},
     Frame,
 };
+use serde::{Deserialize, Serialize};
+use tui_input::{Input, InputRequest};
 
 use super::trait_view::View;
 use super::ViewAction;
@@ -83,6 +88,98 @@ pub enum ExecutionStatus {
     Failed,
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// Serializable Chat Session (HIGH 8 - Persistent Sessions)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Serializable message role for persistence
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SerializableRole {
+    User,
+    Nika,
+    System,
+    Tool,
+}
+
+impl From<&MessageRole> for SerializableRole {
+    fn from(role: &MessageRole) -> Self {
+        match role {
+            MessageRole::User => SerializableRole::User,
+            MessageRole::Nika => SerializableRole::Nika,
+            MessageRole::System => SerializableRole::System,
+            MessageRole::Tool => SerializableRole::Tool,
+        }
+    }
+}
+
+impl From<SerializableRole> for MessageRole {
+    fn from(role: SerializableRole) -> Self {
+        match role {
+            SerializableRole::User => MessageRole::User,
+            SerializableRole::Nika => MessageRole::Nika,
+            SerializableRole::System => MessageRole::System,
+            SerializableRole::Tool => MessageRole::Tool,
+        }
+    }
+}
+
+/// Serializable message for persistence
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerializableMessage {
+    pub role: SerializableRole,
+    pub content: String,
+    pub thinking: Option<String>,
+}
+
+impl From<&ChatMessage> for SerializableMessage {
+    fn from(msg: &ChatMessage) -> Self {
+        Self {
+            role: (&msg.role).into(),
+            content: msg.content.clone(),
+            thinking: msg.thinking.clone(),
+        }
+    }
+}
+
+/// Serializable chat session for save/load
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatSession {
+    pub version: String,
+    pub created_at: String,
+    pub model: String,
+    pub messages: Vec<SerializableMessage>,
+}
+
+impl ChatSession {
+    /// Create session from ChatView
+    pub fn from_view(view: &ChatView) -> Self {
+        Self {
+            version: "0.5.2".to_string(),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            model: view.current_model.clone(),
+            messages: view
+                .messages
+                .iter()
+                .map(SerializableMessage::from)
+                .collect(),
+        }
+    }
+
+    /// Save session to file
+    pub fn save(&self, path: impl AsRef<Path>) -> std::io::Result<()> {
+        let json = serde_json::to_string_pretty(self)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        fs::write(path, json)
+    }
+
+    /// Load session from file
+    pub fn load(path: impl AsRef<Path>) -> std::io::Result<Self> {
+        let json = fs::read_to_string(path)?;
+        serde_json::from_str(&json)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+    }
+}
+
 /// Inline content that can appear in a message
 #[derive(Debug, Clone)]
 pub enum InlineContent {
@@ -124,10 +221,10 @@ impl ChatMode {
 pub struct ChatView {
     /// Conversation history
     pub messages: Vec<ChatMessage>,
-    /// Current input buffer
-    pub input: String,
-    /// Input cursor position
-    pub cursor: usize,
+    /// Current input buffer (tui-input for proper cursor handling)
+    pub input: Input,
+    /// System clipboard for Ctrl+C/V (optional - may fail on headless)
+    clipboard: Option<Clipboard>,
     /// Scroll offset in message list
     pub scroll: usize,
     /// Command history (for up/down navigation)
@@ -194,8 +291,8 @@ impl ChatView {
                 timestamp: Instant::now(),
                 execution: None,
             }],
-            input: String::new(),
-            cursor: 0,
+            input: Input::default(),
+            clipboard: Clipboard::new().ok(), // Graceful fallback if clipboard unavailable
             scroll: 0,
             history: vec![],
             history_index: None,
@@ -284,6 +381,48 @@ impl ChatView {
                 }
             }
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Session Persistence (HIGH 8)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Save current session to file
+    pub fn save_session(&self, path: impl AsRef<Path>) -> std::io::Result<()> {
+        let session = ChatSession::from_view(self);
+        session.save(path)
+    }
+
+    /// Load session from file
+    pub fn load_session(&mut self, path: impl AsRef<Path>) -> std::io::Result<()> {
+        let session = ChatSession::load(path)?;
+
+        // Clear current messages and load from session
+        self.messages.clear();
+        for msg in session.messages {
+            self.messages.push(ChatMessage {
+                role: msg.role.into(),
+                content: msg.content,
+                timestamp: Instant::now(), // Use current time since original is lost
+                execution: None,
+                thinking: msg.thinking,
+            });
+        }
+
+        // Update model if specified in session
+        if !session.model.is_empty() {
+            self.current_model = session.model;
+        }
+
+        Ok(())
+    }
+
+    /// Get default session file path
+    pub fn default_session_path() -> std::path::PathBuf {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        std::path::PathBuf::from(home)
+            .join(".nika")
+            .join("chat_session.json")
     }
 
     /// Set the current model name
@@ -579,13 +718,12 @@ impl ChatView {
 
     /// Submit current input
     pub fn submit(&mut self) -> Option<String> {
-        if self.input.trim().is_empty() {
+        if self.input.value().trim().is_empty() {
             return None;
         }
-        let message = self.input.clone();
+        let message = self.input.value().to_string();
         self.add_user_message(message.clone());
-        self.input.clear();
-        self.cursor = 0;
+        self.input.reset();
         Some(message)
     }
 
@@ -604,8 +742,8 @@ impl ChatView {
             _ => {}
         }
         if let Some(i) = self.history_index {
-            self.input = self.history[i].clone();
-            self.cursor = self.input.chars().count(); // Use char count, not byte len
+            self.input = Input::new(self.history[i].clone());
+            self.input.handle(InputRequest::GoToEnd);
         }
     }
 
@@ -614,57 +752,77 @@ impl ChatView {
         match self.history_index {
             Some(i) if i < self.history.len() - 1 => {
                 self.history_index = Some(i + 1);
-                self.input = self.history[i + 1].clone();
-                self.cursor = self.input.chars().count(); // Use char count, not byte len
+                self.input = Input::new(self.history[i + 1].clone());
+                self.input.handle(InputRequest::GoToEnd);
             }
             Some(_) => {
                 self.history_index = None;
-                self.input.clear();
-                self.cursor = 0;
+                self.input.reset();
             }
             None => {}
         }
     }
 
-    /// Insert character at cursor (cursor is char index, not byte index)
+    /// Insert character at cursor (delegates to tui-input)
     pub fn insert_char(&mut self, c: char) {
-        // Convert char index to byte index for insertion
-        let byte_idx = self
-            .input
-            .char_indices()
-            .nth(self.cursor)
-            .map(|(i, _)| i)
-            .unwrap_or(self.input.len());
-        self.input.insert(byte_idx, c);
-        self.cursor += 1;
+        self.input.handle(InputRequest::InsertChar(c));
     }
 
-    /// Delete character before cursor (cursor is char index, not byte index)
+    /// Delete character before cursor (delegates to tui-input)
     pub fn backspace(&mut self) {
-        if self.cursor > 0 {
-            self.cursor -= 1;
-            // Convert char index to byte index for removal
-            let byte_idx = self
-                .input
-                .char_indices()
-                .nth(self.cursor)
-                .map(|(i, _)| i)
-                .unwrap_or(0);
-            self.input.remove(byte_idx);
-        }
+        self.input.handle(InputRequest::DeletePrevChar);
     }
 
-    /// Move cursor left
+    /// Move cursor left (delegates to tui-input)
     pub fn cursor_left(&mut self) {
-        if self.cursor > 0 {
-            self.cursor -= 1;
+        self.input.handle(InputRequest::GoToPrevChar);
+    }
+
+    /// Move cursor right (delegates to tui-input)
+    pub fn cursor_right(&mut self) {
+        self.input.handle(InputRequest::GoToNextChar);
+    }
+
+    /// Move cursor to previous word (Ctrl+Left)
+    pub fn cursor_prev_word(&mut self) {
+        self.input.handle(InputRequest::GoToPrevWord);
+    }
+
+    /// Move cursor to next word (Ctrl+Right)
+    pub fn cursor_next_word(&mut self) {
+        self.input.handle(InputRequest::GoToNextWord);
+    }
+
+    /// Delete previous word (Ctrl+Backspace)
+    pub fn delete_prev_word(&mut self) {
+        self.input.handle(InputRequest::DeletePrevWord);
+    }
+
+    /// Go to start of input (Home)
+    pub fn cursor_start(&mut self) {
+        self.input.handle(InputRequest::GoToStart);
+    }
+
+    /// Go to end of input (End)
+    pub fn cursor_end(&mut self) {
+        self.input.handle(InputRequest::GoToEnd);
+    }
+
+    /// Copy input to clipboard (Ctrl+C)
+    pub fn copy_to_clipboard(&mut self) {
+        if let Some(clipboard) = &mut self.clipboard {
+            let _ = clipboard.set_text(self.input.value().to_string());
         }
     }
 
-    /// Move cursor right (cursor is char index, not byte index)
-    pub fn cursor_right(&mut self) {
-        if self.cursor < self.input.chars().count() {
-            self.cursor += 1;
+    /// Paste from clipboard (Ctrl+V)
+    pub fn paste_from_clipboard(&mut self) {
+        if let Some(clipboard) = &mut self.clipboard {
+            if let Ok(text) = clipboard.get_text() {
+                for c in text.chars() {
+                    self.input.handle(InputRequest::InsertChar(c));
+                }
+            }
         }
     }
 
@@ -774,8 +932,50 @@ impl View for ChatView {
             return ViewAction::None;
         }
 
+        // Ctrl+C = Copy input to system clipboard (NOT exit!)
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+            self.copy_to_clipboard();
+            return ViewAction::None;
+        }
+
+        // Ctrl+V = Paste from system clipboard
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('v') {
+            self.paste_from_clipboard();
+            return ViewAction::None;
+        }
+
+        // Ctrl+Left = Move to previous word
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Left {
+            self.cursor_prev_word();
+            return ViewAction::None;
+        }
+
+        // Ctrl+Right = Move to next word
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Right {
+            self.cursor_next_word();
+            return ViewAction::None;
+        }
+
+        // Ctrl+Backspace = Delete previous word
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Backspace {
+            self.delete_prev_word();
+            return ViewAction::None;
+        }
+
+        // Ctrl+A = Go to start of input
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('a') {
+            self.cursor_start();
+            return ViewAction::None;
+        }
+
+        // Ctrl+E = Go to end of input
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('e') {
+            self.cursor_end();
+            return ViewAction::None;
+        }
+
         match key.code {
-            KeyCode::Char('q') if self.input.is_empty() => ViewAction::Quit,
+            KeyCode::Char('q') if self.input.value().is_empty() => ViewAction::Quit,
             KeyCode::Enter => {
                 if let Some(message) = self.submit() {
                     // Parse the message as a command
@@ -912,8 +1112,8 @@ impl ChatView {
             KeyCode::Enter => {
                 if let Some(cmd_id) = self.command_palette.execute_selected() {
                     // Execute the selected command
-                    self.input = format!("/{}", cmd_id);
-                    self.cursor = self.input.chars().count();
+                    self.input = Input::new(format!("/{}", cmd_id));
+                    self.input.handle(InputRequest::GoToEnd);
                     // Trigger submit with the command
                     if let Some(message) = self.submit() {
                         let cmd = Command::parse(&message);
@@ -1074,10 +1274,12 @@ impl ChatView {
     }
 
     fn render_input(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        // Show input with cursor (use char-based slicing for unicode safety)
-        let before_cursor: String = self.input.chars().take(self.cursor).collect();
-        let cursor_char = self.input.chars().nth(self.cursor).unwrap_or(' ');
-        let after_cursor: String = self.input.chars().skip(self.cursor + 1).collect();
+        // Show input with cursor (use tui-input's cursor position)
+        let input_value = self.input.value();
+        let cursor_pos = self.input.cursor();
+        let before_cursor: String = input_value.chars().take(cursor_pos).collect();
+        let cursor_char = input_value.chars().nth(cursor_pos).unwrap_or(' ');
+        let after_cursor: String = input_value.chars().skip(cursor_pos + 1).collect();
 
         // Build mode indicators for Claude Code-like UX
         let mut spans = vec![Span::raw(" ")];
@@ -1450,25 +1652,25 @@ mod tests {
     fn test_chat_view_new() {
         let view = ChatView::new();
         assert_eq!(view.messages.len(), 1); // Welcome message
-        assert!(view.input.is_empty());
+        assert!(view.input.value().is_empty());
     }
 
     #[test]
     fn test_chat_view_submit() {
         let mut view = ChatView::new();
-        view.input = "Hello Nika".to_string();
-        view.cursor = view.input.len();
+        view.input = Input::new("Hello Nika".to_string());
+        view.input.handle(InputRequest::GoToEnd);
 
         let result = view.submit();
         assert_eq!(result, Some("Hello Nika".to_string()));
-        assert!(view.input.is_empty());
+        assert!(view.input.value().is_empty());
         assert_eq!(view.messages.len(), 2); // Welcome + user message
     }
 
     #[test]
     fn test_chat_view_submit_empty() {
         let mut view = ChatView::new();
-        view.input = "   ".to_string();
+        view.input = Input::new("   ".to_string());
 
         let result = view.submit();
         assert_eq!(result, None);
@@ -1481,13 +1683,13 @@ mod tests {
         view.add_user_message("Second".to_string());
 
         view.history_up();
-        assert_eq!(view.input, "Second");
+        assert_eq!(view.input.value(), "Second");
 
         view.history_up();
-        assert_eq!(view.input, "First");
+        assert_eq!(view.input.value(), "First");
 
         view.history_down();
-        assert_eq!(view.input, "Second");
+        assert_eq!(view.input.value(), "Second");
     }
 
     #[test]
@@ -1496,10 +1698,10 @@ mod tests {
         view.add_user_message("Test".to_string());
 
         view.history_up();
-        assert_eq!(view.input, "Test");
+        assert_eq!(view.input.value(), "Test");
 
         view.history_down();
-        assert!(view.input.is_empty());
+        assert!(view.input.value().is_empty());
     }
 
     #[test]
@@ -1507,48 +1709,48 @@ mod tests {
         let mut view = ChatView::new();
         view.insert_char('H');
         view.insert_char('i');
-        assert_eq!(view.input, "Hi");
-        assert_eq!(view.cursor, 2);
+        assert_eq!(view.input.value(), "Hi");
+        assert_eq!(view.input.cursor(), 2);
 
         view.cursor_left();
-        assert_eq!(view.cursor, 1);
+        assert_eq!(view.input.cursor(), 1);
 
         view.insert_char('e');
-        assert_eq!(view.input, "Hei");
+        assert_eq!(view.input.value(), "Hei");
 
         view.backspace();
-        assert_eq!(view.input, "Hi");
+        assert_eq!(view.input.value(), "Hi");
     }
 
     #[test]
     fn test_chat_view_cursor_right() {
         let mut view = ChatView::new();
-        view.input = "Hello".to_string();
-        view.cursor = 0;
+        view.input = Input::new("Hello".to_string());
+        view.input.handle(InputRequest::GoToStart);
 
         view.cursor_right();
-        assert_eq!(view.cursor, 1);
+        assert_eq!(view.input.cursor(), 1);
 
         view.cursor_right();
         view.cursor_right();
         view.cursor_right();
         view.cursor_right();
-        assert_eq!(view.cursor, 5);
+        assert_eq!(view.input.cursor(), 5);
 
         // Should not go past the end
         view.cursor_right();
-        assert_eq!(view.cursor, 5);
+        assert_eq!(view.input.cursor(), 5);
     }
 
     #[test]
     fn test_chat_view_backspace_at_start() {
         let mut view = ChatView::new();
-        view.input = "Hi".to_string();
-        view.cursor = 0;
+        view.input = Input::new("Hi".to_string());
+        view.input.handle(InputRequest::GoToStart);
 
         view.backspace();
-        assert_eq!(view.input, "Hi");
-        assert_eq!(view.cursor, 0);
+        assert_eq!(view.input.value(), "Hi");
+        assert_eq!(view.input.cursor(), 0);
     }
 
     #[test]
@@ -1606,7 +1808,7 @@ mod tests {
     fn test_chat_view_default() {
         let view = ChatView::default();
         assert_eq!(view.messages.len(), 1);
-        assert!(view.input.is_empty());
+        assert!(view.input.value().is_empty());
     }
 
     #[test]
@@ -1616,34 +1818,34 @@ mod tests {
         // Test emoji input (4 bytes per char)
         view.insert_char('\u{1F980}'); // Rust crab emoji
         view.insert_char('!');
-        assert_eq!(view.input, "\u{1F980}!");
-        assert_eq!(view.cursor, 2); // 2 chars, not 5 bytes
+        assert_eq!(view.input.value(), "\u{1F980}!");
+        assert_eq!(view.input.cursor(), 2); // 2 chars, not 5 bytes
 
         // Test backspace removes whole emoji
         view.backspace();
-        assert_eq!(view.input, "\u{1F980}");
-        assert_eq!(view.cursor, 1);
+        assert_eq!(view.input.value(), "\u{1F980}");
+        assert_eq!(view.input.cursor(), 1);
 
         // Test cursor navigation with unicode
         view.insert_char('\u{1F600}'); // Grinning face emoji
-        assert_eq!(view.input, "\u{1F980}\u{1F600}");
-        assert_eq!(view.cursor, 2);
+        assert_eq!(view.input.value(), "\u{1F980}\u{1F600}");
+        assert_eq!(view.input.cursor(), 2);
 
         view.cursor_left();
-        assert_eq!(view.cursor, 1);
+        assert_eq!(view.input.cursor(), 1);
 
         // Insert in middle
         view.insert_char('A');
-        assert_eq!(view.input, "\u{1F980}A\u{1F600}");
-        assert_eq!(view.cursor, 2);
+        assert_eq!(view.input.value(), "\u{1F980}A\u{1F600}");
+        assert_eq!(view.input.cursor(), 2);
 
         // Cursor right should work correctly
         view.cursor_right();
-        assert_eq!(view.cursor, 3);
+        assert_eq!(view.input.cursor(), 3);
 
         // Should not go past end
         view.cursor_right();
-        assert_eq!(view.cursor, 3);
+        assert_eq!(view.input.cursor(), 3);
     }
 
     #[test]
@@ -1652,8 +1854,8 @@ mod tests {
         view.add_user_message("Hello \u{1F44B}".to_string()); // Wave emoji
 
         view.history_up();
-        assert_eq!(view.input, "Hello \u{1F44B}");
-        assert_eq!(view.cursor, 7); // 7 chars (H-e-l-l-o-space-emoji), not 10 bytes
+        assert_eq!(view.input.value(), "Hello \u{1F44B}");
+        assert_eq!(view.input.cursor(), 7); // 7 chars (H-e-l-l-o-space-emoji), not 10 bytes
     }
 
     #[test]
@@ -1666,25 +1868,25 @@ mod tests {
         view.insert_char('\u{4E2D}'); // 3 bytes (Chinese character)
         view.insert_char('\u{1F980}'); // 4 bytes (crab emoji)
 
-        assert_eq!(view.input, "a\u{00E9}\u{4E2D}\u{1F980}");
-        assert_eq!(view.cursor, 4);
+        assert_eq!(view.input.value(), "a\u{00E9}\u{4E2D}\u{1F980}");
+        assert_eq!(view.input.cursor(), 4);
 
         // Backspace should remove each char correctly
         view.backspace();
-        assert_eq!(view.input, "a\u{00E9}\u{4E2D}");
-        assert_eq!(view.cursor, 3);
+        assert_eq!(view.input.value(), "a\u{00E9}\u{4E2D}");
+        assert_eq!(view.input.cursor(), 3);
 
         view.backspace();
-        assert_eq!(view.input, "a\u{00E9}");
-        assert_eq!(view.cursor, 2);
+        assert_eq!(view.input.value(), "a\u{00E9}");
+        assert_eq!(view.input.cursor(), 2);
 
         view.backspace();
-        assert_eq!(view.input, "a");
-        assert_eq!(view.cursor, 1);
+        assert_eq!(view.input.value(), "a");
+        assert_eq!(view.input.cursor(), 1);
 
         view.backspace();
-        assert_eq!(view.input, "");
-        assert_eq!(view.cursor, 0);
+        assert_eq!(view.input.value(), "");
+        assert_eq!(view.input.cursor(), 0);
     }
 
     #[test]
@@ -2096,5 +2298,288 @@ mod tests {
         assert!(view.pending_thinking.is_none());
         // Welcome message should not have thinking
         assert!(view.messages[0].thinking.is_none());
+    }
+
+    // === Error Handling Tests (HIGH 5) ===
+
+    #[test]
+    fn test_categorize_error_auth() {
+        let (cat, _) = ChatView::categorize_error("Invalid API key");
+        assert_eq!(cat, "Auth");
+
+        let (cat, _) = ChatView::categorize_error("Unauthorized access");
+        assert_eq!(cat, "Auth");
+    }
+
+    #[test]
+    fn test_categorize_error_timeout() {
+        let (cat, _) = ChatView::categorize_error("Request timed out");
+        assert_eq!(cat, "Timeout");
+
+        let (cat, _) = ChatView::categorize_error("Deadline exceeded");
+        assert_eq!(cat, "Timeout");
+    }
+
+    #[test]
+    fn test_categorize_error_rate_limit() {
+        let (cat, _) = ChatView::categorize_error("Rate limit exceeded");
+        assert_eq!(cat, "Rate Limit");
+
+        let (cat, _) = ChatView::categorize_error("Too many requests");
+        assert_eq!(cat, "Rate Limit");
+    }
+
+    #[test]
+    fn test_categorize_error_network() {
+        let (cat, _) = ChatView::categorize_error("Connection refused");
+        assert_eq!(cat, "Network");
+
+        let (cat, _) = ChatView::categorize_error("DNS resolution failed");
+        assert_eq!(cat, "Network");
+    }
+
+    #[test]
+    fn test_categorize_error_mcp() {
+        let (cat, _) = ChatView::categorize_error("MCP server not responding");
+        assert_eq!(cat, "MCP");
+
+        let (cat, _) = ChatView::categorize_error("Tool execution failed");
+        assert_eq!(cat, "MCP");
+    }
+
+    #[test]
+    fn test_categorize_error_parse() {
+        let (cat, _) = ChatView::categorize_error("JSON parse error");
+        assert_eq!(cat, "Parse");
+
+        let (cat, _) = ChatView::categorize_error("Invalid format");
+        assert_eq!(cat, "Parse");
+    }
+
+    #[test]
+    fn test_categorize_error_unknown() {
+        let (cat, _) = ChatView::categorize_error("Something went wrong");
+        assert_eq!(cat, "Unexpected");
+    }
+
+    #[test]
+    fn test_show_error_adds_system_message() {
+        let mut view = ChatView::new();
+        let initial_count = view.messages.len();
+
+        view.show_error("Test error message");
+
+        assert_eq!(view.messages.len(), initial_count + 1);
+        let last = view.messages.last().unwrap();
+        assert_eq!(last.role, MessageRole::System);
+        assert!(last.content.contains("Error"));
+        assert!(last.content.contains("Test error message"));
+        assert!(last.content.contains("/help"));
+    }
+
+    // === tui-input Feature Tests (v0.5.2+) ===
+
+    #[test]
+    fn test_chat_view_word_navigation() {
+        let mut view = ChatView::new();
+        view.input = Input::new("hello world foo".to_string());
+        view.input.handle(InputRequest::GoToStart);
+        assert_eq!(view.input.cursor(), 0);
+
+        // Move to next word
+        view.cursor_next_word();
+        assert_eq!(view.input.cursor(), 6); // After "hello " at 'w'
+
+        view.cursor_next_word();
+        assert_eq!(view.input.cursor(), 12); // After "world " at 'f'
+
+        // Move to previous word
+        view.cursor_prev_word();
+        assert_eq!(view.input.cursor(), 6); // Back to 'w'
+
+        view.cursor_prev_word();
+        assert_eq!(view.input.cursor(), 0); // Back to start
+    }
+
+    #[test]
+    fn test_chat_view_delete_prev_word() {
+        let mut view = ChatView::new();
+        view.input = Input::new("hello world".to_string());
+        view.input.handle(InputRequest::GoToEnd);
+        assert_eq!(view.input.cursor(), 11);
+
+        // Delete "world"
+        view.delete_prev_word();
+        assert_eq!(view.input.value(), "hello ");
+        assert_eq!(view.input.cursor(), 6);
+
+        // Delete "hello "
+        view.delete_prev_word();
+        assert_eq!(view.input.value(), "");
+        assert_eq!(view.input.cursor(), 0);
+    }
+
+    #[test]
+    fn test_chat_view_cursor_start_end() {
+        let mut view = ChatView::new();
+        view.input = Input::new("hello world".to_string());
+
+        // Start in middle
+        view.input.handle(InputRequest::GoToPrevWord);
+        assert!(view.input.cursor() < 11);
+
+        // Go to end
+        view.cursor_end();
+        assert_eq!(view.input.cursor(), 11);
+
+        // Go to start
+        view.cursor_start();
+        assert_eq!(view.input.cursor(), 0);
+    }
+
+    #[test]
+    fn test_chat_view_clipboard_does_not_panic() {
+        let mut view = ChatView::new();
+        view.input = Input::new("test".to_string());
+        view.input.handle(InputRequest::GoToEnd);
+
+        // Copy and paste should not panic even if clipboard is None or available
+        // If clipboard works, it will append "test" at cursor position
+        view.copy_to_clipboard();
+
+        // Reset input to test paste alone
+        view.input.reset();
+        view.paste_from_clipboard();
+
+        // Either clipboard is None (empty) or it works (has "test")
+        let value = view.input.value();
+        assert!(value.is_empty() || value == "test");
+    }
+
+    #[test]
+    fn test_chat_view_input_reset() {
+        let mut view = ChatView::new();
+        view.input = Input::new("hello world".to_string());
+        view.input.handle(InputRequest::GoToEnd);
+        assert_eq!(view.input.cursor(), 11);
+        assert_eq!(view.input.value(), "hello world");
+
+        // Reset input
+        view.input.reset();
+        assert_eq!(view.input.value(), "");
+        assert_eq!(view.input.cursor(), 0);
+    }
+
+    // === Session Persistence Tests (HIGH 8) ===
+
+    #[test]
+    fn test_serializable_role_conversion() {
+        // MessageRole -> SerializableRole
+        assert_eq!(
+            SerializableRole::from(&MessageRole::User),
+            SerializableRole::User
+        );
+        assert_eq!(
+            SerializableRole::from(&MessageRole::Nika),
+            SerializableRole::Nika
+        );
+        assert_eq!(
+            SerializableRole::from(&MessageRole::System),
+            SerializableRole::System
+        );
+        assert_eq!(
+            SerializableRole::from(&MessageRole::Tool),
+            SerializableRole::Tool
+        );
+
+        // SerializableRole -> MessageRole
+        assert_eq!(MessageRole::from(SerializableRole::User), MessageRole::User);
+        assert_eq!(MessageRole::from(SerializableRole::Nika), MessageRole::Nika);
+        assert_eq!(
+            MessageRole::from(SerializableRole::System),
+            MessageRole::System
+        );
+        assert_eq!(MessageRole::from(SerializableRole::Tool), MessageRole::Tool);
+    }
+
+    #[test]
+    fn test_chat_session_from_view() {
+        let mut view = ChatView::new();
+        view.add_user_message("Hello".to_string());
+        view.add_nika_message("Hi there!".to_string(), None);
+        view.set_model("claude-sonnet");
+
+        let session = ChatSession::from_view(&view);
+
+        assert_eq!(session.version, "0.5.2");
+        assert_eq!(session.model, "claude-sonnet");
+        // 1 welcome message + 2 added messages = 3
+        assert_eq!(session.messages.len(), 3);
+        assert_eq!(session.messages[1].content, "Hello");
+        assert_eq!(session.messages[1].role, SerializableRole::User);
+        assert_eq!(session.messages[2].content, "Hi there!");
+        assert_eq!(session.messages[2].role, SerializableRole::Nika);
+    }
+
+    #[test]
+    fn test_chat_session_round_trip() {
+        use tempfile::tempdir;
+
+        let mut view = ChatView::new();
+        view.add_user_message("Test message".to_string());
+        view.add_nika_message("Response".to_string(), None);
+        view.set_model("gpt-4");
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("test-session.json");
+
+        // Save session
+        view.save_session(&path).unwrap();
+        assert!(path.exists());
+
+        // Load into fresh view
+        let mut view2 = ChatView::new();
+        view2.load_session(&path).unwrap();
+
+        // Verify messages restored (excluding welcome message which gets replaced)
+        assert_eq!(view2.messages.len(), view.messages.len());
+        assert_eq!(view2.messages[1].content, "Test message");
+        assert_eq!(view2.messages[1].role, MessageRole::User);
+        assert_eq!(view2.messages[2].content, "Response");
+        assert_eq!(view2.messages[2].role, MessageRole::Nika);
+        assert_eq!(view2.current_model, "gpt-4");
+    }
+
+    #[test]
+    fn test_chat_session_preserves_thinking() {
+        use tempfile::tempdir;
+
+        let mut view = ChatView::new();
+        view.add_nika_message_with_thinking(
+            "Answer".to_string(),
+            Some("My reasoning...".to_string()),
+            None,
+        );
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("thinking-session.json");
+
+        view.save_session(&path).unwrap();
+
+        let mut view2 = ChatView::new();
+        view2.load_session(&path).unwrap();
+
+        // Last message should have thinking preserved
+        let last = view2.messages.last().unwrap();
+        assert_eq!(last.content, "Answer");
+        assert_eq!(last.thinking, Some("My reasoning...".to_string()));
+    }
+
+    #[test]
+    fn test_default_session_path() {
+        let path = ChatView::default_session_path();
+        assert!(
+            path.ends_with("nika-chat-session.json") || path.to_string_lossy().contains("nika")
+        );
     }
 }
