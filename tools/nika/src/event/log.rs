@@ -161,6 +161,15 @@ pub enum EventKind {
         error: String,
         failed_task: Option<Arc<str>>,
     },
+    /// Workflow was cancelled by user (v0.5.2)
+    WorkflowAborted {
+        /// Reason for abort (e.g., "User cancelled", "Timeout")
+        reason: String,
+        /// Duration before abort (ms)
+        duration_ms: u64,
+        /// Tasks that were still running when aborted
+        running_tasks: Vec<Arc<str>>,
+    },
 
     // ═══════════════════════════════════════════
     // TASK LEVEL
@@ -172,6 +181,8 @@ pub enum EventKind {
     /// Task execution begins with resolved inputs from use: block
     TaskStarted {
         task_id: Arc<str>,
+        /// Verb type (infer, exec, fetch, invoke, agent)
+        verb: Arc<str>,
         /// Resolved inputs from ResolvedBindings (what the task receives)
         inputs: Value,
     },
@@ -336,7 +347,8 @@ impl EventKind {
             Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
             Self::WorkflowStarted { .. }
             | Self::WorkflowCompleted { .. }
-            | Self::WorkflowFailed { .. } => None,
+            | Self::WorkflowFailed { .. }
+            | Self::WorkflowAborted { .. } => None,
         }
     }
 
@@ -348,6 +360,7 @@ impl EventKind {
             Self::WorkflowStarted { .. }
                 | Self::WorkflowCompleted { .. }
                 | Self::WorkflowFailed { .. }
+                | Self::WorkflowAborted { .. }
         )
     }
 }
@@ -547,6 +560,7 @@ mod tests {
     #[test]
     fn eventkind_task_id_extraction() {
         let started = EventKind::TaskStarted {
+            verb: "infer".into(),
             task_id: "task1".into(),
             inputs: json!({}),
         };
@@ -565,6 +579,7 @@ mod tests {
         }
         .is_workflow_event());
         assert!(!EventKind::TaskStarted {
+            verb: "infer".into(),
             task_id: "t1".into(),
             inputs: json!({}),
         }
@@ -590,6 +605,7 @@ mod tests {
         let json = json!({
             "type": "task_started",
             "task_id": "analyze",
+            "verb": "infer",
             "inputs": {"weather": "sunny"}
         });
 
@@ -598,6 +614,7 @@ mod tests {
             kind,
             EventKind::TaskStarted {
                 task_id: "analyze".into(),
+                verb: "infer".into(),
                 inputs: json!({"weather": "sunny"}),
             }
         );
@@ -620,10 +637,12 @@ mod tests {
 
         let id1 = log.emit(workflow_started(3));
         let id2 = log.emit(EventKind::TaskStarted {
+            verb: "infer".into(),
             task_id: "t1".into(),
             inputs: json!({}),
         });
         let id3 = log.emit(EventKind::TaskStarted {
+            verb: "infer".into(),
             task_id: "t2".into(),
             inputs: json!({}),
         });
@@ -639,6 +658,7 @@ mod tests {
         let log = EventLog::new();
         log.emit(workflow_started(2));
         log.emit(EventKind::TaskStarted {
+            verb: "infer".into(),
             task_id: "t1".into(),
             inputs: json!({}),
         });
@@ -654,10 +674,12 @@ mod tests {
         let log = EventLog::new();
         log.emit(workflow_started(2));
         log.emit(EventKind::TaskStarted {
+            verb: "infer".into(),
             task_id: "alpha".into(),
             inputs: json!({}),
         });
         log.emit(EventKind::TaskStarted {
+            verb: "infer".into(),
             task_id: "beta".into(),
             inputs: json!({}),
         });
@@ -682,6 +704,7 @@ mod tests {
         let log = EventLog::new();
         log.emit(workflow_started(1));
         log.emit(EventKind::TaskStarted {
+            verb: "infer".into(),
             task_id: "t1".into(),
             inputs: json!({}),
         });
@@ -699,6 +722,7 @@ mod tests {
     fn eventlog_to_json() {
         let log = EventLog::new();
         log.emit(EventKind::TaskStarted {
+            verb: "infer".into(),
             task_id: "task1".into(),
             inputs: json!({}),
         });
@@ -719,6 +743,7 @@ mod tests {
 
         // Cloned shares the same underlying data (Arc)
         log.emit(EventKind::TaskStarted {
+            verb: "infer".into(),
             task_id: "t1".into(),
             inputs: json!({}),
         });
@@ -736,6 +761,7 @@ mod tests {
                 let log = log.clone();
                 thread::spawn(move || {
                     log.emit(EventKind::TaskStarted {
+                        verb: "infer".into(),
                         task_id: Arc::from(format!("task{}", i)),
                         inputs: json!({}),
                     })
@@ -767,6 +793,7 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(10));
 
         log.emit(EventKind::TaskStarted {
+            verb: "infer".into(),
             task_id: "t1".into(),
             inputs: json!({}),
         });
@@ -790,6 +817,7 @@ mod tests {
         });
 
         log.emit(EventKind::TaskStarted {
+            verb: "infer".into(),
             task_id: "analyze".into(),
             inputs: inputs.clone(),
         });

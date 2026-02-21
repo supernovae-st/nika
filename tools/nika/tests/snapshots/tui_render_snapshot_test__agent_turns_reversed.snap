@@ -2,5 +2,5 @@
 source: tests/tui_render_snapshot_test.rs
 expression: output
 ---
-T2 💬  response                               300tk
+T2 ✨  response                               300tk
 T1 🤔  thinking                               500tk

@@ -24,13 +24,90 @@
 //! ```
 
 use crate::mcp::McpClient;
+use futures::StreamExt;
 use rig::client::{CompletionClient, ProviderClient};
-use rig::completion::{Prompt, PromptError, ToolDefinition};
+use rig::completion::{CompletionModel as _, Prompt, PromptError, ToolDefinition};
 use rig::providers::{anthropic, openai};
+use rig::streaming::StreamedAssistantContent;
 use rig::tool::{ToolDyn, ToolError};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use tokio::sync::mpsc;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOOL ERROR TYPES
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// MCP tool call error with semantic error kinds
+///
+/// Provides proper error semantics instead of wrapping in std::io::Error.
+#[derive(Debug)]
+pub struct McpToolError {
+    kind: McpToolErrorKind,
+    message: String,
+}
+
+/// Error kinds for MCP tool calls
+#[derive(Debug, Clone, Copy)]
+pub enum McpToolErrorKind {
+    /// Invalid JSON arguments
+    InvalidArguments,
+    /// MCP client not configured
+    NotConfigured,
+    /// MCP tool call failed
+    CallFailed,
+    /// Failed to serialize/deserialize result
+    SerializationError,
+}
+
+impl McpToolError {
+    /// Create an invalid arguments error
+    pub fn invalid_args(msg: impl Into<String>) -> Self {
+        Self {
+            kind: McpToolErrorKind::InvalidArguments,
+            message: msg.into(),
+        }
+    }
+
+    /// Create a not configured error
+    pub fn not_configured(msg: impl Into<String>) -> Self {
+        Self {
+            kind: McpToolErrorKind::NotConfigured,
+            message: msg.into(),
+        }
+    }
+
+    /// Create a call failed error
+    pub fn call_failed(msg: impl Into<String>) -> Self {
+        Self {
+            kind: McpToolErrorKind::CallFailed,
+            message: msg.into(),
+        }
+    }
+
+    /// Create a serialization error
+    pub fn serialization(msg: impl Into<String>) -> Self {
+        Self {
+            kind: McpToolErrorKind::SerializationError,
+            message: msg.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for McpToolError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let kind_str = match self.kind {
+            McpToolErrorKind::InvalidArguments => "InvalidArguments",
+            McpToolErrorKind::NotConfigured => "NotConfigured",
+            McpToolErrorKind::CallFailed => "CallFailed",
+            McpToolErrorKind::SerializationError => "SerializationError",
+        };
+        write!(f, "[{}] {}", kind_str, self.message)
+    }
+}
+
+impl std::error::Error for McpToolError {}
 
 /// Provider type enum for rig-core providers
 #[derive(Debug, Clone)]
@@ -113,6 +190,113 @@ pub enum RigInferError {
 }
 
 // =============================================================================
+// StreamChunk - Communication type for streaming responses
+// =============================================================================
+
+/// Chunk of streaming response for real-time display
+#[derive(Debug, Clone)]
+pub enum StreamChunk {
+    /// Text token from the model
+    Token(String),
+    /// Thinking/reasoning content (Claude extended thinking)
+    Thinking(String),
+    /// Stream completed successfully with final text
+    Done(String),
+    /// Stream failed with error
+    Error(String),
+}
+
+impl RigProvider {
+    /// Stream text completion with real-time token updates
+    ///
+    /// Sends tokens to the provided channel as they arrive from the model.
+    /// This enables real-time display in the TUI like Claude Code / Gemini.
+    ///
+    /// # Arguments
+    /// * `prompt` - The text prompt to send
+    /// * `tx` - Channel sender for streaming chunks
+    ///
+    /// # Returns
+    /// The complete response text after streaming finishes
+    pub async fn infer_stream(
+        &self,
+        prompt: &str,
+        tx: mpsc::Sender<StreamChunk>,
+    ) -> Result<String, RigInferError> {
+        let model_id = self.default_model();
+        let mut response_parts: Vec<String> = Vec::new();
+
+        match self {
+            RigProvider::Claude(client) => {
+                let model = client.completion_model(model_id);
+                let request = model.completion_request(prompt).build();
+
+                let mut stream = model
+                    .stream(request)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                while let Some(chunk_result) = stream.next().await {
+                    match chunk_result {
+                        Ok(content) => match content {
+                            StreamedAssistantContent::Text(text) => {
+                                response_parts.push(text.text.clone());
+                                let _ = tx.send(StreamChunk::Token(text.text)).await;
+                            }
+                            StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
+                                let _ = tx.send(StreamChunk::Thinking(reasoning)).await;
+                            }
+                            StreamedAssistantContent::Final(_) => {
+                                // Final chunk - token usage available but we just need text
+                            }
+                            _ => {
+                                // ToolCall, ToolCallDelta, Reasoning - not used in simple infer
+                            }
+                        },
+                        Err(e) => {
+                            let _ = tx.send(StreamChunk::Error(e.to_string())).await;
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
+                }
+            }
+            RigProvider::OpenAI(client) => {
+                let model = client.completion_model(model_id);
+                let request = model.completion_request(prompt).build();
+
+                let mut stream = model
+                    .stream(request)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                while let Some(chunk_result) = stream.next().await {
+                    match chunk_result {
+                        Ok(content) => match content {
+                            StreamedAssistantContent::Text(text) => {
+                                response_parts.push(text.text.clone());
+                                let _ = tx.send(StreamChunk::Token(text.text)).await;
+                            }
+                            StreamedAssistantContent::Final(_) => {
+                                // Final chunk
+                            }
+                            _ => {}
+                        },
+                        Err(e) => {
+                            let _ = tx.send(StreamChunk::Error(e.to_string())).await;
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
+                }
+            }
+        }
+
+        let complete_response = response_parts.concat();
+        let _ = tx.send(StreamChunk::Done(complete_response.clone())).await;
+        Ok(complete_response)
+    }
+}
+
+// =============================================================================
 // NikaMcpTool - Wrapper for MCP tools implementing rig-core's ToolDyn
 // =============================================================================
 
@@ -188,23 +372,22 @@ impl ToolDyn for NikaMcpTool {
         Box::pin(async move {
             // Parse the args as JSON
             let params: serde_json::Value = serde_json::from_str(&args).map_err(|e| {
-                ToolError::ToolCallError(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    format!("Invalid JSON arguments: {}", e),
-                )))
+                ToolError::ToolCallError(Box::new(McpToolError::invalid_args(format!(
+                    "Invalid JSON arguments: {}",
+                    e
+                ))))
             })?;
 
             // Check if we have a client
             let client = client.ok_or_else(|| {
-                ToolError::ToolCallError(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::NotConnected,
+                ToolError::ToolCallError(Box::new(McpToolError::not_configured(
                     "No MCP client configured for this tool",
                 )))
             })?;
 
             // Call the MCP tool
             let result = client.call_tool(&tool_name, params).await.map_err(|e| {
-                ToolError::ToolCallError(Box::new(std::io::Error::other(format!(
+                ToolError::ToolCallError(Box::new(McpToolError::call_failed(format!(
                     "MCP tool call failed: {}",
                     e
                 ))))
@@ -216,10 +399,10 @@ impl ToolDyn for NikaMcpTool {
             if output.is_empty() {
                 // Return the full result as JSON if no text content
                 serde_json::to_string(&result).map_err(|e| {
-                    ToolError::ToolCallError(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        format!("Failed to serialize result: {}", e),
-                    )))
+                    ToolError::ToolCallError(Box::new(McpToolError::serialization(format!(
+                        "Failed to serialize result: {}",
+                        e
+                    ))))
                 })
             } else {
                 Ok(output)

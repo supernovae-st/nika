@@ -25,19 +25,121 @@
 mod browser;
 mod chat;
 mod home;
-mod monitor;
 mod studio;
 mod trait_view;
 
 pub use browser::BrowserView;
-pub use chat::ChatView;
-// Future exports when agent integration is complete:
-// pub use chat::{ChatMessage, ExecutionResult, ExecutionStatus, MessageRole, SessionInfo};
+// ChatMode exported for future external use (mode indicator in status bar)
+#[allow(unused_imports)]
+pub use chat::{ChatMode, ChatView, MessageRole};
 pub use home::HomeView;
-pub use monitor::{DagTab, MissionTab, MonitorView, NovanetTab, ReasoningTab};
 pub use studio::{EditorMode, StudioView};
 // Future export: ValidationResult
 pub use trait_view::View;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Panel Tab Enums (moved from monitor.rs during v0.5.2 cleanup)
+// Used by TuiState for tracking active tabs in each panel
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Tab state for Mission Control panel
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MissionTab {
+    #[default]
+    Progress,
+    TaskIO,
+    Output,
+}
+
+impl MissionTab {
+    pub fn next(&self) -> Self {
+        match self {
+            MissionTab::Progress => MissionTab::TaskIO,
+            MissionTab::TaskIO => MissionTab::Output,
+            MissionTab::Output => MissionTab::Progress,
+        }
+    }
+
+    pub fn title(&self) -> &'static str {
+        match self {
+            MissionTab::Progress => "Progress",
+            MissionTab::TaskIO => "IO",
+            MissionTab::Output => "Output",
+        }
+    }
+}
+
+/// Tab state for DAG panel
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DagTab {
+    #[default]
+    Graph,
+    Yaml,
+}
+
+impl DagTab {
+    pub fn next(&self) -> Self {
+        match self {
+            DagTab::Graph => DagTab::Yaml,
+            DagTab::Yaml => DagTab::Graph,
+        }
+    }
+
+    pub fn title(&self) -> &'static str {
+        match self {
+            DagTab::Graph => "Graph",
+            DagTab::Yaml => "YAML",
+        }
+    }
+}
+
+/// Tab state for NovaNet panel
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum NovanetTab {
+    #[default]
+    Summary,
+    FullJson,
+}
+
+impl NovanetTab {
+    pub fn next(&self) -> Self {
+        match self {
+            NovanetTab::Summary => NovanetTab::FullJson,
+            NovanetTab::FullJson => NovanetTab::Summary,
+        }
+    }
+
+    pub fn title(&self) -> &'static str {
+        match self {
+            NovanetTab::Summary => "Summary",
+            NovanetTab::FullJson => "Full JSON",
+        }
+    }
+}
+
+/// Tab state for Reasoning panel
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ReasoningTab {
+    #[default]
+    Turns,
+    Thinking,
+}
+
+impl ReasoningTab {
+    pub fn next(&self) -> Self {
+        match self {
+            ReasoningTab::Turns => ReasoningTab::Thinking,
+            ReasoningTab::Thinking => ReasoningTab::Turns,
+        }
+    }
+
+    pub fn title(&self) -> &'static str {
+        match self {
+            ReasoningTab::Turns => "Turns",
+            ReasoningTab::Thinking => "Thinking",
+        }
+    }
+}
 
 /// Active view in the TUI - 4 views navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -163,8 +265,8 @@ pub enum ViewAction {
     ChatFetch(String, String),
     /// Execute /invoke command - MCP tool call (tool, server, params)
     ChatInvoke(String, Option<String>, serde_json::Value),
-    /// Execute /agent command - multi-turn agent (goal, max_turns)
-    ChatAgent(String, Option<u32>),
+    /// Execute /agent command - multi-turn agent (goal, max_turns, extended_thinking)
+    ChatAgent(String, Option<u32>, bool),
     /// Execute /model command - switch LLM provider
     ChatModelSwitch(ModelProvider),
     /// Execute /clear command - clear chat history
@@ -266,5 +368,59 @@ mod tests {
             ViewAction::SendChatMessage(msg) => assert_eq!(msg, "Hello Nika"),
             _ => panic!("Expected SendChatMessage"),
         }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Tab enum tests (moved from monitor.rs during v0.5.2 cleanup)
+    // ════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_mission_tab_cycles() {
+        let tab = MissionTab::Progress;
+        assert_eq!(tab.next(), MissionTab::TaskIO);
+        assert_eq!(tab.next().next(), MissionTab::Output);
+        assert_eq!(tab.next().next().next(), MissionTab::Progress);
+    }
+
+    #[test]
+    fn test_dag_tab_cycles() {
+        let tab = DagTab::Graph;
+        assert_eq!(tab.next(), DagTab::Yaml);
+        assert_eq!(tab.next().next(), DagTab::Graph);
+    }
+
+    #[test]
+    fn test_novanet_tab_cycles() {
+        let tab = NovanetTab::Summary;
+        assert_eq!(tab.next(), NovanetTab::FullJson);
+        assert_eq!(tab.next().next(), NovanetTab::Summary);
+    }
+
+    #[test]
+    fn test_reasoning_tab_cycles() {
+        let tab = ReasoningTab::Turns;
+        assert_eq!(tab.next(), ReasoningTab::Thinking);
+        assert_eq!(tab.next().next(), ReasoningTab::Turns);
+    }
+
+    #[test]
+    fn test_tab_titles() {
+        assert_eq!(MissionTab::Progress.title(), "Progress");
+        assert_eq!(MissionTab::TaskIO.title(), "IO");
+        assert_eq!(MissionTab::Output.title(), "Output");
+        assert_eq!(DagTab::Graph.title(), "Graph");
+        assert_eq!(DagTab::Yaml.title(), "YAML");
+        assert_eq!(NovanetTab::Summary.title(), "Summary");
+        assert_eq!(NovanetTab::FullJson.title(), "Full JSON");
+        assert_eq!(ReasoningTab::Turns.title(), "Turns");
+        assert_eq!(ReasoningTab::Thinking.title(), "Thinking");
+    }
+
+    #[test]
+    fn test_tab_defaults() {
+        assert_eq!(MissionTab::default(), MissionTab::Progress);
+        assert_eq!(DagTab::default(), DagTab::Graph);
+        assert_eq!(NovanetTab::default(), NovanetTab::Summary);
+        assert_eq!(ReasoningTab::default(), ReasoningTab::Turns);
     }
 }

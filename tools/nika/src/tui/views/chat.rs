@@ -80,15 +80,6 @@ pub enum ExecutionStatus {
     Failed,
 }
 
-/// Session info sidebar
-#[derive(Debug, Clone, Default)]
-pub struct SessionInfo {
-    pub workflow_count: usize,
-    pub last_run: Option<String>,
-    pub recent_actions: Vec<String>,
-    pub current_context: Option<String>,
-}
-
 /// Inline content that can appear in a message
 #[derive(Debug, Clone)]
 pub enum InlineContent {
@@ -96,6 +87,34 @@ pub enum InlineContent {
     McpCall(McpCallData),
     /// Streaming inference with token counter
     InferStream(InferStreamData),
+}
+
+/// Inference mode for conversation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ChatMode {
+    /// Simple inference mode (single completion, no tools)
+    #[default]
+    Infer,
+    /// Agent mode with tool access (multi-turn, MCP tools)
+    Agent,
+}
+
+impl ChatMode {
+    /// Get display label for the mode
+    pub fn label(&self) -> &'static str {
+        match self {
+            ChatMode::Infer => "Infer",
+            ChatMode::Agent => "Agent",
+        }
+    }
+
+    /// Get icon for the mode
+    pub fn icon(&self) -> &'static str {
+        match self {
+            ChatMode::Infer => "⚡", // LLM generation
+            ChatMode::Agent => "🐔", // Parent agent icon
+        }
+    }
 }
 
 /// Chat view state
@@ -108,8 +127,6 @@ pub struct ChatView {
     pub cursor: usize,
     /// Scroll offset in message list
     pub scroll: usize,
-    /// Session info (legacy)
-    pub session: SessionInfo,
     /// Command history (for up/down navigation)
     pub history: Vec<String>,
     /// History navigation index
@@ -132,17 +149,25 @@ pub struct ChatView {
     pub inline_content: Vec<InlineContent>,
     /// Animation frame counter (for spinners)
     pub frame: u8,
+
+    // === Chat Mode Indicators (v2.1 - Claude Code-like UX) ===
+    /// Current chat mode (Chat or Agent)
+    pub chat_mode: ChatMode,
+    /// Whether deep thinking (extended_thinking) is enabled
+    pub deep_thinking: bool,
+    /// Current provider name for display
+    pub provider_name: String,
 }
 
 impl ChatView {
     pub fn new() -> Self {
-        // Detect initial model from environment
-        let initial_model = if std::env::var("ANTHROPIC_API_KEY").is_ok() {
-            "claude-sonnet-4".to_string()
+        // Detect initial model and provider from environment
+        let (initial_model, provider_name) = if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+            ("claude-sonnet-4".to_string(), "Claude".to_string())
         } else if std::env::var("OPENAI_API_KEY").is_ok() {
-            "gpt-4o".to_string()
+            ("gpt-4o".to_string(), "OpenAI".to_string())
         } else {
-            "No API Key".to_string()
+            ("No API Key".to_string(), "None".to_string())
         };
 
         // Initialize session context with detected MCP servers
@@ -154,14 +179,15 @@ impl ChatView {
         Self {
             messages: vec![ChatMessage {
                 role: MessageRole::System,
-                content: "Welcome to Nika Agent. How can I help you?".to_string(),
+                content:
+                    "Welcome to Nika Agent. Type a message to chat, or use /help for commands."
+                        .to_string(),
                 timestamp: Instant::now(),
                 execution: None,
             }],
             input: String::new(),
             cursor: 0,
             scroll: 0,
-            session: SessionInfo::default(),
             history: vec![],
             history_index: None,
             is_streaming: false,
@@ -174,7 +200,35 @@ impl ChatView {
             command_palette: CommandPaletteState::new(),
             inline_content: vec![],
             frame: 0,
+
+            // Chat Mode Indicators (v2.1)
+            chat_mode: ChatMode::default(),
+            deep_thinking: false,
+            provider_name,
         }
+    }
+
+    /// Toggle between Infer and Agent modes
+    pub fn toggle_mode(&mut self) {
+        self.chat_mode = match self.chat_mode {
+            ChatMode::Infer => ChatMode::Agent,
+            ChatMode::Agent => ChatMode::Infer,
+        };
+    }
+
+    /// Toggle deep thinking (extended_thinking)
+    pub fn toggle_deep_thinking(&mut self) {
+        self.deep_thinking = !self.deep_thinking;
+    }
+
+    /// Set chat mode directly
+    pub fn set_chat_mode(&mut self, mode: ChatMode) {
+        self.chat_mode = mode;
+    }
+
+    /// Set provider name for display
+    pub fn set_provider(&mut self, name: impl Into<String>) {
+        self.provider_name = name.into();
     }
 
     /// Start streaming mode
@@ -197,6 +251,18 @@ impl ChatView {
     /// Set the current model name
     pub fn set_model(&mut self, model: impl Into<String>) {
         self.current_model = model.into();
+    }
+
+    /// Set MCP servers from workflow configuration
+    ///
+    /// Replaces the default "novanet" with actual configured servers.
+    pub fn set_mcp_servers(&mut self, server_names: impl IntoIterator<Item = impl Into<String>>) {
+        self.session_context.mcp_servers.clear();
+        for name in server_names {
+            self.session_context
+                .mcp_servers
+                .push(McpServerInfo::new(name.into()));
+        }
     }
 
     /// Add a tool message
@@ -354,6 +420,39 @@ impl ChatView {
         });
     }
 
+    /// Add a system message (for mode changes, status updates)
+    pub fn add_system_message(&mut self, content: impl Into<String>) {
+        self.messages.push(ChatMessage {
+            role: MessageRole::System,
+            content: content.into(),
+            timestamp: Instant::now(),
+            execution: None,
+        });
+    }
+
+    /// Append text to the last message (for streaming tokens)
+    ///
+    /// Used for Claude Code-like streaming where tokens appear in real-time.
+    /// If the last message is "Thinking...", it will be replaced.
+    pub fn append_to_last_message(&mut self, token: &str) {
+        if let Some(last) = self.messages.last_mut() {
+            // If it's "Thinking...", replace it with the first token
+            if last.content == "Thinking..." {
+                last.content = token.to_string();
+            } else {
+                // Append token to existing content
+                last.content.push_str(token);
+            }
+        }
+    }
+
+    /// Replace the last message content (for error display)
+    pub fn replace_last_message(&mut self, content: String) {
+        if let Some(last) = self.messages.last_mut() {
+            last.content = content;
+        }
+    }
+
     /// Submit current input
     pub fn submit(&mut self) -> Option<String> {
         if self.input.trim().is_empty() {
@@ -444,6 +543,25 @@ impl ChatView {
             self.cursor += 1;
         }
     }
+
+    /// Scroll up in the message list
+    pub fn scroll_up(&mut self) {
+        self.scroll = self.scroll.saturating_sub(1);
+    }
+
+    /// Scroll down in the message list (bounded by message count)
+    pub fn scroll_down(&mut self) {
+        // Cap scroll at message count - 1 (so at least one message is visible)
+        let max_scroll = self.messages.len().saturating_sub(1);
+        if self.scroll < max_scroll {
+            self.scroll += 1;
+        }
+    }
+
+    /// Scroll to bottom (most recent messages)
+    pub fn scroll_to_bottom(&mut self) {
+        self.scroll = 0; // Scroll 0 = show most recent (bottom)
+    }
 }
 
 impl Default for ChatView {
@@ -509,6 +627,29 @@ impl View for ChatView {
             return ViewAction::None;
         }
 
+        // Check for Ctrl+T (toggle deep thinking)
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('t') {
+            self.toggle_deep_thinking();
+            let status = if self.deep_thinking {
+                "enabled"
+            } else {
+                "disabled"
+            };
+            self.add_system_message(format!("🧠 Deep thinking {}", status));
+            return ViewAction::None;
+        }
+
+        // Check for Ctrl+M (toggle infer/agent mode)
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('m') {
+            self.toggle_mode();
+            self.add_system_message(format!(
+                "{} Switched to {} mode",
+                self.chat_mode.icon(),
+                self.chat_mode.label()
+            ));
+            return ViewAction::None;
+        }
+
         match key.code {
             KeyCode::Char('q') if self.input.is_empty() => ViewAction::Quit,
             KeyCode::Enter => {
@@ -532,7 +673,7 @@ impl View for ChatView {
                             params,
                         } => ViewAction::ChatInvoke(tool, server, params),
                         Command::Agent { goal, max_turns } => {
-                            ViewAction::ChatAgent(goal, max_turns)
+                            ViewAction::ChatAgent(goal, max_turns, self.deep_thinking)
                         }
                         Command::Model { provider } => {
                             // Handle /model list inline
@@ -593,6 +734,22 @@ impl View for ChatView {
                 self.insert_char(c);
                 ViewAction::None
             }
+            KeyCode::PageUp => {
+                self.scroll_up();
+                ViewAction::None
+            }
+            KeyCode::PageDown => {
+                self.scroll_down();
+                ViewAction::None
+            }
+            KeyCode::Home => {
+                self.scroll = 0;
+                ViewAction::None
+            }
+            KeyCode::End => {
+                self.scroll_to_bottom();
+                ViewAction::None
+            }
             KeyCode::Tab => ViewAction::SwitchView(TuiView::Home),
             KeyCode::Esc => ViewAction::SwitchView(TuiView::Home),
             _ => ViewAction::None,
@@ -645,7 +802,7 @@ impl ChatView {
                                 params,
                             } => ViewAction::ChatInvoke(tool, server, params),
                             Command::Agent { goal, max_turns } => {
-                                ViewAction::ChatAgent(goal, max_turns)
+                                ViewAction::ChatAgent(goal, max_turns, self.deep_thinking)
                             }
                             Command::Model { provider } => ViewAction::ChatModelSwitch(provider),
                             Command::Infer { prompt } | Command::Chat { message: prompt } => {
@@ -779,45 +936,56 @@ impl ChatView {
         frame.render_widget(list, area);
     }
 
-    fn render_session(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        let mut lines = vec![
-            Line::from(vec![
-                Span::styled("Workflows: ", Style::default().fg(theme.text_muted)),
-                Span::raw(self.session.workflow_count.to_string()),
-            ]),
-            Line::from(""),
-            Line::styled("--- Actions ---", Style::default().fg(theme.text_muted)),
-        ];
-
-        for action in &self.session.recent_actions {
-            lines.push(Line::from(format!("+ {}", action)));
-        }
-
-        let paragraph = Paragraph::new(lines).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" SESSION ")
-                .border_style(Style::default().fg(theme.border_normal)),
-        );
-
-        frame.render_widget(paragraph, area);
-    }
-
     fn render_input(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         // Show input with cursor (use char-based slicing for unicode safety)
         let before_cursor: String = self.input.chars().take(self.cursor).collect();
         let cursor_char = self.input.chars().nth(self.cursor).unwrap_or(' ');
         let after_cursor: String = self.input.chars().skip(self.cursor + 1).collect();
 
-        let line = Line::from(vec![
-            Span::raw(" > "),
-            Span::raw(before_cursor),
-            Span::styled(
-                cursor_char.to_string(),
-                Style::default().bg(theme.highlight).fg(Color::Black),
-            ),
-            Span::raw(after_cursor),
-        ]);
+        // Build mode indicators for Claude Code-like UX
+        let mut spans = vec![Span::raw(" ")];
+
+        // Mode badge: [⚡ Infer] or [🐔 Agent]
+        let mode_color = match self.chat_mode {
+            ChatMode::Infer => theme.status_success, // Green for infer
+            ChatMode::Agent => theme.status_running, // Amber for agent
+        };
+        spans.push(Span::styled(
+            format!("[{} {}]", self.chat_mode.icon(), self.chat_mode.label()),
+            Style::default().fg(mode_color).add_modifier(Modifier::BOLD),
+        ));
+
+        // Deep thinking indicator: [🧠 Think] if enabled
+        if self.deep_thinking {
+            spans.push(Span::raw(" "));
+            spans.push(Span::styled(
+                "[🧠 Think]",
+                Style::default()
+                    .fg(theme.highlight)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        }
+
+        // Provider indicator
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled(
+            &self.provider_name,
+            Style::default().fg(theme.text_secondary),
+        ));
+
+        // Separator and prompt
+        spans.push(Span::styled(" │ ", Style::default().fg(theme.text_muted)));
+        spans.push(Span::raw("> "));
+
+        // Input text with cursor
+        spans.push(Span::raw(before_cursor));
+        spans.push(Span::styled(
+            cursor_char.to_string(),
+            Style::default().bg(theme.highlight).fg(Color::Black),
+        ));
+        spans.push(Span::raw(after_cursor));
+
+        let line = Line::from(spans);
 
         let paragraph = Paragraph::new(line).block(
             Block::default()
@@ -1243,15 +1411,6 @@ mod tests {
     }
 
     #[test]
-    fn test_session_info_default() {
-        let session = SessionInfo::default();
-        assert_eq!(session.workflow_count, 0);
-        assert!(session.last_run.is_none());
-        assert!(session.recent_actions.is_empty());
-        assert!(session.current_context.is_none());
-    }
-
-    #[test]
     fn test_chat_view_status_line() {
         let view = ChatView::new();
         let state = TuiState::new("test.nika.yaml");
@@ -1584,5 +1743,64 @@ mod tests {
         } else {
             panic!("Expected InferStream variant");
         }
+    }
+
+    // === Scroll Tests ===
+
+    #[test]
+    fn test_chat_view_scroll_up() {
+        let mut view = ChatView::new();
+        view.scroll = 5;
+
+        view.scroll_up();
+        assert_eq!(view.scroll, 4);
+
+        view.scroll_up();
+        view.scroll_up();
+        view.scroll_up();
+        view.scroll_up();
+        assert_eq!(view.scroll, 0);
+
+        // Should not go negative
+        view.scroll_up();
+        assert_eq!(view.scroll, 0);
+    }
+
+    #[test]
+    fn test_chat_view_scroll_down() {
+        let mut view = ChatView::new();
+        // ChatView starts with 1 welcome message
+        assert_eq!(view.messages.len(), 1);
+
+        // With only 1 message, can't scroll down
+        view.scroll_down();
+        assert_eq!(view.scroll, 0);
+
+        // Add more messages
+        view.add_user_message("Message 1".to_string());
+        view.add_user_message("Message 2".to_string());
+        view.add_user_message("Message 3".to_string());
+        assert_eq!(view.messages.len(), 4);
+
+        // Now can scroll down
+        view.scroll_down();
+        assert_eq!(view.scroll, 1);
+
+        view.scroll_down();
+        view.scroll_down();
+        assert_eq!(view.scroll, 3);
+
+        // Should cap at messages.len() - 1
+        view.scroll_down();
+        assert_eq!(view.scroll, 3);
+    }
+
+    #[test]
+    fn test_chat_view_scroll_to_bottom() {
+        let mut view = ChatView::new();
+        view.scroll = 10;
+
+        view.scroll_to_bottom();
+        assert_eq!(view.scroll, 0);
     }
 }

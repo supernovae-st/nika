@@ -6,7 +6,7 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
 };
 
 // ===============================================================================
@@ -15,6 +15,9 @@ use ratatui::{
 
 /// Active edge color (Amber)
 const ACTIVE_COLOR: Color = Color::Rgb(245, 158, 11);
+
+/// Active edge glow color (Brighter amber)
+const ACTIVE_GLOW_COLOR: Color = Color::Rgb(251, 191, 36);
 
 /// Inactive edge color
 const INACTIVE_COLOR: Color = Color::DarkGray;
@@ -26,8 +29,40 @@ const PREVIEW_COLOR: Color = Color::Rgb(107, 114, 128);
 const BINDING_COLOR: Color = Color::Rgb(139, 92, 246);
 
 // ===============================================================================
+// ANIMATED FLOW CHARACTERS
+// ===============================================================================
+
+/// Flow animation frames for vertical edges (top to bottom flow)
+const FLOW_FRAMES_V: &[char] = &['╽', '┃', '╿', '│'];
+
+/// Flow animation frames for horizontal edges (left to right flow)
+const FLOW_FRAMES_H: &[char] = &['╼', '━', '╾', '─'];
+
+/// Arrow characters with more visual weight
+const ARROW_DOWN: &str = "▼";
+const ARROW_RIGHT: &str = "▶";
+const ARROW_LEFT: &str = "◀";
+const ARROW_UP: &str = "▲";
+
+/// Smooth corner characters (for curved edges)
+const CORNER_TL_SMOOTH: &str = "╭";
+const CORNER_TR_SMOOTH: &str = "╮";
+const CORNER_BL_SMOOTH: &str = "╰";
+const CORNER_BR_SMOOTH: &str = "╯";
+
+// ===============================================================================
 // DAG EDGE
 // ===============================================================================
+
+/// Edge style for rendering
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum EdgeStyle {
+    /// Sharp corners (default)
+    #[default]
+    Sharp,
+    /// Smooth/rounded corners using ╭╮╰╯
+    Smooth,
+}
 
 /// Edge between two DAG nodes
 #[derive(Debug, Clone)]
@@ -42,6 +77,10 @@ pub struct DagEdge {
     pub preview: Option<String>,
     /// Is this edge active (data flowing)
     pub active: bool,
+    /// Animation frame (0-255) for flow effects
+    pub frame: u8,
+    /// Edge style (sharp or smooth corners)
+    pub style: EdgeStyle,
 }
 
 impl DagEdge {
@@ -53,6 +92,8 @@ impl DagEdge {
             binding: None,
             preview: None,
             active: false,
+            frame: 0,
+            style: EdgeStyle::default(),
         }
     }
 
@@ -74,14 +115,63 @@ impl DagEdge {
         self
     }
 
+    /// Set the animation frame (0-255)
+    pub fn with_frame(mut self, frame: u8) -> Self {
+        self.frame = frame;
+        self
+    }
+
+    /// Set the edge style (Sharp or Smooth corners)
+    pub fn with_style(mut self, style: EdgeStyle) -> Self {
+        self.style = style;
+        self
+    }
+
+    /// Get the animated vertical line character based on frame
+    fn animated_v_char(&self, y: u16) -> char {
+        if self.active && self.frame > 0 {
+            // Animate flow based on position and frame
+            let idx = ((y as usize) + (self.frame as usize / 4)) % FLOW_FRAMES_V.len();
+            FLOW_FRAMES_V[idx]
+        } else if self.active {
+            '┃'
+        } else {
+            '│'
+        }
+    }
+
+    /// Get the animated horizontal line character based on frame
+    fn animated_h_char(&self, x: u16) -> char {
+        if self.active && self.frame > 0 {
+            // Animate flow based on position and frame
+            let idx = ((x as usize) + (self.frame as usize / 4)) % FLOW_FRAMES_H.len();
+            FLOW_FRAMES_H[idx]
+        } else if self.active {
+            '━'
+        } else {
+            '─'
+        }
+    }
+
+    /// Get edge style with optional glow for active edges
+    fn edge_style(&self) -> Style {
+        if self.active {
+            if self.frame > 0 && (self.frame / 8) % 2 == 0 {
+                // Pulsing glow effect
+                Style::default()
+                    .fg(ACTIVE_GLOW_COLOR)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(ACTIVE_COLOR)
+            }
+        } else {
+            Style::default().fg(INACTIVE_COLOR)
+        }
+    }
+
     /// Render the edge to a buffer
     pub fn render(&self, buf: &mut Buffer, area: Rect) {
-        let edge_color = if self.active {
-            ACTIVE_COLOR
-        } else {
-            INACTIVE_COLOR
-        };
-        let edge_style = Style::default().fg(edge_color);
+        let style = self.edge_style();
 
         // Calculate edge positions relative to area
         let from_x = self.from.0;
@@ -97,13 +187,13 @@ impl DagEdge {
         // Determine edge direction
         if from_x == to_x {
             // Pure vertical edge
-            self.render_vertical_edge(buf, area, from_x, from_y, to_y, edge_style);
+            self.render_vertical_edge(buf, area, from_x, from_y, to_y, style);
         } else if from_y == to_y {
             // Pure horizontal edge
-            self.render_horizontal_edge(buf, area, from_x, to_x, from_y, edge_style);
+            self.render_horizontal_edge(buf, area, from_x, to_x, from_y, style);
         } else {
             // L-shaped edge (vertical then horizontal, or horizontal then vertical)
-            self.render_l_edge(buf, area, edge_style);
+            self.render_l_edge(buf, area, style);
         }
     }
 
@@ -128,27 +218,27 @@ impl DagEdge {
             (to_y, from_y)
         };
 
-        let line_char = if self.active { "┃" } else { "│" };
+        // Calculate midpoint for label placement (with saturating_sub for safety)
+        let mid_y = start_y.saturating_add(end_y.saturating_sub(start_y) / 2);
 
-        // Calculate midpoint for label placement
-        let mid_y = start_y + (end_y - start_y) / 2;
-
-        // Draw vertical line
+        // Draw vertical line with animation
         for y in start_y..=end_y {
             if self.is_in_bounds(x, y, &area) {
                 // Skip the midpoint area if we have labels
                 let has_label = self.binding.is_some() || self.preview.is_some();
-                let is_label_area = has_label && (y >= mid_y.saturating_sub(1) && y <= mid_y + 1);
+                let is_label_area =
+                    has_label && (y >= mid_y.saturating_sub(1) && y <= mid_y.saturating_add(1));
 
                 if !is_label_area {
-                    buf.set_string(x, y, line_char, style);
+                    let line_char = self.animated_v_char(y);
+                    buf.set_string(x, y, line_char.to_string(), style);
                 }
             }
         }
 
-        // Draw arrow at the bottom
+        // Draw arrow at the bottom with emphasis
         if self.is_in_bounds(x, end_y, &area) {
-            buf.set_string(x, end_y, "▼", style);
+            buf.set_string(x, end_y, ARROW_DOWN, style);
         }
 
         // Render binding label at midpoint
@@ -171,11 +261,11 @@ impl DagEdge {
             (to_x, from_x)
         };
 
-        let line_char = if self.active { "━" } else { "─" };
-
+        // Draw horizontal line with animation
         for x in start_x..=end_x {
             if self.is_in_bounds(x, y, &area) {
-                buf.set_string(x, y, line_char, style);
+                let line_char = self.animated_h_char(x);
+                buf.set_string(x, y, line_char.to_string(), style);
             }
         }
     }
@@ -186,9 +276,6 @@ impl DagEdge {
         let from_y = self.from.1;
         let to_x = self.to.0;
         let to_y = self.to.1;
-
-        let line_v = if self.active { "┃" } else { "│" };
-        let line_h = if self.active { "━" } else { "─" };
 
         // Determine edge direction
         let going_down = to_y > from_y;
@@ -205,27 +292,35 @@ impl DagEdge {
             (corner_y, from_y)
         };
 
-        // Calculate midpoint for label placement on vertical segment
-        let mid_y = v_start + (v_end - v_start) / 2;
+        // Calculate midpoint for label placement on vertical segment (with saturating_sub)
+        let mid_y = v_start.saturating_add(v_end.saturating_sub(v_start) / 2);
 
         for y in v_start..v_end {
             if self.is_in_bounds(corner_x, y, &area) {
                 // Skip label area
                 let has_label = self.binding.is_some() || self.preview.is_some();
-                let is_label_area = has_label && (y >= mid_y.saturating_sub(1) && y <= mid_y + 1);
+                let is_label_area =
+                    has_label && (y >= mid_y.saturating_sub(1) && y <= mid_y.saturating_add(1));
 
                 if !is_label_area {
-                    buf.set_string(corner_x, y, line_v, style);
+                    let line_char = self.animated_v_char(y);
+                    buf.set_string(corner_x, y, line_char.to_string(), style);
                 }
             }
         }
 
-        // Draw corner
-        let corner_char = match (going_down, going_right) {
-            (true, true) => "└",   // Down then right
-            (true, false) => "┘",  // Down then left
-            (false, true) => "┌",  // Up then right
-            (false, false) => "┐", // Up then left
+        // Draw corner - use smooth or sharp based on style
+        let corner_char = match (self.style, going_down, going_right) {
+            // Smooth corners
+            (EdgeStyle::Smooth, true, true) => CORNER_BL_SMOOTH, // ╰ Down then right
+            (EdgeStyle::Smooth, true, false) => CORNER_BR_SMOOTH, // ╯ Down then left
+            (EdgeStyle::Smooth, false, true) => CORNER_TL_SMOOTH, // ╭ Up then right
+            (EdgeStyle::Smooth, false, false) => CORNER_TR_SMOOTH, // ╮ Up then left
+            // Sharp corners (default)
+            (EdgeStyle::Sharp, true, true) => "└", // Down then right
+            (EdgeStyle::Sharp, true, false) => "┘", // Down then left
+            (EdgeStyle::Sharp, false, true) => "┌", // Up then right
+            (EdgeStyle::Sharp, false, false) => "┐", // Up then left
         };
 
         if self.is_in_bounds(corner_x, corner_y, &area) {
@@ -234,7 +329,7 @@ impl DagEdge {
 
         // Draw horizontal segment
         let (h_start, h_end) = if going_right {
-            (corner_x + 1, to_x)
+            (corner_x.saturating_add(1), to_x)
         } else {
             (to_x, corner_x.saturating_sub(1))
         };
@@ -242,11 +337,12 @@ impl DagEdge {
         for x in h_start..=h_end {
             if self.is_in_bounds(x, corner_y, &area) {
                 if x == to_x {
-                    // Arrow at the end
-                    let arrow = if going_right { "▶" } else { "◀" };
+                    // Arrow at the end with style
+                    let arrow = if going_right { ARROW_RIGHT } else { ARROW_LEFT };
                     buf.set_string(x, corner_y, arrow, style);
                 } else {
-                    buf.set_string(x, corner_y, line_h, style);
+                    let line_char = self.animated_h_char(x);
+                    buf.set_string(x, corner_y, line_char.to_string(), style);
                 }
             }
         }

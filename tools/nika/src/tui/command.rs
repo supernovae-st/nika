@@ -283,6 +283,16 @@ Nika Chat Commands:
   /clear                    Clear chat history
   /help or /?               Show this help
 
+Keyboard Shortcuts:
+  Ctrl+K                    Open command palette
+  Ctrl+T                    Toggle deep thinking (🧠)
+  Ctrl+M                    Toggle Infer/Agent mode
+
+Modes:
+  ⚡ Infer                  Simple inference (default)
+  🐔 Agent                  Multi-turn with MCP tools
+  🧠 Think                  Extended thinking (Claude only)
+
 Model Switching:
   /model openai             Switch to OpenAI (gpt-4o)
   /model claude             Switch to Anthropic Claude

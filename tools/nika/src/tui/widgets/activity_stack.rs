@@ -351,14 +351,15 @@ mod tests {
 
     #[test]
     fn test_verb_icon() {
+        // Canonical icons from CLAUDE.md (via VerbColor::from_verb().icon())
         let item = ActivityItem::hot("t", "infer");
-        assert_eq!(item.verb_icon(), "🧠");
+        assert_eq!(item.verb_icon(), "⚡"); // LLM generation
 
         let item = ActivityItem::hot("t", "exec");
-        assert_eq!(item.verb_icon(), "⚡");
+        assert_eq!(item.verb_icon(), "📟"); // Shell command
 
         let item = ActivityItem::hot("t", "invoke");
-        assert_eq!(item.verb_icon(), "🔧");
+        assert_eq!(item.verb_icon(), "🔌"); // MCP tool
     }
 
     #[test]

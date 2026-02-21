@@ -200,10 +200,11 @@ impl FlowGraph {
                     match colors.get(neighbor) {
                         Some(Color::Gray) => {
                             // Found cycle - build path from stack
+                            // SAFETY: neighbor is Gray means it's in the current DFS path (stack)
                             let cycle_start = stack
                                 .iter()
                                 .position(|x| x.as_ref() == neighbor.as_ref())
-                                .unwrap();
+                                .unwrap_or(0); // Defensive: default to start if invariant fails
                             let cycle: Vec<&str> =
                                 stack[cycle_start..].iter().map(|s| s.as_ref()).collect();
                             return Err(format!("{} → {}", cycle.join(" → "), neighbor));

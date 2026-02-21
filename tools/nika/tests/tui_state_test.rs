@@ -151,6 +151,7 @@ fn test_task_started_updates_status() {
     state.handle_event(
         &EventKind::TaskStarted {
             task_id: Arc::from("step1"),
+            verb: "infer".into(),
             inputs: json!({"prompt": "Hello"}),
         },
         100,
@@ -187,6 +188,7 @@ fn test_task_completed_updates_state() {
     state.handle_event(
         &EventKind::TaskStarted {
             task_id: Arc::from("step1"),
+            verb: "infer".into(),
             inputs: json!({}),
         },
         100,
@@ -224,6 +226,7 @@ fn test_task_failed_updates_state() {
     state.handle_event(
         &EventKind::TaskStarted {
             task_id: Arc::from("step1"),
+            verb: "infer".into(),
             inputs: json!({}),
         },
         100,
@@ -644,6 +647,7 @@ fn test_mission_phase_transitions() {
     state.handle_event(
         &EventKind::TaskStarted {
             task_id: Arc::from("t1"),
+            verb: "infer".into(),
             inputs: json!({}),
         },
         100,
@@ -661,6 +665,7 @@ fn test_mission_phase_transitions() {
     state.handle_event(
         &EventKind::TaskStarted {
             task_id: Arc::from("t2"),
+            verb: "infer".into(),
             inputs: json!({}),
         },
         500,
@@ -700,6 +705,7 @@ fn test_slow_task_triggers_warning() {
     state.handle_event(
         &EventKind::TaskStarted {
             task_id: Arc::from("slow"),
+            verb: "infer".into(),
             inputs: json!({}),
         },
         0,
@@ -735,6 +741,7 @@ fn test_very_slow_task_triggers_alert() {
     state.handle_event(
         &EventKind::TaskStarted {
             task_id: Arc::from("very_slow"),
+            verb: "infer".into(),
             inputs: json!({}),
         },
         0,
@@ -752,5 +759,5 @@ fn test_very_slow_task_triggers_alert() {
 
     assert!(!state.notifications.is_empty());
     let notification = &state.notifications[0];
-    assert!(notification.message.contains(">30s"));
+    assert!(notification.message.contains("35.0s"));
 }

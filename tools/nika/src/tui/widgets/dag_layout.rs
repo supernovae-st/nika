@@ -210,10 +210,10 @@ impl DagLayout {
         layers
     }
 
-    /// Order nodes within each layer
+    /// Order nodes within each layer using barycenter method
     ///
-    /// Currently preserves original order within each layer.
-    /// TODO: Implement barycenter method for edge crossing minimization.
+    /// The barycenter method minimizes edge crossings by ordering nodes
+    /// based on the average position of their neighbors in adjacent layers.
     fn order_within_layers(
         nodes: &[LayoutNode<'_>],
         layer_assignments: &FxHashMap<String, usize>,
@@ -221,17 +221,127 @@ impl DagLayout {
         // Find max layer
         let max_layer = layer_assignments.values().copied().max().unwrap_or(0);
 
-        // Initialize layers
+        // Initialize layers with original order
         let mut layers: Vec<Vec<String>> = vec![Vec::new(); max_layer + 1];
 
-        // Assign nodes to layers preserving original order
+        // Assign nodes to layers preserving original order initially
         for node in nodes {
             if let Some(&layer) = layer_assignments.get(node.id) {
                 layers[layer].push(node.id.to_string());
             }
         }
 
+        // Build adjacency maps for barycenter calculation
+        // successors: node_id -> [successor_ids] (nodes that depend on this node)
+        // predecessors: node_id -> [predecessor_ids] (nodes this node depends on)
+        let mut successors: FxHashMap<String, Vec<String>> = FxHashMap::default();
+        let mut predecessors: FxHashMap<String, Vec<String>> = FxHashMap::default();
+
+        for node in nodes {
+            successors.entry(node.id.to_string()).or_default();
+            predecessors.entry(node.id.to_string()).or_default();
+
+            for dep in &node.dependencies {
+                successors
+                    .entry(dep.to_string())
+                    .or_default()
+                    .push(node.id.to_string());
+                predecessors
+                    .entry(node.id.to_string())
+                    .or_default()
+                    .push(dep.to_string());
+            }
+        }
+
+        // Apply barycenter method in multiple passes
+        const MAX_ITERATIONS: usize = 4;
+
+        for _ in 0..MAX_ITERATIONS {
+            // Forward pass: order layers based on predecessor positions
+            for layer_idx in 1..layers.len() {
+                Self::order_layer_by_barycenter(
+                    &mut layers,
+                    layer_idx,
+                    &predecessors,
+                    true, // use predecessors
+                );
+            }
+
+            // Backward pass: order layers based on successor positions
+            for layer_idx in (0..layers.len().saturating_sub(1)).rev() {
+                Self::order_layer_by_barycenter(
+                    &mut layers,
+                    layer_idx,
+                    &successors,
+                    false, // use successors
+                );
+            }
+        }
+
         layers
+    }
+
+    /// Order a single layer using barycenter method
+    ///
+    /// Each node gets a barycenter value = average position of its neighbors
+    /// in the adjacent layer. Nodes are then sorted by this value.
+    fn order_layer_by_barycenter(
+        layers: &mut [Vec<String>],
+        layer_idx: usize,
+        neighbors: &FxHashMap<String, Vec<String>>,
+        use_prev_layer: bool,
+    ) {
+        let adjacent_layer_idx = if use_prev_layer {
+            layer_idx.saturating_sub(1)
+        } else {
+            layer_idx.saturating_add(1)
+        };
+
+        // Guard against out of bounds
+        if adjacent_layer_idx >= layers.len() || adjacent_layer_idx == layer_idx {
+            return;
+        }
+
+        // Build position map for adjacent layer
+        let adjacent_positions: FxHashMap<&str, usize> = layers[adjacent_layer_idx]
+            .iter()
+            .enumerate()
+            .map(|(pos, id)| (id.as_str(), pos))
+            .collect();
+
+        // Calculate barycenter for each node in current layer
+        let mut barycenters: Vec<(String, f64)> = layers[layer_idx]
+            .iter()
+            .map(|node_id| {
+                let neighbor_positions: Vec<usize> = neighbors
+                    .get(node_id)
+                    .map(|n| {
+                        n.iter()
+                            .filter_map(|neighbor| {
+                                adjacent_positions.get(neighbor.as_str()).copied()
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                let barycenter = if neighbor_positions.is_empty() {
+                    // No neighbors - keep original relative position (use infinity to sort last)
+                    f64::MAX
+                } else {
+                    // Average position of neighbors
+                    let sum: usize = neighbor_positions.iter().sum();
+                    (sum as f64) / (neighbor_positions.len() as f64)
+                };
+
+                (node_id.clone(), barycenter)
+            })
+            .collect();
+
+        // Sort by barycenter value (stable sort to preserve order for equal values)
+        barycenters.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Update layer with new order
+        layers[layer_idx] = barycenters.into_iter().map(|(id, _)| id).collect();
     }
 
     /// Compute x/y positions for all nodes
@@ -645,5 +755,62 @@ mod tests {
     fn test_layout_node_default_width_hint() {
         let node = LayoutNode::new("task1");
         assert!(node.width_hint.is_none());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // BARYCENTER ORDERING TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_barycenter_reduces_crossings() {
+        // Create a graph where barycenter should reorder:
+        //   a ─────────────► y
+        //   b ─────────────► x
+        // Without barycenter: [a,b] -> [x,y] has 1 crossing
+        // With barycenter: [a,b] -> [y,x] has 0 crossings
+        let nodes = vec![
+            LayoutNode::new("a"),
+            LayoutNode::new("b"),
+            LayoutNode::new("x").with_dependencies(vec!["b"]),
+            LayoutNode::new("y").with_dependencies(vec!["a"]),
+        ];
+
+        let config = LayoutConfig::default();
+        let layout = DagLayout::compute(&nodes, &config, None);
+
+        // Layer 1 should have x and y
+        let layer_1 = &layout.layers[1];
+        assert_eq!(layer_1.len(), 2);
+
+        // After barycenter, y should come before x (aligned with a before b)
+        // because y depends on a (position 0) and x depends on b (position 1)
+        let y_pos = layer_1.iter().position(|s| s == "y");
+        let x_pos = layer_1.iter().position(|s| s == "x");
+
+        assert!(
+            y_pos.is_some() && x_pos.is_some(),
+            "Both x and y should be in layer 1"
+        );
+        assert!(
+            y_pos < x_pos,
+            "y (depending on a at pos 0) should come before x (depending on b at pos 1)"
+        );
+    }
+
+    #[test]
+    fn test_barycenter_handles_no_dependencies() {
+        // Nodes without dependencies should not crash
+        let nodes = vec![
+            LayoutNode::new("a"),
+            LayoutNode::new("b"),
+            LayoutNode::new("c"),
+        ];
+
+        let config = LayoutConfig::default();
+        let layout = DagLayout::compute(&nodes, &config, None);
+
+        // All nodes should be in layer 0
+        assert_eq!(layout.layer_count(), 1);
+        assert_eq!(layout.layers[0].len(), 3);
     }
 }

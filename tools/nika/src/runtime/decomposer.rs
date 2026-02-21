@@ -53,13 +53,7 @@ pub async fn expand(
             expand_semantic(spec, mcp_clients, bindings, datastore).await
         }
         DecomposeStrategy::Static => expand_static(spec, bindings, datastore),
-        DecomposeStrategy::Nested => {
-            // TODO: Implement nested traversal
-            Err(NikaError::NotImplemented {
-                feature: "decompose: nested strategy".to_string(),
-                suggestion: "Use semantic strategy with max_items for now".to_string(),
-            })
-        }
+        DecomposeStrategy::Nested => expand_nested(spec, mcp_clients, bindings, datastore).await,
     }
 }
 
@@ -148,6 +142,124 @@ fn expand_static(
     if let Some(max) = spec.max_items {
         items.truncate(max);
     }
+
+    Ok(items)
+}
+
+/// Expand using nested recursive traversal via MCP
+///
+/// Recursively follows arcs until max_depth or no more children.
+/// Collects all discovered nodes (excluding the root) into a flat array.
+async fn expand_nested(
+    spec: &DecomposeSpec,
+    mcp_clients: &dashmap::DashMap<String, Arc<McpClient>>,
+    bindings: &ResolvedBindings,
+    datastore: &DataStore,
+) -> Result<Vec<Value>, NikaError> {
+    use std::collections::HashSet;
+
+    // Get MCP client
+    let server_name = spec.mcp_server();
+    let client = mcp_clients
+        .get(server_name)
+        .ok_or_else(|| NikaError::McpNotConnected {
+            name: server_name.to_string(),
+        })?;
+
+    // Resolve source binding
+    let source_value = resolve_source(&spec.source, bindings, datastore)?;
+    let root_key = extract_key(&source_value)?;
+
+    // Defaults for nested traversal
+    let max_depth = spec.max_depth.unwrap_or(3);
+    let max_items = spec.max_items.unwrap_or(100); // Safety limit
+
+    debug!(
+        root_key = %root_key,
+        arc = %spec.traverse,
+        max_depth = max_depth,
+        max_items = max_items,
+        "Starting nested decompose traversal"
+    );
+
+    // BFS traversal to collect all descendant nodes
+    let mut items: Vec<Value> = Vec::new();
+    let mut visited: HashSet<String> = HashSet::new();
+    let mut queue: Vec<(String, usize)> = vec![(root_key.clone(), 0)];
+
+    visited.insert(root_key.clone());
+
+    while let Some((current_key, depth)) = queue.pop() {
+        // Stop if we've reached max depth
+        if depth >= max_depth {
+            continue;
+        }
+
+        // Stop if we have enough items
+        if items.len() >= max_items {
+            break;
+        }
+
+        // Call novanet_traverse for current node
+        let params = json!({
+            "start": current_key,
+            "arc": spec.traverse,
+            "direction": "outgoing"
+        });
+
+        let result = match client.call_tool("novanet_traverse", params).await {
+            Ok(r) => r,
+            Err(e) => {
+                debug!(key = %current_key, error = %e, "Traverse failed, skipping node");
+                continue;
+            }
+        };
+
+        // Parse result
+        let result_json: Value = match serde_json::from_str(&result.text()) {
+            Ok(v) => v,
+            Err(e) => {
+                debug!(key = %current_key, error = %e, "Failed to parse traverse result");
+                continue;
+            }
+        };
+
+        // Extract child nodes
+        let children = match extract_nodes(&result_json) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        for child in children {
+            // Get child key for tracking
+            let child_key = match extract_key(&child) {
+                Ok(k) => k,
+                Err(_) => continue,
+            };
+
+            // Skip if already visited (avoid cycles)
+            if visited.contains(&child_key) {
+                continue;
+            }
+
+            visited.insert(child_key.clone());
+            items.push(child);
+
+            // Add to queue for further traversal
+            queue.push((child_key, depth + 1));
+
+            // Early exit if we have enough items
+            if items.len() >= max_items {
+                break;
+            }
+        }
+    }
+
+    debug!(
+        count = items.len(),
+        visited = visited.len(),
+        "Nested decompose completed"
+    );
 
     Ok(items)
 }

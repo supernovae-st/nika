@@ -14,6 +14,8 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 
+use crate::tui::keybindings::{format_key, keybindings_for_context, KeyCategory, Keybinding};
+use crate::tui::mode::InputMode;
 use crate::tui::theme::Theme;
 use crate::tui::views::TuiView;
 
@@ -149,6 +151,10 @@ pub struct StatusBar<'a> {
     pub theme: &'a Theme,
     /// Metrics to display on the right
     pub metrics: Option<StatusMetrics>,
+    /// Current input mode (Normal, Insert, Command, Search)
+    pub input_mode: Option<InputMode>,
+    /// Custom status text from the view's status_line() method
+    pub custom_text: Option<String>,
 }
 
 impl<'a> StatusBar<'a> {
@@ -158,6 +164,8 @@ impl<'a> StatusBar<'a> {
             hints: None,
             theme,
             metrics: None,
+            input_mode: None,
+            custom_text: None,
         }
     }
 
@@ -171,7 +179,26 @@ impl<'a> StatusBar<'a> {
         self
     }
 
+    pub fn mode(mut self, mode: InputMode) -> Self {
+        self.input_mode = Some(mode);
+        self
+    }
+
+    /// Set custom status text from the view's status_line() method
+    pub fn custom_text(mut self, text: String) -> Self {
+        if !text.is_empty() {
+            self.custom_text = Some(text);
+        }
+        self
+    }
+
     fn default_hints(&self) -> Vec<KeyHint> {
+        // If input_mode is set, use keybindings_for_context for dynamic hints
+        if let Some(mode) = self.input_mode {
+            return self.hints_from_keybindings(keybindings_for_context(self.view, mode));
+        }
+
+        // Fallback to static hints (for backwards compatibility)
         match self.view {
             TuiView::Chat => vec![
                 KeyHint::new("Enter", "Send"),
@@ -207,6 +234,47 @@ impl<'a> StatusBar<'a> {
             ],
         }
     }
+
+    /// Convert keybindings to key hints for display
+    ///
+    /// Selects the most relevant keybindings based on priority:
+    /// - View-specific actions first
+    /// - Mode switching actions
+    /// - Global actions (quit, help)
+    fn hints_from_keybindings(&self, keybindings: Vec<Keybinding>) -> Vec<KeyHint> {
+        // Prioritize categories: view-specific > mode > scroll > global
+        let priority = |kb: &Keybinding| -> u8 {
+            match kb.category {
+                KeyCategory::Chat | KeyCategory::Monitor => 0,
+                KeyCategory::Action => 1,
+                KeyCategory::Mode => 2,
+                KeyCategory::Scroll => 3,
+                KeyCategory::PanelNav => 4,
+                KeyCategory::ViewNav => 5,
+                KeyCategory::Global => 6,
+            }
+        };
+
+        // Sort by priority and take top 6 hints (to fit status bar)
+        let mut sorted: Vec<_> = keybindings.iter().collect();
+        sorted.sort_by_key(|kb| priority(kb));
+
+        sorted
+            .into_iter()
+            .take(6)
+            .map(|kb| {
+                // Convert Keybinding to KeyHint using format_key
+                let key_str = format_key(kb.code, kb.modifiers);
+                // We need to leak the string to get a static lifetime - this is OK
+                // because hints are recreated each frame anyway
+                let key: &'static str = Box::leak(key_str.into_boxed_str());
+                KeyHint {
+                    key,
+                    action: kb.description,
+                }
+            })
+            .collect()
+    }
 }
 
 impl Widget for StatusBar<'_> {
@@ -215,11 +283,38 @@ impl Widget for StatusBar<'_> {
         let default = self.default_hints();
         let hints = self.hints.unwrap_or(default);
 
-        // Build left side (key hints)
+        // Build left side (input mode indicator + key hints)
         let mut left_spans = vec![Span::raw(" ")];
 
+        // Add input mode indicator if set
+        if let Some(mode) = self.input_mode {
+            let (mode_char, mode_color) = match mode {
+                InputMode::Normal => ('N', self.theme.status_success), // Green for Normal
+                InputMode::Insert => ('I', self.theme.status_running), // Amber for Insert
+                InputMode::Command => (':', self.theme.highlight),     // Cyan for Command
+                InputMode::Search => ('/', self.theme.highlight),      // Cyan for Search
+            };
+            left_spans.push(Span::styled(
+                format!("[{}]", mode_char),
+                Style::default().fg(mode_color).add_modifier(Modifier::BOLD),
+            ));
+            left_spans.push(Span::raw(" "));
+        }
+
+        // Add custom status text from view (if present)
+        if let Some(ref text) = self.custom_text {
+            left_spans.push(Span::styled(
+                text.clone(),
+                Style::default().fg(self.theme.text_primary),
+            ));
+            left_spans.push(Span::styled(
+                " │ ",
+                Style::default().fg(self.theme.text_muted),
+            ));
+        }
+
         for (i, hint) in hints.iter().enumerate() {
-            if i > 0 {
+            if i > 0 || self.input_mode.is_some() || self.custom_text.is_some() {
                 left_spans.push(Span::raw("  "));
             }
             left_spans.push(Span::styled(

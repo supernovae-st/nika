@@ -5,8 +5,8 @@ expression: output
 T1 🤔  thinking                               200tk
 T2 🔧  tool_use                               400tk
 T3 📋  tool_result                            600tk
-T4 💬  response                               800tk
+T4 ✨  response                               800tk
 T5 🤔  thinking                                1.0k
 T6 🔧  tool_use                                1.2k
 T7 📋  tool_result                             1.4k
-T8 💬  response                                1.6k
+T8 ✨  response                                1.6k

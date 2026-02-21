@@ -50,6 +50,9 @@ pub struct DecomposeSpec {
     /// Maximum items to expand (optional limit)
     #[serde(default)]
     pub max_items: Option<usize>,
+    /// Maximum recursion depth for nested strategy (default: 3)
+    #[serde(default)]
+    pub max_depth: Option<usize>,
 }
 
 impl DecomposeSpec {
@@ -119,6 +122,7 @@ source: $locales
             source: "$entity".to_string(),
             mcp_server: None,
             max_items: Some(5),
+            max_depth: None,
         };
         let yaml = serde_yaml::to_string(&spec).unwrap();
         assert!(yaml.contains("traverse: HAS_CHILD"));

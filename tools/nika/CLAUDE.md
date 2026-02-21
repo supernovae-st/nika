@@ -383,12 +383,13 @@ COSMIC_SPINNER: &[char] = &['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '�
 
 ### DAG Visualization
 
-Verb-specific icons:
-- 🤖 `infer:` — LLM generation
-- 🖥️ `exec:` — Shell command
-- 🌐 `fetch:` — HTTP request
-- 🔧 `invoke:` — MCP tool
-- 🤝 `agent:` — Agentic loop
+Verb-specific icons (canonical):
+- ⚡ `infer:` — LLM generation
+- 📟 `exec:` — Shell command
+- 🛰️ `fetch:` — HTTP request
+- 🔌 `invoke:` — MCP tool
+- 🐔 `agent:` — Agentic loop (parent)
+- 🐤 subagent — Spawned via spawn_agent
 
 ## Commands
 

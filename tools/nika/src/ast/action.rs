@@ -135,3 +135,16 @@ pub enum TaskAction {
     Invoke { invoke: InvokeParams },
     Agent { agent: AgentParams },
 }
+
+impl TaskAction {
+    /// Get the verb name for this action (infer, exec, fetch, invoke, agent)
+    pub fn verb_name(&self) -> &'static str {
+        match self {
+            TaskAction::Infer { .. } => "infer",
+            TaskAction::Exec { .. } => "exec",
+            TaskAction::Fetch { .. } => "fetch",
+            TaskAction::Invoke { .. } => "invoke",
+            TaskAction::Agent { .. } => "agent",
+        }
+    }
+}

@@ -5,7 +5,8 @@
 
 use std::io::{self, Stdout};
 use std::path::Path;
-use std::time::Duration;
+use std::sync::Arc;
+use std::time::{Duration, SystemTime};
 
 use crossterm::{
     event::{
@@ -15,6 +16,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use dashmap::DashMap;
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
@@ -22,20 +24,29 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Widget},
     Frame, Terminal,
 };
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::{broadcast, mpsc, OnceCell};
 
+use crate::ast::schema_validator::WorkflowSchemaValidator;
+use crate::ast::{AgentParams, McpConfigInline, Workflow};
 use crate::error::{NikaError, Result};
-use crate::event::{Event as NikaEvent, EventKind};
-use crate::provider::rig::RigProvider;
+use crate::event::{Event as NikaEvent, EventKind, EventLog};
+use crate::mcp::McpClient;
+use crate::mcp::McpConfig;
+use crate::provider::rig::{RigProvider, StreamChunk};
+use crate::runtime::{RigAgentLoop, RigAgentStatus, Runner};
 use crate::tui::chat_agent::ChatAgent;
 use crate::tui::command::ModelProvider;
+use rustc_hash::FxHashMap;
+use std::path::PathBuf;
 
+use super::focus::{FocusState, PanelId as NavPanelId};
+use super::mode::InputMode;
 use super::panels::{ContextPanel, GraphPanel, ProgressPanel, ReasoningPanel};
-use super::standalone::StandaloneState;
+use super::standalone::{HistoryEntry, StandaloneState};
 use super::state::{PanelId, SettingsField, TuiMode, TuiState};
 use super::theme::Theme;
 use super::views::{ChatView, HomeView, StudioView, TuiView, View, ViewAction};
-use super::widgets::{Header, StatusBar};
+use super::widgets::{ConnectionStatus, Header, Provider, StatusBar, StatusMetrics};
 use crate::config::mask_api_key;
 use crossterm::event::KeyEvent;
 
@@ -186,9 +197,13 @@ pub struct App {
     status_message: Option<(String, std::time::Instant)>,
     /// Retry requested flag (TIER 1.2) - caller should re-run workflow
     retry_requested: bool,
-    // ═══ 4-View Architecture ═══
+    // ═══ 4-View Architecture + Navigation 2.0 ═══
     /// Current active view
     current_view: TuiView,
+    /// Current input mode (Normal, Insert, Command, Search)
+    input_mode: InputMode,
+    /// Panel focus state for keyboard navigation
+    focus_state: FocusState,
     /// Chat view state
     chat_view: ChatView,
     /// Home view state (file browser)
@@ -196,13 +211,22 @@ pub struct App {
     /// Studio view state (YAML editor)
     studio_view: StudioView,
     // ═══ LLM Integration for ChatOverlay ═══
-    /// Channel for receiving LLM responses
+    /// Channel for receiving LLM responses (complete responses)
     llm_response_rx: mpsc::Receiver<String>,
-    /// Sender for spawning LLM tasks
+    /// Sender for spawning LLM tasks (complete responses)
     llm_response_tx: mpsc::Sender<String>,
+    /// Channel for streaming tokens (real-time display)
+    stream_chunk_rx: mpsc::Receiver<StreamChunk>,
+    /// Sender for streaming tokens (passed to ChatAgent)
+    stream_chunk_tx: mpsc::Sender<StreamChunk>,
     // ═══ ChatAgent for full AI interface (Task 5.1) ═══
     /// ChatAgent for handling 5 verb commands in ChatView
     chat_agent: Option<ChatAgent>,
+    // ═══ MCP Client Storage (v0.5.2) ═══
+    /// MCP server configurations from loaded workflow
+    mcp_configs: Option<FxHashMap<String, McpConfigInline>>,
+    /// Cached MCP clients (lazy-initialized with OnceCell for thread-safe async init)
+    mcp_client_cache: Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>,
 }
 
 impl App {
@@ -227,6 +251,8 @@ impl App {
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
+        // Initialize streaming channel for token-by-token updates (larger buffer for fast tokens)
+        let (stream_chunk_tx, stream_chunk_rx) = mpsc::channel(256);
 
         // Initialize ChatAgent (may fail if no API keys are set, but that's OK)
         let chat_agent = ChatAgent::new().ok();
@@ -245,12 +271,18 @@ impl App {
             retry_requested: false,
             // 4-view architecture - start in Monitor mode for workflow execution
             current_view: TuiView::Monitor,
+            input_mode: InputMode::Normal,
+            focus_state: FocusState::new(NavPanelId::MonitorMission),
             chat_view,
             home_view: None, // No home view in execution mode
             studio_view,
             llm_response_rx,
             llm_response_tx,
+            stream_chunk_rx,
+            stream_chunk_tx,
             chat_agent,
+            mcp_configs: None, // Loaded in init_mcp_clients()
+            mcp_client_cache: Arc::new(DashMap::new()),
         })
     }
 
@@ -267,6 +299,8 @@ impl App {
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
+        // Initialize streaming channel for token-by-token updates (larger buffer for fast tokens)
+        let (stream_chunk_tx, stream_chunk_rx) = mpsc::channel(256);
 
         // Initialize ChatAgent (may fail if no API keys are set, but that's OK)
         let chat_agent = ChatAgent::new().ok();
@@ -285,12 +319,18 @@ impl App {
             retry_requested: false,
             // 4-view architecture - start in Home mode for standalone
             current_view: TuiView::Home,
+            input_mode: InputMode::Normal,
+            focus_state: FocusState::new(NavPanelId::HomeFiles),
             chat_view,
             home_view: Some(home_view),
             studio_view,
             llm_response_rx,
             llm_response_tx,
+            stream_chunk_rx,
+            stream_chunk_tx,
             chat_agent,
+            mcp_configs: None, // No workflow in standalone mode
+            mcp_client_cache: Arc::new(DashMap::new()),
         })
     }
 
@@ -334,9 +374,91 @@ impl App {
         self
     }
 
+    /// Ensure chat agent exists, creating one if necessary
+    ///
+    /// Returns a mutable reference to the chat agent.
+    fn ensure_chat_agent(&mut self) -> Option<&mut ChatAgent> {
+        if self.chat_agent.is_none() {
+            self.chat_agent = ChatAgent::new().ok();
+        }
+        self.chat_agent.as_mut()
+    }
+
+    /// Build conversation context from chat view messages for LLM prompt
+    ///
+    /// Returns a formatted string with recent conversation history.
+    fn build_conversation_context(&self) -> String {
+        use super::views::MessageRole;
+
+        // Get last N messages from chat_view for context
+        let messages: Vec<_> = self.chat_view.messages.iter().rev().take(10).collect();
+
+        if messages.is_empty() {
+            return String::new();
+        }
+
+        let mut context = String::from("\n\n[Previous conversation]\n");
+        for msg in messages.into_iter().rev() {
+            let role = match &msg.role {
+                MessageRole::User => "User",
+                MessageRole::Nika => "Assistant",
+                MessageRole::System => "System",
+                MessageRole::Tool => "Tool",
+            };
+            context.push_str(&format!("{}: {}\n", role, msg.content));
+        }
+        context.push_str("[Current request]\n");
+        context
+    }
+
+    /// Load MCP server configurations from workflow
+    ///
+    /// Parses the workflow YAML and extracts MCP server configs.
+    /// Actual client connections are lazy-initialized on first use via `get_mcp_client()`.
+    fn init_mcp_clients(&mut self) {
+        // Read and parse workflow file
+        let yaml_content = match std::fs::read_to_string(&self.workflow_path) {
+            Ok(content) => content,
+            Err(e) => {
+                tracing::warn!("Failed to read workflow for MCP init: {}", e);
+                return;
+            }
+        };
+
+        let workflow: Workflow = match serde_yaml::from_str(&yaml_content) {
+            Ok(w) => w,
+            Err(e) => {
+                tracing::warn!("Failed to parse workflow for MCP init: {}", e);
+                return;
+            }
+        };
+
+        // Store MCP configs for lazy initialization
+        if let Some(mcp_configs) = workflow.mcp {
+            let server_names: Vec<_> = mcp_configs.keys().cloned().collect();
+            tracing::info!(servers = ?server_names, "Loaded MCP server configurations");
+
+            // Update ChatView's session context with actual MCP servers
+            self.chat_view.set_mcp_servers(server_names.iter().cloned());
+
+            self.mcp_configs = Some(mcp_configs);
+        }
+    }
+
+    /// Get available MCP server names from configuration
+    fn get_mcp_server_names(&self) -> Vec<String> {
+        self.mcp_configs
+            .as_ref()
+            .map(|c| c.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+
     /// Run the TUI application
     pub async fn run(mut self) -> Result<()> {
         tracing::info!("TUI started for workflow: {}", self.workflow_path.display());
+
+        // Initialize MCP clients from workflow config
+        self.init_mcp_clients();
 
         // Initialize terminal (deferred from new())
         self.init_terminal()?;
@@ -379,18 +501,8 @@ impl App {
                     }
                 }
             }
-            // Fallback to legacy mpsc receiver
-            if let Some(ref mut rx) = self.event_rx {
-                while let Ok(event) = rx.try_recv() {
-                    // Check for breakpoints
-                    if self.state.should_break(&event.kind) {
-                        self.state.paused = true;
-                    }
-
-                    // Update state
-                    self.state.handle_event(&event.kind, event.timestamp_ms);
-                }
-            }
+            // Poll runtime events (workflow events, LLM responses, etc.)
+            self.poll_runtime_events();
 
             // 2. Update elapsed time
             self.state.tick();
@@ -502,30 +614,21 @@ impl App {
             }
         }
 
-        // Cleanup
-        self.cleanup()?;
-
-        Ok(())
+        // Cleanup and return
+        self.cleanup()
     }
 
     /// Poll runtime events from broadcast/mpsc receivers
     fn poll_runtime_events(&mut self) {
+        // Collect events first to avoid borrow checker issues when calling
+        // methods on self while rx is borrowed
+        let mut events: Vec<crate::event::Event> = Vec::new();
+
         // Check broadcast receiver (v0.4.1 preferred)
         if let Some(ref mut rx) = self.broadcast_rx {
             loop {
                 match rx.try_recv() {
-                    Ok(event) => {
-                        if matches!(
-                            event.kind,
-                            EventKind::WorkflowCompleted { .. } | EventKind::WorkflowFailed { .. }
-                        ) {
-                            self.workflow_done = true;
-                        }
-                        if self.state.should_break(&event.kind) {
-                            self.state.paused = true;
-                        }
-                        self.state.handle_event(&event.kind, event.timestamp_ms);
-                    }
+                    Ok(event) => events.push(event),
                     Err(broadcast::error::TryRecvError::Empty) => break,
                     Err(broadcast::error::TryRecvError::Lagged(n)) => {
                         tracing::warn!("TUI lagged behind by {} events", n);
@@ -540,22 +643,186 @@ impl App {
         // Fallback to legacy mpsc receiver
         if let Some(ref mut rx) = self.event_rx {
             while let Ok(event) = rx.try_recv() {
-                if self.state.should_break(&event.kind) {
-                    self.state.paused = true;
-                }
-                self.state.handle_event(&event.kind, event.timestamp_ms);
+                events.push(event);
             }
         }
 
-        // Poll LLM responses for ChatOverlay
+        // Process collected events (no borrow issues now)
+        for event in events {
+            // Record run history when workflow completes
+            match &event.kind {
+                EventKind::WorkflowCompleted {
+                    total_duration_ms,
+                    final_output,
+                    ..
+                } => {
+                    self.workflow_done = true;
+                    // Record successful run in history
+                    if let Some(ref mut home_view) = self.home_view {
+                        let entry = HistoryEntry {
+                            workflow_path: self.workflow_path.clone(),
+                            timestamp: SystemTime::now(),
+                            duration_ms: *total_duration_ms,
+                            task_count: self.state.tasks.len(),
+                            success: true,
+                            summary: final_output
+                                .as_str()
+                                .unwrap_or("Completed")
+                                .chars()
+                                .take(100)
+                                .collect(),
+                        };
+                        home_view.standalone.add_history(entry);
+                    }
+                }
+                EventKind::WorkflowFailed { error, .. } => {
+                    self.workflow_done = true;
+                    // Record failed run in history (duration unknown, use 0)
+                    if let Some(ref mut home_view) = self.home_view {
+                        let entry = HistoryEntry {
+                            workflow_path: self.workflow_path.clone(),
+                            timestamp: SystemTime::now(),
+                            duration_ms: 0, // Duration not tracked in failed events
+                            task_count: self.state.tasks.len(),
+                            success: false,
+                            summary: error.chars().take(100).collect(),
+                        };
+                        home_view.standalone.add_history(entry);
+                    }
+                }
+                _ => {}
+            }
+            if self.state.should_break(&event.kind) {
+                self.state.paused = true;
+            }
+            // Update TuiState (Monitor view)
+            self.state.handle_event(&event.kind, event.timestamp_ms);
+            // Update ChatView activity stack (Chat view)
+            self.handle_chat_view_event(&event.kind);
+        }
+
+        // Poll LLM responses for both ChatOverlay and ChatView (complete responses)
         while let Ok(response) = self.llm_response_rx.try_recv() {
-            // Remove "Thinking..." message and add actual response
+            // Remove "Thinking..." message from ChatOverlay and add actual response
             if let Some(last) = self.state.chat_overlay.messages.last() {
                 if last.content == "Thinking..." {
                     self.state.chat_overlay.messages.pop();
                 }
             }
-            self.state.chat_overlay.add_nika_message(response);
+            self.state.chat_overlay.add_nika_message(response.clone());
+
+            // Also update ChatView - remove "Thinking..." and add response
+            if let Some(last) = self.chat_view.messages.last() {
+                if last.content == "Thinking..." || last.content.starts_with("$ ") {
+                    self.chat_view.messages.pop();
+                }
+            }
+            self.chat_view.add_nika_message(response, None);
+        }
+
+        // Poll streaming tokens for real-time display (Claude Code-like UX)
+        while let Ok(chunk) = self.stream_chunk_rx.try_recv() {
+            match chunk {
+                StreamChunk::Token(token) => {
+                    // Append token to last message for real-time streaming
+                    self.chat_view.append_to_last_message(&token);
+                    // Also update ChatOverlay if it has a pending message
+                    if let Some(last) = self.state.chat_overlay.messages.last_mut() {
+                        if last.content == "Thinking..." {
+                            last.content = token;
+                        } else {
+                            last.content.push_str(&token);
+                        }
+                    }
+                }
+                StreamChunk::Thinking(thinking) => {
+                    // Could show thinking in a separate pane, for now append with prefix
+                    tracing::debug!(thinking = %thinking, "Received thinking chunk");
+                }
+                StreamChunk::Done(_complete) => {
+                    // Stream completed - response is already assembled from tokens
+                    // No action needed since tokens were already appended
+                    tracing::debug!("Stream completed");
+                }
+                StreamChunk::Error(err) => {
+                    // Replace last message with error
+                    self.chat_view
+                        .replace_last_message(format!("Error: {}", err));
+                    if let Some(last) = self.state.chat_overlay.messages.last_mut() {
+                        last.content = format!("Error: {}", err);
+                    }
+                }
+            }
+        }
+
+        // Cleanup old activities to prevent memory leak in long sessions
+        // Clear activities older than 5 minutes (300 seconds)
+        self.chat_view.clear_old_activities(300);
+    }
+
+    /// Handle events for ChatView activity stack
+    ///
+    /// Updates the ChatView's inline content and activity items when
+    /// MCP, Provider, or Agent events occur.
+    fn handle_chat_view_event(&mut self, kind: &EventKind) {
+        match kind {
+            // MCP tool calls
+            EventKind::McpInvoke {
+                mcp_server,
+                tool,
+                params,
+                ..
+            } => {
+                let tool_name = tool.as_deref().unwrap_or("resource");
+                let params_str = params
+                    .as_ref()
+                    .map(|p| serde_json::to_string(p).unwrap_or_default())
+                    .unwrap_or_default();
+                self.chat_view
+                    .add_mcp_call(tool_name, mcp_server, &params_str);
+            }
+            EventKind::McpResponse {
+                is_error, response, ..
+            } => {
+                if *is_error {
+                    let error_msg = response
+                        .as_ref()
+                        .and_then(|r| r.get("error"))
+                        .and_then(|e| e.as_str())
+                        .unwrap_or("MCP call failed");
+                    self.chat_view.fail_mcp_call(error_msg);
+                } else {
+                    let result_str = response
+                        .as_ref()
+                        .map(|r| serde_json::to_string(r).unwrap_or_default())
+                        .unwrap_or_default();
+                    self.chat_view.complete_mcp_call(&result_str);
+                }
+            }
+            // Provider events (infer: verb)
+            EventKind::ProviderCalled {
+                model, prompt_len, ..
+            } => {
+                // Start inference stream visualization
+                self.chat_view
+                    .start_infer_stream(model, *prompt_len as u32, 4096);
+            }
+            EventKind::ProviderResponded {
+                input_tokens,
+                output_tokens,
+                cost_usd,
+                ..
+            } => {
+                // Complete inference stream
+                self.chat_view.complete_infer_stream();
+                // Update session token usage
+                let total_tokens = (*input_tokens as u64) + (*output_tokens as u64);
+                self.chat_view.update_tokens(
+                    self.chat_view.session_context.tokens_used + total_tokens,
+                    self.chat_view.session_context.total_cost + cost_usd,
+                );
+            }
+            _ => {}
         }
     }
 
@@ -585,6 +852,38 @@ impl App {
             let studio_view = &self.studio_view;
             let workflow_path = &self.state.workflow.path;
             let paused = self.state.paused;
+            let input_mode = self.input_mode;
+
+            // Extract data for StatusBar metrics
+            let mcp_total = self.mcp_configs.as_ref().map(|c| c.len()).unwrap_or(0);
+            // Count actually connected MCP clients (OnceCell initialized = connected)
+            let mcp_connected = self
+                .mcp_client_cache
+                .iter()
+                .filter(|entry| entry.value().get().is_some())
+                .count();
+            let total_tokens = state.metrics.total_tokens;
+            let model_name = chat_view.current_model.to_lowercase();
+            let provider = if model_name.contains("claude") {
+                Provider::Claude
+            } else if model_name.contains("gpt") || model_name.contains("openai") {
+                Provider::OpenAI
+            } else if model_name.contains("mock") {
+                Provider::Mock
+            } else {
+                Provider::None
+            };
+
+            // Get custom status text from current view
+            let status_text = match current_view {
+                TuiView::Chat => chat_view.status_line(state),
+                TuiView::Home => home_view
+                    .as_ref()
+                    .map(|hv| hv.status_line(state))
+                    .unwrap_or_default(),
+                TuiView::Studio => studio_view.status_line(state),
+                TuiView::Monitor => String::new(),
+            };
 
             terminal
                 .draw(|frame| {
@@ -634,8 +933,20 @@ impl App {
                         }
                     }
 
-                    // Render status bar
-                    let status_bar = StatusBar::new(current_view, theme);
+                    // Render status bar with metrics and custom status text
+                    let metrics = StatusMetrics::new()
+                        .provider(provider)
+                        .tokens(total_tokens as u64)
+                        .mcp(mcp_connected, mcp_total)
+                        .connection(if mcp_total > 0 {
+                            ConnectionStatus::Connected
+                        } else {
+                            ConnectionStatus::Disconnected
+                        });
+                    let status_bar = StatusBar::new(current_view, theme)
+                        .mode(input_mode)
+                        .metrics(metrics)
+                        .custom_text(status_text);
                     frame.render_widget(status_bar, chunks[2]);
                 })
                 .map_err(|e| NikaError::TuiError {
@@ -701,6 +1012,29 @@ impl App {
             _ => {}
         }
 
+        // ═══ Navigation 2.0: InputMode-aware key routing ═══
+        // When in Insert mode on Chat view, route all keys to chat input
+        if self.input_mode == InputMode::Insert && self.current_view == TuiView::Chat {
+            // Esc returns to Normal mode
+            if code == KeyCode::Esc {
+                self.input_mode = InputMode::Normal;
+                return Action::Continue;
+            }
+            // All other keys go to chat input
+            let key_event = KeyEvent::new(code, modifiers);
+            let view_action = self.chat_view.handle_key(key_event, &mut self.state);
+            return self.convert_view_action(view_action);
+        }
+
+        // In Normal mode, 'i' enters Insert mode when on Chat view
+        if self.input_mode == InputMode::Normal
+            && self.current_view == TuiView::Chat
+            && code == KeyCode::Char('i')
+        {
+            self.input_mode = InputMode::Insert;
+            return Action::Continue;
+        }
+
         // View-specific key handling using the View trait
         let key_event = KeyEvent::new(code, modifiers);
 
@@ -710,6 +1044,7 @@ impl App {
                 self.handle_key(code, modifiers)
             }
             TuiView::Chat => {
+                // In Normal mode, Chat view handles navigation keys (j/k, etc.)
                 let view_action = self.chat_view.handle_key(key_event, &mut self.state);
                 self.convert_view_action(view_action)
             }
@@ -750,10 +1085,12 @@ impl App {
             ViewAction::SwitchView(view) => Action::SwitchView(view),
             ViewAction::RunWorkflow(path) => {
                 // Switch to Monitor view and store path for execution
-                // The actual workflow execution will be handled by apply_action
-                self.workflow_path = path;
+                self.workflow_path = path.clone();
                 self.current_view = TuiView::Monitor;
-                // TODO: Trigger workflow execution
+                self.workflow_done = false;
+
+                // Trigger workflow execution asynchronously
+                self.start_workflow_execution(path);
                 Action::Continue
             }
             ViewAction::OpenInStudio(path) => {
@@ -764,10 +1101,44 @@ impl App {
                 Action::SwitchView(TuiView::Studio)
             }
             ViewAction::SendChatMessage(msg) => {
-                // TODO: Integrate with agent for actual processing
-                // For now, add a placeholder response
-                self.chat_view
-                    .add_nika_message(format!("Received: {}", msg), None);
+                // Send message to LLM for processing (like /infer but conversational)
+                if !msg.is_empty() {
+                    // Show "Thinking..." indicator
+                    self.chat_view
+                        .add_nika_message("Thinking...".to_string(), None);
+
+                    // Build conversation context from previous messages
+                    let context = self.build_conversation_context();
+                    let prompt_with_context = format!("{}{}", context, msg);
+
+                    // Spawn async task to call ChatAgent.infer()
+                    let tx = self.llm_response_tx.clone();
+                    if self.ensure_chat_agent().is_some() {
+                        tokio::spawn(async move {
+                            match crate::tui::ChatAgent::new() {
+                                Ok(mut agent) => match agent.infer(&prompt_with_context).await {
+                                    Ok(response) => {
+                                        let _ = tx.send(response).await;
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(format!("Error: {}", e)).await;
+                                    }
+                                },
+                                Err(e) => {
+                                    let _ = tx.send(format!("Error: {}", e)).await;
+                                }
+                            }
+                        });
+                    } else {
+                        // No API key available
+                        self.chat_view.messages.pop(); // Remove "Thinking..."
+                        self.chat_view.add_nika_message(
+                            "No API key configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY."
+                                .to_string(),
+                            None,
+                        );
+                    }
+                }
                 Action::Continue
             }
             ViewAction::ToggleChatOverlay => {
@@ -802,8 +1173,8 @@ impl App {
                 self.handle_chat_invoke(tool, server, params);
                 Action::Continue
             }
-            ViewAction::ChatAgent(goal, max_turns) => {
-                self.handle_chat_agent(goal, max_turns);
+            ViewAction::ChatAgent(goal, max_turns, extended_thinking) => {
+                self.handle_chat_agent(goal, max_turns, extended_thinking);
                 Action::Continue
             }
             ViewAction::ChatModelSwitch(provider) => {
@@ -883,7 +1254,7 @@ impl App {
 
             // Quick actions (TIER 1)
             KeyCode::Char('c') => Action::SetMode(TuiMode::ChatOverlay), // Toggle chat overlay
-            KeyCode::Char('C') => Action::CopyToClipboard,               // Copy (Shift+C)
+            KeyCode::Char('y') => Action::CopyToClipboard,               // Yank (vim convention)
             KeyCode::Char('r') => Action::RetryWorkflow,
             KeyCode::Char('e') => Action::ExportTrace,
             KeyCode::Char('b') => Action::ToggleBreakpoint, // TIER 2.3: Breakpoints
@@ -1035,9 +1406,33 @@ impl App {
                 // Step mode: advance one event then pause again
                 self.state.step_mode = true;
             }
-            Action::FocusNext => self.state.focus_next(),
-            Action::FocusPrev => self.state.focus_prev(),
-            Action::FocusPanel(n) => self.state.focus_panel(n),
+            Action::FocusNext => {
+                self.state.focus_next();
+                // Sync Navigation 2.0 focus_state for Monitor view
+                if self.current_view == TuiView::Monitor {
+                    self.focus_state.next_panel();
+                }
+            }
+            Action::FocusPrev => {
+                self.state.focus_prev();
+                // Sync Navigation 2.0 focus_state for Monitor view
+                if self.current_view == TuiView::Monitor {
+                    self.focus_state.prev_panel();
+                }
+            }
+            Action::FocusPanel(n) => {
+                self.state.focus_panel(n);
+                // Sync Navigation 2.0 focus_state for Monitor view
+                if self.current_view == TuiView::Monitor {
+                    let panel = match n {
+                        1 => NavPanelId::MonitorMission,
+                        2 => NavPanelId::MonitorDag,
+                        3 => NavPanelId::MonitorNovanet,
+                        _ => NavPanelId::MonitorReasoning,
+                    };
+                    self.focus_state.focus(panel);
+                }
+            }
             Action::CycleTab => self.state.cycle_tab(),
             Action::SetMode(mode) => self.state.mode = mode,
             Action::ScrollUp => {
@@ -1150,15 +1545,21 @@ impl App {
                     self.set_status(&msg);
                 }
             }
-            // View navigation actions
+            // View navigation actions (with Navigation 2.0 focus sync)
             Action::SwitchView(view) => {
                 self.current_view = view;
+                self.focus_state.reset_to_view(view);
+                self.input_mode = InputMode::Normal;
             }
             Action::NextView => {
                 self.current_view = self.current_view.next();
+                self.focus_state.reset_to_view(self.current_view);
+                self.input_mode = InputMode::Normal;
             }
             Action::PrevView => {
                 self.current_view = self.current_view.prev();
+                self.focus_state.reset_to_view(self.current_view);
+                self.input_mode = InputMode::Normal;
             }
             // Chat overlay actions
             Action::ChatOverlayInput(c) => {
@@ -1342,18 +1743,6 @@ impl App {
         self.status_message = Some((message.to_string(), std::time::Instant::now()));
     }
 
-    /// Get status message if still valid (clears after 3 seconds)
-    #[allow(dead_code)] // Reserved for future status bar display
-    fn get_status(&mut self) -> Option<String> {
-        if let Some((msg, time)) = &self.status_message {
-            if time.elapsed() < Duration::from_secs(3) {
-                return Some(msg.clone());
-            }
-            self.status_message = None;
-        }
-        None
-    }
-
     /// Request workflow retry (TIER 1.2)
     ///
     /// Resets failed tasks and signals that caller should re-run the workflow.
@@ -1416,22 +1805,35 @@ impl App {
         self.chat_view
             .add_nika_message("Thinking...".to_string(), None);
 
+        // Build conversation context from previous messages
+        let context = self.build_conversation_context();
+        let prompt_with_context = if context.is_empty() {
+            prompt.clone()
+        } else {
+            format!("{}{}", context, prompt)
+        };
+
         // Spawn async task to call ChatAgent.infer()
         let tx = self.llm_response_tx.clone();
+        let stream_tx = self.stream_chunk_tx.clone();
 
-        // Clone the chat_agent provider if available, otherwise create a new one
-        if self.chat_agent.is_some() {
+        // Check if agent exists or can be created
+        if self.ensure_chat_agent().is_some() {
             tokio::spawn(async move {
-                // Create a new agent for the async task (agents are not Send)
+                // Create a new agent for the async task (ChatAgent is not Send)
+                // Wire streaming for real-time token display (Claude Code-like UX)
                 match ChatAgent::new() {
-                    Ok(mut agent) => match agent.infer(&prompt).await {
-                        Ok(response) => {
-                            let _ = tx.send(response).await;
+                    Ok(agent) => {
+                        let mut agent = agent.with_stream_chunks(stream_tx);
+                        match agent.infer(&prompt_with_context).await {
+                            Ok(response) => {
+                                let _ = tx.send(response).await;
+                            }
+                            Err(e) => {
+                                let _ = tx.send(format!("Error: {}", e)).await;
+                            }
                         }
-                        Err(e) => {
-                            let _ = tx.send(format!("Error: {}", e)).await;
-                        }
-                    },
+                    }
                     Err(e) => {
                         let _ = tx.send(format!("Error creating agent: {}", e)).await;
                     }
@@ -1519,7 +1921,7 @@ impl App {
         });
     }
 
-    /// Handle /invoke command - MCP tool call (placeholder)
+    /// Handle /invoke command - MCP tool call
     fn handle_chat_invoke(
         &mut self,
         tool: String,
@@ -1534,41 +1936,311 @@ impl App {
             return;
         }
 
-        // TODO: Integrate with MCP client for real tool invocation
-        let server_str = server.unwrap_or_else(|| "default".to_string());
-        self.chat_view.add_nika_message(
-            format!(
-                "MCP invoke: {}:{}\nParams: {}",
-                server_str,
-                tool,
-                serde_json::to_string_pretty(&params).unwrap_or_default()
-            ),
-            None,
-        );
-        self.chat_view.add_nika_message(
-            "MCP tool invocation not yet implemented. Coming in Phase 6.".to_string(),
-            None,
-        );
+        let available_servers = self.get_mcp_server_names();
+
+        // Resolve MCP server
+        let server_name = if let Some(ref name) = server {
+            // User specified a server
+            if !available_servers.contains(name) {
+                self.chat_view.add_nika_message(
+                    format!(
+                        "Error: MCP server '{}' not configured.\nAvailable: {:?}",
+                        name, available_servers
+                    ),
+                    None,
+                );
+                return;
+            }
+            name.clone()
+        } else {
+            // Use first available server
+            if available_servers.is_empty() {
+                self.chat_view.add_nika_message(
+                    "Error: No MCP servers configured.\nAdd mcp.servers to your workflow."
+                        .to_string(),
+                    None,
+                );
+                return;
+            }
+            available_servers.into_iter().next().unwrap()
+        };
+
+        let tx = self.llm_response_tx.clone();
+        let mcp_configs = self.mcp_configs.clone();
+        let mcp_client_cache = Arc::clone(&self.mcp_client_cache);
+
+        // Show pending message
+        self.chat_view
+            .add_nika_message(format!("🔧 Invoking {}:{} ...", server_name, tool), None);
+
+        // Spawn async task to connect (if needed) and call the tool
+        let tool_name = tool.clone();
+        let server_name_clone = server_name.clone();
+        tokio::spawn(async move {
+            // Lazy-initialize MCP client connection
+            let client = {
+                let cell = mcp_client_cache
+                    .entry(server_name_clone.clone())
+                    .or_insert_with(|| Arc::new(OnceCell::new()))
+                    .clone();
+
+                let name_owned = server_name_clone.clone();
+                let configs = mcp_configs.clone();
+
+                match cell
+                    .get_or_try_init(|| async {
+                        if let Some(ref cfgs) = configs {
+                            if let Some(inline_config) = cfgs.get(&name_owned) {
+                                let mut mcp_config = McpConfig::new(&name_owned, &inline_config.command);
+                                for arg in &inline_config.args {
+                                    mcp_config = mcp_config.with_arg(arg);
+                                }
+                                for (key, value) in &inline_config.env {
+                                    mcp_config = mcp_config.with_env(key, value);
+                                }
+                                if let Some(cwd) = &inline_config.cwd {
+                                    mcp_config = mcp_config.with_cwd(cwd);
+                                }
+
+                                let client = McpClient::new(mcp_config)
+                                    .map_err(|e| NikaError::McpStartError {
+                                        name: name_owned.clone(),
+                                        reason: e.to_string(),
+                                    })?;
+
+                                client.connect().await.map_err(|e| NikaError::McpStartError {
+                                    name: name_owned.clone(),
+                                    reason: e.to_string(),
+                                })?;
+
+                                // Cache tools for synchronous get_tool_definitions() access
+                                if let Err(e) = client.list_tools().await {
+                                    tracing::warn!(mcp_server = %name_owned, error = %e, "Failed to cache tools");
+                                }
+
+                                tracing::info!(mcp_server = %name_owned, "Connected to MCP server");
+                                Ok(Arc::new(client))
+                            } else {
+                                Err(NikaError::McpNotConfigured { name: name_owned })
+                            }
+                        } else {
+                            Err(NikaError::McpNotConfigured { name: name_owned })
+                        }
+                    })
+                    .await
+                {
+                    Ok(c) => Arc::clone(c),
+                    Err(e) => {
+                        let _ = tx.send(format!("❌ Failed to connect to {}: {}", server_name_clone, e)).await;
+                        return;
+                    }
+                }
+            };
+
+            // Call the tool
+            match client.call_tool(&tool_name, params).await {
+                Ok(result) => {
+                    let status = if result.is_error { "❌" } else { "✅" };
+                    let text = result.text();
+
+                    // Truncate very long responses
+                    let display = if text.len() > 3000 {
+                        format!(
+                            "{}...\n\n[Truncated, {} chars total]",
+                            &text[..3000],
+                            text.len()
+                        )
+                    } else {
+                        text
+                    };
+
+                    let _ = tx
+                        .send(format!(
+                            "{} {}:{}\n\n{}",
+                            status, server_name_clone, tool_name, display
+                        ))
+                        .await;
+                }
+                Err(e) => {
+                    let _ = tx
+                        .send(format!(
+                            "❌ {}:{} failed: {}",
+                            server_name_clone, tool_name, e
+                        ))
+                        .await;
+                }
+            }
+        });
     }
 
-    /// Handle /agent command - multi-turn agent (placeholder)
-    fn handle_chat_agent(&mut self, goal: String, max_turns: Option<u32>) {
+    /// Handle /agent command - multi-turn agent with RigAgentLoop
+    fn handle_chat_agent(&mut self, goal: String, max_turns: Option<u32>, extended_thinking: bool) {
         if goal.is_empty() {
             self.chat_view
                 .add_nika_message("Usage: /agent <goal> [--max-turns N]".to_string(), None);
             return;
         }
 
-        // TODO: Integrate with RigAgentLoop for multi-turn agent
+        // Build AgentParams from user input
+        // extended_thinking flag comes from ChatView's deep_thinking toggle (Ctrl+T)
+        let mcp_server_names = self.get_mcp_server_names();
+        let params = AgentParams {
+            prompt: goal.clone(),
+            system: Some(
+                "You are a helpful AI assistant. Complete the user's request.".to_string(),
+            ),
+            max_turns,
+            mcp: mcp_server_names.clone(),
+            extended_thinking: if extended_thinking { Some(true) } else { None },
+            ..Default::default()
+        };
+
+        // Show starting message with configuration details
         let turns_str = max_turns
             .map(|t| format!(" (max {} turns)", t))
             .unwrap_or_default();
-        self.chat_view
-            .add_nika_message(format!("Starting agent{}: {}", turns_str, goal), None);
+        let mcp_str = if mcp_server_names.is_empty() {
+            String::new()
+        } else {
+            format!(" with MCP: {}", mcp_server_names.join(", "))
+        };
+        let thinking_str = if extended_thinking {
+            " [deep thinking]"
+        } else {
+            ""
+        };
         self.chat_view.add_nika_message(
-            "Multi-turn agent not yet implemented. Coming in Phase 6.".to_string(),
+            format!(
+                "🐔 Summoning the space chicken{}{}{}: {}",
+                turns_str, mcp_str, thinking_str, goal
+            ),
             None,
         );
+
+        // Clone configs and cache for async task
+        let mcp_configs = self.mcp_configs.clone();
+        let mcp_client_cache = Arc::clone(&self.mcp_client_cache);
+
+        // Create task_id for this agent session
+        let task_id = format!(
+            "chat-agent-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0)
+        );
+
+        // Clone channel sender for async task
+        let response_tx = self.llm_response_tx.clone();
+
+        // Spawn async task to connect MCP servers and run the agent
+        tokio::spawn(async move {
+            // Connect MCP servers lazily
+            let mut mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
+            for server_name in &mcp_server_names {
+                let cell = mcp_client_cache
+                    .entry(server_name.clone())
+                    .or_insert_with(|| Arc::new(OnceCell::new()))
+                    .clone();
+
+                let name_owned = server_name.clone();
+                let configs = mcp_configs.clone();
+
+                match cell
+                    .get_or_try_init(|| async {
+                        if let Some(ref cfgs) = configs {
+                                if let Some(inline_config) = cfgs.get(&name_owned) {
+                                    let mut mcp_config = McpConfig::new(&name_owned, &inline_config.command);
+                                    for arg in &inline_config.args {
+                                        mcp_config = mcp_config.with_arg(arg);
+                                    }
+                                    for (key, value) in &inline_config.env {
+                                        mcp_config = mcp_config.with_env(key, value);
+                                    }
+                                    if let Some(cwd) = &inline_config.cwd {
+                                        mcp_config = mcp_config.with_cwd(cwd);
+                                    }
+
+                                    let client = McpClient::new(mcp_config)
+                                        .map_err(|e| NikaError::McpStartError {
+                                            name: name_owned.clone(),
+                                            reason: e.to_string(),
+                                        })?;
+
+                                    client.connect().await.map_err(|e| NikaError::McpStartError {
+                                        name: name_owned.clone(),
+                                        reason: e.to_string(),
+                                    })?;
+
+                                    // Cache tools for synchronous get_tool_definitions() access
+                                    if let Err(e) = client.list_tools().await {
+                                        tracing::warn!(mcp_server = %name_owned, error = %e, "Failed to cache tools");
+                                    }
+
+                                    tracing::info!(mcp_server = %name_owned, "Connected to MCP server");
+                                    Ok(Arc::new(client))
+                            } else {
+                                Err(NikaError::McpNotConfigured { name: name_owned })
+                            }
+                        } else {
+                            Err(NikaError::McpNotConfigured { name: name_owned })
+                        }
+                    })
+                    .await
+                {
+                    Ok(client) => {
+                        mcp_clients.insert(server_name.clone(), Arc::clone(client));
+                    }
+                    Err(e) => {
+                        tracing::warn!(server = %server_name, error = %e, "Failed to connect MCP server");
+                    }
+                }
+            }
+
+            // Create EventLog for observability
+            let event_log = EventLog::new();
+
+            // Create RigAgentLoop with connected clients
+            let mut agent = match RigAgentLoop::new(task_id.clone(), params, event_log, mcp_clients)
+            {
+                Ok(loop_instance) => loop_instance,
+                Err(e) => {
+                    let _ = response_tx
+                        .send(format!("❌ Failed to create agent: {}", e))
+                        .await;
+                    return;
+                }
+            };
+
+            match agent.run_auto().await {
+                Ok(result) => {
+                    // Format the response with status and metrics
+                    let status_emoji = match result.status {
+                        RigAgentStatus::NaturalCompletion => "✅",
+                        RigAgentStatus::MaxTurnsReached => "⏱️",
+                        RigAgentStatus::StopConditionMet => "🛑",
+                        RigAgentStatus::Failed => "❌",
+                        RigAgentStatus::TokenBudgetExceeded => "💰",
+                    };
+
+                    // Extract final output text
+                    let output_text = if result.final_output.is_string() {
+                        result.final_output.as_str().unwrap_or("").to_string()
+                    } else {
+                        result.final_output.to_string()
+                    };
+
+                    let response = format!(
+                        "{} Agent completed ({} turns, {} tokens)\n\n{}",
+                        status_emoji, result.turns, result.total_tokens, output_text
+                    );
+                    let _ = response_tx.send(response).await;
+                }
+                Err(e) => {
+                    let _ = response_tx.send(format!("❌ Agent failed: {}", e)).await;
+                }
+            }
+        });
     }
 
     /// Handle /model command - switch LLM provider
@@ -1625,6 +2297,95 @@ impl App {
             None,
         );
         self.set_status("Chat history cleared");
+    }
+
+    /// Start workflow execution asynchronously (v0.5.2)
+    ///
+    /// Loads the workflow from the given path, creates a Runner with broadcast
+    /// EventLog, and spawns execution in a background task. Events are routed
+    /// to the TUI state via the broadcast channel.
+    fn start_workflow_execution(&mut self, path: PathBuf) {
+        // Reset state for new workflow
+        self.state.tasks.clear();
+        self.set_status(&format!("🦋 Nika loading: {}", path.display()));
+
+        // Clone path for async task
+        let workflow_path = path.clone();
+
+        // Create broadcast channel for events
+        let (event_log, event_rx) = EventLog::new_with_broadcast();
+
+        // Store the receiver for poll_events()
+        self.broadcast_rx = Some(event_rx);
+
+        // Spawn async task to load and run workflow
+        tokio::spawn(async move {
+            // Read workflow file
+            let yaml = match tokio::fs::read_to_string(&workflow_path).await {
+                Ok(content) => content,
+                Err(e) => {
+                    event_log.emit(EventKind::WorkflowFailed {
+                        error: format!("Failed to read file: {}", e),
+                        failed_task: None,
+                    });
+                    return;
+                }
+            };
+
+            // Validate YAML schema
+            let validator: WorkflowSchemaValidator = match WorkflowSchemaValidator::new() {
+                Ok(v) => v,
+                Err(e) => {
+                    event_log.emit(EventKind::WorkflowFailed {
+                        error: format!("Schema validator error: {}", e),
+                        failed_task: None,
+                    });
+                    return;
+                }
+            };
+
+            if let Err(e) = validator.validate_yaml(&yaml) {
+                event_log.emit(EventKind::WorkflowFailed {
+                    error: format!("Schema validation failed: {}", e),
+                    failed_task: None,
+                });
+                return;
+            }
+
+            // Parse workflow
+            let workflow: Workflow = match serde_yaml::from_str(&yaml) {
+                Ok(w) => w,
+                Err(e) => {
+                    event_log.emit(EventKind::WorkflowFailed {
+                        error: format!("YAML parse error: {}", e),
+                        failed_task: None,
+                    });
+                    return;
+                }
+            };
+
+            // Validate schema version
+            if let Err(e) = workflow.validate_schema() {
+                event_log.emit(EventKind::WorkflowFailed {
+                    error: format!("Schema version error: {}", e),
+                    failed_task: None,
+                });
+                return;
+            }
+
+            // Create and run workflow
+            let runner = Runner::with_event_log(workflow, event_log);
+            match runner.run().await {
+                Ok(output) => {
+                    tracing::info!("Workflow completed: {} chars output", output.len());
+                }
+                Err(e) => {
+                    tracing::error!("Workflow execution failed: {}", e);
+                }
+            }
+        });
+
+        self.set_status(&format!("🌌 Warping through: {}", path.display()));
     }
 
     /// Cleanup terminal state
@@ -1696,12 +2457,9 @@ impl App {
                             }
                         }
                         StandaloneAction::Validate => {
-                            // Validate selected workflow
-                            if let Some(ref state) = self.standalone_state {
-                                if let Some(path) = state.selected_workflow() {
-                                    // TODO: Show validation result in preview panel
-                                    let _ = path; // silence unused warning for now
-                                }
+                            // Validate selected workflow and show result in preview
+                            if let Some(ref mut state) = self.standalone_state {
+                                state.validate_selected();
                             }
                         }
                         StandaloneAction::Continue => {}
@@ -2897,8 +3655,8 @@ mod tests {
         assert_eq!(action, Action::SwitchView(TuiView::Home));
     }
 
-    #[test]
-    fn test_convert_view_action_send_chat_message() {
+    #[tokio::test]
+    async fn test_convert_view_action_send_chat_message() {
         let temp_dir = tempfile::tempdir().unwrap();
         let workflow_path = temp_dir.path().join("test.yaml");
         std::fs::write(&workflow_path, "schema: test").unwrap();
@@ -2907,12 +3665,14 @@ mod tests {
         // Record initial message count
         let initial_count = app.chat_view.messages.len();
 
-        // Send a message
+        // Send a message - this triggers async LLM call or shows "no API key" message
         let action = app.convert_view_action(ViewAction::SendChatMessage("Hello".to_string()));
         assert_eq!(action, Action::Continue);
 
-        // Should have added a response message
-        assert_eq!(app.chat_view.messages.len(), initial_count + 1);
+        // Should have added at least one message:
+        // - "Thinking..." (if API key available and async task spawned)
+        // - OR "No API key configured..." (if no API key)
+        assert!(app.chat_view.messages.len() > initial_count);
     }
 
     // ═══════════════════════════════════════════
@@ -3117,14 +3877,14 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_key_shift_c_copies_to_clipboard() {
+    fn test_handle_key_y_copies_to_clipboard() {
         let temp_dir = tempfile::tempdir().unwrap();
         let workflow_path = temp_dir.path().join("test.yaml");
         std::fs::write(&workflow_path, "schema: test").unwrap();
         let app = App::new(&workflow_path).unwrap();
 
-        // In Monitor mode, 'C' (Shift+c) should copy to clipboard
-        let action = app.handle_key(KeyCode::Char('C'), KeyModifiers::empty());
+        // In Monitor mode, 'y' (vim yank) should copy to clipboard
+        let action = app.handle_key(KeyCode::Char('y'), KeyModifiers::empty());
         assert_eq!(action, Action::CopyToClipboard);
     }
 

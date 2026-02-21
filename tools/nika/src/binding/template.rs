@@ -1,4 +1,4 @@
-//! Template Resolution - `{{use.alias}}` substitution (v0.1)
+//! Template Resolution - `{{use.alias}}` substitution (v0.5)
 //!
 //! Single syntax: {{use.alias}} or {{use.alias.field}}
 //! True single-pass resolution with Cow<str> for zero-alloc when no templates.
@@ -7,6 +7,8 @@
 //! - Zero-clone traversal (references until final value)
 //! - SmallVec for error collection (stack-allocated)
 //! - Better capacity estimation for result string
+//!
+//! v0.5: Supports lazy bindings via DataStore parameter.
 
 use std::borrow::Cow;
 use std::sync::LazyLock;
@@ -17,6 +19,7 @@ use serde_json::Value;
 use smallvec::SmallVec;
 
 use crate::error::NikaError;
+use crate::store::DataStore;
 
 use super::resolve::ResolvedBindings;
 
@@ -43,18 +46,21 @@ fn escape_for_json(s: &str) -> String {
     result
 }
 
-/// Resolve all {{use.alias}} templates using bindings
+/// Resolve all {{use.alias}} templates using bindings (v0.5)
 ///
 /// Returns Cow::Borrowed when no templates (zero allocation).
 /// Returns Cow::Owned with single-pass resolution when templates exist.
 ///
 /// Performance: Zero-clone traversal - uses references until final value_to_string.
 ///
+/// v0.5: Supports lazy bindings by resolving them on demand via DataStore.
+///
 /// Example: `{{use.forecast}}` → resolved value from bindings
 /// Example: `{{use.flight_info.departure}}` → nested access
 pub fn resolve<'a>(
     template: &'a str,
     bindings: &ResolvedBindings,
+    datastore: &DataStore,
 ) -> Result<Cow<'a, str>, NikaError> {
     // Early return with borrowed string (zero alloc)
     if !template.contains("{{use.") {
@@ -80,11 +86,11 @@ pub fn resolve<'a>(
         let mut parts = path.split('.');
         let alias = parts.next().unwrap();
 
-        // Get the resolved value for this alias
-        match bindings.get(alias) {
-            Some(base_value) => {
+        // Get the resolved value for this alias (supports lazy bindings via DataStore)
+        match bindings.get_resolved(alias, datastore) {
+            Ok(base_value) => {
                 // Zero-clone traversal: use references until we need the final value
-                let mut value_ref: &Value = base_value;
+                let mut value_ref: &Value = &base_value;
                 let mut traversed_segments: SmallVec<[&str; 8]> = SmallVec::new();
                 traversed_segments.push(alias);
 
@@ -143,7 +149,8 @@ pub fn resolve<'a>(
 
                 result.push_str(&replacement);
             }
-            None => {
+            Err(_) => {
+                // Binding not found (neither eager nor lazy)
                 errors.push(alias.to_string());
             }
         }
@@ -245,12 +252,18 @@ mod tests {
     use serde_json::json;
     use std::borrow::Cow;
 
+    /// Helper to create empty datastore for tests
+    fn empty_datastore() -> DataStore {
+        DataStore::new()
+    }
+
     #[test]
     fn resolve_simple() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("forecast", json!("Sunny 25C"));
+        let ds = empty_datastore();
 
-        let result = resolve("Weather: {{use.forecast}}", &bindings).unwrap();
+        let result = resolve("Weather: {{use.forecast}}", &bindings, &ds).unwrap();
         assert_eq!(result, "Weather: Sunny 25C");
     }
 
@@ -258,8 +271,9 @@ mod tests {
     fn resolve_number() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("price", json!(89));
+        let ds = empty_datastore();
 
-        let result = resolve("Price: ${{use.price}}", &bindings).unwrap();
+        let result = resolve("Price: ${{use.price}}", &bindings, &ds).unwrap();
         assert_eq!(result, "Price: $89");
     }
 
@@ -267,8 +281,9 @@ mod tests {
     fn resolve_nested() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("flight_info", json!({"departure": "10:30", "gate": "A12"}));
+        let ds = empty_datastore();
 
-        let result = resolve("Depart at {{use.flight_info.departure}}", &bindings).unwrap();
+        let result = resolve("Depart at {{use.flight_info.departure}}", &bindings, &ds).unwrap();
         assert_eq!(result, "Depart at 10:30");
     }
 
@@ -277,8 +292,9 @@ mod tests {
         let mut bindings = ResolvedBindings::new();
         bindings.set("a", json!("first"));
         bindings.set("b", json!("second"));
+        let ds = empty_datastore();
 
-        let result = resolve("{{use.a}} and {{use.b}}", &bindings).unwrap();
+        let result = resolve("{{use.a}} and {{use.b}}", &bindings, &ds).unwrap();
         assert_eq!(result, "first and second");
     }
 
@@ -286,8 +302,9 @@ mod tests {
     fn resolve_object() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("data", json!({"x": 1, "y": 2}));
+        let ds = empty_datastore();
 
-        let result = resolve("Full: {{use.data}}", &bindings).unwrap();
+        let result = resolve("Full: {{use.data}}", &bindings, &ds).unwrap();
         // Object is serialized as JSON
         assert!(result.contains("\"x\":1") || result.contains("\"x\": 1"));
     }
@@ -296,8 +313,9 @@ mod tests {
     fn resolve_alias_not_found() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("known", json!("value"));
+        let ds = empty_datastore();
 
-        let result = resolve("{{use.unknown}}", &bindings);
+        let result = resolve("{{use.unknown}}", &bindings, &ds);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("unknown"));
     }
@@ -306,15 +324,17 @@ mod tests {
     fn resolve_path_not_found() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("data", json!({"a": 1}));
+        let ds = empty_datastore();
 
-        let result = resolve("{{use.data.nonexistent}}", &bindings);
+        let result = resolve("{{use.data.nonexistent}}", &bindings, &ds);
         assert!(result.is_err());
     }
 
     #[test]
     fn resolve_no_templates() {
         let bindings = ResolvedBindings::new();
-        let result = resolve("No templates here", &bindings).unwrap();
+        let ds = empty_datastore();
+        let result = resolve("No templates here", &bindings, &ds).unwrap();
         assert_eq!(result, "No templates here");
         // Verify zero-alloc: should be Cow::Borrowed
         assert!(matches!(result, Cow::Borrowed(_)));
@@ -324,7 +344,8 @@ mod tests {
     fn resolve_with_templates_is_owned() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("x", json!("value"));
-        let result = resolve("Has {{use.x}} template", &bindings).unwrap();
+        let ds = empty_datastore();
+        let result = resolve("Has {{use.x}} template", &bindings, &ds).unwrap();
         assert_eq!(result, "Has value template");
         // With templates: should be Cow::Owned
         assert!(matches!(result, Cow::Owned(_)));
@@ -334,8 +355,9 @@ mod tests {
     fn resolve_array_index() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("items", json!(["first", "second", "third"]));
+        let ds = empty_datastore();
 
-        let result = resolve("Item: {{use.items.0}}", &bindings).unwrap();
+        let result = resolve("Item: {{use.items.0}}", &bindings, &ds).unwrap();
         assert_eq!(result, "Item: first");
     }
 
@@ -347,8 +369,9 @@ mod tests {
     fn resolve_null_is_error() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("data", json!(null));
+        let ds = empty_datastore();
 
-        let result = resolve("Value: {{use.data}}", &bindings);
+        let result = resolve("Value: {{use.data}}", &bindings, &ds);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-072"));
@@ -359,8 +382,9 @@ mod tests {
     fn resolve_nested_null_is_error() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("data", json!({"value": null}));
+        let ds = empty_datastore();
 
-        let result = resolve("Value: {{use.data.value}}", &bindings);
+        let result = resolve("Value: {{use.data.value}}", &bindings, &ds);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-072"));
     }
@@ -369,8 +393,9 @@ mod tests {
     fn resolve_invalid_traversal_on_string() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("data", json!("just a string"));
+        let ds = empty_datastore();
 
-        let result = resolve("{{use.data.field}}", &bindings);
+        let result = resolve("{{use.data.field}}", &bindings, &ds);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-073"));
@@ -381,8 +406,9 @@ mod tests {
     fn resolve_invalid_traversal_on_number() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("price", json!(42));
+        let ds = empty_datastore();
 
-        let result = resolve("{{use.price.currency}}", &bindings);
+        let result = resolve("{{use.price.currency}}", &bindings, &ds);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-073"));

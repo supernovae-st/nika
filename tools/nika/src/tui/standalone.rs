@@ -308,45 +308,6 @@ impl StandaloneState {
         }
     }
 
-    /// Legacy scan_directory method (kept for reference, uses std::fs)
-    #[allow(dead_code)]
-    fn scan_directory_legacy(&mut self, dir: &Path, depth: usize) {
-        if depth > 3 {
-            return; // Limit recursion
-        }
-
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            let mut files: Vec<_> = entries.filter_map(|e| e.ok()).collect();
-            files.sort_by_key(|e| e.path());
-
-            for entry in files {
-                let path = entry.path();
-
-                if path.is_file() {
-                    // Only include .nika.yaml files
-                    if let Some(name) = path.file_name() {
-                        let name_str = name.to_string_lossy();
-                        if name_str.ends_with(".nika.yaml") {
-                            self.browser_entries
-                                .push(BrowserEntry::new(path, &self.root).with_depth(depth));
-                        }
-                    }
-                } else if path.is_dir() {
-                    // Recurse into subdirectories
-                    let name = path.file_name().unwrap_or_default().to_string_lossy();
-                    // Skip hidden dirs and common non-workflow dirs
-                    if !name.starts_with('.')
-                        && name != "target"
-                        && name != "node_modules"
-                        && name != ".git"
-                    {
-                        self.scan_directory_legacy(&path, depth + 1);
-                    }
-                }
-            }
-        }
-    }
-
     /// Load history from ~/.nika/history.json
     pub fn load_history(&mut self) {
         let history_path = dirs::home_dir()
@@ -465,6 +426,111 @@ impl StandaloneState {
         if self.preview_scroll < lines.saturating_sub(10) {
             self.preview_scroll += 1;
         }
+    }
+
+    /// Validate selected workflow and show result in preview
+    ///
+    /// Performs full validation: schema, parsing, DAG, and bindings.
+    pub fn validate_selected(&mut self) {
+        use crate::ast::schema_validator::WorkflowSchemaValidator;
+        use crate::ast::Workflow;
+        use crate::dag::{validate_use_wiring, FlowGraph};
+
+        let Some(entry) = self.browser_entries.get(self.browser_index) else {
+            self.preview_content = "No workflow selected".to_string();
+            return;
+        };
+
+        if entry.is_dir {
+            self.preview_content = "Cannot validate directory".to_string();
+            return;
+        }
+
+        let mut result = String::new();
+        result.push_str(&format!("╭─ Validating: {}\n", entry.display_name));
+        result.push_str("│\n");
+
+        // Step 1: Read file
+        let yaml = match std::fs::read_to_string(&entry.path) {
+            Ok(content) => content,
+            Err(e) => {
+                result.push_str(&format!("│ ✗ Failed to read file: {}\n", e));
+                result.push_str("╰─\n");
+                self.preview_content = result;
+                return;
+            }
+        };
+        result.push_str("│ ✓ File read successfully\n");
+
+        // Step 2: JSON Schema validation
+        match WorkflowSchemaValidator::new() {
+            Ok(validator) => match validator.validate_yaml(&yaml) {
+                Ok(()) => result.push_str("│ ✓ JSON Schema validation passed\n"),
+                Err(e) => {
+                    result.push_str(&format!("│ ✗ Schema validation failed: {}\n", e));
+                    result.push_str("╰─\n");
+                    self.preview_content = result;
+                    return;
+                }
+            },
+            Err(_) => {
+                result.push_str("│ ⚠ Schema validator unavailable\n");
+            }
+        }
+
+        // Step 3: Parse workflow
+        let workflow: Workflow = match serde_yaml::from_str(&yaml) {
+            Ok(w) => {
+                result.push_str("│ ✓ YAML parsing passed\n");
+                w
+            }
+            Err(e) => {
+                result.push_str(&format!("│ ✗ YAML parsing failed: {}\n", e));
+                result.push_str("╰─\n");
+                self.preview_content = result;
+                return;
+            }
+        };
+
+        // Step 4: Validate schema version
+        if let Err(e) = workflow.validate_schema() {
+            result.push_str(&format!("│ ✗ Schema version invalid: {}\n", e));
+            result.push_str("╰─\n");
+            self.preview_content = result;
+            return;
+        }
+        result.push_str("│ ✓ Schema version valid\n");
+
+        // Step 5: Build and validate DAG
+        let flow_graph = FlowGraph::from_workflow(&workflow);
+        if let Err(e) = validate_use_wiring(&workflow, &flow_graph) {
+            result.push_str(&format!("│ ✗ Binding validation failed: {}\n", e));
+            result.push_str("╰─\n");
+            self.preview_content = result;
+            return;
+        }
+        result.push_str("│ ✓ DAG and binding validation passed\n");
+
+        // Summary
+        result.push_str("│\n");
+        result.push_str("├─ Summary ─────────────────────\n");
+        let provider_display = if workflow.provider.is_empty() {
+            "(default)"
+        } else {
+            &workflow.provider
+        };
+        result.push_str(&format!("│ • Provider: {}\n", provider_display));
+        result.push_str(&format!(
+            "│ • Model: {}\n",
+            workflow.model.as_deref().unwrap_or("(default)")
+        ));
+        result.push_str(&format!("│ • Tasks: {}\n", workflow.tasks.len()));
+        result.push_str(&format!("│ • Flows: {}\n", workflow.flows.len()));
+        result.push_str("│\n");
+        result.push_str("╰─ ✓ Workflow is valid\n");
+
+        self.preview_content = result;
+        self.preview_scroll = 0;
     }
 
     /// Filter browser entries by search query

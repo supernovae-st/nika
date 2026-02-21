@@ -31,6 +31,17 @@ impl VerbColor {
         }
     }
 
+    /// Get glow version (brighter for active/hover states)
+    pub fn glow(&self) -> Color {
+        match self {
+            Self::Infer => Color::Rgb(167, 139, 250), // Violet-400
+            Self::Exec => Color::Rgb(251, 191, 36),   // Amber-400
+            Self::Fetch => Color::Rgb(34, 211, 238),  // Cyan-400
+            Self::Invoke => Color::Rgb(52, 211, 153), // Emerald-400
+            Self::Agent => Color::Rgb(251, 113, 133), // Rose-400
+        }
+    }
+
     /// Get muted version (50% opacity simulation)
     pub fn muted(&self) -> Color {
         match self {
@@ -42,14 +53,41 @@ impl VerbColor {
         }
     }
 
-    /// Get icon for this verb
+    /// Get subtle version (very muted for backgrounds)
+    pub fn subtle(&self) -> Color {
+        match self {
+            Self::Infer => Color::Rgb(55, 48, 83),  // Violet-950/50
+            Self::Exec => Color::Rgb(69, 53, 18),   // Amber-950/50
+            Self::Fetch => Color::Rgb(22, 57, 67),  // Cyan-950/50
+            Self::Invoke => Color::Rgb(20, 61, 47), // Emerald-950/50
+            Self::Agent => Color::Rgb(68, 32, 41),  // Rose-950/50
+        }
+    }
+
+    /// Get icon for this verb (matches CLAUDE.md canonical icons)
     pub fn icon(&self) -> &'static str {
         match self {
-            Self::Infer => "🧠",
-            Self::Exec => "⚡",
-            Self::Fetch => "🌐",
-            Self::Invoke => "🔧",
-            Self::Agent => "🤖",
+            Self::Infer => "⚡",  // LLM generation
+            Self::Exec => "📟",   // Shell command
+            Self::Fetch => "🛰️",  // HTTP request
+            Self::Invoke => "🔌", // MCP tool
+            Self::Agent => "🐔",  // Agentic loop (parent)
+        }
+    }
+
+    /// Get icon for subagent (spawned via spawn_agent)
+    pub fn subagent_icon() -> &'static str {
+        "🐤" // Spawned subagent
+    }
+
+    /// Get ASCII-safe icon for terminals without emoji support
+    pub fn icon_ascii(&self) -> &'static str {
+        match self {
+            Self::Infer => "[I]",
+            Self::Exec => "[X]",
+            Self::Fetch => "[F]",
+            Self::Invoke => "[V]",
+            Self::Agent => "[A]",
         }
     }
 
@@ -62,6 +100,16 @@ impl VerbColor {
             "invoke" => Self::Invoke,
             "agent" => Self::Agent,
             _ => Self::Infer, // default
+        }
+    }
+
+    /// Get animated color based on frame (for pulsing effects)
+    pub fn animated(&self, frame: u8) -> Color {
+        // Alternate between normal and glow every 8 frames
+        if (frame / 8) % 2 == 0 {
+            self.rgb()
+        } else {
+            self.glow()
         }
     }
 }
@@ -472,11 +520,13 @@ mod tests {
 
     #[test]
     fn test_verb_color_icons() {
-        assert_eq!(VerbColor::Infer.icon(), "🧠");
-        assert_eq!(VerbColor::Exec.icon(), "⚡");
-        assert_eq!(VerbColor::Fetch.icon(), "🌐");
-        assert_eq!(VerbColor::Invoke.icon(), "🔧");
-        assert_eq!(VerbColor::Agent.icon(), "🤖");
+        // Canonical icons from CLAUDE.md
+        assert_eq!(VerbColor::Infer.icon(), "⚡"); // LLM generation
+        assert_eq!(VerbColor::Exec.icon(), "📟"); // Shell command
+        assert_eq!(VerbColor::Fetch.icon(), "🛰️"); // HTTP request
+        assert_eq!(VerbColor::Invoke.icon(), "🔌"); // MCP tool
+        assert_eq!(VerbColor::Agent.icon(), "🐔"); // Agentic loop (parent)
+        assert_eq!(VerbColor::subagent_icon(), "🐤"); // Spawned subagent
     }
 
     #[test]
@@ -541,5 +591,52 @@ mod tests {
                 );
             }
         }
+    }
+
+    // ═══ GLOW COLOR TESTS ═══
+
+    #[test]
+    fn test_verb_color_glow_is_brighter() {
+        // Glow colors should be different from normal RGB
+        assert_ne!(VerbColor::Infer.glow(), VerbColor::Infer.rgb());
+        assert_ne!(VerbColor::Exec.glow(), VerbColor::Exec.rgb());
+        assert_ne!(VerbColor::Fetch.glow(), VerbColor::Fetch.rgb());
+        assert_ne!(VerbColor::Invoke.glow(), VerbColor::Invoke.rgb());
+        assert_ne!(VerbColor::Agent.glow(), VerbColor::Agent.rgb());
+
+        // Verify specific glow values
+        assert_eq!(VerbColor::Infer.glow(), Color::Rgb(167, 139, 250)); // Violet-400
+        assert_eq!(VerbColor::Exec.glow(), Color::Rgb(251, 191, 36)); // Amber-400
+    }
+
+    #[test]
+    fn test_verb_color_subtle_is_darker() {
+        // Subtle colors should be different from normal and muted
+        assert_ne!(VerbColor::Infer.subtle(), VerbColor::Infer.rgb());
+        assert_ne!(VerbColor::Infer.subtle(), VerbColor::Infer.muted());
+        assert_ne!(VerbColor::Agent.subtle(), VerbColor::Agent.rgb());
+    }
+
+    #[test]
+    fn test_verb_color_animated_alternates() {
+        // Frame 0-7 should return normal color
+        assert_eq!(VerbColor::Infer.animated(0), VerbColor::Infer.rgb());
+        assert_eq!(VerbColor::Infer.animated(7), VerbColor::Infer.rgb());
+
+        // Frame 8-15 should return glow color
+        assert_eq!(VerbColor::Infer.animated(8), VerbColor::Infer.glow());
+        assert_eq!(VerbColor::Infer.animated(15), VerbColor::Infer.glow());
+
+        // Frame 16-23 should return normal color again
+        assert_eq!(VerbColor::Infer.animated(16), VerbColor::Infer.rgb());
+    }
+
+    #[test]
+    fn test_verb_color_icon_ascii() {
+        assert_eq!(VerbColor::Infer.icon_ascii(), "[I]");
+        assert_eq!(VerbColor::Exec.icon_ascii(), "[X]");
+        assert_eq!(VerbColor::Fetch.icon_ascii(), "[F]");
+        assert_eq!(VerbColor::Invoke.icon_ascii(), "[V]");
+        assert_eq!(VerbColor::Agent.icon_ascii(), "[A]");
     }
 }

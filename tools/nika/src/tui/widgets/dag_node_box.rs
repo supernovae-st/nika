@@ -13,6 +13,21 @@ use ratatui::{
 use crate::tui::theme::{TaskStatus, VerbColor};
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ANIMATION CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Spinner animation frames for running tasks
+const SPINNER_FRAMES: &[&str] = &["◐", "◓", "◑", "◒"];
+
+/// Success celebration frames
+const SUCCESS_FRAMES: &[&str] = &["✓", "✔", "✓", "✔"];
+
+/// Progress bar characters
+const PROGRESS_EMPTY: char = '░';
+const PROGRESS_FILLED: char = '▓';
+const PROGRESS_PARTIAL: char = '▒';
+
+// ═══════════════════════════════════════════════════════════════════════════
 // NODE BOX MODE
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -104,6 +119,20 @@ impl NodeBoxData {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// BORDER STYLE
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Border style for node boxes
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum BorderStyle {
+    /// Sharp corners (default)
+    #[default]
+    Sharp,
+    /// Rounded corners using ╭╮╰╯
+    Rounded,
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // BORDER CHARACTERS
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -125,11 +154,20 @@ struct BorderChars {
 }
 
 impl BorderChars {
-    /// Get border characters for a task status
-    fn for_status(status: TaskStatus) -> Self {
-        match status {
-            // Pending: dashed borders (light)
-            TaskStatus::Pending => Self {
+    /// Get border characters for a task status with optional rounded corners
+    fn for_status(status: TaskStatus, style: BorderStyle) -> Self {
+        match (status, style) {
+            // Pending: dashed borders (light) - rounded
+            (TaskStatus::Pending, BorderStyle::Rounded) => Self {
+                tl: '╭',
+                tr: '╮',
+                bl: '╰',
+                br: '╯',
+                h: '┄',
+                v: '┆',
+            },
+            // Pending: dashed borders (light) - sharp
+            (TaskStatus::Pending, BorderStyle::Sharp) => Self {
                 tl: '┌',
                 tr: '┐',
                 bl: '└',
@@ -137,8 +175,17 @@ impl BorderChars {
                 h: '┄',
                 v: '┆',
             },
-            // Running: bold/heavy borders
-            TaskStatus::Running => Self {
+            // Running: bold/heavy borders - rounded
+            (TaskStatus::Running, BorderStyle::Rounded) => Self {
+                tl: '╭',
+                tr: '╮',
+                bl: '╰',
+                br: '╯',
+                h: '━',
+                v: '┃',
+            },
+            // Running: bold/heavy borders - sharp
+            (TaskStatus::Running, BorderStyle::Sharp) => Self {
                 tl: '┏',
                 tr: '┓',
                 bl: '┗',
@@ -146,8 +193,17 @@ impl BorderChars {
                 h: '━',
                 v: '┃',
             },
-            // Success: double line borders
-            TaskStatus::Success => Self {
+            // Success: double line borders - rounded
+            (TaskStatus::Success, BorderStyle::Rounded) => Self {
+                tl: '╭',
+                tr: '╮',
+                bl: '╰',
+                br: '╯',
+                h: '═',
+                v: '║',
+            },
+            // Success: double line borders - sharp
+            (TaskStatus::Success, BorderStyle::Sharp) => Self {
                 tl: '╔',
                 tr: '╗',
                 bl: '╚',
@@ -155,8 +211,17 @@ impl BorderChars {
                 h: '═',
                 v: '║',
             },
-            // Failed: double line borders (same as success, color differs)
-            TaskStatus::Failed => Self {
+            // Failed: double line borders - rounded
+            (TaskStatus::Failed, BorderStyle::Rounded) => Self {
+                tl: '╭',
+                tr: '╮',
+                bl: '╰',
+                br: '╯',
+                h: '═',
+                v: '║',
+            },
+            // Failed: double line borders - sharp
+            (TaskStatus::Failed, BorderStyle::Sharp) => Self {
                 tl: '╔',
                 tr: '╗',
                 bl: '╚',
@@ -164,8 +229,17 @@ impl BorderChars {
                 h: '═',
                 v: '║',
             },
-            // Paused: dotted borders
-            TaskStatus::Paused => Self {
+            // Paused: dotted borders - rounded
+            (TaskStatus::Paused, BorderStyle::Rounded) => Self {
+                tl: '╭',
+                tr: '╮',
+                bl: '╰',
+                br: '╯',
+                h: '┈',
+                v: '┊',
+            },
+            // Paused: dotted borders - sharp
+            (TaskStatus::Paused, BorderStyle::Sharp) => Self {
                 tl: '┌',
                 tr: '┐',
                 bl: '└',
@@ -189,6 +263,12 @@ pub struct NodeBox<'a> {
     mode: NodeBoxMode,
     /// Whether this node is focused/selected
     focused: bool,
+    /// Animation frame (0-255) for spinners and effects
+    frame: u8,
+    /// Border style (sharp or rounded)
+    border_style: BorderStyle,
+    /// Progress percentage (0-100) for running tasks
+    progress: Option<u8>,
 }
 
 impl<'a> NodeBox<'a> {
@@ -198,6 +278,9 @@ impl<'a> NodeBox<'a> {
             data,
             mode: NodeBoxMode::default(),
             focused: false,
+            frame: 0,
+            border_style: BorderStyle::Rounded, // Default to rounded for modern look
+            progress: None,
         }
     }
 
@@ -210,6 +293,24 @@ impl<'a> NodeBox<'a> {
     /// Set whether this node is focused
     pub fn focused(mut self, focused: bool) -> Self {
         self.focused = focused;
+        self
+    }
+
+    /// Set the animation frame (0-255)
+    pub fn frame(mut self, frame: u8) -> Self {
+        self.frame = frame;
+        self
+    }
+
+    /// Set the border style
+    pub fn with_border_style(mut self, style: BorderStyle) -> Self {
+        self.border_style = style;
+        self
+    }
+
+    /// Set progress percentage for running tasks (0-100)
+    pub fn progress(mut self, progress: Option<u8>) -> Self {
+        self.progress = progress.map(|p| p.min(100));
         self
     }
 
@@ -254,19 +355,46 @@ impl<'a> NodeBox<'a> {
         }
     }
 
-    /// Get the status badge character
+    /// Get the status badge character (animated for running/success)
     fn status_badge(&self) -> &'static str {
         match self.data.status {
             TaskStatus::Pending => "○",
-            TaskStatus::Running => "●",
-            TaskStatus::Success => "✓",
+            TaskStatus::Running => {
+                // Animated spinner
+                let idx = (self.frame as usize / 4) % SPINNER_FRAMES.len();
+                SPINNER_FRAMES[idx]
+            }
+            TaskStatus::Success => {
+                // Subtle celebration animation
+                let idx = (self.frame as usize / 8) % SUCCESS_FRAMES.len();
+                SUCCESS_FRAMES[idx]
+            }
             TaskStatus::Failed => "✗",
             TaskStatus::Paused => "◐",
         }
     }
 
-    /// Get border style based on status
-    fn border_style(&self) -> Style {
+    /// Render a mini progress bar for running tasks
+    fn render_progress_bar(&self, buf: &mut Buffer, x: u16, y: u16, width: u16) {
+        if let Some(progress) = self.progress {
+            let filled = ((progress as u16) * width) / 100;
+            let style = Style::default().fg(ratatui::style::Color::Rgb(34, 197, 94)); // green
+
+            for i in 0..width {
+                let ch = if i < filled {
+                    PROGRESS_FILLED
+                } else if i == filled && progress > 0 {
+                    PROGRESS_PARTIAL
+                } else {
+                    PROGRESS_EMPTY
+                };
+                buf.set_string(x + i, y, ch.to_string(), style);
+            }
+        }
+    }
+
+    /// Get border render style based on status
+    fn border_render_style(&self) -> Style {
         let color = match self.data.status {
             TaskStatus::Pending => self.data.verb.muted(),
             TaskStatus::Running => self.data.verb.rgb(),
@@ -321,25 +449,35 @@ impl Widget for NodeBox<'_> {
             return;
         }
 
-        let border_chars = BorderChars::for_status(self.data.status);
-        let border_style = self.border_style();
+        let border_chars = BorderChars::for_status(self.data.status, self.border_style);
+        let border_render_style = self.border_render_style();
         let content_style = self.content_style();
 
         // Draw top border
-        buf.set_string(area.x, area.y, border_chars.tl.to_string(), border_style);
+        buf.set_string(
+            area.x,
+            area.y,
+            border_chars.tl.to_string(),
+            border_render_style,
+        );
         for x in (area.x + 1)..(area.x + area.width - 1) {
-            buf.set_string(x, area.y, border_chars.h.to_string(), border_style);
+            buf.set_string(x, area.y, border_chars.h.to_string(), border_render_style);
         }
         buf.set_string(
             area.x + area.width - 1,
             area.y,
             border_chars.tr.to_string(),
-            border_style,
+            border_render_style,
         );
 
         // Draw content line (y + 1)
         let content_y = area.y + 1;
-        buf.set_string(area.x, content_y, border_chars.v.to_string(), border_style);
+        buf.set_string(
+            area.x,
+            content_y,
+            border_chars.v.to_string(),
+            border_render_style,
+        );
 
         // Clear content area
         for x in (area.x + 1)..(area.x + area.width - 1) {
@@ -421,7 +559,7 @@ impl Widget for NodeBox<'_> {
             area.x + area.width - 1,
             content_y,
             border_chars.v.to_string(),
-            border_style,
+            border_render_style,
         );
 
         // Expanded mode: additional lines
@@ -431,7 +569,12 @@ impl Widget for NodeBox<'_> {
             // Model line
             if let Some(model) = &self.data.model {
                 if extra_y < area.y + area.height - 1 {
-                    buf.set_string(area.x, extra_y, border_chars.v.to_string(), border_style);
+                    buf.set_string(
+                        area.x,
+                        extra_y,
+                        border_chars.v.to_string(),
+                        border_render_style,
+                    );
                     for x in (area.x + 1)..(area.x + area.width - 1) {
                         buf.set_string(x, extra_y, " ", content_style);
                     }
@@ -451,7 +594,7 @@ impl Widget for NodeBox<'_> {
                         area.x + area.width - 1,
                         extra_y,
                         border_chars.v.to_string(),
-                        border_style,
+                        border_render_style,
                     );
                     extra_y += 1;
                 }
@@ -460,7 +603,12 @@ impl Widget for NodeBox<'_> {
             // Prompt preview line
             if let Some(preview) = &self.data.prompt_preview {
                 if extra_y < area.y + area.height - 1 {
-                    buf.set_string(area.x, extra_y, border_chars.v.to_string(), border_style);
+                    buf.set_string(
+                        area.x,
+                        extra_y,
+                        border_chars.v.to_string(),
+                        border_render_style,
+                    );
                     for x in (area.x + 1)..(area.x + area.width - 1) {
                         buf.set_string(x, extra_y, " ", content_style);
                     }
@@ -482,7 +630,7 @@ impl Widget for NodeBox<'_> {
                         area.x + area.width - 1,
                         extra_y,
                         border_chars.v.to_string(),
-                        border_style,
+                        border_render_style,
                     );
                 }
             }
@@ -490,15 +638,20 @@ impl Widget for NodeBox<'_> {
 
         // Draw bottom border
         let bottom_y = area.y + area.height - 1;
-        buf.set_string(area.x, bottom_y, border_chars.bl.to_string(), border_style);
+        buf.set_string(
+            area.x,
+            bottom_y,
+            border_chars.bl.to_string(),
+            border_render_style,
+        );
         for x in (area.x + 1)..(area.x + area.width - 1) {
-            buf.set_string(x, bottom_y, border_chars.h.to_string(), border_style);
+            buf.set_string(x, bottom_y, border_chars.h.to_string(), border_render_style);
         }
         buf.set_string(
             area.x + area.width - 1,
             bottom_y,
             border_chars.br.to_string(),
-            border_style,
+            border_render_style,
         );
     }
 }
@@ -574,33 +727,55 @@ mod tests {
     }
 
     #[test]
-    fn test_border_chars_by_status() {
-        // Pending: dashed
-        let pending = BorderChars::for_status(TaskStatus::Pending);
+    fn test_border_chars_by_status_sharp() {
+        // Pending: dashed (sharp)
+        let pending = BorderChars::for_status(TaskStatus::Pending, BorderStyle::Sharp);
         assert_eq!(pending.h, '┄');
         assert_eq!(pending.v, '┆');
+        assert_eq!(pending.tl, '┌');
 
-        // Running: bold
-        let running = BorderChars::for_status(TaskStatus::Running);
+        // Running: bold (sharp)
+        let running = BorderChars::for_status(TaskStatus::Running, BorderStyle::Sharp);
         assert_eq!(running.h, '━');
         assert_eq!(running.v, '┃');
         assert_eq!(running.tl, '┏');
 
-        // Success: double
-        let success = BorderChars::for_status(TaskStatus::Success);
+        // Success: double (sharp)
+        let success = BorderChars::for_status(TaskStatus::Success, BorderStyle::Sharp);
         assert_eq!(success.h, '═');
         assert_eq!(success.v, '║');
         assert_eq!(success.tl, '╔');
 
-        // Failed: double (same chars, different color)
-        let failed = BorderChars::for_status(TaskStatus::Failed);
+        // Failed: double (sharp, same chars, different color)
+        let failed = BorderChars::for_status(TaskStatus::Failed, BorderStyle::Sharp);
         assert_eq!(failed.h, '═');
         assert_eq!(failed.v, '║');
 
-        // Paused: dotted
-        let paused = BorderChars::for_status(TaskStatus::Paused);
+        // Paused: dotted (sharp)
+        let paused = BorderChars::for_status(TaskStatus::Paused, BorderStyle::Sharp);
         assert_eq!(paused.h, '┈');
         assert_eq!(paused.v, '┊');
+    }
+
+    #[test]
+    fn test_border_chars_by_status_rounded() {
+        // Pending: dashed (rounded)
+        let pending = BorderChars::for_status(TaskStatus::Pending, BorderStyle::Rounded);
+        assert_eq!(pending.h, '┄');
+        assert_eq!(pending.v, '┆');
+        assert_eq!(pending.tl, '╭'); // Rounded corner
+
+        // Running: bold (rounded)
+        let running = BorderChars::for_status(TaskStatus::Running, BorderStyle::Rounded);
+        assert_eq!(running.h, '━');
+        assert_eq!(running.v, '┃');
+        assert_eq!(running.tl, '╭'); // Rounded corner
+
+        // Success: double (rounded)
+        let success = BorderChars::for_status(TaskStatus::Success, BorderStyle::Rounded);
+        assert_eq!(success.h, '═');
+        assert_eq!(success.v, '║');
+        assert_eq!(success.tl, '╭'); // Rounded corner
     }
 
     #[test]
@@ -624,13 +799,21 @@ mod tests {
         let widget = NodeBox::new(&data);
         assert_eq!(widget.status_badge(), "○");
 
+        // Running badge is animated - check it's one of the spinner frames
         let data = NodeBoxData::new("t", VerbColor::Infer).with_status(TaskStatus::Running);
         let widget = NodeBox::new(&data);
-        assert_eq!(widget.status_badge(), "●");
+        assert!(
+            SPINNER_FRAMES.contains(&widget.status_badge()),
+            "Running badge should be a spinner frame"
+        );
 
+        // Success badge is animated - check it's one of the success frames
         let data = NodeBoxData::new("t", VerbColor::Infer).with_status(TaskStatus::Success);
         let widget = NodeBox::new(&data);
-        assert_eq!(widget.status_badge(), "✓");
+        assert!(
+            SUCCESS_FRAMES.contains(&widget.status_badge()),
+            "Success badge should be a success frame"
+        );
 
         let data = NodeBoxData::new("t", VerbColor::Infer).with_status(TaskStatus::Failed);
         let widget = NodeBox::new(&data);
@@ -685,9 +868,24 @@ mod tests {
         widget.render(Rect::new(0, 0, 30, 6), &mut buffer);
 
         // Should have rendered without panic
-        // Check that top-left corner is set
+        // Check that top-left corner is set (default is rounded)
         let cell = buffer.cell((0, 0)).unwrap();
-        assert_eq!(cell.symbol(), "┏"); // Running status = bold border
+        assert_eq!(cell.symbol(), "╭"); // Running status = rounded corner (default)
+    }
+
+    #[test]
+    fn test_node_box_rendering_sharp_borders() {
+        let data = NodeBoxData::new("test_task", VerbColor::Exec).with_status(TaskStatus::Running);
+
+        let widget = NodeBox::new(&data).with_border_style(BorderStyle::Sharp);
+
+        // Create a small buffer and render
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 30, 6));
+        widget.render(Rect::new(0, 0, 30, 6), &mut buffer);
+
+        // Check that top-left corner is sharp
+        let cell = buffer.cell((0, 0)).unwrap();
+        assert_eq!(cell.symbol(), "┏"); // Running status = sharp bold border
     }
 
     #[test]

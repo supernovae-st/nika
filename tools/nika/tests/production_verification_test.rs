@@ -144,6 +144,7 @@ fn test_phase4_decompose_spec_semantic_strategy() {
         source: "$category".to_string(),
         mcp_server: Some("novanet".to_string()),
         max_items: Some(10),
+        max_depth: None,
     };
 
     assert_eq!(spec.strategy, DecomposeStrategy::Semantic);
@@ -158,6 +159,7 @@ fn test_phase4_decompose_spec_static_strategy() {
         source: "[\"a\", \"b\", \"c\"]".to_string(),
         mcp_server: None,
         max_items: None,
+        max_depth: None,
     };
 
     assert_eq!(spec.strategy, DecomposeStrategy::Static);

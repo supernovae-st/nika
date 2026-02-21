@@ -183,7 +183,7 @@ impl Widget for InferStreamBox<'_> {
         let duration_str = format!("{:.1}s", self.data.duration.as_secs_f64());
         let inner_width = area.width.saturating_sub(2) as usize;
 
-        let title_prefix = format!("╭─ 🧠 INFER: {} ", self.data.model);
+        let title_prefix = format!("╭─ ⚡ INFER: {} ", self.data.model);
         let title_suffix = format!(" {} {} ─╮", status_char, duration_str);
         let dash_count = inner_width
             .saturating_sub(title_prefix.chars().count())

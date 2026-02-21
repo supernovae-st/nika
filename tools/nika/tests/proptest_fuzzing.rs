@@ -19,7 +19,13 @@ mod template_fuzzing {
     use super::*;
     use nika::binding::template_resolve;
     use nika::binding::ResolvedBindings;
+    use nika::store::DataStore;
     use std::borrow::Cow;
+
+    /// Helper to create empty datastore for tests
+    fn empty_datastore() -> DataStore {
+        DataStore::new()
+    }
 
     prop_compose! {
         /// Generate valid alias names (snake_case identifiers)
@@ -57,15 +63,17 @@ mod template_fuzzing {
         #[test]
         fn test_template_resolution_never_panics(template in ".*") {
             let bindings = ResolvedBindings::new();
+            let ds = empty_datastore();
             // Should never panic, regardless of input
-            let _ = template_resolve(&template, &bindings);
+            let _ = template_resolve(&template, &bindings, &ds);
         }
 
         /// Property: No-template strings return Cow::Borrowed (zero allocation)
         #[test]
         fn test_no_template_returns_borrowed(s in "[^{}]*") {
             let bindings = ResolvedBindings::new();
-            let result = template_resolve(&s, &bindings);
+            let ds = empty_datastore();
+            let result = template_resolve(&s, &bindings, &ds);
             if let Ok(cow) = result {
                 // If no {{use.}} pattern, should be borrowed
                 if !s.contains("{{use.") {
@@ -82,8 +90,9 @@ mod template_fuzzing {
                 let alias = &cap[1];
                 let mut bindings = ResolvedBindings::new();
                 bindings.set(alias, json!("value"));
+                let ds = empty_datastore();
 
-                if let Ok(cow) = template_resolve(&template, &bindings) {
+                if let Ok(cow) = template_resolve(&template, &bindings, &ds) {
                     // With substitution, should be owned
                     assert!(matches!(cow, Cow::Owned(_)));
                 }
@@ -99,8 +108,9 @@ mod template_fuzzing {
             let template = format!("{{{{use.{}}}}}", alias);
             let mut bindings = ResolvedBindings::new();
             bindings.set(&alias, json!(value.clone()));
+            let ds = empty_datastore();
 
-            let result = template_resolve(&template, &bindings);
+            let result = template_resolve(&template, &bindings, &ds);
             assert!(result.is_ok());
             assert_eq!(result.unwrap().as_ref(), value);
         }
@@ -110,8 +120,9 @@ mod template_fuzzing {
         fn test_missing_alias_returns_error(alias in arb_alias()) {
             let template = format!("{{{{use.{}}}}}", alias);
             let bindings = ResolvedBindings::new();  // Empty bindings
+            let ds = empty_datastore();
 
-            let result = template_resolve(&template, &bindings);
+            let result = template_resolve(&template, &bindings, &ds);
             assert!(result.is_err());
         }
 
@@ -125,8 +136,9 @@ mod template_fuzzing {
             let template = format!("{{{{use.{}.{}}}}}", alias, field);
             let mut bindings = ResolvedBindings::new();
             bindings.set(&alias, json!({field.clone(): value.clone()}));
+            let ds = empty_datastore();
 
-            let result = template_resolve(&template, &bindings);
+            let result = template_resolve(&template, &bindings, &ds);
             assert!(result.is_ok());
             assert_eq!(result.unwrap().as_ref(), value);
         }
@@ -142,8 +154,9 @@ mod template_fuzzing {
                 let template = format!("{{{{use.{}.{}}}}}", alias, index);
                 let mut bindings = ResolvedBindings::new();
                 bindings.set(&alias, json!(values.clone()));
+                let ds = empty_datastore();
 
-                let result = template_resolve(&template, &bindings);
+                let result = template_resolve(&template, &bindings, &ds);
                 assert!(result.is_ok());
                 assert_eq!(result.unwrap().as_ref(), values[index]);
             }
@@ -162,8 +175,9 @@ mod template_fuzzing {
                 let mut bindings = ResolvedBindings::new();
                 bindings.set(&alias1, json!(value1.clone()));
                 bindings.set(&alias2, json!(value2.clone()));
+                let ds = empty_datastore();
 
-                let result = template_resolve(&template, &bindings);
+                let result = template_resolve(&template, &bindings, &ds);
                 assert!(result.is_ok());
                 let resolved = result.unwrap();
                 assert!(resolved.contains(&value1));

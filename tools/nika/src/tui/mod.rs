@@ -35,6 +35,12 @@ pub mod command;
 #[cfg(feature = "tui")]
 pub mod file_resolve;
 #[cfg(feature = "tui")]
+mod focus;
+#[cfg(feature = "tui")]
+mod keybindings;
+#[cfg(feature = "tui")]
+mod mode;
+#[cfg(feature = "tui")]
 mod panels;
 #[cfg(feature = "tui")]
 mod standalone;
@@ -58,15 +64,19 @@ pub use command::{Command, HELP_TEXT};
 #[cfg(feature = "tui")]
 pub use file_resolve::FileResolver;
 #[cfg(feature = "tui")]
+pub use focus::{FocusState, PanelId as NavPanelId};
+#[cfg(feature = "tui")]
+pub use keybindings::{format_key, keybindings_for_context, KeyCategory, Keybinding};
+#[cfg(feature = "tui")]
+pub use mode::InputMode;
+#[cfg(feature = "tui")]
 pub use standalone::{BrowserEntry, HistoryEntry, StandalonePanel, StandaloneState};
 #[cfg(feature = "tui")]
 pub use state::{AgentTurnState, PanelId, TuiMode, TuiState};
 #[cfg(feature = "tui")]
 pub use theme::{MissionPhase, TaskStatus, Theme};
 #[cfg(feature = "tui")]
-pub use views::{
-    BrowserView, DagTab, MissionTab, MonitorView, NovanetTab, ReasoningTab, TuiView, ViewAction,
-};
+pub use views::{BrowserView, DagTab, MissionTab, NovanetTab, ReasoningTab, TuiView, ViewAction};
 #[cfg(feature = "tui")]
 pub use watcher::{FileEvent, FileWatcher};
 

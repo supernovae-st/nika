@@ -141,6 +141,7 @@ mod executor_unit_tests {
             source: "$locales".to_string(),
             mcp_server: None,
             max_items: None,
+            max_depth: None,
         };
 
         let result: Result<Vec<Value>, NikaError> = executor
@@ -170,6 +171,7 @@ mod executor_unit_tests {
             source: "$items".to_string(),
             mcp_server: None,
             max_items: Some(2), // Limit to 2
+            max_depth: None,
         };
 
         let result: Result<Vec<Value>, NikaError> = executor
@@ -198,6 +200,7 @@ mod executor_unit_tests {
             source: "$scalar".to_string(),
             mcp_server: None,
             max_items: None,
+            max_depth: None,
         };
 
         let result: Result<Vec<Value>, NikaError> = executor
@@ -210,7 +213,7 @@ mod executor_unit_tests {
     }
 
     #[tokio::test]
-    async fn test_expand_decompose_nested_not_implemented() {
+    async fn test_expand_decompose_nested_requires_mcp() {
         let executor = create_test_executor();
         let datastore = DataStore::new();
 
@@ -220,16 +223,24 @@ mod executor_unit_tests {
             source: "$entity".to_string(),
             mcp_server: None,
             max_items: None,
+            max_depth: Some(2),
         };
 
-        let bindings = ResolvedBindings::default();
+        let mut bindings = ResolvedBindings::default();
+        bindings.set("entity".to_string(), json!({"key": "root-entity"}));
+
         let result: Result<Vec<Value>, NikaError> = executor
             .expand_decompose(&spec, &bindings, &datastore)
             .await;
 
+        // Should fail because MCP server isn't configured (test executor has no MCP configs)
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
-        assert!(err.contains("not implemented") || err.contains("NotImplemented"));
+        assert!(
+            err.contains("not configured") || err.contains("McpNotConfigured"),
+            "Expected McpNotConfigured error, got: {}",
+            err
+        );
     }
 
     #[tokio::test]
@@ -247,6 +258,7 @@ mod executor_unit_tests {
             source: "$entity".to_string(),
             mcp_server: None, // Uses default "novanet" which isn't connected
             max_items: None,
+            max_depth: None,
         };
 
         let result: Result<Vec<Value>, NikaError> = executor

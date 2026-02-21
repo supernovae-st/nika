@@ -2329,7 +2329,6 @@ dependencies = [
 name = "nika"
 version = "0.5.2"
 dependencies = [
- "anyhow",
  "arboard",
  "async-trait",
  "bytes",
@@ -2343,6 +2342,7 @@ dependencies = [
  "dirs",
  "dotenvy",
  "futures",
+ "globset",
  "ignore",
  "insta",
  "jsonschema",
@@ -2358,7 +2358,6 @@ dependencies = [
  "rig-core",
  "rmcp 0.16.0",
  "rustc-hash",
- "scopeguard",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -2367,6 +2366,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tokio-test",
+ "tokio-util",
  "toml",
  "tracing",
  "tracing-subscriber",

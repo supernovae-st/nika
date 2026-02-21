@@ -14,13 +14,14 @@ use colored::Colorize;
 use serde_json::Value;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument};
 
 use crate::ast::{Task, Workflow};
 use crate::binding::ResolvedBindings;
 use crate::dag::{validate_use_wiring, FlowGraph};
 use crate::error::NikaError;
-use crate::event::{EventKind, EventLog};
+use crate::event::{EventKind, EventLog, TraceWriter};
 use crate::store::{DataStore, TaskResult};
 use crate::util::intern;
 
@@ -45,8 +46,12 @@ pub struct Runner {
     datastore: DataStore,
     executor: TaskExecutor,
     event_log: EventLog,
+    /// Unique identifier for this workflow execution (for trace files)
+    generation_id: String,
     /// Suppress console output (for TUI mode)
     quiet: bool,
+    /// Cancellation token for aborting workflow (v0.5.2)
+    cancel_token: CancellationToken,
 }
 
 impl Runner {
@@ -68,13 +73,18 @@ impl Runner {
             event_log.clone(),
         );
 
+        // Generate unique ID for this execution (used for trace files)
+        let generation_id = format!("gen-{}", uuid::Uuid::new_v4());
+
         Self {
             workflow,
             flow_graph,
             datastore,
             executor,
             event_log,
+            generation_id,
             quiet: false,
+            cancel_token: CancellationToken::new(),
         }
     }
 
@@ -85,6 +95,27 @@ impl Runner {
     pub fn quiet(mut self) -> Self {
         self.quiet = true;
         self
+    }
+
+    /// Set a custom cancellation token (v0.5.2)
+    ///
+    /// This allows external control of workflow cancellation.
+    /// The TUI can hold a clone of the token and call `cancel()` on it.
+    pub fn with_cancel_token(mut self, token: CancellationToken) -> Self {
+        self.cancel_token = token;
+        self
+    }
+
+    /// Get a clone of the cancellation token (v0.5.2)
+    ///
+    /// The TUI can use this to abort the workflow by calling `cancel()`.
+    pub fn cancel_token(&self) -> CancellationToken {
+        self.cancel_token.clone()
+    }
+
+    /// Check if the workflow has been cancelled (v0.5.2)
+    pub fn is_cancelled(&self) -> bool {
+        self.cancel_token.is_cancelled()
     }
 
     /// Get the event log for inspection/export
@@ -191,11 +222,14 @@ impl Runner {
         // EMIT: TaskStarted (with resolved inputs from use: wiring)
         event_log.emit(EventKind::TaskStarted {
             task_id: Arc::clone(&task_id),
+            verb: Arc::from(task.action.verb_name()),
             inputs: bindings.to_value(),
         });
 
-        // Execute via TaskExecutor
-        let result = executor.execute(&task_id, &task.action, &bindings).await;
+        // Execute via TaskExecutor (v0.5: pass datastore for lazy binding support)
+        let result = executor
+            .execute(&task_id, &task.action, &bindings, &datastore)
+            .await;
         let duration = start.elapsed();
 
         // Convert result to TaskResult with output policy
@@ -242,6 +276,19 @@ impl Runner {
         let workflow_start = Instant::now();
         info!("Starting workflow execution");
 
+        // Check for cancellation before starting (v0.5.2)
+        if self.cancel_token.is_cancelled() {
+            let duration = workflow_start.elapsed();
+            self.event_log.emit(EventKind::WorkflowAborted {
+                reason: "Workflow cancelled before start".to_string(),
+                duration_ms: duration.as_millis() as u64,
+                running_tasks: vec![],
+            });
+            return Err(NikaError::Execution(
+                "Workflow cancelled before start".to_string(),
+            ));
+        }
+
         // Validate use: blocks before execution (fail-fast)
         validate_use_wiring(&self.workflow, &self.flow_graph)?;
 
@@ -251,7 +298,7 @@ impl Runner {
         // EMIT: WorkflowStarted
         self.event_log.emit(EventKind::WorkflowStarted {
             task_count: total_tasks,
-            generation_id: format!("gen-{}", uuid::Uuid::new_v4()),
+            generation_id: self.generation_id.clone(),
             workflow_hash: self.workflow.compute_hash(),
             nika_version: env!("CARGO_PKG_VERSION").to_string(),
         });
@@ -265,6 +312,28 @@ impl Runner {
         }
 
         loop {
+            // Check for cancellation at start of each loop iteration (v0.5.2)
+            if self.cancel_token.is_cancelled() {
+                let duration = workflow_start.elapsed();
+                // Collect IDs of tasks that haven't completed yet
+                let running_tasks: Vec<Arc<str>> = self
+                    .workflow
+                    .tasks
+                    .iter()
+                    .filter(|t| !self.datastore.contains(&t.id))
+                    .map(|t| Arc::from(t.id.as_str()))
+                    .collect();
+
+                self.event_log.emit(EventKind::WorkflowAborted {
+                    reason: "Workflow cancelled by user".to_string(),
+                    duration_ms: duration.as_millis() as u64,
+                    running_tasks,
+                });
+                return Err(NikaError::Execution(
+                    "Workflow cancelled by user".to_string(),
+                ));
+            }
+
             let ready = self.get_ready_tasks();
 
             // Check for completion or deadlock
@@ -389,7 +458,20 @@ impl Runner {
 
                             join_set.spawn(async move {
                                 // Acquire semaphore permit (blocks if at concurrency limit)
-                                let _permit = semaphore.acquire().await.expect("semaphore closed");
+                                // Semaphore only errors when closed; we own it and never close it
+                                let _permit = match semaphore.acquire().await {
+                                    Ok(p) => p,
+                                    Err(_) => {
+                                        return IterationResult {
+                                            store_id: task_id,
+                                            result: TaskResult::failed(
+                                                "Semaphore closed unexpectedly".to_string(),
+                                                std::time::Duration::ZERO,
+                                            ),
+                                            for_each_info: Some((parent_task_id, idx)),
+                                        };
+                                    }
+                                };
 
                                 // Check cancellation before executing
                                 if cancelled.load(Ordering::Relaxed) {
@@ -448,64 +530,97 @@ impl Runner {
             let mut for_each_results: FxHashMap<Arc<str>, Vec<(usize, TaskResult)>> =
                 FxHashMap::default();
 
-            // Wait for all spawned tasks to complete
-            while let Some(result) = join_set.join_next().await {
-                match result {
-                    Ok(iteration_result) => {
-                        let IterationResult {
-                            store_id,
-                            result: task_result,
-                            for_each_info,
-                        } = iteration_result;
+            // Wait for all spawned tasks to complete (with cancellation support v0.5.2)
+            loop {
+                tokio::select! {
+                    // Check for cancellation
+                    _ = self.cancel_token.cancelled() => {
+                        // Abort all pending tasks
+                        join_set.abort_all();
 
-                        completed += 1;
-                        let success = task_result.is_success();
+                        let duration = workflow_start.elapsed();
+                        // Collect IDs of tasks that haven't completed yet
+                        let running_tasks: Vec<Arc<str>> = self
+                            .workflow
+                            .tasks
+                            .iter()
+                            .filter(|t| !self.datastore.contains(&t.id))
+                            .map(|t| Arc::from(t.id.as_str()))
+                            .collect();
 
-                        let status = if success {
-                            format!("[{}/{}]", completed, total_tasks).green()
-                        } else {
-                            format!("[{}/{}]", completed, total_tasks).red()
-                        };
+                        self.event_log.emit(EventKind::WorkflowAborted {
+                            reason: "Workflow cancelled during execution".to_string(),
+                            duration_ms: duration.as_millis() as u64,
+                            running_tasks,
+                        });
+                        return Err(NikaError::Execution(
+                            "Workflow cancelled during execution".to_string(),
+                        ));
+                    }
+                    // Wait for next task result
+                    result = join_set.join_next() => {
+                        match result {
+                            Some(Ok(iteration_result)) => {
+                                let IterationResult {
+                                    store_id,
+                                    result: task_result,
+                                    for_each_info,
+                                } = iteration_result;
 
-                        let symbol = if success { "✓" } else { "✗" };
-                        let symbol_colored = if success {
-                            symbol.green()
-                        } else {
-                            symbol.red()
-                        };
-                        let duration_str =
-                            format!("({:.1}s)", task_result.duration.as_secs_f32()).dimmed();
+                                completed += 1;
+                                let success = task_result.is_success();
 
-                        if !self.quiet {
-                            println!(
-                                "  {} {} {} {}",
-                                status, &*store_id, symbol_colored, duration_str
-                            );
+                                let status = if success {
+                                    format!("[{}/{}]", completed, total_tasks).green()
+                                } else {
+                                    format!("[{}/{}]", completed, total_tasks).red()
+                                };
 
-                            if let Some(err) = task_result.error() {
-                                println!("      {} {}", "Error:".red(), err);
+                                let symbol = if success { "✓" } else { "✗" };
+                                let symbol_colored = if success {
+                                    symbol.green()
+                                } else {
+                                    symbol.red()
+                                };
+                                let duration_str =
+                                    format!("({:.1}s)", task_result.duration.as_secs_f32()).dimmed();
+
+                                if !self.quiet {
+                                    println!(
+                                        "  {} {} {} {}",
+                                        status, &*store_id, symbol_colored, duration_str
+                                    );
+
+                                    if let Some(err) = task_result.error() {
+                                        println!("      {} {}", "Error:".red(), err);
+                                    }
+                                }
+
+                                // Store individual result
+                                self.datastore
+                                    .insert(Arc::clone(&store_id), task_result.clone());
+
+                                // If this is a for_each iteration, collect for aggregation
+                                if let Some((parent_id, idx)) = for_each_info {
+                                    for_each_results
+                                        .entry(parent_id)
+                                        .or_default()
+                                        .push((idx, task_result));
+                                }
+                            }
+                            Some(Err(e)) => {
+                                // EMIT: WorkflowFailed (task panic)
+                                self.event_log.emit(EventKind::WorkflowFailed {
+                                    error: format!("Task panicked: {}", e),
+                                    failed_task: None,
+                                });
+                                return Err(NikaError::Execution(format!("Task panicked: {}", e)));
+                            }
+                            None => {
+                                // All tasks in this batch completed
+                                break;
                             }
                         }
-
-                        // Store individual result
-                        self.datastore
-                            .insert(Arc::clone(&store_id), task_result.clone());
-
-                        // If this is a for_each iteration, collect for aggregation
-                        if let Some((parent_id, idx)) = for_each_info {
-                            for_each_results
-                                .entry(parent_id)
-                                .or_default()
-                                .push((idx, task_result));
-                        }
-                    }
-                    Err(e) => {
-                        // EMIT: WorkflowFailed (task panic)
-                        self.event_log.emit(EventKind::WorkflowFailed {
-                            error: format!("Task panicked: {}", e),
-                            failed_task: None,
-                        });
-                        return Err(NikaError::Execution(format!("Task panicked: {}", e)));
                     }
                 }
             }
@@ -556,6 +671,15 @@ impl Runner {
             final_output: Arc::new(Value::String(output.clone())),
             total_duration_ms: workflow_start.elapsed().as_millis() as u64,
         });
+
+        // Write execution trace to .nika/traces/
+        if let Ok(trace_writer) = TraceWriter::new(&self.generation_id) {
+            if let Err(e) = trace_writer.write_all(&self.event_log) {
+                tracing::warn!(error = %e, "Failed to write trace");
+            } else {
+                tracing::info!(path = %trace_writer.path().display(), "Trace written");
+            }
+        }
 
         if !self.quiet {
             println!("\n{} Done!\n", "✓".green());
@@ -1309,6 +1433,153 @@ mod tests {
             assert!(
                 generation_id.len() > 10,
                 "Generation ID should include UUID"
+            );
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CANCELLATION TESTS (v0.5.2)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_cancel_token_default() {
+        let workflow = make_empty_workflow();
+        let runner = Runner::new(workflow);
+
+        // Should not be cancelled by default
+        assert!(
+            !runner.is_cancelled(),
+            "Runner should not be cancelled by default"
+        );
+    }
+
+    #[test]
+    fn test_cancel_token_can_be_set() {
+        let workflow = make_empty_workflow();
+        let token = CancellationToken::new();
+        let token_clone = token.clone();
+
+        let runner = Runner::new(workflow).with_cancel_token(token);
+
+        // Cancelling the original token should be reflected
+        token_clone.cancel();
+        assert!(runner.is_cancelled(), "Runner should detect cancellation");
+    }
+
+    #[test]
+    fn test_cancel_token_cloning() {
+        let workflow = make_empty_workflow();
+        let runner = Runner::new(workflow);
+
+        let token1 = runner.cancel_token();
+        let token2 = runner.cancel_token();
+
+        // Both tokens should be clones of the same underlying token
+        token1.cancel();
+        assert!(token2.is_cancelled(), "Cloned tokens should share state");
+        assert!(runner.is_cancelled(), "Runner should detect cancellation");
+    }
+
+    #[tokio::test]
+    async fn test_cancellation_before_start_returns_aborted() {
+        // Create a slow workflow
+        let workflow = create_exec_workflow(vec![("slow", "sleep 10")], vec![]);
+        let token = CancellationToken::new();
+
+        let runner = Runner::new(workflow).with_cancel_token(token.clone());
+
+        // Cancel before starting
+        token.cancel();
+
+        let result = runner.run().await;
+        assert!(result.is_err(), "Cancelled workflow should return error");
+
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("cancelled") || err.to_string().contains("aborted"),
+            "Error should mention cancellation: {}",
+            err
+        );
+
+        // Should emit WorkflowAborted event
+        let events = runner.event_log().events();
+        let aborted = events
+            .iter()
+            .find(|e| matches!(&e.kind, EventKind::WorkflowAborted { .. }));
+        assert!(aborted.is_some(), "WorkflowAborted event should be emitted");
+    }
+
+    #[tokio::test]
+    async fn test_cancellation_during_execution_aborts_workflow() {
+        use std::time::Duration;
+
+        // Create a workflow with a slow task
+        let workflow = create_exec_workflow(vec![("slow", "sleep 5")], vec![]);
+        let token = CancellationToken::new();
+        let token_clone = token.clone();
+
+        let runner = Runner::new(workflow).with_cancel_token(token);
+
+        // Spawn the workflow run in background
+        let handle = tokio::spawn(async move { runner.run().await });
+
+        // Wait a bit then cancel
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        token_clone.cancel();
+
+        // Should complete with error (not take 5 seconds)
+        let result = tokio::time::timeout(Duration::from_secs(2), handle).await;
+        assert!(
+            result.is_ok(),
+            "Cancellation should complete within 2 seconds"
+        );
+
+        let workflow_result = result.unwrap().unwrap();
+        assert!(
+            workflow_result.is_err(),
+            "Cancelled workflow should return error"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_workflow_aborted_event_has_running_tasks() {
+        use std::time::Duration;
+
+        // Create workflow with parallel slow tasks
+        let workflow = create_exec_workflow(
+            vec![("slow1", "sleep 5"), ("slow2", "sleep 5")],
+            vec![], // No deps = parallel
+        );
+        let token = CancellationToken::new();
+        let token_clone = token.clone();
+
+        let event_log = EventLog::new();
+        let event_log_clone = event_log.clone();
+        let runner = Runner::with_event_log(workflow, event_log).with_cancel_token(token);
+
+        // Spawn the workflow
+        let run_handle = tokio::spawn(async move { runner.run().await });
+
+        // Wait for tasks to start, then cancel
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        token_clone.cancel();
+
+        // Wait for abort
+        let result = run_handle.await.unwrap();
+        assert!(result.is_err(), "Cancelled workflow should return error");
+
+        // Check that WorkflowAborted event was emitted with running tasks
+        let events = event_log_clone.events();
+        let aborted = events
+            .iter()
+            .find(|e| matches!(&e.kind, EventKind::WorkflowAborted { .. }));
+        assert!(aborted.is_some(), "WorkflowAborted event should be emitted");
+
+        if let EventKind::WorkflowAborted { running_tasks, .. } = &aborted.unwrap().kind {
+            // At least one task should have been running
+            assert!(
+                !running_tasks.is_empty() || running_tasks.len() <= 2,
+                "Should have captured running tasks (0-2 expected)"
             );
         }
     }

@@ -271,6 +271,19 @@ pub struct AgentTurnState {
     pub response_text: Option<String>,
 }
 
+/// Spawned sub-agent state (v0.5 MVP 8)
+///
+/// Tracks nested agents spawned via spawn_agent tool.
+#[derive(Debug, Clone)]
+pub struct SpawnedAgent {
+    /// ID of the parent task that spawned this agent
+    pub parent_task_id: String,
+    /// ID of the child task
+    pub child_task_id: String,
+    /// Nesting depth (1 = root agent spawning first child)
+    pub depth: u32,
+}
+
 /// Breakpoint definition
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Breakpoint {
@@ -295,6 +308,8 @@ pub struct Metrics {
     pub input_tokens: u32,
     /// Total output tokens
     pub output_tokens: u32,
+    /// Total cache-read tokens (prompt caching)
+    pub cache_read_tokens: u32,
     /// Total cost in USD
     pub cost_usd: f64,
     /// MCP call count by tool
@@ -939,6 +954,8 @@ pub struct TuiState {
     pub streaming_buffer: String,
     /// Max turns for current agent
     pub agent_max_turns: Option<u32>,
+    /// Spawned sub-agents (v0.5 MVP 8 nested agents)
+    pub spawned_agents: Vec<SpawnedAgent>,
 
     // ═══════════════════════════════════════════
     // UI STATE
@@ -1162,6 +1179,7 @@ impl TuiState {
             agent_turns: Vec::new(),
             streaming_buffer: String::new(),
             agent_max_turns: None,
+            spawned_agents: Vec::new(),
             focus: PanelId::Progress,
             mode: TuiMode::Normal,
             scroll: HashMap::new(),
@@ -1219,7 +1237,7 @@ impl TuiState {
                 let duration_secs = *total_duration_ms as f64 / 1000.0;
                 self.add_notification(Notification::success(
                     format!(
-                        "Workflow completed in {:.1}s ({}/{} tasks)",
+                        "🦚 Magnificent! Warped through in {:.1}s ({}/{} tasks)",
                         duration_secs, self.workflow.tasks_completed, self.workflow.task_count
                     ),
                     timestamp_ms,
@@ -1235,10 +1253,36 @@ impl TuiState {
 
                 // TIER 3.4: Add error notification
                 self.add_notification(Notification::error(
-                    format!("Workflow failed: {}", error),
+                    format!("🦖 RAWR! Mission failed: {}", error),
                     timestamp_ms,
                 ));
                 // TIER 4.1: Mark progress, status, and notifications dirty
+                self.dirty.progress = true;
+                self.dirty.status = true;
+                self.dirty.notifications = true;
+            }
+
+            EventKind::WorkflowAborted {
+                reason,
+                duration_ms,
+                running_tasks,
+            } => {
+                self.workflow.phase = MissionPhase::Abort;
+                self.workflow.error_message = Some(format!("Aborted: {}", reason));
+                self.workflow.total_duration_ms = Some(*duration_ms);
+                self.current_task = None;
+
+                // TIER 3.4: Add abort notification
+                let task_info = if running_tasks.is_empty() {
+                    String::new()
+                } else {
+                    format!(" ({} tasks interrupted)", running_tasks.len())
+                };
+                self.add_notification(Notification::warning(
+                    format!("⚠️ Mission aborted: {}{}", reason, task_info),
+                    timestamp_ms,
+                ));
+                // Mark all relevant panels dirty
                 self.dirty.progress = true;
                 self.dirty.status = true;
                 self.dirty.notifications = true;
@@ -1263,11 +1307,16 @@ impl TuiState {
                 self.dirty.dag = true;
             }
 
-            EventKind::TaskStarted { task_id, inputs } => {
+            EventKind::TaskStarted {
+                task_id,
+                verb,
+                inputs,
+            } => {
                 if let Some(task) = self.tasks.get_mut(task_id.as_ref()) {
                     task.status = TaskStatus::Running;
                     task.started_at = Some(Instant::now());
                     task.input = Some(Arc::new(inputs.clone()));
+                    task.task_type = Some(verb.to_string());
                 }
                 self.current_task = Some(task_id.to_string());
 
@@ -1300,12 +1349,18 @@ impl TuiState {
                 let duration_secs = *duration_ms as f64 / 1000.0;
                 if *duration_ms > 30_000 {
                     self.add_notification(Notification::alert(
-                        format!("Task '{}' took {:.1}s (>30s)", task_id, duration_secs),
+                        format!(
+                            "🦥 Sloth mode! '{}' crawled in at {:.1}s",
+                            task_id, duration_secs
+                        ),
                         timestamp_ms,
                     ));
                 } else if *duration_ms > 10_000 {
                     self.add_notification(Notification::warning(
-                        format!("Task '{}' took {:.1}s (>10s)", task_id, duration_secs),
+                        format!(
+                            "🦩 Taking its time... '{}' at {:.1}s",
+                            task_id, duration_secs
+                        ),
                         timestamp_ms,
                     ));
                 }
@@ -1414,7 +1469,7 @@ impl TuiState {
                     let tool_display = tool_name.as_deref().unwrap_or("resource");
                     self.add_notification(Notification::warning(
                         format!(
-                            "MCP call '{}' took {:.1}s (>5s)",
+                            "🐙 Tentacles reaching... '{}' at {:.1}s",
                             tool_display, duration_secs
                         ),
                         timestamp_ms,
@@ -1447,6 +1502,8 @@ impl TuiState {
                     budget_used_pct: *budget_used_pct,
                     truncated: *truncated,
                 };
+                // TIER 4.1: Mark novanet panel dirty (v0.5 fix)
+                self.dirty.novanet = true;
             }
 
             // ═══════════════════════════════════════════
@@ -1506,18 +1563,46 @@ impl TuiState {
                 self.dirty.reasoning = true;
             }
 
+            EventKind::AgentSpawned {
+                parent_task_id,
+                child_task_id,
+                depth,
+            } => {
+                // Track spawned sub-agent (v0.5 MVP 8)
+                self.spawned_agents.push(SpawnedAgent {
+                    parent_task_id: parent_task_id.to_string(),
+                    child_task_id: child_task_id.to_string(),
+                    depth: *depth,
+                });
+
+                // Add notification for nested agent spawn (🐤 = subagent)
+                self.add_notification(Notification::info(
+                    format!(
+                        "🐤 Hatching '{}' at depth {} — fly little one!",
+                        child_task_id, depth
+                    ),
+                    timestamp_ms,
+                ));
+
+                // TIER 4.1: Mark reasoning and notifications dirty
+                self.dirty.reasoning = true;
+                self.dirty.notifications = true;
+            }
+
             // ═══════════════════════════════════════════
             // PROVIDER EVENTS
             // ═══════════════════════════════════════════
             EventKind::ProviderResponded {
                 input_tokens,
                 output_tokens,
+                cache_read_tokens,
                 cost_usd,
                 ttft_ms,
                 ..
             } => {
                 self.metrics.input_tokens += input_tokens;
                 self.metrics.output_tokens += output_tokens;
+                self.metrics.cache_read_tokens += cache_read_tokens;
                 self.metrics.total_tokens += input_tokens + output_tokens;
                 self.metrics.cost_usd += cost_usd;
                 self.metrics
@@ -1527,27 +1612,46 @@ impl TuiState {
                     self.metrics.latency_history.push(*ttft);
                 }
 
-                // TIER 3.4: Notify on high token usage (>80% of typical context window)
-                // Using 100k as typical context window for Claude models
+                // TIER 3.4: Token usage progression with cosmic pirate emojis
+                // 🔋 0-50% (quiet) | 🔥 50-70% | 🧨 70-85% | ☠️ 85-95% | 💀 95%+
                 const CONTEXT_WINDOW: u32 = 100_000;
-                const WARNING_THRESHOLD: u32 = (CONTEXT_WINDOW as f64 * 0.8) as u32; // 80%
-                const ALERT_THRESHOLD: u32 = (CONTEXT_WINDOW as f64 * 0.95) as u32; // 95%
+                let pct = (self.metrics.total_tokens as f64 / CONTEXT_WINDOW as f64) * 100.0;
 
-                if self.metrics.total_tokens > ALERT_THRESHOLD {
+                if pct > 95.0 {
                     self.add_notification(Notification::alert(
                         format!(
-                            "Token usage at {:.0}% ({}/{}k) - approaching limit!",
-                            (self.metrics.total_tokens as f64 / CONTEXT_WINDOW as f64) * 100.0,
+                            "💀 ABANDON SHIP! {:.0}% fuel ({}/{}k)",
+                            pct,
                             self.metrics.total_tokens,
                             CONTEXT_WINDOW / 1000
                         ),
                         timestamp_ms,
                     ));
-                } else if self.metrics.total_tokens > WARNING_THRESHOLD {
+                } else if pct > 85.0 {
+                    self.add_notification(Notification::alert(
+                        format!(
+                            "☠️ Danger zone! {:.0}% fuel ({}/{}k)",
+                            pct,
+                            self.metrics.total_tokens,
+                            CONTEXT_WINDOW / 1000
+                        ),
+                        timestamp_ms,
+                    ));
+                } else if pct > 70.0 {
                     self.add_notification(Notification::warning(
                         format!(
-                            "Token usage at {:.0}% ({}/{}k)",
-                            (self.metrics.total_tokens as f64 / CONTEXT_WINDOW as f64) * 100.0,
+                            "🧨 Getting spicy! {:.0}% fuel ({}/{}k)",
+                            pct,
+                            self.metrics.total_tokens,
+                            CONTEXT_WINDOW / 1000
+                        ),
+                        timestamp_ms,
+                    ));
+                } else if pct > 50.0 {
+                    self.add_notification(Notification::info(
+                        format!(
+                            "🔥 Heating up... {:.0}% fuel ({}/{}k)",
+                            pct,
                             self.metrics.total_tokens,
                             CONTEXT_WINDOW / 1000
                         ),
@@ -1588,6 +1692,28 @@ impl TuiState {
         const ROCKET: &[char] = &['🚀', '🔥', '💨', '✨'];
         let idx = (self.frame / 15) as usize % ROCKET.len();
         ROCKET[idx]
+    }
+
+    /// Check if a task is a spawned subagent
+    ///
+    /// Returns true if the task_id appears as a child in spawned_agents.
+    /// Used to display 🐤 instead of 🐔 for nested agents.
+    pub fn is_subagent(&self, task_id: &str) -> bool {
+        self.spawned_agents
+            .iter()
+            .any(|s| s.child_task_id == task_id)
+    }
+
+    /// Get the appropriate agent icon for a task
+    ///
+    /// Returns 🐤 for subagents (spawned via spawn_agent)
+    /// Returns 🐔 for parent agents (defined in workflow)
+    pub fn agent_icon(&self, task_id: &str) -> &'static str {
+        if self.is_subagent(task_id) {
+            "🐤" // Spawned subagent
+        } else {
+            "🐔" // Parent agent
+        }
     }
 
     /// Focus next panel
@@ -2202,6 +2328,7 @@ mod tests {
         // Start task
         state.handle_event(
             &EventKind::TaskStarted {
+                verb: "infer".into(),
                 task_id: Arc::from("task1"),
                 inputs: serde_json::json!({}),
             },
@@ -2389,12 +2516,14 @@ mod tests {
             .insert(Breakpoint::BeforeTask("task1".to_string()));
 
         let event = EventKind::TaskStarted {
+            verb: "infer".into(),
             task_id: Arc::from("task1"),
             inputs: serde_json::json!({}),
         };
         assert!(state.should_break(&event));
 
         let event2 = EventKind::TaskStarted {
+            verb: "infer".into(),
             task_id: Arc::from("task2"),
             inputs: serde_json::json!({}),
         };
@@ -3350,7 +3479,7 @@ mod tests {
 
         assert_eq!(state.notifications.len(), 1);
         assert_eq!(state.notifications[0].level, NotificationLevel::Success);
-        assert!(state.notifications[0].message.contains("completed"));
+        assert!(state.notifications[0].message.contains("Magnificent"));
     }
 
     #[test]
@@ -3567,6 +3696,7 @@ mod tests {
         state.dirty.clear();
         state.handle_event(
             &EventKind::TaskStarted {
+                verb: "infer".into(),
                 task_id: "task1".into(),
                 inputs: serde_json::json!({}),
             },
@@ -3858,6 +3988,7 @@ mod tests {
         // Task start should invalidate only that task's cache
         state.handle_event(
             &EventKind::TaskStarted {
+                verb: "infer".into(),
                 task_id: "my_task".into(),
                 inputs: serde_json::json!({}),
             },

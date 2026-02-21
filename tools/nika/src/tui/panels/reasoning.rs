@@ -79,17 +79,17 @@ impl<'a> ReasoningPanel<'a> {
         let current_turn = self.state.agent_turns.len();
 
         let header = if let Some(max_turns) = self.state.agent_max_turns {
-            // Animated dragon when agent is active
-            let dragon_frames = &["🐉", "🔥", "✨", "💫"];
-            let dragon_idx = (self.state.frame / 10) as usize % dragon_frames.len();
-            let dragon = dragon_frames[dragon_idx];
+            // Animated chicken when agent is active (🐔 = parent agent)
+            let agent_frames = &["🐔", "🔥", "✨", "💫"];
+            let agent_idx = (self.state.frame / 10) as usize % agent_frames.len();
+            let agent_icon = agent_frames[agent_idx];
 
             // Animated spinner for turn indicator
             let spinner = self.spinner();
 
             Line::from(vec![
                 Span::styled("  ", Style::default()),
-                Span::styled(format!("{} ", dragon), Style::default()),
+                Span::styled(format!("{} ", agent_icon), Style::default()),
                 Span::styled(
                     "Agent: ",
                     Style::default()
@@ -104,7 +104,7 @@ impl<'a> ReasoningPanel<'a> {
         } else {
             Line::from(vec![
                 Span::styled("  ", Style::default()),
-                Span::styled("🐉 ", Style::default()),
+                Span::styled("🐔 ", Style::default()),
                 Span::styled(
                     "Agent: ",
                     Style::default()

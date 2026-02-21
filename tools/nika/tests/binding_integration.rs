@@ -39,9 +39,9 @@ fn full_workflow_simple_path() {
     let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
     assert_eq!(bindings.get("forecast"), Some(&json!("Sunny")));
 
-    // 5. Template resolution
+    // 5. Template resolution (v0.5: pass datastore for lazy binding support)
     let template = "Weather: {{use.forecast}}";
-    let result = template_resolve(template, &bindings).unwrap();
+    let result = template_resolve(template, &bindings, &store).unwrap();
     assert_eq!(result, "Weather: Sunny");
 }
 
@@ -67,8 +67,8 @@ fn full_workflow_with_default() {
     let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
     assert_eq!(bindings.get("rating"), Some(&json!(5)));
 
-    // 5. Template
-    let result = template_resolve("Rating: {{use.rating}}/5", &bindings).unwrap();
+    // 5. Template (v0.5: pass datastore for lazy binding support)
+    let result = template_resolve("Rating: {{use.rating}}/5", &bindings, &store).unwrap();
     assert_eq!(result, "Rating: 5/5");
 }
 
@@ -92,7 +92,7 @@ fn full_workflow_nested_path() {
     let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
     assert_eq!(bindings.get("price"), Some(&json!(89)));
 
-    let result = template_resolve("Price: ${{use.price}}", &bindings).unwrap();
+    let result = template_resolve("Price: ${{use.price}}", &bindings, &store).unwrap();
     assert_eq!(result, "Price: $89");
 }
 
@@ -122,7 +122,7 @@ fn full_workflow_multiple_aliases() {
     let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
 
     let template = "Travel to {{use.city}}: {{use.temp}}C, ${{use.price}}";
-    let result = template_resolve(template, &bindings).unwrap();
+    let result = template_resolve(template, &bindings, &store).unwrap();
     assert_eq!(result, "Travel to Paris: 25C, $89");
 }
 
@@ -218,8 +218,9 @@ fn error_null_value_no_default() {
 #[test]
 fn error_template_unknown_alias() {
     let bindings = ResolvedBindings::new();
+    let store = DataStore::new();
 
-    let result = template_resolve("Hello {{use.unknown}}", &bindings);
+    let result = template_resolve("Hello {{use.unknown}}", &bindings, &store);
     assert!(result.is_err());
     let err_msg = result.unwrap_err().to_string();
     // Template errors for unknown aliases include the alias name
@@ -305,14 +306,16 @@ name: 'user.name ?? "Guest"'
 #[test]
 fn edge_case_empty_template() {
     let bindings = ResolvedBindings::new();
-    let result = template_resolve("", &bindings).unwrap();
+    let store = DataStore::new();
+    let result = template_resolve("", &bindings, &store).unwrap();
     assert_eq!(result, "");
 }
 
 #[test]
 fn edge_case_no_templates() {
     let bindings = ResolvedBindings::new();
-    let result = template_resolve("Hello world!", &bindings).unwrap();
+    let store = DataStore::new();
+    let result = template_resolve("Hello world!", &bindings, &store).unwrap();
     assert_eq!(result, "Hello world!");
 }
 

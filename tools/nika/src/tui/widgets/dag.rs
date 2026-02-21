@@ -25,16 +25,21 @@ pub enum VerbType {
 }
 
 impl VerbType {
-    /// Get the icon for this verb type
+    /// Get icon for this verb (matches CLAUDE.md canonical icons)
     pub fn icon(&self) -> &'static str {
         match self {
             Self::Unknown => "📋",
-            Self::Infer => "🤖",  // Robot for AI inference
-            Self::Exec => "🖥️",   // Computer for shell exec
-            Self::Fetch => "🌐",  // Globe for HTTP fetch
-            Self::Invoke => "🔧", // Wrench for MCP tool invoke
-            Self::Agent => "🤝",  // Handshake for agent loop
+            Self::Infer => "⚡",  // LLM generation
+            Self::Exec => "📟",   // Shell command
+            Self::Fetch => "🛰️",  // HTTP request
+            Self::Invoke => "🔌", // MCP tool
+            Self::Agent => "🐔",  // Agentic loop (parent)
         }
+    }
+
+    /// Get icon for subagent (spawned via spawn_agent)
+    pub fn subagent_icon() -> &'static str {
+        "🐤" // Spawned subagent
     }
 
     /// Parse verb type from string
@@ -456,11 +461,13 @@ mod tests {
 
     #[test]
     fn test_verb_type_icons() {
-        assert_eq!(VerbType::Infer.icon(), "🤖");
-        assert_eq!(VerbType::Exec.icon(), "🖥️");
-        assert_eq!(VerbType::Fetch.icon(), "🌐");
-        assert_eq!(VerbType::Invoke.icon(), "🔧");
-        assert_eq!(VerbType::Agent.icon(), "🤝");
+        // Canonical icons from CLAUDE.md
+        assert_eq!(VerbType::Infer.icon(), "⚡"); // LLM generation
+        assert_eq!(VerbType::Exec.icon(), "📟"); // Shell command
+        assert_eq!(VerbType::Fetch.icon(), "🛰️"); // HTTP request
+        assert_eq!(VerbType::Invoke.icon(), "🔌"); // MCP tool
+        assert_eq!(VerbType::Agent.icon(), "🐔"); // Agentic loop (parent)
+        assert_eq!(VerbType::subagent_icon(), "🐤"); // Spawned subagent
         assert_eq!(VerbType::Unknown.icon(), "📋");
     }
 

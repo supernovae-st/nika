@@ -314,6 +314,12 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     #[error("[NIKA-140] Config error: {reason}")]
     ConfigError { reason: String },
+
+    // ═══════════════════════════════════════════
+    // TOOL ERRORS (200-219) - NEW v0.6
+    // ═══════════════════════════════════════════
+    #[error("[{code}] {message}")]
+    ToolError { code: String, message: String },
 }
 
 impl NikaError {
@@ -398,6 +404,8 @@ impl NikaError {
             Self::TuiError { .. } => "NIKA-130",
             // Config errors
             Self::ConfigError { .. } => "NIKA-140",
+            // Tool errors (code is dynamic)
+            Self::ToolError { .. } => "NIKA-2XX",
         }
     }
 
@@ -563,6 +571,10 @@ impl FixSuggestion for NikaError {
             // Config errors
             NikaError::ConfigError { .. } => {
                 Some("Check ~/.config/nika/config.toml for syntax errors")
+            }
+            // Tool errors
+            NikaError::ToolError { .. } => {
+                Some("Check file path and permissions. Use Read before Edit.")
             }
         }
     }

@@ -1,6 +1,17 @@
-//! ChatAgent for full AI agent interface
+//! ChatAgent - Standalone LLM interface for TUI commands
 //!
-//! Manages LLM calls, streaming, and command execution.
+//! Manages LLM calls, streaming, and command operations for TUI chat commands.
+//!
+//! # Usage Pattern
+//!
+//! This module is **NOT dead code**. It's used by `app.rs` handlers:
+//! - `handle_chat_infer()` — `/infer` command
+//! - `handle_chat_fetch()` — `/fetch` command
+//! - `handle_chat_invoke()` — `/invoke` command
+//! - `handle_chat_agent()` — `/agent` command
+//!
+//! These handlers spawn ChatAgent operations in `tokio::spawn()` tasks for
+//! async operations, keeping the TUI responsive while commands run.
 //!
 //! # Architecture
 //!
@@ -41,7 +52,7 @@
 //! ```
 
 use crate::error::NikaError;
-use crate::provider::rig::RigProvider;
+use crate::provider::rig::{RigProvider, StreamChunk};
 use crate::tui::command::ModelProvider;
 use tokio::sync::mpsc;
 
@@ -190,8 +201,10 @@ pub struct ChatAgent {
     provider: RigProvider,
     /// Conversation history
     history: Vec<ChatMessage>,
-    /// Optional streaming channel for real-time updates
+    /// Optional streaming channel for real-time updates (String for backward compat)
     streaming_tx: Option<mpsc::Sender<String>>,
+    /// Optional streaming channel for token-by-token updates
+    stream_chunk_tx: Option<mpsc::Sender<StreamChunk>>,
     /// Current streaming state
     streaming_state: StreamingState,
     /// HTTP client for fetch operations
@@ -213,6 +226,7 @@ impl ChatAgent {
                     provider: RigProvider::claude(),
                     history: Vec::new(),
                     streaming_tx: None,
+                    stream_chunk_tx: None,
                     streaming_state: StreamingState::new(),
                     http_client: reqwest::Client::new(),
                 });
@@ -225,15 +239,29 @@ impl ChatAgent {
             provider: RigProvider::openai(),
             history: Vec::new(),
             streaming_tx: None,
+            stream_chunk_tx: None,
             streaming_state: StreamingState::new(),
             http_client: reqwest::Client::new(),
         })
     }
 
-    /// Set streaming channel for real-time updates
+    /// Set streaming channel for real-time updates (legacy String channel)
     pub fn with_streaming(mut self, tx: mpsc::Sender<String>) -> Self {
         self.streaming_tx = Some(tx);
         self
+    }
+
+    /// Set streaming channel for token-by-token updates (StreamChunk)
+    ///
+    /// This enables Claude Code-like streaming where tokens appear as they arrive.
+    pub fn with_stream_chunks(mut self, tx: mpsc::Sender<StreamChunk>) -> Self {
+        self.stream_chunk_tx = Some(tx);
+        self
+    }
+
+    /// Set streaming channel (takes ownership, for use after construction)
+    pub fn set_stream_chunk_tx(&mut self, tx: mpsc::Sender<StreamChunk>) {
+        self.stream_chunk_tx = Some(tx);
     }
 
     /// Switch to a different LLM provider
@@ -298,6 +326,11 @@ impl ChatAgent {
     /// # Errors
     ///
     /// Returns `NikaError::ProviderApiError` if the API call fails.
+    ///
+    /// # Streaming
+    ///
+    /// If `stream_chunk_tx` is set, tokens are streamed in real-time via
+    /// `StreamChunk::Token` events, enabling Claude Code-like UX.
     pub async fn infer(&mut self, prompt: &str) -> Result<String, NikaError> {
         // Add user message to history
         self.history.push(ChatMessage::user(prompt));
@@ -305,21 +338,30 @@ impl ChatAgent {
         // Start streaming state
         self.streaming_state.start();
 
-        // Send prompt to streaming channel if available
+        // Send prompt to legacy streaming channel if available
         if let Some(tx) = &self.streaming_tx {
             let _ = tx
                 .send(format!("Sending to {}...", self.provider.name()))
                 .await;
         }
 
-        // Call the provider
-        let response =
+        // Use streaming if stream_chunk_tx is set, otherwise blocking
+        let response = if let Some(tx) = self.stream_chunk_tx.clone() {
+            // Real-time streaming - tokens appear as they arrive
+            self.provider.infer_stream(prompt, tx).await.map_err(|e| {
+                NikaError::ProviderApiError {
+                    message: e.to_string(),
+                }
+            })?
+        } else {
+            // Blocking call - full response at once
             self.provider
                 .infer(prompt, None)
                 .await
                 .map_err(|e| NikaError::ProviderApiError {
                     message: e.to_string(),
-                })?;
+                })?
+        };
 
         // Finish streaming
         self.streaming_state.finish();
@@ -327,7 +369,7 @@ impl ChatAgent {
         // Add assistant message to history
         self.history.push(ChatMessage::assistant(&response));
 
-        // Send completion to streaming channel
+        // Send completion to legacy streaming channel
         if let Some(tx) = &self.streaming_tx {
             let _ = tx.send(response.clone()).await;
         }
@@ -437,6 +479,45 @@ impl ChatAgent {
     /// Clear the conversation history
     pub fn clear_history(&mut self) {
         self.history.clear();
+    }
+
+    /// Create ChatAgent with existing history for persistent conversations
+    ///
+    /// # Arguments
+    ///
+    /// * `messages` - Previous conversation history to restore
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use nika::tui::chat_agent::{ChatAgent, ChatMessage};
+    ///
+    /// let history = vec![
+    ///     ChatMessage::user("Hello"),
+    ///     ChatMessage::assistant("Hi there!"),
+    /// ];
+    /// let agent = ChatAgent::with_history(history).unwrap();
+    /// assert_eq!(agent.history().len(), 2);
+    /// ```
+    pub fn with_history(messages: Vec<ChatMessage>) -> Result<Self, NikaError> {
+        let mut agent = Self::new()?;
+        agent.history = messages;
+        Ok(agent)
+    }
+
+    /// Take ownership of the conversation history
+    ///
+    /// This moves the history out of the agent, leaving it empty.
+    /// Useful for persisting history between sessions.
+    pub fn take_history(&mut self) -> Vec<ChatMessage> {
+        std::mem::take(&mut self.history)
+    }
+
+    /// Set the conversation history
+    ///
+    /// Replaces the current history with the provided messages.
+    pub fn set_history(&mut self, messages: Vec<ChatMessage>) {
+        self.history = messages;
     }
 
     /// Get the current streaming state
@@ -694,6 +775,60 @@ mod tests {
         agent.clear_history();
 
         assert!(agent.history().is_empty());
+    }
+
+    #[test]
+    fn test_with_history() {
+        std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+
+        let history = vec![
+            ChatMessage::user("Hello"),
+            ChatMessage::assistant("Hi there!"),
+            ChatMessage::user("How are you?"),
+        ];
+
+        let agent = ChatAgent::with_history(history).expect("Should create agent with history");
+
+        assert_eq!(agent.history().len(), 3);
+        assert_eq!(agent.history()[0].role, ChatRole::User);
+        assert_eq!(agent.history()[0].content, "Hello");
+        assert_eq!(agent.history()[1].role, ChatRole::Assistant);
+        assert_eq!(agent.history()[2].content, "How are you?");
+    }
+
+    #[test]
+    fn test_take_history() {
+        std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+
+        let mut agent = ChatAgent::new().expect("Should create agent");
+        agent.history.push(ChatMessage::user("Hello"));
+        agent.history.push(ChatMessage::assistant("Hi!"));
+
+        let taken = agent.take_history();
+
+        assert_eq!(taken.len(), 2);
+        assert!(agent.history().is_empty()); // History is now empty
+        assert_eq!(taken[0].content, "Hello");
+        assert_eq!(taken[1].content, "Hi!");
+    }
+
+    #[test]
+    fn test_set_history() {
+        std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+
+        let mut agent = ChatAgent::new().expect("Should create agent");
+        agent.history.push(ChatMessage::user("Old message"));
+
+        let new_history = vec![
+            ChatMessage::user("New conversation"),
+            ChatMessage::assistant("Fresh start!"),
+        ];
+
+        agent.set_history(new_history);
+
+        assert_eq!(agent.history().len(), 2);
+        assert_eq!(agent.history()[0].content, "New conversation");
+        assert_eq!(agent.history()[1].content, "Fresh start!");
     }
 
     // ═══════════════════════════════════════════════════════════════════════

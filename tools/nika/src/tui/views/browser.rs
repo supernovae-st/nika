@@ -174,7 +174,7 @@ impl BrowserPanel {
 pub struct TaskSummary {
     /// Task ID
     pub id: String,
-    /// Verb icon (🧠, ⚡, 🌐, 🔌, 🤖)
+    /// Verb icon (⚡ infer, 📟 exec, 🛰️ fetch, 🔌 invoke, 🐔 agent)
     pub icon: &'static str,
     /// Verb name (infer, exec, fetch, invoke, agent)
     pub verb: &'static str,
@@ -435,13 +435,21 @@ impl WorkflowInfo {
     }
 
     /// Get verb icon for display
+    ///
+    /// Canonical icons from CLAUDE.md:
+    /// - ⚡ infer (LLM generation)
+    /// - 📟 exec (Shell command)
+    /// - 🛰️ fetch (HTTP request)
+    /// - 🔌 invoke (MCP tool)
+    /// - 🐔 agent (Agentic loop - parent)
+    /// - 🐤 subagent (spawned via spawn_agent)
     pub fn get_verb_icon(action: &TaskAction) -> &'static str {
         match action {
-            TaskAction::Infer { .. } => "🧠",
-            TaskAction::Exec { .. } => "⚡",
-            TaskAction::Fetch { .. } => "🔗",
-            TaskAction::Invoke { .. } => "📥",
-            TaskAction::Agent { .. } => "🤖",
+            TaskAction::Infer { .. } => "⚡",  // LLM generation
+            TaskAction::Exec { .. } => "📟",   // Shell command
+            TaskAction::Fetch { .. } => "🛰️",  // HTTP request
+            TaskAction::Invoke { .. } => "🔌", // MCP tool
+            TaskAction::Agent { .. } => "🐔",  // Agentic loop (parent)
         }
     }
 
@@ -1008,66 +1016,6 @@ impl BrowserView {
         // since the content is typically short.
     }
 
-    /// Generate ASCII DAG visualization (kept as fallback)
-    #[allow(dead_code)]
-    fn generate_dag_ascii(&self, info: &WorkflowInfo) -> String {
-        let mut lines = Vec::new();
-
-        lines.push(format!("   Workflow: {}", info.name));
-        lines.push(String::new());
-
-        if info.tasks.is_empty() {
-            // Fallback for workflows with no parsed tasks
-            lines.push("   ╭──────────────────╮".to_string());
-            lines.push("   │  (no tasks)      │".to_string());
-            lines.push("   ╰──────────────────╯".to_string());
-        } else {
-            // Render each task with icon, id, verb, and estimate
-            for (i, task) in info.tasks.iter().enumerate() {
-                // Task box with verb icon and details
-                let task_line = format!(
-                    "{} {} ({}) {}",
-                    task.icon, task.id, task.verb, task.estimate
-                );
-                let box_width = task_line.chars().count().max(20) + 4;
-                let padding = box_width - task_line.chars().count() - 2;
-
-                // Draw dependencies (if any)
-                if !task.depends_on.is_empty() {
-                    let deps = task.depends_on.join(", ");
-                    lines.push(format!("   ┌─ from: {}", deps));
-                    lines.push("   │".to_string());
-                    lines.push("   ▼".to_string());
-                }
-
-                // Top border
-                lines.push(format!("   ╭{}╮", "─".repeat(box_width - 2)));
-                // Task content
-                lines.push(format!("   │ {}{}│", task_line, " ".repeat(padding)));
-                // Bottom border
-                lines.push(format!("   ╰{}╯", "─".repeat(box_width - 2)));
-
-                // Arrow to next task (if not last)
-                if i < info.tasks.len() - 1 {
-                    lines.push("        │".to_string());
-                    lines.push("        ▼".to_string());
-                }
-            }
-        }
-
-        lines.push(String::new());
-        lines.push(format!(
-            "   Tasks: {}    Flows: {}",
-            info.task_count, info.flow_count
-        ));
-
-        if !info.mcp_servers.is_empty() {
-            lines.push(format!("   MCP: {}", info.mcp_servers.join(", ")));
-        }
-
-        lines.join("\n")
-    }
-
     /// Render YAML preview panel
     fn render_yaml_preview(&self, area: Rect, buf: &mut Buffer, theme: &Theme) {
         use crate::tui::widgets::ScrollIndicator;
@@ -1284,13 +1232,22 @@ impl BrowserView {
     }
 
     /// Get verb icon from verb name string
+    ///
+    /// Canonical icons from CLAUDE.md:
+    /// - ⚡ infer (LLM generation)
+    /// - 📟 exec (Shell command)
+    /// - 🛰️ fetch (HTTP request)
+    /// - 🔌 invoke (MCP tool)
+    /// - 🐔 agent (Agentic loop - parent)
+    /// - 🐤 subagent (spawned via spawn_agent)
     fn verb_icon_for_name(verb: &str) -> &'static str {
         match verb {
-            "infer" => "🧠",
-            "exec" => "⚡",
-            "fetch" => "🔗",
-            "invoke" => "📥",
-            "agent" => "🤖",
+            "infer" => "⚡",    // LLM generation
+            "exec" => "📟",     // Shell command
+            "fetch" => "🛰️",    // HTTP request
+            "invoke" => "🔌",   // MCP tool
+            "agent" => "🐔",    // Agentic loop (parent)
+            "subagent" => "🐤", // Spawned subagent
             _ => "  ",
         }
     }
@@ -1601,14 +1558,14 @@ tasks:
                 model: None,
             },
         };
-        assert_eq!(WorkflowInfo::get_verb_icon(&infer_action), "🧠");
+        assert_eq!(WorkflowInfo::get_verb_icon(&infer_action), "⚡"); // LLM generation
 
         let exec_action = TaskAction::Exec {
             exec: ExecParams {
                 command: "echo test".to_string(),
             },
         };
-        assert_eq!(WorkflowInfo::get_verb_icon(&exec_action), "⚡");
+        assert_eq!(WorkflowInfo::get_verb_icon(&exec_action), "📟"); // Shell command
     }
 
     #[test]
@@ -1755,7 +1712,7 @@ flows:
         // Verify fetch_data task
         let fetch_task = &info.tasks[0];
         assert_eq!(fetch_task.id, "fetch_data");
-        assert_eq!(fetch_task.icon, "🔗");
+        assert_eq!(fetch_task.icon, "🛰️"); // HTTP request
         assert_eq!(fetch_task.verb, "fetch");
         assert_eq!(fetch_task.estimate, "~0.5s");
         assert!(fetch_task.depends_on.is_empty());
@@ -1763,7 +1720,7 @@ flows:
         // Verify process task (depends on fetch_data)
         let process_task = &info.tasks[1];
         assert_eq!(process_task.id, "process");
-        assert_eq!(process_task.icon, "🧠");
+        assert_eq!(process_task.icon, "⚡"); // LLM generation
         assert_eq!(process_task.verb, "infer");
         assert_eq!(process_task.estimate, "~2-5s");
         assert_eq!(process_task.depends_on, vec!["fetch_data"]);
@@ -1771,7 +1728,7 @@ flows:
         // Verify execute task (depends on process)
         let execute_task = &info.tasks[2];
         assert_eq!(execute_task.id, "execute");
-        assert_eq!(execute_task.icon, "⚡");
+        assert_eq!(execute_task.icon, "📟"); // Shell command
         assert_eq!(execute_task.verb, "exec");
         assert_eq!(execute_task.estimate, "~0.1s");
         assert_eq!(execute_task.depends_on, vec!["process"]);
@@ -1827,14 +1784,14 @@ tasks:
         // Verify invoke task
         let invoke_task = &info.tasks[0];
         assert_eq!(invoke_task.id, "call_tool");
-        assert_eq!(invoke_task.icon, "📥");
+        assert_eq!(invoke_task.icon, "🔌"); // MCP tool
         assert_eq!(invoke_task.verb, "invoke");
         assert_eq!(invoke_task.estimate, "~0.5-2s");
 
         // Verify agent task
         let agent_task = &info.tasks[1];
         assert_eq!(agent_task.id, "run_agent");
-        assert_eq!(agent_task.icon, "🤖");
+        assert_eq!(agent_task.icon, "🐔"); // Agentic loop (parent)
         assert_eq!(agent_task.verb, "agent");
         assert_eq!(agent_task.estimate, "~5-30s");
     }
@@ -1892,11 +1849,13 @@ tasks:
 
     #[test]
     fn test_verb_icon_for_name() {
-        assert_eq!(BrowserView::verb_icon_for_name("infer"), "🧠");
-        assert_eq!(BrowserView::verb_icon_for_name("exec"), "⚡");
-        assert_eq!(BrowserView::verb_icon_for_name("fetch"), "🔗");
-        assert_eq!(BrowserView::verb_icon_for_name("invoke"), "📥");
-        assert_eq!(BrowserView::verb_icon_for_name("agent"), "🤖");
+        // Canonical icons from CLAUDE.md
+        assert_eq!(BrowserView::verb_icon_for_name("infer"), "⚡"); // LLM generation
+        assert_eq!(BrowserView::verb_icon_for_name("exec"), "📟"); // Shell command
+        assert_eq!(BrowserView::verb_icon_for_name("fetch"), "🛰️"); // HTTP request
+        assert_eq!(BrowserView::verb_icon_for_name("invoke"), "🔌"); // MCP tool
+        assert_eq!(BrowserView::verb_icon_for_name("agent"), "🐔"); // Agentic loop (parent)
+        assert_eq!(BrowserView::verb_icon_for_name("subagent"), "🐤"); // Spawned subagent
         assert_eq!(BrowserView::verb_icon_for_name("unknown"), "  ");
     }
 

@@ -53,13 +53,18 @@ impl TaskExecutor {
         mcp_configs: Option<FxHashMap<String, McpConfigInline>>,
         event_log: EventLog,
     ) -> Self {
+        // SAFETY: ClientBuilder::build() only fails with custom TLS or proxy config.
+        // We use defaults, so this is effectively infallible.
         let http_client = reqwest::Client::builder()
             .timeout(FETCH_TIMEOUT)
             .connect_timeout(CONNECT_TIMEOUT)
             .redirect(reqwest::redirect::Policy::limited(REDIRECT_LIMIT))
             .user_agent("nika-cli/0.1")
             .build()
-            .expect("Failed to build HTTP client");
+            .unwrap_or_else(|e| {
+                tracing::error!("HTTP client build failed: {e}. Using default client.");
+                reqwest::Client::new()
+            });
 
         Self {
             http_client,
@@ -106,10 +111,10 @@ impl TaskExecutor {
                     .await
             }
             DecomposeStrategy::Static => self.expand_decompose_static(spec, bindings, datastore),
-            DecomposeStrategy::Nested => Err(NikaError::NotImplemented {
-                feature: "decompose: nested strategy".to_string(),
-                suggestion: "Use semantic strategy with max_items for now".to_string(),
-            }),
+            DecomposeStrategy::Nested => {
+                self.expand_decompose_nested(spec, bindings, datastore)
+                    .await
+            }
         }
     }
 
@@ -197,7 +202,122 @@ impl TaskExecutor {
         Ok(items)
     }
 
-    /// Resolve source binding expression for decompose
+    /// Expand using nested recursive traversal via MCP (v0.5.2)
+    ///
+    /// Recursively follows arcs until max_depth or no more children.
+    /// Uses BFS to collect all descendant nodes (excluding root) into a flat array.
+    async fn expand_decompose_nested(
+        &self,
+        spec: &DecomposeSpec,
+        bindings: &ResolvedBindings,
+        datastore: &DataStore,
+    ) -> Result<Vec<serde_json::Value>, NikaError> {
+        use serde_json::{json, Value};
+        use std::collections::HashSet;
+
+        // Get MCP client
+        let server_name = spec.mcp_server();
+        let client = self.get_mcp_client(server_name).await?;
+
+        // Resolve source binding
+        let source_value = self.resolve_decompose_source(&spec.source, bindings, datastore)?;
+        let root_key = self.extract_decompose_key(&source_value)?;
+
+        // Defaults for nested traversal
+        let max_depth = spec.max_depth.unwrap_or(3);
+        let max_items = spec.max_items.unwrap_or(100); // Safety limit
+
+        debug!(
+            root_key = %root_key,
+            arc = %spec.traverse,
+            max_depth = max_depth,
+            max_items = max_items,
+            "Starting nested decompose traversal"
+        );
+
+        // BFS traversal to collect all descendant nodes
+        let mut items: Vec<Value> = Vec::new();
+        let mut visited: HashSet<String> = HashSet::new();
+        let mut queue: Vec<(String, usize)> = vec![(root_key.clone(), 0)];
+
+        visited.insert(root_key.clone());
+
+        while let Some((current_key, depth)) = queue.pop() {
+            // Stop if we've reached max depth
+            if depth >= max_depth {
+                continue;
+            }
+
+            // Stop if we have enough items
+            if items.len() >= max_items {
+                break;
+            }
+
+            // Call novanet_traverse for current node
+            let params = json!({
+                "start": current_key,
+                "arc": spec.traverse,
+                "direction": "outgoing"
+            });
+
+            let result = match client.call_tool("novanet_traverse", params).await {
+                Ok(r) => r,
+                Err(e) => {
+                    debug!(key = %current_key, error = %e, "Traverse failed, skipping node");
+                    continue;
+                }
+            };
+
+            // Parse result
+            let result_json: Value = match serde_json::from_str(&result.text()) {
+                Ok(v) => v,
+                Err(e) => {
+                    debug!(key = %current_key, error = %e, "Failed to parse traverse result");
+                    continue;
+                }
+            };
+
+            // Extract child nodes
+            let children = match self.extract_decompose_nodes(&result_json) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            for child in children {
+                // Get child key for tracking
+                let child_key = match self.extract_decompose_key(&child) {
+                    Ok(k) => k,
+                    Err(_) => continue,
+                };
+
+                // Skip if already visited (avoid cycles)
+                if visited.contains(&child_key) {
+                    continue;
+                }
+
+                visited.insert(child_key.clone());
+                items.push(child);
+
+                // Add to queue for further traversal
+                queue.push((child_key, depth + 1));
+
+                // Early exit if we have enough items
+                if items.len() >= max_items {
+                    break;
+                }
+            }
+        }
+
+        debug!(
+            count = items.len(),
+            visited = visited.len(),
+            "Nested decompose completed"
+        );
+
+        Ok(items)
+    }
+
+    /// Resolve source binding expression for decompose (v0.5: lazy binding support)
     fn resolve_decompose_source(
         &self,
         source: &str,
@@ -205,14 +325,9 @@ impl TaskExecutor {
         datastore: &DataStore,
     ) -> Result<serde_json::Value, NikaError> {
         if source.starts_with("{{use.") && source.ends_with("}}") {
-            // Template syntax: {{use.alias}}
+            // Template syntax: {{use.alias}} - supports lazy bindings
             let alias = &source[6..source.len() - 2];
-            bindings
-                .get(alias)
-                .cloned()
-                .ok_or_else(|| NikaError::BindingNotFound {
-                    alias: alias.to_string(),
-                })
+            bindings.get_resolved(alias, datastore)
         } else if let Some(alias) = source.strip_prefix('$') {
             if alias.contains('.') {
                 // Path syntax: $task.field
@@ -222,13 +337,8 @@ impl TaskExecutor {
                         alias: alias.to_string(),
                     })
             } else {
-                // Simple alias
-                bindings
-                    .get(alias)
-                    .cloned()
-                    .ok_or_else(|| NikaError::BindingNotFound {
-                        alias: alias.to_string(),
-                    })
+                // Simple alias - supports lazy bindings
+                bindings.get_resolved(alias, datastore)
             }
         } else {
             // Literal value
@@ -293,21 +403,32 @@ impl TaskExecutor {
         .to_string()
     }
 
-    /// Execute a task action with the given bindings
-    #[instrument(skip(self, bindings), fields(action_type = %action_type(action)))]
+    /// Run a task action with the given bindings (v0.5)
+    ///
+    /// The datastore is required for resolving lazy bindings during template substitution.
+    #[instrument(skip(self, bindings, datastore), fields(action_type = %action_type(action)))]
     pub async fn execute(
         &self,
         task_id: &Arc<str>,
         action: &TaskAction,
         bindings: &ResolvedBindings,
+        datastore: &DataStore,
     ) -> Result<String, NikaError> {
-        debug!("Executing task action");
+        debug!("Running task action");
         match action {
-            TaskAction::Infer { infer } => self.execute_infer(task_id, infer, bindings).await,
-            TaskAction::Exec { exec } => self.execute_exec(task_id, exec, bindings).await,
-            TaskAction::Fetch { fetch } => self.execute_fetch(task_id, fetch, bindings).await,
-            TaskAction::Invoke { invoke } => self.execute_invoke(task_id, invoke, bindings).await,
-            TaskAction::Agent { agent } => self.execute_agent(task_id, agent, bindings).await,
+            TaskAction::Infer { infer } => {
+                self.run_infer(task_id, infer, bindings, datastore).await
+            }
+            TaskAction::Exec { exec: e } => self.run_exec(task_id, e, bindings, datastore).await,
+            TaskAction::Fetch { fetch } => {
+                self.run_fetch(task_id, fetch, bindings, datastore).await
+            }
+            TaskAction::Invoke { invoke } => {
+                self.run_invoke(task_id, invoke, bindings, datastore).await
+            }
+            TaskAction::Agent { agent } => {
+                self.run_agent(task_id, agent, bindings, datastore).await
+            }
         }
     }
 
@@ -336,14 +457,15 @@ impl TaskExecutor {
         }
     }
 
-    async fn execute_infer(
+    async fn run_infer(
         &self,
         task_id: &Arc<str>,
         infer: &InferParams,
         bindings: &ResolvedBindings,
+        datastore: &DataStore,
     ) -> Result<String, NikaError> {
-        // Resolve {{use.alias}} templates
-        let prompt = template_resolve(&infer.prompt, bindings)?;
+        // Resolve {{use.alias}} templates (v0.5: supports lazy bindings)
+        let prompt = template_resolve(&infer.prompt, bindings, datastore)?;
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
@@ -392,14 +514,15 @@ impl TaskExecutor {
         Ok(result)
     }
 
-    async fn execute_exec(
+    async fn run_exec(
         &self,
         task_id: &Arc<str>,
         exec: &ExecParams,
         bindings: &ResolvedBindings,
+        datastore: &DataStore,
     ) -> Result<String, NikaError> {
-        // Resolve {{use.alias}} templates
-        let command = template_resolve(&exec.command, bindings)?;
+        // Resolve {{use.alias}} templates (v0.5: supports lazy bindings)
+        let command = template_resolve(&exec.command, bindings, datastore)?;
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
@@ -433,15 +556,16 @@ impl TaskExecutor {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     }
 
-    #[instrument(skip(self, bindings), fields(url = %fetch.url))]
-    async fn execute_fetch(
+    #[instrument(skip(self, bindings, datastore), fields(url = %fetch.url))]
+    async fn run_fetch(
         &self,
         task_id: &Arc<str>,
         fetch: &FetchParams,
         bindings: &ResolvedBindings,
+        datastore: &DataStore,
     ) -> Result<String, NikaError> {
-        // Resolve {{use.alias}} templates
-        let url = template_resolve(&fetch.url, bindings)?;
+        // Resolve {{use.alias}} templates (v0.5: supports lazy bindings)
+        let url = template_resolve(&fetch.url, bindings, datastore)?;
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
@@ -462,13 +586,13 @@ impl TaskExecutor {
 
         // Add headers
         for (key, value) in &fetch.headers {
-            let resolved_value = template_resolve(value, bindings)?;
+            let resolved_value = template_resolve(value, bindings, datastore)?;
             request = request.header(key, resolved_value.as_ref());
         }
 
         // Add body if present
         if let Some(body) = &fetch.body {
-            let resolved_body = template_resolve(body, bindings)?;
+            let resolved_body = template_resolve(body, bindings, datastore)?;
             request = request.body(resolved_body.into_owned());
         }
 
@@ -495,12 +619,13 @@ impl TaskExecutor {
     ///
     /// Templates like `{{use.variable}}` in params are resolved before calling the MCP tool.
     /// This enables for_each iterations to pass dynamic values to MCP tools.
-    #[instrument(skip(self, bindings), fields(mcp = %invoke.mcp))]
-    async fn execute_invoke(
+    #[instrument(skip(self, bindings, datastore), fields(mcp = %invoke.mcp))]
+    async fn run_invoke(
         &self,
         task_id: &Arc<str>,
         invoke: &InvokeParams,
         bindings: &ResolvedBindings,
+        datastore: &DataStore,
     ) -> Result<String, NikaError> {
         // Validate invoke params (tool XOR resource)
         invoke
@@ -532,7 +657,7 @@ impl TaskExecutor {
                 let params_str = serde_json::to_string(original_params).map_err(|e| {
                     NikaError::Execution(format!("Failed to serialize params: {}", e))
                 })?;
-                let resolved_str = template_resolve(&params_str, bindings)?;
+                let resolved_str = template_resolve(&params_str, bindings, datastore)?;
                 serde_json::from_str(&resolved_str).map_err(|e| {
                     NikaError::Execution(format!(
                         "Failed to parse resolved params '{}': {}",
@@ -613,15 +738,16 @@ impl TaskExecutor {
     /// 6. Create and run AgentLoop
     /// 7. Emit AgentComplete event
     /// 8. Return final output as JSON string
-    #[instrument(skip(self, bindings), fields(max_turns = %agent.effective_max_turns()))]
-    async fn execute_agent(
+    #[instrument(skip(self, bindings, datastore), fields(max_turns = %agent.effective_max_turns()))]
+    async fn run_agent(
         &self,
         task_id: &Arc<str>,
         agent: &AgentParams,
         bindings: &ResolvedBindings,
+        datastore: &DataStore,
     ) -> Result<String, NikaError> {
-        // Resolve {{use.alias}} templates in prompt
-        let resolved_prompt = template_resolve(&agent.prompt, bindings)?;
+        // Resolve {{use.alias}} templates in prompt (v0.5: supports lazy bindings)
+        let resolved_prompt = template_resolve(&agent.prompt, bindings, datastore)?;
 
         // EMIT: TemplateResolved event
         self.event_log.emit(EventKind::TemplateResolved {
@@ -760,6 +886,11 @@ impl TaskExecutor {
                             reason: e.to_string(),
                         })?;
 
+                        // Cache tools for synchronous get_tool_definitions() access
+                        if let Err(e) = client.list_tools().await {
+                            tracing::warn!(mcp_server = %name_owned, error = %e, "Failed to cache tools");
+                        }
+
                         tracing::info!(mcp_server = %name_owned, "Connected to MCP server");
                         Ok(Arc::new(client))
                     } else {
@@ -790,6 +921,7 @@ fn action_type(action: &TaskAction) -> &'static str {
 mod tests {
     use super::*;
     use crate::ast::{ExecParams, InvokeParams};
+    use crate::store::DataStore;
     use serde_json::json;
 
     #[test]
@@ -802,6 +934,7 @@ mod tests {
     async fn execute_exec_echo() {
         let exec = TaskExecutor::new("mock", None, None, EventLog::new());
         let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
         let action = TaskAction::Exec {
             exec: ExecParams {
                 command: "echo hello".to_string(),
@@ -809,7 +942,10 @@ mod tests {
         };
 
         let task_id: Arc<str> = Arc::from("test_task");
-        let result = exec.execute(&task_id, &action, &bindings).await.unwrap();
+        let result = exec
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await
+            .unwrap();
         assert_eq!(result, "hello");
     }
 
@@ -818,6 +954,7 @@ mod tests {
         let exec = TaskExecutor::new("mock", None, None, EventLog::new());
         let mut bindings = ResolvedBindings::new();
         bindings.set("name", json!("world"));
+        let datastore = DataStore::new();
 
         let action = TaskAction::Exec {
             exec: ExecParams {
@@ -826,7 +963,10 @@ mod tests {
         };
 
         let task_id: Arc<str> = Arc::from("test_task");
-        let result = exec.execute(&task_id, &action, &bindings).await.unwrap();
+        let result = exec
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await
+            .unwrap();
         assert_eq!(result, "world");
     }
 
@@ -836,6 +976,7 @@ mod tests {
         let exec = TaskExecutor::new("mock", None, None, event_log.clone());
         let mut bindings = ResolvedBindings::new();
         bindings.set("name", json!("Alice"));
+        let datastore = DataStore::new();
 
         let action = TaskAction::Exec {
             exec: ExecParams {
@@ -844,7 +985,9 @@ mod tests {
         };
 
         let task_id: Arc<str> = Arc::from("greet");
-        exec.execute(&task_id, &action, &bindings).await.unwrap();
+        exec.execute(&task_id, &action, &bindings, &datastore)
+            .await
+            .unwrap();
 
         // Check TemplateResolved event was emitted
         let events = event_log.filter_task("greet");
@@ -871,6 +1014,7 @@ mod tests {
         let exec = TaskExecutor::new("mock", None, None, event_log.clone());
         exec.inject_mock_mcp_client("novanet"); // Explicit mock injection
         let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
 
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
@@ -882,7 +1026,7 @@ mod tests {
         };
 
         let task_id: Arc<str> = Arc::from("invoke_test");
-        let result = exec.execute(&task_id, &action, &bindings).await;
+        let result = exec.execute(&task_id, &action, &bindings, &datastore).await;
 
         assert!(
             result.is_ok(),
@@ -902,6 +1046,7 @@ mod tests {
         let exec = TaskExecutor::new("mock", None, None, event_log.clone());
         exec.inject_mock_mcp_client("novanet"); // Explicit mock injection
         let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
 
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
@@ -913,7 +1058,7 @@ mod tests {
         };
 
         let task_id: Arc<str> = Arc::from("resource_test");
-        let result = exec.execute(&task_id, &action, &bindings).await;
+        let result = exec.execute(&task_id, &action, &bindings, &datastore).await;
 
         assert!(
             result.is_ok(),
@@ -933,6 +1078,7 @@ mod tests {
         let exec = TaskExecutor::new("mock", None, None, event_log.clone());
         exec.inject_mock_mcp_client("novanet"); // Explicit mock injection
         let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
 
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
@@ -944,7 +1090,9 @@ mod tests {
         };
 
         let task_id: Arc<str> = Arc::from("mcp_events_test");
-        exec.execute(&task_id, &action, &bindings).await.unwrap();
+        exec.execute(&task_id, &action, &bindings, &datastore)
+            .await
+            .unwrap();
 
         // Check MCP events were emitted
         let events = event_log.filter_task("mcp_events_test");
@@ -970,6 +1118,7 @@ mod tests {
         let event_log = EventLog::new();
         let exec = TaskExecutor::new("mock", None, None, event_log);
         let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
 
         // Both tool and resource set (invalid)
         let action = TaskAction::Invoke {
@@ -982,7 +1131,7 @@ mod tests {
         };
 
         let task_id: Arc<str> = Arc::from("invalid_test");
-        let result = exec.execute(&task_id, &action, &bindings).await;
+        let result = exec.execute(&task_id, &action, &bindings, &datastore).await;
 
         assert!(result.is_err(), "Should fail with validation error");
         match result.unwrap_err() {
@@ -999,6 +1148,7 @@ mod tests {
         let exec = TaskExecutor::new("mock", None, None, event_log);
         // NOTE: No inject_mock_mcp_client() - should fail with McpNotConfigured
         let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
 
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
@@ -1010,7 +1160,7 @@ mod tests {
         };
 
         let task_id: Arc<str> = Arc::from("unconfigured_test");
-        let result = exec.execute(&task_id, &action, &bindings).await;
+        let result = exec.execute(&task_id, &action, &bindings, &datastore).await;
 
         assert!(result.is_err(), "Should fail with McpNotConfigured");
         match result.unwrap_err() {

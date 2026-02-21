@@ -322,6 +322,40 @@ impl Task {
     pub fn decompose_spec(&self) -> Option<&DecomposeSpec> {
         self.decompose.as_ref()
     }
+
+    /// Get the action icon for TUI display
+    ///
+    /// Returns an emoji icon based on the task's verb type.
+    /// Canonical icons from CLAUDE.md:
+    /// - ⚡ infer (LLM generation)
+    /// - 📟 exec (Shell command)
+    /// - 🛰️ fetch (HTTP request)
+    /// - 🔌 invoke (MCP tool)
+    /// - 🐔 agent (Agentic loop - parent)
+    /// - 🐤 subagent (spawned via spawn_agent)
+    pub fn action_icon(&self) -> &'static str {
+        match &self.action {
+            TaskAction::Infer { .. } => "⚡",  // LLM generation
+            TaskAction::Exec { .. } => "📟",   // Shell command
+            TaskAction::Fetch { .. } => "🛰️",  // HTTP request
+            TaskAction::Invoke { .. } => "🔌", // MCP tool
+            TaskAction::Agent { .. } => "🐔",  // Agentic loop (parent)
+        }
+    }
+
+    /// Get the icon for a subagent (spawned via spawn_agent)
+    pub fn subagent_icon() -> &'static str {
+        "🐤" // Spawned subagent
+    }
+
+    /// Get list of task IDs this task depends on
+    ///
+    /// Note: Task-level dependencies are defined via `flows` at the Workflow level.
+    /// This method returns an empty vector as tasks don't have inline `depends_on`.
+    /// Use FlowGraph for full dependency analysis.
+    pub fn depends_on_ids(&self) -> Vec<&str> {
+        Vec::new()
+    }
 }
 
 #[derive(Debug, Deserialize)]

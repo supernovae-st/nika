@@ -553,14 +553,15 @@ mod tests {
 
     #[test]
     fn test_active_operation_verb_icon() {
+        // Canonical icons from CLAUDE.md (via VerbColor::from_verb().icon())
         let op = ActiveOperation::new("test", "infer");
-        assert_eq!(op.verb_icon(), "🧠");
+        assert_eq!(op.verb_icon(), "⚡"); // LLM generation
 
         let op = ActiveOperation::new("test", "exec");
-        assert_eq!(op.verb_icon(), "⚡");
+        assert_eq!(op.verb_icon(), "📟"); // Shell command
 
         let op = ActiveOperation::new("test", "invoke");
-        assert_eq!(op.verb_icon(), "🔧");
+        assert_eq!(op.verb_icon(), "🔌"); // MCP tool
     }
 
     #[test]

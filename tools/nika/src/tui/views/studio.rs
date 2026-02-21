@@ -16,6 +16,7 @@
 //!
 //! TODO: Track https://github.com/rhysd/tui-textarea/issues for ratatui 0.30 support
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -23,15 +24,19 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::Style,
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
+    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Widget},
     Frame,
 };
 
 use super::trait_view::View;
 use super::ViewAction;
+use crate::ast::schema_validator::WorkflowSchemaValidator;
+use crate::ast::Workflow;
+use crate::error::NikaError;
 use crate::tui::state::TuiState;
-use crate::tui::theme::Theme;
+use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
+use crate::tui::widgets::{DagAscii, NodeBoxData, NodeBoxMode};
 
 /// Editor mode (vim-like)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -235,17 +240,6 @@ impl TextBuffer {
         }
     }
 
-    /// Adjust scroll for viewport height
-    #[allow(dead_code)] // Will be used when viewport integration is complete
-    pub fn adjust_scroll_for_height(&mut self, height: usize) {
-        let visible_end = self.scroll_offset + height.saturating_sub(1);
-        if self.cursor_row >= visible_end {
-            self.scroll_offset = self.cursor_row.saturating_sub(height.saturating_sub(2));
-        } else if self.cursor_row < self.scroll_offset {
-            self.scroll_offset = self.cursor_row;
-        }
-    }
-
     /// Get scroll offset
     pub fn scroll_offset(&self) -> usize {
         self.scroll_offset
@@ -264,6 +258,10 @@ pub struct StudioView {
     pub validation: ValidationResult,
     /// Whether file has unsaved changes
     pub modified: bool,
+    /// DAG expanded mode (toggle with 'E')
+    pub dag_expanded: bool,
+    /// DAG scroll offset for vertical scrolling
+    pub dag_scroll: u16,
 }
 
 impl StudioView {
@@ -274,7 +272,14 @@ impl StudioView {
             mode: EditorMode::Normal,
             validation: ValidationResult::default(),
             modified: false,
+            dag_expanded: false,
+            dag_scroll: 0,
         }
+    }
+
+    /// Toggle DAG expanded/minimal mode
+    pub fn toggle_dag_mode(&mut self) {
+        self.dag_expanded = !self.dag_expanded;
     }
 
     /// Load a file into the editor
@@ -300,21 +305,47 @@ impl StudioView {
     /// Validate the YAML content
     pub fn validate(&mut self) {
         let content = self.buffer.content();
+        self.validation.errors.clear();
+        self.validation.warnings.clear();
 
-        // Check YAML validity
+        // Phase 1: Check YAML syntax validity
         match serde_yaml::from_str::<serde_yaml::Value>(&content) {
             Ok(_) => {
                 self.validation.yaml_valid = true;
-                self.validation.errors.clear();
             }
             Err(e) => {
                 self.validation.yaml_valid = false;
-                self.validation.errors = vec![e.to_string()];
+                self.validation.schema_valid = false;
+                self.validation.errors = vec![format!("YAML syntax error: {}", e)];
+                return; // Can't validate schema if YAML is invalid
             }
         }
 
-        // TODO: Schema validation with jsonschema crate
-        self.validation.schema_valid = self.validation.yaml_valid;
+        // Phase 2: Validate against Nika workflow schema
+        match WorkflowSchemaValidator::new() {
+            Ok(validator) => match validator.validate_yaml(&content) {
+                Ok(()) => {
+                    self.validation.schema_valid = true;
+                }
+                Err(NikaError::SchemaValidationFailed { errors }) => {
+                    self.validation.schema_valid = false;
+                    self.validation.errors = errors
+                        .into_iter()
+                        .map(|e| format!("{}: {}", e.path, e.message))
+                        .collect();
+                }
+                Err(e) => {
+                    // Other validation error (e.g., YAML parse error from validator)
+                    self.validation.schema_valid = false;
+                    self.validation.errors = vec![e.to_string()];
+                }
+            },
+            Err(e) => {
+                // Schema validator creation failed
+                self.validation.schema_valid = false;
+                self.validation.warnings = vec![format!("Schema validator unavailable: {}", e)];
+            }
+        }
     }
 
     /// Get current line number (1-indexed)
@@ -391,6 +422,11 @@ impl StudioView {
                 ViewAction::None
             }
             KeyCode::Char('c') => ViewAction::ToggleChatOverlay,
+            // Toggle DAG expanded/minimal mode
+            KeyCode::Char('e') | KeyCode::Char('E') => {
+                self.toggle_dag_mode();
+                ViewAction::None
+            }
             KeyCode::F(5) => {
                 if let Some(path) = &self.path {
                     ViewAction::RunWorkflow(path.clone())
@@ -545,17 +581,113 @@ impl StudioView {
     }
 
     fn render_structure(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        // TODO: Parse YAML and show task DAG
-        let content = "Task structure\n(coming soon)";
+        // Title shows mode state
+        let title = if self.dag_expanded {
+            " STRUCTURE [E]xpanded "
+        } else {
+            " STRUCTURE [E]->expand "
+        };
 
-        let paragraph = Paragraph::new(content).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" STRUCTURE ")
-                .border_style(Style::default().fg(theme.border_normal)),
-        );
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .border_style(Style::default().fg(theme.border_normal));
 
-        frame.render_widget(paragraph, area);
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        // Parse YAML and render with DagAscii
+        let content = self.buffer.content();
+        self.render_dag_structure(frame, inner, &content, theme);
+    }
+
+    /// Render DAG structure using DagAscii widget
+    fn render_dag_structure(&self, frame: &mut Frame, area: Rect, yaml: &str, theme: &Theme) {
+        // Try to parse as workflow YAML
+        let workflow: Result<Workflow, _> = serde_yaml::from_str(yaml);
+
+        match workflow {
+            Ok(wf) => {
+                if wf.tasks.is_empty() {
+                    let paragraph =
+                        Paragraph::new("(no tasks)").style(Style::default().fg(theme.text_muted));
+                    frame.render_widget(paragraph, area);
+                    return;
+                }
+
+                // Build dependency map from Flow objects
+                let deps = self.extract_flow_dependencies(&wf);
+
+                // Convert tasks to NodeBoxData
+                let nodes: Vec<NodeBoxData> = wf
+                    .tasks
+                    .iter()
+                    .map(|task| {
+                        let verb = self.task_verb_color(task.as_ref());
+                        NodeBoxData::new(&task.id, verb).with_status(TaskStatus::Pending)
+                    })
+                    .collect();
+
+                let mode = if self.dag_expanded {
+                    NodeBoxMode::Expanded
+                } else {
+                    NodeBoxMode::Minimal
+                };
+
+                // Create and render DagAscii widget
+                let widget = DagAscii::new(&nodes)
+                    .with_dependencies(deps)
+                    .mode(mode)
+                    .scroll(0, self.dag_scroll);
+
+                // Render to buffer (DagAscii implements Widget)
+                let buf = frame.buffer_mut();
+                widget.render(area, buf);
+            }
+            Err(_) => {
+                // YAML doesn't parse as workflow - show parse error state
+                let paragraph =
+                    Paragraph::new("⚠ Invalid workflow\n\nFix YAML errors to\nsee task structure")
+                        .style(Style::default().fg(theme.status_failed));
+                frame.render_widget(paragraph, area);
+            }
+        }
+    }
+
+    /// Extract dependencies from Flow objects
+    ///
+    /// Returns a map: target_task_id -> [source_task_ids]
+    fn extract_flow_dependencies(&self, wf: &Workflow) -> HashMap<String, Vec<String>> {
+        let mut deps: HashMap<String, Vec<String>> = HashMap::new();
+
+        for flow in &wf.flows {
+            let sources = flow.source.as_vec();
+            let targets = flow.target.as_vec();
+
+            // Each target depends on all sources
+            for target in &targets {
+                let entry = deps.entry(target.to_string()).or_default();
+                for source in &sources {
+                    if !entry.contains(&source.to_string()) {
+                        entry.push(source.to_string());
+                    }
+                }
+            }
+        }
+
+        deps
+    }
+
+    /// Get VerbColor from task action
+    fn task_verb_color(&self, task: &crate::ast::Task) -> VerbColor {
+        use crate::ast::TaskAction;
+        match &task.action {
+            TaskAction::Infer { .. } => VerbColor::Infer,
+            TaskAction::Exec { .. } => VerbColor::Exec,
+            TaskAction::Fetch { .. } => VerbColor::Fetch,
+            TaskAction::Invoke { .. } => VerbColor::Invoke,
+            TaskAction::Agent { .. } => VerbColor::Agent,
+        }
     }
 
     fn render_validation(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
@@ -603,6 +735,64 @@ impl StudioView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Schema validation tests (TDD)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_studio_view_schema_validation_valid_workflow() {
+        let mut view = StudioView::new();
+
+        // Valid Nika workflow YAML
+        let valid_yaml = r#"schema: "nika/workflow@0.5"
+tasks:
+  - id: step1
+    infer: "Hello world""#;
+
+        view.buffer = TextBuffer::from_content(valid_yaml);
+        view.validate();
+
+        assert!(view.validation.yaml_valid, "YAML should be valid");
+        assert!(view.validation.schema_valid, "Schema should be valid");
+        assert!(view.validation.errors.is_empty(), "No errors expected");
+    }
+
+    #[test]
+    fn test_studio_view_schema_validation_invalid_schema() {
+        let mut view = StudioView::new();
+
+        // Invalid Nika workflow - missing required 'tasks' field
+        let invalid_yaml = r#"schema: "nika/workflow@0.5"
+unknown_field: "should fail""#;
+
+        view.buffer = TextBuffer::from_content(invalid_yaml);
+        view.validate();
+
+        assert!(view.validation.yaml_valid, "YAML syntax is valid");
+        assert!(!view.validation.schema_valid, "Schema should be invalid");
+        assert!(!view.validation.errors.is_empty(), "Should have errors");
+    }
+
+    #[test]
+    fn test_studio_view_schema_validation_missing_schema_field() {
+        let mut view = StudioView::new();
+
+        // Missing required 'schema' field
+        let yaml = r#"tasks:
+  - id: step1
+    infer: "Hello""#;
+
+        view.buffer = TextBuffer::from_content(yaml);
+        view.validate();
+
+        assert!(view.validation.yaml_valid, "YAML syntax is valid");
+        assert!(!view.validation.schema_valid, "Schema should be invalid");
+        assert!(
+            view.validation.errors.iter().any(|e| e.contains("schema")),
+            "Error should mention 'schema'"
+        );
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // TextBuffer tests
@@ -747,14 +937,19 @@ mod tests {
     }
 
     #[test]
-    fn test_studio_view_validation_valid_yaml() {
+    fn test_studio_view_validation_valid_yaml_syntax() {
         let mut view = StudioView::new();
 
-        // Valid YAML
+        // Valid YAML syntax (but not a valid Nika workflow schema)
         view.buffer = TextBuffer::from_content("key: value");
         view.validate();
-        assert!(view.validation.yaml_valid);
-        assert!(view.validation.errors.is_empty());
+        assert!(view.validation.yaml_valid, "YAML syntax should be valid");
+        // Note: schema validation will fail because this isn't a valid workflow
+        // but yaml_valid should be true because the syntax is correct
+        assert!(
+            !view.validation.schema_valid,
+            "Schema should be invalid for non-workflow YAML"
+        );
     }
 
     #[test]

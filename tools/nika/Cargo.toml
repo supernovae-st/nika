@@ -15,6 +15,7 @@ default = ["tui"]
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-textarea", "dep:arboard", "dep:notify"]
 integration = []  # Enable integration tests with real MCP servers
 notifications = ["dep:notify-rust"]  # Desktop notifications on workflow completion
+test-fixtures = []  # Export test_fixtures module for external test crates
 
 [dependencies]
 # CLI
@@ -22,6 +23,7 @@ clap = { version = "4.5", features = ["derive"] }
 
 # Async
 tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs"] }
+tokio-util = "0.7"  # CancellationToken for workflow abort
 async-trait = "0.1"
 
 # Serialization
@@ -34,7 +36,6 @@ toml = "0.8"
 jsonschema = "0.26"
 
 # Errors
-anyhow = "1.0"
 thiserror = "1.0"
 
 # HTTP
@@ -47,7 +48,6 @@ colored = "2.1"
 dotenvy = "0.15"
 dashmap = "6.1"
 parking_lot = "0.12"
-scopeguard = "1.2"
 smallvec = "1.13"
 rustc-hash = "2.1"
 uuid = { version = "1.0", features = ["v4"] }
@@ -60,6 +60,7 @@ rand = "0.8"
 walkdir = "2.5"    # Efficient recursive directory traversal (ripgrep uses this)
 camino = "1.1"     # UTF-8 safe paths (Utf8PathBuf) - no OsStr panics
 ignore = "0.4"     # .gitignore/.ignore support (from ripgrep author)
+globset = "0.4"    # Fast glob pattern matching (from ripgrep author)
 
 # MCP - Anthropic's official Rust SDK
 # See docs/research/2026-02-19-mcp-rust-crates.md for crate comparison

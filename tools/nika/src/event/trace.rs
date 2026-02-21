@@ -247,6 +247,7 @@ mod tests {
             id: 0,
             timestamp_ms: 100,
             kind: EventKind::TaskStarted {
+                verb: "infer".into(),
                 task_id: "test_task".into(),
                 inputs: json!({}),
             },

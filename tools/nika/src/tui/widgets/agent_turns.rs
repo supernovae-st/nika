@@ -78,16 +78,16 @@ impl<'a> AgentTurns<'a> {
         self
     }
 
-    /// Get status icon
+    /// Get status icon for agent turn events
     fn status_icon(status: &str) -> &'static str {
         match status {
             "thinking" => "🤔",
             "tool_use" => "🔧",
             "tool_result" => "📋",
-            "response" => "💬",
+            "response" => "✨",
             "complete" => "✅",
             "error" => "❌",
-            _ => "🐉",
+            _ => "❓", // Unknown status
         }
     }
 
@@ -220,6 +220,7 @@ mod tests {
     fn test_status_icons() {
         assert_eq!(AgentTurns::status_icon("thinking"), "🤔");
         assert_eq!(AgentTurns::status_icon("tool_use"), "🔧");
-        assert_eq!(AgentTurns::status_icon("response"), "💬");
+        assert_eq!(AgentTurns::status_icon("response"), "✨");
+        assert_eq!(AgentTurns::status_icon("unknown"), "❓");
     }
 }

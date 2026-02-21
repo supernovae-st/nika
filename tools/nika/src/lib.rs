@@ -59,6 +59,7 @@ pub mod event;
 pub mod mcp;
 pub mod provider;
 pub mod store;
+pub mod tools;
 pub mod tui;
 pub mod util;
 
@@ -67,6 +68,12 @@ pub mod util;
 // ═══════════════════════════════════════════════════════════════
 pub mod config;
 pub mod error;
+
+// ═══════════════════════════════════════════════════════════════
+// TEST UTILITIES (cfg(test) or cfg(feature = "test-fixtures"))
+// ═══════════════════════════════════════════════════════════════
+#[cfg(any(test, feature = "test-fixtures"))]
+pub mod test_fixtures;
 
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC API RE-EXPORTS

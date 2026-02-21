@@ -22,7 +22,6 @@ pub trait View {
     fn handle_key(&mut self, key: KeyEvent, state: &mut TuiState) -> ViewAction;
 
     /// Get the view's status line text (for footer)
-    #[allow(dead_code)] // Will be used when StatusBar integration is complete
     fn status_line(&self, state: &TuiState) -> String;
 }
 
@@ -30,23 +29,18 @@ pub trait View {
 mod tests {
     use super::*;
 
-    // Mock view for testing
-    #[allow(dead_code)] // render_called is for future render tests
-    struct MockView {
-        render_called: std::cell::Cell<bool>,
-    }
+    // Mock view for testing the View trait
+    struct MockView;
 
     impl MockView {
         fn new() -> Self {
-            Self {
-                render_called: std::cell::Cell::new(false),
-            }
+            Self
         }
     }
 
     impl View for MockView {
         fn render(&self, _frame: &mut Frame, _area: Rect, _state: &TuiState, _theme: &Theme) {
-            self.render_called.set(true);
+            // No-op for tests
         }
 
         fn handle_key(&mut self, _key: KeyEvent, _state: &mut TuiState) -> ViewAction {

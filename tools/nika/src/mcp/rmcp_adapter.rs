@@ -65,6 +65,10 @@ pub struct RmcpClientAdapter {
 
     /// Protocol version reported by server
     server_version: Mutex<Option<String>>,
+
+    /// Cached tool definitions (populated after list_tools() call)
+    /// Used by get_cached_tools() for synchronous access in rig integration
+    cached_tools: Mutex<Vec<ToolDefinition>>,
 }
 
 impl std::fmt::Debug for RmcpClientAdapter {
@@ -97,6 +101,7 @@ impl RmcpClientAdapter {
             config,
             service: AsyncMutex::new(None),
             server_version: Mutex::new(None),
+            cached_tools: Mutex::new(Vec::new()),
         }
     }
 
@@ -334,7 +339,7 @@ impl RmcpClientAdapter {
                 })?;
 
         // Convert rmcp tools to Nika's ToolDefinition
-        let tools = result
+        let tools: Vec<ToolDefinition> = result
             .tools
             .into_iter()
             .map(|t| {
@@ -349,7 +354,18 @@ impl RmcpClientAdapter {
             })
             .collect();
 
+        // Cache tools for synchronous access via get_cached_tools()
+        *self.cached_tools.lock() = tools.clone();
+
         Ok(tools)
+    }
+
+    /// Get cached tool definitions (synchronous access).
+    ///
+    /// Returns tools from the last `list_tools()` call, or empty vec if never called.
+    /// This is used by rig integration which requires sync access to tool definitions.
+    pub fn get_cached_tools(&self) -> Vec<ToolDefinition> {
+        self.cached_tools.lock().clone()
     }
 
     /// Get the server protocol version (if connected)
