@@ -39,6 +39,12 @@ use tui_input::{Input, InputRequest};
 use super::trait_view::View;
 use super::ViewAction;
 use crate::tui::command::{Command, ModelProvider, HELP_TEXT};
+
+/// Check if the "command" modifier is pressed (Ctrl on Linux/Windows, Cmd on macOS)
+/// On macOS, Cmd key maps to SUPER modifier in crossterm
+fn is_cmd_pressed(modifiers: KeyModifiers) -> bool {
+    modifiers.contains(KeyModifiers::CONTROL) || modifiers.contains(KeyModifiers::SUPER)
+}
 use crate::tui::file_resolve::FileResolver;
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
@@ -262,6 +268,10 @@ pub struct ChatView {
     /// Accumulated thinking content during streaming
     /// Attached to the final message when stream completes
     pub pending_thinking: Option<String>,
+
+    // === UX Hints (v0.7.1) ===
+    /// Whether the @mention hint has been shown (show once per session)
+    pub shown_file_hint: bool,
 }
 
 impl ChatView {
@@ -314,6 +324,9 @@ impl ChatView {
 
             // Thinking Accumulation (v0.5.2)
             pending_thinking: None,
+
+            // UX Hints (v0.7.1)
+            shown_file_hint: false,
         }
     }
 
@@ -937,14 +950,14 @@ impl View for ChatView {
             return self.handle_palette_key(key);
         }
 
-        // Check for Ctrl+K (command palette toggle)
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('k') {
+        // Check for Cmd/Ctrl+K (command palette toggle)
+        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('k') {
             self.toggle_command_palette();
             return ViewAction::None;
         }
 
-        // Check for Ctrl+T (toggle deep thinking)
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('t') {
+        // Check for Cmd/Ctrl+T (toggle deep thinking)
+        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('t') {
             self.toggle_deep_thinking();
             let status = if self.deep_thinking {
                 "enabled"
@@ -955,8 +968,8 @@ impl View for ChatView {
             return ViewAction::None;
         }
 
-        // Check for Ctrl+M (toggle infer/agent mode)
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('m') {
+        // Check for Cmd/Ctrl+M (toggle infer/agent mode)
+        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('m') {
             self.toggle_mode();
             self.add_system_message(format!(
                 "{} Switched to {} mode",
@@ -966,50 +979,70 @@ impl View for ChatView {
             return ViewAction::None;
         }
 
-        // Ctrl+C = Copy input to system clipboard (NOT exit!)
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+        // Cmd/Ctrl+C = Copy input to system clipboard (NOT exit!)
+        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('c') {
             self.copy_to_clipboard();
             return ViewAction::None;
         }
 
-        // Ctrl+V = Paste from system clipboard
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('v') {
+        // Cmd/Ctrl+V = Paste from system clipboard
+        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('v') {
             self.paste_from_clipboard();
             return ViewAction::None;
         }
 
-        // Ctrl+Left = Move to previous word
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Left {
+        // Cmd/Ctrl+Left = Move to previous word
+        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Left {
             self.cursor_prev_word();
             return ViewAction::None;
         }
 
-        // Ctrl+Right = Move to next word
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Right {
+        // Cmd/Ctrl+Right = Move to next word
+        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Right {
             self.cursor_next_word();
             return ViewAction::None;
         }
 
-        // Ctrl+Backspace = Delete previous word
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Backspace {
+        // Cmd/Ctrl+Backspace = Delete previous word
+        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Backspace {
             self.delete_prev_word();
             return ViewAction::None;
         }
 
-        // Ctrl+A = Go to start of input
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('a') {
+        // Cmd/Ctrl+A = Go to start of input
+        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('a') {
             self.cursor_start();
             return ViewAction::None;
         }
 
-        // Ctrl+E = Go to end of input
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('e') {
+        // Cmd/Ctrl+E = Go to end of input
+        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('e') {
             self.cursor_end();
             return ViewAction::None;
         }
 
         match key.code {
             KeyCode::Char('q') if self.input.value().is_empty() => ViewAction::Quit,
+            // "/" at start of empty input triggers command palette with verbs
+            KeyCode::Char('/') if self.input.value().is_empty() => {
+                self.toggle_command_palette();
+                // Pre-filter to show only verbs category
+                self.command_palette.query = "/".to_string();
+                self.command_palette.update_filter();
+                ViewAction::None
+            }
+            // "@" triggers file mention hint (already resolved on submit via FileResolver)
+            KeyCode::Char('@') => {
+                self.insert_char('@');
+                // Show hint message about file mentions (only once per session)
+                if !self.shown_file_hint {
+                    self.add_system_message(
+                        "💡 Type @filename to include file content".to_string(),
+                    );
+                    self.shown_file_hint = true;
+                }
+                ViewAction::None
+            }
             KeyCode::Enter => {
                 if let Some(message) = self.submit() {
                     // Parse the message as a command

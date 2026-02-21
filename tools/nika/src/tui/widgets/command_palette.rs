@@ -100,6 +100,23 @@ impl PaletteCommand {
 /// Default commands
 pub fn default_commands() -> Vec<PaletteCommand> {
     vec![
+        // === Nika 5 Verbs (Slash Commands) ===
+        PaletteCommand::new("infer", "/infer", "LLM text generation")
+            .with_icon("⚡")
+            .with_category("Verbs"),
+        PaletteCommand::new("exec", "/exec", "Execute shell command")
+            .with_icon("📟")
+            .with_category("Verbs"),
+        PaletteCommand::new("fetch", "/fetch", "HTTP request (GET/POST)")
+            .with_icon("🛰")
+            .with_category("Verbs"),
+        PaletteCommand::new("invoke", "/invoke", "Call MCP tool")
+            .with_icon("🔌")
+            .with_category("Verbs"),
+        PaletteCommand::new("agent", "/agent", "Multi-turn agent loop")
+            .with_icon("🐔")
+            .with_category("Verbs"),
+        // === Workflow Actions ===
         PaletteCommand::new("run", "Run Workflow", "Execute the current workflow file")
             .with_shortcut("⌘⏎")
             .with_icon("▶")
@@ -124,22 +141,24 @@ pub fn default_commands() -> Vec<PaletteCommand> {
             .with_shortcut("⌘V")
             .with_icon("✅")
             .with_category("Edit"),
-        PaletteCommand::new("chat", "Open Chat", "Switch to chat view")
-            .with_shortcut("⌘C")
+        // === View Navigation ===
+        PaletteCommand::new("chat", "1: Chat View", "Switch to chat agent")
+            .with_shortcut("1")
             .with_icon("💬")
             .with_category("View"),
-        PaletteCommand::new("monitor", "Open Monitor", "Switch to monitor view")
-            .with_shortcut("⌘O")
-            .with_icon("📊")
-            .with_category("View"),
-        PaletteCommand::new("home", "Open Home", "Switch to file browser")
-            .with_shortcut("⌘H")
+        PaletteCommand::new("home", "2: Home View", "Switch to file browser")
+            .with_shortcut("2")
             .with_icon("🏠")
             .with_category("View"),
-        PaletteCommand::new("studio", "Open Studio", "Switch to YAML editor")
-            .with_shortcut("⌘E")
+        PaletteCommand::new("studio", "3: Studio View", "Switch to YAML editor")
+            .with_shortcut("3")
             .with_icon("📝")
             .with_category("View"),
+        PaletteCommand::new("monitor", "4: Monitor View", "Switch to execution monitor")
+            .with_shortcut("4")
+            .with_icon("📊")
+            .with_category("View"),
+        // === Chat Commands ===
         PaletteCommand::new("help", "Help", "Show help documentation")
             .with_shortcut("?")
             .with_icon("❓")
@@ -147,8 +166,11 @@ pub fn default_commands() -> Vec<PaletteCommand> {
         PaletteCommand::new("clear", "Clear Chat", "Clear chat history")
             .with_icon("🗑")
             .with_category("Chat"),
-        PaletteCommand::new("model", "Change Model", "Switch LLM model")
+        PaletteCommand::new("model", "Change Model", "Switch LLM provider/model")
             .with_icon("🤖")
+            .with_category("Chat"),
+        PaletteCommand::new("mcp", "MCP Status", "View MCP server connections")
+            .with_icon("🔌")
             .with_category("Chat"),
     ]
 }

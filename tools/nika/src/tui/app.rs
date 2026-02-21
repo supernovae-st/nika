@@ -1016,21 +1016,6 @@ impl App {
                 return Action::SwitchView(TuiView::Monitor)
             }
 
-            // View navigation by letter shortcuts (v0.7 - more intuitive)
-            // c=Chat, h=Home, s=Studio, m=Monitor
-            KeyCode::Char('c') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Chat)
-            }
-            KeyCode::Char('h') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Home)
-            }
-            KeyCode::Char('s') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Studio)
-            }
-            KeyCode::Char('m') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Monitor)
-            }
-
             // Tab cycles views (when not in Monitor, which uses Tab for panel cycling)
             // Also skip when capturing input (Studio Insert mode, Chat with text)
             KeyCode::Tab

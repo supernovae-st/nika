@@ -193,16 +193,6 @@ impl TuiView {
         }
     }
 
-    /// Get keyboard shortcut
-    pub fn shortcut(&self) -> char {
-        match self {
-            TuiView::Chat => 'a',    // [a]gent
-            TuiView::Home => 'h',    // [h]ome
-            TuiView::Studio => 's',  // [s]tudio
-            TuiView::Monitor => 'm', // [m]onitor
-        }
-    }
-
     /// Get the title for the header bar
     pub fn title(&self) -> &'static str {
         match self {
@@ -314,14 +304,6 @@ mod tests {
         assert_eq!(TuiView::Home.number(), 2);
         assert_eq!(TuiView::Studio.number(), 3);
         assert_eq!(TuiView::Monitor.number(), 4);
-    }
-
-    #[test]
-    fn test_tui_view_shortcut() {
-        assert_eq!(TuiView::Chat.shortcut(), 'a');
-        assert_eq!(TuiView::Home.shortcut(), 'h');
-        assert_eq!(TuiView::Studio.shortcut(), 's');
-        assert_eq!(TuiView::Monitor.shortcut(), 'm');
     }
 
     #[test]

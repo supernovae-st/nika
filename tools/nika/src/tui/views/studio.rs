@@ -441,9 +441,10 @@ impl StudioView {
                     ViewAction::None
                 }
             }
-            KeyCode::Char('1') | KeyCode::Char('a') => ViewAction::SwitchView(TuiView::Chat),
-            KeyCode::Char('2') | KeyCode::Char('h') => ViewAction::SwitchView(TuiView::Home),
-            KeyCode::Char('4') | KeyCode::Char('m') => ViewAction::SwitchView(TuiView::Monitor),
+            // View switching: number keys only (v0.7.1 - Option B navigation)
+            KeyCode::Char('1') => ViewAction::SwitchView(TuiView::Chat),
+            KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Home),
+            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Monitor),
             KeyCode::Up | KeyCode::Char('k') => {
                 self.buffer.cursor_up();
                 ViewAction::None

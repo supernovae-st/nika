@@ -178,6 +178,19 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                     description: "Send message",
                     category: KeyCategory::Chat,
                 });
+                // Input editing shortcuts (v0.7.1)
+                bindings.push(Keybinding {
+                    code: KeyCode::Char('/'),
+                    modifiers: KeyModifiers::NONE,
+                    description: "Slash commands (at start)",
+                    category: KeyCategory::Chat,
+                });
+                bindings.push(Keybinding {
+                    code: KeyCode::Char('@'),
+                    modifiers: KeyModifiers::NONE,
+                    description: "File mention (@filename)",
+                    category: KeyCategory::Chat,
+                });
             }
             // Ctrl+K/T/M available in all Chat modes (v0.7.0)
             bindings.push(Keybinding {
@@ -196,6 +209,50 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 code: KeyCode::Char('m'),
                 modifiers: KeyModifiers::CONTROL,
                 description: "Toggle Infer/Agent mode",
+                category: KeyCategory::Chat,
+            });
+            // Cursor navigation shortcuts (v0.7.1)
+            bindings.push(Keybinding {
+                code: KeyCode::Char('a'),
+                modifiers: KeyModifiers::CONTROL,
+                description: "Cursor to start",
+                category: KeyCategory::Chat,
+            });
+            bindings.push(Keybinding {
+                code: KeyCode::Char('e'),
+                modifiers: KeyModifiers::CONTROL,
+                description: "Cursor to end",
+                category: KeyCategory::Chat,
+            });
+            bindings.push(Keybinding {
+                code: KeyCode::Left,
+                modifiers: KeyModifiers::CONTROL,
+                description: "Word left",
+                category: KeyCategory::Chat,
+            });
+            bindings.push(Keybinding {
+                code: KeyCode::Right,
+                modifiers: KeyModifiers::CONTROL,
+                description: "Word right",
+                category: KeyCategory::Chat,
+            });
+            bindings.push(Keybinding {
+                code: KeyCode::Backspace,
+                modifiers: KeyModifiers::CONTROL,
+                description: "Delete word",
+                category: KeyCategory::Chat,
+            });
+            // Clipboard shortcuts (v0.7.1)
+            bindings.push(Keybinding {
+                code: KeyCode::Char('c'),
+                modifiers: KeyModifiers::CONTROL,
+                description: "Copy to clipboard",
+                category: KeyCategory::Chat,
+            });
+            bindings.push(Keybinding {
+                code: KeyCode::Char('v'),
+                modifiers: KeyModifiers::CONTROL,
+                description: "Paste from clipboard",
                 category: KeyCategory::Chat,
             });
         }

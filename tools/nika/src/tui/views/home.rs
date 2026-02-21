@@ -221,10 +221,25 @@ impl HomeView {
             })
             .collect();
 
+        // Build title with project root and .nika indicator
+        let project_name = self
+            .standalone
+            .root
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "~".to_string());
+        let has_nika_dir = self.standalone.root.join(".nika").exists();
+        let nika_marker = if has_nika_dir { " ◆" } else { "" };
+
         let title = if self.search_active && !self.search_query.is_empty() {
-            format!(" FILES ({} matches) ", self.filtered_indices.len())
+            format!(
+                " 📁 {}{} ({} matches) ",
+                project_name,
+                nika_marker,
+                self.filtered_indices.len()
+            )
         } else {
-            " FILES ".to_string()
+            format!(" 📁 {}{} ", project_name, nika_marker)
         };
 
         let list = List::new(items)
@@ -606,10 +621,10 @@ impl View for HomeView {
             // Chat overlay toggle
             KeyCode::Char('c') => ViewAction::ToggleChatOverlay,
 
-            // View switching: number keys and shortcuts
-            KeyCode::Char('1') | KeyCode::Char('a') => ViewAction::SwitchView(TuiView::Chat),
-            KeyCode::Char('3') | KeyCode::Char('s') => ViewAction::SwitchView(TuiView::Studio),
-            KeyCode::Char('4') | KeyCode::Char('m') => ViewAction::SwitchView(TuiView::Monitor),
+            // View switching: number keys only (v0.7.1 - Option B navigation)
+            KeyCode::Char('1') => ViewAction::SwitchView(TuiView::Chat),
+            KeyCode::Char('3') => ViewAction::SwitchView(TuiView::Studio),
+            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Monitor),
 
             // Tab: handled at app level for view cycling
             KeyCode::Tab => ViewAction::None,
