@@ -23,6 +23,9 @@ pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Timeout for MCP tool calls (invoke: verb)
 pub const MCP_CALL_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// Timeout for entire workflow execution (TUI mode)
+pub const WORKFLOW_TIMEOUT: Duration = Duration::from_secs(300); // 5 minutes
+
 // ═══════════════════════════════════════════════════════════════
 // HTTP Client Limits
 // ═══════════════════════════════════════════════════════════════

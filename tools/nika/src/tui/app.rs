@@ -28,7 +28,7 @@ use tokio::sync::{broadcast, mpsc, OnceCell};
 use tokio::task::JoinSet;
 use tokio::time::timeout;
 
-use crate::util::constants::{EXEC_TIMEOUT, FETCH_TIMEOUT, INFER_TIMEOUT};
+use crate::util::constants::{EXEC_TIMEOUT, FETCH_TIMEOUT, INFER_TIMEOUT, WORKFLOW_TIMEOUT};
 
 use crate::ast::schema_validator::WorkflowSchemaValidator;
 use crate::ast::{AgentParams, McpConfigInline, Workflow};
@@ -2656,14 +2656,17 @@ impl App {
                 return;
             }
 
-            // Create and run workflow
+            // Create and run workflow with timeout protection
             let runner = Runner::with_event_log(workflow, event_log);
-            match runner.run().await {
-                Ok(output) => {
+            match timeout(WORKFLOW_TIMEOUT, runner.run()).await {
+                Ok(Ok(output)) => {
                     tracing::info!("Workflow completed: {} chars output", output.len());
                 }
-                Err(e) => {
+                Ok(Err(e)) => {
                     tracing::error!("Workflow execution failed: {}", e);
+                }
+                Err(_) => {
+                    tracing::error!("Workflow timed out after {}s", WORKFLOW_TIMEOUT.as_secs());
                 }
             }
         });
