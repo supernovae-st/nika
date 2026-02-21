@@ -14,6 +14,17 @@
 //! | `/help` or `/?` | Show help | `/help` |
 //! | (plain text) | Chat message | `hello world` |
 
+/// MCP server action for /mcp command
+#[derive(Debug, Clone, PartialEq)]
+pub enum McpAction {
+    /// List available MCP servers
+    List,
+    /// Select specific servers (replaces current selection)
+    Select(Vec<String>),
+    /// Toggle a single server on/off
+    Toggle(String),
+}
+
 /// Parsed chat command
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
@@ -33,10 +44,12 @@ pub enum Command {
         params: serde_json::Value,
     },
 
-    /// /agent <goal> [--max-turns N] - Multi-turn agentic loop
+    /// /agent <goal> [--max-turns N] [--mcp server1,server2] - Multi-turn agentic loop
     Agent {
         goal: String,
         max_turns: Option<u32>,
+        /// MCP servers to use for this agent (v0.5.2)
+        mcp_servers: Vec<String>,
     },
 
     /// Plain chat message (default)
@@ -50,6 +63,9 @@ pub enum Command {
 
     /// /clear - Clear chat history
     Clear,
+
+    /// /mcp [list|select|toggle] - MCP server management (v0.5.2)
+    Mcp { action: McpAction },
 }
 
 /// Available LLM providers via rig-core
@@ -104,6 +120,7 @@ impl Command {
                 "/agent" => Self::parse_agent_args(args),
                 "/help" | "/?" => Command::Help,
                 "/model" => Self::parse_model_args(args),
+                "/mcp" => Self::parse_mcp_args(args),
                 "/clear" => Command::Clear,
                 _ => {
                     // Unknown command, treat as chat message
@@ -193,21 +210,100 @@ impl Command {
         }
     }
 
-    /// Parse /agent arguments: /agent <goal> [--max-turns N]
+    /// Parse /agent arguments: /agent <goal> [--max-turns N] [--mcp server1,server2]
     fn parse_agent_args(args: &str) -> Command {
         let args = args.trim();
+        let mut goal = args.to_string();
+        let mut max_turns = None;
+        let mut mcp_servers = Vec::new();
 
-        if args.contains("--max-turns") {
-            // Split on --max-turns
-            let parts: Vec<&str> = args.split("--max-turns").collect();
-            let goal = parts[0].trim().to_string();
-            let max_turns = parts.get(1).and_then(|s| s.trim().parse().ok());
-            Command::Agent { goal, max_turns }
-        } else {
-            Command::Agent {
-                goal: args.to_string(),
-                max_turns: None,
+        // Parse --mcp servers (can be anywhere in the string)
+        if let Some(mcp_idx) = args.find("--mcp") {
+            let before_mcp = &args[..mcp_idx];
+            let after_mcp = &args[mcp_idx + 5..]; // Skip "--mcp"
+
+            // Extract servers until next -- or end
+            let servers_str = if let Some(next_flag) = after_mcp.find(" --") {
+                &after_mcp[..next_flag]
+            } else {
+                after_mcp
+            };
+
+            // Parse comma-separated servers
+            mcp_servers = servers_str
+                .trim()
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            // Rebuild goal without --mcp part
+            goal = before_mcp.to_string();
+            if let Some(next_flag) = after_mcp.find(" --") {
+                goal.push_str(&after_mcp[next_flag..]);
             }
+        }
+
+        // Parse --max-turns (from potentially modified goal)
+        if let Some(turns_idx) = goal.find("--max-turns") {
+            let before_turns = &goal[..turns_idx];
+            let after_turns = &goal[turns_idx + 11..]; // Skip "--max-turns"
+
+            // Extract number until next -- or end
+            let turns_str = if let Some(next_flag) = after_turns.find(" --") {
+                &after_turns[..next_flag]
+            } else {
+                after_turns
+            };
+
+            max_turns = turns_str
+                .split_whitespace()
+                .next()
+                .and_then(|s| s.parse().ok());
+
+            // Rebuild goal without --max-turns part
+            goal = before_turns.trim().to_string();
+            // Don't append remaining since we've already processed --mcp
+        }
+
+        Command::Agent {
+            goal: goal.trim().to_string(),
+            max_turns,
+            mcp_servers,
+        }
+    }
+
+    /// Parse /mcp arguments: /mcp [list|select|toggle] [servers]
+    fn parse_mcp_args(args: &str) -> Command {
+        let args = args.trim();
+
+        if args.is_empty() || args == "list" {
+            return Command::Mcp {
+                action: McpAction::List,
+            };
+        }
+
+        let parts: Vec<&str> = args.splitn(2, ' ').collect();
+        let action = parts[0].to_lowercase();
+        let server_args = parts.get(1).map(|s| s.trim()).unwrap_or("");
+
+        match action.as_str() {
+            "select" => {
+                let servers: Vec<String> = server_args
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                Command::Mcp {
+                    action: McpAction::Select(servers),
+                }
+            }
+            "toggle" => Command::Mcp {
+                action: McpAction::Toggle(server_args.to_string()),
+            },
+            _ => Command::Mcp {
+                action: McpAction::List,
+            },
         }
     }
 
@@ -223,6 +319,7 @@ impl Command {
             Command::Help => "help",
             Command::Model { .. } => "model",
             Command::Clear => "clear",
+            Command::Mcp { .. } => "mcp",
         }
     }
 
@@ -238,6 +335,7 @@ impl Command {
             Command::Help => false,
             Command::Model { .. } => false,
             Command::Clear => false,
+            Command::Mcp { .. } => false,
         }
     }
 }
@@ -278,7 +376,8 @@ Nika Chat Commands:
   /exec <command>           Shell command execution
   /fetch <url> [method]     HTTP request (default: GET)
   /invoke [server:]tool     MCP tool call (params as JSON)
-  /agent <goal>             Multi-turn agent (--max-turns N)
+  /agent <goal>             Multi-turn agent (--max-turns N) (--mcp servers)
+  /mcp [list|select|toggle] MCP server management (v0.5.2)
   /model <provider>         Switch LLM provider (openai, claude)
   /clear                    Clear chat history
   /help or /?               Show this help
@@ -287,11 +386,18 @@ Keyboard Shortcuts:
   Ctrl+K                    Open command palette
   Ctrl+T                    Toggle deep thinking (🧠)
   Ctrl+M                    Toggle Infer/Agent mode
+  Ctrl+S                    Open MCP server picker
 
 Modes:
   ⚡ Infer                  Simple inference (default)
   🐔 Agent                  Multi-turn with MCP tools
   🧠 Think                  Extended thinking (Claude only)
+
+MCP Server Management:
+  /mcp                      List available MCP servers
+  /mcp list                 List available MCP servers
+  /mcp select novanet       Select specific servers
+  /mcp toggle novanet       Toggle server on/off
 
 Model Switching:
   /model openai             Switch to OpenAI (gpt-4o)
@@ -306,7 +412,8 @@ Examples:
   /exec cargo test
   /fetch https://api.example.com GET
   /invoke novanet:describe {"entity":"qr-code"}
-  /agent generate a landing page --max-turns 5
+  /agent generate a landing page --max-turns 5 --mcp novanet
+  /agent research topic --mcp novanet,perplexity
   Explain @src/main.rs      Include file content
 
 Plain text is treated as chat messages for the current model.
@@ -459,22 +566,36 @@ mod tests {
     fn test_parse_agent_simple() {
         let input = "/agent generate a landing page";
         let cmd = Command::parse(input);
-        assert!(matches!(
-            cmd,
-            Command::Agent { goal, max_turns }
-            if goal == "generate a landing page" && max_turns.is_none()
-        ));
+        if let Command::Agent {
+            goal,
+            max_turns,
+            mcp_servers,
+        } = cmd
+        {
+            assert_eq!(goal, "generate a landing page");
+            assert_eq!(max_turns, None);
+            assert!(mcp_servers.is_empty());
+        } else {
+            panic!("Expected Command::Agent");
+        }
     }
 
     #[test]
     fn test_parse_agent_with_max_turns() {
         let input = "/agent generate a landing page --max-turns 5";
         let cmd = Command::parse(input);
-        assert!(matches!(
-            cmd,
-            Command::Agent { goal, max_turns }
-            if goal == "generate a landing page" && max_turns == Some(5)
-        ));
+        if let Command::Agent {
+            goal,
+            max_turns,
+            mcp_servers,
+        } = cmd
+        {
+            assert_eq!(goal, "generate a landing page");
+            assert_eq!(max_turns, Some(5));
+            assert!(mcp_servers.is_empty());
+        } else {
+            panic!("Expected Command::Agent");
+        }
     }
 
     #[test]
@@ -482,12 +603,16 @@ mod tests {
         let input = "/agent --max-turns 3 do something";
         let cmd = Command::parse(input);
         // The goal should be empty (before --max-turns)
-        // "3 do something" parses as None because parse::<u32>() fails on the trailing text
-        if let Command::Agent { goal, max_turns } = cmd {
+        // "3 do something" parses as 3 using split_whitespace().next()
+        if let Command::Agent {
+            goal,
+            max_turns,
+            mcp_servers,
+        } = cmd
+        {
             assert!(goal.is_empty());
-            // Note: "3 do something".parse::<u32>() returns Err, so max_turns is None
-            // This is expected behavior - max_turns should be the last argument
-            assert_eq!(max_turns, None);
+            assert_eq!(max_turns, Some(3));
+            assert!(mcp_servers.is_empty());
         } else {
             panic!("Expected Command::Agent");
         }
@@ -498,9 +623,15 @@ mod tests {
         // When --max-turns is followed by only a number, it should parse correctly
         let input = "/agent --max-turns 10";
         let cmd = Command::parse(input);
-        if let Command::Agent { goal, max_turns } = cmd {
+        if let Command::Agent {
+            goal,
+            max_turns,
+            mcp_servers,
+        } = cmd
+        {
             assert!(goal.is_empty());
             assert_eq!(max_turns, Some(10));
+            assert!(mcp_servers.is_empty());
         } else {
             panic!("Expected Command::Agent");
         }
@@ -659,6 +790,131 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // /agent with --mcp tests (v0.5.2)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_parse_agent_with_mcp_servers() {
+        let input = "/agent generate a landing page --mcp novanet,perplexity";
+        let cmd = Command::parse(input);
+        if let Command::Agent {
+            goal,
+            max_turns,
+            mcp_servers,
+        } = cmd
+        {
+            assert_eq!(goal, "generate a landing page");
+            assert_eq!(max_turns, None);
+            assert_eq!(mcp_servers, vec!["novanet", "perplexity"]);
+        } else {
+            panic!("Expected Command::Agent");
+        }
+    }
+
+    #[test]
+    fn test_parse_agent_with_mcp_and_max_turns() {
+        let input = "/agent generate a landing page --mcp novanet --max-turns 5";
+        let cmd = Command::parse(input);
+        if let Command::Agent {
+            goal,
+            max_turns,
+            mcp_servers,
+        } = cmd
+        {
+            assert_eq!(goal, "generate a landing page");
+            assert_eq!(max_turns, Some(5));
+            assert_eq!(mcp_servers, vec!["novanet"]);
+        } else {
+            panic!("Expected Command::Agent");
+        }
+    }
+
+    #[test]
+    fn test_parse_agent_with_single_mcp_server() {
+        let input = "/agent do something --mcp novanet";
+        let cmd = Command::parse(input);
+        if let Command::Agent { mcp_servers, .. } = cmd {
+            assert_eq!(mcp_servers, vec!["novanet"]);
+        } else {
+            panic!("Expected Command::Agent");
+        }
+    }
+
+    #[test]
+    fn test_parse_agent_mcp_order_reversed() {
+        // --max-turns before --mcp should also work
+        let input = "/agent do something --max-turns 3 --mcp novanet,perplexity";
+        let cmd = Command::parse(input);
+        if let Command::Agent {
+            max_turns,
+            mcp_servers,
+            ..
+        } = cmd
+        {
+            assert_eq!(max_turns, Some(3));
+            assert_eq!(mcp_servers, vec!["novanet", "perplexity"]);
+        } else {
+            panic!("Expected Command::Agent");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // /mcp command tests (v0.5.2)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_parse_mcp_list() {
+        let input = "/mcp";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Mcp {
+                action: McpAction::List
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_mcp_list_explicit() {
+        let input = "/mcp list";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Mcp {
+                action: McpAction::List
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_mcp_select() {
+        let input = "/mcp select novanet,perplexity";
+        let cmd = Command::parse(input);
+        if let Command::Mcp {
+            action: McpAction::Select(servers),
+        } = cmd
+        {
+            assert_eq!(servers, vec!["novanet", "perplexity"]);
+        } else {
+            panic!("Expected Command::Mcp with Select action");
+        }
+    }
+
+    #[test]
+    fn test_parse_mcp_toggle() {
+        let input = "/mcp toggle novanet";
+        let cmd = Command::parse(input);
+        if let Command::Mcp {
+            action: McpAction::Toggle(server),
+        } = cmd
+        {
+            assert_eq!(server, "novanet");
+        } else {
+            panic!("Expected Command::Mcp with Toggle action");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // Case insensitivity tests
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -710,7 +966,8 @@ mod tests {
         assert_eq!(
             Command::Agent {
                 goal: "x".into(),
-                max_turns: None
+                max_turns: None,
+                mcp_servers: vec![]
             }
             .verb(),
             "agent"
@@ -731,6 +988,13 @@ mod tests {
             "model"
         );
         assert_eq!(Command::Clear.verb(), "clear");
+        assert_eq!(
+            Command::Mcp {
+                action: McpAction::List
+            }
+            .verb(),
+            "mcp"
+        );
     }
 
     #[test]

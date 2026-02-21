@@ -61,6 +61,9 @@ pub struct ChatMessage {
     pub timestamp: Instant,
     /// Optional inline execution result
     pub execution: Option<ExecutionResult>,
+    /// Optional agent thinking/reasoning content (v0.5.2+)
+    /// Displayed inline when present (collapsible in UI)
+    pub thinking: Option<String>,
 }
 
 /// Inline execution result in chat
@@ -157,6 +160,11 @@ pub struct ChatView {
     pub deep_thinking: bool,
     /// Current provider name for display
     pub provider_name: String,
+
+    // === Thinking Accumulation (v0.5.2+) ===
+    /// Accumulated thinking content during streaming
+    /// Attached to the final message when stream completes
+    pub pending_thinking: Option<String>,
 }
 
 impl ChatView {
@@ -182,6 +190,7 @@ impl ChatView {
                 content:
                     "Welcome to Nika Agent. Type a message to chat, or use /help for commands."
                         .to_string(),
+                thinking: None,
                 timestamp: Instant::now(),
                 execution: None,
             }],
@@ -205,6 +214,9 @@ impl ChatView {
             chat_mode: ChatMode::default(),
             deep_thinking: false,
             provider_name,
+
+            // Thinking Accumulation (v0.5.2)
+            pending_thinking: None,
         }
     }
 
@@ -248,6 +260,32 @@ impl ChatView {
         std::mem::take(&mut self.partial_response)
     }
 
+    /// Append thinking content during streaming (v0.5.2+)
+    pub fn append_thinking(&mut self, thinking: &str) {
+        match &mut self.pending_thinking {
+            Some(existing) => {
+                existing.push('\n');
+                existing.push_str(thinking);
+            }
+            None => {
+                self.pending_thinking = Some(thinking.to_string());
+            }
+        }
+    }
+
+    /// Finalize thinking and attach to last message (v0.5.2+)
+    /// Call this when streaming completes
+    pub fn finalize_thinking(&mut self) {
+        if let Some(thinking) = self.pending_thinking.take() {
+            // Attach thinking to the last Nika message
+            if let Some(last) = self.messages.last_mut() {
+                if last.role == MessageRole::Nika {
+                    last.thinking = Some(thinking);
+                }
+            }
+        }
+    }
+
     /// Set the current model name
     pub fn set_model(&mut self, model: impl Into<String>) {
         self.current_model = model.into();
@@ -272,6 +310,7 @@ impl ChatView {
             content,
             timestamp: Instant::now(),
             execution: None,
+            thinking: None,
         });
     }
 
@@ -405,6 +444,7 @@ impl ChatView {
             content: content.clone(),
             timestamp: Instant::now(),
             execution: None,
+            thinking: None,
         });
         self.history.push(content);
         self.history_index = None;
@@ -417,6 +457,23 @@ impl ChatView {
             content,
             timestamp: Instant::now(),
             execution,
+            thinking: None,
+        });
+    }
+
+    /// Add a Nika response with thinking content (v0.5.2+)
+    pub fn add_nika_message_with_thinking(
+        &mut self,
+        content: String,
+        thinking: Option<String>,
+        execution: Option<ExecutionResult>,
+    ) {
+        self.messages.push(ChatMessage {
+            role: MessageRole::Nika,
+            content,
+            timestamp: Instant::now(),
+            execution,
+            thinking,
         });
     }
 
@@ -427,6 +484,7 @@ impl ChatView {
             content: content.into(),
             timestamp: Instant::now(),
             execution: None,
+            thinking: None,
         });
     }
 
@@ -450,6 +508,72 @@ impl ChatView {
     pub fn replace_last_message(&mut self, content: String) {
         if let Some(last) = self.messages.last_mut() {
             last.content = content;
+        }
+    }
+
+    /// Display an error with recovery suggestions (v0.5.2+)
+    /// Categorizes errors and provides actionable hints
+    pub fn show_error(&mut self, error: &str) {
+        let (category, suggestion) = Self::categorize_error(error);
+        let formatted = format!(
+            "❌ {} Error: {}\n💡 {}\n\nUse /help for commands or /clear to restart.",
+            category, error, suggestion
+        );
+        self.add_system_message(formatted);
+    }
+
+    /// Categorize error and provide recovery suggestion
+    fn categorize_error(error: &str) -> (&'static str, &'static str) {
+        let error_lower = error.to_lowercase();
+
+        if error_lower.contains("api key")
+            || error_lower.contains("authentication")
+            || error_lower.contains("unauthorized")
+        {
+            (
+                "Auth",
+                "Check your API key. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.",
+            )
+        } else if error_lower.contains("timeout")
+            || error_lower.contains("timed out")
+            || error_lower.contains("deadline")
+        {
+            (
+                "Timeout",
+                "Request timed out. Try a shorter prompt or check your connection.",
+            )
+        } else if error_lower.contains("rate limit")
+            || error_lower.contains("too many requests")
+            || error_lower.contains("quota")
+        {
+            (
+                "Rate Limit",
+                "API rate limit reached. Wait a moment and try again.",
+            )
+        } else if error_lower.contains("connection")
+            || error_lower.contains("network")
+            || error_lower.contains("dns")
+            || error_lower.contains("resolve")
+        {
+            (
+                "Network",
+                "Connection failed. Check your internet connection.",
+            )
+        } else if error_lower.contains("mcp")
+            || error_lower.contains("server")
+            || error_lower.contains("tool")
+        {
+            (
+                "MCP",
+                "MCP server issue. Use /mcp list to check available servers.",
+            )
+        } else if error_lower.contains("parse")
+            || error_lower.contains("json")
+            || error_lower.contains("invalid")
+        {
+            ("Parse", "Invalid input format. Check your command syntax.")
+        } else {
+            ("Unexpected", "Please try again or use /clear to restart.")
         }
     }
 
@@ -672,9 +796,14 @@ impl View for ChatView {
                             server,
                             params,
                         } => ViewAction::ChatInvoke(tool, server, params),
-                        Command::Agent { goal, max_turns } => {
-                            ViewAction::ChatAgent(goal, max_turns, self.deep_thinking)
+                        Command::Agent {
+                            goal,
+                            max_turns,
+                            mcp_servers,
+                        } => {
+                            ViewAction::ChatAgent(goal, max_turns, self.deep_thinking, mcp_servers)
                         }
+                        Command::Mcp { action } => ViewAction::ChatMcp(action),
                         Command::Model { provider } => {
                             // Handle /model list inline
                             if provider == ModelProvider::List {
@@ -801,9 +930,17 @@ impl ChatView {
                                 server,
                                 params,
                             } => ViewAction::ChatInvoke(tool, server, params),
-                            Command::Agent { goal, max_turns } => {
-                                ViewAction::ChatAgent(goal, max_turns, self.deep_thinking)
-                            }
+                            Command::Agent {
+                                goal,
+                                max_turns,
+                                mcp_servers,
+                            } => ViewAction::ChatAgent(
+                                goal,
+                                max_turns,
+                                self.deep_thinking,
+                                mcp_servers,
+                            ),
+                            Command::Mcp { action } => ViewAction::ChatMcp(action),
                             Command::Model { provider } => ViewAction::ChatModelSwitch(provider),
                             Command::Infer { prompt } | Command::Chat { message: prompt } => {
                                 ViewAction::ChatInfer(prompt)
@@ -1023,6 +1160,52 @@ impl ChatView {
                         Span::styled("│ ", Style::default().fg(color)),
                         Span::raw(line.to_string()),
                     ])));
+                }
+
+                // Add thinking display if present (v0.5.2+)
+                if let Some(ref thinking) = msg.thinking {
+                    // Thinking indicator header
+                    lines.push(ListItem::new(Line::from(vec![
+                        Span::styled("│ ", Style::default().fg(color)),
+                        Span::styled(
+                            "🧠 Thinking:",
+                            Style::default()
+                                .fg(Color::Rgb(245, 158, 11)) // amber
+                                .add_modifier(Modifier::ITALIC),
+                        ),
+                    ])));
+
+                    // Truncate thinking to first 3 lines for inline display
+                    let thinking_lines: Vec<&str> = thinking.lines().take(3).collect();
+                    for think_line in &thinking_lines {
+                        // Truncate each line to 60 chars
+                        let display_line = if think_line.len() > 60 {
+                            format!("{}...", &think_line[..57])
+                        } else {
+                            think_line.to_string()
+                        };
+                        lines.push(ListItem::new(Line::from(vec![
+                            Span::styled("│   ", Style::default().fg(color)),
+                            Span::styled(
+                                display_line,
+                                Style::default()
+                                    .fg(Color::Rgb(156, 163, 175)) // gray-400
+                                    .add_modifier(Modifier::ITALIC),
+                            ),
+                        ])));
+                    }
+
+                    // Show ellipsis if there are more lines
+                    let total_lines = thinking.lines().count();
+                    if total_lines > 3 {
+                        lines.push(ListItem::new(Line::from(vec![
+                            Span::styled("│   ", Style::default().fg(color)),
+                            Span::styled(
+                                format!("... ({} more lines)", total_lines - 3),
+                                Style::default().fg(Color::Rgb(107, 114, 128)), // gray-500
+                            ),
+                        ])));
+                    }
                 }
 
                 // Add execution result if present
@@ -1802,5 +1985,116 @@ mod tests {
 
         view.scroll_to_bottom();
         assert_eq!(view.scroll, 0);
+    }
+
+    // === Thinking Display Tests (CRITICAL 3) ===
+
+    #[test]
+    fn test_chat_message_has_thinking_field() {
+        let msg = ChatMessage {
+            role: MessageRole::Nika,
+            content: "Here's my answer.".to_string(),
+            timestamp: Instant::now(),
+            execution: None,
+            thinking: Some("Let me analyze this step by step...".to_string()),
+        };
+
+        assert!(msg.thinking.is_some());
+        assert_eq!(
+            msg.thinking.as_ref().unwrap(),
+            "Let me analyze this step by step..."
+        );
+    }
+
+    #[test]
+    fn test_chat_view_add_nika_message_with_thinking() {
+        let mut view = ChatView::new();
+        view.add_nika_message_with_thinking(
+            "The answer is 42.".to_string(),
+            Some("First, let me think about this deeply...".to_string()),
+            None,
+        );
+
+        assert_eq!(view.messages.len(), 2); // welcome + new message
+        let msg = &view.messages[1];
+        assert_eq!(msg.role, MessageRole::Nika);
+        assert_eq!(msg.content, "The answer is 42.");
+        assert!(msg.thinking.is_some());
+        assert_eq!(
+            msg.thinking.as_ref().unwrap(),
+            "First, let me think about this deeply..."
+        );
+    }
+
+    #[test]
+    fn test_chat_view_add_nika_message_without_thinking() {
+        let mut view = ChatView::new();
+        view.add_nika_message_with_thinking("Quick answer.".to_string(), None, None);
+
+        assert_eq!(view.messages.len(), 2);
+        let msg = &view.messages[1];
+        assert!(msg.thinking.is_none());
+    }
+
+    #[test]
+    fn test_chat_view_regular_nika_message_has_no_thinking() {
+        let mut view = ChatView::new();
+        view.add_nika_message("Regular response.".to_string(), None);
+
+        assert_eq!(view.messages.len(), 2);
+        let msg = &view.messages[1];
+        assert!(msg.thinking.is_none());
+    }
+
+    #[test]
+    fn test_chat_view_append_thinking() {
+        let mut view = ChatView::new();
+        assert!(view.pending_thinking.is_none());
+
+        view.append_thinking("First thought");
+        assert_eq!(view.pending_thinking.as_ref().unwrap(), "First thought");
+
+        view.append_thinking("Second thought");
+        assert_eq!(
+            view.pending_thinking.as_ref().unwrap(),
+            "First thought\nSecond thought"
+        );
+    }
+
+    #[test]
+    fn test_chat_view_finalize_thinking() {
+        let mut view = ChatView::new();
+
+        // Add a Nika message first
+        view.add_nika_message("Here's my answer.".to_string(), None);
+        assert!(view.messages[1].thinking.is_none());
+
+        // Accumulate thinking
+        view.append_thinking("Let me think...");
+        view.append_thinking("Step 1: analyze");
+        assert!(view.pending_thinking.is_some());
+
+        // Finalize - should attach to last Nika message
+        view.finalize_thinking();
+        assert!(view.pending_thinking.is_none());
+        assert!(view.messages[1].thinking.is_some());
+        assert_eq!(
+            view.messages[1].thinking.as_ref().unwrap(),
+            "Let me think...\nStep 1: analyze"
+        );
+    }
+
+    #[test]
+    fn test_chat_view_finalize_thinking_no_nika_message() {
+        let mut view = ChatView::new();
+
+        // Only has system message (welcome)
+        view.append_thinking("Some thinking");
+
+        // Finalize - should clear but not attach (no Nika message)
+        view.finalize_thinking();
+        assert!(view.pending_thinking.is_none());
+        // Welcome message should not have thinking
+        assert!(view.messages[0].thinking.is_none());
     }
 }

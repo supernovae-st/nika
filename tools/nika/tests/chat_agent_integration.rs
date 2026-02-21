@@ -170,13 +170,13 @@ fn test_command_parse_agent() {
     // Simple goal
     let cmd = Command::parse("/agent generate a landing page");
     assert!(
-        matches!(cmd, Command::Agent { goal, max_turns } if goal == "generate a landing page" && max_turns.is_none())
+        matches!(cmd, Command::Agent { goal, max_turns, mcp_servers: _ } if goal == "generate a landing page" && max_turns.is_none())
     );
 
     // With max turns
     let cmd = Command::parse("/agent generate content --max-turns 5");
     assert!(
-        matches!(cmd, Command::Agent { goal, max_turns } if goal == "generate content" && max_turns == Some(5))
+        matches!(cmd, Command::Agent { goal, max_turns, mcp_servers: _ } if goal == "generate content" && max_turns == Some(5))
     );
 }
 
@@ -305,7 +305,8 @@ fn test_command_helper_methods() {
     assert_eq!(
         Command::Agent {
             goal: "x".into(),
-            max_turns: None
+            max_turns: None,
+            mcp_servers: vec![],
         }
         .verb(),
         "agent"

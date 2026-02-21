@@ -3,7 +3,7 @@
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 // Import from lib modules
 use nika::ast::schema_validator::WorkflowSchemaValidator;
@@ -16,26 +16,82 @@ use nika::runtime::Runner;
 use nika::tools::PermissionMode;
 use nika::Event;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// HELP TEXT
+// ═══════════════════════════════════════════════════════════════════════════
+
+const LONG_ABOUT: &str = r#"Nika - DAG workflow runner for AI tasks with MCP integration
+
+Nika executes YAML-defined workflows using 5 semantic verbs:
+  ⚡ infer:   LLM text generation
+  📟 exec:    Shell command execution
+  🛰️ fetch:   HTTP requests
+  🔌 invoke:  MCP tool calls
+  🐔 agent:   Multi-turn agentic loops
+
+Launch without arguments to open the interactive TUI."#;
+
+const AFTER_HELP: &str = r#"EXAMPLES:
+    nika                              Launch interactive TUI (Home view)
+    nika workflow.nika.yaml           Run a workflow directly
+    nika chat                         Start conversational AI agent
+    nika chat --provider openai       Chat with OpenAI
+    nika run my-flow.nika.yaml        Run workflow (explicit)
+    nika check my-flow.nika.yaml      Validate workflow syntax
+    nika check flow.yaml --strict     Validate with MCP connections
+    nika studio my-flow.nika.yaml     Open workflow in editor
+    nika init                         Initialize a new project
+    nika trace list                   View execution traces
+
+VIEWS (in TUI):
+    [a] Chat     Conversational agent interface
+    [h] Home     Browse and select workflows
+    [s] Studio   Edit YAML with live validation
+    [m] Monitor  Real-time execution observer
+
+KEYBOARD:
+    Tab          Navigate views
+    ?            Show help
+    q            Quit"#;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CLI STRUCTURE
+// ═══════════════════════════════════════════════════════════════════════════
+
 #[derive(Parser)]
 #[command(name = "nika")]
-#[command(about = "Nika - DAG workflow runner for AI tasks")]
 #[command(version)]
+#[command(about = "Nika - DAG workflow runner for AI tasks")]
+#[command(long_about = LONG_ABOUT)]
+#[command(after_help = AFTER_HELP)]
 struct Cli {
+    /// Workflow file to run directly (e.g., workflow.nika.yaml)
+    #[arg(value_name = "WORKFLOW")]
+    file: Option<PathBuf>,
+
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Initialize a new Nika project in the current directory
-    Init {
-        /// Permission mode: deny, plan, accept-edits, accept-all
-        #[arg(short, long, default_value = "plan")]
-        permission: String,
+    /// Start interactive chat mode (agent conversation)
+    #[cfg(feature = "tui")]
+    Chat {
+        /// Override provider (claude, openai)
+        #[arg(short, long)]
+        provider: Option<String>,
 
-        /// Skip creating example workflow
-        #[arg(long)]
-        no_example: bool,
+        /// Override model
+        #[arg(short, long)]
+        model: Option<String>,
+    },
+
+    /// Open Studio editor for a workflow
+    #[cfg(feature = "tui")]
+    Studio {
+        /// Workflow file to edit (optional)
+        workflow: Option<PathBuf>,
     },
 
     /// Run a workflow file
@@ -52,8 +108,9 @@ enum Commands {
         model: Option<String>,
     },
 
-    /// Validate a workflow file (parse only)
-    Validate {
+    /// Validate a workflow file
+    #[command(alias = "validate")]
+    Check {
         /// Path to .nika.yaml file
         file: String,
 
@@ -62,16 +119,28 @@ enum Commands {
         strict: bool,
     },
 
+    /// Initialize a new Nika project in the current directory
+    Init {
+        /// Permission mode: deny, plan, accept-edits, accept-all
+        #[arg(short, long, default_value = "plan")]
+        permission: String,
+
+        /// Skip creating example workflow
+        #[arg(long)]
+        no_example: bool,
+    },
+
     /// Manage execution traces
     Trace {
         #[command(subcommand)]
         action: TraceAction,
     },
 
-    /// Run interactive TUI (standalone browser or workflow observer)
+    /// [deprecated] Use 'nika' instead
     #[cfg(feature = "tui")]
+    #[command(hide = true)]
     Tui {
-        /// Path to workflow YAML file (optional: runs standalone browser if omitted)
+        /// Path to workflow YAML file (optional)
         workflow: Option<PathBuf>,
     },
 }
@@ -118,11 +187,8 @@ async fn main() {
 
     let cli = Cli::parse();
 
-    // Initialize tracing (skip for TUI to avoid polluting the terminal)
-    #[cfg(feature = "tui")]
-    let is_tui = matches!(cli.command, Commands::Tui { .. });
-    #[cfg(not(feature = "tui"))]
-    let is_tui = false;
+    // Determine if we're running TUI (skip tracing to avoid terminal pollution)
+    let is_tui = is_tui_mode(&cli);
 
     if !is_tui {
         tracing_subscriber::fmt()
@@ -133,31 +199,132 @@ async fn main() {
             .init();
     }
 
+    // Handle positional file argument first (nika workflow.nika.yaml)
+    if let Some(ref file) = cli.file {
+        if cli.command.is_some() {
+            eprintln!(
+                "{} Cannot use both positional file and subcommand",
+                "Error:".red().bold()
+            );
+            std::process::exit(1);
+        }
+
+        // Check if it's a .nika.yaml file
+        if is_nika_workflow(file) {
+            let result = run_workflow(&file.display().to_string(), None, None).await;
+            handle_result(result);
+            return;
+        } else {
+            eprintln!(
+                "{} Expected .nika.yaml file, got: {}",
+                "Error:".red().bold(),
+                file.display()
+            );
+            eprintln!("  {} Use: nika run {}", "Hint:".yellow(), file.display());
+            std::process::exit(1);
+        }
+    }
+
+    // Handle subcommands or default to TUI
     let result = match cli.command {
-        Commands::Init {
-            permission,
-            no_example,
-        } => init_project(&permission, no_example),
-        Commands::Run {
+        // No command = launch TUI (Home view)
+        None => {
+            #[cfg(feature = "tui")]
+            {
+                nika::tui::run_tui_standalone().await
+            }
+            #[cfg(not(feature = "tui"))]
+            {
+                eprintln!("{} TUI feature not enabled", "Error:".red().bold());
+                eprintln!("  {} Use: nika run <workflow.nika.yaml>", "Hint:".yellow());
+                std::process::exit(1);
+            }
+        }
+
+        // Chat mode
+        #[cfg(feature = "tui")]
+        Some(Commands::Chat { provider, model }) => nika::tui::run_tui_chat(provider, model).await,
+
+        // Studio mode
+        #[cfg(feature = "tui")]
+        Some(Commands::Studio { workflow }) => nika::tui::run_tui_studio(workflow).await,
+
+        // Run workflow
+        Some(Commands::Run {
             file,
             provider,
             model,
-        } => run_workflow(&file, provider, model).await,
-        Commands::Validate { file, strict } => {
+        }) => run_workflow(&file, provider, model).await,
+
+        // Check/Validate workflow
+        Some(Commands::Check { file, strict }) => {
             if strict {
                 validate_workflow_strict(&file).await
             } else {
                 validate_workflow(&file)
             }
         }
-        Commands::Trace { action } => handle_trace_command(action),
+
+        // Init project
+        Some(Commands::Init {
+            permission,
+            no_example,
+        }) => init_project(&permission, no_example),
+
+        // Trace commands
+        Some(Commands::Trace { action }) => handle_trace_command(action),
+
+        // Legacy TUI command (hidden, backward compat)
         #[cfg(feature = "tui")]
-        Commands::Tui { workflow } => match workflow {
-            Some(path) => nika::tui::run_tui(&path).await,
-            None => nika::tui::run_tui_standalone().await,
-        },
+        Some(Commands::Tui { workflow }) => {
+            eprintln!(
+                "{} 'nika tui' is deprecated. Use 'nika' instead.",
+                "Note:".yellow()
+            );
+            match workflow {
+                Some(path) => nika::tui::run_tui(&path).await,
+                None => nika::tui::run_tui_standalone().await,
+            }
+        }
     };
 
+    handle_result(result);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Check if we're running in TUI mode (skip tracing to avoid terminal pollution)
+fn is_tui_mode(cli: &Cli) -> bool {
+    // No command and no file = TUI standalone
+    if cli.command.is_none() && cli.file.is_none() {
+        return true;
+    }
+
+    // Check TUI-related commands
+    #[cfg(feature = "tui")]
+    if let Some(ref cmd) = cli.command {
+        return matches!(
+            cmd,
+            Commands::Chat { .. } | Commands::Studio { .. } | Commands::Tui { .. }
+        );
+    }
+
+    false
+}
+
+/// Check if a file is a Nika workflow (.nika.yaml)
+fn is_nika_workflow(file: &Path) -> bool {
+    let filename = file
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+    filename.ends_with(".nika.yaml") || filename.ends_with(".nika.yml")
+}
+
+/// Handle result from any command
+fn handle_result(result: Result<(), NikaError>) {
     if let Err(e) = result {
         eprintln!("{} {}", "Error:".red().bold(), e);
         if let Some(suggestion) = e.fix_suggestion() {
@@ -166,6 +333,10 @@ async fn main() {
         std::process::exit(1);
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WORKFLOW COMMANDS
+// ═══════════════════════════════════════════════════════════════════════════
 
 async fn run_workflow(
     file: &str,

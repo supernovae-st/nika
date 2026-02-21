@@ -142,7 +142,11 @@ fn socratic_invoke_parses_server_tool() {
 fn socratic_agent_parses_max_turns() {
     let cmd = Command::parse("/agent Generate a landing page --max-turns 10");
     match cmd {
-        Command::Agent { goal, max_turns } => {
+        Command::Agent {
+            goal,
+            max_turns,
+            mcp_servers: _,
+        } => {
             assert_eq!(goal, "Generate a landing page");
             assert_eq!(max_turns, Some(10));
         }
@@ -405,7 +409,8 @@ fn socratic_verb_names_consistent() {
     assert_eq!(
         Command::Agent {
             goal: "".into(),
-            max_turns: None
+            max_turns: None,
+            mcp_servers: vec![],
         }
         .verb(),
         "agent"
