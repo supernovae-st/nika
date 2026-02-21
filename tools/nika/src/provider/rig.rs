@@ -728,6 +728,43 @@ mod tests {
     use super::*;
     use serial_test::serial;
 
+    // =========================================================================
+    // StreamResult tests
+    // =========================================================================
+
+    #[test]
+    fn stream_result_from_text_has_zero_tokens() {
+        let result = StreamResult::from_text("hello world");
+        assert_eq!(result.text, "hello world");
+        assert_eq!(result.input_tokens, 0);
+        assert_eq!(result.output_tokens, 0);
+        assert_eq!(result.total_tokens, 0);
+        assert_eq!(result.cached_input_tokens, 0);
+    }
+
+    #[test]
+    fn stream_result_default_is_empty() {
+        let result = StreamResult::default();
+        assert_eq!(result.text, "");
+        assert_eq!(result.total_tokens, 0);
+    }
+
+    #[test]
+    fn stream_result_with_tokens() {
+        let result = StreamResult {
+            text: "response".to_string(),
+            input_tokens: 100,
+            output_tokens: 50,
+            total_tokens: 150,
+            cached_input_tokens: 20,
+        };
+        assert_eq!(
+            result.total_tokens,
+            result.input_tokens + result.output_tokens
+        );
+        assert_eq!(result.cached_input_tokens, 20);
+    }
+
     #[test]
     #[serial]
     fn test_rig_provider_claude_returns_claude_variant() {
