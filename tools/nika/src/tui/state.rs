@@ -14,6 +14,7 @@ use crate::event::{ContextSource, EventKind, ExcludedItem};
 
 use super::theme::{MissionPhase, TaskStatus, ThemeMode};
 use super::views::{DagTab, MissionTab, NovanetTab, ReasoningTab};
+use super::widgets::TimelineEntry;
 
 /// Panel identifier for focus management
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1253,6 +1254,16 @@ pub struct TuiState {
     // ═══════════════════════════════════════════
     /// Cache for formatted JSON strings
     pub json_cache: JsonFormatCache,
+
+    // ═══════════════════════════════════════════
+    // TIMELINE CACHE (Performance Optimization)
+    // ═══════════════════════════════════════════
+    /// Cached timeline entries (rebuilt when timeline_version changes)
+    pub cached_timeline_entries: Vec<TimelineEntry>,
+    /// Version counter for cache invalidation (incremented on task state changes)
+    timeline_version: u32,
+    /// Version used to build the current cache
+    timeline_cache_version: u32,
 }
 
 /// Dirty flags for lazy rendering (TIER 4.1)
@@ -1426,6 +1437,9 @@ impl TuiState {
             max_notifications: 10,
             dirty: DirtyFlags::default(),
             json_cache: JsonFormatCache::new(),
+            cached_timeline_entries: Vec::new(),
+            timeline_version: 0,
+            timeline_cache_version: 0,
         }
     }
 
@@ -1531,6 +1545,7 @@ impl TuiState {
                 // TIER 4.1: Mark progress and dag dirty
                 self.dirty.progress = true;
                 self.dirty.dag = true;
+                self.invalidate_timeline_cache();
             }
 
             EventKind::TaskStarted {
@@ -1555,6 +1570,7 @@ impl TuiState {
                 // TIER 4.1: Mark progress and dag dirty
                 self.dirty.progress = true;
                 self.dirty.dag = true;
+                self.invalidate_timeline_cache();
                 // TIER 4.4: Invalidate task cache on start (will need re-format later)
                 self.json_cache.invalidate(&format!("task:{}", task_id));
             }
@@ -1598,6 +1614,7 @@ impl TuiState {
                 // TIER 4.1: Mark progress and dag dirty
                 self.dirty.progress = true;
                 self.dirty.dag = true;
+                self.invalidate_timeline_cache();
                 // TIER 4.4: Invalidate task cache on completion (new output)
                 self.json_cache.invalidate(&format!("task:{}", task_id));
             }
@@ -1616,6 +1633,7 @@ impl TuiState {
                 self.dirty.progress = true;
                 self.dirty.dag = true;
                 self.dirty.status = true;
+                self.invalidate_timeline_cache();
             }
 
             // ═══════════════════════════════════════════
@@ -2280,6 +2298,51 @@ impl TuiState {
                 .contains(&Breakpoint::OnMcp(task_id.to_string()))
     }
 
+    // ═══════════════════════════════════════════
+    // TIMELINE CACHE METHODS
+    // ═══════════════════════════════════════════
+
+    /// Invalidate the timeline cache (call when task state changes)
+    ///
+    /// This increments the version counter, causing the next call to
+    /// `ensure_timeline_cache()` to rebuild the entries.
+    #[inline]
+    pub fn invalidate_timeline_cache(&mut self) {
+        self.timeline_version = self.timeline_version.wrapping_add(1);
+    }
+
+    /// Ensure the timeline cache is up to date
+    ///
+    /// Call this before rendering the progress panel to ensure
+    /// `cached_timeline_entries` contains the latest data.
+    /// Only rebuilds if the version has changed.
+    pub fn ensure_timeline_cache(&mut self) {
+        if self.timeline_cache_version != self.timeline_version {
+            self.rebuild_timeline_cache();
+        }
+    }
+
+    /// Rebuild the timeline cache from current task state
+    fn rebuild_timeline_cache(&mut self) {
+        self.cached_timeline_entries.clear();
+
+        for id in &self.task_order {
+            if let Some(task) = self.tasks.get(id) {
+                let mut entry = TimelineEntry::new(&task.id, task.status);
+                if let Some(ms) = task.duration_ms {
+                    entry = entry.with_duration(ms);
+                }
+                if self.current_task.as_ref() == Some(&task.id) {
+                    entry = entry.current();
+                }
+                entry = entry.with_breakpoint(self.has_breakpoint(&task.id));
+                self.cached_timeline_entries.push(entry);
+            }
+        }
+
+        self.timeline_cache_version = self.timeline_version;
+    }
+
     /// Get content suitable for clipboard copy based on focused panel and current tab
     ///
     /// Returns the most relevant content for the current view:
@@ -2925,6 +2988,155 @@ mod tests {
             inputs: serde_json::json!({}),
         };
         assert!(!state.should_break(&event2));
+    }
+
+    // ═══════════════════════════════════════════
+    // TIMELINE CACHE TESTS
+    // ═══════════════════════════════════════════
+
+    #[test]
+    fn test_timeline_cache_initialization() {
+        let state = TuiState::new("test.yaml");
+        assert!(state.cached_timeline_entries.is_empty());
+        assert_eq!(state.timeline_version, 0);
+        assert_eq!(state.timeline_cache_version, 0);
+    }
+
+    #[test]
+    fn test_timeline_cache_invalidation_on_task_scheduled() {
+        let mut state = TuiState::new("test.yaml");
+        let v1 = state.timeline_version;
+
+        state.handle_event(
+            &EventKind::TaskScheduled {
+                task_id: Arc::from("task1"),
+                dependencies: vec![],
+            },
+            0,
+        );
+
+        assert_ne!(
+            state.timeline_version, v1,
+            "Version should change after TaskScheduled"
+        );
+    }
+
+    #[test]
+    fn test_timeline_cache_invalidation_on_task_started() {
+        let mut state = TuiState::new("test.yaml");
+        // First schedule the task
+        state.handle_event(
+            &EventKind::TaskScheduled {
+                task_id: Arc::from("task1"),
+                dependencies: vec![],
+            },
+            0,
+        );
+        let v1 = state.timeline_version;
+
+        state.handle_event(
+            &EventKind::TaskStarted {
+                verb: "infer".into(),
+                task_id: Arc::from("task1"),
+                inputs: serde_json::json!({}),
+            },
+            10,
+        );
+
+        assert_ne!(
+            state.timeline_version, v1,
+            "Version should change after TaskStarted"
+        );
+    }
+
+    #[test]
+    fn test_timeline_cache_invalidation_on_task_completed() {
+        let mut state = TuiState::new("test.yaml");
+        // First schedule and start the task
+        state.handle_event(
+            &EventKind::TaskScheduled {
+                task_id: Arc::from("task1"),
+                dependencies: vec![],
+            },
+            0,
+        );
+        state.handle_event(
+            &EventKind::TaskStarted {
+                verb: "infer".into(),
+                task_id: Arc::from("task1"),
+                inputs: serde_json::json!({}),
+            },
+            10,
+        );
+        let v1 = state.timeline_version;
+
+        state.handle_event(
+            &EventKind::TaskCompleted {
+                task_id: Arc::from("task1"),
+                output: serde_json::json!({"result": "done"}).into(),
+                duration_ms: 100,
+            },
+            110,
+        );
+
+        assert_ne!(
+            state.timeline_version, v1,
+            "Version should change after TaskCompleted"
+        );
+    }
+
+    #[test]
+    fn test_timeline_cache_ensure_builds_entries() {
+        let mut state = TuiState::new("test.yaml");
+        state.handle_event(
+            &EventKind::TaskScheduled {
+                task_id: Arc::from("task1"),
+                dependencies: vec![],
+            },
+            0,
+        );
+        state.handle_event(
+            &EventKind::TaskScheduled {
+                task_id: Arc::from("task2"),
+                dependencies: vec![Arc::from("task1")],
+            },
+            0,
+        );
+
+        // Before ensure, cache should be stale
+        assert!(state.cached_timeline_entries.is_empty());
+
+        state.ensure_timeline_cache();
+
+        // After ensure, cache should have 2 entries
+        assert_eq!(state.cached_timeline_entries.len(), 2);
+        assert_eq!(state.timeline_cache_version, state.timeline_version);
+    }
+
+    #[test]
+    fn test_timeline_cache_reuse_when_not_stale() {
+        let mut state = TuiState::new("test.yaml");
+        state.handle_event(
+            &EventKind::TaskScheduled {
+                task_id: Arc::from("task1"),
+                dependencies: vec![],
+            },
+            0,
+        );
+
+        // Build cache
+        state.ensure_timeline_cache();
+        let v1 = state.timeline_cache_version;
+        let entries_ptr = state.cached_timeline_entries.as_ptr();
+
+        // Call ensure again - should not rebuild
+        state.ensure_timeline_cache();
+        let v2 = state.timeline_cache_version;
+        let entries_ptr2 = state.cached_timeline_entries.as_ptr();
+
+        // Same version, same pointer (no rebuild)
+        assert_eq!(v1, v2);
+        assert_eq!(entries_ptr, entries_ptr2);
     }
 
     // ═══════════════════════════════════════════

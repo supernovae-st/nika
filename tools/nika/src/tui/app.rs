@@ -26,6 +26,9 @@ use ratatui::{
 };
 use tokio::sync::{broadcast, mpsc, OnceCell};
 use tokio::task::JoinSet;
+use tokio::time::timeout;
+
+use crate::util::constants::{EXEC_TIMEOUT, FETCH_TIMEOUT, INFER_TIMEOUT};
 
 use crate::ast::schema_validator::WorkflowSchemaValidator;
 use crate::ast::{AgentParams, McpConfigInline, Workflow};
@@ -833,6 +836,8 @@ impl App {
         if let Some(ref mut terminal) = self.terminal {
             // For Monitor view, use the existing full-screen render (backward compatible)
             if current_view == TuiView::Monitor {
+                // Ensure timeline cache is up-to-date before rendering (immutable borrow)
+                self.state.ensure_timeline_cache();
                 let state = &self.state;
                 let theme = &self.theme;
                 terminal
@@ -1011,6 +1016,21 @@ impl App {
                 return Action::SwitchView(TuiView::Monitor)
             }
 
+            // View navigation by letter shortcuts (v0.7 - more intuitive)
+            // c=Chat, h=Home, s=Studio, m=Monitor
+            KeyCode::Char('c') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Chat)
+            }
+            KeyCode::Char('h') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Home)
+            }
+            KeyCode::Char('s') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Studio)
+            }
+            KeyCode::Char('m') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Monitor)
+            }
+
             // Tab cycles views (when not in Monitor, which uses Tab for panel cycling)
             // Also skip when capturing input (Studio Insert mode, Chat with text)
             KeyCode::Tab
@@ -1128,19 +1148,31 @@ impl App {
                     let context = self.build_conversation_context();
                     let prompt_with_context = format!("{}{}", context, msg);
 
-                    // Spawn async task to call ChatAgent.infer()
+                    // Spawn async task to call ChatAgent.infer() with timeout protection
                     let tx = self.llm_response_tx.clone();
                     if self.ensure_chat_agent().is_some() {
                         tokio::spawn(async move {
                             match crate::tui::ChatAgent::new() {
-                                Ok(mut agent) => match agent.infer(&prompt_with_context).await {
-                                    Ok(response) => {
-                                        let _ = tx.send(response).await;
+                                Ok(mut agent) => {
+                                    match timeout(INFER_TIMEOUT, agent.infer(&prompt_with_context))
+                                        .await
+                                    {
+                                        Ok(Ok(response)) => {
+                                            let _ = tx.send(response).await;
+                                        }
+                                        Ok(Err(e)) => {
+                                            let _ = tx.send(format!("Error: {}", e)).await;
+                                        }
+                                        Err(_) => {
+                                            let _ = tx
+                                                .send(format!(
+                                                    "Error: LLM inference timed out after {}s",
+                                                    INFER_TIMEOUT.as_secs()
+                                                ))
+                                                .await;
+                                        }
                                     }
-                                    Err(e) => {
-                                        let _ = tx.send(format!("Error: {}", e)).await;
-                                    }
-                                },
+                                }
                                 Err(e) => {
                                     let _ = tx.send(format!("Error: {}", e)).await;
                                 }
@@ -1628,17 +1660,25 @@ impl App {
                     // Show "thinking" indicator
                     self.state.chat_overlay.add_nika_message("Thinking...");
 
-                    // Spawn async task to call LLM
+                    // Spawn async task to call LLM with timeout protection
                     let tx = self.llm_response_tx.clone();
                     let prompt = message.clone();
                     tokio::spawn(async move {
                         let provider = RigProvider::openai();
-                        match provider.infer(&prompt, None).await {
-                            Ok(response) => {
+                        match timeout(INFER_TIMEOUT, provider.infer(&prompt, None)).await {
+                            Ok(Ok(response)) => {
                                 let _ = tx.send(response).await;
                             }
-                            Err(e) => {
+                            Ok(Err(e)) => {
                                 let _ = tx.send(format!("Error: {}", e)).await;
+                            }
+                            Err(_) => {
+                                let _ = tx
+                                    .send(format!(
+                                        "Error: LLM inference timed out after {}s",
+                                        INFER_TIMEOUT.as_secs()
+                                    ))
+                                    .await;
                             }
                         }
                     });
@@ -1866,15 +1906,25 @@ impl App {
                 match ChatAgent::new() {
                     Ok(agent) => {
                         let mut agent = agent.with_stream_chunks(stream_tx.clone());
-                        match agent.infer(&prompt_with_context).await {
-                            Ok(_response) => {
+                        // Wrap inference with timeout protection
+                        match timeout(INFER_TIMEOUT, agent.infer(&prompt_with_context)).await {
+                            Ok(Ok(_response)) => {
                                 // Response already displayed via streaming tokens
                                 // StreamChunk::Token appends to "Thinking..." message
                                 // Do NOT send on llm_response_tx - that would create duplicate
                             }
-                            Err(e) => {
+                            Ok(Err(e)) => {
                                 // Send error via streaming channel to replace "Thinking..."
                                 let _ = stream_tx.send(StreamChunk::Error(e.to_string())).await;
+                            }
+                            Err(_) => {
+                                // Timeout - send error via streaming channel
+                                let _ = stream_tx
+                                    .send(StreamChunk::Error(format!(
+                                        "LLM inference timed out after {}s",
+                                        INFER_TIMEOUT.as_secs()
+                                    )))
+                                    .await;
                             }
                         }
                     }
@@ -1908,16 +1958,24 @@ impl App {
         self.chat_view
             .add_nika_message(format!("$ {}", command), None);
 
-        // Spawn async task for shell execution
+        // Spawn async task for shell execution with timeout protection
         let tx = self.llm_response_tx.clone();
         tokio::spawn(async move {
             match ChatAgent::new() {
-                Ok(agent) => match agent.exec_command(&command).await {
-                    Ok(output) => {
+                Ok(agent) => match timeout(EXEC_TIMEOUT, agent.exec_command(&command)).await {
+                    Ok(Ok(output)) => {
                         let _ = tx.send(output).await;
                     }
-                    Err(e) => {
+                    Ok(Err(e)) => {
                         let _ = tx.send(format!("Error: {}", e)).await;
+                    }
+                    Err(_) => {
+                        let _ = tx
+                            .send(format!(
+                                "Error: Command timed out after {}s",
+                                EXEC_TIMEOUT.as_secs()
+                            ))
+                            .await;
                     }
                 },
                 Err(e) => {
@@ -1939,28 +1997,38 @@ impl App {
         self.chat_view
             .add_nika_message(format!("Fetching {} {}...", method, url), None);
 
-        // Spawn async task for HTTP request
+        // Spawn async task for HTTP request with timeout protection
         let tx = self.llm_response_tx.clone();
         tokio::spawn(async move {
             match ChatAgent::new() {
-                Ok(agent) => match agent.fetch(&url, &method).await {
-                    Ok(response) => {
-                        // Truncate very long responses
-                        let truncated = if response.len() > 2000 {
-                            format!(
-                                "{}...\n\n[Truncated, {} bytes total]",
-                                &response[..2000],
-                                response.len()
-                            )
-                        } else {
-                            response
-                        };
-                        let _ = tx.send(truncated).await;
+                Ok(agent) => {
+                    match timeout(FETCH_TIMEOUT, agent.fetch(&url, &method)).await {
+                        Ok(Ok(response)) => {
+                            // Truncate very long responses
+                            let truncated = if response.len() > 2000 {
+                                format!(
+                                    "{}...\n\n[Truncated, {} bytes total]",
+                                    &response[..2000],
+                                    response.len()
+                                )
+                            } else {
+                                response
+                            };
+                            let _ = tx.send(truncated).await;
+                        }
+                        Ok(Err(e)) => {
+                            let _ = tx.send(format!("Error: {}", e)).await;
+                        }
+                        Err(_) => {
+                            let _ = tx
+                                .send(format!(
+                                    "Error: HTTP request timed out after {}s",
+                                    FETCH_TIMEOUT.as_secs()
+                                ))
+                                .await;
+                        }
                     }
-                    Err(e) => {
-                        let _ = tx.send(format!("Error: {}", e)).await;
-                    }
-                },
+                }
                 Err(e) => {
                     let _ = tx.send(format!("Error: {}", e)).await;
                 }

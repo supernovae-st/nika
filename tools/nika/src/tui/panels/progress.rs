@@ -18,7 +18,7 @@ use ratatui::{
 use crate::tui::state::TuiState;
 use crate::tui::theme::{MissionPhase, TaskStatus, Theme};
 use crate::tui::utils::format_number;
-use crate::tui::widgets::{Gauge, LatencySparkline, Timeline, TimelineEntry};
+use crate::tui::widgets::{Gauge, LatencySparkline, Timeline};
 
 /// Progress panel (Panel 1: Mission Control)
 pub struct ProgressPanel<'a> {
@@ -95,27 +95,8 @@ impl<'a> ProgressPanel<'a> {
         SPINNER[idx]
     }
 
-    /// Build timeline entries from state
-    fn build_timeline_entries(&self) -> Vec<TimelineEntry> {
-        self.state
-            .task_order
-            .iter()
-            .filter_map(|id| {
-                self.state.tasks.get(id).map(|task| {
-                    let mut entry = TimelineEntry::new(&task.id, task.status);
-                    if let Some(ms) = task.duration_ms {
-                        entry = entry.with_duration(ms);
-                    }
-                    if self.state.current_task.as_ref() == Some(&task.id) {
-                        entry = entry.current();
-                    }
-                    // Add breakpoint indicator (TIER 2.3)
-                    entry = entry.with_breakpoint(self.state.has_breakpoint(&task.id));
-                    entry
-                })
-            })
-            .collect()
-    }
+    // Timeline entries are now cached in TuiState.cached_timeline_entries
+    // Call state.ensure_timeline_cache() before rendering to update the cache
 
     /// Render mission header
     fn render_header(&self, area: Rect, buf: &mut Buffer) {
@@ -217,7 +198,8 @@ impl<'a> ProgressPanel<'a> {
 
     /// Render timeline section
     fn render_timeline(&self, area: Rect, buf: &mut Buffer) {
-        let entries = self.build_timeline_entries();
+        // Use cached timeline entries (call state.ensure_timeline_cache() before rendering)
+        let entries = &self.state.cached_timeline_entries;
 
         // Section label
         buf.set_string(
@@ -237,7 +219,7 @@ impl<'a> ProgressPanel<'a> {
             height: area.height.saturating_sub(1),
         };
 
-        let timeline = Timeline::new(&entries)
+        let timeline = Timeline::new(entries)
             .elapsed(self.state.workflow.elapsed_ms)
             .with_frame(self.state.frame);
         timeline.render(timeline_area, buf);

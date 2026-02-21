@@ -1,7 +1,13 @@
 //! Streaming integration test
 //!
 //! Tests the infer_stream() method with real API calls.
-//! Requires ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable.
+//! Requires API keys for respective providers:
+//! - ANTHROPIC_API_KEY for Claude
+//! - OPENAI_API_KEY for OpenAI
+//! - MISTRAL_API_KEY for Mistral
+//! - GROQ_API_KEY for Groq
+//! - DEEPSEEK_API_KEY for DeepSeek
+//! - OLLAMA_API_BASE_URL for Ollama (local)
 
 use nika::provider::rig::{RigInferError, RigProvider, StreamChunk, StreamResult};
 use tokio::sync::mpsc;
@@ -138,4 +144,132 @@ async fn test_openai_streaming() {
         "✅ OpenAI streaming test passed! Received {} tokens",
         tokens.len()
     );
+}
+
+// =============================================================================
+// v0.7.0 Provider Streaming Tests (Mistral, Groq, DeepSeek, Ollama)
+// =============================================================================
+
+/// Helper to run a streaming test for any provider
+async fn run_streaming_test(
+    provider: RigProvider,
+    provider_name: &'static str,
+) -> Result<(Vec<String>, bool, bool), String> {
+    let (tx, mut rx) = mpsc::channel::<StreamChunk>(100);
+    let prompt = "Say 'hello' and nothing else.";
+
+    let collector = tokio::spawn(async move {
+        let mut tokens = Vec::new();
+        let mut got_done = false;
+        let mut got_metrics = false;
+
+        while let Some(chunk) = rx.recv().await {
+            match chunk {
+                StreamChunk::Token(t) => tokens.push(t),
+                StreamChunk::Done(_) => got_done = true,
+                StreamChunk::Metrics { .. } => got_metrics = true,
+                StreamChunk::Error(e) => eprintln!("{} ERROR: {}", provider_name, e),
+                _ => {}
+            }
+        }
+        (tokens, got_done, got_metrics)
+    });
+
+    let result = provider.infer_stream(prompt, tx, None).await;
+    if let Err(e) = &result {
+        return Err(format!("{} infer_stream failed: {:?}", provider_name, e));
+    }
+
+    let stream_result = result.unwrap();
+    eprintln!(
+        "{}: tokens={}, text='{}'",
+        provider_name, stream_result.total_tokens, stream_result.text
+    );
+
+    let (tokens, got_done, got_metrics) = collector.await.expect("Collector failed");
+    Ok((tokens, got_done, got_metrics))
+}
+
+#[tokio::test]
+#[ignore] // Run with: cargo test --test streaming_test test_mistral -- --ignored
+async fn test_mistral_streaming() {
+    if std::env::var("MISTRAL_API_KEY").is_err() {
+        eprintln!("Skipping: MISTRAL_API_KEY not set");
+        return;
+    }
+
+    let provider = RigProvider::mistral();
+    match run_streaming_test(provider, "Mistral").await {
+        Ok((tokens, got_done, got_metrics)) => {
+            assert!(!tokens.is_empty(), "Should receive tokens");
+            assert!(got_done, "Should receive Done chunk");
+            assert!(got_metrics, "Should receive Metrics chunk");
+            eprintln!("✅ Mistral streaming test passed! {} tokens", tokens.len());
+        }
+        Err(e) => panic!("{}", e),
+    }
+}
+
+#[tokio::test]
+#[ignore] // Run with: cargo test --test streaming_test test_groq -- --ignored
+async fn test_groq_streaming() {
+    if std::env::var("GROQ_API_KEY").is_err() {
+        eprintln!("Skipping: GROQ_API_KEY not set");
+        return;
+    }
+
+    let provider = RigProvider::groq();
+    match run_streaming_test(provider, "Groq").await {
+        Ok((tokens, got_done, got_metrics)) => {
+            assert!(!tokens.is_empty(), "Should receive tokens");
+            assert!(got_done, "Should receive Done chunk");
+            assert!(got_metrics, "Should receive Metrics chunk");
+            eprintln!("✅ Groq streaming test passed! {} tokens", tokens.len());
+        }
+        Err(e) => panic!("{}", e),
+    }
+}
+
+#[tokio::test]
+#[ignore] // Run with: cargo test --test streaming_test test_deepseek -- --ignored
+async fn test_deepseek_streaming() {
+    if std::env::var("DEEPSEEK_API_KEY").is_err() {
+        eprintln!("Skipping: DEEPSEEK_API_KEY not set");
+        return;
+    }
+
+    let provider = RigProvider::deepseek();
+    match run_streaming_test(provider, "DeepSeek").await {
+        Ok((tokens, got_done, got_metrics)) => {
+            assert!(!tokens.is_empty(), "Should receive tokens");
+            assert!(got_done, "Should receive Done chunk");
+            assert!(got_metrics, "Should receive Metrics chunk");
+            eprintln!("✅ DeepSeek streaming test passed! {} tokens", tokens.len());
+        }
+        Err(e) => panic!("{}", e),
+    }
+}
+
+#[tokio::test]
+#[ignore] // Run with: cargo test --test streaming_test test_ollama -- --ignored
+async fn test_ollama_streaming() {
+    if std::env::var("OLLAMA_API_BASE_URL").is_err() {
+        eprintln!("Skipping: OLLAMA_API_BASE_URL not set");
+        return;
+    }
+
+    let provider = RigProvider::ollama();
+    match run_streaming_test(provider, "Ollama").await {
+        Ok((tokens, got_done, got_metrics)) => {
+            assert!(!tokens.is_empty(), "Should receive tokens");
+            assert!(got_done, "Should receive Done chunk");
+            // Ollama may not always return metrics
+            eprintln!(
+                "✅ Ollama streaming test passed! {} tokens (metrics: {})",
+                tokens.len(),
+                got_metrics
+            );
+        }
+        Err(e) => panic!("{}", e),
+    }
 }
