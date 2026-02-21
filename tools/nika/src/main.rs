@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use nika::ast::schema_validator::WorkflowSchemaValidator;
 use nika::ast::{TaskAction, Workflow};
 use nika::dag::{validate_use_wiring, FlowGraph};
-use nika::error::{FixSuggestion, NikaError};
+use nika::error::NikaError;
 use nika::mcp::validation::{McpValidator, ValidationConfig};
 use nika::mcp::{McpClient, McpConfig};
 use nika::runtime::Runner;
@@ -326,10 +326,9 @@ fn is_nika_workflow(file: &Path) -> bool {
 /// Handle result from any command
 fn handle_result(result: Result<(), NikaError>) {
     if let Err(e) = result {
-        eprintln!("{} {}", "Error:".red().bold(), e);
-        if let Some(suggestion) = e.fix_suggestion() {
-            eprintln!("  {} {}", "Fix:".yellow(), suggestion);
-        }
+        // Use miette's fancy error display for terminal output
+        let report = miette::Report::new(e);
+        eprintln!("{:?}", report);
         std::process::exit(1);
     }
 }

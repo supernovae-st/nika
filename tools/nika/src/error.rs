@@ -15,8 +15,11 @@
 //! - NIKA-110-119: Agent errors (v0.2)
 //! - NIKA-120-129: Resilience errors (v0.2) [122-124 deprecated in v0.4]
 //! - NIKA-130-139: TUI errors (v0.2)
+//!
+//! v0.6.1: Added miette for fancy error display with source spans
 
 use crate::mcp::types::McpErrorCode;
+use miette::Diagnostic;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, NikaError>;
@@ -46,24 +49,45 @@ pub trait FixSuggestion {
 }
 
 /// All error variants are part of the public API.
-#[derive(Error, Debug)]
+///
+/// Implements both `thiserror::Error` for std error compatibility
+/// and `miette::Diagnostic` for fancy terminal error display.
+#[derive(Error, Debug, Diagnostic)]
+#[diagnostic(url(docsrs))]
 pub enum NikaError {
     // ═══════════════════════════════════════════
     // WORKFLOW ERRORS (000-009)
     // ═══════════════════════════════════════════
     #[error("[NIKA-001] Failed to parse workflow: {details}")]
+    #[diagnostic(
+        code(nika::parse_error),
+        help("Check YAML syntax: indentation and quoting")
+    )]
     ParseError { details: String },
 
     #[error("[NIKA-002] Invalid schema version: {version}")]
+    #[diagnostic(
+        code(nika::invalid_schema_version),
+        help("Use 'nika/workflow@0.5' as the schema version")
+    )]
     InvalidSchemaVersion { version: String },
 
     #[error("[NIKA-003] Workflow file not found: {path}")]
+    #[diagnostic(code(nika::workflow_not_found), help("Check the file path exists"))]
     WorkflowNotFound { path: String },
 
     #[error("[NIKA-004] Workflow validation failed: {reason}")]
+    #[diagnostic(
+        code(nika::validation_error),
+        help("Check workflow structure matches schema")
+    )]
     ValidationError { reason: String },
 
     #[error("[NIKA-005] Schema validation failed: {}", format_schema_errors(.errors))]
+    #[diagnostic(
+        code(nika::schema_validation_failed),
+        help("Check YAML against schemas/nika-workflow.schema.json")
+    )]
     SchemaValidationFailed {
         errors: Vec<crate::ast::schema_validator::SchemaError>,
     },
@@ -229,18 +253,34 @@ pub enum NikaError {
     JsonError(#[from] serde_json::Error),
 
     #[error("[NIKA-095] YAML parse error: {0}")]
+    #[diagnostic(
+        code(nika::yaml_parse),
+        help("Check YAML syntax: indentation must be consistent, strings with special chars need quoting")
+    )]
     YamlParse(#[from] serde_yaml::Error),
 
     // ═══════════════════════════════════════════
     // MCP ERRORS (100-109) - NEW v0.2
     // ═══════════════════════════════════════════
     #[error("[NIKA-100] MCP server '{name}' not connected")]
+    #[diagnostic(
+        code(nika::mcp_not_connected),
+        help("Check MCP server is running and configured correctly")
+    )]
     McpNotConnected { name: String },
 
     #[error("[NIKA-101] MCP server '{name}' failed to start: {reason}")]
+    #[diagnostic(
+        code(nika::mcp_start_error),
+        help("Check MCP command and args in workflow config")
+    )]
     McpStartError { name: String, reason: String },
 
     #[error("[NIKA-102] MCP tool '{tool}' call failed{}: {reason}", error_code.map(|c| format!(" ({})", c)).unwrap_or_default())]
+    #[diagnostic(
+        code(nika::mcp_tool_error),
+        help("Check tool parameters and MCP server logs")
+    )]
     McpToolError {
         tool: String,
         reason: String,

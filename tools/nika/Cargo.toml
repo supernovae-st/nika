@@ -12,7 +12,7 @@ path = "src/main.rs"
 
 [features]
 default = ["tui"]
-tui = ["dep:ratatui", "dep:crossterm", "dep:tui-textarea", "dep:tui-input", "dep:arboard", "dep:notify"]
+tui = ["dep:ratatui", "dep:crossterm", "dep:tui-textarea", "dep:tui-input", "dep:arboard", "dep:notify", "dep:nucleo"]
 integration = []  # Enable integration tests with real MCP servers
 test-fixtures = []  # Export test_fixtures module for external test crates
 
@@ -36,6 +36,7 @@ jsonschema = "0.26"
 
 # Errors
 thiserror = "1.0"
+miette = { version = "7.6", features = ["fancy"] }
 
 # HTTP
 reqwest = { version = "0.12", features = ["json"] }
@@ -75,6 +76,7 @@ tui-textarea = { version = "0.7", optional = true }  # YAML editor
 tui-input = { version = "0.11", features = ["crossterm"], optional = true }  # Chat input
 arboard = { version = "3.4", optional = true }  # Clipboard support
 notify = { version = "8", optional = true }  # File watching for auto-refresh
+nucleo = { version = "0.5", optional = true }  # Fuzzy file search (Helix quality)
 
 # Logging
 tracing = "0.1"

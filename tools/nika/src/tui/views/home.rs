@@ -3,6 +3,8 @@
 //! Layout:
 //! ```text
 //! +-----------------------------------+---------------------------------------------+
+//! | SEARCH: [fuzzy search bar]        | (when active)                               |
+//! +-----------------------------------+---------------------------------------------+
 //! | FILES (40%)                       | PREVIEW (60%)                               |
 //! | Tree view of .nika.yaml files     | YAML syntax highlighted                     |
 //! +-----------------------------------+---------------------------------------------+
@@ -12,7 +14,8 @@
 
 use std::path::PathBuf;
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use nucleo::{Config, Matcher, Utf32Str};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
@@ -38,6 +41,14 @@ pub struct HomeView {
     pub history_expanded: bool,
     /// Show welcome screen (v0.5.2+)
     pub show_welcome: bool,
+    /// Fuzzy search query (v0.6.1)
+    pub search_query: String,
+    /// Whether search mode is active
+    pub search_active: bool,
+    /// Filtered indices from fuzzy search
+    filtered_indices: Vec<usize>,
+    /// Fuzzy matcher instance
+    matcher: Matcher,
 }
 
 impl HomeView {
@@ -46,6 +57,7 @@ impl HomeView {
         let standalone = StandaloneState::new(root);
         let mut list_state = ListState::default();
         let show_welcome = standalone.browser_entries.is_empty();
+        let entry_count = standalone.browser_entries.len();
         if !standalone.browser_entries.is_empty() {
             list_state.select(Some(0));
         }
@@ -54,14 +66,66 @@ impl HomeView {
             list_state,
             history_expanded: false,
             show_welcome,
+            search_query: String::new(),
+            search_active: false,
+            filtered_indices: (0..entry_count).collect(),
+            matcher: Matcher::new(Config::DEFAULT),
         }
     }
 
-    /// Get currently selected entry
+    /// Update filtered indices based on search query
+    fn update_filter(&mut self) {
+        if self.search_query.is_empty() {
+            // No filter - show all entries
+            self.filtered_indices = (0..self.standalone.browser_entries.len()).collect();
+        } else {
+            // Fuzzy match on file names
+            let mut scored: Vec<(usize, u16)> = Vec::new();
+            let mut query_buf = Vec::new();
+            let query = Utf32Str::new(&self.search_query, &mut query_buf);
+
+            for (i, entry) in self.standalone.browser_entries.iter().enumerate() {
+                let name = entry
+                    .path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let mut haystack_buf = Vec::new();
+                let haystack = Utf32Str::new(&name, &mut haystack_buf);
+
+                if let Some(score) = self.matcher.fuzzy_match(haystack, query) {
+                    scored.push((i, score));
+                }
+            }
+
+            // Sort by score (highest first)
+            scored.sort_by(|a, b| b.1.cmp(&a.1));
+            self.filtered_indices = scored.into_iter().map(|(i, _)| i).collect();
+        }
+
+        // Reset selection
+        if !self.filtered_indices.is_empty() {
+            self.list_state.select(Some(0));
+        } else {
+            self.list_state.select(None);
+        }
+    }
+
+    /// Get filtered entries for display
+    fn filtered_entries(&self) -> Vec<&BrowserEntry> {
+        self.filtered_indices
+            .iter()
+            .filter_map(|&i| self.standalone.browser_entries.get(i))
+            .collect()
+    }
+
+    /// Get currently selected entry (respects filter)
     pub fn selected_entry(&self) -> Option<&BrowserEntry> {
-        self.list_state
-            .selected()
-            .and_then(|i| self.standalone.browser_entries.get(i))
+        self.list_state.selected().and_then(|i| {
+            self.filtered_indices
+                .get(i)
+                .and_then(|&idx| self.standalone.browser_entries.get(idx))
+        })
     }
 
     /// Move selection up
@@ -69,8 +133,11 @@ impl HomeView {
         if let Some(selected) = self.list_state.selected() {
             if selected > 0 {
                 self.list_state.select(Some(selected - 1));
-                self.standalone.browser_index = selected - 1;
-                self.standalone.update_preview();
+                // Update preview based on filtered index
+                if let Some(&idx) = self.filtered_indices.get(selected - 1) {
+                    self.standalone.browser_index = idx;
+                    self.standalone.update_preview();
+                }
             }
         }
     }
@@ -78,10 +145,13 @@ impl HomeView {
     /// Move selection down
     pub fn select_next(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            if selected < self.standalone.browser_entries.len().saturating_sub(1) {
+            if selected < self.filtered_indices.len().saturating_sub(1) {
                 self.list_state.select(Some(selected + 1));
-                self.standalone.browser_index = selected + 1;
-                self.standalone.update_preview();
+                // Update preview based on filtered index
+                if let Some(&idx) = self.filtered_indices.get(selected + 1) {
+                    self.standalone.browser_index = idx;
+                    self.standalone.update_preview();
+                }
             }
         }
     }
@@ -102,9 +172,34 @@ impl HomeView {
 
     /// Render the files panel (left 40%)
     fn render_files(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        // Split area for search bar if active
+        let (search_area, list_area) = if self.search_active {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(3), Constraint::Min(5)])
+                .split(area);
+            (Some(chunks[0]), chunks[1])
+        } else {
+            (None, area)
+        };
+
+        // Render search bar if active
+        if let Some(search_area) = search_area {
+            let search_text = format!("🔍 {}", self.search_query);
+            let search_bar = Paragraph::new(search_text)
+                .style(Style::default().fg(theme.text_primary))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(" SEARCH (Esc to cancel) ")
+                        .border_style(Style::default().fg(theme.highlight)),
+                );
+            frame.render_widget(search_bar, search_area);
+        }
+
+        // Use filtered entries
         let items: Vec<ListItem> = self
-            .standalone
-            .browser_entries
+            .filtered_entries()
             .iter()
             .map(|entry| {
                 let icon = if entry.is_dir {
@@ -126,11 +221,17 @@ impl HomeView {
             })
             .collect();
 
+        let title = if self.search_active && !self.search_query.is_empty() {
+            format!(" FILES ({} matches) ", self.filtered_indices.len())
+        } else {
+            " FILES ".to_string()
+        };
+
         let list = List::new(items)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title(" FILES ")
+                    .title(title)
                     .border_style(Style::default().fg(theme.border_normal)),
             )
             .highlight_style(
@@ -140,7 +241,7 @@ impl HomeView {
             )
             .highlight_symbol("> ");
 
-        frame.render_stateful_widget(list, area, &mut self.list_state.clone());
+        frame.render_stateful_widget(list, list_area, &mut self.list_state.clone());
     }
 
     /// Render the preview panel (right 60%)
@@ -397,9 +498,70 @@ impl View for HomeView {
     }
 
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
+        // Handle search mode input
+        if self.search_active {
+            match key.code {
+                // Cancel search
+                KeyCode::Esc => {
+                    self.search_active = false;
+                    self.search_query.clear();
+                    self.update_filter();
+                    return ViewAction::None;
+                }
+                // Confirm selection
+                KeyCode::Enter => {
+                    self.search_active = false;
+                    if let Some(entry) = self.selected_entry() {
+                        if entry.is_dir {
+                            self.toggle_folder();
+                            return ViewAction::None;
+                        } else {
+                            return ViewAction::RunWorkflow(entry.path.clone());
+                        }
+                    }
+                    return ViewAction::None;
+                }
+                // Navigation in search mode
+                KeyCode::Up => {
+                    self.select_prev();
+                    return ViewAction::None;
+                }
+                KeyCode::Down => {
+                    self.select_next();
+                    return ViewAction::None;
+                }
+                // Backspace to delete
+                KeyCode::Backspace => {
+                    self.search_query.pop();
+                    self.update_filter();
+                    return ViewAction::None;
+                }
+                // Type character
+                KeyCode::Char(c) => {
+                    self.search_query.push(c);
+                    self.update_filter();
+                    return ViewAction::None;
+                }
+                _ => return ViewAction::None,
+            }
+        }
+
+        // Normal mode key handling
         match key.code {
             // Quit
             KeyCode::Char('q') => ViewAction::Quit,
+
+            // Start search with / or Ctrl+P
+            KeyCode::Char('/') => {
+                self.search_active = true;
+                self.search_query.clear();
+                ViewAction::None
+            }
+            KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.search_active = true;
+                self.search_query.clear();
+                ViewAction::None
+            }
 
             // Navigation: j/k or up/down
             KeyCode::Up | KeyCode::Char('k') => {

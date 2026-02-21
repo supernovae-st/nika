@@ -401,12 +401,6 @@ impl RmcpClientAdapter {
     pub fn get_cached_tools(&self) -> Vec<ToolDefinition> {
         self.cached_tools.lock().clone()
     }
-
-    /// Get the server protocol version (if connected)
-    #[allow(dead_code)] // Useful for debugging
-    pub fn server_version(&self) -> Option<String> {
-        self.server_version.lock().clone()
-    }
 }
 
 impl Drop for RmcpClientAdapter {

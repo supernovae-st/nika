@@ -216,6 +216,18 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                     description: "Run workflow",
                     category: KeyCategory::Action,
                 });
+                bindings.push(Keybinding {
+                    code: KeyCode::Char('/'),
+                    modifiers: KeyModifiers::NONE,
+                    description: "Fuzzy search",
+                    category: KeyCategory::Action,
+                });
+                bindings.push(Keybinding {
+                    code: KeyCode::Char('p'),
+                    modifiers: KeyModifiers::CONTROL,
+                    description: "Fuzzy search (Ctrl+P)",
+                    category: KeyCategory::Action,
+                });
             }
         }
         TuiView::Studio => {

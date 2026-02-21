@@ -291,7 +291,6 @@ impl Widget for StatusBar<'_> {
             let (mode_char, mode_color) = match mode {
                 InputMode::Normal => ('N', self.theme.status_success), // Green for Normal
                 InputMode::Insert => ('I', self.theme.status_running), // Amber for Insert
-                InputMode::Command => (':', self.theme.highlight),     // Cyan for Command
                 InputMode::Search => ('/', self.theme.highlight),      // Cyan for Search
             };
             left_spans.push(Span::styled(
