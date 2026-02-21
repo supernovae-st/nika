@@ -594,6 +594,15 @@ impl RigProvider {
 
         let complete_response = response_parts.concat();
         let _ = tx.send(StreamChunk::Done(complete_response.clone())).await;
+
+        // Send metrics after Done (v0.7.0)
+        let _ = tx
+            .send(StreamChunk::Metrics {
+                input_tokens: result.input_tokens,
+                output_tokens: result.output_tokens,
+            })
+            .await;
+
         result.text = complete_response;
         Ok(result)
     }

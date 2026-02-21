@@ -7,6 +7,84 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-02-21
+
+### Added
+- **Full Streaming for All 6 Providers** - Real-time token delivery
+  - Mistral: `CompletionModel::stream()` integration
+  - Groq: Real-time streaming support
+  - DeepSeek: Token-by-token LLM output
+  - Ollama: Full streaming implementation
+  - Claude, OpenAI: Enhanced streaming stability
+  - All providers use rig-core `StreamedAssistantContent`
+- **MCP Server Status Events** - Lifecycle tracking for MCP connections
+  - `McpConnected { server_name }` - Emitted on successful connection
+  - `McpError { server_name, error }` - Emitted on connection failure
+  - Real-time MCP status indicators in TUI status bar
+- **Event System Enhancements**
+  - `TaskStarted` now includes `verb` field (infer, exec, fetch, invoke, agent)
+  - `ContextAssembled` event emitted before `ProviderCalled` for binding source tracking
+  - `StreamChunk::Metrics` emitted after `Done` with input/output token counts
+- **TUI DX Improvements**
+  - Fancy YAML error diagnostics with miette v7.6 (error codes, help text)
+  - Helix-quality fuzzy file search in Home view (nucleo v0.5)
+  - `/` and `Ctrl+P` as fuzzy search triggers (VS Code style)
+- **Real-World Test Workflows** - Production validation (5 new)
+  - `test-v07-streaming-validation.nika.yaml`: Streaming + context chaining
+  - `test-socratic-questioning.nika.yaml`: 5-step iterative refinement
+  - `test-qrcode-ai-content-gen.nika.yaml`: Multilingual parallel pipeline
+  - `test-dag-complex-dependencies.nika.yaml`: Diamond DAG patterns
+  - `test-research-with-perplexity.nika.yaml`: MCP agent integration
+
+### Changed
+- All 6 LLM providers now support real-time streaming (feature-complete)
+- MCP connection lifecycle fully observable via events
+- TUI status bar displays real-time MCP server connection status
+
+### Fixed
+- TaskState test initializers updated for streaming support
+- MissionPhase::Pause added to phase_color match
+- Error handling for unreachable patterns in event processing
+
+### Statistics
+- **1842 tests passing** (up from 1811)
+- **Zero TODOs** remaining in codebase (streaming fully implemented)
+- **5 new test workflows** covering real-world patterns
+
+## [0.6.0] - 2026-02-19
+
+### Added
+- **6 LLM Providers via rig-core v0.31** - Multi-provider LLM support
+  - Claude: `ANTHROPIC_API_KEY` (claude-sonnet-4-20250514)
+  - OpenAI: `OPENAI_API_KEY` (gpt-4o)
+  - Mistral: `MISTRAL_API_KEY` (mistral-large-latest)
+  - Groq: `GROQ_API_KEY` (llama-3.3-70b-versatile)
+  - DeepSeek: `DEEPSEEK_API_KEY` (deepseek-chat)
+  - Ollama: `OLLAMA_API_BASE_URL` (llama3.2)
+- **Automatic Provider Selection** - `RigProvider::auto()` with priority order
+  - Checks env vars: ANTHROPIC → OPENAI → MISTRAL → GROQ → DEEPSEEK → OLLAMA
+  - Clear error messages when no API key found
+- **Chat History Support** - Multi-turn conversations
+  - `agent.chat_continue(prompt)` for sequential turns
+  - `add_to_history(user, assistant)` for manual history management
+  - `with_history(vec)` builder pattern initialization
+- **RigAgentLoop Enhancements**
+  - `run_auto()` for automatic provider detection
+  - Provider-specific methods: `run_claude()`, `run_openai()`, etc.
+  - Chat history methods: `push_message()`, `clear_history()`, `history_len()`
+
+### Changed
+- All LLM provider calls unified under `RigProvider` abstraction
+- `run_auto()` is recommended for production workflows
+
+### Fixed
+- Empty API key validation with clear error messages
+- Chat history properly persisted across turns
+
+### Statistics
+- **1811 tests passing** (comprehensive provider coverage)
+- **6 providers** with 100% API surface compatibility
+
 ## [0.5.2] - 2026-02-21
 
 ### Added

@@ -441,6 +441,10 @@ impl Drop for RmcpClientAdapter {
 mod tests {
     use super::*;
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // RmcpAdapter Construction Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
     #[test]
     fn test_adapter_new() {
         let config = McpConfig::new("test-server", "echo");
@@ -448,12 +452,77 @@ mod tests {
         assert_eq!(adapter.name(), "test-server");
     }
 
+    #[test]
+    fn test_adapter_new_with_args_and_env() {
+        let config = McpConfig::new("novanet", "cargo")
+            .with_arg("run")
+            .with_env("NEO4J_URI", "bolt://localhost:7687");
+
+        let adapter = RmcpClientAdapter::new(config);
+        assert_eq!(adapter.name(), "novanet");
+    }
+
+    #[test]
+    fn test_adapter_debug_not_connected() {
+        let config = McpConfig::new("test-server", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        let debug_str = format!("{:?}", adapter);
+        assert!(debug_str.contains("RmcpClientAdapter"));
+        assert!(debug_str.contains("test-server"));
+        assert!(debug_str.contains("connected"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Connection State Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
     #[tokio::test]
     async fn test_adapter_not_connected_by_default() {
         let config = McpConfig::new("test", "echo");
         let adapter = RmcpClientAdapter::new(config);
         assert!(!adapter.is_connected().await);
     }
+
+    #[test]
+    fn test_adapter_not_connected_sync() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+        assert!(!adapter.is_connected_sync());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Disconnect Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_disconnect_when_not_connected_is_ok() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        let result = adapter.disconnect().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_disconnect_clears_server_version() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        // Manually set server version to test clearing
+        *adapter.server_version.lock() = Some("1.0".to_string());
+        assert_eq!(
+            adapter.server_version.lock().as_ref().map(|s| s.as_str()),
+            Some("1.0")
+        );
+
+        adapter.disconnect().await.ok();
+        assert_eq!(adapter.server_version.lock().as_ref(), None);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Tool Call Error Tests (when not connected)
+    // ═══════════════════════════════════════════════════════════════════════════
 
     #[tokio::test]
     async fn test_call_tool_when_not_connected_returns_error() {
@@ -470,6 +539,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_call_tool_with_object_params() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        let params = serde_json::json!({
+            "entity": "qr-code",
+            "locale": "fr-FR"
+        });
+
+        let result = adapter.call_tool("novanet_generate", params).await;
+
+        // Should fail with McpNotConnected, not with param conversion error
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            NikaError::McpNotConnected { name } => assert_eq!(name, "test"),
+            e => panic!("Expected McpNotConnected, got: {:?}", e),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_call_tool_with_non_object_params() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        // Pass a string instead of object
+        let params = serde_json::json!("not-an-object");
+
+        let result = adapter.call_tool("test_tool", params).await;
+
+        // Should still error with McpNotConnected (params are converted to None)
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            NikaError::McpNotConnected { name } => assert_eq!(name, "test"),
+            e => panic!("Expected McpNotConnected, got: {:?}", e),
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Resource Read Error Tests (when not connected)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
     async fn test_read_resource_when_not_connected_returns_error() {
         let config = McpConfig::new("test", "echo");
         let adapter = RmcpClientAdapter::new(config);
@@ -482,6 +593,28 @@ mod tests {
             e => panic!("Expected McpNotConnected, got: {:?}", e),
         }
     }
+
+    #[tokio::test]
+    async fn test_read_resource_with_various_uris() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        let uris = vec![
+            "neo4j://entity/qr-code",
+            "neo4j://page/landing",
+            "neo4j://block/hero",
+            "file:///path/to/file",
+        ];
+
+        for uri in uris {
+            let result = adapter.read_resource(uri).await;
+            assert!(result.is_err());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // List Tools Error Tests (when not connected)
+    // ═══════════════════════════════════════════════════════════════════════════
 
     #[tokio::test]
     async fn test_list_tools_when_not_connected_returns_error() {
@@ -497,19 +630,73 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_disconnect_when_not_connected_is_ok() {
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Cached Tools Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_get_cached_tools_returns_empty_initially() {
         let config = McpConfig::new("test", "echo");
         let adapter = RmcpClientAdapter::new(config);
 
-        // Should not error
-        let result = adapter.disconnect().await;
-        assert!(result.is_ok());
+        let cached = adapter.get_cached_tools();
+        assert!(cached.is_empty());
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    #[test]
+    fn test_get_cached_tools_with_populated_cache() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        // Manually populate cache
+        let tools = vec![
+            ToolDefinition::new("novanet_generate"),
+            ToolDefinition::new("novanet_traverse"),
+        ];
+        *adapter.cached_tools.lock() = tools.clone();
+
+        let cached = adapter.get_cached_tools();
+        assert_eq!(cached.len(), 2);
+        assert_eq!(cached[0].name, "novanet_generate");
+        assert_eq!(cached[1].name, "novanet_traverse");
+    }
+
+    #[test]
+    fn test_cached_tools_independence() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        let tool1 = ToolDefinition::new("tool1");
+        *adapter.cached_tools.lock() = vec![tool1];
+
+        let cached1 = adapter.get_cached_tools();
+        assert_eq!(cached1.len(), 1);
+
+        // Modify cache again
+        let tool2 = ToolDefinition::new("tool2");
+        *adapter.cached_tools.lock() = vec![tool2];
+
+        let cached2 = adapter.get_cached_tools();
+        assert_eq!(cached2.len(), 1);
+        assert_eq!(cached2[0].name, "tool2");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Drop Implementation Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_adapter_drop_does_not_panic() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        // This should not panic
+        drop(adapter);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // Error Code Extraction Tests (v0.5.3)
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
     fn test_extract_error_code_with_code_pattern() {
@@ -526,6 +713,13 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_error_code_with_error_word_pattern() {
+        let error = "error -32700 in parser";
+        let code = extract_error_code(error);
+        assert_eq!(code, Some(McpErrorCode::ParseError));
+    }
+
+    #[test]
     fn test_extract_error_code_parse_error() {
         let error = "Parse error code: -32700";
         let code = extract_error_code(error);
@@ -533,10 +727,38 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_error_code_invalid_request() {
+        let error = "Invalid request (-32600)";
+        let code = extract_error_code(error);
+        assert_eq!(code, Some(McpErrorCode::InvalidRequest));
+    }
+
+    #[test]
+    fn test_extract_error_code_internal_error() {
+        let error = "code: -32603";
+        let code = extract_error_code(error);
+        assert_eq!(code, Some(McpErrorCode::InternalError));
+    }
+
+    #[test]
     fn test_extract_error_code_server_error() {
         let error = "Server error (-32050): Internal failure";
         let code = extract_error_code(error);
         assert!(matches!(code, Some(McpErrorCode::ServerError(-32050))));
+    }
+
+    #[test]
+    fn test_extract_error_code_various_server_errors() {
+        let test_cases = vec![
+            ("error -32000", Some(McpErrorCode::ServerError(-32000))),
+            ("code: -32050", Some(McpErrorCode::ServerError(-32050))),
+            ("(-32099)", Some(McpErrorCode::ServerError(-32099))),
+        ];
+
+        for (error, expected) in test_cases {
+            let code = extract_error_code(error);
+            assert_eq!(code, expected, "Failed for error: {}", error);
+        }
     }
 
     #[test]
@@ -551,5 +773,76 @@ mod tests {
         let error = "HTTP error code: 404";
         let code = extract_error_code(error);
         assert_eq!(code, None); // 404 is not a JSON-RPC code
+    }
+
+    #[test]
+    fn test_extract_error_code_negative_but_outside_range() {
+        let error = "error code: -100";
+        let code = extract_error_code(error);
+        // -100 is outside JSON-RPC ranges, should be None
+        assert_eq!(code, None);
+    }
+
+    #[test]
+    fn test_extract_error_code_positive_numbers_ignored() {
+        let error = "code: 500 or code: 400";
+        let code = extract_error_code(error);
+        // Positive codes are not JSON-RPC error codes
+        assert_eq!(code, None);
+    }
+
+    #[test]
+    fn test_extract_error_code_multiple_codes_uses_first() {
+        let error = "code: -32602 and also code: -32601";
+        let code = extract_error_code(error);
+        // Should extract the first matching code
+        assert_eq!(code, Some(McpErrorCode::InvalidParams));
+    }
+
+    #[test]
+    fn test_extract_error_code_empty_string() {
+        let error = "";
+        let code = extract_error_code(error);
+        assert_eq!(code, None);
+    }
+
+    #[test]
+    fn test_extract_error_code_with_text_around_code() {
+        let error = "Request failed: code: -32602 - invalid parameters supplied";
+        let code = extract_error_code(error);
+        assert_eq!(code, Some(McpErrorCode::InvalidParams));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Integration Tests (Configuration & Conversion)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_adapter_preserves_config_command() {
+        let config = McpConfig::new("myserver", "python").with_args(["script.py", "--flag"]);
+
+        let adapter = RmcpClientAdapter::new(config);
+        assert_eq!(adapter.name(), "myserver");
+    }
+
+    #[test]
+    fn test_adapter_with_complex_config() {
+        let config = McpConfig::new("complex-server", "node")
+            .with_arg("--require")
+            .with_arg("dotenv/config")
+            .with_arg("index.js")
+            .with_env("LOG_LEVEL", "debug")
+            .with_env("PORT", "3000");
+
+        let adapter = RmcpClientAdapter::new(config);
+        assert_eq!(adapter.name(), "complex-server");
+    }
+
+    #[test]
+    fn test_adapter_name_accessor() {
+        let config = McpConfig::new("my-test-server", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        assert_eq!(adapter.name(), "my-test-server");
     }
 }

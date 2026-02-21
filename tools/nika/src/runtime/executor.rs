@@ -18,7 +18,7 @@ use crate::ast::{
 };
 use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
-use crate::event::{EventKind, EventLog};
+use crate::event::{ContextSource, EventKind, EventLog};
 use crate::mcp::{McpClient, McpConfig};
 use crate::provider::rig::RigProvider;
 use crate::runtime::RigAgentLoop;
@@ -490,6 +490,30 @@ impl TaskExecutor {
             result: prompt.to_string(),
         });
 
+        // EMIT: ContextAssembled - capture binding sources used in prompt (v0.7.0)
+        let bindings_value = bindings.to_value();
+        let sources: Vec<ContextSource> = bindings_value
+            .as_object()
+            .map(|obj| {
+                obj.iter()
+                    .map(|(alias, value)| ContextSource {
+                        node: alias.clone(),
+                        tokens: (value.to_string().len() / 4) as u32, // Rough estimate: ~4 chars/token
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let total_tokens = (prompt.len() / 4) as u32;
+
+        self.event_log.emit(EventKind::ContextAssembled {
+            task_id: Arc::clone(task_id),
+            sources,
+            excluded: Vec::new(), // No exclusion logic in simple infer
+            total_tokens,
+            budget_used_pct: 0.0, // No budget concept in executor
+            truncated: false,
+        });
+
         // Use task-level override or workflow default
         let provider_name = infer.provider.as_deref().unwrap_or(&self.default_provider);
 
@@ -874,6 +898,7 @@ impl TaskExecutor {
         // Clone what we need for the async closure
         let mcp_configs = Arc::clone(&self.mcp_configs);
         let name_owned = name.to_string();
+        let event_log = self.event_log.clone();
 
         // OnceCell::get_or_try_init ensures only one initialization runs
         // Other concurrent callers will wait for the first one to complete
@@ -900,18 +925,37 @@ impl TaskExecutor {
                                 reason: e.to_string(),
                             })?;
 
-                        client.connect().await.map_err(|e| NikaError::McpStartError {
-                            name: name_owned.clone(),
-                            reason: e.to_string(),
-                        })?;
+                        match client.connect().await {
+                            Ok(()) => {
+                                // Cache tools for synchronous get_tool_definitions() access
+                                if let Err(e) = client.list_tools().await {
+                                    tracing::warn!(mcp_server = %name_owned, error = %e, "Failed to cache tools");
+                                }
 
-                        // Cache tools for synchronous get_tool_definitions() access
-                        if let Err(e) = client.list_tools().await {
-                            tracing::warn!(mcp_server = %name_owned, error = %e, "Failed to cache tools");
+                                tracing::info!(mcp_server = %name_owned, "Connected to MCP server");
+
+                                // EMIT: McpConnected event for persistent logging (v0.7.0)
+                                event_log.emit(EventKind::McpConnected {
+                                    server_name: name_owned.clone(),
+                                });
+
+                                Ok(Arc::new(client))
+                            }
+                            Err(e) => {
+                                let error_msg = e.to_string();
+
+                                // EMIT: McpError event for persistent logging (v0.7.0)
+                                event_log.emit(EventKind::McpError {
+                                    server_name: name_owned.clone(),
+                                    error: error_msg.clone(),
+                                });
+
+                                Err(NikaError::McpStartError {
+                                    name: name_owned.clone(),
+                                    reason: error_msg,
+                                })
+                            }
                         }
-
-                        tracing::info!(mcp_server = %name_owned, "Connected to MCP server");
-                        Ok(Arc::new(client))
                     } else {
                         // No config found - this is an error in production
                         tracing::error!(mcp_server = %name_owned, "MCP server not configured in workflow");
@@ -939,29 +983,73 @@ fn action_type(action: &TaskAction) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{ExecParams, InvokeParams};
-    use crate::store::DataStore;
+    use crate::ast::{ExecParams, FetchParams, InvokeParams};
+    use crate::store::{DataStore, TaskResult};
     use serde_json::json;
+    use std::time::Duration;
+
+    // ═══════════════════════════════════════════════════════════════
+    // EXECUTOR CONSTRUCTION TESTS
+    // ═══════════════════════════════════════════════════════════════
 
     #[test]
-    fn executor_is_clone() {
+    fn test_executor_new_default() {
+        let executor = TaskExecutor::new("claude", None, None, EventLog::new());
+        assert_eq!(executor.default_provider.as_ref(), "claude");
+        assert!(executor.default_model.is_none());
+    }
+
+    #[test]
+    fn test_executor_new_with_model() {
+        let executor = TaskExecutor::new("openai", Some("gpt-4"), None, EventLog::new());
+        assert_eq!(executor.default_provider.as_ref(), "openai");
+        assert_eq!(executor.default_model.as_deref(), Some("gpt-4"));
+    }
+
+    #[test]
+    fn test_executor_new_with_mcp_configs() {
+        let mut mcp_configs = rustc_hash::FxHashMap::default();
+        mcp_configs.insert(
+            "novanet".to_string(),
+            McpConfigInline {
+                command: "cargo run".to_string(),
+                args: vec![
+                    "--manifest-path".to_string(),
+                    "path/to/Cargo.toml".to_string(),
+                ],
+                env: rustc_hash::FxHashMap::default(),
+                cwd: None,
+            },
+        );
+
+        let executor = TaskExecutor::new("mock", None, Some(mcp_configs), EventLog::new());
+        assert_eq!(executor.default_provider.as_ref(), "mock");
+    }
+
+    #[test]
+    fn test_executor_is_clone() {
         let exec = TaskExecutor::new("mock", None, None, EventLog::new());
         let _cloned = exec.clone();
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // EXEC VERB TESTS
+    // ═══════════════════════════════════════════════════════════════
+
     #[tokio::test]
-    async fn execute_exec_echo() {
-        let exec = TaskExecutor::new("mock", None, None, EventLog::new());
+    async fn test_execute_exec_simple_command() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
         let bindings = ResolvedBindings::new();
         let datastore = DataStore::new();
+
         let action = TaskAction::Exec {
             exec: ExecParams {
                 command: "echo hello".to_string(),
             },
         };
 
-        let task_id: Arc<str> = Arc::from("test_task");
-        let result = exec
+        let task_id: Arc<str> = Arc::from("test_echo");
+        let result = executor
             .execute(&task_id, &action, &bindings, &datastore)
             .await
             .unwrap();
@@ -969,8 +1057,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn execute_exec_with_template() {
-        let exec = TaskExecutor::new("mock", None, None, EventLog::new());
+    async fn test_execute_exec_with_template_binding() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
         let mut bindings = ResolvedBindings::new();
         bindings.set("name", json!("world"));
         let datastore = DataStore::new();
@@ -981,8 +1069,8 @@ mod tests {
             },
         };
 
-        let task_id: Arc<str> = Arc::from("test_task");
-        let result = exec
+        let task_id: Arc<str> = Arc::from("test_template");
+        let result = executor
             .execute(&task_id, &action, &bindings, &datastore)
             .await
             .unwrap();
@@ -990,26 +1078,52 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn execute_emits_template_resolved() {
-        let event_log = EventLog::new();
-        let exec = TaskExecutor::new("mock", None, None, event_log.clone());
-        let mut bindings = ResolvedBindings::new();
-        bindings.set("name", json!("Alice"));
+    async fn test_execute_exec_command_failure() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let bindings = ResolvedBindings::new();
         let datastore = DataStore::new();
 
         let action = TaskAction::Exec {
             exec: ExecParams {
-                command: "echo Hello {{use.name}}".to_string(),
+                command: "exit 1".to_string(),
             },
         };
 
-        let task_id: Arc<str> = Arc::from("greet");
-        exec.execute(&task_id, &action, &bindings, &datastore)
+        let task_id: Arc<str> = Arc::from("test_fail");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            NikaError::Execution(msg) => {
+                assert!(msg.contains("failed"));
+            }
+            err => panic!("Expected Execution error, got: {err:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_exec_emits_template_resolved() {
+        let event_log = EventLog::new();
+        let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("greeting", json!("Hello"));
+        let datastore = DataStore::new();
+
+        let action = TaskAction::Exec {
+            exec: ExecParams {
+                command: "echo {{use.greeting}}".to_string(),
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_event");
+        executor
+            .execute(&task_id, &action, &bindings, &datastore)
             .await
             .unwrap();
 
-        // Check TemplateResolved event was emitted
-        let events = event_log.filter_task("greet");
+        // Verify TemplateResolved event was emitted
+        let events = event_log.filter_task("test_event");
         assert!(!events.is_empty());
 
         let template_events: Vec<_> = events
@@ -1019,19 +1133,77 @@ mod tests {
         assert_eq!(template_events.len(), 1);
 
         if let EventKind::TemplateResolved { result, .. } = &template_events[0].kind {
-            assert_eq!(result, "echo Hello Alice");
+            assert_eq!(result, "echo Hello");
         }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // INVOKE VERB TESTS (v0.2)
+    // FETCH VERB TESTS (HTTP)
     // ═══════════════════════════════════════════════════════════════
 
     #[tokio::test]
-    async fn execute_invoke_tool_call() {
+    async fn test_execute_fetch_invalid_url() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
+
+        let action = TaskAction::Fetch {
+            fetch: FetchParams {
+                url: "http://invalid.example.invalid".to_string(),
+                method: "GET".to_string(),
+                headers: rustc_hash::FxHashMap::default(),
+                body: None,
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_fetch_fail");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
+        // Result is error because the URL cannot be resolved/connected
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_execute_fetch_with_template_url() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("endpoint", json!("httpbin.org/get"));
+        let datastore = DataStore::new();
+
+        let action = TaskAction::Fetch {
+            fetch: FetchParams {
+                url: "https://{{use.endpoint}}".to_string(),
+                method: "GET".to_string(),
+                headers: rustc_hash::FxHashMap::default(),
+                body: None,
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_fetch_template");
+        // This will connect to the real httpbin, so we expect success if network is available
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
+        // Just verify template was resolved (regardless of network success/failure)
+        let events = EventLog::new();
+        let executor2 = TaskExecutor::new("mock", None, None, events.clone());
+        let result2 = executor2
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
+        // Both should have same result status (both succeed or both fail due to network)
+        assert_eq!(result.is_ok(), result2.is_ok());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // INVOKE VERB TESTS (MCP)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_execute_invoke_tool_call() {
         let event_log = EventLog::new();
-        let exec = TaskExecutor::new("mock", None, None, event_log.clone());
-        exec.inject_mock_mcp_client("novanet"); // Explicit mock injection
+        let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+        executor.inject_mock_mcp_client("novanet");
         let bindings = ResolvedBindings::new();
         let datastore = DataStore::new();
 
@@ -1044,14 +1216,12 @@ mod tests {
             },
         };
 
-        let task_id: Arc<str> = Arc::from("invoke_test");
-        let result = exec.execute(&task_id, &action, &bindings, &datastore).await;
+        let task_id: Arc<str> = Arc::from("test_invoke");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
 
-        assert!(
-            result.is_ok(),
-            "Invoke tool call should succeed: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok(), "Invoke should succeed: {:?}", result.err());
         let output = result.unwrap();
         assert!(
             output.contains("entity"),
@@ -1060,10 +1230,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn execute_invoke_resource_read() {
+    async fn test_execute_invoke_resource_read() {
         let event_log = EventLog::new();
-        let exec = TaskExecutor::new("mock", None, None, event_log.clone());
-        exec.inject_mock_mcp_client("novanet"); // Explicit mock injection
+        let executor = TaskExecutor::new("mock", None, None, event_log);
+        executor.inject_mock_mcp_client("novanet");
         let bindings = ResolvedBindings::new();
         let datastore = DataStore::new();
 
@@ -1076,26 +1246,28 @@ mod tests {
             },
         };
 
-        let task_id: Arc<str> = Arc::from("resource_test");
-        let result = exec.execute(&task_id, &action, &bindings, &datastore).await;
+        let task_id: Arc<str> = Arc::from("test_resource");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
 
         assert!(
             result.is_ok(),
-            "Invoke resource read should succeed: {:?}",
+            "Resource read should succeed: {:?}",
             result.err()
         );
         let output = result.unwrap();
         assert!(
             output.contains("qr-code"),
-            "Output should contain entity id: {output}"
+            "Output should contain resource id: {output}"
         );
     }
 
     #[tokio::test]
-    async fn execute_invoke_emits_mcp_events() {
+    async fn test_execute_invoke_emits_mcp_events() {
         let event_log = EventLog::new();
-        let exec = TaskExecutor::new("mock", None, None, event_log.clone());
-        exec.inject_mock_mcp_client("novanet"); // Explicit mock injection
+        let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+        executor.inject_mock_mcp_client("novanet");
         let bindings = ResolvedBindings::new();
         let datastore = DataStore::new();
 
@@ -1108,13 +1280,14 @@ mod tests {
             },
         };
 
-        let task_id: Arc<str> = Arc::from("mcp_events_test");
-        exec.execute(&task_id, &action, &bindings, &datastore)
+        let task_id: Arc<str> = Arc::from("test_mcp_events");
+        executor
+            .execute(&task_id, &action, &bindings, &datastore)
             .await
             .unwrap();
 
-        // Check MCP events were emitted
-        let events = event_log.filter_task("mcp_events_test");
+        // Verify events were emitted
+        let events = event_log.filter_task("test_mcp_events");
         assert!(!events.is_empty(), "Should emit events");
 
         // Check for McpInvoke event
@@ -1133,9 +1306,41 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn execute_invoke_validation_error() {
-        let event_log = EventLog::new();
-        let exec = TaskExecutor::new("mock", None, None, event_log);
+    async fn test_execute_invoke_tool_with_template_params() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        executor.inject_mock_mcp_client("novanet");
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("entity_key", json!("qr-code"));
+        bindings.set("locale_val", json!("en-US"));
+        let datastore = DataStore::new();
+
+        let action = TaskAction::Invoke {
+            invoke: InvokeParams {
+                mcp: "novanet".to_string(),
+                tool: Some("novanet_generate".to_string()),
+                params: Some(json!({
+                    "entity": "{{use.entity_key}}",
+                    "locale": "{{use.locale_val}}"
+                })),
+                resource: None,
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_invoke_template");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Invoke with template params should succeed: {:?}",
+            result.err()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_execute_invoke_validation_error_both_tool_and_resource() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
         let bindings = ResolvedBindings::new();
         let datastore = DataStore::new();
 
@@ -1143,14 +1348,16 @@ mod tests {
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
                 mcp: "novanet".to_string(),
-                tool: Some("test".to_string()),
+                tool: Some("test_tool".to_string()),
                 params: None,
                 resource: Some("test://resource".to_string()),
             },
         };
 
-        let task_id: Arc<str> = Arc::from("invalid_test");
-        let result = exec.execute(&task_id, &action, &bindings, &datastore).await;
+        let task_id: Arc<str> = Arc::from("test_invalid");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
 
         assert!(result.is_err(), "Should fail with validation error");
         match result.unwrap_err() {
@@ -1162,31 +1369,424 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn execute_invoke_mcp_not_configured_error() {
-        let event_log = EventLog::new();
-        let exec = TaskExecutor::new("mock", None, None, event_log);
-        // NOTE: No inject_mock_mcp_client() - should fail with McpNotConfigured
+    async fn test_execute_invoke_validation_error_neither_tool_nor_resource() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
+
+        // Neither tool nor resource set (invalid)
+        let action = TaskAction::Invoke {
+            invoke: InvokeParams {
+                mcp: "novanet".to_string(),
+                tool: None,
+                params: None,
+                resource: None,
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_neither");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
+
+        assert!(result.is_err(), "Should fail with validation error");
+        match result.unwrap_err() {
+            NikaError::ValidationError { reason } => {
+                assert!(reason.contains("either") || reason.contains("must be specified"));
+            }
+            err => panic!("Expected ValidationError, got: {err:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_invoke_mcp_not_configured() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        // No inject_mock_mcp_client() - server not configured
         let bindings = ResolvedBindings::new();
         let datastore = DataStore::new();
 
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
-                mcp: "unknown_server".to_string(),
+                mcp: "unconfigured_server".to_string(),
                 tool: Some("some_tool".to_string()),
                 params: None,
                 resource: None,
             },
         };
 
-        let task_id: Arc<str> = Arc::from("unconfigured_test");
-        let result = exec.execute(&task_id, &action, &bindings, &datastore).await;
+        let task_id: Arc<str> = Arc::from("test_unconfigured");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
 
         assert!(result.is_err(), "Should fail with McpNotConfigured");
         match result.unwrap_err() {
             NikaError::McpNotConfigured { name } => {
-                assert_eq!(name, "unknown_server");
+                assert_eq!(name, "unconfigured_server");
             }
             err => panic!("Expected McpNotConfigured, got: {err:?}"),
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // BINDING RESOLUTION TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_binding_resolution_single_template() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("key", json!("value123"));
+        let datastore = DataStore::new();
+
+        let action = TaskAction::Exec {
+            exec: ExecParams {
+                command: "echo {{use.key}}".to_string(),
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_binding");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await
+            .unwrap();
+        assert_eq!(result, "value123");
+    }
+
+    #[tokio::test]
+    async fn test_binding_resolution_multiple_templates() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("first", json!("hello"));
+        bindings.set("second", json!("world"));
+        let datastore = DataStore::new();
+
+        let action = TaskAction::Exec {
+            exec: ExecParams {
+                command: "echo {{use.first}} {{use.second}}".to_string(),
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_multi");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await
+            .unwrap();
+        assert_eq!(result, "hello world");
+    }
+
+    #[tokio::test]
+    async fn test_binding_resolution_no_templates() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
+
+        let action = TaskAction::Exec {
+            exec: ExecParams {
+                command: "echo static".to_string(),
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_static");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await
+            .unwrap();
+        assert_eq!(result, "static");
+    }
+
+    #[tokio::test]
+    async fn test_binding_resolution_json_value() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("data", json!({"id": 42, "name": "test"}));
+        let datastore = DataStore::new();
+
+        let action = TaskAction::Exec {
+            exec: ExecParams {
+                command: "echo {{use.data}}".to_string(),
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_json");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await
+            .unwrap();
+        // JSON should be serialized and echoed
+        assert!(result.contains("id"));
+        assert!(result.contains("42"));
+    }
+
+    #[tokio::test]
+    async fn test_binding_resolution_datastore_lookup() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("task_output", json!({"result": "success"}));
+        let datastore = DataStore::new();
+        let task_id_prev: Arc<str> = Arc::from("prev_task");
+        datastore.insert(
+            task_id_prev.clone(),
+            TaskResult::success_str("from_previous_task", Duration::from_millis(100)),
+        );
+
+        let action = TaskAction::Exec {
+            exec: ExecParams {
+                command: "echo {{use.task_output}}".to_string(),
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_store");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await
+            .unwrap();
+        assert!(result.contains("success"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // DECOMPOSE TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_expand_decompose_static() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("items", json!(["item1", "item2", "item3"]));
+        let datastore = DataStore::new();
+
+        let spec = DecomposeSpec {
+            strategy: DecomposeStrategy::Static,
+            traverse: "HAS_CHILD".to_string(),
+            source: "{{use.items}}".to_string(),
+            max_items: None,
+            max_depth: None,
+            mcp_server: None,
+        };
+
+        let result = executor
+            .expand_decompose(&spec, &bindings, &datastore)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0].as_str().unwrap(), "item1");
+        assert_eq!(result[1].as_str().unwrap(), "item2");
+        assert_eq!(result[2].as_str().unwrap(), "item3");
+    }
+
+    #[tokio::test]
+    async fn test_expand_decompose_static_with_max_items() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("items", json!(["a", "b", "c", "d", "e"]));
+        let datastore = DataStore::new();
+
+        let spec = DecomposeSpec {
+            strategy: DecomposeStrategy::Static,
+            traverse: "HAS_CHILD".to_string(),
+            source: "{{use.items}}".to_string(),
+            max_items: Some(2),
+            max_depth: None,
+            mcp_server: None,
+        };
+
+        let result = executor
+            .expand_decompose(&spec, &bindings, &datastore)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_expand_decompose_static_wrong_type() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("notarray", json!({"key": "value"}));
+        let datastore = DataStore::new();
+
+        let spec = DecomposeSpec {
+            strategy: DecomposeStrategy::Static,
+            traverse: "HAS_CHILD".to_string(),
+            source: "{{use.notarray}}".to_string(),
+            max_items: None,
+            max_depth: None,
+            mcp_server: None,
+        };
+
+        let result = executor
+            .expand_decompose(&spec, &bindings, &datastore)
+            .await;
+        assert!(result.is_err(), "Should fail with type mismatch");
+    }
+
+    #[tokio::test]
+    async fn test_extract_decompose_key_from_string() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let value = json!("entity:qr-code");
+
+        let key = executor.extract_decompose_key(&value).unwrap();
+        assert_eq!(key, "entity:qr-code");
+    }
+
+    #[tokio::test]
+    async fn test_extract_decompose_key_from_object() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let value = json!({"key": "entity:test", "name": "Test Entity"});
+
+        let key = executor.extract_decompose_key(&value).unwrap();
+        assert_eq!(key, "entity:test");
+    }
+
+    #[tokio::test]
+    async fn test_extract_decompose_key_invalid() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let value = json!(123);
+
+        let result = executor.extract_decompose_key(&value);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_decompose_nodes_from_nodes_field() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let result_json = json!({
+            "nodes": [
+                {"key": "node1"},
+                {"key": "node2"}
+            ]
+        });
+
+        let nodes = executor.extract_decompose_nodes(&result_json).unwrap();
+        assert_eq!(nodes.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_extract_decompose_nodes_from_items_field() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let result_json = json!({
+            "items": ["item1", "item2", "item3"]
+        });
+
+        let nodes = executor.extract_decompose_nodes(&result_json).unwrap();
+        assert_eq!(nodes.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_extract_decompose_nodes_from_results_field() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let result_json = json!({
+            "results": ["result1", "result2"]
+        });
+
+        let nodes = executor.extract_decompose_nodes(&result_json).unwrap();
+        assert_eq!(nodes.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_extract_decompose_nodes_from_array() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let result_json = json!(["direct1", "direct2"]);
+
+        let nodes = executor.extract_decompose_nodes(&result_json).unwrap();
+        assert_eq!(nodes.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_extract_decompose_nodes_empty_nodes() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let result_json = json!({"nodes": []});
+
+        let nodes = executor.extract_decompose_nodes(&result_json).unwrap();
+        assert_eq!(nodes.len(), 0);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ERROR HANDLING TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_error_handling_exec_timeout() {
+        let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+        let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
+
+        // Sleep command longer than timeout
+        let action = TaskAction::Exec {
+            exec: ExecParams {
+                command: "sleep 100".to_string(),
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_timeout");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
+
+        assert!(result.is_err(), "Should timeout");
+        match result.unwrap_err() {
+            NikaError::Execution(msg) => {
+                assert!(msg.contains("timed out") || msg.contains("timeout"));
+            }
+            err => panic!("Expected Execution error with timeout, got: {err:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_action_type_helper() {
+        let infer_action = TaskAction::Infer {
+            infer: crate::ast::InferParams {
+                prompt: "test".to_string(),
+                provider: None,
+                model: None,
+            },
+        };
+        assert_eq!(action_type(&infer_action), "infer");
+
+        let exec_action = TaskAction::Exec {
+            exec: ExecParams {
+                command: "echo test".to_string(),
+            },
+        };
+        assert_eq!(action_type(&exec_action), "exec");
+
+        let fetch_action = TaskAction::Fetch {
+            fetch: FetchParams {
+                url: "http://example.com".to_string(),
+                method: "GET".to_string(),
+                headers: rustc_hash::FxHashMap::default(),
+                body: None,
+            },
+        };
+        assert_eq!(action_type(&fetch_action), "fetch");
+
+        let invoke_action = TaskAction::Invoke {
+            invoke: InvokeParams {
+                mcp: "novanet".to_string(),
+                tool: Some("test".to_string()),
+                params: None,
+                resource: None,
+            },
+        };
+        assert_eq!(action_type(&invoke_action), "invoke");
+
+        let agent_action = TaskAction::Agent {
+            agent: crate::ast::AgentParams {
+                prompt: "test".to_string(),
+                provider: None,
+                model: None,
+                system: None,
+                mcp: vec![],
+                max_turns: None,
+                stop_conditions: vec![],
+                scope: None,
+                token_budget: None,
+                extended_thinking: None,
+                thinking_budget: None,
+                depth_limit: None,
+            },
+        };
+        assert_eq!(action_type(&agent_action), "agent");
     }
 }

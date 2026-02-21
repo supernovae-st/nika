@@ -29,9 +29,16 @@
 //! - `Tab` / `a/h/s/m` - Switch views
 //! - `?` - Show help
 //! - `q` - Quit
+//!
+//! # Panic Recovery (v0.7.0+)
+//!
+//! The TUI installs a panic hook to restore terminal state on crashes.
+//! Crash logs are written to `~/.nika/crash.log`.
 
 #[cfg(feature = "tui")]
 mod app;
+#[cfg(feature = "tui")]
+mod cache;
 #[cfg(feature = "tui")]
 pub mod chat_agent;
 #[cfg(feature = "tui")]
@@ -43,6 +50,8 @@ mod focus;
 #[cfg(feature = "tui")]
 mod keybindings;
 #[cfg(feature = "tui")]
+mod layout;
+#[cfg(feature = "tui")]
 mod mode;
 #[cfg(feature = "tui")]
 mod panels;
@@ -53,12 +62,16 @@ mod state;
 #[cfg(feature = "tui")]
 mod theme;
 #[cfg(feature = "tui")]
+mod unicode;
+#[cfg(feature = "tui")]
 mod views;
 #[cfg(feature = "tui")]
 pub mod widgets;
 
 #[cfg(feature = "tui")]
 pub use app::App;
+#[cfg(feature = "tui")]
+pub use cache::RenderCache;
 #[cfg(feature = "tui")]
 pub use chat_agent::{ChatAgent, ChatMessage, ChatRole, StreamingState};
 #[cfg(feature = "tui")]
@@ -70,15 +83,105 @@ pub use focus::{FocusState, PanelId as NavPanelId};
 #[cfg(feature = "tui")]
 pub use keybindings::{format_key, keybindings_for_context, KeyCategory, Keybinding};
 #[cfg(feature = "tui")]
+pub use layout::{LayoutMode, ResponsiveLayout};
+#[cfg(feature = "tui")]
 pub use mode::InputMode;
 #[cfg(feature = "tui")]
 pub use standalone::{BrowserEntry, HistoryEntry, StandalonePanel, StandaloneState};
 #[cfg(feature = "tui")]
-pub use state::{AgentTurnState, PanelId, TuiMode, TuiState};
+pub use state::{AgentTurnState, PanelId, PanelScrollState, TuiMode, TuiState};
 #[cfg(feature = "tui")]
-pub use theme::{MissionPhase, TaskStatus, Theme};
+pub use theme::{ColorMode, MissionPhase, TaskStatus, Theme};
+#[cfg(feature = "tui")]
+pub use unicode::{display_width, truncate_to_width};
 #[cfg(feature = "tui")]
 pub use views::{DagTab, MissionTab, NovanetTab, ReasoningTab, TuiView, ViewAction};
+
+/// Install panic hook to restore terminal state on crashes.
+///
+/// This function saves the original panic hook and wraps it with
+/// terminal restoration logic. Crash logs are written to `~/.nika/crash.log`.
+///
+/// # Safety
+///
+/// This function should be called BEFORE entering raw mode.
+/// It is safe to call multiple times (only installs once via std::sync::Once).
+#[cfg(feature = "tui")]
+fn install_panic_hook() {
+    use std::io::Write;
+    use std::panic;
+    use std::sync::Once;
+
+    use crossterm::{execute, terminal::LeaveAlternateScreen};
+
+    static HOOK_INSTALLED: Once = Once::new();
+
+    HOOK_INSTALLED.call_once(|| {
+        let original_hook = panic::take_hook();
+
+        panic::set_hook(Box::new(move |panic_info| {
+            // 1. Restore terminal state FIRST (before any output)
+            let _ = crossterm::terminal::disable_raw_mode();
+            let _ = execute!(std::io::stdout(), LeaveAlternateScreen);
+
+            // 2. Write crash log
+            let crash_log_path = dirs::config_dir()
+                .map(|d| d.join("nika").join("crash.log"))
+                .unwrap_or_else(|| std::path::PathBuf::from("/tmp/nika-crash.log"));
+
+            // Ensure parent directory exists
+            if let Some(parent) = crash_log_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&crash_log_path)
+            {
+                let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
+                let _ = writeln!(
+                    f,
+                    "\n══════════════════════════════════════════════════════════════"
+                );
+                let _ = writeln!(f, "NIKA CRASH: {}", timestamp);
+                let _ = writeln!(
+                    f,
+                    "══════════════════════════════════════════════════════════════"
+                );
+                let _ = writeln!(f, "{}", panic_info);
+
+                // Try to capture backtrace
+                let backtrace = std::backtrace::Backtrace::capture();
+                let _ = writeln!(f, "\nBacktrace:\n{}", backtrace);
+            }
+
+            // 3. Print user-friendly message to stderr
+            eprintln!(
+                "\n\x1b[31m╔══════════════════════════════════════════════════════════════╗\x1b[0m"
+            );
+            eprintln!(
+                "\x1b[31m║  NIKA CRASHED - Terminal has been restored                    ║\x1b[0m"
+            );
+            eprintln!(
+                "\x1b[31m╠══════════════════════════════════════════════════════════════╣\x1b[0m"
+            );
+            eprintln!(
+                "\x1b[31m║  Crash log: {:49} ║\x1b[0m",
+                crash_log_path.display()
+            );
+            eprintln!(
+                "\x1b[31m║  Please report: https://github.com/SuperNovae-studio/nika    ║\x1b[0m"
+            );
+            eprintln!(
+                "\x1b[31m╚══════════════════════════════════════════════════════════════╝\x1b[0m"
+            );
+
+            // 4. Call original hook
+            original_hook(panic_info);
+        }));
+    });
+}
 
 /// Run the TUI for a workflow
 ///
@@ -93,12 +196,15 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
     use crate::event::EventLog;
     use crate::runtime::Runner;
 
-    // 1. Parse and validate workflow
-    let yaml_content = std::fs::read_to_string(workflow_path).map_err(|e| {
-        crate::error::NikaError::WorkflowNotFound {
+    // Install panic hook for terminal recovery
+    install_panic_hook();
+
+    // 1. Parse and validate workflow (use tokio::fs for non-blocking I/O)
+    let yaml_content = tokio::fs::read_to_string(workflow_path)
+        .await
+        .map_err(|e| crate::error::NikaError::WorkflowNotFound {
             path: format!("{}: {}", workflow_path.display(), e),
-        }
-    })?;
+        })?;
 
     let workflow: Workflow = serde_yaml::from_str(&yaml_content).map_err(|e| {
         let line_info = e
@@ -150,6 +256,9 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
 /// 3. Allows user to select and run workflows
 #[cfg(feature = "tui")]
 pub async fn run_tui_standalone() -> crate::error::Result<()> {
+    // Install panic hook for terminal recovery
+    install_panic_hook();
+
     // Find project root (look for Cargo.toml or .git)
     let root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
@@ -178,6 +287,9 @@ pub async fn run_tui_chat(
 ) -> crate::error::Result<()> {
     use views::TuiView;
 
+    // Install panic hook for terminal recovery
+    install_panic_hook();
+
     // Find project root
     let root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
@@ -199,6 +311,9 @@ pub async fn run_tui_chat(
 #[cfg(feature = "tui")]
 pub async fn run_tui_studio(workflow: Option<std::path::PathBuf>) -> crate::error::Result<()> {
     use views::TuiView;
+
+    // Install panic hook for terminal recovery
+    install_panic_hook();
 
     // Find project root
     let root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap_or_default());

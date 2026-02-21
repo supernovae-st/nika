@@ -380,3 +380,852 @@ impl FlowEndpoint {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // WORKFLOW PARSING TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_workflow_parse_minimal_v05() {
+        let yaml = r#"
+schema: nika/workflow@0.5
+tasks:
+  - id: hello
+    infer: "Say hello"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+
+        assert_eq!(workflow.schema, "nika/workflow@0.5");
+        assert_eq!(workflow.provider, "claude"); // default
+        assert_eq!(workflow.tasks.len(), 1);
+        assert_eq!(workflow.tasks[0].id, "hello");
+        assert!(workflow.model.is_none());
+        assert!(workflow.mcp.is_none());
+        assert!(workflow.flows.is_empty());
+    }
+
+    #[test]
+    fn test_workflow_parse_with_provider_and_model() {
+        let yaml = r#"
+schema: nika/workflow@0.5
+provider: openai
+model: gpt-4-turbo
+tasks:
+  - id: task1
+    exec: "echo test"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+
+        assert_eq!(workflow.provider, "openai");
+        assert_eq!(workflow.model, Some("gpt-4-turbo".to_string()));
+    }
+
+    #[test]
+    fn test_workflow_parse_multiple_tasks() {
+        let yaml = r#"
+schema: nika/workflow@0.1
+tasks:
+  - id: task1
+    infer: "First task"
+  - id: task2
+    exec: "echo done"
+  - id: task3
+    fetch:
+      url: "https://example.com"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+
+        assert_eq!(workflow.tasks.len(), 3);
+        assert_eq!(workflow.tasks[0].id, "task1");
+        assert_eq!(workflow.tasks[1].id, "task2");
+        assert_eq!(workflow.tasks[2].id, "task3");
+    }
+
+    #[test]
+    fn test_workflow_parse_with_flows() {
+        let yaml = r#"
+schema: nika/workflow@0.5
+tasks:
+  - id: step1
+    infer: "Generate"
+  - id: step2
+    infer: "Refine"
+flows:
+  - source: step1
+    target: step2
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+
+        assert_eq!(workflow.flows.len(), 1);
+    }
+
+    #[test]
+    fn test_workflow_parse_with_mcp_config() {
+        let yaml = r#"
+schema: nika/workflow@0.2
+mcp:
+  novanet:
+    command: cargo
+    args: [run, -p, novanet-mcp]
+    env:
+      NEO4J_URI: bolt://localhost:7687
+tasks:
+  - id: invoke_task
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity: qr-code
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+
+        assert!(workflow.mcp.is_some());
+        let mcp = workflow.mcp.unwrap();
+        assert!(mcp.contains_key("novanet"));
+
+        let novanet_config = &mcp["novanet"];
+        assert_eq!(novanet_config.command, "cargo");
+        assert_eq!(novanet_config.args.len(), 3);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SCHEMA VALIDATION TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_validate_schema_v01() {
+        let yaml = r#"
+schema: nika/workflow@0.1
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(workflow.validate_schema().is_ok());
+    }
+
+    #[test]
+    fn test_validate_schema_v02() {
+        let yaml = r#"
+schema: nika/workflow@0.2
+tasks:
+  - id: task1
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(workflow.validate_schema().is_ok());
+    }
+
+    #[test]
+    fn test_validate_schema_v03() {
+        let yaml = r#"
+schema: nika/workflow@0.3
+tasks:
+  - id: task1
+    for_each: ["a", "b"]
+    infer: "Test {{use.item}}"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(workflow.validate_schema().is_ok());
+    }
+
+    #[test]
+    fn test_validate_schema_v04() {
+        let yaml = r#"
+schema: nika/workflow@0.4
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(workflow.validate_schema().is_ok());
+    }
+
+    #[test]
+    fn test_validate_schema_v05() {
+        let yaml = r#"
+schema: nika/workflow@0.5
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(workflow.validate_schema().is_ok());
+    }
+
+    #[test]
+    fn test_validate_schema_invalid_version() {
+        let yaml = r#"
+schema: nika/workflow@0.99
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let result = workflow.validate_schema();
+
+        assert!(result.is_err());
+        if let Err(e) = result {
+            let error_str = format!("{:?}", e);
+            assert!(error_str.contains("InvalidSchema"));
+        }
+    }
+
+    #[test]
+    fn test_validate_schema_unknown_version() {
+        let yaml = r#"
+schema: unknown/workflow@0.1
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(workflow.validate_schema().is_err());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TASK OPERATIONS TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_task_for_each_helpers_with_for_each() {
+        let yaml = r#"
+id: test_task
+for_each: ["en-US", "fr-FR", "de-DE"]
+as: locale
+concurrency: 3
+fail_fast: false
+infer: "Generate for {{use.locale}}"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse task");
+
+        assert!(task.has_for_each());
+        assert_eq!(task.for_each_var(), "locale");
+        assert_eq!(task.for_each_concurrency(), 3);
+        assert!(!task.for_each_fail_fast());
+    }
+
+    #[test]
+    fn test_task_for_each_helpers_defaults() {
+        let yaml = r#"
+id: test_task
+for_each: ["a", "b"]
+infer: "Test {{use.item}}"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse task");
+
+        assert!(task.has_for_each());
+        assert_eq!(task.for_each_var(), "item"); // default
+        assert_eq!(task.for_each_concurrency(), 1); // default = sequential
+        assert!(task.for_each_fail_fast()); // default = true
+    }
+
+    #[test]
+    fn test_task_without_for_each() {
+        let yaml = r#"
+id: simple_task
+infer: "Simple test"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse task");
+
+        assert!(!task.has_for_each());
+        assert_eq!(task.for_each_var(), "item");
+        assert_eq!(task.for_each_concurrency(), 1);
+    }
+
+    #[test]
+    fn test_task_decompose_helpers() {
+        let yaml = r#"
+id: decompose_task
+decompose:
+  strategy: semantic
+  traverse: HAS_CHILD
+  source: "$entity"
+infer: "Generate for {{use.item}}"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse task");
+
+        assert!(task.has_decompose());
+        assert!(task.decompose_spec().is_some());
+    }
+
+    #[test]
+    fn test_task_without_decompose() {
+        let yaml = r#"
+id: normal_task
+infer: "No decompose"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse task");
+
+        assert!(!task.has_decompose());
+        assert!(task.decompose_spec().is_none());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FOR_EACH VALIDATION TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_validate_for_each_with_array() {
+        let yaml = r#"
+id: test
+for_each: ["a", "b", "c"]
+infer: "Test"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(task.validate_for_each().is_ok());
+    }
+
+    #[test]
+    fn test_validate_for_each_with_binding_expression_template() {
+        let yaml = r#"
+id: test
+for_each: "{{use.items}}"
+infer: "Test"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(task.validate_for_each().is_ok());
+    }
+
+    #[test]
+    fn test_validate_for_each_with_binding_expression_dollar() {
+        let yaml = r#"
+id: test
+for_each: "$items"
+infer: "Test"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(task.validate_for_each().is_ok());
+    }
+
+    #[test]
+    fn test_validate_for_each_empty_array_fails() {
+        let yaml = r#"
+id: test
+for_each: []
+infer: "Test"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let result = task.validate_for_each();
+
+        assert!(result.is_err());
+        if let Err(e) = result {
+            let error_str = format!("{:?}", e);
+            assert!(error_str.contains("for_each array cannot be empty"));
+        }
+    }
+
+    #[test]
+    fn test_validate_for_each_invalid_type_fails() {
+        let yaml = r#"
+id: test
+for_each: 42
+infer: "Test"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let result = task.validate_for_each();
+
+        assert!(result.is_err());
+        if let Err(e) = result {
+            let error_str = format!("{:?}", e);
+            assert!(error_str.contains("for_each must be an array or binding expression"));
+        }
+    }
+
+    #[test]
+    fn test_validate_for_each_invalid_string_fails() {
+        let yaml = r#"
+id: test
+for_each: "plain_string"
+infer: "Test"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let result = task.validate_for_each();
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_for_each_none() {
+        let yaml = r#"
+id: test
+infer: "Test"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(task.validate_for_each().is_ok());
+    }
+
+    #[test]
+    fn test_workflow_validate_for_each_on_all_tasks() {
+        let yaml = r#"
+schema: nika/workflow@0.3
+tasks:
+  - id: task1
+    for_each: ["a", "b"]
+    infer: "Test"
+  - id: task2
+    infer: "Normal"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(workflow.validate_schema().is_ok());
+    }
+
+    #[test]
+    fn test_workflow_validate_fails_with_empty_for_each() {
+        let yaml = r#"
+schema: nika/workflow@0.3
+tasks:
+  - id: task1
+    for_each: []
+    infer: "Test"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let result = workflow.validate_schema();
+
+        assert!(result.is_err());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TASK ACTION ICONS TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_task_action_icon_infer() {
+        let yaml = r#"
+id: test
+infer: "Generate something"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert_eq!(task.action_icon(), "⚡");
+    }
+
+    #[test]
+    fn test_task_action_icon_exec() {
+        let yaml = r#"
+id: test
+exec: "echo hello"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert_eq!(task.action_icon(), "📟");
+    }
+
+    #[test]
+    fn test_task_action_icon_fetch() {
+        let yaml = r#"
+id: test
+fetch:
+  url: "https://example.com"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert_eq!(task.action_icon(), "🛰️");
+    }
+
+    #[test]
+    fn test_task_action_icon_invoke() {
+        let yaml = r#"
+id: test
+invoke:
+  mcp: novanet
+  tool: novanet_generate
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert_eq!(task.action_icon(), "🔌");
+    }
+
+    #[test]
+    fn test_task_action_icon_agent() {
+        let yaml = r#"
+id: test
+agent:
+  prompt: "Generate something"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert_eq!(task.action_icon(), "🐔");
+    }
+
+    #[test]
+    fn test_task_subagent_icon() {
+        assert_eq!(Task::subagent_icon(), "🐤");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FLOW ENDPOINT TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_flow_endpoint_single() {
+        let yaml = r#"
+source: step1
+target: step2
+"#;
+        let flow: Flow = serde_yaml::from_str(yaml).expect("Failed to parse");
+
+        let source_vec = flow.source.as_vec();
+        assert_eq!(source_vec.len(), 1);
+        assert_eq!(source_vec[0], "step1");
+
+        let target_vec = flow.target.as_vec();
+        assert_eq!(target_vec.len(), 1);
+        assert_eq!(target_vec[0], "step2");
+    }
+
+    #[test]
+    fn test_flow_endpoint_multiple_source() {
+        let yaml = r#"
+source:
+  - step1
+  - step2
+target: step3
+"#;
+        let flow: Flow = serde_yaml::from_str(yaml).expect("Failed to parse");
+
+        let source_vec = flow.source.as_vec();
+        assert_eq!(source_vec.len(), 2);
+        assert_eq!(source_vec[0], "step1");
+        assert_eq!(source_vec[1], "step2");
+    }
+
+    #[test]
+    fn test_flow_endpoint_multiple_target() {
+        let yaml = r#"
+source: step1
+target:
+  - step2
+  - step3
+  - step4
+"#;
+        let flow: Flow = serde_yaml::from_str(yaml).expect("Failed to parse");
+
+        let target_vec = flow.target.as_vec();
+        assert_eq!(target_vec.len(), 3);
+        assert_eq!(target_vec[0], "step2");
+        assert_eq!(target_vec[1], "step3");
+        assert_eq!(target_vec[2], "step4");
+    }
+
+    #[test]
+    fn test_flow_endpoint_multiple_both() {
+        let yaml = r#"
+source: [step1, step2]
+target: [step3, step4]
+"#;
+        let flow: Flow = serde_yaml::from_str(yaml).expect("Failed to parse");
+
+        assert_eq!(flow.source.as_vec().len(), 2);
+        assert_eq!(flow.target.as_vec().len(), 2);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // HASH COMPUTATION TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_workflow_compute_hash() {
+        let yaml = r#"
+schema: nika/workflow@0.5
+provider: claude
+model: claude-sonnet-4-20250514
+tasks:
+  - id: task1
+    infer: "Test"
+  - id: task2
+    exec: "echo done"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let hash = workflow.compute_hash();
+
+        // Should be 16-character hex string (64-bit hash)
+        assert_eq!(hash.len(), 16);
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_workflow_compute_hash_consistency() {
+        let yaml = r#"
+schema: nika/workflow@0.5
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let hash1 = workflow.compute_hash();
+        let hash2 = workflow.compute_hash();
+
+        // Same workflow should produce same hash
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_workflow_compute_hash_differs_with_schema() {
+        let yaml_v1 = r#"
+schema: nika/workflow@0.1
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let yaml_v5 = r#"
+schema: nika/workflow@0.5
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let workflow_v1: Workflow = serde_yaml::from_str(yaml_v1).expect("Failed to parse");
+        let workflow_v5: Workflow = serde_yaml::from_str(yaml_v5).expect("Failed to parse");
+
+        let hash_v1 = workflow_v1.compute_hash();
+        let hash_v5 = workflow_v5.compute_hash();
+
+        // Different schema should produce different hash
+        assert_ne!(hash_v1, hash_v5);
+    }
+
+    #[test]
+    fn test_workflow_compute_hash_differs_with_tasks() {
+        let yaml_1task = r#"
+schema: nika/workflow@0.5
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let yaml_2tasks = r#"
+schema: nika/workflow@0.5
+tasks:
+  - id: task1
+    infer: "Test"
+  - id: task2
+    exec: "echo done"
+"#;
+        let workflow_1: Workflow = serde_yaml::from_str(yaml_1task).expect("Failed to parse");
+        let workflow_2: Workflow = serde_yaml::from_str(yaml_2tasks).expect("Failed to parse");
+
+        // Different task count should produce different hash
+        assert_ne!(workflow_1.compute_hash(), workflow_2.compute_hash());
+    }
+
+    #[test]
+    fn test_workflow_compute_hash_differs_with_model() {
+        let yaml_claude = r#"
+schema: nika/workflow@0.5
+model: claude-sonnet-4-20250514
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let yaml_openai = r#"
+schema: nika/workflow@0.5
+model: gpt-4-turbo
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let workflow_claude: Workflow = serde_yaml::from_str(yaml_claude).expect("Failed to parse");
+        let workflow_openai: Workflow = serde_yaml::from_str(yaml_openai).expect("Failed to parse");
+
+        // Different models should produce different hash
+        assert_ne!(
+            workflow_claude.compute_hash(),
+            workflow_openai.compute_hash()
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // EDGE CASES TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_workflow_empty_tasks_list() {
+        let yaml = r#"
+schema: nika/workflow@0.5
+tasks: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert_eq!(workflow.tasks.len(), 0);
+        assert!(workflow.validate_schema().is_ok());
+    }
+
+    #[test]
+    fn test_workflow_empty_flows_list() {
+        let yaml = r#"
+schema: nika/workflow@0.5
+tasks:
+  - id: task1
+    infer: "Test"
+flows: []
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert_eq!(workflow.flows.len(), 0);
+    }
+
+    #[test]
+    fn test_task_depends_on_ids_returns_empty() {
+        let yaml = r#"
+id: task1
+infer: "Test"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let deps = task.depends_on_ids();
+        assert!(deps.is_empty());
+    }
+
+    #[test]
+    fn test_workflow_with_multiple_flows() {
+        let yaml = r#"
+schema: nika/workflow@0.5
+tasks:
+  - id: step1
+    infer: "Start"
+  - id: step2
+    infer: "Middle"
+  - id: step3
+    infer: "End"
+flows:
+  - source: step1
+    target: step2
+  - source: step2
+    target: step3
+  - source: step1
+    target: step3
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert_eq!(workflow.flows.len(), 3);
+    }
+
+    #[test]
+    fn test_task_with_use_wiring() {
+        let yaml = r#"
+id: task1
+use:
+  input: previous_task.result
+infer: "Process {{use.input}}"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(task.use_wiring.is_some());
+    }
+
+    #[test]
+    fn test_task_with_output_policy() {
+        let yaml = r#"
+id: task1
+output:
+  format: json
+infer: "Generate JSON"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(task.output.is_some());
+    }
+
+    #[test]
+    fn test_mcp_config_inline_minimal() {
+        let yaml = r#"
+schema: nika/workflow@0.2
+mcp:
+  test_server:
+    command: echo
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let mcp = workflow.mcp.unwrap();
+        let server = &mcp["test_server"];
+
+        assert_eq!(server.command, "echo");
+        assert!(server.args.is_empty());
+        assert!(server.env.is_empty());
+        assert!(server.cwd.is_none());
+    }
+
+    #[test]
+    fn test_mcp_config_inline_full() {
+        let yaml = r#"
+schema: nika/workflow@0.2
+mcp:
+  novanet:
+    command: cargo
+    args: [run, -p, novanet-mcp]
+    env:
+      NEO4J_URI: bolt://localhost:7687
+      NEO4J_USER: neo4j
+    cwd: /path/to/workspace
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let mcp = workflow.mcp.unwrap();
+        let server = &mcp["novanet"];
+
+        assert_eq!(server.command, "cargo");
+        assert_eq!(server.args.len(), 3);
+        assert_eq!(server.env.len(), 2);
+        assert_eq!(server.cwd, Some("/path/to/workspace".to_string()));
+    }
+
+    #[test]
+    fn test_task_concurrency_zero_becomes_one() {
+        let yaml = r#"
+id: test
+for_each: ["a", "b"]
+concurrency: 0
+infer: "Test"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        // max(0, 1) = 1
+        assert_eq!(task.for_each_concurrency(), 1);
+    }
+
+    #[test]
+    fn test_task_concurrency_large_value() {
+        let yaml = r#"
+id: test
+for_each: ["a", "b"]
+concurrency: 1000
+infer: "Test"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert_eq!(task.for_each_concurrency(), 1000);
+    }
+
+    #[test]
+    fn test_workflow_default_provider_is_claude() {
+        let yaml = r#"
+schema: nika/workflow@0.5
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert_eq!(workflow.provider, "claude");
+    }
+
+    #[test]
+    fn test_task_as_field_empty_string() {
+        let yaml = r#"
+id: test
+for_each: ["a", "b"]
+as: ""
+infer: "Test"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        // Empty string should use default "item"
+        assert_eq!(task.for_each_var(), "");
+    }
+
+    #[test]
+    fn test_task_as_field_custom_name() {
+        let yaml = r#"
+id: test
+for_each: ["en-US", "fr-FR"]
+as: locale
+infer: "Generate {{use.locale}}"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert_eq!(task.for_each_var(), "locale");
+    }
+}

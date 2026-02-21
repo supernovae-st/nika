@@ -25,6 +25,7 @@ use ratatui::{
     Frame, Terminal,
 };
 use tokio::sync::{broadcast, mpsc, OnceCell};
+use tokio::task::JoinSet;
 
 use crate::ast::schema_validator::WorkflowSchemaValidator;
 use crate::ast::{AgentParams, McpConfigInline, Workflow};
@@ -233,6 +234,10 @@ pub struct App {
     mcp_configs: Option<FxHashMap<String, McpConfigInline>>,
     /// Cached MCP clients (lazy-initialized with OnceCell for thread-safe async init)
     mcp_client_cache: Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>,
+    // ═══ Background Task Tracking (v0.7.0) ═══
+    /// JoinSet for tracking spawned background tasks
+    /// Enables proper cancellation on app exit
+    background_tasks: JoinSet<()>,
 }
 
 impl App {
@@ -289,6 +294,7 @@ impl App {
             chat_agent,
             mcp_configs: None, // Loaded in init_mcp_clients()
             mcp_client_cache: Arc::new(DashMap::new()),
+            background_tasks: JoinSet::new(),
         })
     }
 
@@ -337,6 +343,7 @@ impl App {
             chat_agent,
             mcp_configs: None, // No workflow in standalone mode
             mcp_client_cache: Arc::new(DashMap::new()),
+            background_tasks: JoinSet::new(),
         })
     }
 
@@ -562,6 +569,9 @@ impl App {
                 break;
             }
         }
+
+        // Cancel all background tasks before cleanup
+        self.cancel_background_tasks().await;
 
         // Cleanup and return
         self.cleanup()
@@ -2593,8 +2603,39 @@ impl App {
         self.set_status(&format!("🌌 Warping through: {}", path.display()));
     }
 
+    /// Spawn a background task that will be automatically cancelled on cleanup
+    ///
+    /// Use this instead of raw `tokio::spawn()` for tasks that should be
+    /// cleaned up when the TUI exits. Returns true if spawn succeeded.
+    #[allow(dead_code)] // Infrastructure for future use
+    fn spawn_background<F>(&mut self, future: F) -> bool
+    where
+        F: std::future::Future<Output = ()> + Send + 'static,
+    {
+        self.background_tasks.spawn(future);
+        true
+    }
+
+    /// Cancel all background tasks and wait for them to complete
+    ///
+    /// Should be called during cleanup to ensure graceful shutdown.
+    async fn cancel_background_tasks(&mut self) {
+        // Abort all tasks in the JoinSet
+        self.background_tasks.abort_all();
+
+        // Wait for all tasks to complete (they'll be aborted)
+        while self.background_tasks.join_next().await.is_some() {
+            // Tasks completing (either aborted or finished)
+        }
+
+        tracing::debug!("All background tasks cancelled");
+    }
+
     /// Cleanup terminal state
     fn cleanup(&mut self) -> Result<()> {
+        // Note: Background tasks are cancelled in run_unified() after this,
+        // because cleanup() is not async. Use cancel_background_tasks() separately.
+
         if let Some(ref mut terminal) = self.terminal {
             disable_raw_mode().map_err(|e| NikaError::TuiError {
                 reason: format!("Failed to disable raw mode: {}", e),

@@ -552,6 +552,10 @@ mod tests {
     use super::*;
     use std::time::Duration;
 
+    // ───────────────────────────────────────────────────────────────────────────
+    // StandalonePanel Tests
+    // ───────────────────────────────────────────────────────────────────────────
+
     #[test]
     fn test_standalone_panel_cycle() {
         let panel = StandalonePanel::Browser;
@@ -561,7 +565,128 @@ mod tests {
     }
 
     #[test]
-    fn test_history_entry_duration_display() {
+    fn test_standalone_panel_prev() {
+        let panel = StandalonePanel::Browser;
+        assert_eq!(panel.prev(), StandalonePanel::Preview);
+        assert_eq!(panel.prev().prev(), StandalonePanel::History);
+        assert_eq!(panel.prev().prev().prev(), StandalonePanel::Browser);
+    }
+
+    #[test]
+    fn test_standalone_panel_title() {
+        assert_eq!(StandalonePanel::Browser.title(), "WORKFLOW BROWSER");
+        assert_eq!(StandalonePanel::History.title(), "HISTORY");
+        assert_eq!(StandalonePanel::Preview.title(), "PREVIEW");
+    }
+
+    #[test]
+    fn test_standalone_panel_number() {
+        assert_eq!(StandalonePanel::Browser.number(), 1);
+        assert_eq!(StandalonePanel::History.number(), 2);
+        assert_eq!(StandalonePanel::Preview.number(), 3);
+    }
+
+    #[test]
+    fn test_standalone_panel_default() {
+        let panel = StandalonePanel::default();
+        assert_eq!(panel, StandalonePanel::Browser);
+    }
+
+    #[test]
+    fn test_standalone_panel_equality() {
+        let browser1 = StandalonePanel::Browser;
+        let browser2 = StandalonePanel::Browser;
+        let history = StandalonePanel::History;
+        assert_eq!(browser1, browser2);
+        assert_ne!(browser1, history);
+    }
+
+    // ───────────────────────────────────────────────────────────────────────────
+    // BrowserEntry Tests
+    // ───────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_browser_entry_new_file() {
+        let root = PathBuf::from("/project");
+        let path = PathBuf::from("/project/examples/test.nika.yaml");
+        let entry = BrowserEntry::new(path.clone(), &root);
+
+        assert_eq!(entry.path, path);
+        assert_eq!(entry.display_name, "examples/test.nika.yaml");
+        assert!(!entry.is_dir);
+        assert!(!entry.expanded);
+        assert_eq!(entry.depth, 0);
+    }
+
+    #[test]
+    fn test_browser_entry_with_depth() {
+        let root = PathBuf::from("/project");
+        let path = PathBuf::from("/project/examples/test.nika.yaml");
+        let entry = BrowserEntry::new(path, &root).with_depth(2);
+
+        assert_eq!(entry.depth, 2);
+    }
+
+    #[test]
+    fn test_browser_entry_depth_chain() {
+        let root = PathBuf::from("/project");
+        let path = PathBuf::from("/project/examples/test.nika.yaml");
+        let entry = BrowserEntry::new(path, &root).with_depth(1).with_depth(3);
+
+        assert_eq!(entry.depth, 3);
+    }
+
+    #[test]
+    fn test_browser_entry_strip_prefix() {
+        let root = PathBuf::from("/project");
+        let path = PathBuf::from("/project/deep/nested/workflow.nika.yaml");
+        let entry = BrowserEntry::new(path, &root);
+
+        assert_eq!(entry.display_name, "deep/nested/workflow.nika.yaml");
+    }
+
+    #[test]
+    fn test_browser_entry_fallback_display_name() {
+        let root = PathBuf::from("/project");
+        let path = PathBuf::from("/other/path/test.nika.yaml");
+        let entry = BrowserEntry::new(path.clone(), &root);
+
+        // When path is not under root, display_name should be the full path
+        assert_eq!(entry.display_name, path.display().to_string());
+    }
+
+    #[test]
+    fn test_browser_entry_clone() {
+        let root = PathBuf::from("/project");
+        let path = PathBuf::from("/project/test.nika.yaml");
+        let entry1 = BrowserEntry::new(path, &root).with_depth(1);
+        let entry2 = entry1.clone();
+
+        assert_eq!(entry1.path, entry2.path);
+        assert_eq!(entry1.display_name, entry2.display_name);
+        assert_eq!(entry1.is_dir, entry2.is_dir);
+        assert_eq!(entry1.depth, entry2.depth);
+    }
+
+    // ───────────────────────────────────────────────────────────────────────────
+    // HistoryEntry Tests
+    // ───────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_history_entry_new() {
+        let path = PathBuf::from("test.nika.yaml");
+        let duration = Duration::from_millis(2700);
+        let entry = HistoryEntry::new(path.clone(), duration, 3, true, "test summary".to_string());
+
+        assert_eq!(entry.workflow_path, path);
+        assert_eq!(entry.duration_ms, 2700);
+        assert_eq!(entry.task_count, 3);
+        assert!(entry.success);
+        assert_eq!(entry.summary, "test summary");
+    }
+
+    #[test]
+    fn test_history_entry_duration_display_seconds() {
         let entry = HistoryEntry::new(
             PathBuf::from("test.nika.yaml"),
             Duration::from_millis(2700),
@@ -573,7 +698,7 @@ mod tests {
     }
 
     #[test]
-    fn test_history_entry_long_duration() {
+    fn test_history_entry_duration_display_minutes() {
         let entry = HistoryEntry::new(
             PathBuf::from("test.nika.yaml"),
             Duration::from_secs(90),
@@ -585,11 +710,542 @@ mod tests {
     }
 
     #[test]
-    fn test_browser_entry_depth() {
-        let root = PathBuf::from("/project");
-        let entry = BrowserEntry::new(PathBuf::from("/project/examples/test.nika.yaml"), &root)
-            .with_depth(1);
-        assert_eq!(entry.depth, 1);
-        assert_eq!(entry.display_name, "examples/test.nika.yaml");
+    fn test_history_entry_duration_display_zero() {
+        let entry = HistoryEntry::new(
+            PathBuf::from("test.nika.yaml"),
+            Duration::from_millis(0),
+            1,
+            true,
+            "instant".to_string(),
+        );
+        assert_eq!(entry.duration_display(), "0.0s");
+    }
+
+    #[test]
+    fn test_history_entry_duration_display_sub_second() {
+        let entry = HistoryEntry::new(
+            PathBuf::from("test.nika.yaml"),
+            Duration::from_millis(150),
+            1,
+            true,
+            "fast".to_string(),
+        );
+        assert_eq!(entry.duration_display(), "0.1s");
+    }
+
+    #[test]
+    fn test_history_entry_duration_display_exactly_60_seconds() {
+        let entry = HistoryEntry::new(
+            PathBuf::from("test.nika.yaml"),
+            Duration::from_secs(60),
+            1,
+            true,
+            "minute".to_string(),
+        );
+        assert_eq!(entry.duration_display(), "1.0m");
+    }
+
+    #[test]
+    fn test_history_entry_timestamp_display() {
+        let entry = HistoryEntry::new(
+            PathBuf::from("test.nika.yaml"),
+            Duration::from_secs(1),
+            1,
+            true,
+            "test".to_string(),
+        );
+
+        let timestamp_str = entry.timestamp_display();
+        // Format: YYYY-MM-DD HH:MM:SS
+        assert_eq!(timestamp_str.len(), 19); // "2026-02-20 15:30:45"
+        assert_eq!(timestamp_str.chars().nth(4), Some('-'));
+        assert_eq!(timestamp_str.chars().nth(7), Some('-'));
+        assert_eq!(timestamp_str.chars().nth(10), Some(' '));
+        assert_eq!(timestamp_str.chars().nth(13), Some(':'));
+        assert_eq!(timestamp_str.chars().nth(16), Some(':'));
+    }
+
+    #[test]
+    fn test_history_entry_serialization() {
+        let path = PathBuf::from("test.nika.yaml");
+        let entry = HistoryEntry::new(path, Duration::from_secs(5), 2, true, "summary".to_string());
+
+        let json = serde_json::to_string(&entry).expect("serialization should succeed");
+        let deserialized: HistoryEntry =
+            serde_json::from_str(&json).expect("deserialization should succeed");
+
+        assert_eq!(deserialized.workflow_path, entry.workflow_path);
+        assert_eq!(deserialized.duration_ms, entry.duration_ms);
+        assert_eq!(deserialized.task_count, entry.task_count);
+        assert_eq!(deserialized.success, entry.success);
+        assert_eq!(deserialized.summary, entry.summary);
+    }
+
+    #[test]
+    fn test_history_entry_clone() {
+        let path = PathBuf::from("test.nika.yaml");
+        let entry1 =
+            HistoryEntry::new(path, Duration::from_secs(5), 2, true, "summary".to_string());
+        let entry2 = entry1.clone();
+
+        assert_eq!(entry1.workflow_path, entry2.workflow_path);
+        assert_eq!(entry1.duration_ms, entry2.duration_ms);
+        assert_eq!(entry1.task_count, entry2.task_count);
+        assert_eq!(entry1.success, entry2.success);
+        assert_eq!(entry1.summary, entry2.summary);
+    }
+
+    // ───────────────────────────────────────────────────────────────────────────
+    // StandaloneState Tests
+    // ───────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_standalone_state_new() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let state = StandaloneState::new(root.clone());
+
+        assert_eq!(state.root, root);
+        assert_eq!(state.focused_panel, StandalonePanel::Browser);
+        assert_eq!(state.browser_index, 0);
+        assert_eq!(state.history_index, 0);
+        assert!(!state.search_active);
+        assert_eq!(state.search_query, "");
+        assert_eq!(state.preview_scroll, 0);
+    }
+
+    #[test]
+    fn test_standalone_state_browser_up_at_beginning() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        state.browser_index = 0;
+
+        state.browser_up();
+
+        // Should remain at 0 (can't go negative)
+        assert_eq!(state.browser_index, 0);
+    }
+
+    #[test]
+    fn test_standalone_state_browser_up_decrements() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        state.browser_index = 5;
+
+        state.browser_up();
+
+        assert_eq!(state.browser_index, 4);
+    }
+
+    #[test]
+    fn test_standalone_state_browser_down_at_end() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let root_clone = root.clone();
+        let mut state = StandaloneState::new(root);
+        state.browser_entries = vec![
+            BrowserEntry::new(PathBuf::from("/tmp/test1.nika.yaml"), &root_clone),
+            BrowserEntry::new(PathBuf::from("/tmp/test2.nika.yaml"), &root_clone),
+        ];
+        state.browser_index = 1; // At end
+
+        state.browser_down();
+
+        // Should remain at 1 (can't exceed bounds)
+        assert_eq!(state.browser_index, 1);
+    }
+
+    #[test]
+    fn test_standalone_state_browser_down_increments() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let root_clone = root.clone();
+        let mut state = StandaloneState::new(root);
+        state.browser_entries = vec![
+            BrowserEntry::new(PathBuf::from("/tmp/test1.nika.yaml"), &root_clone),
+            BrowserEntry::new(PathBuf::from("/tmp/test2.nika.yaml"), &root_clone),
+            BrowserEntry::new(PathBuf::from("/tmp/test3.nika.yaml"), &root_clone),
+        ];
+        state.browser_index = 0;
+
+        state.browser_down();
+
+        assert_eq!(state.browser_index, 1);
+    }
+
+    #[test]
+    fn test_standalone_state_history_up_at_beginning() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        state.history_index = 0;
+
+        state.history_up();
+
+        assert_eq!(state.history_index, 0);
+    }
+
+    #[test]
+    fn test_standalone_state_history_up_decrements() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        state.history = vec![
+            HistoryEntry::new(
+                PathBuf::from("test1.nika.yaml"),
+                Duration::from_secs(1),
+                1,
+                true,
+                "summary1".to_string(),
+            ),
+            HistoryEntry::new(
+                PathBuf::from("test2.nika.yaml"),
+                Duration::from_secs(2),
+                2,
+                true,
+                "summary2".to_string(),
+            ),
+        ];
+        state.history_index = 1;
+
+        state.history_up();
+
+        assert_eq!(state.history_index, 0);
+    }
+
+    #[test]
+    fn test_standalone_state_history_down_at_end() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        state.history = vec![HistoryEntry::new(
+            PathBuf::from("test1.nika.yaml"),
+            Duration::from_secs(1),
+            1,
+            true,
+            "summary1".to_string(),
+        )];
+        state.history_index = 0;
+
+        state.history_down();
+
+        // Should remain at 0 (only one entry)
+        assert_eq!(state.history_index, 0);
+    }
+
+    #[test]
+    fn test_standalone_state_history_down_increments() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        state.history = vec![
+            HistoryEntry::new(
+                PathBuf::from("test1.nika.yaml"),
+                Duration::from_secs(1),
+                1,
+                true,
+                "summary1".to_string(),
+            ),
+            HistoryEntry::new(
+                PathBuf::from("test2.nika.yaml"),
+                Duration::from_secs(2),
+                2,
+                true,
+                "summary2".to_string(),
+            ),
+        ];
+        state.history_index = 0;
+
+        state.history_down();
+
+        assert_eq!(state.history_index, 1);
+    }
+
+    #[test]
+    fn test_standalone_state_preview_up_at_beginning() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        state.preview_scroll = 0;
+
+        state.preview_up();
+
+        assert_eq!(state.preview_scroll, 0);
+    }
+
+    #[test]
+    fn test_standalone_state_preview_up_decrements() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        state.preview_scroll = 5;
+
+        state.preview_up();
+
+        assert_eq!(state.preview_scroll, 4);
+    }
+
+    #[test]
+    fn test_standalone_state_preview_down_limited_by_lines() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        state.preview_content = "line1\nline2\nline3".to_string();
+        state.preview_scroll = 0;
+
+        // Preview shows 10 lines, so max scroll is (3 - 10) = 0
+        for _ in 0..10 {
+            state.preview_down();
+        }
+
+        assert_eq!(state.preview_scroll, 0);
+    }
+
+    #[test]
+    fn test_standalone_state_preview_down_increments() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        // Create content with many lines
+        let mut content = String::new();
+        for i in 0..100 {
+            content.push_str(&format!("line {}\n", i));
+        }
+        state.preview_content = content;
+        state.preview_scroll = 0;
+
+        state.preview_down();
+
+        assert_eq!(state.preview_scroll, 1);
+    }
+
+    #[test]
+    fn test_standalone_state_selected_workflow_when_empty() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let state = StandaloneState::new(root);
+
+        assert_eq!(state.selected_workflow(), None);
+    }
+
+    #[test]
+    fn test_standalone_state_selected_workflow_on_directory() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let root_clone = root.clone();
+        let mut state = StandaloneState::new(root);
+        let mut dir_entry = BrowserEntry::new(PathBuf::from("/tmp/examples"), &root_clone);
+        dir_entry.is_dir = true;
+        state.browser_entries.push(dir_entry);
+        state.browser_index = 0;
+
+        assert_eq!(state.selected_workflow(), None);
+    }
+
+    #[test]
+    fn test_standalone_state_selected_workflow_on_file() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let root_clone = root.clone();
+        let mut state = StandaloneState::new(root);
+        let path = PathBuf::from("/tmp/test.nika.yaml");
+        state
+            .browser_entries
+            .push(BrowserEntry::new(path.clone(), &root_clone));
+        state.browser_index = 0;
+
+        assert_eq!(state.selected_workflow(), Some(path.as_path()));
+    }
+
+    #[test]
+    fn test_standalone_state_add_history_below_limit() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        // Clear initial history from load_history()
+        state.history.clear();
+
+        let entry = HistoryEntry::new(
+            PathBuf::from("test.nika.yaml"),
+            Duration::from_secs(1),
+            1,
+            true,
+            "summary".to_string(),
+        );
+        state.add_history(entry);
+
+        assert_eq!(state.history.len(), 1);
+    }
+
+    #[test]
+    fn test_standalone_state_add_history_respects_limit() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        // Clear initial history from load_history()
+        state.history.clear();
+
+        // Add 51 entries (limit is 50)
+        for i in 0..51 {
+            let entry = HistoryEntry::new(
+                PathBuf::from(format!("test{}.nika.yaml", i)),
+                Duration::from_secs(1),
+                1,
+                true,
+                format!("summary{}", i),
+            );
+            state.add_history(entry);
+        }
+
+        assert_eq!(state.history.len(), 50);
+        // First entry should have been removed
+        assert_eq!(state.history[0].summary, "summary1");
+    }
+
+    #[test]
+    fn test_standalone_state_clear_history() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        // Clear initial history from load_history()
+        state.history.clear();
+
+        let entry = HistoryEntry::new(
+            PathBuf::from("test.nika.yaml"),
+            Duration::from_secs(1),
+            1,
+            true,
+            "summary".to_string(),
+        );
+        state.add_history(entry);
+        assert_eq!(state.history.len(), 1);
+
+        state.clear_history();
+
+        assert_eq!(state.history.len(), 0);
+    }
+
+    #[test]
+    fn test_standalone_state_refresh_entries() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let root_clone = root.clone();
+        let mut state = StandaloneState::new(root);
+        state.browser_entries.push(BrowserEntry::new(
+            PathBuf::from("/tmp/test.nika.yaml"),
+            &root_clone,
+        ));
+
+        state.refresh_entries();
+
+        // After refresh, entries might be different depending on filesystem
+        // Test passes if refresh_entries() doesn't panic
+    }
+
+    #[test]
+    fn test_standalone_state_update_preview_no_entries() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        state.browser_entries.clear();
+
+        state.update_preview();
+
+        assert_eq!(state.preview_content, "No workflow selected");
+    }
+
+    #[test]
+    fn test_standalone_state_update_preview_directory() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let root_clone = root.clone();
+        let mut state = StandaloneState::new(root);
+        let mut entry = BrowserEntry::new(PathBuf::from("/tmp/examples"), &root_clone);
+        entry.is_dir = true;
+        state.browser_entries.push(entry);
+        state.browser_index = 0;
+
+        // Set preview to something before calling update_preview
+        state.preview_content = "existing content".to_string();
+
+        state.update_preview();
+
+        // For directories, preview should not be updated (stays as is)
+        assert_eq!(state.preview_content, "existing content");
+    }
+
+    #[test]
+    fn test_standalone_state_filtered_entries_empty_query() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let root_clone = root.clone();
+        let mut state = StandaloneState::new(root);
+        state.browser_entries = vec![
+            BrowserEntry::new(PathBuf::from("/tmp/test1.nika.yaml"), &root_clone),
+            BrowserEntry::new(PathBuf::from("/tmp/test2.nika.yaml"), &root_clone),
+        ];
+        state.search_query = String::new();
+
+        let filtered = state.filtered_entries();
+
+        assert_eq!(filtered.len(), 2);
+    }
+
+    #[test]
+    fn test_standalone_state_filtered_entries_with_query() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let root_clone = root.clone();
+        let mut state = StandaloneState::new(root);
+        state.browser_entries = vec![
+            BrowserEntry::new(PathBuf::from("/tmp/generate.nika.yaml"), &root_clone),
+            BrowserEntry::new(PathBuf::from("/tmp/test.nika.yaml"), &root_clone),
+            BrowserEntry::new(
+                PathBuf::from("/tmp/generate_content.nika.yaml"),
+                &root_clone,
+            ),
+        ];
+        state.search_query = "generate".to_string();
+
+        let filtered = state.filtered_entries();
+
+        assert_eq!(filtered.len(), 2);
+        assert!(filtered[0].display_name.contains("generate"));
+        assert!(filtered[1].display_name.contains("generate"));
+    }
+
+    #[test]
+    fn test_standalone_state_filtered_entries_case_insensitive() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let root_clone = root.clone();
+        let mut state = StandaloneState::new(root);
+        state.browser_entries = vec![
+            BrowserEntry::new(PathBuf::from("/tmp/GENERATE.nika.yaml"), &root_clone),
+            BrowserEntry::new(PathBuf::from("/tmp/test.nika.yaml"), &root_clone),
+        ];
+        state.search_query = "generate".to_string();
+
+        let filtered = state.filtered_entries();
+
+        assert_eq!(filtered.len(), 1);
+    }
+
+    #[test]
+    fn test_standalone_state_filtered_entries_no_match() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let root_clone = root.clone();
+        let mut state = StandaloneState::new(root);
+        state.browser_entries = vec![
+            BrowserEntry::new(PathBuf::from("/tmp/test1.nika.yaml"), &root_clone),
+            BrowserEntry::new(PathBuf::from("/tmp/test2.nika.yaml"), &root_clone),
+        ];
+        state.search_query = "nonexistent".to_string();
+
+        let filtered = state.filtered_entries();
+
+        assert_eq!(filtered.len(), 0);
+    }
+
+    #[test]
+    fn test_standalone_state_focused_panel_navigation() {
+        let root = PathBuf::from("/tmp/nika_test");
+        let mut state = StandaloneState::new(root);
+        assert_eq!(state.focused_panel, StandalonePanel::Browser);
+
+        state.focused_panel = state.focused_panel.next();
+        assert_eq!(state.focused_panel, StandalonePanel::History);
+
+        state.focused_panel = state.focused_panel.next();
+        assert_eq!(state.focused_panel, StandalonePanel::Preview);
+
+        state.focused_panel = state.focused_panel.next();
+        assert_eq!(state.focused_panel, StandalonePanel::Browser);
+    }
+
+    #[test]
+    fn test_browser_entry_is_dir_false() {
+        let root = PathBuf::from("/tmp");
+        let path = PathBuf::from("/tmp/test.nika.yaml");
+        let entry = BrowserEntry::new(path, &root);
+
+        assert!(!entry.is_dir);
     }
 }

@@ -90,6 +90,200 @@ impl PanelId {
     }
 }
 
+/// Scroll margin for cursor visibility (lines from edge)
+const SCROLL_MARGIN: usize = 3;
+
+/// Scroll state for a panel with cursor/scroll separation
+///
+/// Pattern from NovaNet TUI: cursor position is independent of scroll offset.
+/// `ensure_cursor_visible()` adjusts scroll to keep cursor in view with margin.
+#[derive(Debug, Clone, Default)]
+pub struct PanelScrollState {
+    /// Current scroll offset (0-indexed, first visible line)
+    pub offset: usize,
+    /// Cursor position (0-indexed, selected item)
+    pub cursor: usize,
+    /// Total number of items
+    pub total: usize,
+    /// Visible items count (viewport height)
+    pub visible: usize,
+}
+
+impl PanelScrollState {
+    /// Create new scroll state
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with initial total count
+    pub fn with_total(total: usize) -> Self {
+        Self {
+            total,
+            ..Default::default()
+        }
+    }
+
+    /// Ensure cursor is visible by adjusting scroll offset
+    ///
+    /// Maintains a margin of SCROLL_MARGIN lines from top/bottom edges.
+    /// This prevents the cursor from being at the very edge of the viewport.
+    pub fn ensure_cursor_visible(&mut self) {
+        if self.visible == 0 || self.total == 0 {
+            return;
+        }
+
+        // Calculate effective margin (can't be more than half the viewport)
+        let margin = SCROLL_MARGIN.min(self.visible / 2);
+
+        // Cursor above visible area (with margin)
+        if self.cursor < self.offset.saturating_add(margin) {
+            self.offset = self.cursor.saturating_sub(margin);
+        }
+
+        // Cursor below visible area (with margin)
+        let bottom_threshold = self.offset + self.visible.saturating_sub(margin);
+        if self.cursor >= bottom_threshold && self.total > self.visible {
+            self.offset = (self.cursor + margin + 1).saturating_sub(self.visible);
+            // Clamp to max scroll
+            let max_offset = self.total.saturating_sub(self.visible);
+            self.offset = self.offset.min(max_offset);
+        }
+    }
+
+    /// Move cursor down by one item
+    pub fn cursor_down(&mut self) {
+        if self.cursor + 1 < self.total {
+            self.cursor += 1;
+            self.ensure_cursor_visible();
+        }
+    }
+
+    /// Move cursor up by one item
+    pub fn cursor_up(&mut self) {
+        if self.cursor > 0 {
+            self.cursor -= 1;
+            self.ensure_cursor_visible();
+        }
+    }
+
+    /// Move cursor to first item
+    pub fn cursor_first(&mut self) {
+        self.cursor = 0;
+        self.ensure_cursor_visible();
+    }
+
+    /// Move cursor to last item
+    pub fn cursor_last(&mut self) {
+        if self.total > 0 {
+            self.cursor = self.total - 1;
+            self.ensure_cursor_visible();
+        }
+    }
+
+    /// Page down (move cursor by visible count)
+    pub fn page_down(&mut self) {
+        if self.total > 0 {
+            self.cursor = (self.cursor + self.visible).min(self.total - 1);
+            self.ensure_cursor_visible();
+        }
+    }
+
+    /// Page up (move cursor by visible count)
+    pub fn page_up(&mut self) {
+        self.cursor = self.cursor.saturating_sub(self.visible);
+        self.ensure_cursor_visible();
+    }
+
+    /// Scroll down by one item (legacy, for compatibility)
+    pub fn scroll_down(&mut self) {
+        if self.offset + self.visible < self.total {
+            self.offset += 1;
+        }
+    }
+
+    /// Scroll up by one item (legacy, for compatibility)
+    pub fn scroll_up(&mut self) {
+        if self.offset > 0 {
+            self.offset -= 1;
+        }
+    }
+
+    /// Scroll to top
+    pub fn scroll_to_top(&mut self) {
+        self.offset = 0;
+        self.cursor = 0;
+    }
+
+    /// Scroll to bottom
+    pub fn scroll_to_bottom(&mut self) {
+        if self.total > self.visible {
+            self.offset = self.total - self.visible;
+        }
+        if self.total > 0 {
+            self.cursor = self.total - 1;
+        }
+    }
+
+    /// Update total items count
+    pub fn set_total(&mut self, total: usize) {
+        self.total = total;
+        // Clamp cursor to valid range
+        if self.total > 0 && self.cursor >= self.total {
+            self.cursor = self.total - 1;
+        }
+        // Adjust offset if needed
+        if self.total > 0 && self.offset + self.visible > self.total {
+            self.offset = self.total.saturating_sub(self.visible);
+        }
+    }
+
+    /// Update visible items count (viewport height)
+    pub fn set_visible(&mut self, visible: usize) {
+        self.visible = visible;
+        self.ensure_cursor_visible();
+    }
+
+    /// Get selected item index (alias for cursor)
+    pub fn selected(&self) -> Option<usize> {
+        if self.total > 0 {
+            Some(self.cursor)
+        } else {
+            None
+        }
+    }
+
+    /// Check if item at index is the cursor position
+    pub fn is_selected(&self, index: usize) -> bool {
+        self.cursor == index
+    }
+
+    /// Get scroll percentage (0.0 - 1.0)
+    pub fn percentage(&self) -> f64 {
+        if self.total <= self.visible {
+            0.0
+        } else {
+            self.offset as f64 / (self.total - self.visible) as f64
+        }
+    }
+
+    /// Get visible range [start, end) of items
+    pub fn visible_range(&self) -> std::ops::Range<usize> {
+        let start = self.offset;
+        let end = (self.offset + self.visible).min(self.total);
+        start..end
+    }
+
+    /// Check if scroll is at top
+    pub fn at_top(&self) -> bool {
+        self.offset == 0
+    }
+
+    /// Check if scroll is at bottom
+    pub fn at_bottom(&self) -> bool {
+        self.total <= self.visible || self.offset >= self.total - self.visible
+    }
+}
+
 /// TUI interaction mode
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TuiMode {
@@ -2365,6 +2559,72 @@ mod tests {
     }
 
     #[test]
+    fn test_panel_id_all_returns_all_panels() {
+        let all = PanelId::all();
+        assert_eq!(all.len(), 4);
+        assert_eq!(all[0], PanelId::Progress);
+        assert_eq!(all[1], PanelId::Dag);
+        assert_eq!(all[2], PanelId::NovaNet);
+        assert_eq!(all[3], PanelId::Agent);
+    }
+
+    #[test]
+    fn test_panel_id_number() {
+        assert_eq!(PanelId::Progress.number(), 1);
+        assert_eq!(PanelId::Dag.number(), 2);
+        assert_eq!(PanelId::NovaNet.number(), 3);
+        assert_eq!(PanelId::Agent.number(), 4);
+    }
+
+    #[test]
+    fn test_panel_id_title() {
+        assert_eq!(PanelId::Progress.title(), "MISSION CONTROL");
+        assert_eq!(PanelId::Dag.title(), "DAG EXECUTION");
+        assert_eq!(PanelId::NovaNet.title(), "NOVANET STATION");
+        assert_eq!(PanelId::Agent.title(), "AGENT REASONING");
+    }
+
+    #[test]
+    fn test_panel_id_icon() {
+        assert_eq!(PanelId::Progress.icon(), "◉");
+        assert_eq!(PanelId::Dag.icon(), "⎔");
+        assert_eq!(PanelId::NovaNet.icon(), "⊛");
+        assert_eq!(PanelId::Agent.icon(), "⊕");
+    }
+
+    #[test]
+    fn test_panel_id_complete_cycle() {
+        let mut current = PanelId::Progress;
+        let mut count = 0;
+
+        // Cycle through all panels
+        for _ in 0..4 {
+            current = current.next();
+            count += 1;
+        }
+
+        // Should be back to Progress after 4 cycles
+        assert_eq!(current, PanelId::Progress);
+        assert_eq!(count, 4);
+    }
+
+    #[test]
+    fn test_panel_id_reverse_cycle() {
+        let mut current = PanelId::Progress;
+        let mut count = 0;
+
+        // Reverse cycle through all panels
+        for _ in 0..4 {
+            current = current.prev();
+            count += 1;
+        }
+
+        // Should be back to Progress after 4 reverse cycles
+        assert_eq!(current, PanelId::Progress);
+        assert_eq!(count, 4);
+    }
+
+    #[test]
     fn test_workflow_state_progress() {
         let mut ws = WorkflowState::new("test.yaml".to_string());
         ws.task_count = 10;
@@ -2878,6 +3138,62 @@ mod tests {
         assert_eq!(mode, TuiMode::Settings);
         assert_ne!(mode, TuiMode::Normal);
         assert_ne!(mode, TuiMode::Help);
+    }
+
+    #[test]
+    fn test_tui_mode_all_variants() {
+        // Test all TuiMode variants can be created and compared
+        let normal = TuiMode::Normal;
+        let streaming = TuiMode::Streaming;
+        let _inspect = TuiMode::Inspect("task-1".to_string());
+        let _edit = TuiMode::Edit("task-1".to_string());
+        let search = TuiMode::Search;
+        let help = TuiMode::Help;
+        let metrics = TuiMode::Metrics;
+        let settings = TuiMode::Settings;
+        let chat_overlay = TuiMode::ChatOverlay;
+
+        // Test basic equality
+        assert_eq!(normal, TuiMode::Normal);
+        assert_eq!(streaming, TuiMode::Streaming);
+        assert_eq!(search, TuiMode::Search);
+        assert_eq!(help, TuiMode::Help);
+        assert_eq!(metrics, TuiMode::Metrics);
+        assert_eq!(settings, TuiMode::Settings);
+        assert_eq!(chat_overlay, TuiMode::ChatOverlay);
+
+        // Test inequality
+        assert_ne!(normal, streaming);
+        assert_ne!(streaming, help);
+        assert_ne!(search, metrics);
+    }
+
+    #[test]
+    fn test_tui_mode_with_data_variants() {
+        let inspect1 = TuiMode::Inspect("task-1".to_string());
+        let inspect2 = TuiMode::Inspect("task-1".to_string());
+        let inspect3 = TuiMode::Inspect("task-2".to_string());
+
+        let edit1 = TuiMode::Edit("task-1".to_string());
+        let edit2 = TuiMode::Edit("task-1".to_string());
+        let edit3 = TuiMode::Edit("task-2".to_string());
+
+        // Test equality with same data
+        assert_eq!(inspect1, inspect2);
+        assert_eq!(edit1, edit2);
+
+        // Test inequality with different data
+        assert_ne!(inspect1, inspect3);
+        assert_ne!(edit1, edit3);
+
+        // Test inequality across variant types
+        assert_ne!(inspect1, edit1);
+    }
+
+    #[test]
+    fn test_tui_mode_default_is_normal() {
+        let mode: TuiMode = Default::default();
+        assert_eq!(mode, TuiMode::Normal);
     }
 
     #[test]
@@ -4454,5 +4770,347 @@ mod tests {
         let msg = ChatOverlayMessage::new(ChatOverlayMessageRole::User, "test message");
         assert_eq!(msg.role, ChatOverlayMessageRole::User);
         assert_eq!(msg.content, "test message");
+    }
+
+    // ═══ PanelScrollState Tests (v0.7.0) ═══
+
+    #[test]
+    fn test_panel_scroll_state_new() {
+        let state = PanelScrollState::new();
+        assert_eq!(state.offset, 0);
+        assert_eq!(state.cursor, 0);
+        assert_eq!(state.total, 0);
+        assert_eq!(state.visible, 0);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_with_total() {
+        let state = PanelScrollState::with_total(100);
+        assert_eq!(state.total, 100);
+        assert_eq!(state.cursor, 0);
+        assert_eq!(state.offset, 0);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_cursor_down() {
+        let mut state = PanelScrollState::with_total(10);
+        state.visible = 5;
+
+        state.cursor_down();
+        assert_eq!(state.cursor, 1);
+
+        // Move to end
+        for _ in 0..10 {
+            state.cursor_down();
+        }
+        assert_eq!(state.cursor, 9); // Can't go beyond total - 1
+    }
+
+    #[test]
+    fn test_panel_scroll_state_cursor_up() {
+        let mut state = PanelScrollState::with_total(10);
+        state.visible = 5;
+        state.cursor = 5;
+
+        state.cursor_up();
+        assert_eq!(state.cursor, 4);
+
+        // Move to start
+        for _ in 0..10 {
+            state.cursor_up();
+        }
+        assert_eq!(state.cursor, 0); // Can't go below 0
+    }
+
+    #[test]
+    fn test_panel_scroll_state_ensure_cursor_visible() {
+        let mut state = PanelScrollState::with_total(100);
+        state.visible = 10;
+        state.cursor = 50;
+
+        state.ensure_cursor_visible();
+
+        // Cursor should be within visible range with margin
+        let margin = SCROLL_MARGIN.min(state.visible / 2);
+        assert!(state.cursor >= state.offset + margin || state.cursor < margin);
+        assert!(state.cursor < state.offset + state.visible);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_cursor_first_last() {
+        let mut state = PanelScrollState::with_total(100);
+        state.visible = 10;
+        state.cursor = 50;
+
+        state.cursor_first();
+        assert_eq!(state.cursor, 0);
+        assert_eq!(state.offset, 0);
+
+        state.cursor_last();
+        assert_eq!(state.cursor, 99);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_page_up_down() {
+        let mut state = PanelScrollState::with_total(100);
+        state.visible = 10;
+
+        state.page_down();
+        assert_eq!(state.cursor, 10);
+
+        state.page_down();
+        assert_eq!(state.cursor, 20);
+
+        state.page_up();
+        assert_eq!(state.cursor, 10);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_selected() {
+        let state = PanelScrollState::with_total(10);
+        assert_eq!(state.selected(), Some(0));
+
+        let empty_state = PanelScrollState::new();
+        assert_eq!(empty_state.selected(), None);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_is_selected() {
+        let mut state = PanelScrollState::with_total(10);
+        state.cursor = 5;
+
+        assert!(state.is_selected(5));
+        assert!(!state.is_selected(3));
+    }
+
+    #[test]
+    fn test_panel_scroll_state_visible_range() {
+        let mut state = PanelScrollState::with_total(100);
+        state.visible = 10;
+        state.offset = 20;
+
+        let range = state.visible_range();
+        assert_eq!(range, 20..30);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_at_boundaries() {
+        let mut state = PanelScrollState::with_total(100);
+        state.visible = 10;
+
+        assert!(state.at_top());
+        assert!(!state.at_bottom());
+
+        state.offset = 90;
+        assert!(!state.at_top());
+        assert!(state.at_bottom());
+    }
+
+    #[test]
+    fn test_panel_scroll_state_set_total_clamps_cursor() {
+        let mut state = PanelScrollState::with_total(100);
+        state.cursor = 90;
+        state.visible = 10;
+
+        // Reduce total, cursor should clamp
+        state.set_total(50);
+        assert_eq!(state.cursor, 49);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_percentage() {
+        let mut state = PanelScrollState::with_total(100);
+        state.visible = 10;
+
+        assert!((state.percentage() - 0.0).abs() < f64::EPSILON);
+
+        state.offset = 45; // Middle
+        assert!((state.percentage() - 0.5).abs() < f64::EPSILON);
+
+        state.offset = 90; // End
+        assert!((state.percentage() - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_scroll_down() {
+        let mut state = PanelScrollState::with_total(100);
+        state.visible = 10;
+        state.offset = 0;
+
+        // Scroll down should move offset
+        state.scroll_down();
+        assert_eq!(state.offset, 1);
+
+        // Can scroll to end
+        for _ in 0..90 {
+            state.scroll_down();
+        }
+        assert_eq!(state.offset, 90);
+
+        // Should not scroll past end
+        state.scroll_down();
+        assert_eq!(state.offset, 90);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_scroll_up() {
+        let mut state = PanelScrollState::with_total(100);
+        state.visible = 10;
+        state.offset = 50;
+
+        // Scroll up should move offset
+        state.scroll_up();
+        assert_eq!(state.offset, 49);
+
+        // Can scroll to top
+        for _ in 0..49 {
+            state.scroll_up();
+        }
+        assert_eq!(state.offset, 0);
+
+        // Should not scroll past top
+        state.scroll_up();
+        assert_eq!(state.offset, 0);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_scroll_to_top() {
+        let mut state = PanelScrollState::with_total(100);
+        state.visible = 10;
+        state.offset = 50;
+        state.cursor = 50;
+
+        // Scroll to top should reset both offset and cursor
+        state.scroll_to_top();
+        assert_eq!(state.offset, 0);
+        assert_eq!(state.cursor, 0);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_scroll_to_bottom() {
+        let mut state = PanelScrollState::with_total(100);
+        state.visible = 10;
+        state.offset = 0;
+        state.cursor = 0;
+
+        // Scroll to bottom
+        state.scroll_to_bottom();
+        assert_eq!(state.offset, 90); // 100 - 10
+        assert_eq!(state.cursor, 99); // Last item
+    }
+
+    #[test]
+    fn test_panel_scroll_state_scroll_to_bottom_less_than_viewport() {
+        let mut state = PanelScrollState::with_total(5); // Less than viewport
+        state.visible = 10;
+        state.offset = 0;
+        state.cursor = 0;
+
+        // Scroll to bottom should work even with small total
+        state.scroll_to_bottom();
+        assert_eq!(state.offset, 0); // Can't scroll
+        assert_eq!(state.cursor, 4); // Last item
+    }
+
+    #[test]
+    fn test_panel_scroll_state_set_visible() {
+        let mut state = PanelScrollState::with_total(100);
+        state.visible = 10;
+        state.offset = 50;
+        state.cursor = 50;
+
+        // Change visible size
+        state.set_visible(20);
+        assert_eq!(state.visible, 20);
+
+        // Cursor should still be visible
+        assert!(state.cursor >= state.offset);
+        assert!(state.cursor < state.offset + state.visible);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_set_visible_with_cursor_adjustment() {
+        let mut state = PanelScrollState::with_total(100);
+        state.visible = 5;
+        state.offset = 0;
+        state.cursor = 0;
+
+        // Increase visible - ensures cursor remains visible
+        state.set_visible(50);
+        assert_eq!(state.visible, 50);
+        assert_eq!(state.cursor, 0);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_scroll_behavior_with_zero_total() {
+        let mut state = PanelScrollState::new();
+        state.visible = 10;
+        // total = 0 (default)
+
+        // Operations should be safe
+        state.scroll_up();
+        assert_eq!(state.offset, 0);
+
+        state.scroll_down();
+        assert_eq!(state.offset, 0);
+
+        state.scroll_to_top();
+        assert_eq!(state.offset, 0);
+        assert_eq!(state.cursor, 0);
+
+        state.scroll_to_bottom();
+        assert_eq!(state.offset, 0);
+        assert_eq!(state.cursor, 0);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_scroll_behavior_with_zero_visible() {
+        let mut state = PanelScrollState::with_total(100);
+        state.visible = 0;
+        state.offset = 50;
+
+        // Operations should be safe with zero visible
+        state.scroll_up();
+        assert_eq!(state.offset, 49);
+
+        state.scroll_down();
+        assert_eq!(state.offset, 50); // Can still scroll
+
+        state.scroll_to_bottom();
+        // offset should adjust to try to show items (but visible is 0)
+        assert!(state.cursor == 99);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_percentage_with_small_content() {
+        let mut state = PanelScrollState::with_total(5);
+        state.visible = 10; // Viewport larger than content
+
+        // When total <= visible, percentage should be 0
+        assert!((state.percentage() - 0.0).abs() < f64::EPSILON);
+
+        state.offset = 1;
+        // Should still be 0 (no scrolling possible)
+        assert!((state.percentage() - 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_panel_scroll_state_all_methods_preserve_invariants() {
+        let mut state = PanelScrollState::with_total(100);
+        state.visible = 20;
+
+        // After any operation, these should hold:
+        // 1. offset + visible >= total should never show empty space
+        // 2. cursor should always be < total
+        // 3. offset should never exceed total - visible
+
+        for cursor_val in 0..100 {
+            state.cursor = cursor_val;
+            state.ensure_cursor_visible();
+
+            assert!(state.cursor < state.total || state.total == 0);
+            let max_offset = state.total.saturating_sub(state.visible);
+            assert!(state.offset <= max_offset);
+        }
     }
 }

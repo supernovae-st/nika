@@ -2,8 +2,183 @@
 //!
 //! Color palette derived from NovaNet's visual-encoding.yaml.
 //! Provides consistent styling across all TUI components.
+//!
+//! # ColorMode Detection (v0.7.0+)
+//!
+//! Automatically detects terminal color capabilities:
+//! - TrueColor (24-bit): Modern terminals with COLORTERM=truecolor
+//! - Color256 (8-bit): Terminals with TERM containing "256color"
+//! - Color16 (4-bit): Basic terminal colors
+//!
+//! ```rust,ignore
+//! let mode = ColorMode::detect();
+//! let color = mode.adapt_color(Color::Rgb(139, 92, 246));
+//! ```
 
 use ratatui::style::{Color, Modifier, Style};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COLOR MODE DETECTION (v0.7.0+)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Terminal color mode detection.
+///
+/// Automatically detects terminal color capabilities based on environment
+/// variables. Falls back gracefully for limited terminals.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ColorMode {
+    /// 24-bit TrueColor (16 million colors)
+    /// Detected via COLORTERM=truecolor or COLORTERM=24bit
+    #[default]
+    TrueColor,
+
+    /// 256-color palette (8-bit)
+    /// Detected via TERM containing "256color"
+    Color256,
+
+    /// Basic 16-color palette (4-bit)
+    /// Fallback for basic terminals
+    Color16,
+}
+
+impl ColorMode {
+    /// Detect color mode from environment variables.
+    ///
+    /// Checks in order:
+    /// 1. COLORTERM for truecolor/24bit support
+    /// 2. TERM for 256color support
+    /// 3. Falls back to 16 colors
+    pub fn detect() -> Self {
+        // Check COLORTERM for modern terminals
+        if let Ok(colorterm) = std::env::var("COLORTERM") {
+            let ct = colorterm.to_lowercase();
+            if ct == "truecolor" || ct == "24bit" {
+                return Self::TrueColor;
+            }
+        }
+
+        // Check TERM for 256 color support
+        if let Ok(term) = std::env::var("TERM") {
+            if term.contains("256color") || term.contains("24bit") {
+                return Self::Color256;
+            }
+            // Some terminals advertise truecolor via TERM
+            if term.contains("truecolor") {
+                return Self::TrueColor;
+            }
+        }
+
+        // Default to 16 colors for maximum compatibility
+        Self::Color16
+    }
+
+    /// Check if this mode supports RGB colors.
+    pub fn supports_rgb(&self) -> bool {
+        matches!(self, Self::TrueColor)
+    }
+
+    /// Check if this mode supports at least 256 colors.
+    pub fn supports_256(&self) -> bool {
+        matches!(self, Self::TrueColor | Self::Color256)
+    }
+
+    /// Adapt an RGB color for this color mode.
+    ///
+    /// - TrueColor: Returns the color unchanged
+    /// - Color256: Converts to nearest 256-color palette entry
+    /// - Color16: Converts to nearest ANSI color
+    pub fn adapt_color(&self, color: Color) -> Color {
+        match self {
+            Self::TrueColor => color,
+            Self::Color256 => Self::rgb_to_256(color),
+            Self::Color16 => Self::rgb_to_16(color),
+        }
+    }
+
+    /// Convert RGB color to nearest 256-color palette entry.
+    fn rgb_to_256(color: Color) -> Color {
+        match color {
+            Color::Rgb(r, g, b) => {
+                // Use the 6x6x6 color cube (colors 16-231)
+                let r_idx = (r as u16 * 5 / 255) as u8;
+                let g_idx = (g as u16 * 5 / 255) as u8;
+                let b_idx = (b as u16 * 5 / 255) as u8;
+                let idx = 16 + 36 * r_idx + 6 * g_idx + b_idx;
+                Color::Indexed(idx)
+            }
+            other => other,
+        }
+    }
+
+    /// Convert RGB color to nearest ANSI 16-color.
+    fn rgb_to_16(color: Color) -> Color {
+        match color {
+            Color::Rgb(r, g, b) => {
+                // Calculate luminance
+                let luma = (r as u16 * 299 + g as u16 * 587 + b as u16 * 114) / 1000;
+                let bright = luma > 127;
+
+                // Find dominant color channel
+                let max = r.max(g).max(b);
+                let min = r.min(g).min(b);
+                let saturation = if max == 0 {
+                    0
+                } else {
+                    (max - min) as u16 * 255 / max as u16
+                };
+
+                if saturation < 50 {
+                    // Grayscale
+                    if bright {
+                        Color::White
+                    } else {
+                        Color::DarkGray
+                    }
+                } else if r >= g && r >= b {
+                    // Red dominant
+                    if g > b / 2 {
+                        if bright {
+                            Color::Yellow
+                        } else {
+                            Color::LightYellow
+                        }
+                    } else if bright {
+                        Color::LightRed
+                    } else {
+                        Color::Red
+                    }
+                } else if g >= r && g >= b {
+                    // Green dominant
+                    if b > r / 2 {
+                        if bright {
+                            Color::Cyan
+                        } else {
+                            Color::LightCyan
+                        }
+                    } else if bright {
+                        Color::LightGreen
+                    } else {
+                        Color::Green
+                    }
+                } else {
+                    // Blue dominant
+                    if r > g / 2 {
+                        if bright {
+                            Color::LightMagenta
+                        } else {
+                            Color::Magenta
+                        }
+                    } else if bright {
+                        Color::LightBlue
+                    } else {
+                        Color::Blue
+                    }
+                }
+            }
+            other => other,
+        }
+    }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VERB COLORS (DAG Visualization)
@@ -642,5 +817,519 @@ mod tests {
         assert_eq!(VerbColor::Fetch.icon_ascii(), "[F]");
         assert_eq!(VerbColor::Invoke.icon_ascii(), "[V]");
         assert_eq!(VerbColor::Agent.icon_ascii(), "[A]");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COLOR MODE DETECTION TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_color_mode_default_is_truecolor() {
+        let mode = ColorMode::default();
+        assert_eq!(mode, ColorMode::TrueColor);
+    }
+
+    #[test]
+    fn test_color_mode_supports_rgb_truecolor() {
+        assert!(ColorMode::TrueColor.supports_rgb());
+        assert!(!ColorMode::Color256.supports_rgb());
+        assert!(!ColorMode::Color16.supports_rgb());
+    }
+
+    #[test]
+    fn test_color_mode_supports_256() {
+        assert!(ColorMode::TrueColor.supports_256());
+        assert!(ColorMode::Color256.supports_256());
+        assert!(!ColorMode::Color16.supports_256());
+    }
+
+    #[test]
+    fn test_color_mode_adapt_color_truecolor_unchanged() {
+        let color = Color::Rgb(139, 92, 246);
+        assert_eq!(ColorMode::TrueColor.adapt_color(color), color);
+    }
+
+    #[test]
+    fn test_color_mode_adapt_color_256_converts_to_indexed() {
+        let color = Color::Rgb(139, 92, 246);
+        let adapted = ColorMode::Color256.adapt_color(color);
+
+        // Should convert to indexed (8-bit) color
+        match adapted {
+            Color::Indexed(_) => (), // Expected
+            _ => panic!("Expected Indexed color, got {:?}", adapted),
+        }
+    }
+
+    #[test]
+    fn test_color_mode_adapt_color_16_converts_to_ansi() {
+        let color = Color::Rgb(139, 92, 246);
+        let adapted = ColorMode::Color16.adapt_color(color);
+
+        // Should convert to ANSI color (not RGB)
+        if let Color::Rgb(_, _, _) = adapted {
+            panic!("Should not be RGB for Color16 mode")
+        }
+        // Expected: White, DarkGray, or other ANSI color
+    }
+
+    #[test]
+    fn test_color_mode_256_adapt_converts_to_indexed() {
+        // Test conversion to 6x6x6 color cube (colors 16-231)
+        let mode = ColorMode::Color256;
+        let red = mode.adapt_color(Color::Rgb(255, 0, 0));
+        let green = mode.adapt_color(Color::Rgb(0, 255, 0));
+        let blue = mode.adapt_color(Color::Rgb(0, 0, 255));
+
+        // All should be Indexed colors in range 16-231
+        match (red, green, blue) {
+            (Color::Indexed(r), Color::Indexed(g), Color::Indexed(b)) => {
+                assert!((16..=231).contains(&r));
+                assert!((16..=231).contains(&g));
+                assert!((16..=231).contains(&b));
+            }
+            _ => panic!("Expected Indexed colors"),
+        }
+    }
+
+    #[test]
+    fn test_color_mode_256_adapt_preserves_non_rgb() {
+        // Non-RGB colors should pass through unchanged
+        let mode = ColorMode::Color256;
+        let indexed = mode.adapt_color(Color::Indexed(100));
+        assert_eq!(indexed, Color::Indexed(100));
+
+        let white = mode.adapt_color(Color::White);
+        assert_eq!(white, Color::White);
+    }
+
+    #[test]
+    fn test_color_mode_16_adapt_grayscale() {
+        // Grayscale should become White or DarkGray
+        let mode = ColorMode::Color16;
+        let light_gray = mode.adapt_color(Color::Rgb(200, 200, 200));
+        assert_eq!(light_gray, Color::White);
+
+        let dark_gray = mode.adapt_color(Color::Rgb(50, 50, 50));
+        assert_eq!(dark_gray, Color::DarkGray);
+    }
+
+    #[test]
+    fn test_color_mode_16_adapt_red_dominant() {
+        // High red, low green/blue
+        let mode = ColorMode::Color16;
+        let red = mode.adapt_color(Color::Rgb(200, 30, 30));
+        assert_eq!(red, Color::LightRed);
+    }
+
+    #[test]
+    fn test_color_mode_16_adapt_green_dominant() {
+        // High green dominant
+        let mode = ColorMode::Color16;
+        let green = mode.adapt_color(Color::Rgb(30, 200, 30));
+        assert_eq!(green, Color::LightGreen);
+    }
+
+    #[test]
+    fn test_color_mode_16_adapt_blue_dominant() {
+        // High blue dominant
+        let mode = ColorMode::Color16;
+        let blue = mode.adapt_color(Color::Rgb(30, 30, 200));
+        assert_eq!(blue, Color::LightBlue);
+    }
+
+    #[test]
+    fn test_color_mode_16_adapt_preserves_non_rgb() {
+        let mode = ColorMode::Color16;
+        let white = mode.adapt_color(Color::White);
+        assert_eq!(white, Color::White);
+
+        let indexed = mode.adapt_color(Color::Indexed(50));
+        assert_eq!(indexed, Color::Indexed(50));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // THEME TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_theme_dark_is_same_as_default() {
+        let dark = Theme::dark();
+        let default = Theme::default();
+
+        assert_eq!(dark.realm_shared, default.realm_shared);
+        assert_eq!(dark.text_primary, default.text_primary);
+        assert_eq!(dark.background, default.background);
+    }
+
+    #[test]
+    fn test_theme_novanet_is_dark() {
+        let novanet = Theme::novanet();
+        let dark = Theme::dark();
+
+        assert_eq!(novanet.background, dark.background);
+        assert_eq!(novanet.text_primary, dark.text_primary);
+    }
+
+    #[test]
+    fn test_theme_light_has_inverted_colors() {
+        let light = Theme::light();
+
+        // Light theme should have bright background
+        assert_eq!(light.background, Color::Rgb(249, 250, 251));
+
+        // Light theme should have dark text
+        assert_eq!(light.text_primary, Color::Rgb(17, 24, 39));
+    }
+
+    #[test]
+    fn test_theme_mcp_tool_color_describe() {
+        let theme = Theme::default();
+        assert_eq!(theme.mcp_tool_color("novanet_describe"), theme.mcp_describe);
+        assert_eq!(theme.mcp_tool_color("describe"), theme.mcp_describe);
+    }
+
+    #[test]
+    fn test_theme_mcp_tool_color_traverse() {
+        let theme = Theme::default();
+        assert_eq!(theme.mcp_tool_color("novanet_traverse"), theme.mcp_traverse);
+    }
+
+    #[test]
+    fn test_theme_mcp_tool_color_unknown_defaults_to_secondary() {
+        let theme = Theme::default();
+        assert_eq!(theme.mcp_tool_color("unknown_tool"), theme.text_secondary);
+        assert_eq!(theme.mcp_tool_color(""), theme.text_secondary);
+    }
+
+    #[test]
+    fn test_theme_status_style_pending() {
+        let theme = Theme::novanet();
+        let style = theme.status_style(TaskStatus::Pending);
+        assert_eq!(style.fg, Some(theme.status_pending));
+    }
+
+    #[test]
+    fn test_theme_status_style_all_variants() {
+        let theme = Theme::novanet();
+
+        let pending = theme.status_style(TaskStatus::Pending);
+        assert_eq!(pending.fg, Some(theme.status_pending));
+
+        let running = theme.status_style(TaskStatus::Running);
+        assert_eq!(running.fg, Some(theme.status_running));
+
+        let success = theme.status_style(TaskStatus::Success);
+        assert_eq!(success.fg, Some(theme.status_success));
+
+        let failed = theme.status_style(TaskStatus::Failed);
+        assert_eq!(failed.fg, Some(theme.status_failed));
+
+        let paused = theme.status_style(TaskStatus::Paused);
+        assert_eq!(paused.fg, Some(theme.status_paused));
+    }
+
+    #[test]
+    fn test_theme_border_style_focused_has_bold() {
+        let theme = Theme::novanet();
+        let focused = theme.border_style(true);
+        assert!(focused.add_modifier.contains(Modifier::BOLD));
+        assert_eq!(focused.fg, Some(theme.border_focused));
+    }
+
+    #[test]
+    fn test_theme_border_style_unfocused_no_bold() {
+        let theme = Theme::novanet();
+        let unfocused = theme.border_style(false);
+        assert!(!unfocused.add_modifier.contains(Modifier::BOLD));
+        assert_eq!(unfocused.fg, Some(theme.border_normal));
+    }
+
+    #[test]
+    fn test_theme_text_style_primary() {
+        let theme = Theme::novanet();
+        let style = theme.text_style();
+        assert_eq!(style.fg, Some(theme.text_primary));
+    }
+
+    #[test]
+    fn test_theme_text_secondary_style() {
+        let theme = Theme::novanet();
+        let style = theme.text_secondary_style();
+        assert_eq!(style.fg, Some(theme.text_secondary));
+    }
+
+    #[test]
+    fn test_theme_text_muted_style() {
+        let theme = Theme::novanet();
+        let style = theme.text_muted_style();
+        assert_eq!(style.fg, Some(theme.text_muted));
+    }
+
+    #[test]
+    fn test_theme_highlight_style_has_bold() {
+        let theme = Theme::novanet();
+        let style = theme.highlight_style();
+        assert!(style.add_modifier.contains(Modifier::BOLD));
+        assert_eq!(style.fg, Some(theme.highlight));
+    }
+
+    #[test]
+    fn test_theme_trait_colors_are_distinct() {
+        let theme = Theme::default();
+
+        let traits = [
+            theme.trait_defined,
+            theme.trait_authored,
+            theme.trait_imported,
+            theme.trait_generated,
+            theme.trait_retrieved,
+        ];
+
+        // All trait colors should be unique
+        for i in 0..traits.len() {
+            for j in (i + 1)..traits.len() {
+                assert_ne!(
+                    traits[i], traits[j],
+                    "Trait color {} and {} are identical",
+                    i, j
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_theme_realm_colors_are_distinct() {
+        let theme = Theme::default();
+        assert_ne!(theme.realm_shared, theme.realm_org);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TASK STATUS TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_task_status_can_be_created() {
+        let _ = TaskStatus::Pending;
+        let _ = TaskStatus::Running;
+        let _ = TaskStatus::Success;
+        let _ = TaskStatus::Failed;
+        let _ = TaskStatus::Paused;
+    }
+
+    #[test]
+    fn test_task_status_equality() {
+        assert_eq!(TaskStatus::Pending, TaskStatus::Pending);
+        assert_ne!(TaskStatus::Pending, TaskStatus::Running);
+        assert_ne!(TaskStatus::Success, TaskStatus::Failed);
+    }
+
+    #[test]
+    fn test_task_status_copy_clone() {
+        let status = TaskStatus::Running;
+        let copied = status;
+        assert_eq!(status, copied);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MISSION PHASE TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_mission_phase_preflight_icon_and_name() {
+        let phase = MissionPhase::Preflight;
+        assert_eq!(phase.icon(), "◦");
+        assert_eq!(phase.name(), "PREFLIGHT");
+    }
+
+    #[test]
+    fn test_mission_phase_countdown_icon_and_name() {
+        let phase = MissionPhase::Countdown;
+        assert_eq!(phase.icon(), "⊙");
+        assert_eq!(phase.name(), "COUNTDOWN");
+    }
+
+    #[test]
+    fn test_mission_phase_launch_icon_and_name() {
+        let phase = MissionPhase::Launch;
+        assert_eq!(phase.icon(), "⊛");
+        assert_eq!(phase.name(), "LAUNCH");
+    }
+
+    #[test]
+    fn test_mission_phase_orbital_icon_and_name() {
+        let phase = MissionPhase::Orbital;
+        assert_eq!(phase.icon(), "◉");
+        assert_eq!(phase.name(), "ORBITAL");
+    }
+
+    #[test]
+    fn test_mission_phase_rendezvous_icon_and_name() {
+        let phase = MissionPhase::Rendezvous;
+        assert_eq!(phase.icon(), "◈");
+        assert_eq!(phase.name(), "RENDEZVOUS");
+    }
+
+    #[test]
+    fn test_mission_phase_success_icon_and_name() {
+        let phase = MissionPhase::MissionSuccess;
+        assert_eq!(phase.icon(), "✦");
+        assert_eq!(phase.name(), "MISSION SUCCESS");
+    }
+
+    #[test]
+    fn test_mission_phase_abort_icon_and_name() {
+        let phase = MissionPhase::Abort;
+        assert_eq!(phase.icon(), "⊗");
+        assert_eq!(phase.name(), "ABORT");
+    }
+
+    #[test]
+    fn test_mission_phase_pause_icon_and_name() {
+        let phase = MissionPhase::Pause;
+        assert_eq!(phase.icon(), "⏸");
+        assert_eq!(phase.name(), "PAUSED");
+    }
+
+    #[test]
+    fn test_mission_phase_all_icons_unique() {
+        let icons = [
+            MissionPhase::Preflight.icon(),
+            MissionPhase::Countdown.icon(),
+            MissionPhase::Launch.icon(),
+            MissionPhase::Orbital.icon(),
+            MissionPhase::Rendezvous.icon(),
+            MissionPhase::MissionSuccess.icon(),
+            MissionPhase::Abort.icon(),
+            MissionPhase::Pause.icon(),
+        ];
+
+        // All icons should be unique
+        for i in 0..icons.len() {
+            for j in (i + 1)..icons.len() {
+                assert_ne!(
+                    icons[i], icons[j],
+                    "Icons at positions {} and {} are identical: {}",
+                    i, j, icons[i]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_mission_phase_equality() {
+        assert_eq!(MissionPhase::Preflight, MissionPhase::Preflight);
+        assert_ne!(MissionPhase::Preflight, MissionPhase::Countdown);
+        assert_ne!(MissionPhase::MissionSuccess, MissionPhase::Abort);
+    }
+
+    #[test]
+    fn test_mission_phase_copy_clone() {
+        let phase = MissionPhase::Orbital;
+        let copied = phase;
+        assert_eq!(phase, copied);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // THEME MODE TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_theme_mode_equality() {
+        assert_eq!(ThemeMode::Dark, ThemeMode::Dark);
+        assert_eq!(ThemeMode::Light, ThemeMode::Light);
+        assert_ne!(ThemeMode::Dark, ThemeMode::Light);
+    }
+
+    #[test]
+    fn test_theme_mode_copy_clone() {
+        let mode = ThemeMode::Light;
+        let copied = mode;
+        assert_eq!(mode, copied);
+    }
+
+    #[test]
+    fn test_theme_mode_toggle_bidirectional() {
+        let dark = ThemeMode::Dark;
+        assert_eq!(dark.toggle().toggle(), dark);
+
+        let light = ThemeMode::Light;
+        assert_eq!(light.toggle().toggle(), light);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // INTEGRATION TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_verb_color_all_methods_return_rgb() {
+        let verbs = [
+            VerbColor::Infer,
+            VerbColor::Exec,
+            VerbColor::Fetch,
+            VerbColor::Invoke,
+            VerbColor::Agent,
+        ];
+
+        for verb in verbs {
+            // All should return RGB colors
+            match verb.rgb() {
+                Color::Rgb(_, _, _) => (),
+                _ => panic!("Expected RGB color for {:?}", verb),
+            }
+
+            match verb.glow() {
+                Color::Rgb(_, _, _) => (),
+                _ => panic!("Expected RGB color for glow: {:?}", verb),
+            }
+
+            match verb.muted() {
+                Color::Rgb(_, _, _) => (),
+                _ => panic!("Expected RGB color for muted: {:?}", verb),
+            }
+
+            match verb.subtle() {
+                Color::Rgb(_, _, _) => (),
+                _ => panic!("Expected RGB color for subtle: {:?}", verb),
+            }
+        }
+    }
+
+    #[test]
+    fn test_color_mode_detect_consistency() {
+        // Multiple calls to detect should return the same result
+        // (unless environment variables change)
+        let mode1 = ColorMode::detect();
+        let mode2 = ColorMode::detect();
+        assert_eq!(mode1, mode2);
+    }
+
+    #[test]
+    fn test_theme_dark_vs_light_status_colors_differ() {
+        let dark = Theme::dark();
+        let light = Theme::light();
+
+        assert_ne!(dark.status_running, light.status_running);
+        assert_ne!(dark.status_success, light.status_success);
+        assert_ne!(dark.status_failed, light.status_failed);
+    }
+
+    #[test]
+    fn test_theme_all_realm_colors_present() {
+        let theme = Theme::default();
+        assert_ne!(theme.realm_shared, Color::Reset);
+        assert_ne!(theme.realm_org, Color::Reset);
+    }
+
+    #[test]
+    fn test_theme_all_ui_element_colors_present() {
+        let theme = Theme::default();
+        assert_ne!(theme.border_normal, Color::Reset);
+        assert_ne!(theme.border_focused, Color::Reset);
+        assert_ne!(theme.text_primary, Color::Reset);
+        assert_ne!(theme.text_secondary, Color::Reset);
+        assert_ne!(theme.text_muted, Color::Reset);
+        assert_ne!(theme.background, Color::Reset);
+        assert_ne!(theme.highlight, Color::Reset);
     }
 }

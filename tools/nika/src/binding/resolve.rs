@@ -155,6 +155,16 @@ impl ResolvedBindings {
         self.bindings.is_empty()
     }
 
+    /// Iterate over resolved bindings (alias, value pairs)
+    ///
+    /// Only returns already-resolved bindings. Pending lazy bindings are skipped.
+    /// Use this for event logging where we want to capture resolved values.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &Value)> {
+        self.bindings
+            .iter()
+            .filter_map(|(alias, binding)| binding.get_value().map(|value| (alias.as_str(), value)))
+    }
+
     /// Serialize context to JSON Value for event logging
     ///
     /// Returns the full resolved inputs as a JSON object.
@@ -506,5 +516,521 @@ mod tests {
 
         assert!(value.is_object());
         assert!(value.as_object().unwrap().is_empty());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // LazyBinding::is_pending() tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn lazy_binding_resolved_not_pending() {
+        let binding = LazyBinding::Resolved(json!("value"));
+        assert!(!binding.is_pending());
+    }
+
+    #[test]
+    fn lazy_binding_pending_is_pending() {
+        let binding = LazyBinding::Pending {
+            path: "task.path".to_string(),
+            default: None,
+        };
+        assert!(binding.is_pending());
+    }
+
+    #[test]
+    fn lazy_binding_pending_with_default_is_pending() {
+        let binding = LazyBinding::Pending {
+            path: "task.path".to_string(),
+            default: Some(json!("fallback")),
+        };
+        assert!(binding.is_pending());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // LazyBinding::get_value() tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn lazy_binding_get_value_resolved() {
+        let binding = LazyBinding::Resolved(json!("resolved"));
+        assert_eq!(binding.get_value(), Some(&json!("resolved")));
+    }
+
+    #[test]
+    fn lazy_binding_get_value_pending() {
+        let binding = LazyBinding::Pending {
+            path: "task.path".to_string(),
+            default: None,
+        };
+        assert_eq!(binding.get_value(), None);
+    }
+
+    #[test]
+    fn lazy_binding_get_value_complex_value() {
+        let complex = json!({"nested": {"value": 42}, "array": [1, 2, 3]});
+        let binding = LazyBinding::Resolved(complex.clone());
+        assert_eq!(binding.get_value(), Some(&complex));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ResolvedBindings::new() tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn new_creates_empty_bindings() {
+        let bindings = ResolvedBindings::new();
+        assert!(bindings.is_empty());
+        assert_eq!(bindings.get("anything"), None);
+    }
+
+    #[test]
+    fn default_creates_empty_bindings() {
+        let bindings = ResolvedBindings::default();
+        assert!(bindings.is_empty());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ResolvedBindings::set() tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn set_multiple_values() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("key1", json!("value1"));
+        bindings.set("key2", json!(42));
+        bindings.set("key3", json!({"nested": true}));
+
+        assert_eq!(bindings.get("key1"), Some(&json!("value1")));
+        assert_eq!(bindings.get("key2"), Some(&json!(42)));
+        assert_eq!(bindings.get("key3"), Some(&json!({"nested": true})));
+    }
+
+    #[test]
+    fn set_overwrites_previous_value() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("key", json!("old"));
+        bindings.set("key", json!("new"));
+
+        assert_eq!(bindings.get("key"), Some(&json!("new")));
+    }
+
+    #[test]
+    fn set_with_string_into() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("literal", json!("value"));
+        assert_eq!(bindings.get("literal"), Some(&json!("value")));
+    }
+
+    #[test]
+    fn set_null_value() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("nullable", json!(null));
+        assert_eq!(bindings.get("nullable"), Some(&json!(null)));
+    }
+
+    #[test]
+    fn set_array_value() {
+        let mut bindings = ResolvedBindings::new();
+        let arr = json!([1, 2, 3, "mixed", {"obj": true}]);
+        bindings.set("array", arr.clone());
+        assert_eq!(bindings.get("array"), Some(&arr));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ResolvedBindings::get() tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn get_nonexistent_returns_none() {
+        let bindings = ResolvedBindings::new();
+        assert_eq!(bindings.get("nonexistent"), None);
+    }
+
+    #[test]
+    fn get_does_not_resolve_lazy() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("task"),
+            TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
+        );
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert(
+            "lazy_bind".to_string(),
+            UseEntry::lazy_with_default("task.value", json!("default")),
+        );
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        // get() should NOT resolve lazy bindings
+        assert_eq!(bindings.get("lazy_bind"), None);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ResolvedBindings::get_resolved() tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn get_resolved_eager_binding() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("task"),
+            TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
+        );
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert("eager".to_string(), UseEntry::new("task.value"));
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let result = bindings.get_resolved("eager", &store).unwrap();
+        assert_eq!(result, json!("result"));
+    }
+
+    #[test]
+    fn get_resolved_lazy_binding() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("task"),
+            TaskResult::success(json!({"value": "lazy_result"}), Duration::from_secs(1)),
+        );
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert("lazy".to_string(), UseEntry::new_lazy("task.value"));
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let result = bindings.get_resolved("lazy", &store).unwrap();
+        assert_eq!(result, json!("lazy_result"));
+    }
+
+    #[test]
+    fn get_resolved_nonexistent_binding() {
+        let store = DataStore::new();
+        let bindings = ResolvedBindings::new();
+        let result = bindings.get_resolved("missing", &store);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-061"));
+    }
+
+    #[test]
+    fn get_resolved_lazy_with_default() {
+        let store = DataStore::new();
+        // No task in store - should use default
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert(
+            "lazy_default".to_string(),
+            UseEntry::lazy_with_default("missing.path", json!("fallback")),
+        );
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let result = bindings.get_resolved("lazy_default", &store).unwrap();
+        assert_eq!(result, json!("fallback"));
+    }
+
+    #[test]
+    fn get_resolved_re_resolves_on_each_call() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("task"),
+            TaskResult::success(json!({"counter": 1}), Duration::from_secs(1)),
+        );
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert("lazy".to_string(), UseEntry::new_lazy("task.counter"));
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+
+        // First call
+        let result1 = bindings.get_resolved("lazy", &store).unwrap();
+        assert_eq!(result1, json!(1));
+
+        // Update store
+        store.insert(
+            Arc::from("task"),
+            TaskResult::success(json!({"counter": 2}), Duration::from_secs(1)),
+        );
+
+        // Second call - should reflect new value (lazy bindings don't cache)
+        let result2 = bindings.get_resolved("lazy", &store).unwrap();
+        assert_eq!(result2, json!(2));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ResolvedBindings::is_lazy() tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn is_lazy_for_eager_binding() {
+        let store = DataStore::new();
+        let mut wiring = WiringSpec::default();
+        wiring.insert("eager".to_string(), UseEntry::new("task.value"));
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        assert!(!bindings.is_lazy("eager"));
+    }
+
+    #[test]
+    fn is_lazy_for_lazy_binding() {
+        let store = DataStore::new();
+        let mut wiring = WiringSpec::default();
+        wiring.insert("lazy".to_string(), UseEntry::new_lazy("task.value"));
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        assert!(bindings.is_lazy("lazy"));
+    }
+
+    #[test]
+    fn is_lazy_for_nonexistent_binding() {
+        let bindings = ResolvedBindings::new();
+        assert!(!bindings.is_lazy("missing"));
+    }
+
+    #[test]
+    fn is_lazy_after_resolution() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("task"),
+            TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
+        );
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert("lazy".to_string(), UseEntry::new_lazy("task.value"));
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        // Even after calling get_resolved(), the binding is still marked as lazy
+        let _ = bindings.get_resolved("lazy", &store);
+        assert!(bindings.is_lazy("lazy"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ResolvedBindings::iter() tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn iter_empty_bindings() {
+        let bindings = ResolvedBindings::new();
+        let count = bindings.iter().count();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn iter_only_resolved_bindings() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("task"),
+            TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
+        );
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert("eager".to_string(), UseEntry::new("task.value"));
+        wiring.insert("lazy".to_string(), UseEntry::new_lazy("task.value"));
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+
+        // iter() should only return eager bindings, not lazy ones
+        let items: Vec<_> = bindings.iter().collect();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].0, "eager");
+        assert_eq!(items[0].1, &json!("result"));
+    }
+
+    #[test]
+    fn iter_multiple_resolved_bindings() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("first", json!(1));
+        bindings.set("second", json!(2));
+        bindings.set("third", json!(3));
+
+        let items: Vec<_> = bindings.iter().collect();
+        assert_eq!(items.len(), 3);
+
+        // Check all items are present (order may vary due to FxHashMap)
+        let aliases: Vec<_> = items.iter().map(|(alias, _)| *alias).collect();
+        assert!(aliases.contains(&"first"));
+        assert!(aliases.contains(&"second"));
+        assert!(aliases.contains(&"third"));
+    }
+
+    #[test]
+    fn iter_with_various_value_types() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("str", json!("text"));
+        bindings.set("num", json!(42));
+        bindings.set("obj", json!({"key": "value"}));
+        bindings.set("arr", json!([1, 2, 3]));
+        bindings.set("bool", json!(true));
+
+        let items: Vec<_> = bindings.iter().collect();
+        assert_eq!(items.len(), 5);
+
+        // Verify all values are accessible
+        for (alias, value) in &items {
+            match *alias {
+                "str" => assert_eq!(*value, &json!("text")),
+                "num" => assert_eq!(*value, &json!(42)),
+                "obj" => assert_eq!(*value, &json!({"key": "value"})),
+                "arr" => assert_eq!(*value, &json!([1, 2, 3])),
+                "bool" => assert_eq!(*value, &json!(true)),
+                _ => panic!("unexpected alias: {}", alias),
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ResolvedBindings::to_value() with lazy bindings
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn to_value_with_lazy_bindings() {
+        let _store = DataStore::new();
+        let mut wiring = WiringSpec::default();
+        wiring.insert("eager".to_string(), UseEntry::new("missing"));
+        wiring.insert("lazy".to_string(), UseEntry::new_lazy("missing"));
+
+        // The eager binding will use its default (none here, so it should be present in attempt)
+        // For this test, we'll skip the eager binding which would fail
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("eager", json!("eager_value"));
+
+        // Insert a lazy binding manually for testing
+        bindings.bindings.insert(
+            "lazy".to_string(),
+            LazyBinding::Pending {
+                path: "task.path".to_string(),
+                default: Some(json!("lazy_default")),
+            },
+        );
+
+        let value = bindings.to_value();
+        assert!(value.is_object());
+
+        let obj = value.as_object().unwrap();
+        assert_eq!(obj["eager"], json!("eager_value"));
+
+        // Lazy bindings are represented as {__lazy__: true, path: "..."}
+        let lazy_marker = &obj["lazy"];
+        assert!(lazy_marker.is_object());
+        assert_eq!(lazy_marker["__lazy__"], true);
+        assert_eq!(lazy_marker["path"], "task.path");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Error handling in from_wiring_spec()
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn from_wiring_spec_eager_missing_path() {
+        let store = DataStore::new();
+        let mut wiring = WiringSpec::default();
+        wiring.insert("x".to_string(), UseEntry::new("nonexistent.path"));
+
+        let result = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn from_wiring_spec_lazy_does_not_fail_on_missing() {
+        let store = DataStore::new();
+        let mut wiring = WiringSpec::default();
+        wiring.insert("x".to_string(), UseEntry::new_lazy("nonexistent.path"));
+
+        // Lazy bindings don't fail during from_wiring_spec - they fail on get_resolved()
+        let result = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn from_wiring_spec_preserves_all_entries() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("task1"),
+            TaskResult::success(json!({"a": 1}), Duration::from_secs(1)),
+        );
+        store.insert(
+            Arc::from("task2"),
+            TaskResult::success(json!({"b": 2}), Duration::from_secs(1)),
+        );
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert("binding1".to_string(), UseEntry::new("task1.a"));
+        wiring.insert("binding2".to_string(), UseEntry::new_lazy("task2.b"));
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+
+        // Both bindings should exist
+        assert_eq!(bindings.get("binding1"), Some(&json!(1)));
+        assert!(bindings.is_lazy("binding2"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Mixed eager and lazy bindings
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn mixed_eager_and_lazy_workflow() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("quick"),
+            TaskResult::success(json!({"result": "fast"}), Duration::from_secs(1)),
+        );
+        store.insert(
+            Arc::from("slow"),
+            TaskResult::success(json!({"result": "slow_value"}), Duration::from_secs(5)),
+        );
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert("quick_bind".to_string(), UseEntry::new("quick.result"));
+        wiring.insert("slow_bind".to_string(), UseEntry::new_lazy("slow.result"));
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+
+        // Eager should be available immediately
+        assert_eq!(bindings.get("quick_bind"), Some(&json!("fast")));
+
+        // Lazy should still be pending
+        assert!(bindings.is_lazy("slow_bind"));
+        assert_eq!(bindings.get("slow_bind"), None);
+
+        // But can be resolved on demand
+        let resolved = bindings.get_resolved("slow_bind", &store).unwrap();
+        assert_eq!(resolved, json!("slow_value"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Edge cases with special values
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn binding_with_empty_string() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("empty", json!(""));
+        assert_eq!(bindings.get("empty"), Some(&json!("")));
+    }
+
+    #[test]
+    fn binding_with_zero() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("zero", json!(0));
+        assert_eq!(bindings.get("zero"), Some(&json!(0)));
+    }
+
+    #[test]
+    fn binding_with_false() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("falsy", json!(false));
+        assert_eq!(bindings.get("falsy"), Some(&json!(false)));
+    }
+
+    #[test]
+    fn binding_with_empty_array() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("empty_arr", json!([]));
+        assert_eq!(bindings.get("empty_arr"), Some(&json!([])));
+    }
+
+    #[test]
+    fn binding_with_empty_object() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("empty_obj", json!({}));
+        assert_eq!(bindings.get("empty_obj"), Some(&json!({})));
     }
 }
