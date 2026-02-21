@@ -5,7 +5,7 @@
 
 use std::io::{self, Stdout};
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
 use crossterm::{
@@ -25,7 +25,7 @@ use ratatui::{
     Frame, Terminal,
 };
 use tokio::sync::{broadcast, mpsc, OnceCell};
-use tokio::task::JoinSet;
+use tokio::task::AbortHandle;
 use tokio::time::timeout;
 
 use crate::util::constants::{EXEC_TIMEOUT, FETCH_TIMEOUT, INFER_TIMEOUT, WORKFLOW_TIMEOUT};
@@ -238,9 +238,9 @@ pub struct App {
     /// Cached MCP clients (lazy-initialized with OnceCell for thread-safe async init)
     mcp_client_cache: Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>,
     // ═══ Background Task Tracking (v0.7.0) ═══
-    /// JoinSet for tracking spawned background tasks
-    /// Enables proper cancellation on app exit
-    background_tasks: JoinSet<()>,
+    /// AbortHandles for tracked background tasks
+    /// Enables proper cancellation on app exit via abort_all()
+    background_handles: Arc<Mutex<Vec<AbortHandle>>>,
 }
 
 impl App {
@@ -297,7 +297,7 @@ impl App {
             chat_agent,
             mcp_configs: None, // Loaded in init_mcp_clients()
             mcp_client_cache: Arc::new(DashMap::new()),
-            background_tasks: JoinSet::new(),
+            background_handles: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
@@ -346,7 +346,7 @@ impl App {
             chat_agent,
             mcp_configs: None, // No workflow in standalone mode
             mcp_client_cache: Arc::new(DashMap::new()),
-            background_tasks: JoinSet::new(),
+            background_handles: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
@@ -574,7 +574,7 @@ impl App {
         }
 
         // Cancel all background tasks before cleanup
-        self.cancel_background_tasks().await;
+        self.cancel_background_tasks();
 
         // Cleanup and return
         self.cleanup()
@@ -1148,10 +1148,10 @@ impl App {
                     let context = self.build_conversation_context();
                     let prompt_with_context = format!("{}{}", context, msg);
 
-                    // Spawn async task to call ChatAgent.infer() with timeout protection
+                    // Spawn tracked task to call ChatAgent.infer() with timeout protection
                     let tx = self.llm_response_tx.clone();
                     if self.ensure_chat_agent().is_some() {
-                        tokio::spawn(async move {
+                        self.spawn_tracked(async move {
                             match crate::tui::ChatAgent::new() {
                                 Ok(mut agent) => {
                                     match timeout(INFER_TIMEOUT, agent.infer(&prompt_with_context))
@@ -1660,10 +1660,10 @@ impl App {
                     // Show "thinking" indicator
                     self.state.chat_overlay.add_nika_message("Thinking...");
 
-                    // Spawn async task to call LLM with timeout protection
+                    // Spawn tracked task to call LLM with timeout protection
                     let tx = self.llm_response_tx.clone();
                     let prompt = message.clone();
-                    tokio::spawn(async move {
+                    self.spawn_tracked(async move {
                         let provider = RigProvider::openai();
                         match timeout(INFER_TIMEOUT, provider.infer(&prompt, None)).await {
                             Ok(Ok(response)) => {
@@ -1893,14 +1893,14 @@ impl App {
             format!("{}{}", context, prompt)
         };
 
-        // Spawn async task to call ChatAgent.infer()
+        // Spawn tracked task to call ChatAgent.infer()
         // Only use stream_tx - streaming handles message display
         // (llm_response_tx would cause duplicate messages)
         let stream_tx = self.stream_chunk_tx.clone();
 
         // Check if agent exists or can be created
         if self.ensure_chat_agent().is_some() {
-            tokio::spawn(async move {
+            self.spawn_tracked(async move {
                 // Create a new agent for the async task (ChatAgent is not Send)
                 // Wire streaming for real-time token display (Claude Code-like UX)
                 match ChatAgent::new() {
@@ -1958,9 +1958,9 @@ impl App {
         self.chat_view
             .add_nika_message(format!("$ {}", command), None);
 
-        // Spawn async task for shell execution with timeout protection
+        // Spawn tracked task for shell execution with timeout protection
         let tx = self.llm_response_tx.clone();
-        tokio::spawn(async move {
+        self.spawn_tracked(async move {
             match ChatAgent::new() {
                 Ok(agent) => match timeout(EXEC_TIMEOUT, agent.exec_command(&command)).await {
                     Ok(Ok(output)) => {
@@ -2674,32 +2674,36 @@ impl App {
         self.set_status(&format!("🌌 Warping through: {}", path.display()));
     }
 
-    /// Spawn a background task that will be automatically cancelled on cleanup
+    /// Spawn a tracked background task that will be cancelled on cleanup
     ///
     /// Use this instead of raw `tokio::spawn()` for tasks that should be
-    /// cleaned up when the TUI exits. Returns true if spawn succeeded.
-    #[allow(dead_code)] // Infrastructure for future use
-    fn spawn_background<F>(&mut self, future: F) -> bool
+    /// cleaned up when the TUI exits. The task's AbortHandle is stored for
+    /// later cancellation via `cancel_background_tasks()`.
+    fn spawn_tracked<F>(&self, future: F)
     where
         F: std::future::Future<Output = ()> + Send + 'static,
     {
-        self.background_tasks.spawn(future);
-        true
+        let handle = tokio::spawn(future);
+        self.background_handles
+            .lock()
+            .expect("background_handles mutex poisoned")
+            .push(handle.abort_handle());
     }
 
-    /// Cancel all background tasks and wait for them to complete
+    /// Cancel all background tasks
     ///
     /// Should be called during cleanup to ensure graceful shutdown.
-    async fn cancel_background_tasks(&mut self) {
-        // Abort all tasks in the JoinSet
-        self.background_tasks.abort_all();
-
-        // Wait for all tasks to complete (they'll be aborted)
-        while self.background_tasks.join_next().await.is_some() {
-            // Tasks completing (either aborted or finished)
+    /// Tasks are aborted immediately; no waiting for completion.
+    fn cancel_background_tasks(&self) {
+        let handles = self
+            .background_handles
+            .lock()
+            .expect("background_handles mutex poisoned");
+        let count = handles.len();
+        for handle in handles.iter() {
+            handle.abort();
         }
-
-        tracing::debug!("All background tasks cancelled");
+        tracing::debug!("Aborted {} background tasks", count);
     }
 
     /// Cleanup terminal state
