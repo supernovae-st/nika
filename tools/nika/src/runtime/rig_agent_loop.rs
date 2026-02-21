@@ -22,8 +22,8 @@ use std::sync::Arc;
 use futures::StreamExt;
 use rig::agent::AgentBuilder;
 use rig::client::{CompletionClient, ProviderClient};
-use rig::completion::{CompletionModel as _, GetTokenUsage, Prompt};
-use rig::message::ReasoningContent;
+use rig::completion::{Chat, CompletionModel as _, GetTokenUsage, Prompt};
+use rig::message::{Message, ReasoningContent};
 use rig::providers::{anthropic, openai};
 use rig::streaming::StreamedAssistantContent;
 use rustc_hash::FxHashMap;
@@ -88,6 +88,21 @@ pub struct RigAgentLoopResult {
 /// Rig-based agentic execution loop
 ///
 /// Uses rig-core's AgentBuilder for multi-turn execution with MCP tools.
+///
+/// ## Chat History (v0.6)
+///
+/// The agent loop now supports conversation history for multi-turn interactions:
+///
+/// ```rust,ignore
+/// let mut agent = RigAgentLoop::new(...)?;
+///
+/// // First turn
+/// let result = agent.run_claude().await?;
+///
+/// // Continue conversation with history
+/// agent.add_to_history("What's the capital of France?", &result.final_output.to_string());
+/// let result2 = agent.chat_continue("And what about Germany?").await?;
+/// ```
 pub struct RigAgentLoop {
     /// Task identifier for event logging
     task_id: String,
@@ -100,6 +115,8 @@ pub struct RigAgentLoop {
     mcp_clients: FxHashMap<String, Arc<McpClient>>,
     /// Pre-built tools from MCP clients
     tools: Vec<Box<dyn rig::tool::ToolDyn>>,
+    /// Conversation history for multi-turn chat (v0.6)
+    history: Vec<Message>,
 }
 
 impl std::fmt::Debug for RigAgentLoop {
@@ -108,6 +125,7 @@ impl std::fmt::Debug for RigAgentLoop {
             .field("task_id", &self.task_id)
             .field("params", &self.params)
             .field("tool_count", &self.tools.len())
+            .field("history_len", &self.history.len())
             .finish_non_exhaustive()
     }
 }
@@ -169,6 +187,204 @@ impl RigAgentLoop {
             event_log,
             mcp_clients,
             tools,
+            history: Vec::new(),
+        })
+    }
+
+    // =========================================================================
+    // v0.6: Chat History Management
+    // =========================================================================
+
+    /// Add a user/assistant turn to the conversation history
+    ///
+    /// Call this after each completed turn to maintain context for `chat_continue()`.
+    pub fn add_to_history(&mut self, user_prompt: &str, assistant_response: &str) {
+        self.history.push(Message::user(user_prompt));
+        self.history.push(Message::assistant(assistant_response));
+    }
+
+    /// Add a single message to the history
+    pub fn push_message(&mut self, message: Message) {
+        self.history.push(message);
+    }
+
+    /// Clear all conversation history
+    pub fn clear_history(&mut self) {
+        self.history.clear();
+    }
+
+    /// Get the current history length (number of messages)
+    pub fn history_len(&self) -> usize {
+        self.history.len()
+    }
+
+    /// Get a reference to the conversation history
+    pub fn history(&self) -> &[Message] {
+        &self.history
+    }
+
+    /// Create with pre-existing history (v0.6)
+    ///
+    /// Useful for resuming conversations or injecting context.
+    pub fn with_history(mut self, history: Vec<Message>) -> Self {
+        self.history = history;
+        self
+    }
+
+    /// Continue a conversation using the accumulated history (v0.6)
+    ///
+    /// Uses rig-core's `Chat` trait for multi-turn conversations.
+    /// The history is automatically updated with the user prompt and response.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// // First turn
+    /// let result1 = agent.run_claude().await?;
+    /// agent.add_to_history("Initial prompt", &extract_text(&result1));
+    ///
+    /// // Continue conversation
+    /// let result2 = agent.chat_continue("Follow-up question").await?;
+    /// // History now contains both turns
+    /// ```
+    pub async fn chat_continue(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
+        // Auto-detect provider and use chat with history
+        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+            return self.chat_continue_claude(prompt).await;
+        }
+        if std::env::var("OPENAI_API_KEY").is_ok() {
+            return self.chat_continue_openai(prompt).await;
+        }
+
+        Err(NikaError::AgentValidationError {
+            reason: "chat_continue requires ANTHROPIC_API_KEY or OPENAI_API_KEY".to_string(),
+        })
+    }
+
+    /// Continue conversation with Claude (v0.6)
+    async fn chat_continue_claude(
+        &mut self,
+        prompt: &str,
+    ) -> Result<RigAgentLoopResult, NikaError> {
+        let client = anthropic::Client::from_env();
+        let model_name = self
+            .params
+            .model
+            .as_deref()
+            .unwrap_or("claude-sonnet-4-20250514");
+        let model = client.completion_model(model_name);
+
+        let turn_index = (self.history.len() / 2 + 1) as u32;
+
+        // Emit start event
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: "started".to_string(),
+            metadata: None,
+        });
+
+        // Build agent and chat with history
+        let agent = AgentBuilder::new(model)
+            .preamble(self.params.system.as_deref().unwrap_or(""))
+            .build();
+
+        let response = agent
+            .chat(prompt, self.history.clone())
+            .await
+            .map_err(|e| NikaError::AgentExecutionError {
+                task_id: self.task_id.clone(),
+                reason: e.to_string(),
+            })?;
+
+        // Update history with this turn
+        self.history.push(Message::user(prompt));
+        self.history.push(Message::assistant(&response));
+
+        // Determine status
+        let status = if self.check_stop_conditions(&response) {
+            RigAgentStatus::StopConditionMet
+        } else {
+            RigAgentStatus::NaturalCompletion
+        };
+
+        // Emit completion
+        let stop_reason = status.as_canonical_str();
+        let metadata = AgentTurnMetadata::text_only(&response, stop_reason);
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: stop_reason.to_string(),
+            metadata: Some(metadata),
+        });
+
+        Ok(RigAgentLoopResult {
+            status,
+            turns: turn_index as usize,
+            final_output: serde_json::json!({ "response": response }),
+            total_tokens: 0,
+        })
+    }
+
+    /// Continue conversation with OpenAI (v0.6)
+    async fn chat_continue_openai(
+        &mut self,
+        prompt: &str,
+    ) -> Result<RigAgentLoopResult, NikaError> {
+        let client = openai::Client::from_env();
+        let model_name = self.params.model.as_deref().unwrap_or("gpt-4o");
+        let model = client.completion_model(model_name);
+
+        let turn_index = (self.history.len() / 2 + 1) as u32;
+
+        // Emit start event
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: "started".to_string(),
+            metadata: None,
+        });
+
+        // Build agent and chat with history
+        let agent = AgentBuilder::new(model)
+            .preamble(self.params.system.as_deref().unwrap_or(""))
+            .build();
+
+        let response = agent
+            .chat(prompt, self.history.clone())
+            .await
+            .map_err(|e| NikaError::AgentExecutionError {
+                task_id: self.task_id.clone(),
+                reason: e.to_string(),
+            })?;
+
+        // Update history with this turn
+        self.history.push(Message::user(prompt));
+        self.history.push(Message::assistant(&response));
+
+        // Determine status
+        let status = if self.check_stop_conditions(&response) {
+            RigAgentStatus::StopConditionMet
+        } else {
+            RigAgentStatus::NaturalCompletion
+        };
+
+        // Emit completion
+        let stop_reason = status.as_canonical_str();
+        let metadata = AgentTurnMetadata::text_only(&response, stop_reason);
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: stop_reason.to_string(),
+            metadata: Some(metadata),
+        });
+
+        Ok(RigAgentLoopResult {
+            status,
+            turns: turn_index as usize,
+            final_output: serde_json::json!({ "response": response }),
+            total_tokens: 0,
         })
     }
 
@@ -617,13 +833,17 @@ impl RigAgentLoop {
         })
     }
 
-    /// Run the agent loop with the best available provider
+    /// Run the agent loop with the best available provider (v0.6: expanded)
     ///
     /// Provider selection order:
     /// 1. Check AgentParams.provider field
     /// 2. Check ANTHROPIC_API_KEY env var → use Claude
     /// 3. Check OPENAI_API_KEY env var → use OpenAI
-    /// 4. Error if no API key found
+    /// 4. Check MISTRAL_API_KEY env var → use Mistral
+    /// 5. Check GROQ_API_KEY env var → use Groq
+    /// 6. Check DEEPSEEK_API_KEY env var → use DeepSeek
+    /// 7. Check OLLAMA_API_BASE_URL env var → use Ollama
+    /// 8. Error if no provider available
     ///
     /// # Note
     /// This is the recommended method for production use.
@@ -633,15 +853,22 @@ impl RigAgentLoop {
             match provider.to_lowercase().as_str() {
                 "claude" | "anthropic" => return self.run_claude().await,
                 "openai" | "gpt" => return self.run_openai().await,
+                "mistral" => return self.run_mistral().await,
+                "ollama" | "local" => return self.run_ollama().await,
+                "groq" => return self.run_groq().await,
+                "deepseek" => return self.run_deepseek().await,
                 other => {
                     return Err(NikaError::AgentValidationError {
-                        reason: format!("Unknown provider: '{}'. Use 'claude' or 'openai'.", other),
+                        reason: format!(
+                            "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'ollama', 'groq', or 'deepseek'.",
+                            other
+                        ),
                     });
                 }
             }
         }
 
-        // Auto-detect based on available API keys
+        // Auto-detect based on available API keys (v0.6: expanded detection)
         if std::env::var("ANTHROPIC_API_KEY").is_ok() {
             return self.run_claude().await;
         }
@@ -650,10 +877,153 @@ impl RigAgentLoop {
             return self.run_openai().await;
         }
 
+        if std::env::var("MISTRAL_API_KEY").is_ok() {
+            return self.run_mistral().await;
+        }
+
+        if std::env::var("GROQ_API_KEY").is_ok() {
+            return self.run_groq().await;
+        }
+
+        if std::env::var("DEEPSEEK_API_KEY").is_ok() {
+            return self.run_deepseek().await;
+        }
+
+        if std::env::var("OLLAMA_API_BASE_URL").is_ok() {
+            return self.run_ollama().await;
+        }
+
         Err(NikaError::AgentValidationError {
-            reason:
-                "No API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable."
-                    .to_string(),
+            reason: "No API key found. Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or OLLAMA_API_BASE_URL.".to_string(),
+        })
+    }
+
+    // =========================================================================
+    // v0.6: Additional Provider Methods
+    // =========================================================================
+
+    /// Run with Mistral provider (requires MISTRAL_API_KEY)
+    pub async fn run_mistral(&mut self) -> Result<RigAgentLoopResult, NikaError> {
+        let model_name = self
+            .params
+            .model
+            .clone()
+            .unwrap_or_else(|| rig::providers::mistral::MISTRAL_LARGE.to_string());
+        let client = rig::providers::mistral::Client::from_env();
+        self.run_generic_provider_impl(client, &model_name).await
+    }
+
+    /// Run with Ollama local provider (requires OLLAMA_API_BASE_URL or uses localhost:11434)
+    pub async fn run_ollama(&mut self) -> Result<RigAgentLoopResult, NikaError> {
+        let model_name = self
+            .params
+            .model
+            .clone()
+            .unwrap_or_else(|| "llama3.2".to_string());
+        // Ollama uses from_env() which reads OLLAMA_API_BASE_URL (default: http://localhost:11434)
+        let client = rig::providers::ollama::Client::from_env();
+        self.run_generic_provider_impl(client, &model_name).await
+    }
+
+    /// Run with Groq provider (requires GROQ_API_KEY)
+    pub async fn run_groq(&mut self) -> Result<RigAgentLoopResult, NikaError> {
+        let model_name = self
+            .params
+            .model
+            .clone()
+            .unwrap_or_else(|| "llama-3.1-70b-versatile".to_string());
+        let client = rig::providers::groq::Client::from_env();
+        self.run_generic_provider_impl(client, &model_name).await
+    }
+
+    /// Run with DeepSeek provider (requires DEEPSEEK_API_KEY)
+    pub async fn run_deepseek(&mut self) -> Result<RigAgentLoopResult, NikaError> {
+        let model_name = self
+            .params
+            .model
+            .clone()
+            .unwrap_or_else(|| "deepseek-chat".to_string());
+        let client = rig::providers::deepseek::Client::from_env();
+        self.run_generic_provider_impl(client, &model_name).await
+    }
+
+    /// Generic provider runner implementation (v0.6)
+    ///
+    /// Uses rig-core's unified ProviderClient + CompletionClient interface.
+    async fn run_generic_provider_impl<C>(
+        &mut self,
+        client: C,
+        model_name: &str,
+    ) -> Result<RigAgentLoopResult, NikaError>
+    where
+        C: CompletionClient,
+    {
+        let model = client.completion_model(model_name);
+
+        // Take ownership of tools
+        let tools = std::mem::take(&mut self.tools);
+        let max_turns = self.params.max_turns.unwrap_or(10) as usize;
+        let prompt = self.params.prompt.clone();
+
+        // Emit start event
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index: 1,
+            kind: "started".to_string(),
+            metadata: None,
+        });
+
+        // Build and run agent
+        let response: String = if tools.is_empty() {
+            let agent = AgentBuilder::new(model).preamble(&prompt).build();
+
+            agent
+                .prompt(&prompt)
+                .max_turns(max_turns)
+                .await
+                .map_err(|e| NikaError::AgentExecutionError {
+                    task_id: self.task_id.clone(),
+                    reason: e.to_string(),
+                })?
+        } else {
+            let agent = AgentBuilder::new(model)
+                .preamble(&prompt)
+                .tools(tools)
+                .build();
+
+            agent
+                .prompt(&prompt)
+                .max_turns(max_turns)
+                .await
+                .map_err(|e| NikaError::AgentExecutionError {
+                    task_id: self.task_id.clone(),
+                    reason: e.to_string(),
+                })?
+        };
+
+        // Determine status
+        let status = if self.check_stop_conditions(&response) {
+            RigAgentStatus::StopConditionMet
+        } else {
+            RigAgentStatus::NaturalCompletion
+        };
+
+        // Emit completion event
+        let stop_reason = status.as_canonical_str();
+        let metadata = AgentTurnMetadata::text_only(&response, stop_reason);
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index: 1,
+            kind: stop_reason.to_string(),
+            metadata: Some(metadata),
+        });
+
+        Ok(RigAgentLoopResult {
+            status,
+            turns: 1,
+            final_output: serde_json::json!({ "response": response }),
+            total_tokens: 0,
         })
     }
 }

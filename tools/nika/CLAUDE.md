@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.5.3 | MCP timeout & error code preservation | 1147+ tests | MVP 8 complete
+**Current version:** v0.6.0 | Multi-provider + Chat History | 1768+ tests | MVP 8 complete
 
 ## Architecture
 
@@ -97,6 +97,90 @@ yamllint -c .yamllint.yaml **/*.nika.yaml
 - `nika/workflow@0.3`: +for_each parallelism, rig-core integration
 - `nika/workflow@0.5`: +decompose, +lazy bindings, +spawn_agent (MVP 8)
 
+## v0.6.0 Changes (Multi-Provider + Chat History)
+
+### 6 LLM Providers via rig-core
+
+Nika now supports 6 providers natively via rig-core:
+
+| Provider | Constructor | Env Var | Default Model |
+|----------|-------------|---------|---------------|
+| Claude | `RigProvider::claude()` | `ANTHROPIC_API_KEY` | claude-sonnet-4-20250514 |
+| OpenAI | `RigProvider::openai()` | `OPENAI_API_KEY` | gpt-4o |
+| Mistral | `RigProvider::mistral()` | `MISTRAL_API_KEY` | mistral-large-latest |
+| Ollama | `RigProvider::ollama()` | `OLLAMA_API_BASE_URL` | llama3.2 |
+| Groq | `RigProvider::groq()` | `GROQ_API_KEY` | llama-3.3-70b-versatile |
+| DeepSeek | `RigProvider::deepseek()` | `DEEPSEEK_API_KEY` | deepseek-chat |
+
+**Auto-detection** (priority order):
+```rust
+// RigProvider::auto() checks env vars in order:
+// 1. ANTHROPIC_API_KEY → Claude
+// 2. OPENAI_API_KEY → OpenAI
+// 3. MISTRAL_API_KEY → Mistral
+// 4. GROQ_API_KEY → Groq
+// 5. DEEPSEEK_API_KEY → DeepSeek
+// 6. OLLAMA_API_BASE_URL → Ollama (no key needed)
+
+let provider = RigProvider::auto(); // Returns Option<RigProvider>
+```
+
+**Usage in RigAgentLoop:**
+```rust
+let mut agent = RigAgentLoop::new(task_id, params, log, mcp_clients)?;
+
+// Auto-detect provider (recommended)
+let result = agent.run_auto().await?;
+
+// Or explicitly choose
+let result = agent.run_mistral().await?;
+let result = agent.run_ollama().await?;
+let result = agent.run_groq().await?;
+let result = agent.run_deepseek().await?;
+```
+
+### Chat History Support
+
+Multi-turn conversations using rig's `Chat` trait:
+
+```rust
+use rig::message::Message;
+
+let mut agent = RigAgentLoop::new(task_id, params, log, mcp_clients)?;
+
+// First turn
+let result1 = agent.run_claude().await?;
+
+// History is automatically tracked
+agent.add_to_history("What is Rust?", &result1.final_response);
+
+// Continue conversation with context
+let result2 = agent.chat_continue("Give me more examples").await?;
+
+// Manual history management
+agent.push_message(Message::user("Custom user message"));
+agent.push_message(Message::assistant("Custom assistant response"));
+
+// Initialize with existing history
+let history = vec![
+    Message::user("Previous question"),
+    Message::assistant("Previous answer"),
+];
+let agent = RigAgentLoop::new(task_id, params, log, mcp)?
+    .with_history(history);
+```
+
+**Chat History Methods:**
+| Method | Description |
+|--------|-------------|
+| `add_to_history(user, assistant)` | Add user/assistant exchange |
+| `push_message(msg)` | Add single message |
+| `clear_history()` | Clear all history |
+| `history_len()` | Get history length |
+| `history()` | Get history slice |
+| `with_history(vec)` | Builder pattern |
+| `chat_continue(prompt)` | Continue with history |
+
 ## v0.5.3 Changes (MCP Stability)
 
 ### MCP Timeout Enforcement
@@ -178,24 +262,33 @@ tasks:
 | `invoke:` | ❌ No shorthand | `invoke: { tool: "...", server: "..." }` |
 | `agent:` | ❌ No shorthand | `agent: { prompt: "...", mcp: [...] }` |
 
-## rig-core Integration (v0.4)
+## rig-core Integration (v0.4+)
 
-Nika uses [rig-core](https://github.com/0xPlaygrounds/rig) for LLM providers.
+Nika uses [rig-core](https://github.com/0xPlaygrounds/rig) v0.31 for all LLM providers.
 
 | Component | Status | Implementation |
 |-----------|--------|----------------|
 | `agent:` verb | ✅ Done | `RigAgentLoop` uses rig's `AgentBuilder` |
-| `infer:` verb | ✅ Done | `RigProvider.infer()` (rig-core v0.31) |
+| `infer:` verb | ✅ Done | `RigProvider.infer()` (6 providers) |
 | MCP tools | ✅ Done | `NikaMcpTool` implements rig's `ToolDyn` |
+| Chat history | ✅ v0.6 | `agent.chat(prompt, history)` via `Chat` trait |
+| Multi-provider | ✅ v0.6 | Claude, OpenAI, Mistral, Ollama, Groq, DeepSeek |
 
-### Using RigProvider (v0.3.1+)
+### Using RigProvider (v0.6+)
 
 ```rust
 use nika::provider::rig::RigProvider;
-use rig::client::CompletionClient;  // Required trait import
 
-// Create provider from environment
-let provider = RigProvider::claude()?;  // or RigProvider::openai()?
+// Auto-detect provider from environment (recommended)
+let provider = RigProvider::auto().expect("No API key found");
+
+// Or explicitly choose
+let provider = RigProvider::claude();    // ANTHROPIC_API_KEY
+let provider = RigProvider::openai();    // OPENAI_API_KEY
+let provider = RigProvider::mistral();   // MISTRAL_API_KEY
+let provider = RigProvider::ollama();    // OLLAMA_API_BASE_URL
+let provider = RigProvider::groq();      // GROQ_API_KEY
+let provider = RigProvider::deepseek();  // DEEPSEEK_API_KEY
 
 // Simple text completion via rig-core
 let result = provider.infer("Summarize this text", None).await?;
@@ -207,6 +300,7 @@ let result = provider.infer("Summarize this text", None).await?;
 use nika::runtime::RigAgentLoop;
 use nika::ast::AgentParams;
 use nika::event::EventLog;
+use rig::message::Message;
 
 let params = AgentParams {
     prompt: "Generate a landing page".to_string(),
@@ -216,13 +310,21 @@ let params = AgentParams {
 };
 let mut agent = RigAgentLoop::new("task-1".into(), params, EventLog::new(), mcp_clients)?;
 
-// Production - auto-detects provider from env vars
+// Production - auto-detects provider from env vars (checks 6 providers)
 let result = agent.run_auto().await?;
 
-// Or explicitly choose provider
-let result = agent.run_claude().await?;   // requires ANTHROPIC_API_KEY
-let result = agent.run_openai().await?;   // requires OPENAI_API_KEY
-let result = agent.run_mock().await?;     // for testing (no API key needed)
+// Or explicitly choose provider (6 available)
+let result = agent.run_claude().await?;     // requires ANTHROPIC_API_KEY
+let result = agent.run_openai().await?;     // requires OPENAI_API_KEY
+let result = agent.run_mistral().await?;    // requires MISTRAL_API_KEY
+let result = agent.run_ollama().await?;     // requires OLLAMA_API_BASE_URL
+let result = agent.run_groq().await?;       // requires GROQ_API_KEY
+let result = agent.run_deepseek().await?;   // requires DEEPSEEK_API_KEY
+let result = agent.run_mock().await?;       // for testing (no API key needed)
+
+// Multi-turn with chat history (v0.6)
+agent.add_to_history("First question", &result.final_response);
+let result2 = agent.chat_continue("Follow-up question").await?;
 ```
 
 ## v0.4.1 Changes (Token Tracking Fix)

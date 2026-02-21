@@ -1,6 +1,6 @@
 [package]
 name = "nika"
-version = "0.5.3"
+version = "0.6.0"
 edition = "2021"
 description = "DAG workflow runner for AI tasks with MCP integration"
 license = "AGPL-3.0-or-later"
@@ -14,7 +14,6 @@ path = "src/main.rs"
 default = ["tui"]
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-textarea", "dep:tui-input", "dep:arboard", "dep:notify"]
 integration = []  # Enable integration tests with real MCP servers
-notifications = ["dep:notify-rust"]  # Desktop notifications on workflow completion
 test-fixtures = []  # Export test_fixtures module for external test crates
 
 [dependencies]
@@ -77,9 +76,6 @@ tui-input = { version = "0.11", features = ["crossterm"], optional = true }  # C
 arboard = { version = "3.4", optional = true }  # Clipboard support
 notify = { version = "8", optional = true }  # File watching for auto-refresh
 
-# Desktop notifications (optional)
-notify-rust = { version = "4.10", optional = true }
-
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -92,6 +88,7 @@ insta = { version = "1.34", features = ["yaml"] }
 pretty_assertions = "1.4"
 criterion = { version = "0.5", features = ["async_tokio"] }
 serial_test = "3.1"
+wiremock = "0.6"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # BENCHMARKS - Run with: cargo bench

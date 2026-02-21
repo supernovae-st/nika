@@ -25,9 +25,9 @@
 
 use crate::mcp::McpClient;
 use futures::StreamExt;
-use rig::client::{CompletionClient, ProviderClient};
+use rig::client::{CompletionClient, Nothing, ProviderClient};
 use rig::completion::{CompletionModel as _, GetTokenUsage, Prompt, PromptError, ToolDefinition};
-use rig::providers::{anthropic, openai};
+use rig::providers::{anthropic, deepseek, groq, mistral, ollama, openai};
 use rig::streaming::StreamedAssistantContent;
 use rig::tool::{ToolDyn, ToolError};
 use std::future::Future;
@@ -109,13 +109,24 @@ impl std::fmt::Display for McpToolError {
 
 impl std::error::Error for McpToolError {}
 
-/// Provider type enum for rig-core providers
+/// Provider type enum for rig-core providers (v0.6: expanded provider support)
+///
+/// Nika leverages rig-core's native multi-provider support.
+/// Each variant wraps the corresponding rig-core client.
 #[derive(Debug, Clone)]
 pub enum RigProvider {
-    /// Claude (Anthropic) provider
+    /// Claude (Anthropic) provider - ANTHROPIC_API_KEY
     Claude(anthropic::Client),
-    /// OpenAI provider
+    /// OpenAI provider - OPENAI_API_KEY
     OpenAI(openai::Client),
+    /// Mistral provider (v0.6) - MISTRAL_API_KEY
+    Mistral(mistral::Client),
+    /// Ollama local provider (v0.6) - OLLAMA_API_BASE_URL (default: http://localhost:11434)
+    Ollama(ollama::Client),
+    /// Groq provider (v0.6) - GROQ_API_KEY
+    Groq(groq::Client),
+    /// DeepSeek provider (v0.6) - DEEPSEEK_API_KEY
+    DeepSeek(deepseek::Client),
 }
 
 impl RigProvider {
@@ -131,24 +142,64 @@ impl RigProvider {
         RigProvider::OpenAI(client)
     }
 
+    /// Create a Mistral provider from environment variable MISTRAL_API_KEY (v0.6)
+    pub fn mistral() -> Self {
+        let client = mistral::Client::from_env();
+        RigProvider::Mistral(client)
+    }
+
+    /// Create an Ollama provider for local models (v0.6)
+    ///
+    /// Uses OLLAMA_API_BASE_URL env var (default: http://localhost:11434)
+    pub fn ollama() -> Self {
+        let client = ollama::Client::new(Nothing).expect("Ollama client creation should not fail");
+        RigProvider::Ollama(client)
+    }
+
+    /// Create a Groq provider from environment variable GROQ_API_KEY (v0.6)
+    pub fn groq() -> Self {
+        let client = groq::Client::from_env();
+        RigProvider::Groq(client)
+    }
+
+    /// Create a DeepSeek provider from environment variable DEEPSEEK_API_KEY (v0.6)
+    pub fn deepseek() -> Self {
+        let client = deepseek::Client::from_env();
+        RigProvider::DeepSeek(client)
+    }
+
     /// Get the provider name
     pub fn name(&self) -> &'static str {
         match self {
             RigProvider::Claude(_) => "claude",
             RigProvider::OpenAI(_) => "openai",
+            RigProvider::Mistral(_) => "mistral",
+            RigProvider::Ollama(_) => "ollama",
+            RigProvider::Groq(_) => "groq",
+            RigProvider::DeepSeek(_) => "deepseek",
         }
     }
 
     /// Get the default model for this provider
     ///
-    /// Claude: claude-sonnet-4-20250514 (latest stable as of 2025-05)
-    /// OpenAI: gpt-4o (latest stable)
+    /// | Provider | Model | Notes |
+    /// |----------|-------|-------|
+    /// | Claude | claude-sonnet-4-20250514 | Latest stable |
+    /// | OpenAI | gpt-4o | Latest stable |
+    /// | Mistral | mistral-large-latest | Best for complex tasks |
+    /// | Ollama | llama3.2 | Good balance of quality/speed |
+    /// | Groq | llama-3.1-70b-versatile | Fast inference |
+    /// | DeepSeek | deepseek-chat | Cost-effective |
     pub fn default_model(&self) -> &'static str {
         match self {
             // Note: rig-core's CLAUDE_3_5_SONNET constant is outdated
             // Using explicit model name for stability
             RigProvider::Claude(_) => "claude-sonnet-4-20250514",
             RigProvider::OpenAI(_) => openai::GPT_4O,
+            RigProvider::Mistral(_) => mistral::MISTRAL_LARGE,
+            RigProvider::Ollama(_) => "llama3.2",
+            RigProvider::Groq(_) => "llama-3.1-70b-versatile",
+            RigProvider::DeepSeek(_) => "deepseek-chat",
         }
     }
 
@@ -178,7 +229,70 @@ impl RigProvider {
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
+            RigProvider::Mistral(client) => {
+                let agent = client.agent(model_id).build();
+                agent
+                    .prompt(prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+            RigProvider::Ollama(client) => {
+                let agent = client.agent(model_id).build();
+                agent
+                    .prompt(prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+            RigProvider::Groq(client) => {
+                let agent = client.agent(model_id).build();
+                agent
+                    .prompt(prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+            RigProvider::DeepSeek(client) => {
+                let agent = client.agent(model_id).build();
+                agent
+                    .prompt(prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
         }
+    }
+
+    /// Auto-detect and create a provider from available environment variables (v0.6)
+    ///
+    /// Provider detection order:
+    /// 1. ANTHROPIC_API_KEY → Claude
+    /// 2. OPENAI_API_KEY → OpenAI
+    /// 3. MISTRAL_API_KEY → Mistral
+    /// 4. GROQ_API_KEY → Groq
+    /// 5. DEEPSEEK_API_KEY → DeepSeek
+    /// 6. Ollama (no key required, assumes local)
+    ///
+    /// Returns None if no provider is available.
+    pub fn auto() -> Option<Self> {
+        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+            return Some(Self::claude());
+        }
+        if std::env::var("OPENAI_API_KEY").is_ok() {
+            return Some(Self::openai());
+        }
+        if std::env::var("MISTRAL_API_KEY").is_ok() {
+            return Some(Self::mistral());
+        }
+        if std::env::var("GROQ_API_KEY").is_ok() {
+            return Some(Self::groq());
+        }
+        if std::env::var("DEEPSEEK_API_KEY").is_ok() {
+            return Some(Self::deepseek());
+        }
+        // Ollama doesn't require API key - check if OLLAMA_API_BASE_URL is set
+        // or assume localhost is available
+        if std::env::var("OLLAMA_API_BASE_URL").is_ok() {
+            return Some(Self::ollama());
+        }
+        None
     }
 }
 
@@ -335,6 +449,44 @@ impl RigProvider {
                         }
                     }
                 }
+            }
+            // v0.6: New providers - fallback to non-streaming for now
+            // TODO: Add streaming support when rig-core API stabilizes
+            RigProvider::Mistral(client) => {
+                let agent = client.agent(model_id).build();
+                let text = agent
+                    .prompt(prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))?;
+                let _ = tx.send(StreamChunk::Token(text.clone())).await;
+                response_parts.push(text);
+            }
+            RigProvider::Groq(client) => {
+                let agent = client.agent(model_id).build();
+                let text = agent
+                    .prompt(prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))?;
+                let _ = tx.send(StreamChunk::Token(text.clone())).await;
+                response_parts.push(text);
+            }
+            RigProvider::DeepSeek(client) => {
+                let agent = client.agent(model_id).build();
+                let text = agent
+                    .prompt(prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))?;
+                let _ = tx.send(StreamChunk::Token(text.clone())).await;
+                response_parts.push(text);
+            }
+            RigProvider::Ollama(client) => {
+                let agent = client.agent(model_id).build();
+                let text = agent
+                    .prompt(prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))?;
+                let _ = tx.send(StreamChunk::Token(text.clone())).await;
+                response_parts.push(text);
             }
         }
 
@@ -509,6 +661,94 @@ mod tests {
     fn test_rig_infer_error_display() {
         let err = RigInferError::PromptError("Test error message".to_string());
         assert_eq!(err.to_string(), "Completion error: Test error message");
+    }
+
+    // =========================================================================
+    // v0.6: New Provider Tests
+    // =========================================================================
+
+    #[test]
+    fn test_rig_provider_mistral_returns_mistral_variant() {
+        std::env::set_var("MISTRAL_API_KEY", "test-key-for-unit-test");
+        let provider = RigProvider::mistral();
+
+        assert_eq!(provider.name(), "mistral");
+        assert!(matches!(provider, RigProvider::Mistral(_)));
+    }
+
+    #[test]
+    fn test_rig_provider_ollama_returns_ollama_variant() {
+        // Ollama doesn't require an API key
+        let provider = RigProvider::ollama();
+
+        assert_eq!(provider.name(), "ollama");
+        assert!(matches!(provider, RigProvider::Ollama(_)));
+    }
+
+    #[test]
+    fn test_rig_provider_groq_returns_groq_variant() {
+        std::env::set_var("GROQ_API_KEY", "test-key-for-unit-test");
+        let provider = RigProvider::groq();
+
+        assert_eq!(provider.name(), "groq");
+        assert!(matches!(provider, RigProvider::Groq(_)));
+    }
+
+    #[test]
+    fn test_rig_provider_deepseek_returns_deepseek_variant() {
+        std::env::set_var("DEEPSEEK_API_KEY", "test-key-for-unit-test");
+        let provider = RigProvider::deepseek();
+
+        assert_eq!(provider.name(), "deepseek");
+        assert!(matches!(provider, RigProvider::DeepSeek(_)));
+    }
+
+    #[test]
+    fn test_rig_provider_default_models_v06() {
+        // Test all new provider default models
+        std::env::set_var("MISTRAL_API_KEY", "test");
+        std::env::set_var("GROQ_API_KEY", "test");
+        std::env::set_var("DEEPSEEK_API_KEY", "test");
+
+        assert_eq!(
+            RigProvider::mistral().default_model(),
+            mistral::MISTRAL_LARGE
+        );
+        assert_eq!(RigProvider::ollama().default_model(), "llama3.2");
+        assert_eq!(
+            RigProvider::groq().default_model(),
+            "llama-3.1-70b-versatile"
+        );
+        assert_eq!(RigProvider::deepseek().default_model(), "deepseek-chat");
+    }
+
+    #[test]
+    fn test_rig_provider_auto_detects_claude() {
+        // Clear other keys, set only Claude
+        std::env::remove_var("OPENAI_API_KEY");
+        std::env::remove_var("MISTRAL_API_KEY");
+        std::env::remove_var("GROQ_API_KEY");
+        std::env::remove_var("DEEPSEEK_API_KEY");
+        std::env::remove_var("OLLAMA_API_BASE_URL");
+        std::env::set_var("ANTHROPIC_API_KEY", "test-key");
+
+        let provider = RigProvider::auto();
+        assert!(provider.is_some());
+        assert_eq!(provider.unwrap().name(), "claude");
+    }
+
+    #[test]
+    fn test_rig_provider_auto_returns_none_when_no_keys() {
+        // Clear all API keys
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("OPENAI_API_KEY");
+        std::env::remove_var("MISTRAL_API_KEY");
+        std::env::remove_var("GROQ_API_KEY");
+        std::env::remove_var("DEEPSEEK_API_KEY");
+        std::env::remove_var("OLLAMA_API_BASE_URL");
+
+        let provider = RigProvider::auto();
+        assert!(provider.is_none());
     }
 
     // =========================================================================
