@@ -16,6 +16,7 @@ use ratatui::{
 
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
+use crate::tui::utils::format_number;
 use crate::tui::views::ReasoningTab;
 use crate::tui::widgets::{AgentTurns, Gauge, TurnEntry};
 
@@ -385,19 +386,6 @@ impl Widget for ReasoningPanel<'_> {
             }
         }
     }
-}
-
-/// Format number with thousands separator
-fn format_number(n: u32) -> String {
-    let s = n.to_string();
-    let mut result = String::new();
-    for (i, c) in s.chars().rev().enumerate() {
-        if i > 0 && i % 3 == 0 {
-            result.push(',');
-        }
-        result.push(c);
-    }
-    result.chars().rev().collect()
 }
 
 #[cfg(test)]

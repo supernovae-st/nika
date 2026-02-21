@@ -134,7 +134,7 @@ impl Widget for LatencySparkline<'_> {
                 let avg_str = format_ms(self.average());
                 let avg_label = format!("~{}", avg_str);
                 buf.set_string(
-                    label_y,
+                    label_x, // Fixed: was incorrectly using label_y as X coordinate
                     label_y,
                     &avg_label,
                     Style::default().fg(Color::Gray),
@@ -253,31 +253,48 @@ fn format_ms(ms: u64) -> String {
 }
 
 /// Latency history tracker
+///
+/// Uses `VecDeque` for O(1) push/pop operations instead of Vec's O(n) remove(0).
 #[derive(Debug, Clone, Default)]
 pub struct LatencyHistory {
     /// Ring buffer of latency values in ms
-    values: Vec<u64>,
+    values: std::collections::VecDeque<u64>,
     /// Maximum number of values to keep
     max_size: usize,
+    /// Cached slice for sparkline rendering (to avoid allocation on data() calls)
+    cache: Vec<u64>,
+    /// Whether cache needs refresh
+    cache_dirty: bool,
 }
 
 impl LatencyHistory {
     pub fn new(max_size: usize) -> Self {
         Self {
-            values: Vec::with_capacity(max_size),
+            values: std::collections::VecDeque::with_capacity(max_size),
             max_size,
+            cache: Vec::with_capacity(max_size),
+            cache_dirty: true,
         }
     }
 
     pub fn push(&mut self, latency_ms: u64) {
         if self.values.len() >= self.max_size {
-            self.values.remove(0);
+            self.values.pop_front(); // O(1) with VecDeque vs O(n) with Vec
         }
-        self.values.push(latency_ms);
+        self.values.push_back(latency_ms);
+        self.cache_dirty = true;
     }
 
-    pub fn data(&self) -> &[u64] {
-        &self.values
+    /// Get data as a slice for sparkline rendering
+    ///
+    /// Uses internal cache to avoid allocation on repeated calls within same frame.
+    pub fn data(&mut self) -> &[u64] {
+        if self.cache_dirty {
+            self.cache.clear();
+            self.cache.extend(self.values.iter().copied());
+            self.cache_dirty = false;
+        }
+        &self.cache
     }
 
     pub fn is_empty(&self) -> bool {
@@ -305,6 +322,7 @@ impl LatencyHistory {
 
     pub fn clear(&mut self) {
         self.values.clear();
+        self.cache_dirty = true;
     }
 }
 
@@ -323,7 +341,7 @@ mod tests {
         assert_eq!(history.len(), 5);
         assert_eq!(history.data(), &[10, 20, 30, 40, 50]);
 
-        // Add one more - should remove oldest
+        // Add one more - should remove oldest (O(1) with VecDeque)
         history.push(60);
         assert_eq!(history.len(), 5);
         assert_eq!(history.data(), &[20, 30, 40, 50, 60]);

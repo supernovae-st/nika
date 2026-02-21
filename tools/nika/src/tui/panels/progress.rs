@@ -17,6 +17,7 @@ use ratatui::{
 
 use crate::tui::state::TuiState;
 use crate::tui::theme::{MissionPhase, TaskStatus, Theme};
+use crate::tui::utils::format_number;
 use crate::tui::widgets::{Gauge, LatencySparkline, Timeline, TimelineEntry};
 
 /// Progress panel (Panel 1: Mission Control)
@@ -418,19 +419,6 @@ fn format_duration(ms: u64) -> String {
     } else {
         format!("{:02}:{:02}", minutes, seconds)
     }
-}
-
-/// Format number with thousands separator
-fn format_number(n: u32) -> String {
-    let s = n.to_string();
-    let mut result = String::new();
-    for (i, c) in s.chars().rev().enumerate() {
-        if i > 0 && i % 3 == 0 {
-            result.push(',');
-        }
-        result.push(c);
-    }
-    result.chars().rev().collect()
 }
 
 #[cfg(test)]

@@ -64,6 +64,8 @@ mod theme;
 #[cfg(feature = "tui")]
 mod unicode;
 #[cfg(feature = "tui")]
+mod utils;
+#[cfg(feature = "tui")]
 mod views;
 #[cfg(feature = "tui")]
 pub mod widgets;
@@ -94,6 +96,8 @@ pub use state::{AgentTurnState, PanelId, PanelScrollState, TuiMode, TuiState};
 pub use theme::{ColorMode, MissionPhase, TaskStatus, Theme};
 #[cfg(feature = "tui")]
 pub use unicode::{display_width, truncate_to_width};
+#[cfg(feature = "tui")]
+pub use utils::{format_number, format_number_compact, format_number_u64};
 #[cfg(feature = "tui")]
 pub use views::{DagTab, MissionTab, NovanetTab, ReasoningTab, TuiView, ViewAction};
 

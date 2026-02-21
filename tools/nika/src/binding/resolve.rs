@@ -707,7 +707,7 @@ mod tests {
         let bindings = ResolvedBindings::new();
         let result = bindings.get_resolved("missing", &store);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-061"));
+        assert!(result.unwrap_err().to_string().contains("NIKA-042")); // BindingNotFound
     }
 
     #[test]
@@ -761,6 +761,11 @@ mod tests {
     #[test]
     fn is_lazy_for_eager_binding() {
         let store = DataStore::new();
+        store.insert(
+            Arc::from("task"),
+            TaskResult::success(json!({"value": "test"}), Duration::from_secs(1)),
+        );
+
         let mut wiring = WiringSpec::default();
         wiring.insert("eager".to_string(), UseEntry::new("task.value"));
 

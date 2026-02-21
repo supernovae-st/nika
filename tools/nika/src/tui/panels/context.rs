@@ -16,6 +16,7 @@ use ratatui::{
 
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
+use crate::tui::utils::format_number;
 use crate::tui::widgets::{Gauge, LatencySparkline, McpEntry, McpLog};
 
 /// NovaNet Station panel (Panel 3)
@@ -333,19 +334,6 @@ impl Widget for ContextPanel<'_> {
         self.render_context(chunks[3], buf);
         self.render_servers(chunks[4], buf);
     }
-}
-
-/// Format number with thousands separator
-fn format_number(n: u32) -> String {
-    let s = n.to_string();
-    let mut result = String::new();
-    for (i, c) in s.chars().rev().enumerate() {
-        if i > 0 && i % 3 == 0 {
-            result.push(',');
-        }
-        result.push(c);
-    }
-    result.chars().rev().collect()
 }
 
 #[cfg(test)]

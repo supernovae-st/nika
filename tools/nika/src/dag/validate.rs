@@ -782,7 +782,8 @@ flows:
 
         let result = validate_template_refs(&task);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-083"));
+        // validate_refs returns UnknownAlias error (NIKA-071) for undeclared aliases
+        assert!(result.unwrap_err().to_string().contains("NIKA-071"));
     }
 
     #[test]

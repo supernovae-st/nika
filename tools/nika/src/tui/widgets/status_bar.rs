@@ -6,6 +6,8 @@
 //! └─────────────────────────────────────────────────────────────────────────────┘
 //! ```
 
+use std::borrow::Cow;
+
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -20,15 +22,30 @@ use crate::tui::theme::Theme;
 use crate::tui::views::TuiView;
 
 /// Key hint for status bar
+///
+/// Uses `Cow<'static, str>` to avoid memory leaks - static strings don't allocate,
+/// while dynamically generated keys (from keybindings) are owned without Box::leak.
 #[derive(Debug, Clone)]
 pub struct KeyHint {
-    pub key: &'static str,
-    pub action: &'static str,
+    pub key: Cow<'static, str>,
+    pub action: Cow<'static, str>,
 }
 
 impl KeyHint {
+    /// Create a new key hint from static strings (zero allocation)
     pub const fn new(key: &'static str, action: &'static str) -> Self {
-        Self { key, action }
+        Self {
+            key: Cow::Borrowed(key),
+            action: Cow::Borrowed(action),
+        }
+    }
+
+    /// Create a new key hint with an owned key string (for dynamic keys)
+    pub fn with_owned_key(key: String, action: &'static str) -> Self {
+        Self {
+            key: Cow::Owned(key),
+            action: Cow::Borrowed(action),
+        }
     }
 }
 
@@ -277,13 +294,8 @@ impl<'a> StatusBar<'a> {
             .map(|kb| {
                 // Convert Keybinding to KeyHint using format_key
                 let key_str = format_key(kb.code, kb.modifiers);
-                // We need to leak the string to get a static lifetime - this is OK
-                // because hints are recreated each frame anyway
-                let key: &'static str = Box::leak(key_str.into_boxed_str());
-                KeyHint {
-                    key,
-                    action: kb.description,
-                }
+                // Use with_owned_key to avoid Box::leak memory leak
+                KeyHint::with_owned_key(key_str, kb.description)
             })
             .collect()
     }
@@ -329,14 +341,14 @@ impl Widget for StatusBar<'_> {
                 left_spans.push(Span::raw("  "));
             }
             left_spans.push(Span::styled(
-                format!("[{}]", hint.key),
+                format!("[{}]", &*hint.key),
                 Style::default()
                     .fg(self.theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ));
             left_spans.push(Span::raw(" "));
             left_spans.push(Span::styled(
-                hint.action,
+                hint.action.to_string(),
                 Style::default().fg(self.theme.text_secondary),
             ));
         }
@@ -451,8 +463,12 @@ mod tests {
         let theme = Theme::dark();
         let bar = StatusBar::new(TuiView::Home, &theme);
         let hints = bar.default_hints();
-        assert!(hints.iter().any(|h| h.key == "Enter" && h.action == "Run"));
-        assert!(hints.iter().any(|h| h.key == "e" && h.action == "Edit"));
+        assert!(hints
+            .iter()
+            .any(|h| h.key.as_ref() == "Enter" && h.action.as_ref() == "Run"));
+        assert!(hints
+            .iter()
+            .any(|h| h.key.as_ref() == "e" && h.action.as_ref() == "Edit"));
     }
 
     #[test]
@@ -460,10 +476,12 @@ mod tests {
         let theme = Theme::dark();
         let bar = StatusBar::new(TuiView::Studio, &theme);
         let hints = bar.default_hints();
-        assert!(hints.iter().any(|h| h.key == "F5" && h.action == "Run"));
         assert!(hints
             .iter()
-            .any(|h| h.key == "Ctrl+S" && h.action == "Save"));
+            .any(|h| h.key.as_ref() == "F5" && h.action.as_ref() == "Run"));
+        assert!(hints
+            .iter()
+            .any(|h| h.key.as_ref() == "Ctrl+S" && h.action.as_ref() == "Save"));
     }
 
     #[test]

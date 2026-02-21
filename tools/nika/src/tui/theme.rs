@@ -114,8 +114,8 @@ impl ColorMode {
     fn rgb_to_16(color: Color) -> Color {
         match color {
             Color::Rgb(r, g, b) => {
-                // Calculate luminance
-                let luma = (r as u16 * 299 + g as u16 * 587 + b as u16 * 114) / 1000;
+                // Calculate luminance (use u32 to avoid overflow: 255*587 = 149,685 > u16::MAX)
+                let luma = (r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000;
                 let bright = luma > 127;
 
                 // Find dominant color channel
@@ -135,8 +135,9 @@ impl ColorMode {
                         Color::DarkGray
                     }
                 } else if r >= g && r >= b {
-                    // Red dominant
-                    if g > b / 2 {
+                    // Red dominant - check if green is significant enough for yellow
+                    // Yellow needs both red AND green to be high (> 100), not just r > b
+                    if g > 100 && g > r / 2 {
                         if bright {
                             Color::Yellow
                         } else {
@@ -148,8 +149,9 @@ impl ColorMode {
                         Color::Red
                     }
                 } else if g >= r && g >= b {
-                    // Green dominant
-                    if b > r / 2 {
+                    // Green dominant - check if blue is significant enough for cyan
+                    // Cyan needs both green AND blue to be high (> 100)
+                    if b > 100 && b > g / 2 {
                         if bright {
                             Color::Cyan
                         } else {
@@ -161,8 +163,9 @@ impl ColorMode {
                         Color::Green
                     }
                 } else {
-                    // Blue dominant
-                    if r > g / 2 {
+                    // Blue dominant - check if red is significant enough for magenta
+                    // Magenta needs both blue AND red to be high (> 100)
+                    if r > 100 && r > b / 2 {
                         if bright {
                             Color::LightMagenta
                         } else {
@@ -916,15 +919,16 @@ mod tests {
 
     #[test]
     fn test_color_mode_16_adapt_red_dominant() {
-        // High red, low green/blue
+        // Red dominant with enough luma for brightness (luma > 127)
+        // (255, 80, 60) → luma ~130, saturation ~195, red dominant, g < 100 → LightRed
         let mode = ColorMode::Color16;
-        let red = mode.adapt_color(Color::Rgb(200, 30, 30));
+        let red = mode.adapt_color(Color::Rgb(255, 80, 60));
         assert_eq!(red, Color::LightRed);
     }
 
     #[test]
     fn test_color_mode_16_adapt_green_dominant() {
-        // High green dominant
+        // High green dominant - green has highest luma coefficient
         let mode = ColorMode::Color16;
         let green = mode.adapt_color(Color::Rgb(30, 200, 30));
         assert_eq!(green, Color::LightGreen);
@@ -932,9 +936,10 @@ mod tests {
 
     #[test]
     fn test_color_mode_16_adapt_blue_dominant() {
-        // High blue dominant
+        // Blue dominant with enough luma for brightness
+        // (60, 150, 200) → luma ~129, blue dominant, r < 100 → LightBlue
         let mode = ColorMode::Color16;
-        let blue = mode.adapt_color(Color::Rgb(30, 30, 200));
+        let blue = mode.adapt_color(Color::Rgb(60, 150, 200));
         assert_eq!(blue, Color::LightBlue);
     }
 

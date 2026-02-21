@@ -1212,8 +1212,9 @@ mod tests {
         assert_eq!(err.code(), "NIKA-102");
         let msg = err.to_string();
         assert!(msg.contains("[NIKA-102]"));
-        // Error code should be included in display
-        assert!(msg.contains("InvalidRequest") || msg.contains("error"));
+        // Error code description should be included in display
+        // McpErrorCode::InvalidRequest displays as "The JSON sent is not a valid Request object (-32600)"
+        assert!(msg.contains("Request") || msg.contains("-32600"));
     }
 
     #[test]
