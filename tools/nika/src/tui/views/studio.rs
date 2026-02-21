@@ -22,7 +22,7 @@ use std::path::PathBuf;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::Style,
+    style::{Color, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Widget},
     Frame,
@@ -540,7 +540,7 @@ impl StudioView {
         // Calculate visible height (excluding borders)
         let visible_height = inner.height as usize;
 
-        // Build lines with line numbers
+        // Build lines with line numbers and syntax highlighting
         let lines: Vec<Line> = self
             .buffer
             .lines()
@@ -552,19 +552,22 @@ impl StudioView {
                 let line_num = i + 1;
                 let is_cursor_line = i == self.buffer.cursor().0;
 
-                let line_style = if is_cursor_line {
+                let base_style = if is_cursor_line {
                     Style::default().bg(theme.highlight)
                 } else {
                     Style::default()
                 };
 
-                Line::from(vec![
-                    Span::styled(
-                        format!("{:4} ", line_num),
-                        Style::default().fg(theme.text_muted),
-                    ),
-                    Span::styled(line.as_str(), line_style),
-                ])
+                // Line number
+                let mut spans = vec![Span::styled(
+                    format!("{:4} ", line_num),
+                    Style::default().fg(theme.text_muted),
+                )];
+
+                // Syntax-highlighted content (v0.7.0+)
+                spans.extend(YamlHighlight::highlight_line(line, base_style));
+
+                Line::from(spans)
             })
             .collect();
 
@@ -729,6 +732,123 @@ impl StudioView {
         );
 
         frame.render_widget(paragraph, area);
+    }
+}
+
+/// YAML syntax highlighting colors (v0.7.0+)
+struct YamlHighlight;
+
+impl YamlHighlight {
+    /// Key color (blue)
+    const KEY: Color = Color::Rgb(59, 130, 246);
+    /// String value color (green)
+    const STRING: Color = Color::Rgb(34, 197, 94);
+    /// Number value color (orange)
+    const NUMBER: Color = Color::Rgb(251, 146, 60);
+    /// Boolean value color (purple)
+    const BOOL: Color = Color::Rgb(168, 85, 247);
+    /// Comment color (gray)
+    const COMMENT: Color = Color::Rgb(107, 114, 128);
+    /// Default text color (reserved for future use)
+    #[allow(dead_code)]
+    const DEFAULT: Color = Color::Reset;
+    /// Nika verbs (cyan) - infer, exec, fetch, invoke, agent
+    const VERB: Color = Color::Rgb(6, 182, 212);
+
+    /// Highlight a single YAML line into styled spans
+    fn highlight_line(line: &str, base_style: Style) -> Vec<Span<'static>> {
+        let line_owned = line.to_string();
+        let trimmed = line_owned.trim();
+
+        // Empty line
+        if trimmed.is_empty() {
+            return vec![Span::styled(line_owned, base_style)];
+        }
+
+        // Full-line comment
+        if trimmed.starts_with('#') {
+            return vec![Span::styled(line_owned, base_style.fg(Self::COMMENT))];
+        }
+
+        // Try to parse as key: value
+        if let Some(colon_pos) = line.find(':') {
+            let (key_part, rest) = line.split_at(colon_pos);
+            let key_trimmed = key_part.trim();
+
+            // Check if it's a Nika verb
+            let key_color = if matches!(
+                key_trimmed,
+                "infer" | "exec" | "fetch" | "invoke" | "agent" | "decompose" | "for_each"
+            ) {
+                Self::VERB
+            } else {
+                Self::KEY
+            };
+
+            let mut spans = vec![Span::styled(
+                format!("{}:", key_part),
+                base_style.fg(key_color),
+            )];
+
+            // Handle the value part (skip the colon we already included)
+            let value = &rest[1..]; // Skip ':'
+            if !value.is_empty() {
+                spans.push(Self::highlight_value(value, base_style));
+            }
+
+            return spans;
+        }
+
+        // List item (- value)
+        if trimmed.starts_with('-') {
+            let dash_pos = line.find('-').unwrap();
+            let before_dash = &line[..dash_pos];
+            let after_dash = &line[dash_pos + 1..];
+
+            let mut spans = vec![
+                Span::styled(before_dash.to_string(), base_style),
+                Span::styled("-".to_string(), base_style.fg(Self::KEY)),
+            ];
+
+            if !after_dash.is_empty() {
+                spans.push(Self::highlight_value(after_dash, base_style));
+            }
+
+            return spans;
+        }
+
+        // Default: return as-is
+        vec![Span::styled(line_owned, base_style)]
+    }
+
+    /// Highlight a YAML value
+    fn highlight_value(value: &str, base_style: Style) -> Span<'static> {
+        let trimmed = value.trim();
+
+        // String in quotes
+        if (trimmed.starts_with('"') && trimmed.ends_with('"'))
+            || (trimmed.starts_with('\'') && trimmed.ends_with('\''))
+        {
+            return Span::styled(value.to_string(), base_style.fg(Self::STRING));
+        }
+
+        // Boolean
+        if matches!(trimmed, "true" | "false" | "yes" | "no" | "True" | "False") {
+            return Span::styled(value.to_string(), base_style.fg(Self::BOOL));
+        }
+
+        // Number (integer or float)
+        if trimmed.parse::<f64>().is_ok() || trimmed.parse::<i64>().is_ok() {
+            return Span::styled(value.to_string(), base_style.fg(Self::NUMBER));
+        }
+
+        // Inline comment - for now, return as-is (would need multiple spans)
+        if value.contains(" #") {
+            return Span::styled(value.to_string(), base_style);
+        }
+
+        // Default
+        Span::styled(value.to_string(), base_style)
     }
 }
 
@@ -1057,5 +1177,101 @@ unknown_field: "should fail""#;
 
         assert_eq!(view.buffer.lines()[0], "abc");
         assert!(view.modified);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // YAML syntax highlighting tests (v0.7.0+)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_yaml_highlight_comment() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("# This is a comment", base);
+        assert_eq!(spans.len(), 1);
+        // Should have comment color (gray)
+        assert_eq!(
+            spans[0].style.fg,
+            Some(ratatui::style::Color::Rgb(107, 114, 128))
+        );
+    }
+
+    #[test]
+    fn test_yaml_highlight_key_value() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("name: my-workflow", base);
+        assert!(spans.len() >= 2, "Should have key and value spans");
+        // First span should be the key with colon
+        assert!(spans[0].content.contains("name:"));
+    }
+
+    #[test]
+    fn test_yaml_highlight_verb() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("    infer: \"prompt\"", base);
+        // Should highlight 'infer' as a Nika verb (cyan)
+        assert!(spans[0].content.contains("infer:"));
+        assert_eq!(
+            spans[0].style.fg,
+            Some(ratatui::style::Color::Rgb(6, 182, 212))
+        );
+    }
+
+    #[test]
+    fn test_yaml_highlight_boolean() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("enabled: true", base);
+        assert!(spans.len() >= 2);
+        // Value should have boolean color (purple)
+        let value_span = &spans[1];
+        assert_eq!(
+            value_span.style.fg,
+            Some(ratatui::style::Color::Rgb(168, 85, 247))
+        );
+    }
+
+    #[test]
+    fn test_yaml_highlight_number() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("port: 8080", base);
+        assert!(spans.len() >= 2);
+        // Value should have number color (orange)
+        let value_span = &spans[1];
+        assert_eq!(
+            value_span.style.fg,
+            Some(ratatui::style::Color::Rgb(251, 146, 60))
+        );
+    }
+
+    #[test]
+    fn test_yaml_highlight_string() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("prompt: \"Hello world\"", base);
+        assert!(spans.len() >= 2);
+        // Value should have string color (green)
+        let value_span = &spans[1];
+        assert_eq!(
+            value_span.style.fg,
+            Some(ratatui::style::Color::Rgb(34, 197, 94))
+        );
+    }
+
+    #[test]
+    fn test_yaml_highlight_list_item() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("  - item", base);
+        assert!(
+            spans.len() >= 2,
+            "Should have indent, dash, and value spans"
+        );
+        // Should contain dash
+        assert!(spans.iter().any(|s| s.content.contains("-")));
+    }
+
+    #[test]
+    fn test_yaml_highlight_empty_line() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("", base);
+        assert_eq!(spans.len(), 1);
+        assert!(spans[0].content.is_empty());
     }
 }

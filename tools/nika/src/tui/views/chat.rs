@@ -452,6 +452,30 @@ impl ChatView {
         }
     }
 
+    /// Mark an MCP server as connected (v0.7.0+)
+    pub fn mark_mcp_server_connected(&mut self, server_name: &str) {
+        if let Some(server) = self
+            .session_context
+            .mcp_servers
+            .iter_mut()
+            .find(|s| s.name == server_name)
+        {
+            server.mark_connected();
+        }
+    }
+
+    /// Mark an MCP server as errored (v0.7.0+)
+    pub fn mark_mcp_server_error(&mut self, server_name: &str) {
+        if let Some(server) = self
+            .session_context
+            .mcp_servers
+            .iter_mut()
+            .find(|s| s.name == server_name)
+        {
+            server.mark_error();
+        }
+    }
+
     /// Add a tool message
     pub fn add_tool_message(&mut self, content: String) {
         self.messages.push(ChatMessage {
