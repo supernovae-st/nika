@@ -136,6 +136,10 @@ pub struct DagNode {
     pub for_each_count: Option<usize>,
     /// for_each loop group ID (v0.5.2+) - shared by all tasks in same loop
     pub loop_group_id: Option<String>,
+    /// decompose expansion count (v0.7.0+) - number of expanded subtasks
+    pub decompose_count: Option<usize>,
+    /// decompose parent task ID (v0.7.0+) - links expanded tasks to parent
+    pub decompose_parent_id: Option<String>,
 }
 
 impl DagNode {
@@ -152,6 +156,8 @@ impl DagNode {
             has_breakpoint: false,
             for_each_count: None,
             loop_group_id: None,
+            decompose_count: None,
+            decompose_parent_id: None,
         }
     }
 
@@ -208,6 +214,23 @@ impl DagNode {
     /// Check if this node is part of a for_each loop
     pub fn is_loop_task(&self) -> bool {
         self.for_each_count.is_some() || self.loop_group_id.is_some()
+    }
+
+    /// Set decompose expansion count (v0.7.0+) - number of expanded subtasks
+    pub fn with_decompose_count(mut self, count: usize) -> Self {
+        self.decompose_count = Some(count);
+        self
+    }
+
+    /// Set decompose parent task ID (v0.7.0+) - links expanded tasks to parent
+    pub fn with_decompose_parent(mut self, parent_id: impl Into<String>) -> Self {
+        self.decompose_parent_id = Some(parent_id.into());
+        self
+    }
+
+    /// Check if this node is a decompose expansion task
+    pub fn is_decompose_task(&self) -> bool {
+        self.decompose_count.is_some() || self.decompose_parent_id.is_some()
     }
 }
 
@@ -450,6 +473,30 @@ impl Widget for Dag<'_> {
                             area.y + y,
                             &loop_indicator,
                             Style::default().fg(Color::Rgb(139, 92, 246)), // violet
+                        );
+                        next_x += loop_indicator.chars().count() as u16 + 1;
+                    }
+                }
+
+                // decompose expansion indicator (v0.7.0+)
+                if let Some(count) = node.decompose_count {
+                    if next_x < area.x + area.width - 10 {
+                        let decompose_indicator = format!("🔀×{}", count);
+                        buf.set_string(
+                            next_x,
+                            area.y + y,
+                            &decompose_indicator,
+                            Style::default().fg(Color::Rgb(251, 146, 60)), // orange
+                        );
+                    }
+                } else if node.decompose_parent_id.is_some() {
+                    // Child of decompose - show subtle indicator
+                    if next_x < area.x + area.width - 10 {
+                        buf.set_string(
+                            next_x,
+                            area.y + y,
+                            "↳",
+                            Style::default().fg(Color::Rgb(251, 146, 60)), // orange
                         );
                     }
                 }
@@ -735,6 +782,82 @@ mod tests {
         assert!(
             !content.contains("🔁"),
             "Should not render loop indicator when not set"
+        );
+    }
+
+    #[test]
+    fn test_dag_node_decompose_default() {
+        let node = DagNode::new("task1", TaskStatus::Pending);
+        assert!(node.decompose_count.is_none(), "Should default to None");
+        assert!(node.decompose_parent_id.is_none(), "Should default to None");
+        assert!(
+            !node.is_decompose_task(),
+            "Should not be a decompose task by default"
+        );
+    }
+
+    #[test]
+    fn test_dag_node_with_decompose_count() {
+        let node = DagNode::new("task1", TaskStatus::Pending).with_decompose_count(3);
+        assert_eq!(node.decompose_count, Some(3));
+        assert!(
+            node.is_decompose_task(),
+            "Should be a decompose task with decompose_count"
+        );
+    }
+
+    #[test]
+    fn test_dag_node_with_decompose_parent() {
+        let node =
+            DagNode::new("subtask1", TaskStatus::Pending).with_decompose_parent("parent_task");
+        assert_eq!(node.decompose_parent_id, Some("parent_task".to_string()));
+        assert!(
+            node.is_decompose_task(),
+            "Should be a decompose task with parent"
+        );
+    }
+
+    #[test]
+    fn test_dag_decompose_renders_indicator() {
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        let nodes = vec![DagNode::new("expand_entities", TaskStatus::Running)
+            .with_type("infer")
+            .with_decompose_count(5)];
+
+        let dag = Dag::new(&nodes);
+        let area = Rect::new(0, 0, 60, 5);
+        let mut buf = Buffer::empty(area);
+        dag.render(area, &mut buf);
+
+        let content: String = buf.content.iter().map(|c| c.symbol()).collect();
+        assert!(
+            content.contains("🔀") || content.contains("×5"),
+            "Should render decompose indicator: {}",
+            content
+        );
+    }
+
+    #[test]
+    fn test_dag_decompose_child_renders_arrow() {
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        let nodes = vec![DagNode::new("child_task", TaskStatus::Pending)
+            .with_type("infer")
+            .with_decompose_parent("parent_task")];
+
+        let dag = Dag::new(&nodes);
+        let area = Rect::new(0, 0, 60, 5);
+        let mut buf = Buffer::empty(area);
+        dag.render(area, &mut buf);
+
+        let content: String = buf.content.iter().map(|c| c.symbol()).collect();
+        assert!(
+            content.contains("↳"),
+            "Should render decompose child indicator: {}",
+            content
         );
     }
 }

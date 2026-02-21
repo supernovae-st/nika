@@ -3,7 +3,7 @@
 //! Central state for the TUI application.
 //! Updated by events from the runtime, queried by panels for rendering.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -137,6 +137,8 @@ pub struct WorkflowState {
     pub total_duration_ms: Option<u64>,
     /// Error message (when failed)
     pub error_message: Option<String>,
+    /// Workflow is paused
+    pub paused: bool,
 }
 
 impl WorkflowState {
@@ -152,6 +154,7 @@ impl WorkflowState {
             final_output: None,
             total_duration_ms: None,
             error_message: None,
+            paused: false,
         }
     }
 
@@ -188,6 +191,12 @@ pub struct TaskState {
     pub error: Option<String>,
     /// Token count (for infer/agent tasks)
     pub tokens: Option<u32>,
+    /// Provider name (e.g., "claude", "openai")
+    pub provider: Option<String>,
+    /// Model name (e.g., "claude-sonnet-4-20250514")
+    pub model: Option<String>,
+    /// Prompt length in chars
+    pub prompt_len: Option<usize>,
 }
 
 impl TaskState {
@@ -203,6 +212,9 @@ impl TaskState {
             output: None,
             error: None,
             tokens: None,
+            provider: None,
+            model: None,
+            prompt_len: None,
         }
     }
 }
@@ -318,6 +330,10 @@ pub struct Metrics {
     pub token_history: Vec<u32>,
     /// Latency history in ms (for sparkline)
     pub latency_history: Vec<u64>,
+    /// Provider call count
+    pub provider_calls: usize,
+    /// Last model used (for status display)
+    pub last_model: Option<String>,
 }
 
 // ═══════════════════════════════════════════
@@ -912,6 +928,19 @@ impl ChatOverlayState {
     }
 }
 
+/// Template resolution record for observability
+#[derive(Debug, Clone)]
+pub struct TemplateResolution {
+    /// Task ID where resolution occurred
+    pub task_id: String,
+    /// Original template expression (e.g., "{{use.ctx}}")
+    pub template: String,
+    /// Resolved value (truncated for display)
+    pub result: String,
+    /// Timestamp in milliseconds
+    pub timestamp_ms: u64,
+}
+
 /// Main TUI state
 #[derive(Debug, Clone)]
 pub struct TuiState {
@@ -956,6 +985,8 @@ pub struct TuiState {
     pub agent_max_turns: Option<u32>,
     /// Spawned sub-agents (v0.5 MVP 8 nested agents)
     pub spawned_agents: Vec<SpawnedAgent>,
+    /// Recent template resolutions (for observability)
+    pub recent_templates: VecDeque<TemplateResolution>,
 
     // ═══════════════════════════════════════════
     // UI STATE
@@ -1180,6 +1211,7 @@ impl TuiState {
             streaming_buffer: String::new(),
             agent_max_turns: None,
             spawned_agents: Vec::new(),
+            recent_templates: VecDeque::new(),
             focus: PanelId::Progress,
             mode: TuiMode::Normal,
             scroll: HashMap::new(),
@@ -1507,6 +1539,28 @@ impl TuiState {
             }
 
             // ═══════════════════════════════════════════
+            // BINDING EVENTS
+            // ═══════════════════════════════════════════
+            EventKind::TemplateResolved {
+                task_id,
+                template,
+                result,
+            } => {
+                // Keep last 10 resolutions
+                if self.recent_templates.len() >= 10 {
+                    self.recent_templates.pop_front();
+                }
+                self.recent_templates.push_back(TemplateResolution {
+                    task_id: task_id.to_string(),
+                    template: template.clone(),
+                    result: result.clone(),
+                    timestamp_ms,
+                });
+                // Mark context panel dirty (template bindings are context-related)
+                self.dirty.novanet = true;
+            }
+
+            // ═══════════════════════════════════════════
             // AGENT EVENTS
             // ═══════════════════════════════════════════
             EventKind::AgentStart { max_turns, .. } => {
@@ -1592,6 +1646,27 @@ impl TuiState {
             // ═══════════════════════════════════════════
             // PROVIDER EVENTS
             // ═══════════════════════════════════════════
+            EventKind::ProviderCalled {
+                task_id,
+                provider,
+                model,
+                prompt_len,
+            } => {
+                // Update task's provider info
+                if let Some(task) = self.tasks.get_mut(task_id.as_ref()) {
+                    task.provider = Some(provider.clone());
+                    task.model = Some(model.clone());
+                    task.prompt_len = Some(*prompt_len);
+                }
+
+                // Update metrics
+                self.metrics.provider_calls += 1;
+                self.metrics.last_model = Some(model.clone());
+
+                // TIER 4.1: Mark progress dirty (for provider display)
+                self.dirty.progress = true;
+            }
+
             EventKind::ProviderResponded {
                 input_tokens,
                 output_tokens,
@@ -1662,8 +1737,35 @@ impl TuiState {
                 self.dirty.progress = true;
             }
 
-            // Other events we don't track in state
-            _ => {}
+            // ═══════════════════════════════════════════
+            // PAUSE/RESUME EVENTS
+            // ═══════════════════════════════════════════
+            EventKind::WorkflowPaused => {
+                self.workflow.paused = true;
+                self.workflow.phase = MissionPhase::Pause;
+                self.add_notification(Notification::warning(
+                    "⏸️ Mission paused — press SPACE to resume",
+                    timestamp_ms,
+                ));
+                self.dirty.progress = true;
+                self.dirty.status = true;
+            }
+
+            EventKind::WorkflowResumed => {
+                self.workflow.paused = false;
+                // Restore to appropriate phase based on current state
+                if self.current_task.is_some() {
+                    self.workflow.phase = MissionPhase::Orbital;
+                } else {
+                    self.workflow.phase = MissionPhase::Countdown;
+                }
+                self.add_notification(Notification::info(
+                    "▶️ Mission resumed — engines back online!",
+                    timestamp_ms,
+                ));
+                self.dirty.progress = true;
+                self.dirty.status = true;
+            }
         }
     }
 
@@ -1789,6 +1891,20 @@ impl TuiState {
     pub fn get_selected_mcp(&self) -> Option<&McpCall> {
         self.selected_mcp_idx
             .and_then(|idx| self.mcp_calls.get(idx))
+    }
+
+    /// Select first MCP call (g key - vim go to top)
+    pub fn select_first_mcp(&mut self) {
+        if !self.mcp_calls.is_empty() {
+            self.selected_mcp_idx = Some(0);
+        }
+    }
+
+    /// Select last MCP call (G key - vim go to bottom)
+    pub fn select_last_mcp(&mut self) {
+        if !self.mcp_calls.is_empty() {
+            self.selected_mcp_idx = Some(self.mcp_calls.len().saturating_sub(1));
+        }
     }
 
     // ═══════════════════════════════════════════
@@ -2847,6 +2963,9 @@ mod tests {
                 output: None,
                 error: None,
                 tokens: None,
+                provider: None,
+                model: None,
+                prompt_len: None,
             },
         );
         state.tasks.insert(
@@ -2862,6 +2981,9 @@ mod tests {
                 output: None,
                 error: Some("Command failed".to_string()),
                 tokens: None,
+                provider: None,
+                model: None,
+                prompt_len: None,
             },
         );
 
@@ -3160,6 +3282,9 @@ mod tests {
                 output: None,
                 error: None,
                 tokens: None,
+                provider: None,
+                model: None,
+                prompt_len: None,
             },
         );
         state.tasks.insert(
@@ -3175,6 +3300,9 @@ mod tests {
                 output: None,
                 error: None,
                 tokens: None,
+                provider: None,
+                model: None,
+                prompt_len: None,
             },
         );
 

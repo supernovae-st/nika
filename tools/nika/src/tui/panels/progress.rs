@@ -50,6 +50,7 @@ impl<'a> ProgressPanel<'a> {
             MissionPhase::Rendezvous => Color::Rgb(139, 92, 246), // violet
             MissionPhase::MissionSuccess => Color::Rgb(34, 197, 94), // green
             MissionPhase::Abort => Color::Rgb(239, 68, 68),       // red
+            MissionPhase::Pause => Color::Rgb(245, 158, 11),      // amber (paused)
         }
     }
 

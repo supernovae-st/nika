@@ -42,11 +42,13 @@ use rmcp::ServiceExt;
 use serde_json::Value;
 use tokio::process::Command;
 use tokio::sync::Mutex as AsyncMutex;
+use tokio::time::timeout;
 
 use crate::error::{NikaError, Result};
 use crate::mcp::types::{
     ContentBlock, McpConfig, McpErrorCode, ResourceContent, ToolCallResult, ToolDefinition,
 };
+use crate::util::MCP_CALL_TIMEOUT;
 
 /// Extract JSON-RPC error code from error message if present.
 ///
@@ -265,14 +267,21 @@ impl RmcpClientAdapter {
             task: None,
         };
 
-        let result = service.call_tool(request).await.map_err(|e| {
-            let error_str = e.to_string();
-            NikaError::McpToolError {
-                tool: name.to_string(),
-                reason: error_str.clone(),
-                error_code: extract_error_code(&error_str),
-            }
-        })?;
+        let result = timeout(MCP_CALL_TIMEOUT, service.call_tool(request))
+            .await
+            .map_err(|_| NikaError::McpTimeout {
+                name: self.name.clone(),
+                operation: "call_tool".to_string(),
+                timeout_secs: MCP_CALL_TIMEOUT.as_secs(),
+            })?
+            .map_err(|e| {
+                let error_str = e.to_string();
+                NikaError::McpToolError {
+                    tool: name.to_string(),
+                    reason: error_str.clone(),
+                    error_code: extract_error_code(&error_str),
+                }
+            })?;
 
         // Convert rmcp result to Nika's ToolCallResult
         let content: Vec<ContentBlock> = result
@@ -311,22 +320,29 @@ impl RmcpClientAdapter {
             uri: uri.into(),
         };
 
-        let result = service.read_resource(request).await.map_err(|e| {
-            // Check for not found error
-            let error_str = e.to_string().to_lowercase();
-            if error_str.contains("not found") {
-                NikaError::McpResourceNotFound {
-                    uri: uri.to_string(),
+        let result = timeout(MCP_CALL_TIMEOUT, service.read_resource(request))
+            .await
+            .map_err(|_| NikaError::McpTimeout {
+                name: self.name.clone(),
+                operation: "read_resource".to_string(),
+                timeout_secs: MCP_CALL_TIMEOUT.as_secs(),
+            })?
+            .map_err(|e| {
+                // Check for not found error
+                let error_str = e.to_string().to_lowercase();
+                if error_str.contains("not found") {
+                    NikaError::McpResourceNotFound {
+                        uri: uri.to_string(),
+                    }
+                } else {
+                    let error_str = e.to_string();
+                    NikaError::McpToolError {
+                        tool: "resources/read".to_string(),
+                        reason: error_str.clone(),
+                        error_code: extract_error_code(&error_str),
+                    }
                 }
-            } else {
-                let error_str = e.to_string();
-                NikaError::McpToolError {
-                    tool: "resources/read".to_string(),
-                    reason: error_str.clone(),
-                    error_code: extract_error_code(&error_str),
-                }
-            }
-        })?;
+            })?;
 
         // Convert first resource content
         let resource = result
@@ -363,14 +379,21 @@ impl RmcpClientAdapter {
         })?;
 
         let result: ListToolsResult =
-            service.list_tools(Default::default()).await.map_err(|e| {
-                let error_str = e.to_string();
-                NikaError::McpToolError {
-                    tool: "tools/list".to_string(),
-                    reason: error_str.clone(),
-                    error_code: extract_error_code(&error_str),
-                }
-            })?;
+            timeout(MCP_CALL_TIMEOUT, service.list_tools(Default::default()))
+                .await
+                .map_err(|_| NikaError::McpTimeout {
+                    name: self.name.clone(),
+                    operation: "list_tools".to_string(),
+                    timeout_secs: MCP_CALL_TIMEOUT.as_secs(),
+                })?
+                .map_err(|e| {
+                    let error_str = e.to_string();
+                    NikaError::McpToolError {
+                        tool: "tools/list".to_string(),
+                        reason: error_str.clone(),
+                        error_code: extract_error_code(&error_str),
+                    }
+                })?;
 
         // Convert rmcp tools to Nika's ToolDefinition
         let tools: Vec<ToolDefinition> = result

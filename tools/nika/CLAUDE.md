@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.6.0 | Multi-provider + Chat History | 1811 tests | MVP 8 complete
+**Current version:** v0.7.0 | Full Streaming + Multi-provider | 1811 tests | MVP 8 complete
 
 ## Architecture
 
@@ -96,6 +96,25 @@ yamllint -c .yamllint.yaml **/*.nika.yaml
 - `nika/workflow@0.2`: +invoke, +agent verbs, +mcp config
 - `nika/workflow@0.3`: +for_each parallelism, rig-core integration
 - `nika/workflow@0.5`: +decompose, +lazy bindings, +spawn_agent (MVP 8)
+
+## v0.7.0 Changes (Full Streaming for All Providers)
+
+All 6 providers now support **real-time streaming** in the TUI:
+
+| Provider | Streaming | Token Tracking |
+|----------|-----------|----------------|
+| Claude | ✅ Full streaming + thinking capture | ✅ |
+| OpenAI | ✅ Full streaming | ✅ |
+| Mistral | ✅ Full streaming (v0.7) | ✅ |
+| Groq | ✅ Full streaming (v0.7) | ✅ |
+| DeepSeek | ✅ Full streaming (v0.7) | ✅ |
+| Ollama | ✅ Full streaming (v0.7) | ✅ |
+
+**Technical:** All providers use rig-core's `CompletionModel::stream()` API with `StreamedAssistantContent` for real-time token delivery.
+
+**Zero TODOs remaining** — All streaming implementation is complete.
+
+---
 
 ## v0.6.0 Changes (Multi-Provider + Chat History)
 

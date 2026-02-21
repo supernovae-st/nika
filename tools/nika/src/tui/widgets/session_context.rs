@@ -22,6 +22,8 @@ pub enum McpStatus {
     Hot,
     /// Called < 5min ago, connection idle
     Warm,
+    /// Connected but idle (v0.7.0+)
+    Connected,
     /// Not called recently
     #[default]
     Cold,
@@ -32,10 +34,11 @@ pub enum McpStatus {
 impl McpStatus {
     pub fn indicator(&self) -> (&'static str, Color) {
         match self {
-            Self::Hot => ("🟢", Color::Rgb(34, 197, 94)),   // Green
-            Self::Warm => ("🟡", Color::Rgb(250, 204, 21)), // Yellow
-            Self::Cold => ("⚪", Color::Rgb(156, 163, 175)), // Gray
-            Self::Error => ("🔴", Color::Rgb(239, 68, 68)), // Red
+            Self::Hot => ("🟢", Color::Rgb(34, 197, 94)), // Green - active
+            Self::Warm => ("🟡", Color::Rgb(250, 204, 21)), // Yellow - recent
+            Self::Connected => ("🔵", Color::Rgb(59, 130, 246)), // Blue - connected idle
+            Self::Cold => ("⚪", Color::Rgb(156, 163, 175)), // Gray - not connected
+            Self::Error => ("🔴", Color::Rgb(239, 68, 68)), // Red - error
         }
     }
 
@@ -43,6 +46,7 @@ impl McpStatus {
         match self {
             Self::Hot => "hot",
             Self::Warm => "warm",
+            Self::Connected => "ready",
             Self::Cold => "cold",
             Self::Error => "error",
         }
@@ -97,9 +101,34 @@ impl McpServerInfo {
         self.call_count += 1;
     }
 
+    /// Mark server as connected (v0.7.0+)
+    pub fn mark_connected(&mut self) {
+        // Only upgrade from Cold to Connected, don't downgrade Hot/Warm
+        if self.status == McpStatus::Cold {
+            self.status = McpStatus::Connected;
+        }
+    }
+
+    /// Mark server as errored (v0.7.0+)
+    pub fn mark_error(&mut self) {
+        self.status = McpStatus::Error;
+    }
+
     /// Update status based on elapsed time
     pub fn update_status(&mut self) {
-        self.status = McpStatus::from_last_call(self.last_call);
+        // Don't downgrade Connected to Cold based on time alone
+        match self.status {
+            McpStatus::Hot | McpStatus::Warm => {
+                self.status = McpStatus::from_last_call(self.last_call);
+                // If we're going Cold but were previously active, go to Connected
+                if self.status == McpStatus::Cold && self.call_count > 0 {
+                    self.status = McpStatus::Connected;
+                }
+            }
+            McpStatus::Connected | McpStatus::Cold | McpStatus::Error => {
+                // Don't change status based on time for these states
+            }
+        }
     }
 }
 

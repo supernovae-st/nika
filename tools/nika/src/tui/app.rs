@@ -78,6 +78,10 @@ pub enum Action {
     ScrollUp,
     /// Scroll down in focused panel
     ScrollDown,
+    /// Scroll to top of focused panel [g]
+    ScrollToTop,
+    /// Scroll to bottom of focused panel [G]
+    ScrollToBottom,
     // ═══ Quick Actions (TIER 1) ═══
     /// Copy current panel content to clipboard [c]
     CopyToClipboard,
@@ -1222,6 +1226,8 @@ impl App {
             // Scrolling
             KeyCode::Up | KeyCode::Char('k') => Action::ScrollUp,
             KeyCode::Down | KeyCode::Char('j') => Action::ScrollDown,
+            KeyCode::Char('g') => Action::ScrollToTop,
+            KeyCode::Char('G') => Action::ScrollToBottom,
 
             // Overlays
             KeyCode::Char('?') | KeyCode::F(1) => Action::SetMode(TuiMode::Help),
@@ -1428,6 +1434,23 @@ impl App {
                 } else {
                     let scroll = self.state.scroll.entry(self.state.focus).or_insert(0);
                     *scroll += 1;
+                }
+            }
+            Action::ScrollToTop => {
+                // Reset scroll to top (vim 'gg' behavior)
+                if self.state.focus == PanelId::NovaNet {
+                    self.state.select_first_mcp();
+                } else {
+                    self.state.scroll.insert(self.state.focus, 0);
+                }
+            }
+            Action::ScrollToBottom => {
+                // Scroll to bottom (vim 'G' behavior)
+                // We set a large value; the render logic will clamp it
+                if self.state.focus == PanelId::NovaNet {
+                    self.state.select_last_mcp();
+                } else {
+                    self.state.scroll.insert(self.state.focus, usize::MAX);
                 }
             }
             // Settings actions

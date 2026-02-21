@@ -453,43 +453,138 @@ impl RigProvider {
                     }
                 }
             }
-            // v0.6: New providers - fallback to non-streaming for now
-            // TODO: Add streaming support when rig-core API stabilizes
+            // v0.7: Full streaming support for all providers
             RigProvider::Mistral(client) => {
-                let agent = client.agent(model_id).build();
-                let text = agent
-                    .prompt(prompt)
+                let model = client.completion_model(model_id);
+                let request = model.completion_request(prompt).build();
+
+                let mut stream = model
+                    .stream(request)
                     .await
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))?;
-                let _ = tx.send(StreamChunk::Token(text.clone())).await;
-                response_parts.push(text);
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                while let Some(chunk_result) = stream.next().await {
+                    match chunk_result {
+                        Ok(content) => match content {
+                            StreamedAssistantContent::Text(text) => {
+                                response_parts.push(text.text.clone());
+                                let _ = tx.send(StreamChunk::Token(text.text)).await;
+                            }
+                            StreamedAssistantContent::Final(response) => {
+                                if let Some(usage) = response.token_usage() {
+                                    result.input_tokens = usage.input_tokens;
+                                    result.output_tokens = usage.output_tokens;
+                                    result.total_tokens = usage.total_tokens;
+                                    result.cached_input_tokens = usage.cached_input_tokens;
+                                }
+                            }
+                            _ => {}
+                        },
+                        Err(e) => {
+                            let _ = tx.send(StreamChunk::Error(e.to_string())).await;
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
+                }
             }
             RigProvider::Groq(client) => {
-                let agent = client.agent(model_id).build();
-                let text = agent
-                    .prompt(prompt)
+                let model = client.completion_model(model_id);
+                let request = model.completion_request(prompt).build();
+
+                let mut stream = model
+                    .stream(request)
                     .await
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))?;
-                let _ = tx.send(StreamChunk::Token(text.clone())).await;
-                response_parts.push(text);
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                while let Some(chunk_result) = stream.next().await {
+                    match chunk_result {
+                        Ok(content) => match content {
+                            StreamedAssistantContent::Text(text) => {
+                                response_parts.push(text.text.clone());
+                                let _ = tx.send(StreamChunk::Token(text.text)).await;
+                            }
+                            StreamedAssistantContent::Final(response) => {
+                                if let Some(usage) = response.token_usage() {
+                                    result.input_tokens = usage.input_tokens;
+                                    result.output_tokens = usage.output_tokens;
+                                    result.total_tokens = usage.total_tokens;
+                                    result.cached_input_tokens = usage.cached_input_tokens;
+                                }
+                            }
+                            _ => {}
+                        },
+                        Err(e) => {
+                            let _ = tx.send(StreamChunk::Error(e.to_string())).await;
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
+                }
             }
             RigProvider::DeepSeek(client) => {
-                let agent = client.agent(model_id).build();
-                let text = agent
-                    .prompt(prompt)
+                let model = client.completion_model(model_id);
+                let request = model.completion_request(prompt).build();
+
+                let mut stream = model
+                    .stream(request)
                     .await
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))?;
-                let _ = tx.send(StreamChunk::Token(text.clone())).await;
-                response_parts.push(text);
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                while let Some(chunk_result) = stream.next().await {
+                    match chunk_result {
+                        Ok(content) => match content {
+                            StreamedAssistantContent::Text(text) => {
+                                response_parts.push(text.text.clone());
+                                let _ = tx.send(StreamChunk::Token(text.text)).await;
+                            }
+                            StreamedAssistantContent::Final(response) => {
+                                if let Some(usage) = response.token_usage() {
+                                    result.input_tokens = usage.input_tokens;
+                                    result.output_tokens = usage.output_tokens;
+                                    result.total_tokens = usage.total_tokens;
+                                    result.cached_input_tokens = usage.cached_input_tokens;
+                                }
+                            }
+                            _ => {}
+                        },
+                        Err(e) => {
+                            let _ = tx.send(StreamChunk::Error(e.to_string())).await;
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
+                }
             }
             RigProvider::Ollama(client) => {
-                let agent = client.agent(model_id).build();
-                let text = agent
-                    .prompt(prompt)
+                let model = client.completion_model(model_id);
+                let request = model.completion_request(prompt).build();
+
+                let mut stream = model
+                    .stream(request)
                     .await
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))?;
-                let _ = tx.send(StreamChunk::Token(text.clone())).await;
-                response_parts.push(text);
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                while let Some(chunk_result) = stream.next().await {
+                    match chunk_result {
+                        Ok(content) => match content {
+                            StreamedAssistantContent::Text(text) => {
+                                response_parts.push(text.text.clone());
+                                let _ = tx.send(StreamChunk::Token(text.text)).await;
+                            }
+                            StreamedAssistantContent::Final(response) => {
+                                if let Some(usage) = response.token_usage() {
+                                    result.input_tokens = usage.input_tokens;
+                                    result.output_tokens = usage.output_tokens;
+                                    result.total_tokens = usage.total_tokens;
+                                    result.cached_input_tokens = usage.cached_input_tokens;
+                                }
+                            }
+                            _ => {}
+                        },
+                        Err(e) => {
+                            let _ = tx.send(StreamChunk::Error(e.to_string())).await;
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
+                }
             }
         }
 

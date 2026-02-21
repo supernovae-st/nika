@@ -1,3 +1,7 @@
+// The #[error] attribute from thiserror uses struct fields via string interpolation,
+// but Rust's unused_assignments lint doesn't recognize this.
+#![allow(unused_assignments)]
+
 //! Nika Error Types with Error Codes
 //!
 //! Error code ranges:
@@ -313,6 +317,15 @@ pub enum NikaError {
     #[error("[NIKA-108] MCP schema error for '{tool}': {reason}")]
     McpSchemaError { tool: String, reason: String },
 
+    #[error(
+        "[NIKA-109] MCP operation timed out for '{name}' ({operation}): exceeded {timeout_secs}s"
+    )]
+    McpTimeout {
+        name: String,
+        operation: String,
+        timeout_secs: u64,
+    },
+
     // ═══════════════════════════════════════════
     // AGENT ERRORS (110-119) - NEW v0.2
     // ═══════════════════════════════════════════
@@ -437,6 +450,7 @@ impl NikaError {
             Self::McpInvalidResponse { .. } => "NIKA-106",
             Self::McpValidationFailed { .. } => "NIKA-107",
             Self::McpSchemaError { .. } => "NIKA-108",
+            Self::McpTimeout { .. } => "NIKA-109",
             // Agent errors
             Self::AgentMaxTurns { .. } => "NIKA-110",
             Self::AgentStopConditionFailed { .. } => "NIKA-111",
@@ -469,6 +483,7 @@ impl NikaError {
                 | Self::McpToolError { .. }
                 | Self::ProviderError { .. }
                 | Self::Timeout { .. }
+                | Self::McpTimeout { .. }
                 | Self::McpToolCallFailed { .. }
         )
     }
@@ -614,6 +629,9 @@ impl FixSuggestion for NikaError {
                 Some("Check provider configuration and network connectivity")
             }
             NikaError::Timeout { .. } => Some("Increase timeout or check for slow operations"),
+            NikaError::McpTimeout { .. } => {
+                Some("MCP server is slow or unresponsive. Check network and server health.")
+            }
             NikaError::McpToolCallFailed { .. } => {
                 Some("Check MCP tool parameters and server logs")
             }

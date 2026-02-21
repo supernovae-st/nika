@@ -373,6 +373,8 @@ pub enum MissionPhase {
     MissionSuccess,
     /// Workflow failed
     Abort,
+    /// Workflow paused by user
+    Pause,
 }
 
 impl MissionPhase {
@@ -386,6 +388,7 @@ impl MissionPhase {
             Self::Rendezvous => "◈",
             Self::MissionSuccess => "✦",
             Self::Abort => "⊗",
+            Self::Pause => "⏸",
         }
     }
 
@@ -399,6 +402,7 @@ impl MissionPhase {
             Self::Rendezvous => "RENDEZVOUS",
             Self::MissionSuccess => "MISSION SUCCESS",
             Self::Abort => "ABORT",
+            Self::Pause => "PAUSED",
         }
     }
 }
