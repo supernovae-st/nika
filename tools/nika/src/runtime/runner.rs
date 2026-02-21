@@ -201,6 +201,20 @@ impl Runner {
         None
     }
 
+    /// Write execution trace to .nika/traces/ (FIX: called on ALL exit paths)
+    ///
+    /// BUG FIX (2026-02-21): Previously traces were only written on success.
+    /// Now traces are written for WorkflowCompleted, WorkflowFailed, and WorkflowAborted.
+    fn write_trace(&self) {
+        if let Ok(trace_writer) = TraceWriter::new(&self.generation_id) {
+            if let Err(e) = trace_writer.write_all(&self.event_log) {
+                tracing::warn!(error = %e, "Failed to write trace");
+            } else {
+                tracing::info!(path = %trace_writer.path().display(), "Trace written");
+            }
+        }
+    }
+
     /// Execute a single task iteration (used for both regular tasks and for_each items)
     ///
     /// # Arguments
@@ -319,6 +333,7 @@ impl Runner {
                 duration_ms: duration.as_millis() as u64,
                 running_tasks: vec![],
             });
+            self.write_trace(); // FIX: Write trace on abort
             return Err(NikaError::Execution(
                 "Workflow cancelled before start".to_string(),
             ));
@@ -364,6 +379,7 @@ impl Runner {
                     duration_ms: duration.as_millis() as u64,
                     running_tasks,
                 });
+                self.write_trace(); // FIX: Write trace on abort
                 return Err(NikaError::Execution(
                     "Workflow cancelled by user".to_string(),
                 ));
@@ -392,6 +408,7 @@ impl Runner {
                             duration_ms: duration.as_millis() as u64,
                             running_tasks,
                         });
+                        self.write_trace(); // FIX: Write trace on abort
                         return Err(NikaError::Execution(
                             "Workflow cancelled while paused".to_string(),
                         ));
@@ -411,6 +428,7 @@ impl Runner {
                     error: "Deadlock: no tasks ready but workflow not complete".to_string(),
                     failed_task: None,
                 });
+                self.write_trace(); // FIX: Write trace on failure
                 return Err(NikaError::Execution(
                     "Deadlock: no tasks ready but workflow not complete".to_string(),
                 ));
@@ -618,6 +636,7 @@ impl Runner {
                             duration_ms: duration.as_millis() as u64,
                             running_tasks,
                         });
+                        self.write_trace(); // FIX: Write trace on abort
                         return Err(NikaError::Execution(
                             "Workflow cancelled during execution".to_string(),
                         ));
@@ -679,6 +698,7 @@ impl Runner {
                                     error: format!("Task panicked: {}", e),
                                     failed_task: None,
                                 });
+                                self.write_trace(); // FIX: Write trace on failure
                                 return Err(NikaError::Execution(format!("Task panicked: {}", e)));
                             }
                             None => {
@@ -738,13 +758,7 @@ impl Runner {
         });
 
         // Write execution trace to .nika/traces/
-        if let Ok(trace_writer) = TraceWriter::new(&self.generation_id) {
-            if let Err(e) = trace_writer.write_all(&self.event_log) {
-                tracing::warn!(error = %e, "Failed to write trace");
-            } else {
-                tracing::info!(path = %trace_writer.path().display(), "Trace written");
-            }
-        }
+        self.write_trace();
 
         if !self.quiet {
             println!("\n{} Done!\n", "✓".green());

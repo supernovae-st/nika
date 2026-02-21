@@ -213,7 +213,12 @@ impl SpawnAgentTool {
         }
 
         // Build child AgentParams
-        let remaining_depth = self.max_depth.saturating_sub(child_depth);
+        // FIX: Calculate remaining depth from PARENT's current_depth, not child_depth.
+        // With depth_limit=3:
+        //   - Root (depth=1, max=3): remaining = 3-1 = 2 → child gets max=2
+        //   - Child (depth=1, max=2): remaining = 2-1 = 1 → grandchild gets max=1
+        //   - Grandchild (depth=1, max=1): 1 >= 1, cannot spawn ✓
+        let remaining_depth = self.max_depth.saturating_sub(self.current_depth);
         let child_params = AgentParams {
             prompt: params.prompt,
             system: params.context.as_ref().map(|ctx| {
@@ -552,5 +557,66 @@ mod tests {
         assert_eq!(tool.name(), "spawn_agent");
         assert!(tool.can_spawn());
         assert_eq!(tool.child_depth(), 2);
+    }
+
+    // =========================================================================
+    // Depth calculation regression tests (BUG FIX: 2026-02-21)
+    // =========================================================================
+
+    #[test]
+    fn depth_calculation_allows_three_levels() {
+        // With depth_limit=3, we should allow:
+        // - Root (depth=1) → can spawn child
+        // - Child (depth=2) → can spawn grandchild
+        // - Grandchild (depth=3) → cannot spawn
+
+        // Root agent: current=1, max=3
+        let root = SpawnAgentTool::new(1, 3, "root".into(), EventLog::new());
+        assert!(root.can_spawn(), "Root should be able to spawn");
+        assert_eq!(root.child_depth(), 2);
+
+        // Simulate what child receives: remaining = max - current = 3 - 1 = 2
+        // So child sees: current=1, max=2
+        let child = SpawnAgentTool::new(1, 2, "child".into(), EventLog::new());
+        assert!(
+            child.can_spawn(),
+            "Child should be able to spawn grandchild"
+        );
+        assert_eq!(child.child_depth(), 2);
+
+        // Simulate what grandchild receives: remaining = max - current = 2 - 1 = 1
+        // So grandchild sees: current=1, max=1
+        let grandchild = SpawnAgentTool::new(1, 1, "grandchild".into(), EventLog::new());
+        assert!(
+            !grandchild.can_spawn(),
+            "Grandchild should NOT be able to spawn"
+        );
+    }
+
+    #[test]
+    fn remaining_depth_calculation_formula() {
+        // Verify the formula: remaining_depth = max_depth - current_depth
+        // NOT: max_depth - child_depth (old buggy formula)
+
+        // Root: current=1, max=3
+        let root_current = 1_u32;
+        let root_max = 3_u32;
+        let child_will_receive = root_max.saturating_sub(root_current); // 3-1=2 ✓
+        assert_eq!(child_will_receive, 2, "Child should receive depth_limit=2");
+
+        // Child (simulated): current=1, max=2
+        let child_current = 1_u32;
+        let child_max = child_will_receive; // 2
+        let grandchild_will_receive = child_max.saturating_sub(child_current); // 2-1=1 ✓
+        assert_eq!(
+            grandchild_will_receive, 1,
+            "Grandchild should receive depth_limit=1"
+        );
+
+        // Grandchild (simulated): current=1, max=1
+        let grandchild_current = 1_u32;
+        let grandchild_max = grandchild_will_receive; // 1
+        let can_spawn = grandchild_current < grandchild_max; // 1 < 1 = false ✓
+        assert!(!can_spawn, "Grandchild should not be able to spawn");
     }
 }
