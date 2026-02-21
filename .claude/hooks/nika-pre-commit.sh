@@ -15,9 +15,10 @@
 set -e
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
-SPEC_FILE="$PROJECT_DIR/spec/SPEC.md"
-ACTION_RS="$PROJECT_DIR/src/ast/action.rs"
-CONFIG_FILE="$PROJECT_DIR/.nika-rust.toml"
+NIKA_DIR="$PROJECT_DIR/tools/nika"
+SPEC_FILE="$NIKA_DIR/spec/SPEC.md"
+ACTION_RS="$NIKA_DIR/src/ast/action.rs"
+CONFIG_FILE="$NIKA_DIR/.nika-rust.toml"
 
 # Track failures
 FAILURES=""
@@ -147,7 +148,7 @@ fi
 
 echo "▶ Schema alignment..."
 spec_schema=$(grep -o 'workflow@[0-9.]*' "$SPEC_FILE" 2>/dev/null | head -1 || echo "unknown")
-code_schema=$(grep -ro 'workflow@[0-9.]*' "$PROJECT_DIR/src/" 2>/dev/null | head -1 | cut -d: -f2 || echo "unknown")
+code_schema=$(grep -ro 'workflow@[0-9.]*' "$NIKA_DIR/src/" 2>/dev/null | head -1 | cut -d: -f2 || echo "unknown")
 
 if [[ "$spec_schema" != "$code_schema" ]]; then
   add_failure "Schema mismatch: spec=$spec_schema, code=$code_schema"
@@ -179,7 +180,7 @@ fi
 
 echo "▶ Error codes..."
 spec_errors=$(grep -c "NIKA-[0-9]*" "$SPEC_FILE" 2>/dev/null || echo "0")
-code_errors=$(grep -c "NIKA-[0-9]*" "$PROJECT_DIR/src/error.rs" 2>/dev/null || echo "0")
+code_errors=$(grep -c "NIKA-[0-9]*" "$NIKA_DIR/src/error.rs" 2>/dev/null || echo "0")
 
 error_diff=$((code_errors - spec_errors))
 if [[ ${error_diff#-} -gt 5 ]]; then

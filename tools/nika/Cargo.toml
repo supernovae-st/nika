@@ -90,6 +90,11 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 serial_test = "3.1"
 wiremock = "0.6"
 
+# Self-dependency to enable test-fixtures feature for integration tests
+[dev-dependencies.nika]
+path = "."
+features = ["test-fixtures"]
+
 # ═══════════════════════════════════════════════════════════════════════════
 # BENCHMARKS - Run with: cargo bench
 # ═══════════════════════════════════════════════════════════════════════════

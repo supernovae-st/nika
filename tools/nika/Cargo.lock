@@ -2157,6 +2157,7 @@ dependencies = [
  "ignore",
  "insta",
  "jsonschema",
+ "nika",
  "notify",
  "parking_lot",
  "pretty_assertions",

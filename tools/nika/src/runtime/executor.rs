@@ -33,7 +33,18 @@ pub struct TaskExecutor {
     /// Cached rig-core providers (v0.3.1+)
     rig_provider_cache: Arc<DashMap<String, RigProvider>>,
     /// Cached MCP clients with async-safe initialization (prevents race conditions in for_each)
-    /// Uses OnceCell per server to ensure only one client is created even with concurrent access
+    ///
+    /// ## Why Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>?
+    ///
+    /// The triple-Arc structure is intentional:
+    ///
+    /// 1. **Outer Arc<DashMap>**: TaskExecutor derives Clone; Arc ensures clones share the cache.
+    /// 2. **Middle Arc<OnceCell>**: DashMap entry() returns RefMut that cannot be held across await.
+    ///    We clone Arc<OnceCell> to release the guard before calling get_or_try_init().await.
+    ///    Without this, we'd have the "lock-across-await" footgun causing shard starvation.
+    /// 3. **Inner Arc<McpClient>**: McpClient is shared across tasks; Arc enables cheap cloning.
+    ///
+    /// See tests/mcp_race_conditions_test.rs for validation.
     mcp_client_cache: Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>,
     /// MCP server configurations from workflow
     mcp_configs: Arc<FxHashMap<String, McpConfigInline>>,
@@ -444,9 +455,14 @@ impl TaskExecutor {
                 let provider = match name {
                     "claude" | "anthropic" => RigProvider::claude(),
                     "openai" | "gpt" => RigProvider::openai(),
+                    // v0.6: Additional providers
+                    "mistral" => RigProvider::mistral(),
+                    "ollama" => RigProvider::ollama(),
+                    "groq" => RigProvider::groq(),
+                    "deepseek" | "deep-seek" => RigProvider::deepseek(),
                     _ => {
                         return Err(NikaError::Provider(format!(
-                            "Unknown rig provider: {}. Supported: claude, openai",
+                            "Unknown rig provider: {}. Supported: claude, openai, mistral, ollama, groq, deepseek",
                             name
                         )));
                     }

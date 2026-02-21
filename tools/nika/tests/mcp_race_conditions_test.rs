@@ -2,10 +2,31 @@
 //!
 //! Tests for concurrent MCP client access patterns to verify thread safety.
 //!
+//! ## Architecture Note: Why Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>
+//!
+//! The triple-Arc structure is intentional and necessary:
+//!
+//! 1. **Outer Arc<DashMap<...>>**: Required because `TaskExecutor` derives `Clone`.
+//!    DashMap::clone() creates an independent copy, so Arc is needed to share
+//!    the same cache across cloned executors and tokio::spawn closures.
+//!
+//! 2. **Middle Arc<OnceCell<...>>**: Required to avoid the "lock-across-await" footgun.
+//!    DashMap entry() returns a RefMut guard that cannot be held across await points.
+//!    We must clone() the Arc<OnceCell> to release the guard before calling
+//!    get_or_try_init().await. See: uv's OnceMap rationale.
+//!
+//! 3. **Inner Arc<McpClient>**: Required because McpClient is shared across tasks
+//!    and must be cheaply clonable.
+//!
+//! Attempting to simplify to `DashMap<String, OnceCell<Arc<McpClient>>>` would:
+//! - Fail to compile: OnceCell is not Clone
+//! - Even if it were: holding the DashMap guard across await causes shard starvation
+//!
 //! ## Test Coverage
 //!
 //! | Test | Scenario | Validates |
 //! |------|----------|-----------|
+//! | `test_arc_oncecell_required_for_await` | Clone before await pattern | No lock across await |
 //! | `test_concurrent_client_init` | 10 tasks try get_or_init same client | Only ONE client created |
 //! | `test_concurrent_calls_same_tool` | 20 concurrent calls to same tool | All complete successfully |
 //! | `test_for_each_parallel_mcp_calls` | for_each with concurrency=5 | No race conditions |
@@ -23,6 +44,85 @@ use nika::Workflow;
 use serde_json::json;
 use tokio::sync::Barrier;
 use tokio::task::JoinSet;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 0: Arc<OnceCell> Required for Await Pattern
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Validates that Arc<OnceCell<V>> is required to safely use get_or_init across await.
+///
+/// This test demonstrates the correct pattern used in TaskExecutor::get_mcp_client:
+/// 1. Get entry from DashMap (holds RefMut guard)
+/// 2. Clone the Arc<OnceCell> (releases RefMut guard immediately)
+/// 3. Call get_or_try_init().await on the cloned Arc (no lock held)
+///
+/// Without Arc, we cannot clone OnceCell out of the DashMap, and holding
+/// the RefMut across await would cause the "lock-across-await" problem.
+#[tokio::test]
+async fn test_arc_oncecell_required_for_await() {
+    use dashmap::DashMap;
+    use tokio::sync::OnceCell;
+
+    // The correct pattern: Arc<OnceCell> allows cloning before await
+    let cache: Arc<DashMap<String, Arc<OnceCell<String>>>> = Arc::new(DashMap::new());
+
+    // Track when initialization actually runs
+    let init_count = Arc::new(AtomicUsize::new(0));
+
+    // Spawn concurrent tasks that race to initialize
+    let barrier = Arc::new(Barrier::new(5));
+    let mut handles = JoinSet::new();
+
+    for i in 0..5 {
+        let cache = Arc::clone(&cache);
+        let counter = Arc::clone(&init_count);
+        let barrier = Arc::clone(&barrier);
+
+        handles.spawn(async move {
+            barrier.wait().await;
+
+            // CRITICAL: Clone Arc<OnceCell> BEFORE await to release DashMap guard
+            let cell = cache
+                .entry("key".to_string())
+                .or_insert_with(|| Arc::new(OnceCell::new()))
+                .clone(); // <-- This clone() is essential
+
+            // Now we can safely await without holding any DashMap lock
+            let value = cell
+                .get_or_init(|| async {
+                    counter.fetch_add(1, Ordering::SeqCst);
+                    // Simulate async work
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                    "initialized".to_string()
+                })
+                .await;
+
+            (i, value.clone())
+        });
+    }
+
+    // Collect results
+    let mut results = Vec::new();
+    while let Some(result) = handles.join_next().await {
+        results.push(result.expect("Task should not panic"));
+    }
+
+    // All 5 tasks completed
+    assert_eq!(results.len(), 5, "All tasks should complete");
+
+    // Initialization ran exactly once (OnceCell semantics)
+    let final_count = init_count.load(Ordering::SeqCst);
+    assert_eq!(final_count, 1, "OnceCell should initialize exactly once");
+
+    // All tasks got the same value
+    for (task_id, value) in &results {
+        assert_eq!(
+            value, "initialized",
+            "Task {} should get initialized value",
+            task_id
+        );
+    }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST 1: Concurrent Client Initialization

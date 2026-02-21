@@ -248,15 +248,30 @@ impl RigAgentLoop {
     /// ```
     pub async fn chat_continue(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
         // Auto-detect provider and use chat with history
-        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+        // Helper: check env var exists and is non-empty
+        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
+
+        if has_key("ANTHROPIC_API_KEY") {
             return self.chat_continue_claude(prompt).await;
         }
-        if std::env::var("OPENAI_API_KEY").is_ok() {
+        if has_key("OPENAI_API_KEY") {
             return self.chat_continue_openai(prompt).await;
+        }
+        if has_key("MISTRAL_API_KEY") {
+            return self.chat_continue_mistral(prompt).await;
+        }
+        if has_key("GROQ_API_KEY") {
+            return self.chat_continue_groq(prompt).await;
+        }
+        if has_key("DEEPSEEK_API_KEY") {
+            return self.chat_continue_deepseek(prompt).await;
+        }
+        if has_key("OLLAMA_API_BASE_URL") {
+            return self.chat_continue_ollama(prompt).await;
         }
 
         Err(NikaError::AgentValidationError {
-            reason: "chat_continue requires ANTHROPIC_API_KEY or OPENAI_API_KEY".to_string(),
+            reason: "chat_continue requires one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or OLLAMA_API_BASE_URL".to_string(),
         })
     }
 
@@ -377,6 +392,211 @@ impl RigAgentLoop {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index,
             kind: stop_reason.to_string(),
+            metadata: Some(metadata),
+        });
+
+        Ok(RigAgentLoopResult {
+            status,
+            turns: turn_index as usize,
+            final_output: serde_json::json!({ "response": response }),
+            total_tokens: 0,
+        })
+    }
+
+    /// Continue conversation with Mistral (v0.6)
+    async fn chat_continue_mistral(
+        &mut self,
+        prompt: &str,
+    ) -> Result<RigAgentLoopResult, NikaError> {
+        use rig::completion::Chat;
+
+        let client = rig::providers::mistral::Client::from_env();
+        let model_name = self
+            .params
+            .model
+            .as_deref()
+            .unwrap_or(rig::providers::mistral::MISTRAL_LARGE);
+        let agent = client.agent(model_name).build();
+
+        let turn_index = (self.history.len() / 2 + 1) as u32;
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: "chat_continue_mistral".to_string(),
+            metadata: None,
+        });
+
+        let response = agent
+            .chat(prompt, self.history.clone())
+            .await
+            .map_err(|e| NikaError::AgentExecutionError {
+                task_id: self.task_id.clone(),
+                reason: format!("mistral chat error: {}", e),
+            })?;
+
+        self.history.push(Message::user(prompt));
+        self.history.push(Message::assistant(&response));
+
+        let status = RigAgentStatus::NaturalCompletion;
+        let metadata = AgentTurnMetadata::text_only(&response, "end_turn");
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: "chat_continue_mistral".to_string(),
+            metadata: Some(metadata),
+        });
+
+        Ok(RigAgentLoopResult {
+            status,
+            turns: turn_index as usize,
+            final_output: serde_json::json!({ "response": response }),
+            total_tokens: 0,
+        })
+    }
+
+    /// Continue conversation with Groq (v0.6)
+    async fn chat_continue_groq(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
+        use rig::completion::Chat;
+
+        let client = rig::providers::groq::Client::from_env();
+        let model_name = self
+            .params
+            .model
+            .as_deref()
+            .unwrap_or("llama-3.3-70b-versatile");
+        let agent = client.agent(model_name).build();
+
+        let turn_index = (self.history.len() / 2 + 1) as u32;
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: "chat_continue_groq".to_string(),
+            metadata: None,
+        });
+
+        let response = agent
+            .chat(prompt, self.history.clone())
+            .await
+            .map_err(|e| NikaError::AgentExecutionError {
+                task_id: self.task_id.clone(),
+                reason: format!("groq chat error: {}", e),
+            })?;
+
+        self.history.push(Message::user(prompt));
+        self.history.push(Message::assistant(&response));
+
+        let status = RigAgentStatus::NaturalCompletion;
+        let metadata = AgentTurnMetadata::text_only(&response, "end_turn");
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: "chat_continue_groq".to_string(),
+            metadata: Some(metadata),
+        });
+
+        Ok(RigAgentLoopResult {
+            status,
+            turns: turn_index as usize,
+            final_output: serde_json::json!({ "response": response }),
+            total_tokens: 0,
+        })
+    }
+
+    /// Continue conversation with DeepSeek (v0.6)
+    async fn chat_continue_deepseek(
+        &mut self,
+        prompt: &str,
+    ) -> Result<RigAgentLoopResult, NikaError> {
+        use rig::completion::Chat;
+
+        let client = rig::providers::deepseek::Client::from_env();
+        let model_name = self
+            .params
+            .model
+            .as_deref()
+            .unwrap_or(rig::providers::deepseek::DEEPSEEK_CHAT);
+        let agent = client.agent(model_name).build();
+
+        let turn_index = (self.history.len() / 2 + 1) as u32;
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: "chat_continue_deepseek".to_string(),
+            metadata: None,
+        });
+
+        let response = agent
+            .chat(prompt, self.history.clone())
+            .await
+            .map_err(|e| NikaError::AgentExecutionError {
+                task_id: self.task_id.clone(),
+                reason: format!("deepseek chat error: {}", e),
+            })?;
+
+        self.history.push(Message::user(prompt));
+        self.history.push(Message::assistant(&response));
+
+        let status = RigAgentStatus::NaturalCompletion;
+        let metadata = AgentTurnMetadata::text_only(&response, "end_turn");
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: "chat_continue_deepseek".to_string(),
+            metadata: Some(metadata),
+        });
+
+        Ok(RigAgentLoopResult {
+            status,
+            turns: turn_index as usize,
+            final_output: serde_json::json!({ "response": response }),
+            total_tokens: 0,
+        })
+    }
+
+    /// Continue conversation with Ollama (v0.6)
+    async fn chat_continue_ollama(
+        &mut self,
+        prompt: &str,
+    ) -> Result<RigAgentLoopResult, NikaError> {
+        use rig::completion::Chat;
+
+        let client = rig::providers::ollama::Client::from_env();
+        let model_name = self.params.model.as_deref().unwrap_or("llama3.2");
+        let agent = client.agent(model_name).build();
+
+        let turn_index = (self.history.len() / 2 + 1) as u32;
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: "chat_continue_ollama".to_string(),
+            metadata: None,
+        });
+
+        let response = agent
+            .chat(prompt, self.history.clone())
+            .await
+            .map_err(|e| NikaError::AgentExecutionError {
+                task_id: self.task_id.clone(),
+                reason: format!("ollama chat error: {}", e),
+            })?;
+
+        self.history.push(Message::user(prompt));
+        self.history.push(Message::assistant(&response));
+
+        let status = RigAgentStatus::NaturalCompletion;
+        let metadata = AgentTurnMetadata::text_only(&response, "end_turn");
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: "chat_continue_ollama".to_string(),
             metadata: Some(metadata),
         });
 
@@ -869,27 +1089,30 @@ impl RigAgentLoop {
         }
 
         // Auto-detect based on available API keys (v0.6: expanded detection)
-        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+        // Helper: check env var exists and is non-empty
+        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
+
+        if has_key("ANTHROPIC_API_KEY") {
             return self.run_claude().await;
         }
 
-        if std::env::var("OPENAI_API_KEY").is_ok() {
+        if has_key("OPENAI_API_KEY") {
             return self.run_openai().await;
         }
 
-        if std::env::var("MISTRAL_API_KEY").is_ok() {
+        if has_key("MISTRAL_API_KEY") {
             return self.run_mistral().await;
         }
 
-        if std::env::var("GROQ_API_KEY").is_ok() {
+        if has_key("GROQ_API_KEY") {
             return self.run_groq().await;
         }
 
-        if std::env::var("DEEPSEEK_API_KEY").is_ok() {
+        if has_key("DEEPSEEK_API_KEY") {
             return self.run_deepseek().await;
         }
 
-        if std::env::var("OLLAMA_API_BASE_URL").is_ok() {
+        if has_key("OLLAMA_API_BASE_URL") {
             return self.run_ollama().await;
         }
 

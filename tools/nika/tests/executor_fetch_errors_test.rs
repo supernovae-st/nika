@@ -13,11 +13,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use nika::ast::{FetchParams, TaskAction};
-use nika::binding::ResolvedBindings;
 use nika::error::NikaError;
-use nika::event::EventLog;
-use nika::runtime::TaskExecutor;
-use nika::store::DataStore;
+use nika::test_utils::{mock_executor, test_context};
 use rustc_hash::FxHashMap;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
@@ -25,11 +22,6 @@ use tokio::net::TcpListener;
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
-
-/// Create a test executor with default settings
-fn create_test_executor() -> TaskExecutor {
-    TaskExecutor::new("mock", None, None, EventLog::new())
-}
 
 /// Create a FetchParams with GET method and empty headers
 fn fetch_params(url: &str) -> FetchParams {
@@ -39,11 +31,6 @@ fn fetch_params(url: &str) -> FetchParams {
         headers: FxHashMap::default(),
         body: None,
     }
-}
-
-/// Create empty bindings and datastore for tests
-fn empty_context() -> (ResolvedBindings, DataStore) {
-    (ResolvedBindings::new(), DataStore::new())
 }
 
 /// Start a mock server that delays before responding
@@ -118,9 +105,9 @@ async fn start_malformed_server() -> String {
 #[tokio::test]
 async fn test_fetch_invalid_url_returns_execution_error() {
     // Arrange
-    let executor = create_test_executor();
+    let executor = mock_executor();
     let task_id: Arc<str> = Arc::from("fetch_invalid");
-    let (bindings, datastore) = empty_context();
+    let (bindings, datastore) = test_context();
 
     // Use a completely invalid URL
     let action = TaskAction::Fetch {
@@ -148,9 +135,9 @@ async fn test_fetch_invalid_url_returns_execution_error() {
 #[tokio::test]
 async fn test_fetch_invalid_scheme_returns_error() {
     // Arrange
-    let executor = create_test_executor();
+    let executor = mock_executor();
     let task_id: Arc<str> = Arc::from("fetch_bad_scheme");
-    let (bindings, datastore) = empty_context();
+    let (bindings, datastore) = test_context();
 
     // Use an unsupported scheme
     let action = TaskAction::Fetch {
@@ -181,9 +168,9 @@ async fn test_fetch_non_2xx_status_returns_body_not_error() {
     // This test documents the current behavior
 
     // Arrange
-    let executor = create_test_executor();
+    let executor = mock_executor();
     let task_id: Arc<str> = Arc::from("fetch_500");
-    let (bindings, datastore) = empty_context();
+    let (bindings, datastore) = test_context();
 
     let url = start_status_server(500, "Internal Server Error").await;
     let action = TaskAction::Fetch {
@@ -212,9 +199,9 @@ async fn test_fetch_non_2xx_status_returns_body_not_error() {
 #[tokio::test]
 async fn test_fetch_404_returns_body() {
     // Arrange
-    let executor = create_test_executor();
+    let executor = mock_executor();
     let task_id: Arc<str> = Arc::from("fetch_404");
-    let (bindings, datastore) = empty_context();
+    let (bindings, datastore) = test_context();
 
     let url = start_status_server(404, "Not Found").await;
     let action = TaskAction::Fetch {
@@ -234,9 +221,9 @@ async fn test_fetch_404_returns_body() {
 #[tokio::test]
 async fn test_fetch_connection_refused_returns_error() {
     // Arrange
-    let executor = create_test_executor();
+    let executor = mock_executor();
     let task_id: Arc<str> = Arc::from("fetch_refused");
-    let (bindings, datastore) = empty_context();
+    let (bindings, datastore) = test_context();
 
     // Use a port that's definitely not listening
     // Port 1 requires root on Unix and is typically not available
@@ -265,9 +252,9 @@ async fn test_fetch_connection_refused_returns_error() {
 #[tokio::test]
 async fn test_fetch_malformed_response_returns_error() {
     // Arrange
-    let executor = create_test_executor();
+    let executor = mock_executor();
     let task_id: Arc<str> = Arc::from("fetch_malformed");
-    let (bindings, datastore) = empty_context();
+    let (bindings, datastore) = test_context();
 
     let url = start_malformed_server().await;
     let action = TaskAction::Fetch {
@@ -309,9 +296,9 @@ async fn test_fetch_timeout_with_delayed_server() {
     // with a short timeout, which isn't currently supported.
 
     // Arrange
-    let executor = create_test_executor();
+    let executor = mock_executor();
     let task_id: Arc<str> = Arc::from("fetch_timeout");
-    let (bindings, datastore) = empty_context();
+    let (bindings, datastore) = test_context();
 
     // Server delays 35 seconds (longer than FETCH_TIMEOUT of 30s)
     let url = start_delayed_server(Duration::from_secs(35)).await;
@@ -344,9 +331,9 @@ async fn test_fetch_timeout_with_delayed_server() {
 #[tokio::test]
 async fn test_fetch_success_returns_body() {
     // Arrange
-    let executor = create_test_executor();
+    let executor = mock_executor();
     let task_id: Arc<str> = Arc::from("fetch_success");
-    let (bindings, datastore) = empty_context();
+    let (bindings, datastore) = test_context();
 
     let url = start_status_server(200, "Hello, World!").await;
     let action = TaskAction::Fetch {
@@ -366,9 +353,9 @@ async fn test_fetch_success_returns_body() {
 #[tokio::test]
 async fn test_fetch_with_json_body() {
     // Arrange
-    let executor = create_test_executor();
+    let executor = mock_executor();
     let task_id: Arc<str> = Arc::from("fetch_json");
-    let (bindings, datastore) = empty_context();
+    let (bindings, datastore) = test_context();
 
     let json_body = r#"{"status":"ok","count":42}"#;
     let url = start_status_server(200, json_body).await;
@@ -397,9 +384,9 @@ async fn test_fetch_with_json_body() {
 #[tokio::test]
 async fn test_fetch_empty_url_fails() {
     // Arrange
-    let executor = create_test_executor();
+    let executor = mock_executor();
     let task_id: Arc<str> = Arc::from("fetch_empty");
-    let (bindings, datastore) = empty_context();
+    let (bindings, datastore) = test_context();
 
     let action = TaskAction::Fetch {
         fetch: fetch_params(""),
@@ -426,9 +413,9 @@ async fn test_fetch_empty_url_fails() {
 #[tokio::test]
 async fn test_fetch_url_with_invalid_characters() {
     // Arrange
-    let executor = create_test_executor();
+    let executor = mock_executor();
     let task_id: Arc<str> = Arc::from("fetch_invalid_chars");
-    let (bindings, datastore) = empty_context();
+    let (bindings, datastore) = test_context();
 
     // Use a URL with invalid characters that reqwest cannot handle
     // Note: reqwest is lenient with spaces (may URL-encode them)
@@ -458,9 +445,9 @@ async fn test_fetch_url_with_invalid_characters() {
 #[tokio::test]
 async fn test_fetch_localhost_unreachable_fails() {
     // Arrange
-    let executor = create_test_executor();
+    let executor = mock_executor();
     let task_id: Arc<str> = Arc::from("fetch_unreachable");
-    let (bindings, datastore) = empty_context();
+    let (bindings, datastore) = test_context();
 
     // Use a high port that's almost certainly not in use
     let action = TaskAction::Fetch {
@@ -479,9 +466,9 @@ async fn test_fetch_localhost_unreachable_fails() {
 #[tokio::test]
 async fn test_fetch_dns_resolution_failure() {
     // Arrange
-    let executor = create_test_executor();
+    let executor = mock_executor();
     let task_id: Arc<str> = Arc::from("fetch_dns_fail");
-    let (bindings, datastore) = empty_context();
+    let (bindings, datastore) = test_context();
 
     // Use a domain that definitely doesn't exist
     let action = TaskAction::Fetch {

@@ -268,28 +268,31 @@ impl RigProvider {
     /// 3. MISTRAL_API_KEY → Mistral
     /// 4. GROQ_API_KEY → Groq
     /// 5. DEEPSEEK_API_KEY → DeepSeek
-    /// 6. Ollama (no key required, assumes local)
+    /// 6. OLLAMA_API_BASE_URL → Ollama (opt-in, no key required)
     ///
     /// Returns None if no provider is available.
+    /// Empty env vars are treated as unset.
     pub fn auto() -> Option<Self> {
-        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+        // Helper: check env var exists and is non-empty
+        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
+
+        if has_key("ANTHROPIC_API_KEY") {
             return Some(Self::claude());
         }
-        if std::env::var("OPENAI_API_KEY").is_ok() {
+        if has_key("OPENAI_API_KEY") {
             return Some(Self::openai());
         }
-        if std::env::var("MISTRAL_API_KEY").is_ok() {
+        if has_key("MISTRAL_API_KEY") {
             return Some(Self::mistral());
         }
-        if std::env::var("GROQ_API_KEY").is_ok() {
+        if has_key("GROQ_API_KEY") {
             return Some(Self::groq());
         }
-        if std::env::var("DEEPSEEK_API_KEY").is_ok() {
+        if has_key("DEEPSEEK_API_KEY") {
             return Some(Self::deepseek());
         }
-        // Ollama doesn't require API key - check if OLLAMA_API_BASE_URL is set
-        // or assume localhost is available
-        if std::env::var("OLLAMA_API_BASE_URL").is_ok() {
+        // Ollama is opt-in: requires OLLAMA_API_BASE_URL to be explicitly set
+        if has_key("OLLAMA_API_BASE_URL") {
             return Some(Self::ollama());
         }
         None
