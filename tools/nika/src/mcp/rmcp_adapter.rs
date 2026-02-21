@@ -17,18 +17,19 @@
 //!                                   └── TokioChildProcess transport
 //! ```
 //!
-//! ## Usage
+//! ## Internal Usage
+//!
+//! This adapter is internal to the MCP module and should be accessed via `McpClient`.
 //!
 //! ```rust,ignore
-//! use nika::mcp::{McpConfig, RmcpClientAdapter};
+//! // Users should use McpClient, not RmcpClientAdapter directly
+//! use nika::mcp::{McpClient, McpConfig};
 //!
 //! let config = McpConfig::new("novanet", "cargo")
 //!     .with_args(["run", "--manifest-path", "path/to/Cargo.toml"]);
 //!
-//! let adapter = RmcpClientAdapter::new(config);
-//! adapter.connect().await?;
-//!
-//! let result = adapter.call_tool("novanet_describe", json!({})).await?;
+//! let client = McpClient::new(config)?;
+//! client.connect().await?;
 //! ```
 
 use std::process::Stdio;
@@ -75,11 +76,12 @@ fn extract_error_code(error: &str) -> Option<McpErrorCode> {
 /// RunningService<Role, Handler> where Handler implements Service<Role>
 type RmcpService = RunningService<RoleClient, ()>;
 
-/// rmcp Client Adapter
+/// rmcp Client Adapter (internal)
 ///
 /// Wraps rmcp's Service to provide Nika's MCP client interface.
 /// Handles connection lifecycle, tool calls, and resource reads.
-pub struct RmcpClientAdapter {
+/// Users should access MCP via `McpClient`, not this type directly.
+pub(crate) struct RmcpClientAdapter {
     /// Server name (from config)
     name: String,
 
@@ -132,6 +134,7 @@ impl RmcpClientAdapter {
     }
 
     /// Get the server name.
+    #[allow(dead_code)] // Used in tests
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -400,6 +403,7 @@ impl RmcpClientAdapter {
     }
 
     /// Get the server protocol version (if connected)
+    #[allow(dead_code)] // Useful for debugging
     pub fn server_version(&self) -> Option<String> {
         self.server_version.lock().clone()
     }

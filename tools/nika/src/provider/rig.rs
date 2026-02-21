@@ -188,7 +188,7 @@ impl RigProvider {
     /// | OpenAI | gpt-4o | Latest stable |
     /// | Mistral | mistral-large-latest | Best for complex tasks |
     /// | Ollama | llama3.2 | Good balance of quality/speed |
-    /// | Groq | llama-3.1-70b-versatile | Fast inference |
+    /// | Groq | llama-3.3-70b-versatile | Fast inference |
     /// | DeepSeek | deepseek-chat | Cost-effective |
     pub fn default_model(&self) -> &'static str {
         match self {
@@ -198,7 +198,7 @@ impl RigProvider {
             RigProvider::OpenAI(_) => openai::GPT_4O,
             RigProvider::Mistral(_) => mistral::MISTRAL_LARGE,
             RigProvider::Ollama(_) => "llama3.2",
-            RigProvider::Groq(_) => "llama-3.1-70b-versatile",
+            RigProvider::Groq(_) => "llama-3.3-70b-versatile",
             RigProvider::DeepSeek(_) => "deepseek-chat",
         }
     }
@@ -720,7 +720,7 @@ mod tests {
         assert_eq!(RigProvider::ollama().default_model(), "llama3.2");
         assert_eq!(
             RigProvider::groq().default_model(),
-            "llama-3.1-70b-versatile"
+            "llama-3.3-70b-versatile"
         );
         assert_eq!(RigProvider::deepseek().default_model(), "deepseek-chat");
     }

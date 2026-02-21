@@ -11,5 +11,5 @@ mod flow;
 mod validate;
 
 // Re-export public types
-pub use flow::{DepVec, FlowGraph};
+pub use flow::FlowGraph;
 pub use validate::validate_use_wiring;

@@ -82,7 +82,7 @@ pub mod validation;
 // Re-export core types for convenience
 pub use client::{CacheConfig, McpClient, ResponseCacheStats};
 pub use protocol::{JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
-pub use rmcp_adapter::RmcpClientAdapter;
+// Note: RmcpClientAdapter is pub(crate) - access MCP via McpClient
 pub use types::{
     ContentBlock, McpConfig, McpErrorCode, ResourceContent, ToolCallRequest, ToolCallResult,
     ToolDefinition,

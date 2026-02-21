@@ -11,10 +11,8 @@
 //!
 //! # Crates Used
 //!
-//! - `camino`: UTF-8 safe path handling (no OsStr panics)
 //! - `regex`: Pattern matching with static compilation
 
-use camino::{Utf8Path, Utf8PathBuf};
 use regex::Regex;
 use std::path::Path;
 use std::sync::LazyLock;
@@ -214,22 +212,6 @@ impl FileResolver {
         }
 
         result
-    }
-
-    /// Convert a std::path::Path to Utf8Path if valid UTF-8
-    ///
-    /// Uses camino for safer path handling.
-    #[allow(dead_code)]
-    pub fn to_utf8_path(path: &Path) -> Option<&Utf8Path> {
-        Utf8Path::from_path(path)
-    }
-
-    /// Convert a std::path::PathBuf to Utf8PathBuf if valid UTF-8
-    ///
-    /// Uses camino for safer path handling.
-    #[allow(dead_code)]
-    pub fn to_utf8_pathbuf(path: std::path::PathBuf) -> Option<Utf8PathBuf> {
-        Utf8PathBuf::from_path_buf(path).ok()
     }
 }
 
@@ -529,25 +511,5 @@ mod tests {
 
         let result = FileResolver::resolve_one("missing.txt", temp_dir.path());
         assert!(!result.is_resolved());
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // Camino UTF-8 Path Tests
-    // ═══════════════════════════════════════════════════════════════════════
-
-    #[test]
-    fn test_to_utf8_path() {
-        let path = Path::new("/valid/utf8/path.rs");
-        let utf8 = FileResolver::to_utf8_path(path);
-        assert!(utf8.is_some());
-        assert_eq!(utf8.unwrap().as_str(), "/valid/utf8/path.rs");
-    }
-
-    #[test]
-    fn test_to_utf8_pathbuf() {
-        let path = std::path::PathBuf::from("/valid/utf8/path.rs");
-        let utf8 = FileResolver::to_utf8_pathbuf(path);
-        assert!(utf8.is_some());
-        assert_eq!(utf8.unwrap().as_str(), "/valid/utf8/path.rs");
     }
 }

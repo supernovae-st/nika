@@ -30,6 +30,8 @@ tasks:
     description: "Test multi-turn context accumulation"
     depends_on:
       - simple_conversation
+    use:
+      simple_result: simple_conversation
     agent:
       prompt: |
         You are continuing a conversation about mathematics.
@@ -81,3 +83,10 @@ tasks:
         Summarize this entity in one sentence.
       max_turns: 1
     use.summary: entity_summary
+
+# Explicit DAG flows for use: binding validation
+flows:
+  - source: simple_conversation
+    target: multi_turn
+  - source: multi_turn
+    target: orchestrator

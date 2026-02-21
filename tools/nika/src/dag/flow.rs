@@ -19,7 +19,7 @@ use crate::error::NikaError;
 use crate::util::intern;
 
 /// Stack-allocated deps: most tasks have 0-4 dependencies
-pub type DepVec = SmallVec<[Arc<str>; 4]>;
+pub(crate) type DepVec = SmallVec<[Arc<str>; 4]>;
 
 /// Graph of task dependencies built from flows
 ///

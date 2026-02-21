@@ -75,6 +75,11 @@ tasks:
     depends_on:
       - activity_parallel_1
       - activity_parallel_2
+    use:
+      task1_output: activity_hot
+      task2_output: activity_queued
+      parallel1: activity_parallel_1
+      parallel2: activity_parallel_2
     infer:
       prompt: |
         Write a brief technical summary of:
@@ -85,3 +90,12 @@ tasks:
 
         Keep it to 2-3 sentences.
     use.summary: workflow_summary
+
+# Explicit DAG flows for use: binding validation
+flows:
+  - source: activity_hot
+    target: activity_queued
+  - source: activity_queued
+    target: [activity_parallel_1, activity_parallel_2]
+  - source: [activity_hot, activity_queued, activity_parallel_1, activity_parallel_2]
+    target: streaming_display

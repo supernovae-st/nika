@@ -1154,7 +1154,7 @@ impl RigAgentLoop {
             .params
             .model
             .clone()
-            .unwrap_or_else(|| "llama-3.1-70b-versatile".to_string());
+            .unwrap_or_else(|| "llama-3.3-70b-versatile".to_string());
         let client = rig::providers::groq::Client::from_env();
         self.run_generic_provider_impl(client, &model_name).await
     }
