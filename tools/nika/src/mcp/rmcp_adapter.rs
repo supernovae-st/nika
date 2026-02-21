@@ -43,7 +43,33 @@ use tokio::process::Command;
 use tokio::sync::Mutex as AsyncMutex;
 
 use crate::error::{NikaError, Result};
-use crate::mcp::types::{ContentBlock, McpConfig, ResourceContent, ToolCallResult, ToolDefinition};
+use crate::mcp::types::{
+    ContentBlock, McpConfig, McpErrorCode, ResourceContent, ToolCallResult, ToolDefinition,
+};
+
+/// Extract JSON-RPC error code from error message if present.
+///
+/// Attempts to find standard JSON-RPC error codes (-32xxx) in error strings.
+fn extract_error_code(error: &str) -> Option<McpErrorCode> {
+    // Look for patterns like "code: -32602" or "(-32602)" or "error -32602"
+    let patterns = [r"code:\s*(-?\d+)", r"\((-\d+)\)", r"error\s+(-\d+)"];
+
+    for pattern in patterns {
+        if let Ok(re) = regex::Regex::new(pattern) {
+            if let Some(caps) = re.captures(error) {
+                if let Some(m) = caps.get(1) {
+                    if let Ok(code) = m.as_str().parse::<i32>() {
+                        // Only return JSON-RPC error codes
+                        if (-32799..=-32000).contains(&code) || (-32700..=-32600).contains(&code) {
+                            return Some(McpErrorCode::from_code(code));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
 
 /// Running rmcp service type alias
 /// RunningService<Role, Handler> where Handler implements Service<Role>
@@ -236,13 +262,14 @@ impl RmcpClientAdapter {
             task: None,
         };
 
-        let result = service
-            .call_tool(request)
-            .await
-            .map_err(|e| NikaError::McpToolError {
+        let result = service.call_tool(request).await.map_err(|e| {
+            let error_str = e.to_string();
+            NikaError::McpToolError {
                 tool: name.to_string(),
-                reason: e.to_string(),
-            })?;
+                reason: error_str.clone(),
+                error_code: extract_error_code(&error_str),
+            }
+        })?;
 
         // Convert rmcp result to Nika's ToolCallResult
         let content: Vec<ContentBlock> = result
@@ -289,9 +316,11 @@ impl RmcpClientAdapter {
                     uri: uri.to_string(),
                 }
             } else {
+                let error_str = e.to_string();
                 NikaError::McpToolError {
                     tool: "resources/read".to_string(),
-                    reason: e.to_string(),
+                    reason: error_str.clone(),
+                    error_code: extract_error_code(&error_str),
                 }
             }
         })?;
@@ -309,6 +338,7 @@ impl RmcpClientAdapter {
         let text = serde_json::to_string(resource).map_err(|e| NikaError::McpToolError {
             tool: "resources/read".to_string(),
             reason: format!("Failed to serialize resource: {}", e),
+            error_code: None, // Serialization errors are internal
         })?;
 
         let content = ResourceContent::new(uri)
@@ -330,13 +360,14 @@ impl RmcpClientAdapter {
         })?;
 
         let result: ListToolsResult =
-            service
-                .list_tools(Default::default())
-                .await
-                .map_err(|e| NikaError::McpToolError {
+            service.list_tools(Default::default()).await.map_err(|e| {
+                let error_str = e.to_string();
+                NikaError::McpToolError {
                     tool: "tools/list".to_string(),
-                    reason: e.to_string(),
-                })?;
+                    reason: error_str.clone(),
+                    error_code: extract_error_code(&error_str),
+                }
+            })?;
 
         // Convert rmcp tools to Nika's ToolDefinition
         let tools: Vec<ToolDefinition> = result
@@ -453,5 +484,51 @@ mod tests {
         // Should not error
         let result = adapter.disconnect().await;
         assert!(result.is_ok());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Error Code Extraction Tests (v0.5.3)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_extract_error_code_with_code_pattern() {
+        let error = "JSON-RPC error code: -32602 - Invalid params";
+        let code = extract_error_code(error);
+        assert_eq!(code, Some(McpErrorCode::InvalidParams));
+    }
+
+    #[test]
+    fn test_extract_error_code_with_parentheses_pattern() {
+        let error = "Method not found (-32601)";
+        let code = extract_error_code(error);
+        assert_eq!(code, Some(McpErrorCode::MethodNotFound));
+    }
+
+    #[test]
+    fn test_extract_error_code_parse_error() {
+        let error = "Parse error code: -32700";
+        let code = extract_error_code(error);
+        assert_eq!(code, Some(McpErrorCode::ParseError));
+    }
+
+    #[test]
+    fn test_extract_error_code_server_error() {
+        let error = "Server error (-32050): Internal failure";
+        let code = extract_error_code(error);
+        assert!(matches!(code, Some(McpErrorCode::ServerError(-32050))));
+    }
+
+    #[test]
+    fn test_extract_error_code_no_code_present() {
+        let error = "Connection refused";
+        let code = extract_error_code(error);
+        assert_eq!(code, None);
+    }
+
+    #[test]
+    fn test_extract_error_code_non_jsonrpc_code() {
+        let error = "HTTP error code: 404";
+        let code = extract_error_code(error);
+        assert_eq!(code, None); // 404 is not a JSON-RPC code
     }
 }

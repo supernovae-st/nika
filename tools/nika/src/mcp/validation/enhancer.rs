@@ -39,6 +39,7 @@ impl<'a> ErrorEnhancer<'a> {
         let NikaError::McpToolError {
             tool: tool_name,
             reason,
+            error_code,
         } = &error
         else {
             return error; // Only enhance McpToolError
@@ -50,6 +51,7 @@ impl<'a> ErrorEnhancer<'a> {
         NikaError::McpToolError {
             tool: tool_name.clone(),
             reason: enhanced_reason,
+            error_code: *error_code,
         }
     }
 
@@ -141,6 +143,7 @@ mod tests {
         let original = NikaError::McpToolError {
             tool: "novanet_generate".to_string(),
             reason: "missing field `entity`".to_string(),
+            error_code: None,
         };
 
         let enhanced = enhancer.enhance("novanet", "novanet_generate", original);
@@ -177,6 +180,7 @@ mod tests {
         let original = NikaError::McpToolError {
             tool: "tool".to_string(),
             reason: "unknown field `wrong_name`".to_string(),
+            error_code: None,
         };
 
         let enhanced = enhancer.enhance("novanet", "tool", original);
@@ -217,6 +221,7 @@ mod tests {
         let original = NikaError::McpToolError {
             tool: "unknown".to_string(),
             reason: "error".to_string(),
+            error_code: None,
         };
 
         let enhanced = enhancer.enhance("s", "unknown", original);
@@ -251,6 +256,7 @@ mod tests {
         let original = NikaError::McpToolError {
             tool: "t".to_string(),
             reason: "some generic error".to_string(),
+            error_code: None,
         };
 
         let enhanced = enhancer.enhance("s", "t", original);
@@ -287,6 +293,7 @@ mod tests {
         let original = NikaError::McpToolError {
             tool: "t".to_string(),
             reason: "some error".to_string(),
+            error_code: None,
         };
 
         let enhanced = enhancer.enhance("s", "t", original);
@@ -322,6 +329,7 @@ mod tests {
         let original = NikaError::McpToolError {
             tool: "t".to_string(),
             reason: "Missing Field `field`".to_string(),
+            error_code: None,
         };
 
         let enhanced = enhancer.enhance("s", "t", original);

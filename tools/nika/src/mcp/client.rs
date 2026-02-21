@@ -771,6 +771,7 @@ impl McpClient {
         Err(last_error.unwrap_or_else(|| NikaError::McpToolError {
             tool: name.to_string(),
             reason: "Connection failed after reconnection attempts".to_string(),
+            error_code: None,
         }))
     }
 
@@ -852,6 +853,7 @@ impl McpClient {
         Err(last_error.unwrap_or_else(|| NikaError::McpToolError {
             tool: "resources/read".to_string(),
             reason: "Connection failed after reconnection attempts".to_string(),
+            error_code: None,
         }))
     }
 

@@ -84,7 +84,8 @@ pub use client::{CacheConfig, McpClient, ResponseCacheStats};
 pub use protocol::{JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 pub use rmcp_adapter::RmcpClientAdapter;
 pub use types::{
-    ContentBlock, McpConfig, ResourceContent, ToolCallRequest, ToolCallResult, ToolDefinition,
+    ContentBlock, McpConfig, McpErrorCode, ResourceContent, ToolCallRequest, ToolCallResult,
+    ToolDefinition,
 };
 pub use validation::{
     CacheStats, CachedSchema, ErrorEnhancer, McpValidator, ToolSchemaCache, ValidationConfig,

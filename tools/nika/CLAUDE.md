@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.5.2 | CLI DX refresh with TUI Home/Chat/Studio/Monitor views | 1133 tests | MVP 8 complete
+**Current version:** v0.5.3 | MCP timeout & error code preservation | 1147+ tests | MVP 8 complete
 
 ## Architecture
 
@@ -96,6 +96,54 @@ yamllint -c .yamllint.yaml **/*.nika.yaml
 - `nika/workflow@0.2`: +invoke, +agent verbs, +mcp config
 - `nika/workflow@0.3`: +for_each parallelism, rig-core integration
 - `nika/workflow@0.5`: +decompose, +lazy bindings, +spawn_agent (MVP 8)
+
+## v0.5.3 Changes (MCP Stability)
+
+### MCP Timeout Enforcement
+
+All MCP operations now have timeout protection (30s default):
+
+```rust
+// Before (v0.5.2): Could hang indefinitely
+let result = service.call_tool(request).await?;
+
+// After (v0.5.3): Timeout after 30 seconds
+let result = timeout(MCP_CALL_TIMEOUT, service.call_tool(request))
+    .await
+    .map_err(|_| NikaError::Timeout { ... })??;
+```
+
+**Affected operations:**
+- `call_tool()` - MCP tool invocation
+- `read_resource()` - MCP resource reading
+- `list_tools()` - Tool discovery
+
+### MCP Error Code Preservation
+
+JSON-RPC error codes are now preserved from MCP servers:
+
+```rust
+pub enum McpErrorCode {
+    ParseError,      // -32700
+    InvalidRequest,  // -32600
+    MethodNotFound,  // -32601
+    InvalidParams,   // -32602
+    InternalError,   // -32603
+    ServerError(i32), // -32000 to -32099
+    Unknown(i32),
+}
+
+// Error messages now include the code
+// "[NIKA-102] MCP tool 'x' call failed (Invalid params (-32602)): ..."
+```
+
+**Usage:**
+```rust
+use nika::mcp::McpErrorCode;
+
+let code = McpErrorCode::from_code(-32602);
+assert!(code.is_client_error());  // InvalidParams is client-side
+```
 
 ## Verb Shorthand Syntax (v0.5.1)
 

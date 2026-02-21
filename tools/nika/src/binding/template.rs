@@ -63,7 +63,9 @@ pub fn resolve<'a>(
     datastore: &DataStore,
 ) -> Result<Cow<'a, str>, NikaError> {
     // Early return with borrowed string (zero alloc)
-    if !template.contains("{{use.") {
+    // Fast check: must contain `{{` followed eventually by `use.`
+    // Regex handles whitespace variations like `{{ use.` or `{{\tuse.`
+    if !template.contains("{{") || !template.contains("use.") {
         return Ok(Cow::Borrowed(template));
     }
 

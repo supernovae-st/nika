@@ -11,11 +11,12 @@
 //! - NIKA-070-079: Use block validation errors
 //! - NIKA-080-089: DAG validation errors
 //! - NIKA-090-099: JSONPath/IO errors
-//! - NIKA-100-109: MCP errors (v0.2, v0.5.1: +validation)
+//! - NIKA-100-109: MCP errors (v0.2, v0.5.1: +validation, v0.5.3: +error_code)
 //! - NIKA-110-119: Agent errors (v0.2)
 //! - NIKA-120-129: Resilience errors (v0.2) [122-124 deprecated in v0.4]
 //! - NIKA-130-139: TUI errors (v0.2)
 
+use crate::mcp::types::McpErrorCode;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, NikaError>;
@@ -239,8 +240,13 @@ pub enum NikaError {
     #[error("[NIKA-101] MCP server '{name}' failed to start: {reason}")]
     McpStartError { name: String, reason: String },
 
-    #[error("[NIKA-102] MCP tool '{tool}' call failed: {reason}")]
-    McpToolError { tool: String, reason: String },
+    #[error("[NIKA-102] MCP tool '{tool}' call failed{}: {reason}", error_code.map(|c| format!(" ({})", c)).unwrap_or_default())]
+    McpToolError {
+        tool: String,
+        reason: String,
+        /// JSON-RPC error code from MCP server (v0.5.3)
+        error_code: Option<McpErrorCode>,
+    },
 
     #[error("[NIKA-103] MCP resource '{uri}' not found")]
     McpResourceNotFound { uri: String },
@@ -625,7 +631,8 @@ mod tests {
         assert_eq!(
             NikaError::McpToolError {
                 tool: "x".into(),
-                reason: "y".into()
+                reason: "y".into(),
+                error_code: None,
             }
             .code(),
             "NIKA-102"

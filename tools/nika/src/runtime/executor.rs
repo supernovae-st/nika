@@ -688,6 +688,7 @@ impl TaskExecutor {
                 return Err(NikaError::McpToolError {
                     tool: tool.clone(),
                     reason: error_text,
+                    error_code: None,
                 });
             }
 
