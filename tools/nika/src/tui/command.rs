@@ -68,13 +68,21 @@ pub enum Command {
     Mcp { action: McpAction },
 }
 
-/// Available LLM providers via rig-core
+/// Available LLM providers via rig-core (v0.6: expanded to 6 providers)
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModelProvider {
     /// OpenAI (gpt-4o, gpt-4, etc.)
     OpenAI,
     /// Anthropic Claude (claude-sonnet-4, etc.)
     Claude,
+    /// Mistral AI (mistral-large-latest, etc.)
+    Mistral,
+    /// Groq (llama-3.3-70b-versatile, etc.)
+    Groq,
+    /// DeepSeek (deepseek-chat, etc.)
+    DeepSeek,
+    /// Ollama (local models)
+    Ollama,
     /// List available providers
     List,
 }
@@ -191,7 +199,7 @@ impl Command {
         }
     }
 
-    /// Parse /model arguments: /model <provider>
+    /// Parse /model arguments: /model <provider> (v0.6: 6 providers)
     fn parse_model_args(args: &str) -> Command {
         let provider = args.trim().to_lowercase();
         match provider.as_str() {
@@ -200,6 +208,18 @@ impl Command {
             },
             "claude" | "anthropic" | "sonnet" => Command::Model {
                 provider: ModelProvider::Claude,
+            },
+            "mistral" | "mistral-large" => Command::Model {
+                provider: ModelProvider::Mistral,
+            },
+            "groq" | "llama" | "llama3" => Command::Model {
+                provider: ModelProvider::Groq,
+            },
+            "deepseek" => Command::Model {
+                provider: ModelProvider::DeepSeek,
+            },
+            "ollama" | "local" => Command::Model {
+                provider: ModelProvider::Ollama,
             },
             "list" | "" => Command::Model {
                 provider: ModelProvider::List,
@@ -341,11 +361,15 @@ impl Command {
 }
 
 impl ModelProvider {
-    /// Get the display name for the provider
+    /// Get the display name for the provider (v0.6: 6 providers)
     pub fn name(&self) -> &'static str {
         match self {
             ModelProvider::OpenAI => "OpenAI (gpt-4o)",
             ModelProvider::Claude => "Anthropic Claude (claude-sonnet-4)",
+            ModelProvider::Mistral => "Mistral AI (mistral-large)",
+            ModelProvider::Groq => "Groq (llama-3.3-70b)",
+            ModelProvider::DeepSeek => "DeepSeek (deepseek-chat)",
+            ModelProvider::Ollama => "Ollama (local)",
             ModelProvider::List => "list",
         }
     }
@@ -355,15 +379,20 @@ impl ModelProvider {
         match self {
             ModelProvider::OpenAI => "OPENAI_API_KEY",
             ModelProvider::Claude => "ANTHROPIC_API_KEY",
+            ModelProvider::Mistral => "MISTRAL_API_KEY",
+            ModelProvider::Groq => "GROQ_API_KEY",
+            ModelProvider::DeepSeek => "DEEPSEEK_API_KEY",
+            ModelProvider::Ollama => "OLLAMA_API_BASE_URL",
             ModelProvider::List => "",
         }
     }
 
-    /// Check if the provider is available (env var is set)
+    /// Check if the provider is available (env var is set and non-empty)
     pub fn is_available(&self) -> bool {
         match self {
             ModelProvider::List => true,
-            _ => std::env::var(self.env_var()).is_ok(),
+            ModelProvider::Ollama => true, // Ollama is always "available" (localhost fallback)
+            _ => std::env::var(self.env_var()).is_ok_and(|v| !v.is_empty()),
         }
     }
 }
@@ -378,7 +407,7 @@ Nika Chat Commands:
   /invoke [server:]tool     MCP tool call (params as JSON)
   /agent <goal>             Multi-turn agent (--max-turns N) (--mcp servers)
   /mcp [list|select|toggle] MCP server management (v0.5.2)
-  /model <provider>         Switch LLM provider (openai, claude)
+  /model <provider>         Switch LLM (openai, claude, mistral, groq, deepseek, ollama)
   /clear                    Clear chat history
   /help or /?               Show this help
 
@@ -770,12 +799,104 @@ mod tests {
             ModelProvider::Claude.name(),
             "Anthropic Claude (claude-sonnet-4)"
         );
+        assert_eq!(ModelProvider::Mistral.name(), "Mistral AI (mistral-large)");
+        assert_eq!(ModelProvider::Groq.name(), "Groq (llama-3.3-70b)");
+        assert_eq!(ModelProvider::DeepSeek.name(), "DeepSeek (deepseek-chat)");
+        assert_eq!(ModelProvider::Ollama.name(), "Ollama (local)");
     }
 
     #[test]
     fn test_model_provider_env_var() {
         assert_eq!(ModelProvider::OpenAI.env_var(), "OPENAI_API_KEY");
         assert_eq!(ModelProvider::Claude.env_var(), "ANTHROPIC_API_KEY");
+        assert_eq!(ModelProvider::Mistral.env_var(), "MISTRAL_API_KEY");
+        assert_eq!(ModelProvider::Groq.env_var(), "GROQ_API_KEY");
+        assert_eq!(ModelProvider::DeepSeek.env_var(), "DEEPSEEK_API_KEY");
+        assert_eq!(ModelProvider::Ollama.env_var(), "OLLAMA_API_BASE_URL");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // v0.6 provider tests (new providers)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_parse_model_mistral() {
+        let input = "/model mistral";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Model {
+                provider: ModelProvider::Mistral
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_model_groq() {
+        let input = "/model groq";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Model {
+                provider: ModelProvider::Groq
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_model_deepseek() {
+        let input = "/model deepseek";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Model {
+                provider: ModelProvider::DeepSeek
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_model_ollama() {
+        let input = "/model ollama";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Model {
+                provider: ModelProvider::Ollama
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_model_llama_alias() {
+        // llama maps to Groq
+        let input = "/model llama";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Model {
+                provider: ModelProvider::Groq
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_model_local_alias() {
+        // local maps to Ollama
+        let input = "/model local";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Model {
+                provider: ModelProvider::Ollama
+            }
+        ));
+    }
+
+    #[test]
+    fn test_ollama_always_available() {
+        // Ollama should always be available (localhost fallback)
+        assert!(ModelProvider::Ollama.is_available());
     }
 
     // ═══════════════════════════════════════════════════════════════════════

@@ -218,34 +218,24 @@ pub struct ChatAgent {
 }
 
 impl ChatAgent {
-    /// Create a new ChatAgent with OpenAI provider (default)
+    /// Create a new ChatAgent with auto-detected provider (v0.6)
     ///
-    /// # Errors
-    ///
-    /// Returns `NikaError::MissingApiKey` if `OPENAI_API_KEY` is not set.
+    /// Provider detection order:
+    /// 1. ANTHROPIC_API_KEY → Claude
+    /// 2. OPENAI_API_KEY → OpenAI
+    /// 3. MISTRAL_API_KEY → Mistral
+    /// 4. GROQ_API_KEY → Groq
+    /// 5. DEEPSEEK_API_KEY → DeepSeek
+    /// 6. OLLAMA_API_BASE_URL → Ollama
     pub fn new() -> Result<Self, NikaError> {
-        // Check for API key before creating provider
-        if std::env::var("OPENAI_API_KEY").is_err() {
-            // Try Claude as fallback
-            if std::env::var("ANTHROPIC_API_KEY").is_ok() {
-                return Ok(Self {
-                    provider: RigProvider::claude(),
-                    model_override: None,
-                    history: Vec::new(),
-                    streaming_tx: None,
-                    stream_chunk_tx: None,
-                    streaming_state: StreamingState::new(),
-                    http_client: reqwest::Client::new(),
-                    total_input_tokens: 0,
-                    total_output_tokens: 0,
-                });
-            }
-            // No API key available, but we still create the agent
-            // The error will happen when trying to use infer()
-        }
+        // Use RigProvider::auto() for consistent detection (v0.6)
+        let provider = RigProvider::auto().unwrap_or_else(|| {
+            // Fallback to OpenAI (will error on use if no key)
+            RigProvider::openai()
+        });
 
         Ok(Self {
-            provider: RigProvider::openai(),
+            provider,
             model_override: None,
             history: Vec::new(),
             streaming_tx: None,
@@ -257,11 +247,11 @@ impl ChatAgent {
         })
     }
 
-    /// Create a new ChatAgent with specific provider and model overrides
+    /// Create a new ChatAgent with specific provider and model overrides (v0.6)
     ///
     /// # Arguments
     ///
-    /// * `provider` - Optional provider name ("claude" or "openai")
+    /// * `provider` - Optional provider name (claude, openai, mistral, groq, deepseek, ollama)
     /// * `model` - Optional model name override
     ///
     /// # Example
@@ -270,18 +260,21 @@ impl ChatAgent {
     /// use nika::tui::chat_agent::ChatAgent;
     ///
     /// let agent = ChatAgent::with_overrides(
-    ///     Some("claude"),
-    ///     Some("claude-sonnet-4-20250514")
+    ///     Some("mistral"),
+    ///     Some("mistral-large-latest")
     /// ).unwrap();
     /// ```
     pub fn with_overrides(provider: Option<&str>, model: Option<&str>) -> Result<Self, NikaError> {
         let mut agent = Self::new()?;
 
-        // Apply provider override
+        // Helper to check non-empty env var
+        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
+
+        // Apply provider override (v0.6: supports 6 providers)
         if let Some(p) = provider {
             match p.to_lowercase().as_str() {
                 "claude" | "anthropic" => {
-                    if std::env::var("ANTHROPIC_API_KEY").is_err() {
+                    if !has_key("ANTHROPIC_API_KEY") {
                         return Err(NikaError::MissingApiKey {
                             provider: "Claude".to_string(),
                         });
@@ -289,16 +282,47 @@ impl ChatAgent {
                     agent.provider = RigProvider::claude();
                 }
                 "openai" | "gpt" => {
-                    if std::env::var("OPENAI_API_KEY").is_err() {
+                    if !has_key("OPENAI_API_KEY") {
                         return Err(NikaError::MissingApiKey {
                             provider: "OpenAI".to_string(),
                         });
                     }
                     agent.provider = RigProvider::openai();
                 }
+                "mistral" => {
+                    if !has_key("MISTRAL_API_KEY") {
+                        return Err(NikaError::MissingApiKey {
+                            provider: "Mistral".to_string(),
+                        });
+                    }
+                    agent.provider = RigProvider::mistral();
+                }
+                "groq" => {
+                    if !has_key("GROQ_API_KEY") {
+                        return Err(NikaError::MissingApiKey {
+                            provider: "Groq".to_string(),
+                        });
+                    }
+                    agent.provider = RigProvider::groq();
+                }
+                "deepseek" => {
+                    if !has_key("DEEPSEEK_API_KEY") {
+                        return Err(NikaError::MissingApiKey {
+                            provider: "DeepSeek".to_string(),
+                        });
+                    }
+                    agent.provider = RigProvider::deepseek();
+                }
+                "ollama" => {
+                    // Ollama doesn't require API key, but needs OLLAMA_API_BASE_URL or localhost
+                    agent.provider = RigProvider::ollama();
+                }
                 _ => {
                     return Err(NikaError::InvalidConfig {
-                        message: format!("Unknown provider: '{}'. Use 'claude' or 'openai'", p),
+                        message: format!(
+                            "Unknown provider: '{}'. Use claude, openai, mistral, groq, deepseek, or ollama",
+                            p
+                        ),
                     });
                 }
             }
@@ -351,9 +375,12 @@ impl ChatAgent {
     /// agent.set_provider(ModelProvider::Claude).unwrap();
     /// ```
     pub fn set_provider(&mut self, provider: ModelProvider) -> Result<(), NikaError> {
+        // Helper: check env var exists and is non-empty (v0.6 fix)
+        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
+
         match provider {
             ModelProvider::OpenAI => {
-                if std::env::var("OPENAI_API_KEY").is_err() {
+                if !has_key("OPENAI_API_KEY") {
                     return Err(NikaError::MissingApiKey {
                         provider: "OpenAI".to_string(),
                     });
@@ -361,12 +388,40 @@ impl ChatAgent {
                 self.provider = RigProvider::openai();
             }
             ModelProvider::Claude => {
-                if std::env::var("ANTHROPIC_API_KEY").is_err() {
+                if !has_key("ANTHROPIC_API_KEY") {
                     return Err(NikaError::MissingApiKey {
                         provider: "Claude".to_string(),
                     });
                 }
                 self.provider = RigProvider::claude();
+            }
+            ModelProvider::Mistral => {
+                if !has_key("MISTRAL_API_KEY") {
+                    return Err(NikaError::MissingApiKey {
+                        provider: "Mistral".to_string(),
+                    });
+                }
+                self.provider = RigProvider::mistral();
+            }
+            ModelProvider::Groq => {
+                if !has_key("GROQ_API_KEY") {
+                    return Err(NikaError::MissingApiKey {
+                        provider: "Groq".to_string(),
+                    });
+                }
+                self.provider = RigProvider::groq();
+            }
+            ModelProvider::DeepSeek => {
+                if !has_key("DEEPSEEK_API_KEY") {
+                    return Err(NikaError::MissingApiKey {
+                        provider: "DeepSeek".to_string(),
+                    });
+                }
+                self.provider = RigProvider::deepseek();
+            }
+            ModelProvider::Ollama => {
+                // Ollama doesn't require API key - falls back to localhost
+                self.provider = RigProvider::ollama();
             }
             ModelProvider::List => {
                 // List doesn't change the provider, just returns info
@@ -747,14 +802,22 @@ mod tests {
 
     #[test]
     fn test_chat_agent_initial_state() {
-        // Set a dummy key for the test
+        // Set a dummy key for the test (ensures at least one provider is available)
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
         let agent = ChatAgent::new().expect("Should create agent");
 
         assert!(agent.history().is_empty());
         assert!(!agent.is_streaming());
-        assert_eq!(agent.provider_name(), "openai");
+        // RigProvider::auto() picks first available provider in priority order:
+        // 1. Claude, 2. OpenAI, 3. Mistral, 4. Groq, 5. DeepSeek, 6. Ollama
+        // Due to parallel tests and user env, any provider may be selected
+        let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "ollama"];
+        assert!(
+            valid_providers.contains(&agent.provider_name()),
+            "Expected valid provider, got: {}",
+            agent.provider_name()
+        );
     }
 
     #[test]
@@ -836,6 +899,94 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(agent.provider_name(), original);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // v0.6 provider switching tests (new providers)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_set_provider_mistral() {
+        std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+        std::env::set_var("MISTRAL_API_KEY", "test-key-for-unit-test");
+
+        let mut agent = ChatAgent::new().expect("Should create agent");
+        let result = agent.set_provider(ModelProvider::Mistral);
+
+        if std::env::var("MISTRAL_API_KEY").is_ok_and(|v| !v.is_empty()) {
+            assert!(result.is_ok());
+            assert_eq!(agent.provider_name(), "mistral");
+        }
+    }
+
+    #[test]
+    fn test_set_provider_groq() {
+        std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+        std::env::set_var("GROQ_API_KEY", "test-key-for-unit-test");
+
+        let mut agent = ChatAgent::new().expect("Should create agent");
+        let result = agent.set_provider(ModelProvider::Groq);
+
+        if std::env::var("GROQ_API_KEY").is_ok_and(|v| !v.is_empty()) {
+            assert!(result.is_ok());
+            assert_eq!(agent.provider_name(), "groq");
+        }
+    }
+
+    #[test]
+    fn test_set_provider_deepseek() {
+        std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+        std::env::set_var("DEEPSEEK_API_KEY", "test-key-for-unit-test");
+
+        let mut agent = ChatAgent::new().expect("Should create agent");
+        let result = agent.set_provider(ModelProvider::DeepSeek);
+
+        if std::env::var("DEEPSEEK_API_KEY").is_ok_and(|v| !v.is_empty()) {
+            assert!(result.is_ok());
+            assert_eq!(agent.provider_name(), "deepseek");
+        }
+    }
+
+    #[test]
+    fn test_set_provider_ollama() {
+        std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+
+        let mut agent = ChatAgent::new().expect("Should create agent");
+        // Ollama should always succeed (no API key required)
+        let result = agent.set_provider(ModelProvider::Ollama);
+
+        assert!(result.is_ok());
+        assert_eq!(agent.provider_name(), "ollama");
+    }
+
+    #[test]
+    fn test_with_overrides_mistral() {
+        std::env::set_var("MISTRAL_API_KEY", "test-key-for-unit-test");
+
+        let agent = ChatAgent::with_overrides(Some("mistral"), None);
+        if std::env::var("MISTRAL_API_KEY").is_ok_and(|v| !v.is_empty()) {
+            assert!(agent.is_ok());
+            assert_eq!(agent.unwrap().provider_name(), "mistral");
+        }
+    }
+
+    #[test]
+    fn test_with_overrides_ollama() {
+        // Ollama doesn't require API key
+        let agent = ChatAgent::with_overrides(Some("ollama"), None);
+        assert!(agent.is_ok());
+        assert_eq!(agent.unwrap().provider_name(), "ollama");
+    }
+
+    #[test]
+    fn test_with_overrides_invalid_provider() {
+        std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+
+        let agent = ChatAgent::with_overrides(Some("invalid_provider"), None);
+        assert!(agent.is_err());
+        if let Err(NikaError::InvalidConfig { message }) = agent {
+            assert!(message.contains("Unknown provider"));
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════

@@ -33,13 +33,23 @@ async fn test_chat_agent_creation_succeeds() {
     assert!(result.is_ok(), "ChatAgent creation should succeed");
 }
 
-/// Test ChatAgent with OpenAI provider (when key is set)
+/// Test ChatAgent auto-detection picks valid provider
 #[tokio::test]
-async fn test_chat_agent_with_openai_provider() {
+async fn test_chat_agent_auto_detection() {
+    // Set a key to ensure at least one provider is available
     std::env::set_var("OPENAI_API_KEY", "test-key-for-integration-test");
 
     let agent = ChatAgent::new().expect("Should create agent");
-    assert_eq!(agent.provider_name(), "openai");
+
+    // RigProvider::auto() picks first available provider in priority order:
+    // 1. Claude, 2. OpenAI, 3. Mistral, 4. Groq, 5. DeepSeek, 6. Ollama
+    // Due to parallel tests and user env, any provider may be selected
+    let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "ollama"];
+    assert!(
+        valid_providers.contains(&agent.provider_name()),
+        "Expected valid provider, got: {}",
+        agent.provider_name()
+    );
     assert!(agent.history().is_empty());
     assert!(!agent.is_streaming());
 }
