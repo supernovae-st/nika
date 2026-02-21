@@ -814,6 +814,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_rig_provider_default_models_v06() {
         // Test all new provider default models
         std::env::set_var("MISTRAL_API_KEY", "test");
@@ -833,6 +834,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_rig_provider_auto_detects_claude() {
         // Clear other keys, set only Claude
         std::env::remove_var("OPENAI_API_KEY");
