@@ -1,1 +1,1 @@
-{"status": "HEALTHY", "version": "0.4.0", "timestamp": "2026-02-19T13:30:00", "schema": "workflow@0.3", "tests": "621+ passing", "mvp": "7 complete (rig-core)", "next": "MVP 8 (RLM enhancements)"}
+{"status": "HEALTHY", "version": "0.7.2", "timestamp": "2026-02-22T20:30:00", "schema": "workflow@0.3", "tests": "2320+ passing", "mvp": "8 complete (RLM)", "next": "v0.8.0 production hardening"}

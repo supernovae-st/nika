@@ -130,5 +130,4 @@ tasks:
       locale: "fr-FR"
 ```
 
-**MCP tools available**: `novanet_query`, `novanet_generate`, `novanet_traverse`,
-`novanet_describe`, `novanet_search`, `novanet_assemble`, `novanet_atoms`, `novanet_introspect`
+v0.7.2 - Full streaming, VS Code-like TUI, spawn_agent, decompose:, lazy: bindings

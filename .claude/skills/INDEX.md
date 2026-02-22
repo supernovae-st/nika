@@ -1,6 +1,6 @@
 # Nika Skills Index
 
-**Nika Version:** v0.5.2 | **5 verbs** | decompose + lazy bindings + spawn_agent | rig-core v0.31 | Extended thinking
+**Nika Version:** v0.7.2 | **5 verbs** | Full streaming + VS Code TUI | rig-core v0.31 | 6 LLM providers
 
 ## Available Skills
 
@@ -15,9 +15,9 @@
 | **workflow-validate** | `/workflow-validate` | Validate YAML syntax and DAG |
 | **nika-spec** | `/nika-spec` | Workflow specification reference |
 
-## v0.5.2 MVP 8 Features
+## v0.7.x Features
 
-Features added in v0.5 MVP 8:
+Features in v0.7.x (MVP 8 complete + TUI navigation refresh):
 
 | Feature | Documentation |
 |---------|--------------|
@@ -40,7 +40,7 @@ Features from earlier versions:
 
 ## Quick Reference
 
-### CLI Commands (v0.5.2)
+### CLI Commands (v0.7.2)
 
 ```bash
 # TUI Home view (default)
