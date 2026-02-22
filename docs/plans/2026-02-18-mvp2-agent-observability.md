@@ -1511,7 +1511,7 @@ mcp:
     args:
       - run
       - --manifest-path
-      - ../../novanet-dev/tools/novanet-mcp/Cargo.toml
+      - ../../novanet/tools/novanet-mcp/Cargo.toml
 
 tasks:
   # Single-step agent that uses tools autonomously

@@ -80,7 +80,7 @@ curl -X POST http://localhost:3000/tools/novanet_describe \
   -d '{"entity": "qr-code"}'
 
 # Watch MCP logs
-cd ../novanet-dev/tools/novanet-mcp
+cd ../novanet/tools/novanet-mcp
 RUST_LOG=debug cargo run
 ```
 
