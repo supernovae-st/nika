@@ -1,0 +1,14 @@
+{"id":0,"timestamp_ms":99,"kind":{"type":"workflow_started","task_count":3,"generation_id":"gen-b51061c2-e9e2-4bd8-a0c6-401d2d355644","workflow_hash":"ad9305dc6eb7831c","nika_version":"0.7.2"}}
+{"id":1,"timestamp_ms":100,"kind":{"type":"task_scheduled","task_id":"step1","dependencies":[]}}
+{"id":2,"timestamp_ms":100,"kind":{"type":"task_started","task_id":"step1","verb":"exec","inputs":{}}}
+{"id":3,"timestamp_ms":101,"kind":{"type":"template_resolved","task_id":"step1","template":"echo 1","result":"echo 1"}}
+{"id":4,"timestamp_ms":108,"kind":{"type":"task_completed","task_id":"step1","output":"1","duration_ms":7}}
+{"id":5,"timestamp_ms":108,"kind":{"type":"task_scheduled","task_id":"step2","dependencies":["step1"]}}
+{"id":6,"timestamp_ms":108,"kind":{"type":"task_started","task_id":"step2","verb":"exec","inputs":{}}}
+{"id":7,"timestamp_ms":108,"kind":{"type":"template_resolved","task_id":"step2","template":"echo 2","result":"echo 2"}}
+{"id":8,"timestamp_ms":113,"kind":{"type":"task_completed","task_id":"step2","output":"2","duration_ms":4}}
+{"id":9,"timestamp_ms":113,"kind":{"type":"task_scheduled","task_id":"step3","dependencies":["step2"]}}
+{"id":10,"timestamp_ms":113,"kind":{"type":"task_started","task_id":"step3","verb":"exec","inputs":{}}}
+{"id":11,"timestamp_ms":113,"kind":{"type":"template_resolved","task_id":"step3","template":"echo 3","result":"echo 3"}}
+{"id":12,"timestamp_ms":116,"kind":{"type":"task_completed","task_id":"step3","output":"3","duration_ms":3}}
+{"id":13,"timestamp_ms":116,"kind":{"type":"workflow_completed","final_output":"3","total_duration_ms":28}}

@@ -1,0 +1,18 @@
+{"id":0,"timestamp_ms":205,"kind":{"type":"workflow_started","task_count":4,"generation_id":"gen-0a4927f3-6e91-428b-b68b-0e6780aa373f","workflow_hash":"2cd5c0a4447ee105","nika_version":"0.7.2"}}
+{"id":1,"timestamp_ms":205,"kind":{"type":"task_scheduled","task_id":"start","dependencies":[]}}
+{"id":2,"timestamp_ms":206,"kind":{"type":"task_started","task_id":"start","verb":"exec","inputs":{}}}
+{"id":3,"timestamp_ms":207,"kind":{"type":"template_resolved","task_id":"start","template":"echo 'start'","result":"echo 'start'"}}
+{"id":4,"timestamp_ms":219,"kind":{"type":"task_completed","task_id":"start","output":"start","duration_ms":12}}
+{"id":5,"timestamp_ms":219,"kind":{"type":"task_scheduled","task_id":"left","dependencies":["start"]}}
+{"id":6,"timestamp_ms":219,"kind":{"type":"task_scheduled","task_id":"right","dependencies":["start"]}}
+{"id":7,"timestamp_ms":219,"kind":{"type":"task_started","task_id":"left","verb":"exec","inputs":{}}}
+{"id":8,"timestamp_ms":219,"kind":{"type":"template_resolved","task_id":"left","template":"echo 'left'","result":"echo 'left'"}}
+{"id":9,"timestamp_ms":227,"kind":{"type":"task_started","task_id":"right","verb":"exec","inputs":{}}}
+{"id":10,"timestamp_ms":227,"kind":{"type":"template_resolved","task_id":"right","template":"echo 'right'","result":"echo 'right'"}}
+{"id":11,"timestamp_ms":236,"kind":{"type":"task_completed","task_id":"left","output":"left","duration_ms":17}}
+{"id":12,"timestamp_ms":238,"kind":{"type":"task_completed","task_id":"right","output":"right","duration_ms":11}}
+{"id":13,"timestamp_ms":238,"kind":{"type":"task_scheduled","task_id":"join","dependencies":["left","right"]}}
+{"id":14,"timestamp_ms":238,"kind":{"type":"task_started","task_id":"join","verb":"exec","inputs":{}}}
+{"id":15,"timestamp_ms":238,"kind":{"type":"template_resolved","task_id":"join","template":"echo 'join'","result":"echo 'join'"}}
+{"id":16,"timestamp_ms":257,"kind":{"type":"task_completed","task_id":"join","output":"join","duration_ms":18}}
+{"id":17,"timestamp_ms":257,"kind":{"type":"workflow_completed","final_output":"join","total_duration_ms":76}}

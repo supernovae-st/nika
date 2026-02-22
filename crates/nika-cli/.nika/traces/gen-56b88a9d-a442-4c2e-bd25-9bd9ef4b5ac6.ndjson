@@ -1,0 +1,12 @@
+{"id":0,"timestamp_ms":211,"kind":{"type":"workflow_started","task_count":1,"generation_id":"gen-56b88a9d-a442-4c2e-bd25-9bd9ef4b5ac6","workflow_hash":"c04be962514e1cef","nika_version":"0.7.2"}}
+{"id":1,"timestamp_ms":211,"kind":{"type":"task_scheduled","task_id":"parallel","dependencies":[]}}
+{"id":2,"timestamp_ms":212,"kind":{"type":"task_started","task_id":"parallel[0]","verb":"exec","inputs":{"fruit":"apple"}}}
+{"id":3,"timestamp_ms":213,"kind":{"type":"template_resolved","task_id":"parallel[0]","template":"echo '{{use.fruit}}'","result":"echo 'apple'"}}
+{"id":4,"timestamp_ms":226,"kind":{"type":"task_started","task_id":"parallel[1]","verb":"exec","inputs":{"fruit":"banana"}}}
+{"id":5,"timestamp_ms":226,"kind":{"type":"template_resolved","task_id":"parallel[1]","template":"echo '{{use.fruit}}'","result":"echo 'banana'"}}
+{"id":6,"timestamp_ms":230,"kind":{"type":"task_started","task_id":"parallel[2]","verb":"exec","inputs":{"fruit":"cherry"}}}
+{"id":7,"timestamp_ms":230,"kind":{"type":"template_resolved","task_id":"parallel[2]","template":"echo '{{use.fruit}}'","result":"echo 'cherry'"}}
+{"id":8,"timestamp_ms":233,"kind":{"type":"task_completed","task_id":"parallel[0]","output":"apple","duration_ms":20}}
+{"id":9,"timestamp_ms":238,"kind":{"type":"task_completed","task_id":"parallel[1]","output":"banana","duration_ms":12}}
+{"id":10,"timestamp_ms":254,"kind":{"type":"task_completed","task_id":"parallel[2]","output":"cherry","duration_ms":23}}
+{"id":11,"timestamp_ms":254,"kind":{"type":"workflow_completed","final_output":"[\"apple\",\"banana\",\"cherry\"]","total_duration_ms":68}}

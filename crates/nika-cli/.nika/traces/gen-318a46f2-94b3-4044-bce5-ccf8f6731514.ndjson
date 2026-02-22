@@ -1,0 +1,6 @@
+{"id":0,"timestamp_ms":103,"kind":{"type":"workflow_started","task_count":1,"generation_id":"gen-318a46f2-94b3-4044-bce5-ccf8f6731514","workflow_hash":"c8df2da1dddaccb2","nika_version":"0.7.2"}}
+{"id":1,"timestamp_ms":104,"kind":{"type":"task_scheduled","task_id":"bad_command","dependencies":[]}}
+{"id":2,"timestamp_ms":104,"kind":{"type":"task_started","task_id":"bad_command","verb":"exec","inputs":{}}}
+{"id":3,"timestamp_ms":105,"kind":{"type":"template_resolved","task_id":"bad_command","template":"this_command_does_not_exist_12345","result":"this_command_does_not_exist_12345"}}
+{"id":4,"timestamp_ms":114,"kind":{"type":"task_failed","task_id":"bad_command","error":"Execution error: Command failed: sh: this_command_does_not_exist_12345: command not found\n","duration_ms":9}}
+{"id":5,"timestamp_ms":115,"kind":{"type":"workflow_completed","final_output":"","total_duration_ms":22}}
