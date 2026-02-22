@@ -1,0 +1,175 @@
+# Test-Driven Development Workflow
+#
+# Implements the TDD skill as a Nika workflow.
+# RED → GREEN → REFACTOR cycle with verification at each step.
+#
+# Run with: cargo run -- run examples/skill-tdd.nika.yaml
+
+schema: "nika/workflow@0.5"
+workflow: skill-tdd
+description: "Test-Driven Development: RED → GREEN → REFACTOR"
+provider: claude
+
+tasks:
+  # ========================================================================
+  # INPUT: What feature to implement
+  # ========================================================================
+
+  - id: input
+    description: "Define the feature to implement with TDD"
+    exec: |
+      echo '{
+        "feature": "Add retry logic to HTTP client with exponential backoff",
+        "file_path": "src/http/client.rs",
+        "test_path": "src/http/client_test.rs",
+        "language": "rust"
+      }'
+    output:
+      format: json
+
+  # ========================================================================
+  # PHASE 1: RED - Write Failing Test
+  # ========================================================================
+
+  - id: red_write_test
+    description: "Write minimal failing test (RED phase)"
+    use:
+      spec: input
+    infer:
+      prompt: |
+        You are practicing Test-Driven Development. Write ONE failing test.
+
+        FEATURE: {{use.spec.feature}}
+        TEST FILE: {{use.spec.test_path}}
+        LANGUAGE: {{use.spec.language}}
+
+        TDD RULES:
+        - Write ONE minimal test showing what should happen
+        - Test ONE behavior only
+        - Use clear, descriptive test name
+        - Test real code, NOT mocks (unless unavoidable)
+
+        OUTPUT FORMAT:
+        ```{{use.spec.language}}
+        // TEST CODE HERE
+        ```
+
+        Explain what this test verifies and why it will fail.
+
+      model: claude-sonnet-4-20250514
+
+  - id: red_verify
+    description: "Verify test fails correctly"
+    use:
+      spec: input
+    infer:
+      prompt: |
+        The test has been written. Now verify it fails CORRECTLY.
+
+        VERIFICATION CHECKLIST:
+        1. Test compiles without errors
+        2. Test FAILS (not errors)
+        3. Failure message is expected (feature missing, not typo)
+        4. Test fails because the feature doesn't exist yet
+
+        If test passes immediately → PROBLEM: Testing existing behavior
+        If test errors → PROBLEM: Fix syntax, re-verify
+
+        OUTPUT:
+        - Verification status: PASS/FAIL
+        - If FAIL: What's wrong and how to fix
+        - If PASS: Ready for GREEN phase
+
+      model: claude-sonnet-4-20250514
+
+  # ========================================================================
+  # PHASE 2: GREEN - Write Minimal Code
+  # ========================================================================
+
+  - id: green_implement
+    description: "Write minimal code to pass test (GREEN phase)"
+    use:
+      spec: input
+    infer:
+      prompt: |
+        Now write the MINIMUM code to make the test pass.
+
+        FEATURE: {{use.spec.feature}}
+        FILE: {{use.spec.file_path}}
+
+        GREEN PHASE RULES:
+        - Write SIMPLEST code that passes the test
+        - NO extra features
+        - NO premature optimization
+        - NO "while I'm here" improvements
+        - Just enough to make the test green
+
+        OUTPUT FORMAT:
+        ```{{use.spec.language}}
+        // IMPLEMENTATION CODE HERE
+        ```
+
+        Explain why this is minimal (no YAGNI violations).
+
+      model: claude-sonnet-4-20250514
+
+  - id: green_verify
+    description: "Verify test passes"
+    use:
+      spec: input
+    infer:
+      prompt: |
+        Verify the implementation makes the test pass.
+
+        VERIFICATION CHECKLIST:
+        1. The new test passes
+        2. ALL existing tests still pass
+        3. No compiler warnings
+        4. No runtime errors
+
+        OUTPUT:
+        - All tests pass: YES/NO
+        - If NO: What's failing and why
+        - If YES: Ready for REFACTOR phase
+
+      model: claude-sonnet-4-20250514
+
+  # ========================================================================
+  # PHASE 3: REFACTOR - Clean Up
+  # ========================================================================
+
+  - id: refactor
+    description: "Refactor while keeping tests green"
+    use:
+      spec: input
+    infer:
+      prompt: |
+        Now refactor the code while keeping all tests green.
+
+        REFACTOR RULES:
+        - Remove duplication
+        - Improve names
+        - Extract helpers if needed
+        - DO NOT add new behavior
+        - KEEP tests passing
+
+        If no refactoring needed, say "Code is clean, no refactoring needed."
+
+        OUTPUT:
+        - Refactoring changes (if any)
+        - Verification that tests still pass
+        - Summary of TDD cycle completed
+
+      model: claude-sonnet-4-20250514
+
+flows:
+  - source: input
+    target: red_write_test
+  - source: red_write_test
+    target: red_verify
+  - source: red_verify
+    target: green_implement
+  - source: green_implement
+    target: green_verify
+  - source: green_verify
+    target: refactor

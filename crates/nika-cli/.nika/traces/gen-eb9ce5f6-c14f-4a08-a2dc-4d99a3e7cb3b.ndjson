@@ -1,0 +1,6 @@
+{"id":0,"timestamp_ms":66,"kind":{"type":"workflow_started","task_count":1,"generation_id":"gen-eb9ce5f6-c14f-4a08-a2dc-4d99a3e7cb3b","workflow_hash":"0a26df7974de321c","nika_version":"0.7.1"}}
+{"id":1,"timestamp_ms":67,"kind":{"type":"task_scheduled","task_id":"step1","dependencies":[]}}
+{"id":2,"timestamp_ms":68,"kind":{"type":"task_started","task_id":"step1","verb":"exec","inputs":{}}}
+{"id":3,"timestamp_ms":69,"kind":{"type":"template_resolved","task_id":"step1","template":"echo hello","result":"echo hello"}}
+{"id":4,"timestamp_ms":77,"kind":{"type":"task_completed","task_id":"step1","output":"hello","duration_ms":9}}
+{"id":5,"timestamp_ms":77,"kind":{"type":"workflow_completed","final_output":"hello","total_duration_ms":21}}

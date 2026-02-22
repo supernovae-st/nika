@@ -1,0 +1,37 @@
+schema: nika/workflow@0.5
+workflow: test-agent-stop-conditions
+description: Test that agent stop conditions work correctly
+
+tasks:
+  # Agent that should stop when it says COMPLETE
+  - id: counting_agent
+    agent:
+      prompt: |
+        You are a counting agent. Count from 1 to 5, one number per message.
+        After you say "5", end your response with "COUNTING_COMPLETE".
+
+        Start counting now. Say one number and wait.
+      max_turns: 10
+      stop_conditions:
+        - "COUNTING_COMPLETE"
+      model: claude-sonnet-4-20250514
+
+  # Verify the agent stopped correctly
+  - id: verify_stop
+    use:
+      result: counting_agent
+    infer:
+      prompt: |
+        The agent was supposed to count 1-5 and then stop.
+        Its output was: {{use.result}}
+
+        Answer these questions:
+        1. Did it reach 5? (yes/no)
+        2. Did it stop at the right time? (yes/no)
+        3. How many turns did it take?
+
+        Format: "Reached 5: X, Stopped correctly: X, Turns: X"
+
+flows:
+  - source: counting_agent
+    target: verify_stop

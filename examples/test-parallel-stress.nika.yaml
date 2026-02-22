@@ -1,0 +1,31 @@
+schema: nika/workflow@0.5
+workflow: test-parallel-stress
+description: Stress test with 5 parallel real API calls
+
+tasks:
+  # Generate 5 different topics in parallel
+  - id: parallel_generation
+    for_each: ["Rust", "Python", "TypeScript", "Go", "Zig"]
+    as: language
+    concurrency: 5
+    fail_fast: true
+    infer:
+      prompt: |
+        In exactly ONE sentence, describe the main strength of {{use.language}} for backend development.
+        Start your response with "{{use.language}}:"
+
+  # Combine all results
+  - id: combine_results
+    use:
+      languages: parallel_generation
+    exec: |
+      echo "=== Parallel Stress Test Results ==="
+      echo "5 languages processed in parallel:"
+      echo ""
+      echo "{{use.languages}}"
+      echo ""
+      echo "=== Test Complete ==="
+
+flows:
+  - source: parallel_generation
+    target: combine_results

@@ -1,0 +1,99 @@
+schema: nika/workflow@0.5
+workflow: test-deep-context-chain
+description: Test deep context propagation through 6 sequential tasks
+
+tasks:
+  # Level 1: Generate initial entity
+  - id: level1_entity
+    infer: |
+      Generate a JSON object for a fictional software product with:
+      - name: string
+      - version: string (semver)
+      - features: array of 3 feature names
+      Return ONLY valid JSON, no markdown.
+
+  # Level 2: Add metadata
+  - id: level2_metadata
+    use:
+      entity: level1_entity
+    infer:
+      prompt: |
+        Given this product: {{use.entity}}
+
+        Add these fields and return the complete JSON:
+        - created_at: current date in ISO format
+        - author: "Nika Test Suite"
+        - license: "MIT"
+
+  # Level 3: Generate description
+  - id: level3_description
+    use:
+      product: level2_metadata
+    infer:
+      prompt: |
+        For this product: {{use.product}}
+
+        Add a "description" field with a 2-sentence marketing description.
+        Return the complete JSON with all previous fields preserved.
+
+  # Level 4: Add technical specs
+  - id: level4_specs
+    use:
+      product: level3_description
+    infer:
+      prompt: |
+        For this product: {{use.product}}
+
+        Add a "tech_specs" object with:
+        - runtime: "Rust"
+        - min_memory_mb: 128
+        - platforms: ["linux", "macos", "windows"]
+        Return complete JSON.
+
+  # Level 5: Generate changelog
+  - id: level5_changelog
+    use:
+      product: level4_specs
+    infer:
+      prompt: |
+        For this product: {{use.product}}
+
+        Add a "changelog" array with 2 entries:
+        - { version: <version>, changes: "Initial release" }
+        - { version: <incremented patch>, changes: "Bug fixes" }
+        Return complete JSON.
+
+  # Level 6: Final validation
+  - id: level6_validate
+    use:
+      l1: level1_entity
+      l2: level2_metadata
+      l3: level3_description
+      l4: level4_specs
+      final: level5_changelog
+    exec: |
+      echo "=== Deep Context Chain Validation ==="
+      echo ""
+      echo "Level 1 (Entity): {{use.l1}}"
+      echo ""
+      echo "Level 2 (Metadata): {{use.l2}}"
+      echo ""
+      echo "Level 3 (Description): {{use.l3}}"
+      echo ""
+      echo "Level 4 (Specs): {{use.l4}}"
+      echo ""
+      echo "Level 5 (Final): {{use.final}}"
+      echo ""
+      echo "=== All 5 context levels accessible from level 6 ==="
+
+flows:
+  - source: level1_entity
+    target: level2_metadata
+  - source: level2_metadata
+    target: level3_description
+  - source: level3_description
+    target: level4_specs
+  - source: level4_specs
+    target: level5_changelog
+  - source: level5_changelog
+    target: level6_validate

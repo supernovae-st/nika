@@ -1,0 +1,93 @@
+schema: nika/workflow@0.5
+workflow: test-user-journey-multilingual
+description: |
+  Real user journey: Multilingual content generation.
+  Simulates a typical localization workflow:
+  1. Create source content in English
+  2. Translate to multiple languages in parallel
+  3. Validate all translations
+  4. Assemble final output
+
+tasks:
+  # Step 1: Generate source content in English
+  - id: create_source
+    infer: |
+      Write a product description for "QR Code AI" - an AI-powered QR code generator.
+      Include:
+      - Tagline (10 words max)
+      - Description (50 words)
+      - 3 key features (bullet points)
+
+      Write in English. Return as structured text with clear labels.
+
+  # Step 2: Translate to multiple languages in parallel
+  - id: translate_content
+    use:
+      source: create_source
+    for_each: ["fr-FR", "es-ES", "de-DE", "ja-JP"]
+    as: locale
+    concurrency: 4
+    fail_fast: true
+    infer:
+      prompt: |
+        Translate this product content to {{use.locale}}:
+
+        {{use.source}}
+
+        Maintain the same structure. Adapt idioms naturally for the target culture.
+        Return the translated content with [{{use.locale}}] prefix on each line.
+
+  # Step 3: Validate translations
+  - id: validate_translations
+    use:
+      source: create_source
+      translations: translate_content
+    infer:
+      prompt: |
+        Validate these translations against the source:
+
+        SOURCE (English):
+        {{use.source}}
+
+        TRANSLATIONS:
+        {{use.translations}}
+
+        For each translation, verify:
+        1. All sections present (tagline, description, features)
+        2. No untranslated English words
+        3. Cultural appropriateness
+
+        Return validation results as JSON:
+        {"fr-FR": {"valid": true, "issues": []}, ...}
+
+  # Step 4: Assemble final localization package
+  - id: assemble_package
+    use:
+      source: create_source
+      translations: translate_content
+      validation: validate_translations
+    exec: |
+      echo "=== Localization Package ==="
+      echo ""
+      echo "--- Source (en-US) ---"
+      echo "{{use.source}}"
+      echo ""
+      echo "--- Translations ---"
+      echo "{{use.translations}}"
+      echo ""
+      echo "--- Validation ---"
+      echo "{{use.validation}}"
+      echo ""
+      echo "=== Package Complete ==="
+
+flows:
+  - source: create_source
+    target: translate_content
+  - source: create_source
+    target: validate_translations
+  - source: translate_content
+    target: validate_translations
+  - source: translate_content
+    target: assemble_package
+  - source: validate_translations
+    target: assemble_package

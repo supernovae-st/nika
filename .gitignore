@@ -1,0 +1,30 @@
+# Build artifacts
+/target/
+**/target/
+
+# Cargo.lock for libraries (keep for binary)
+# Uncomment if publishing libraries
+# Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Traces
+.nika/traces/
+
+# Environment
+.env
+.env.local
+
+# Coverage
+*.profraw
+lcov.info
+tarpaulin-report.html

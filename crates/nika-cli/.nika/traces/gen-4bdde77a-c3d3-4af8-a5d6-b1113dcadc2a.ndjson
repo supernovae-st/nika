@@ -1,0 +1,9 @@
+{"id":0,"timestamp_ms":61,"kind":{"type":"workflow_started","task_count":1,"generation_id":"gen-4bdde77a-c3d3-4af8-a5d6-b1113dcadc2a","workflow_hash":"65953cf661291c67","nika_version":"0.7.1"}}
+{"id":1,"timestamp_ms":61,"kind":{"type":"task_scheduled","task_id":"mixed_results","dependencies":[]}}
+{"id":2,"timestamp_ms":64,"kind":{"type":"task_started","task_id":"mixed_results[0]","verb":"exec","inputs":{"cmd":"echo success1"}}}
+{"id":3,"timestamp_ms":64,"kind":{"type":"template_resolved","task_id":"mixed_results[0]","template":"sh -c '{{use.cmd}}'","result":"sh -c 'echo success1'"}}
+{"id":4,"timestamp_ms":71,"kind":{"type":"task_completed","task_id":"mixed_results[0]","output":"success1","duration_ms":7}}
+{"id":5,"timestamp_ms":71,"kind":{"type":"task_started","task_id":"mixed_results[1]","verb":"exec","inputs":{"cmd":"exit 1"}}}
+{"id":6,"timestamp_ms":71,"kind":{"type":"template_resolved","task_id":"mixed_results[1]","template":"sh -c '{{use.cmd}}'","result":"sh -c 'exit 1'"}}
+{"id":7,"timestamp_ms":77,"kind":{"type":"task_failed","task_id":"mixed_results[1]","error":"Execution error: Command failed: ","duration_ms":5}}
+{"id":8,"timestamp_ms":77,"kind":{"type":"workflow_completed","final_output":"","total_duration_ms":30}}

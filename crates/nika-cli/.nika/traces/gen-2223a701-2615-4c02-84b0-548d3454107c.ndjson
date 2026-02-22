@@ -1,0 +1,10 @@
+{"id":0,"timestamp_ms":79,"kind":{"type":"workflow_started","task_count":1,"generation_id":"gen-2223a701-2615-4c02-84b0-548d3454107c","workflow_hash":"c7a584e41f15dc3a","nika_version":"0.7.1"}}
+{"id":1,"timestamp_ms":79,"kind":{"type":"task_scheduled","task_id":"mock_agent","dependencies":[]}}
+{"id":2,"timestamp_ms":81,"kind":{"type":"task_started","task_id":"mock_agent","verb":"agent","inputs":{}}}
+{"id":3,"timestamp_ms":81,"kind":{"type":"template_resolved","task_id":"mock_agent","template":"Complete this task","result":"Complete this task"}}
+{"id":4,"timestamp_ms":81,"kind":{"type":"agent_start","task_id":"mock_agent","max_turns":3,"mcp_servers":[]}}
+{"id":5,"timestamp_ms":81,"kind":{"type":"agent_turn","task_id":"mock_agent","turn_index":1,"kind":"started"}}
+{"id":6,"timestamp_ms":82,"kind":{"type":"agent_turn","task_id":"mock_agent","turn_index":1,"kind":"end_turn","metadata":{"response_text":"Mock response from rig agent","input_tokens":50,"output_tokens":50,"cache_read_tokens":0,"stop_reason":"end_turn"}}}
+{"id":7,"timestamp_ms":82,"kind":{"type":"agent_complete","task_id":"mock_agent","turns":1,"stop_reason":"NaturalCompletion"}}
+{"id":8,"timestamp_ms":82,"kind":{"type":"task_completed","task_id":"mock_agent","output":"{\"completed\":true,\"response\":\"Mock response from rig agent\"}","duration_ms":1}}
+{"id":9,"timestamp_ms":82,"kind":{"type":"workflow_completed","final_output":"{\"completed\":true,\"response\":\"Mock response from rig agent\"}","total_duration_ms":11}}

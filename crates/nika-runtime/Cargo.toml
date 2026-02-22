@@ -1,0 +1,69 @@
+[package]
+name = "nika-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+description = "Runtime execution engine for Nika workflow engine"
+readme = "README.md"
+
+[dependencies]
+nika-core.workspace = true
+nika-mcp.workspace = true
+nika-provider.workspace = true
+
+# Async
+tokio.workspace = true
+tokio-util.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_yaml.workspace = true
+serde_json.workspace = true
+
+# LLM Agent Framework
+rig-core.workspace = true
+
+# HTTP
+reqwest.workspace = true
+
+# Errors
+thiserror.workspace = true
+miette.workspace = true
+
+# JSON Schema validation
+jsonschema.workspace = true
+
+# Utilities
+bytes.workspace = true
+regex.workspace = true
+dashmap.workspace = true
+parking_lot.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+rand.workspace = true
+xxhash-rust.workspace = true
+camino.workspace = true
+rustc-hash.workspace = true
+colored.workspace = true
+ignore.workspace = true
+globset.workspace = true
+
+# Logging
+tracing.workspace = true
+
+[features]
+default = []
+test-fixtures = []
+
+[dev-dependencies]
+tempfile.workspace = true
+proptest.workspace = true
+insta.workspace = true
+pretty_assertions.workspace = true
+criterion.workspace = true
+serial_test.workspace = true
+wiremock.workspace = true

@@ -1,0 +1,33 @@
+{"id":0,"timestamp_ms":58,"kind":{"type":"workflow_started","task_count":1,"generation_id":"gen-36a865ae-b87b-45e3-b0d8-f09c111c98ef","workflow_hash":"26d8c6f5aa0a14a8","nika_version":"0.7.1"}}
+{"id":1,"timestamp_ms":58,"kind":{"type":"task_scheduled","task_id":"parallel_mcp_simulation","dependencies":[]}}
+{"id":2,"timestamp_ms":59,"kind":{"type":"task_started","task_id":"parallel_mcp_simulation[0]","verb":"exec","inputs":{"item":"a"}}}
+{"id":3,"timestamp_ms":59,"kind":{"type":"template_resolved","task_id":"parallel_mcp_simulation[0]","template":"echo MCP call for {{use.item}}","result":"echo MCP call for a"}}
+{"id":4,"timestamp_ms":59,"kind":{"type":"task_started","task_id":"parallel_mcp_simulation[1]","verb":"exec","inputs":{"item":"b"}}}
+{"id":5,"timestamp_ms":59,"kind":{"type":"template_resolved","task_id":"parallel_mcp_simulation[1]","template":"echo MCP call for {{use.item}}","result":"echo MCP call for b"}}
+{"id":6,"timestamp_ms":61,"kind":{"type":"task_started","task_id":"parallel_mcp_simulation[2]","verb":"exec","inputs":{"item":"c"}}}
+{"id":7,"timestamp_ms":61,"kind":{"type":"template_resolved","task_id":"parallel_mcp_simulation[2]","template":"echo MCP call for {{use.item}}","result":"echo MCP call for c"}}
+{"id":8,"timestamp_ms":62,"kind":{"type":"task_started","task_id":"parallel_mcp_simulation[3]","verb":"exec","inputs":{"item":"d"}}}
+{"id":9,"timestamp_ms":62,"kind":{"type":"template_resolved","task_id":"parallel_mcp_simulation[3]","template":"echo MCP call for {{use.item}}","result":"echo MCP call for d"}}
+{"id":10,"timestamp_ms":63,"kind":{"type":"task_started","task_id":"parallel_mcp_simulation[4]","verb":"exec","inputs":{"item":"e"}}}
+{"id":11,"timestamp_ms":63,"kind":{"type":"template_resolved","task_id":"parallel_mcp_simulation[4]","template":"echo MCP call for {{use.item}}","result":"echo MCP call for e"}}
+{"id":12,"timestamp_ms":64,"kind":{"type":"task_completed","task_id":"parallel_mcp_simulation[0]","output":"MCP call for a","duration_ms":4}}
+{"id":13,"timestamp_ms":64,"kind":{"type":"task_completed","task_id":"parallel_mcp_simulation[1]","output":"MCP call for b","duration_ms":4}}
+{"id":14,"timestamp_ms":64,"kind":{"type":"task_started","task_id":"parallel_mcp_simulation[5]","verb":"exec","inputs":{"item":"f"}}}
+{"id":15,"timestamp_ms":64,"kind":{"type":"template_resolved","task_id":"parallel_mcp_simulation[5]","template":"echo MCP call for {{use.item}}","result":"echo MCP call for f"}}
+{"id":16,"timestamp_ms":64,"kind":{"type":"task_started","task_id":"parallel_mcp_simulation[6]","verb":"exec","inputs":{"item":"g"}}}
+{"id":17,"timestamp_ms":64,"kind":{"type":"template_resolved","task_id":"parallel_mcp_simulation[6]","template":"echo MCP call for {{use.item}}","result":"echo MCP call for g"}}
+{"id":18,"timestamp_ms":65,"kind":{"type":"task_completed","task_id":"parallel_mcp_simulation[2]","output":"MCP call for c","duration_ms":3}}
+{"id":19,"timestamp_ms":65,"kind":{"type":"task_started","task_id":"parallel_mcp_simulation[7]","verb":"exec","inputs":{"item":"h"}}}
+{"id":20,"timestamp_ms":65,"kind":{"type":"template_resolved","task_id":"parallel_mcp_simulation[7]","template":"echo MCP call for {{use.item}}","result":"echo MCP call for h"}}
+{"id":21,"timestamp_ms":65,"kind":{"type":"task_completed","task_id":"parallel_mcp_simulation[3]","output":"MCP call for d","duration_ms":3}}
+{"id":22,"timestamp_ms":65,"kind":{"type":"task_started","task_id":"parallel_mcp_simulation[8]","verb":"exec","inputs":{"item":"i"}}}
+{"id":23,"timestamp_ms":65,"kind":{"type":"template_resolved","task_id":"parallel_mcp_simulation[8]","template":"echo MCP call for {{use.item}}","result":"echo MCP call for i"}}
+{"id":24,"timestamp_ms":66,"kind":{"type":"task_completed","task_id":"parallel_mcp_simulation[4]","output":"MCP call for e","duration_ms":2}}
+{"id":25,"timestamp_ms":66,"kind":{"type":"task_started","task_id":"parallel_mcp_simulation[9]","verb":"exec","inputs":{"item":"j"}}}
+{"id":26,"timestamp_ms":66,"kind":{"type":"template_resolved","task_id":"parallel_mcp_simulation[9]","template":"echo MCP call for {{use.item}}","result":"echo MCP call for j"}}
+{"id":27,"timestamp_ms":66,"kind":{"type":"task_completed","task_id":"parallel_mcp_simulation[5]","output":"MCP call for f","duration_ms":2}}
+{"id":28,"timestamp_ms":67,"kind":{"type":"task_completed","task_id":"parallel_mcp_simulation[6]","output":"MCP call for g","duration_ms":2}}
+{"id":29,"timestamp_ms":67,"kind":{"type":"task_completed","task_id":"parallel_mcp_simulation[7]","output":"MCP call for h","duration_ms":2}}
+{"id":30,"timestamp_ms":68,"kind":{"type":"task_completed","task_id":"parallel_mcp_simulation[8]","output":"MCP call for i","duration_ms":2}}
+{"id":31,"timestamp_ms":68,"kind":{"type":"task_completed","task_id":"parallel_mcp_simulation[9]","output":"MCP call for j","duration_ms":2}}
+{"id":32,"timestamp_ms":68,"kind":{"type":"workflow_completed","final_output":"[\"MCP call for a\",\"MCP call for b\",\"MCP call for c\",\"MCP call for d\",\"MCP call for e\",\"MCP call for f\",\"MCP call for g\",\"MCP call for h\",\"MCP call for i\",\"MCP call for j\"]","total_duration_ms":22}}

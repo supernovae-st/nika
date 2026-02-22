@@ -1,0 +1,132 @@
+# UC2: SEO Content Sprint
+# Discovers restaurant entities and generates SEO pages
+#
+# DAG: discover → strategy → [seo_fr, seo_en, seo_mx] → report
+#
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    # Use cargo to run MCP server from source (development mode)
+    # Run from nika-dev/tools/nika/ directory
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      # RUST_LOG: info  # Disabled to avoid TUI pollution
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 1: Entity discovery via semantic graph
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: discover_entities
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "restaurants"
+        arc_kinds: ["APPLIES_TO"]
+        direction: "incoming"
+        max_depth: 1
+        limit: 50
+        include_properties: true
+    output:
+      format: json
+
+  - id: seo_strategy
+    use:
+      entities: discover_entities
+    infer:
+      prompt: |
+        You are an SEO strategist for QR Code AI.
+
+        Available entities in the restaurant cluster:
+        {{use.entities}}
+
+        Define priority order for SEO page generation.
+        For each entity: entity_key, primary_keyword, page_intent.
+        Output as JSON array.
+      model: claude-sonnet-4-20250514
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 2: Parallel SEO generation
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: seo_fr_menu
+    use:
+      strategy: seo_strategy
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        focus_key: "menu-restaurant"
+        locale: "fr-FR"
+        mode: "page"
+        token_budget: 50000
+    output:
+      format: json
+
+  - id: seo_en_menu
+    use:
+      strategy: seo_strategy
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        focus_key: "menu-restaurant"
+        locale: "en-US"
+        mode: "page"
+        token_budget: 50000
+    output:
+      format: json
+
+  - id: seo_mx_menu
+    use:
+      strategy: seo_strategy
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        focus_key: "menu-restaurant"
+        locale: "es-MX"
+        mode: "page"
+        token_budget: 50000
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────
+  # PHASE 3: SEO report
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: seo_report
+    use:
+      fr_menu: seo_fr_menu
+      en_menu: seo_en_menu
+      mx_menu: seo_mx_menu
+    infer:
+      prompt: |
+        Write an SEO sprint completion report for QR Code AI.
+
+        Pages generated:
+        - fr-FR / menu-restaurant: {{use.fr_menu}}
+        - en-US / menu-restaurant: {{use.en_menu}}
+        - es-MX / menu-restaurant: {{use.mx_menu}}
+
+        Include: traffic potential, indexing priority, internal linking.
+
+flows:
+  - source: discover_entities
+    target: seo_strategy
+  - source: seo_strategy
+    target: [seo_fr_menu, seo_en_menu, seo_mx_menu]
+  - source: [seo_fr_menu, seo_en_menu, seo_mx_menu]
+    target: seo_report

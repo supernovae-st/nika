@@ -1,0 +1,16 @@
+schema: nika/workflow@0.5
+workflow: test-real-claude
+description: Test real Claude API call
+
+tasks:
+  - id: generate
+    infer: "Say 'Hello from Nika v0.5.1!' in exactly 5 words"
+
+  - id: print
+    use:
+      response: generate
+    exec: "echo 'Claude said: {{use.response}}'"
+
+flows:
+  - source: generate
+    target: print

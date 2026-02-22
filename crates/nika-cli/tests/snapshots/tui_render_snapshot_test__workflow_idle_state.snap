@@ -1,0 +1,8 @@
+---
+source: tests/tui_render_snapshot_test.rs
+expression: result
+---
+Workflow: idle-workflow.nika.yaml
+Status: Idle
+
+               Ready (0%)

@@ -1,0 +1,68 @@
+[package]
+name = "nika-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+description = "Terminal UI for Nika workflow engine"
+readme = "README.md"
+
+[dependencies]
+nika-core.workspace = true
+nika-mcp.workspace = true
+nika-provider.workspace = true
+nika-runtime.workspace = true
+
+# Async
+tokio.workspace = true
+futures.workspace = true
+
+# HTTP
+reqwest.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_yaml.workspace = true
+serde_json.workspace = true
+
+# TUI
+ratatui.workspace = true
+crossterm.workspace = true
+tui-textarea.workspace = true
+tui-input.workspace = true
+arboard.workspace = true
+notify.workspace = true
+nucleo.workspace = true
+unicode-width.workspace = true
+unicode-segmentation.workspace = true
+terminal_size.workspace = true
+
+# File System
+camino.workspace = true
+ignore.workspace = true
+globset.workspace = true
+
+# Errors
+thiserror.workspace = true
+miette.workspace = true
+
+# Utilities
+colored.workspace = true
+dirs.workspace = true
+chrono.workspace = true
+rustc-hash.workspace = true
+dashmap.workspace = true
+regex.workspace = true
+
+# Logging
+tracing.workspace = true
+
+[features]
+default = ["tui"]
+tui = []
+
+[dev-dependencies]
+tempfile.workspace = true
+insta.workspace = true
+pretty_assertions.workspace = true

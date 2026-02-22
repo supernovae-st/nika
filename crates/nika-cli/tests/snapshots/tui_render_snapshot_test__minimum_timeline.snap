@@ -1,0 +1,7 @@
+---
+source: tests/tui_render_snapshot_test.rs
+expression: timeline_output
+---
+    00:00 
+─⠋────────
+ x

@@ -1,0 +1,105 @@
+# QR Code AI Content Generation Test
+# Real-world use case: Generate multilingual landing page content
+# Requires: ANTHROPIC_API_KEY
+
+schema: nika/workflow@0.5
+workflow: qrcode-ai-content-gen
+description: |
+  Simulates QR Code AI content generation pipeline:
+  1. Define entity (QR Code concept)
+  2. Generate native content for multiple locales
+  3. Create SEO metadata
+  4. Assemble landing page structure
+
+tasks:
+  # Step 1: Define the entity
+  - id: define_entity
+    infer: |
+      Define "Dynamic QR Code" as JSON:
+      {"key": "dynamic-qr-code", "display_name": "Dynamic QR Code", "description": "A QR code whose URL can be changed after printing", "category": "qr-technology"}
+      Return ONLY valid JSON.
+
+  # Step 2: Generate French content (parallel with English)
+  - id: gen_fr_content
+    use:
+      entity: define_entity
+    infer:
+      prompt: |
+        For entity: {{use.entity}}
+
+        Generate French content as JSON:
+        {"text": "2-paragraph description in French", "title": "SEO title in French", "slug": "url-slug"}
+        Return ONLY JSON.
+
+  # Step 3: Generate English content (parallel with French)
+  - id: gen_en_content
+    use:
+      entity: define_entity
+    infer:
+      prompt: |
+        For entity: {{use.entity}}
+
+        Generate English content as JSON:
+        {"text": "2-paragraph description in English", "title": "SEO title in English", "slug": "url-slug"}
+        Return ONLY JSON.
+
+  # Step 4: Generate SEO metadata (depends on both content versions)
+  - id: gen_seo
+    use:
+      entity: define_entity
+      fr: gen_fr_content
+      en: gen_en_content
+    infer:
+      prompt: |
+        Entity: {{use.entity}}
+        FR content: {{use.fr}}
+        EN content: {{use.en}}
+
+        Generate SEO metadata JSON with "fr" and "en" keys, each containing:
+        meta_title, meta_description, primary_keyword
+
+  # Step 5: Assemble page structure
+  - id: assemble_page
+    use:
+      entity: define_entity
+      fr: gen_fr_content
+      en: gen_en_content
+      seo: gen_seo
+    infer:
+      prompt: |
+        Assemble landing page structure for:
+        Entity: {{use.entity}}
+        Content FR: {{use.fr}}
+        Content EN: {{use.en}}
+        SEO: {{use.seo}}
+
+        Create JSON with: hero_block, features_block (3 features), cta_block
+
+  # Step 6: Validate
+  - id: validate
+    use:
+      page: assemble_page
+    infer:
+      prompt: |
+        Validate this page structure: {{use.page}}
+
+        Check: all required fields present, quality (1-10), SEO readiness (1-10).
+        End with "QRCODE AI TEST: PASS" if quality >= 7.
+
+flows:
+  # Parallel content generation
+  - source: define_entity
+    target: gen_fr_content
+  - source: define_entity
+    target: gen_en_content
+  # SEO depends on both
+  - source: gen_fr_content
+    target: gen_seo
+  - source: gen_en_content
+    target: gen_seo
+  # Assembly depends on all
+  - source: gen_seo
+    target: assemble_page
+  # Validation at end
+  - source: assemble_page
+    target: validate

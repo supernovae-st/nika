@@ -1,0 +1,7 @@
+---
+source: tests/tui_render_snapshot_test.rs
+expression: output
+---
+                        00:00 
+─⠋────────────────────────────
+ very_long_task_name_that_sh

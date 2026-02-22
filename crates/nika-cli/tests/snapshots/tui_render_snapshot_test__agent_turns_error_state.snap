@@ -1,0 +1,7 @@
+---
+source: tests/tui_render_snapshot_test.rs
+expression: output
+---
+T1 🤔  thinking                               500tk
+T2 🔧  tool_use                               100tk
+T3 ❌  error                                   50tk

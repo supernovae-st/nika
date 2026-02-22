@@ -1,0 +1,15 @@
+# Claude API Test Workflow
+#
+# Tests real Anthropic/Claude integration with Nika v0.5.
+# Run with: cargo run -- run examples/claude-test.nika.yaml
+
+schema: "nika/workflow@0.4"
+provider: claude
+
+tasks:
+  - id: hello_claude
+    infer:
+      prompt: "Say hello and tell me one fun fact about croissants. Keep it under 50 words."
+      model: claude-sonnet-4-20250514
+    output:
+      format: text

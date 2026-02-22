@@ -1,0 +1,850 @@
+//! rmcp Adapter Layer
+//!
+//! This module wraps Anthropic's official rmcp SDK to provide Nika's MCP client interface.
+//! It handles the translation between Nika's API and rmcp's Service/Transport abstractions.
+//!
+//! ## Architecture
+//!
+//! ```text
+//! McpClient (Nika API)
+//!     │
+//!     ├── Mock Mode ──► Direct mock responses (testing)
+//!     │
+//!     └── Real Mode ──► RmcpClientAdapter
+//!                           │
+//!                           └── rmcp::Service<ClientHandler>
+//!                                   │
+//!                                   └── TokioChildProcess transport
+//! ```
+//!
+//! ## Internal Usage
+//!
+//! This adapter is internal to the MCP module and should be accessed via `McpClient`.
+//!
+//! ```rust,ignore
+//! // Users should use McpClient, not RmcpClientAdapter directly
+//! use nika::mcp::{McpClient, McpConfig};
+//!
+//! let config = McpConfig::new("novanet", "cargo")
+//!     .with_args(["run", "--manifest-path", "path/to/Cargo.toml"]);
+//!
+//! let client = McpClient::new(config)?;
+//! client.connect().await?;
+//! ```
+
+use std::process::Stdio;
+
+use parking_lot::Mutex;
+use rmcp::ServiceExt;
+use rmcp::model::{CallToolRequestParams, ListToolsResult};
+use rmcp::service::{RoleClient, RunningService};
+use rmcp::transport::TokioChildProcess;
+use serde_json::Value;
+use tokio::process::Command;
+use tokio::sync::Mutex as AsyncMutex;
+use tokio::time::timeout;
+
+use nika_core::error::{NikaError, Result};
+use crate::types::{
+    ContentBlock, McpConfig, McpErrorCode, ResourceContent, ToolCallResult, ToolDefinition,
+};
+
+/// MCP call timeout (30 seconds)
+const MCP_CALL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Extract JSON-RPC error code from error message if present.
+///
+/// Attempts to find standard JSON-RPC error codes (-32xxx) in error strings.
+fn extract_error_code(error: &str) -> Option<McpErrorCode> {
+    // Look for patterns like "code: -32602" or "(-32602)" or "error -32602"
+    let patterns = [r"code:\s*(-?\d+)", r"\((-\d+)\)", r"error\s+(-\d+)"];
+
+    for pattern in patterns {
+        if let Ok(re) = regex::Regex::new(pattern) {
+            if let Some(caps) = re.captures(error) {
+                if let Some(m) = caps.get(1) {
+                    if let Ok(code) = m.as_str().parse::<i32>() {
+                        // Only return JSON-RPC error codes
+                        if (-32799..=-32000).contains(&code) || (-32700..=-32600).contains(&code) {
+                            return Some(McpErrorCode::from_code(code));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Running rmcp service type alias
+/// RunningService<Role, Handler> where Handler implements Service<Role>
+type RmcpService = RunningService<RoleClient, ()>;
+
+/// rmcp Client Adapter (internal)
+///
+/// Wraps rmcp's Service to provide Nika's MCP client interface.
+/// Handles connection lifecycle, tool calls, and resource reads.
+/// Users should access MCP via `McpClient`, not this type directly.
+pub(crate) struct RmcpClientAdapter {
+    /// Server name (from config)
+    name: String,
+
+    /// Server configuration
+    config: McpConfig,
+
+    /// Running rmcp service (None when disconnected)
+    service: AsyncMutex<Option<RmcpService>>,
+
+    /// Protocol version reported by server
+    server_version: Mutex<Option<String>>,
+
+    /// Cached tool definitions (populated after list_tools() call)
+    /// Used by get_cached_tools() for synchronous access in rig integration
+    cached_tools: Mutex<Vec<ToolDefinition>>,
+}
+
+impl std::fmt::Debug for RmcpClientAdapter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RmcpClientAdapter")
+            .field("name", &self.name)
+            .field("config", &self.config)
+            .field("connected", &self.is_connected_sync())
+            .finish()
+    }
+}
+
+impl RmcpClientAdapter {
+    /// Create a new rmcp client adapter from configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - MCP server configuration
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let config = McpConfig::new("novanet", "cargo")
+    ///     .with_args(["run", "--manifest-path", "path/to/Cargo.toml"]);
+    /// let adapter = RmcpClientAdapter::new(config);
+    /// ```
+    pub fn new(config: McpConfig) -> Self {
+        Self {
+            name: config.name.clone(),
+            config,
+            service: AsyncMutex::new(None),
+            server_version: Mutex::new(None),
+            cached_tools: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Get the server name.
+    #[allow(dead_code)] // Used in tests
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Check if connected (sync version for Debug impl)
+    fn is_connected_sync(&self) -> bool {
+        // Try to check without blocking - return false if lock is held
+        self.service
+            .try_lock()
+            .map(|guard| guard.is_some())
+            .unwrap_or(false)
+    }
+
+    /// Check if the client is connected to the server.
+    pub async fn is_connected(&self) -> bool {
+        self.service.lock().await.is_some()
+    }
+
+    /// Connect to the MCP server.
+    ///
+    /// Spawns the server process and establishes MCP communication.
+    /// The rmcp SDK handles the initialize/initialized handshake.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NikaError::McpStartError` if the server fails to start.
+    pub async fn connect(&self) -> Result<()> {
+        let mut guard = self.service.lock().await;
+
+        if guard.is_some() {
+            return Ok(()); // Already connected
+        }
+
+        // Build command from config
+        let mut cmd = Command::new(&self.config.command);
+        cmd.args(&self.config.args);
+
+        // Suppress stderr to avoid polluting TUI output
+        // MCP communication happens over stdin/stdout, stderr is only for logging
+        cmd.stderr(Stdio::null());
+
+        // Suppress logging in child process to avoid TUI pollution
+        // This must be set BEFORE adding config env vars to allow override if needed
+        cmd.env("RUST_LOG", "off");
+
+        // Add environment variables from workflow config
+        for (key, value) in &self.config.env {
+            cmd.env(key, value);
+        }
+
+        // Create transport
+        let transport = TokioChildProcess::new(cmd).map_err(|e| NikaError::McpStartError {
+            name: self.name.clone(),
+            reason: format!("Failed to create transport: {}", e),
+        })?;
+
+        // Connect to server using rmcp's serve pattern
+        // The () implements ClientHandler with default behavior
+        let service =
+            ().serve(transport)
+                .await
+                .map_err(|e| NikaError::McpStartError {
+                    name: self.name.clone(),
+                    reason: format!("Failed to connect: {}", e),
+                })?;
+
+        // Store server info
+        if let Some(info) = service.peer_info() {
+            *self.server_version.lock() = Some(info.protocol_version.to_string());
+        }
+
+        *guard = Some(service);
+        Ok(())
+    }
+
+    /// Disconnect from the MCP server.
+    ///
+    /// Gracefully closes the connection.
+    pub async fn disconnect(&self) -> Result<()> {
+        let mut guard = self.service.lock().await;
+
+        if let Some(service) = guard.take() {
+            // Graceful shutdown
+            let _ = service.cancel().await;
+        }
+
+        *self.server_version.lock() = None;
+        Ok(())
+    }
+
+    /// Reconnect to the MCP server.
+    ///
+    /// Disconnects if connected, then establishes a new connection.
+    pub async fn reconnect(&self) -> Result<()> {
+        tracing::info!(
+            mcp_server = %self.name,
+            "Attempting MCP server reconnection"
+        );
+
+        self.disconnect().await?;
+        self.connect().await
+    }
+
+    /// Call an MCP tool with the given parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Tool name (e.g., "novanet_generate")
+    /// * `params` - Tool parameters as JSON value
+    ///
+    /// # Errors
+    ///
+    /// Returns `NikaError::McpNotConnected` if not connected.
+    /// Returns `NikaError::McpToolError` if the tool call fails.
+    pub async fn call_tool(&self, name: &str, params: Value) -> Result<ToolCallResult> {
+        let guard = self.service.lock().await;
+        let service = guard.as_ref().ok_or_else(|| NikaError::McpNotConnected {
+            name: self.name.clone(),
+        })?;
+
+        // Convert params to object format expected by rmcp
+        let arguments = params.as_object().cloned();
+
+        let request = CallToolRequestParams {
+            meta: None,
+            name: name.to_string().into(),
+            arguments,
+            task: None,
+        };
+
+        let result = timeout(MCP_CALL_TIMEOUT, service.call_tool(request))
+            .await
+            .map_err(|_| NikaError::McpTimeout {
+                name: self.name.clone(),
+                operation: "call_tool".to_string(),
+                timeout_secs: MCP_CALL_TIMEOUT.as_secs(),
+            })?
+            .map_err(|e| {
+                let error_str = e.to_string();
+                NikaError::McpToolError {
+                    tool: name.to_string(),
+                    reason: error_str.clone(),
+                    error_code: extract_error_code(&error_str),
+                }
+            })?;
+
+        // Convert rmcp result to Nika's ToolCallResult
+        let content: Vec<ContentBlock> = result
+            .content
+            .iter()
+            .filter_map(|c| {
+                // Extract text content
+                c.as_text().map(|t| ContentBlock::text(t.text.clone()))
+            })
+            .collect();
+
+        Ok(ToolCallResult {
+            content,
+            is_error: result.is_error.unwrap_or(false),
+        })
+    }
+
+    /// Read a resource from the MCP server.
+    ///
+    /// # Arguments
+    ///
+    /// * `uri` - Resource URI (e.g., "neo4j://entity/qr-code")
+    ///
+    /// # Errors
+    ///
+    /// Returns `NikaError::McpNotConnected` if not connected.
+    /// Returns `NikaError::McpResourceNotFound` if the resource doesn't exist.
+    pub async fn read_resource(&self, uri: &str) -> Result<ResourceContent> {
+        let guard = self.service.lock().await;
+        let service = guard.as_ref().ok_or_else(|| NikaError::McpNotConnected {
+            name: self.name.clone(),
+        })?;
+
+        let request = rmcp::model::ReadResourceRequestParams {
+            meta: None,
+            uri: uri.into(),
+        };
+
+        let result = timeout(MCP_CALL_TIMEOUT, service.read_resource(request))
+            .await
+            .map_err(|_| NikaError::McpTimeout {
+                name: self.name.clone(),
+                operation: "read_resource".to_string(),
+                timeout_secs: MCP_CALL_TIMEOUT.as_secs(),
+            })?
+            .map_err(|e| {
+                // Check for not found error
+                let error_str = e.to_string().to_lowercase();
+                if error_str.contains("not found") {
+                    NikaError::McpResourceNotFound {
+                        uri: uri.to_string(),
+                    }
+                } else {
+                    let error_str = e.to_string();
+                    NikaError::McpToolError {
+                        tool: "resources/read".to_string(),
+                        reason: error_str.clone(),
+                        error_code: extract_error_code(&error_str),
+                    }
+                }
+            })?;
+
+        // Convert first resource content
+        let resource = result
+            .contents
+            .first()
+            .ok_or_else(|| NikaError::McpResourceNotFound {
+                uri: uri.to_string(),
+            })?;
+
+        // Build ResourceContent from rmcp response
+        // Serialize the resource content as JSON for simplicity
+        let text = serde_json::to_string(resource).map_err(|e| NikaError::McpToolError {
+            tool: "resources/read".to_string(),
+            reason: format!("Failed to serialize resource: {}", e),
+            error_code: None, // Serialization errors are internal
+        })?;
+
+        let content = ResourceContent::new(uri)
+            .with_text(&text)
+            .with_mime_type("application/json");
+
+        Ok(content)
+    }
+
+    /// List all available tools from the MCP server.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NikaError::McpNotConnected` if not connected.
+    pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
+        let guard = self.service.lock().await;
+        let service = guard.as_ref().ok_or_else(|| NikaError::McpNotConnected {
+            name: self.name.clone(),
+        })?;
+
+        let result: ListToolsResult =
+            timeout(MCP_CALL_TIMEOUT, service.list_tools(Default::default()))
+                .await
+                .map_err(|_| NikaError::McpTimeout {
+                    name: self.name.clone(),
+                    operation: "list_tools".to_string(),
+                    timeout_secs: MCP_CALL_TIMEOUT.as_secs(),
+                })?
+                .map_err(|e| {
+                    let error_str = e.to_string();
+                    NikaError::McpToolError {
+                        tool: "tools/list".to_string(),
+                        reason: error_str.clone(),
+                        error_code: extract_error_code(&error_str),
+                    }
+                })?;
+
+        // Convert rmcp tools to Nika's ToolDefinition
+        let tools: Vec<ToolDefinition> = result
+            .tools
+            .into_iter()
+            .map(|t| {
+                let mut tool = ToolDefinition::new(t.name.as_ref());
+                if let Some(desc) = &t.description {
+                    tool = tool.with_description(desc.as_ref());
+                }
+                if let Some(schema) = t.input_schema.get("properties") {
+                    tool = tool.with_input_schema(schema.clone());
+                }
+                tool
+            })
+            .collect();
+
+        // Cache tools for synchronous access via get_cached_tools()
+        *self.cached_tools.lock() = tools.clone();
+
+        Ok(tools)
+    }
+
+    /// Get cached tool definitions (synchronous access).
+    ///
+    /// Returns tools from the last `list_tools()` call, or empty vec if never called.
+    /// This is used by rig integration which requires sync access to tool definitions.
+    pub fn get_cached_tools(&self) -> Vec<ToolDefinition> {
+        self.cached_tools.lock().clone()
+    }
+}
+
+impl Drop for RmcpClientAdapter {
+    fn drop(&mut self) {
+        // Best-effort cleanup - rmcp handles process termination
+        // The service will be dropped and cleaned up automatically
+        tracing::debug!(
+            mcp_server = %self.name,
+            "RmcpClientAdapter dropped"
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // RmcpAdapter Construction Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_adapter_new() {
+        let config = McpConfig::new("test-server", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+        assert_eq!(adapter.name(), "test-server");
+    }
+
+    #[test]
+    fn test_adapter_new_with_args_and_env() {
+        let config = McpConfig::new("novanet", "cargo")
+            .with_arg("run")
+            .with_env("NEO4J_URI", "bolt://localhost:7687");
+
+        let adapter = RmcpClientAdapter::new(config);
+        assert_eq!(adapter.name(), "novanet");
+    }
+
+    #[test]
+    fn test_adapter_debug_not_connected() {
+        let config = McpConfig::new("test-server", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        let debug_str = format!("{:?}", adapter);
+        assert!(debug_str.contains("RmcpClientAdapter"));
+        assert!(debug_str.contains("test-server"));
+        assert!(debug_str.contains("connected"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Connection State Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_adapter_not_connected_by_default() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+        assert!(!adapter.is_connected().await);
+    }
+
+    #[test]
+    fn test_adapter_not_connected_sync() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+        assert!(!adapter.is_connected_sync());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Disconnect Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_disconnect_when_not_connected_is_ok() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        let result = adapter.disconnect().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_disconnect_clears_server_version() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        // Manually set server version to test clearing
+        *adapter.server_version.lock() = Some("1.0".to_string());
+        assert_eq!(
+            adapter.server_version.lock().as_ref().map(|s| s.as_str()),
+            Some("1.0")
+        );
+
+        adapter.disconnect().await.ok();
+        assert_eq!(adapter.server_version.lock().as_ref(), None);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Tool Call Error Tests (when not connected)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_call_tool_when_not_connected_returns_error() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        let result = adapter.call_tool("test_tool", serde_json::json!({})).await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            NikaError::McpNotConnected { name } => assert_eq!(name, "test"),
+            e => panic!("Expected McpNotConnected, got: {:?}", e),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_call_tool_with_object_params() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        let params = serde_json::json!({
+            "entity": "qr-code",
+            "locale": "fr-FR"
+        });
+
+        let result = adapter.call_tool("novanet_generate", params).await;
+
+        // Should fail with McpNotConnected, not with param conversion error
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            NikaError::McpNotConnected { name } => assert_eq!(name, "test"),
+            e => panic!("Expected McpNotConnected, got: {:?}", e),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_call_tool_with_non_object_params() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        // Pass a string instead of object
+        let params = serde_json::json!("not-an-object");
+
+        let result = adapter.call_tool("test_tool", params).await;
+
+        // Should still error with McpNotConnected (params are converted to None)
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            NikaError::McpNotConnected { name } => assert_eq!(name, "test"),
+            e => panic!("Expected McpNotConnected, got: {:?}", e),
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Resource Read Error Tests (when not connected)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_read_resource_when_not_connected_returns_error() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        let result = adapter.read_resource("neo4j://entity/test").await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            NikaError::McpNotConnected { name } => assert_eq!(name, "test"),
+            e => panic!("Expected McpNotConnected, got: {:?}", e),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_read_resource_with_various_uris() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        let uris = vec![
+            "neo4j://entity/qr-code",
+            "neo4j://page/landing",
+            "neo4j://block/hero",
+            "file:///path/to/file",
+        ];
+
+        for uri in uris {
+            let result = adapter.read_resource(uri).await;
+            assert!(result.is_err());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // List Tools Error Tests (when not connected)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_list_tools_when_not_connected_returns_error() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        let result = adapter.list_tools().await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            NikaError::McpNotConnected { name } => assert_eq!(name, "test"),
+            e => panic!("Expected McpNotConnected, got: {:?}", e),
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Cached Tools Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_get_cached_tools_returns_empty_initially() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        let cached = adapter.get_cached_tools();
+        assert!(cached.is_empty());
+    }
+
+    #[test]
+    fn test_get_cached_tools_with_populated_cache() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        // Manually populate cache
+        let tools = vec![
+            ToolDefinition::new("novanet_generate"),
+            ToolDefinition::new("novanet_traverse"),
+        ];
+        *adapter.cached_tools.lock() = tools.clone();
+
+        let cached = adapter.get_cached_tools();
+        assert_eq!(cached.len(), 2);
+        assert_eq!(cached[0].name, "novanet_generate");
+        assert_eq!(cached[1].name, "novanet_traverse");
+    }
+
+    #[test]
+    fn test_cached_tools_independence() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        let tool1 = ToolDefinition::new("tool1");
+        *adapter.cached_tools.lock() = vec![tool1];
+
+        let cached1 = adapter.get_cached_tools();
+        assert_eq!(cached1.len(), 1);
+
+        // Modify cache again
+        let tool2 = ToolDefinition::new("tool2");
+        *adapter.cached_tools.lock() = vec![tool2];
+
+        let cached2 = adapter.get_cached_tools();
+        assert_eq!(cached2.len(), 1);
+        assert_eq!(cached2[0].name, "tool2");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Drop Implementation Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_adapter_drop_does_not_panic() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        // This should not panic
+        drop(adapter);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Error Code Extraction Tests (v0.5.3)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_extract_error_code_with_code_pattern() {
+        let error = "JSON-RPC error code: -32602 - Invalid params";
+        let code = extract_error_code(error);
+        assert_eq!(code, Some(McpErrorCode::InvalidParams));
+    }
+
+    #[test]
+    fn test_extract_error_code_with_parentheses_pattern() {
+        let error = "Method not found (-32601)";
+        let code = extract_error_code(error);
+        assert_eq!(code, Some(McpErrorCode::MethodNotFound));
+    }
+
+    #[test]
+    fn test_extract_error_code_with_error_word_pattern() {
+        let error = "error -32700 in parser";
+        let code = extract_error_code(error);
+        assert_eq!(code, Some(McpErrorCode::ParseError));
+    }
+
+    #[test]
+    fn test_extract_error_code_parse_error() {
+        let error = "Parse error code: -32700";
+        let code = extract_error_code(error);
+        assert_eq!(code, Some(McpErrorCode::ParseError));
+    }
+
+    #[test]
+    fn test_extract_error_code_invalid_request() {
+        let error = "Invalid request (-32600)";
+        let code = extract_error_code(error);
+        assert_eq!(code, Some(McpErrorCode::InvalidRequest));
+    }
+
+    #[test]
+    fn test_extract_error_code_internal_error() {
+        let error = "code: -32603";
+        let code = extract_error_code(error);
+        assert_eq!(code, Some(McpErrorCode::InternalError));
+    }
+
+    #[test]
+    fn test_extract_error_code_server_error() {
+        let error = "Server error (-32050): Internal failure";
+        let code = extract_error_code(error);
+        assert!(matches!(code, Some(McpErrorCode::ServerError(-32050))));
+    }
+
+    #[test]
+    fn test_extract_error_code_various_server_errors() {
+        let test_cases = vec![
+            ("error -32000", Some(McpErrorCode::ServerError(-32000))),
+            ("code: -32050", Some(McpErrorCode::ServerError(-32050))),
+            ("(-32099)", Some(McpErrorCode::ServerError(-32099))),
+        ];
+
+        for (error, expected) in test_cases {
+            let code = extract_error_code(error);
+            assert_eq!(code, expected, "Failed for error: {}", error);
+        }
+    }
+
+    #[test]
+    fn test_extract_error_code_no_code_present() {
+        let error = "Connection refused";
+        let code = extract_error_code(error);
+        assert_eq!(code, None);
+    }
+
+    #[test]
+    fn test_extract_error_code_non_jsonrpc_code() {
+        let error = "HTTP error code: 404";
+        let code = extract_error_code(error);
+        assert_eq!(code, None); // 404 is not a JSON-RPC code
+    }
+
+    #[test]
+    fn test_extract_error_code_negative_but_outside_range() {
+        let error = "error code: -100";
+        let code = extract_error_code(error);
+        // -100 is outside JSON-RPC ranges, should be None
+        assert_eq!(code, None);
+    }
+
+    #[test]
+    fn test_extract_error_code_positive_numbers_ignored() {
+        let error = "code: 500 or code: 400";
+        let code = extract_error_code(error);
+        // Positive codes are not JSON-RPC error codes
+        assert_eq!(code, None);
+    }
+
+    #[test]
+    fn test_extract_error_code_multiple_codes_uses_first() {
+        let error = "code: -32602 and also code: -32601";
+        let code = extract_error_code(error);
+        // Should extract the first matching code
+        assert_eq!(code, Some(McpErrorCode::InvalidParams));
+    }
+
+    #[test]
+    fn test_extract_error_code_empty_string() {
+        let error = "";
+        let code = extract_error_code(error);
+        assert_eq!(code, None);
+    }
+
+    #[test]
+    fn test_extract_error_code_with_text_around_code() {
+        let error = "Request failed: code: -32602 - invalid parameters supplied";
+        let code = extract_error_code(error);
+        assert_eq!(code, Some(McpErrorCode::InvalidParams));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Integration Tests (Configuration & Conversion)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_adapter_preserves_config_command() {
+        let config = McpConfig::new("myserver", "python").with_args(["script.py", "--flag"]);
+
+        let adapter = RmcpClientAdapter::new(config);
+        assert_eq!(adapter.name(), "myserver");
+    }
+
+    #[test]
+    fn test_adapter_with_complex_config() {
+        let config = McpConfig::new("complex-server", "node")
+            .with_arg("--require")
+            .with_arg("dotenv/config")
+            .with_arg("index.js")
+            .with_env("LOG_LEVEL", "debug")
+            .with_env("PORT", "3000");
+
+        let adapter = RmcpClientAdapter::new(config);
+        assert_eq!(adapter.name(), "complex-server");
+    }
+
+    #[test]
+    fn test_adapter_name_accessor() {
+        let config = McpConfig::new("my-test-server", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        assert_eq!(adapter.name(), "my-test-server");
+    }
+}

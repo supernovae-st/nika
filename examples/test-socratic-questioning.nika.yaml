@@ -1,0 +1,84 @@
+# Socratic Questioning Test
+# Multi-turn iterative refinement workflow
+# Requires: ANTHROPIC_API_KEY
+
+schema: nika/workflow@0.5
+workflow: socratic-questioning
+description: |
+  Tests multi-step refinement with Socratic method:
+  1. Start with a vague idea
+  2. Ask probing questions
+  3. Iteratively refine the concept
+
+tasks:
+  # Phase 1: Initial vague idea → probing questions
+  - id: initial_questions
+    infer: |
+      You are a product designer. A user says: "I want to build an app that helps people."
+
+      Ask 3 probing Socratic questions:
+      1. WHO specifically needs help?
+      2. WHAT problem are they facing?
+      3. HOW would they use this app?
+
+  # Phase 2: Simulate user answers
+  - id: user_answers
+    use:
+      questions: initial_questions
+    infer:
+      prompt: |
+        Given these questions: {{use.questions}}
+
+        Provide realistic answers revealing:
+        - Target: small business owners
+        - Problem: tracking inventory manually
+        - Usage: mobile app for quick updates
+
+  # Phase 3: Deeper questioning
+  - id: deeper_questions
+    use:
+      answers: user_answers
+    infer:
+      prompt: |
+        Based on: {{use.answers}}
+
+        Ask 3 MORE questions about:
+        1. Pain points with current solutions
+        2. Budget constraints
+        3. Technical skill level
+
+  # Phase 4: Synthesize into product spec
+  - id: product_spec
+    use:
+      q1: initial_questions
+      a1: user_answers
+      q2: deeper_questions
+    infer:
+      prompt: |
+        Socratic dialogue:
+        Round 1 Questions: {{use.q1}}
+        Round 1 Answers: {{use.a1}}
+        Round 2 Questions: {{use.q2}}
+
+        Synthesize into a 1-paragraph product spec with: target user, core problem, proposed solution.
+
+  # Phase 5: Validate
+  - id: validate
+    use:
+      spec: product_spec
+    infer:
+      prompt: |
+        Review this spec: {{use.spec}}
+
+        Rate (1-10): Clarity, Feasibility, Market fit.
+        Then say "SOCRATIC TEST: PASS" if all ratings >= 6.
+
+flows:
+  - source: initial_questions
+    target: user_answers
+  - source: user_answers
+    target: deeper_questions
+  - source: deeper_questions
+    target: product_spec
+  - source: product_spec
+    target: validate

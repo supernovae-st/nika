@@ -1,0 +1,27 @@
+# Example: Simple Agent without MCP tools
+#
+# This workflow demonstrates the agent: verb in its simplest form.
+# The agent completes in one turn since no tools are available.
+#
+# Run with: cargo run -- run examples/agent-simple.yaml
+
+schema: "nika/workflow@0.2"
+provider: mock
+
+tasks:
+  - id: summarize
+    agent:
+      prompt: |
+        Summarize the key benefits of using YAML for configuration files.
+
+        Provide a JSON response with:
+        - benefits: array of 3 key benefits
+        - recommendation: one sentence recommendation
+
+        End your response with "SUMMARY_COMPLETE".
+
+      max_turns: 3
+      stop_conditions:
+        - "SUMMARY_COMPLETE"
+    output:
+      format: json

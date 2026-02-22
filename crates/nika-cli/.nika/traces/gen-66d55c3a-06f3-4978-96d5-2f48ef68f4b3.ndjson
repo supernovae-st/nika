@@ -1,0 +1,6 @@
+{"id":0,"timestamp_ms":84,"kind":{"type":"workflow_started","task_count":1,"generation_id":"gen-66d55c3a-06f3-4978-96d5-2f48ef68f4b3","workflow_hash":"5c56ffa2e9861859","nika_version":"0.7.1"}}
+{"id":1,"timestamp_ms":84,"kind":{"type":"task_scheduled","task_id":"failing","dependencies":[]}}
+{"id":2,"timestamp_ms":84,"kind":{"type":"task_started","task_id":"failing","verb":"exec","inputs":{}}}
+{"id":3,"timestamp_ms":85,"kind":{"type":"template_resolved","task_id":"failing","template":"exit 1","result":"exit 1"}}
+{"id":4,"timestamp_ms":92,"kind":{"type":"task_failed","task_id":"failing","error":"Execution error: Command failed: ","duration_ms":6}}
+{"id":5,"timestamp_ms":92,"kind":{"type":"workflow_completed","final_output":"","total_duration_ms":16}}

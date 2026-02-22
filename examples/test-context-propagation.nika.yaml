@@ -1,0 +1,52 @@
+schema: nika/workflow@0.5
+workflow: test-context-propagation
+description: Test DataStore context propagation across tasks
+
+tasks:
+  # Step 1: Generate initial data
+  - id: generate_data
+    infer: "Generate a JSON object with 3 fields: name (string), count (number), tags (array of 2 strings). Return ONLY valid JSON, no markdown."
+
+  # Step 2: Transform the data - uses output from step 1
+  - id: transform
+    use:
+      initial_data: generate_data
+    infer:
+      prompt: |
+        Given this data: {{use.initial_data}}
+
+        Add a new field called "processed" with value true, and increment the count by 10.
+        Return ONLY the modified JSON, no explanation.
+
+  # Step 3: Validate and summarize - uses outputs from both previous steps
+  - id: summarize
+    use:
+      original: generate_data
+      transformed: transform
+    infer:
+      prompt: |
+        Original data: {{use.original}}
+        Transformed data: {{use.transformed}}
+
+        Write a one-line summary comparing the two. Start with "Summary:"
+
+  # Step 4: Echo all context to verify propagation
+  - id: verify
+    use:
+      initial: generate_data
+      result: transform
+      final_summary: summarize
+    exec: |
+      echo "=== Context Propagation Test ==="
+      echo "Initial: {{use.initial}}"
+      echo "Transformed: {{use.result}}"
+      echo "Summary: {{use.final_summary}}"
+      echo "=== All bindings resolved correctly ==="
+
+flows:
+  - source: generate_data
+    target: transform
+  - source: transform
+    target: summarize
+  - source: summarize
+    target: verify

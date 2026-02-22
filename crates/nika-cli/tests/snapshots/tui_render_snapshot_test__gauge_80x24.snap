@@ -1,0 +1,5 @@
+---
+source: tests/tui_render_snapshot_test.rs
+expression: output
+---
+████████████████████████████████   2/5 (40%)

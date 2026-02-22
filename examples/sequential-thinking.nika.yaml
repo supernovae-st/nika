@@ -1,0 +1,82 @@
+# Sequential Thinking Workflow
+#
+# Uses the sequential-thinking MCP server for step-by-step reasoning.
+# Ideal for complex problems that need structured analysis.
+#
+# Run with: cargo run -- run examples/sequential-thinking.nika.yaml
+
+schema: "nika/workflow@0.5"
+workflow: sequential-thinking
+description: "Step-by-step reasoning using sequential-thinking MCP"
+provider: claude
+
+mcp:
+  sequential-thinking:
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-sequential-thinking"
+
+tasks:
+  - id: input
+    description: "Define the problem to analyze"
+    exec: |
+      echo '{"problem": "Design a caching strategy for a high-traffic API with 10M daily requests, mixed read/write patterns, and strict consistency requirements", "context": "E-commerce platform with product catalog and inventory"}'
+    output:
+      format: json
+
+  - id: analyze
+    description: "Deep analysis using sequential thinking"
+    use:
+      input: input
+    agent:
+      prompt: |
+        You are a senior systems architect. Analyze this problem using structured reasoning.
+
+        PROBLEM: {{use.input.problem}}
+        CONTEXT: {{use.input.context}}
+
+        Use the sequentialthinking tool to break down the analysis:
+        1. First, identify the key constraints and requirements
+        2. Then, explore possible approaches (at least 3)
+        3. Analyze trade-offs for each approach
+        4. Consider edge cases and failure modes
+        5. Make a recommendation with justification
+
+        For EACH step, use sequentialthinking with:
+        - thought: Your current analysis
+        - thoughtNumber: Current step (1, 2, 3...)
+        - totalThoughts: Estimated total steps
+        - nextThoughtNeeded: true (until final conclusion)
+
+        OUTPUT FORMAT when done:
+        ```json
+        {
+          "problem_summary": "...",
+          "constraints": ["..."],
+          "approaches": [
+            {"name": "...", "pros": ["..."], "cons": ["..."]}
+          ],
+          "recommendation": {
+            "approach": "...",
+            "justification": "...",
+            "implementation_notes": ["..."]
+          },
+          "risks_and_mitigations": [
+            {"risk": "...", "mitigation": "..."}
+          ]
+        }
+        ```
+
+        Say "ANALYSIS_COMPLETE" when done.
+
+      model: claude-sonnet-4-20250514
+      mcp:
+        - sequential-thinking
+      max_turns: 15
+      stop_conditions:
+        - "ANALYSIS_COMPLETE"
+
+flows:
+  - source: input
+    target: analyze

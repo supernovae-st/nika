@@ -1,0 +1,10 @@
+{"id":0,"timestamp_ms":88,"kind":{"type":"workflow_started","task_count":2,"generation_id":"gen-43aab5cc-afd2-45c2-bb95-fbdd91fced21","workflow_hash":"2767f5bde50e6e7b","nika_version":"0.7.1"}}
+{"id":1,"timestamp_ms":88,"kind":{"type":"task_scheduled","task_id":"producer","dependencies":[]}}
+{"id":2,"timestamp_ms":88,"kind":{"type":"task_started","task_id":"producer","verb":"exec","inputs":{}}}
+{"id":3,"timestamp_ms":88,"kind":{"type":"template_resolved","task_id":"producer","template":"echo '{\"message\": \"from_producer\"}'\n","result":"echo '{\"message\": \"from_producer\"}'\n"}}
+{"id":4,"timestamp_ms":93,"kind":{"type":"task_completed","task_id":"producer","output":{"message":"from_producer"},"duration_ms":4}}
+{"id":5,"timestamp_ms":93,"kind":{"type":"task_scheduled","task_id":"consumer","dependencies":["producer"]}}
+{"id":6,"timestamp_ms":93,"kind":{"type":"task_started","task_id":"consumer","verb":"exec","inputs":{"data":{"message":"from_producer"}}}}
+{"id":7,"timestamp_ms":93,"kind":{"type":"template_resolved","task_id":"consumer","template":"echo 'received: {{use.data.message}}'","result":"echo 'received: from_producer'"}}
+{"id":8,"timestamp_ms":96,"kind":{"type":"task_completed","task_id":"consumer","output":"received: from_producer","duration_ms":2}}
+{"id":9,"timestamp_ms":96,"kind":{"type":"workflow_completed","final_output":"received: from_producer","total_duration_ms":22}}

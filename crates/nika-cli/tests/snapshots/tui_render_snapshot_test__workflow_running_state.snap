@@ -1,0 +1,12 @@
+---
+source: tests/tui_render_snapshot_test.rs
+expression: result
+---
+Workflow: generate-content.nika.yaml
+Status: Running
+
+████████████████████2/5 (40%)                     
+
+                                                                00:15 
+─●────────────⠋────────────○────────────○────────────○────────────────
+ fetch_ctx    generate     validate     publish      notify

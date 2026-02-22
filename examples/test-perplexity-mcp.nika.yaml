@@ -1,0 +1,39 @@
+schema: nika/workflow@0.5
+workflow: test-perplexity-mcp
+description: Test Perplexity MCP integration for web search
+
+mcp:
+  perplexity:
+    command: npx
+    args:
+      - -y
+      - "perplexity-mcp"
+    env:
+      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
+
+tasks:
+  # Step 1: Use agent with Perplexity to search
+  - id: search
+    agent:
+      prompt: "Use the perplexity_search_web tool to search for 'Claude AI Anthropic' and summarize the results in 2 sentences."
+      mcp:
+        - perplexity
+      max_turns: 3
+      model: claude-sonnet-4-20250514
+
+  # Step 2: Format the result
+  - id: format
+    use:
+      search_result: search
+    infer:
+      prompt: |
+        Based on this search result: {{use.search_result}}
+
+        Format a brief report with:
+        - Topic searched
+        - Key findings (bullet points)
+        - Confidence level (high/medium/low)
+
+flows:
+  - source: search
+    target: format

@@ -1,0 +1,52 @@
+# Example: Agent with NovaNet MCP tools
+#
+# This workflow demonstrates the agent: verb for agentic execution.
+# The agent autonomously calls MCP tools to gather context and generate content.
+#
+# Run with: cargo run -- run examples/agent-novanet.yaml
+
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    # Use cargo to run MCP server from source (development mode)
+    # Run from nika-dev/tools/nika/ directory
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      # RUST_LOG: info  # Disabled to avoid TUI pollution
+
+tasks:
+  # Single-step agent that uses tools autonomously
+  - id: generate_content
+    agent:
+      prompt: |
+        Generate native French content for the QR Code homepage hero block.
+
+        INSTRUCTIONS:
+        1. Use novanet_generate to get full context for entity "qr-code" in locale "fr-FR"
+        2. Use the denomination_forms EXACTLY as provided (no paraphrasing)
+        3. Generate a JSON object with:
+           - title: H1 for the hero (use denomination_forms.title)
+           - subtitle: Short tagline
+           - description: 2-3 sentences (use denomination_forms.text)
+           - cta_text: Call-to-action button text
+
+        When complete, output the JSON and say "GENERATION_COMPLETE".
+
+      provider: claude
+      model: claude-sonnet-4-20250514
+      mcp:
+        - novanet
+      max_turns: 5
+      stop_conditions:
+        - "GENERATION_COMPLETE"
+    output:
+      format: json

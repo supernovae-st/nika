@@ -1,0 +1,1308 @@
+//! Studio View - YAML editor with validation and task DAG
+//!
+//! Layout:
+//! ```text
+//! ┌─────────────────────────────────────────────────────┬───────────────────────┐
+//! │ EDITOR                                              │ STRUCTURE             │
+//! │ YAML with line numbers and syntax highlighting      │ Task DAG mini-view    │
+//! ├─────────────────────────────────────────────────────┴───────────────────────┤
+//! │ Valid YAML │ Schema OK │ 1 warning                                          │
+//! └─────────────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! Note: This implementation uses a simple line-based editor (`TextBuffer`).
+//! Full text editor integration is planned via `ratatui-textarea` (the ratatui org's
+//! hard fork of tui-textarea with ratatui 0.30 support).
+//!
+//! See: https://github.com/ratatui/ratatui-textarea (replaces rhysd/tui-textarea)
+
+use std::cell::Cell;
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::{
+    Frame,
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Widget},
+};
+
+use super::ViewAction;
+use super::trait_view::View;
+use nika_core::ast::Workflow;
+use nika_core::ast::schema_validator::WorkflowSchemaValidator;
+use nika_core::error::NikaError;
+use crate::state::TuiState;
+use crate::theme::{TaskStatus, Theme, VerbColor};
+use crate::views::TuiView;
+use crate::widgets::{DagAscii, NodeBoxData, NodeBoxMode};
+
+/// Editor mode (vim-like)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EditorMode {
+    #[default]
+    Normal,
+    Insert,
+}
+
+/// Validation result
+#[derive(Debug, Clone)]
+pub struct ValidationResult {
+    pub yaml_valid: bool,
+    pub schema_valid: bool,
+    pub warnings: Vec<String>,
+    pub errors: Vec<String>,
+}
+
+impl Default for ValidationResult {
+    fn default() -> Self {
+        Self {
+            yaml_valid: true,
+            schema_valid: true,
+            warnings: vec![],
+            errors: vec![],
+        }
+    }
+}
+
+/// Simple line-based text buffer for the editor
+#[derive(Debug)]
+pub struct TextBuffer {
+    /// Lines of text
+    lines: Vec<String>,
+    /// Cursor row (0-indexed)
+    cursor_row: usize,
+    /// Cursor column (0-indexed)
+    cursor_col: usize,
+    /// Scroll offset (first visible line)
+    scroll_offset: usize,
+    /// Last known viewport height — Cell allows update via &self from render path
+    visible_height: Cell<usize>,
+}
+
+impl Clone for TextBuffer {
+    fn clone(&self) -> Self {
+        Self {
+            lines: self.lines.clone(),
+            cursor_row: self.cursor_row,
+            cursor_col: self.cursor_col,
+            scroll_offset: self.scroll_offset,
+            visible_height: Cell::new(self.visible_height.get()),
+        }
+    }
+}
+
+impl Default for TextBuffer {
+    fn default() -> Self {
+        Self {
+            lines: vec![String::new()],
+            cursor_row: 0,
+            cursor_col: 0,
+            scroll_offset: 0,
+            visible_height: Cell::new(20),
+        }
+    }
+}
+
+impl TextBuffer {
+    /// Create a new text buffer from content
+    pub fn from_content(content: &str) -> Self {
+        let lines: Vec<String> = if content.is_empty() {
+            vec![String::new()]
+        } else {
+            content.lines().map(String::from).collect()
+        };
+        Self {
+            lines,
+            cursor_row: 0,
+            cursor_col: 0,
+            scroll_offset: 0,
+            visible_height: Cell::new(20),
+        }
+    }
+
+    /// Update the known viewport height (called by renderer each frame via &self)
+    pub fn set_visible_height(&self, height: usize) {
+        if height > 0 {
+            self.visible_height.set(height);
+        }
+    }
+
+    /// Get all lines as a joined string
+    pub fn content(&self) -> String {
+        self.lines.join("\n")
+    }
+
+    /// Get lines slice
+    pub fn lines(&self) -> &[String] {
+        &self.lines
+    }
+
+    /// Get cursor position (row, col) - 0-indexed
+    pub fn cursor(&self) -> (usize, usize) {
+        (self.cursor_row, self.cursor_col)
+    }
+
+    /// Move cursor up
+    pub fn cursor_up(&mut self) {
+        if self.cursor_row > 0 {
+            self.cursor_row -= 1;
+            self.clamp_cursor_col();
+            self.adjust_scroll();
+        }
+    }
+
+    /// Move cursor down
+    pub fn cursor_down(&mut self) {
+        if self.cursor_row < self.lines.len().saturating_sub(1) {
+            self.cursor_row += 1;
+            self.clamp_cursor_col();
+            self.adjust_scroll();
+        }
+    }
+
+    /// Move cursor left
+    pub fn cursor_left(&mut self) {
+        if self.cursor_col > 0 {
+            self.cursor_col -= 1;
+        } else if self.cursor_row > 0 {
+            self.cursor_row -= 1;
+            self.cursor_col = self.current_line_len();
+            self.adjust_scroll();
+        }
+    }
+
+    /// Move cursor right
+    pub fn cursor_right(&mut self) {
+        let line_len = self.current_line_len();
+        if self.cursor_col < line_len {
+            self.cursor_col += 1;
+        } else if self.cursor_row < self.lines.len().saturating_sub(1) {
+            self.cursor_row += 1;
+            self.cursor_col = 0;
+            self.adjust_scroll();
+        }
+    }
+
+    /// Insert a character at cursor
+    pub fn insert_char(&mut self, c: char) {
+        if let Some(line) = self.lines.get_mut(self.cursor_row) {
+            let col = self.cursor_col.min(line.len());
+            line.insert(col, c);
+            self.cursor_col = col + 1;
+        }
+    }
+
+    /// Insert a newline at cursor
+    pub fn insert_newline(&mut self) {
+        if let Some(line) = self.lines.get_mut(self.cursor_row) {
+            let col = self.cursor_col.min(line.len());
+            let rest = line[col..].to_string();
+            line.truncate(col);
+            self.lines.insert(self.cursor_row + 1, rest);
+            self.cursor_row += 1;
+            self.cursor_col = 0;
+            self.adjust_scroll();
+        }
+    }
+
+    /// Delete character before cursor (backspace)
+    pub fn backspace(&mut self) {
+        if self.cursor_col > 0 {
+            if let Some(line) = self.lines.get_mut(self.cursor_row) {
+                let col = self.cursor_col.min(line.len());
+                if col > 0 {
+                    line.remove(col - 1);
+                    self.cursor_col = col - 1;
+                }
+            }
+        } else if self.cursor_row > 0 {
+            // Merge with previous line
+            let current_line = self.lines.remove(self.cursor_row);
+            self.cursor_row -= 1;
+            self.cursor_col = self.lines[self.cursor_row].len();
+            self.lines[self.cursor_row].push_str(&current_line);
+            self.adjust_scroll();
+        }
+    }
+
+    /// Delete character at cursor
+    pub fn delete(&mut self) {
+        if let Some(line) = self.lines.get_mut(self.cursor_row) {
+            let col = self.cursor_col.min(line.len());
+            if col < line.len() {
+                line.remove(col);
+            } else if self.cursor_row < self.lines.len() - 1 {
+                // Merge with next line
+                let next_line = self.lines.remove(self.cursor_row + 1);
+                self.lines[self.cursor_row].push_str(&next_line);
+            }
+        }
+    }
+
+    /// Get current line length
+    fn current_line_len(&self) -> usize {
+        self.lines
+            .get(self.cursor_row)
+            .map(|l| l.len())
+            .unwrap_or(0)
+    }
+
+    /// Clamp cursor column to line length
+    fn clamp_cursor_col(&mut self) {
+        let line_len = self.current_line_len();
+        self.cursor_col = self.cursor_col.min(line_len);
+    }
+
+    /// Adjust scroll to keep cursor visible (both up and down)
+    fn adjust_scroll(&mut self) {
+        let height = self.visible_height.get();
+        // Scroll up: cursor above viewport
+        if self.cursor_row < self.scroll_offset {
+            self.scroll_offset = self.cursor_row;
+        }
+        // Scroll down: cursor below viewport
+        if height > 0 && self.cursor_row >= self.scroll_offset + height {
+            self.scroll_offset = self.cursor_row - height + 1;
+        }
+    }
+
+    /// Get scroll offset
+    pub fn scroll_offset(&self) -> usize {
+        self.scroll_offset
+    }
+}
+
+/// Studio view state
+pub struct StudioView {
+    /// File path being edited
+    pub path: Option<PathBuf>,
+    /// Text buffer
+    pub buffer: TextBuffer,
+    /// Editor mode
+    pub mode: EditorMode,
+    /// Validation result
+    pub validation: ValidationResult,
+    /// Whether file has unsaved changes
+    pub modified: bool,
+    /// DAG expanded mode (toggle with 'E')
+    pub dag_expanded: bool,
+    /// DAG scroll offset for vertical scrolling
+    pub dag_scroll: u16,
+}
+
+impl StudioView {
+    pub fn new() -> Self {
+        Self {
+            path: None,
+            buffer: TextBuffer::default(),
+            mode: EditorMode::Normal,
+            validation: ValidationResult::default(),
+            modified: false,
+            dag_expanded: false,
+            dag_scroll: 0,
+        }
+    }
+
+    /// Toggle DAG expanded/minimal mode
+    pub fn toggle_dag_mode(&mut self) {
+        self.dag_expanded = !self.dag_expanded;
+    }
+
+    /// Load a file into the editor
+    pub fn load_file(&mut self, path: PathBuf) -> Result<(), std::io::Error> {
+        let content = std::fs::read_to_string(&path)?;
+        self.buffer = TextBuffer::from_content(&content);
+        self.path = Some(path);
+        self.modified = false;
+        self.validate();
+        Ok(())
+    }
+
+    /// Save the file
+    pub fn save_file(&mut self) -> Result<(), std::io::Error> {
+        if let Some(path) = &self.path {
+            let content = self.buffer.content();
+            std::fs::write(path, content)?;
+            self.modified = false;
+        }
+        Ok(())
+    }
+
+    /// Validate the YAML content
+    pub fn validate(&mut self) {
+        let content = self.buffer.content();
+        self.validation.errors.clear();
+        self.validation.warnings.clear();
+
+        // Phase 1: Check YAML syntax validity
+        match serde_yaml::from_str::<serde_yaml::Value>(&content) {
+            Ok(_) => {
+                self.validation.yaml_valid = true;
+            }
+            Err(e) => {
+                self.validation.yaml_valid = false;
+                self.validation.schema_valid = false;
+                self.validation.errors = vec![format!("YAML syntax error: {}", e)];
+                return; // Can't validate schema if YAML is invalid
+            }
+        }
+
+        // Phase 2: Validate against Nika workflow schema
+        match WorkflowSchemaValidator::new() {
+            Ok(validator) => match validator.validate_yaml(&content) {
+                Ok(()) => {
+                    self.validation.schema_valid = true;
+                }
+                Err(NikaError::SchemaValidationFailed { errors }) => {
+                    self.validation.schema_valid = false;
+                    self.validation.errors = errors
+                        .into_iter()
+                        .map(|e| format!("{}: {}", e.path, e.message))
+                        .collect();
+                }
+                Err(e) => {
+                    // Other validation error (e.g., YAML parse error from validator)
+                    self.validation.schema_valid = false;
+                    self.validation.errors = vec![e.to_string()];
+                }
+            },
+            Err(e) => {
+                // Schema validator creation failed
+                self.validation.schema_valid = false;
+                self.validation.warnings = vec![format!("Schema validator unavailable: {}", e)];
+            }
+        }
+    }
+
+    /// Get current line number (1-indexed)
+    #[allow(dead_code)] // Will be used for status line display
+    pub fn current_line(&self) -> usize {
+        self.buffer.cursor().0 + 1
+    }
+
+    /// Get current column (1-indexed)
+    #[allow(dead_code)] // Will be used for status line display
+    pub fn current_col(&self) -> usize {
+        self.buffer.cursor().1 + 1
+    }
+}
+
+impl Default for StudioView {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl View for StudioView {
+    fn render(&self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
+        // Layout: Editor (70%) | Structure (30%) above, Validation bar below
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(10), Constraint::Length(3)])
+            .split(area);
+
+        let main_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+            .split(chunks[0]);
+
+        // Editor panel
+        self.render_editor(frame, main_chunks[0], theme);
+
+        // Structure panel
+        self.render_structure(frame, main_chunks[1], theme);
+
+        // Validation bar
+        self.render_validation(frame, chunks[1], theme);
+    }
+
+    fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
+        match self.mode {
+            EditorMode::Normal => self.handle_normal_mode(key),
+            EditorMode::Insert => self.handle_insert_mode(key),
+        }
+    }
+
+    fn status_line(&self, _state: &TuiState) -> String {
+        let mode = match self.mode {
+            EditorMode::Normal => "NORMAL",
+            EditorMode::Insert => "INSERT",
+        };
+        let modified = if self.modified { " ●" } else { "" };
+        format!(
+            "{} | Ln {}, Col {}{}",
+            mode,
+            self.current_line(),
+            self.current_col(),
+            modified
+        )
+    }
+}
+
+impl StudioView {
+    fn handle_normal_mode(&mut self, key: KeyEvent) -> ViewAction {
+        match key.code {
+            KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Home),
+            KeyCode::Char('i') => {
+                self.mode = EditorMode::Insert;
+                ViewAction::None
+            }
+            KeyCode::Char('c') => ViewAction::ToggleChatOverlay,
+            // Toggle DAG expanded/minimal mode
+            KeyCode::Char('e') | KeyCode::Char('E') => {
+                self.toggle_dag_mode();
+                ViewAction::None
+            }
+            KeyCode::F(5) => {
+                if let Some(path) = &self.path {
+                    ViewAction::RunWorkflow(path.clone())
+                } else {
+                    ViewAction::Error("No file loaded".to_string())
+                }
+            }
+            KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if let Err(e) = self.save_file() {
+                    ViewAction::Error(format!("Save failed: {}", e))
+                } else {
+                    ViewAction::None
+                }
+            }
+            // View switching: number keys only (v0.7.1 - Option B navigation)
+            KeyCode::Char('1') => ViewAction::SwitchView(TuiView::Chat),
+            KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Home),
+            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Monitor),
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.buffer.cursor_up();
+                ViewAction::None
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.buffer.cursor_down();
+                ViewAction::None
+            }
+            KeyCode::Left => {
+                self.buffer.cursor_left();
+                ViewAction::None
+            }
+            KeyCode::Right => {
+                self.buffer.cursor_right();
+                ViewAction::None
+            }
+            _ => ViewAction::None,
+        }
+    }
+
+    fn handle_insert_mode(&mut self, key: KeyEvent) -> ViewAction {
+        match key.code {
+            KeyCode::Esc => {
+                self.mode = EditorMode::Normal;
+                ViewAction::None
+            }
+            KeyCode::Up => {
+                self.buffer.cursor_up();
+                ViewAction::None
+            }
+            KeyCode::Down => {
+                self.buffer.cursor_down();
+                ViewAction::None
+            }
+            KeyCode::Left => {
+                self.buffer.cursor_left();
+                ViewAction::None
+            }
+            KeyCode::Right => {
+                self.buffer.cursor_right();
+                ViewAction::None
+            }
+            KeyCode::Enter => {
+                self.buffer.insert_newline();
+                self.modified = true;
+                self.validate();
+                ViewAction::None
+            }
+            KeyCode::Backspace => {
+                self.buffer.backspace();
+                self.modified = true;
+                self.validate();
+                ViewAction::None
+            }
+            KeyCode::Delete => {
+                self.buffer.delete();
+                self.modified = true;
+                self.validate();
+                ViewAction::None
+            }
+            KeyCode::Char(c) => {
+                self.buffer.insert_char(c);
+                self.modified = true;
+                self.validate();
+                ViewAction::None
+            }
+            KeyCode::Tab => {
+                // Insert 2 spaces for tab
+                self.buffer.insert_char(' ');
+                self.buffer.insert_char(' ');
+                self.modified = true;
+                self.validate();
+                ViewAction::None
+            }
+            _ => ViewAction::None,
+        }
+    }
+
+    fn render_editor(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let mode_indicator = match self.mode {
+            EditorMode::Normal => "",
+            EditorMode::Insert => " [INSERT]",
+        };
+        let title = format!(" EDITOR{} ", mode_indicator);
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .border_style(Style::default().fg(theme.border_normal));
+
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        // Calculate visible height (excluding borders) and sync to buffer
+        let visible_height = inner.height as usize;
+        self.buffer.set_visible_height(visible_height);
+
+        // Build lines with line numbers and syntax highlighting
+        let lines: Vec<Line> = self
+            .buffer
+            .lines()
+            .iter()
+            .enumerate()
+            .skip(self.buffer.scroll_offset())
+            .take(visible_height)
+            .map(|(i, line)| {
+                let line_num = i + 1;
+                let is_cursor_line = i == self.buffer.cursor().0;
+
+                let base_style = if is_cursor_line {
+                    Style::default().bg(theme.highlight)
+                } else {
+                    Style::default()
+                };
+
+                // Line number
+                let mut spans = vec![Span::styled(
+                    format!("{:4} ", line_num),
+                    Style::default().fg(theme.text_muted),
+                )];
+
+                // Syntax-highlighted content (v0.7.0+)
+                spans.extend(YamlHighlight::highlight_line(line, base_style));
+
+                Line::from(spans)
+            })
+            .collect();
+
+        let paragraph = Paragraph::new(lines);
+        frame.render_widget(paragraph, inner);
+
+        // Render scrollbar if content exceeds viewport
+        if self.buffer.lines().len() > visible_height {
+            let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
+            let mut scrollbar_state = ScrollbarState::new(self.buffer.lines().len())
+                .position(self.buffer.scroll_offset());
+            frame.render_stateful_widget(scrollbar, inner, &mut scrollbar_state);
+        }
+    }
+
+    fn render_structure(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        // Title shows mode state
+        let title = if self.dag_expanded {
+            " STRUCTURE [E]xpanded "
+        } else {
+            " STRUCTURE [E]->expand "
+        };
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .border_style(Style::default().fg(theme.border_normal));
+
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        // Parse YAML and render with DagAscii
+        let content = self.buffer.content();
+        self.render_dag_structure(frame, inner, &content, theme);
+    }
+
+    /// Render DAG structure using DagAscii widget
+    fn render_dag_structure(&self, frame: &mut Frame, area: Rect, yaml: &str, theme: &Theme) {
+        // Try to parse as workflow YAML
+        let workflow: Result<Workflow, _> = serde_yaml::from_str(yaml);
+
+        match workflow {
+            Ok(wf) => {
+                if wf.tasks.is_empty() {
+                    let paragraph =
+                        Paragraph::new("(no tasks)").style(Style::default().fg(theme.text_muted));
+                    frame.render_widget(paragraph, area);
+                    return;
+                }
+
+                // Build dependency map from Flow objects
+                let deps = self.extract_flow_dependencies(&wf);
+
+                // Convert tasks to NodeBoxData
+                let nodes: Vec<NodeBoxData> = wf
+                    .tasks
+                    .iter()
+                    .map(|task| {
+                        let verb = self.task_verb_color(task.as_ref());
+                        NodeBoxData::new(&task.id, verb).with_status(TaskStatus::Pending)
+                    })
+                    .collect();
+
+                let mode = if self.dag_expanded {
+                    NodeBoxMode::Expanded
+                } else {
+                    NodeBoxMode::Minimal
+                };
+
+                // Create and render DagAscii widget
+                let widget = DagAscii::new(&nodes)
+                    .with_dependencies(deps)
+                    .mode(mode)
+                    .scroll(0, self.dag_scroll);
+
+                // Render to buffer (DagAscii implements Widget)
+                let buf = frame.buffer_mut();
+                widget.render(area, buf);
+            }
+            Err(_) => {
+                // YAML doesn't parse as workflow - show parse error state
+                let paragraph =
+                    Paragraph::new("⚠ Invalid workflow\n\nFix YAML errors to\nsee task structure")
+                        .style(Style::default().fg(theme.status_failed));
+                frame.render_widget(paragraph, area);
+            }
+        }
+    }
+
+    /// Extract dependencies from Flow objects
+    ///
+    /// Returns a map: target_task_id -> [source_task_ids]
+    fn extract_flow_dependencies(&self, wf: &Workflow) -> HashMap<String, Vec<String>> {
+        let mut deps: HashMap<String, Vec<String>> = HashMap::new();
+
+        for flow in &wf.flows {
+            let sources = flow.source.as_vec();
+            let targets = flow.target.as_vec();
+
+            // Each target depends on all sources
+            for target in &targets {
+                let entry = deps.entry(target.to_string()).or_default();
+                for source in &sources {
+                    if !entry.contains(&source.to_string()) {
+                        entry.push(source.to_string());
+                    }
+                }
+            }
+        }
+
+        deps
+    }
+
+    /// Get VerbColor from task action
+    fn task_verb_color(&self, task: &nika_core::ast::Task) -> VerbColor {
+        use nika_core::ast::TaskAction;
+        match &task.action {
+            TaskAction::Infer { .. } => VerbColor::Infer,
+            TaskAction::Exec { .. } => VerbColor::Exec,
+            TaskAction::Fetch { .. } => VerbColor::Fetch,
+            TaskAction::Invoke { .. } => VerbColor::Invoke,
+            TaskAction::Agent { .. } => VerbColor::Agent,
+        }
+    }
+
+    fn render_validation(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let yaml_status = if self.validation.yaml_valid {
+            Span::styled("Valid YAML", Style::default().fg(theme.status_success))
+        } else {
+            Span::styled("Invalid YAML", Style::default().fg(theme.status_failed))
+        };
+
+        let schema_status = if self.validation.schema_valid {
+            Span::styled("Schema OK", Style::default().fg(theme.status_success))
+        } else {
+            Span::styled("Schema Error", Style::default().fg(theme.status_failed))
+        };
+
+        let warning_count = self.validation.warnings.len();
+        let warning_status = if warning_count > 0 {
+            Span::styled(
+                format!("{} warning(s)", warning_count),
+                Style::default().fg(theme.status_running), // Amber for warnings
+            )
+        } else {
+            Span::styled("No warnings", Style::default().fg(theme.status_success))
+        };
+
+        let line = Line::from(vec![
+            Span::raw(" "),
+            yaml_status,
+            Span::raw("  |  "),
+            schema_status,
+            Span::raw("  |  "),
+            warning_status,
+        ]);
+
+        let paragraph = Paragraph::new(line).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border_normal)),
+        );
+
+        frame.render_widget(paragraph, area);
+    }
+}
+
+/// YAML syntax highlighting colors (v0.7.0+)
+struct YamlHighlight;
+
+impl YamlHighlight {
+    /// Key color (blue)
+    const KEY: Color = Color::Rgb(59, 130, 246);
+    /// String value color (green)
+    const STRING: Color = Color::Rgb(34, 197, 94);
+    /// Number value color (orange)
+    const NUMBER: Color = Color::Rgb(251, 146, 60);
+    /// Boolean value color (purple)
+    const BOOL: Color = Color::Rgb(168, 85, 247);
+    /// Comment color (gray)
+    const COMMENT: Color = Color::Rgb(107, 114, 128);
+    /// Default text color (reserved for future use)
+    #[allow(dead_code)]
+    const DEFAULT: Color = Color::Reset;
+    /// Nika verbs (cyan) - infer, exec, fetch, invoke, agent
+    const VERB: Color = Color::Rgb(6, 182, 212);
+
+    /// Highlight a single YAML line into styled spans
+    fn highlight_line(line: &str, base_style: Style) -> Vec<Span<'static>> {
+        let line_owned = line.to_string();
+        let trimmed = line_owned.trim();
+
+        // Empty line
+        if trimmed.is_empty() {
+            return vec![Span::styled(line_owned, base_style)];
+        }
+
+        // Full-line comment
+        if trimmed.starts_with('#') {
+            return vec![Span::styled(line_owned, base_style.fg(Self::COMMENT))];
+        }
+
+        // Try to parse as key: value
+        if let Some(colon_pos) = line.find(':') {
+            let (key_part, rest) = line.split_at(colon_pos);
+            let key_trimmed = key_part.trim();
+
+            // Check if it's a Nika verb
+            let key_color = if matches!(
+                key_trimmed,
+                "infer" | "exec" | "fetch" | "invoke" | "agent" | "decompose" | "for_each"
+            ) {
+                Self::VERB
+            } else {
+                Self::KEY
+            };
+
+            let mut spans = vec![Span::styled(
+                format!("{}:", key_part),
+                base_style.fg(key_color),
+            )];
+
+            // Handle the value part (skip the colon we already included)
+            let value = &rest[1..]; // Skip ':'
+            if !value.is_empty() {
+                spans.push(Self::highlight_value(value, base_style));
+            }
+
+            return spans;
+        }
+
+        // List item (- value)
+        if trimmed.starts_with('-') {
+            let dash_pos = line.find('-').unwrap();
+            let before_dash = &line[..dash_pos];
+            let after_dash = &line[dash_pos + 1..];
+
+            let mut spans = vec![
+                Span::styled(before_dash.to_string(), base_style),
+                Span::styled("-".to_string(), base_style.fg(Self::KEY)),
+            ];
+
+            if !after_dash.is_empty() {
+                spans.push(Self::highlight_value(after_dash, base_style));
+            }
+
+            return spans;
+        }
+
+        // Default: return as-is
+        vec![Span::styled(line_owned, base_style)]
+    }
+
+    /// Highlight a YAML value
+    fn highlight_value(value: &str, base_style: Style) -> Span<'static> {
+        let trimmed = value.trim();
+
+        // String in quotes
+        if (trimmed.starts_with('"') && trimmed.ends_with('"'))
+            || (trimmed.starts_with('\'') && trimmed.ends_with('\''))
+        {
+            return Span::styled(value.to_string(), base_style.fg(Self::STRING));
+        }
+
+        // Boolean
+        if matches!(trimmed, "true" | "false" | "yes" | "no" | "True" | "False") {
+            return Span::styled(value.to_string(), base_style.fg(Self::BOOL));
+        }
+
+        // Number (integer or float)
+        if trimmed.parse::<f64>().is_ok() || trimmed.parse::<i64>().is_ok() {
+            return Span::styled(value.to_string(), base_style.fg(Self::NUMBER));
+        }
+
+        // Inline comment - for now, return as-is (would need multiple spans)
+        if value.contains(" #") {
+            return Span::styled(value.to_string(), base_style);
+        }
+
+        // Default
+        Span::styled(value.to_string(), base_style)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Schema validation tests (TDD)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_studio_view_schema_validation_valid_workflow() {
+        let mut view = StudioView::new();
+
+        // Valid Nika workflow YAML
+        let valid_yaml = r#"schema: "nika/workflow@0.5"
+tasks:
+  - id: step1
+    infer: "Hello world""#;
+
+        view.buffer = TextBuffer::from_content(valid_yaml);
+        view.validate();
+
+        assert!(view.validation.yaml_valid, "YAML should be valid");
+        assert!(view.validation.schema_valid, "Schema should be valid");
+        assert!(view.validation.errors.is_empty(), "No errors expected");
+    }
+
+    #[test]
+    fn test_studio_view_schema_validation_invalid_schema() {
+        let mut view = StudioView::new();
+
+        // Invalid Nika workflow - missing required 'tasks' field
+        let invalid_yaml = r#"schema: "nika/workflow@0.5"
+unknown_field: "should fail""#;
+
+        view.buffer = TextBuffer::from_content(invalid_yaml);
+        view.validate();
+
+        assert!(view.validation.yaml_valid, "YAML syntax is valid");
+        assert!(!view.validation.schema_valid, "Schema should be invalid");
+        assert!(!view.validation.errors.is_empty(), "Should have errors");
+    }
+
+    #[test]
+    fn test_studio_view_schema_validation_missing_schema_field() {
+        let mut view = StudioView::new();
+
+        // Missing required 'schema' field
+        let yaml = r#"tasks:
+  - id: step1
+    infer: "Hello""#;
+
+        view.buffer = TextBuffer::from_content(yaml);
+        view.validate();
+
+        assert!(view.validation.yaml_valid, "YAML syntax is valid");
+        assert!(!view.validation.schema_valid, "Schema should be invalid");
+        assert!(
+            view.validation.errors.iter().any(|e| e.contains("schema")),
+            "Error should mention 'schema'"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TextBuffer tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_text_buffer_default() {
+        let buffer = TextBuffer::default();
+        assert_eq!(buffer.lines().len(), 1);
+        assert_eq!(buffer.lines()[0], "");
+        assert_eq!(buffer.cursor(), (0, 0));
+    }
+
+    #[test]
+    fn test_text_buffer_from_content() {
+        let buffer = TextBuffer::from_content("line1\nline2\nline3");
+        assert_eq!(buffer.lines().len(), 3);
+        assert_eq!(buffer.lines()[0], "line1");
+        assert_eq!(buffer.lines()[1], "line2");
+        assert_eq!(buffer.lines()[2], "line3");
+    }
+
+    #[test]
+    fn test_text_buffer_from_empty_content() {
+        let buffer = TextBuffer::from_content("");
+        assert_eq!(buffer.lines().len(), 1);
+        assert_eq!(buffer.lines()[0], "");
+    }
+
+    #[test]
+    fn test_text_buffer_content() {
+        let buffer = TextBuffer::from_content("a\nb\nc");
+        assert_eq!(buffer.content(), "a\nb\nc");
+    }
+
+    #[test]
+    fn test_text_buffer_cursor_movement() {
+        let mut buffer = TextBuffer::from_content("abc\ndef\nghi");
+
+        // Move down
+        buffer.cursor_down();
+        assert_eq!(buffer.cursor(), (1, 0));
+
+        // Move right
+        buffer.cursor_right();
+        buffer.cursor_right();
+        assert_eq!(buffer.cursor(), (1, 2));
+
+        // Move up (cursor col should clamp)
+        buffer.cursor_up();
+        assert_eq!(buffer.cursor(), (0, 2));
+
+        // Move left
+        buffer.cursor_left();
+        assert_eq!(buffer.cursor(), (0, 1));
+    }
+
+    #[test]
+    fn test_text_buffer_cursor_boundary() {
+        let mut buffer = TextBuffer::from_content("ab\ncd");
+
+        // Can't go up from first line
+        buffer.cursor_up();
+        assert_eq!(buffer.cursor(), (0, 0));
+
+        // Go to last line
+        buffer.cursor_down();
+        buffer.cursor_down(); // Should stay at last line
+        assert_eq!(buffer.cursor(), (1, 0));
+    }
+
+    #[test]
+    fn test_text_buffer_insert_char() {
+        let mut buffer = TextBuffer::default();
+        buffer.insert_char('a');
+        buffer.insert_char('b');
+        buffer.insert_char('c');
+        assert_eq!(buffer.lines()[0], "abc");
+        assert_eq!(buffer.cursor(), (0, 3));
+    }
+
+    #[test]
+    fn test_text_buffer_insert_newline() {
+        let mut buffer = TextBuffer::from_content("abc");
+        buffer.cursor_right();
+        buffer.cursor_right(); // cursor at position 2
+        buffer.insert_newline();
+        assert_eq!(buffer.lines().len(), 2);
+        assert_eq!(buffer.lines()[0], "ab");
+        assert_eq!(buffer.lines()[1], "c");
+        assert_eq!(buffer.cursor(), (1, 0));
+    }
+
+    #[test]
+    fn test_text_buffer_backspace() {
+        let mut buffer = TextBuffer::from_content("abc");
+        buffer.cursor_right();
+        buffer.cursor_right();
+        buffer.cursor_right();
+        buffer.backspace();
+        assert_eq!(buffer.lines()[0], "ab");
+        assert_eq!(buffer.cursor(), (0, 2));
+    }
+
+    #[test]
+    fn test_text_buffer_backspace_merge_lines() {
+        let mut buffer = TextBuffer::from_content("ab\ncd");
+        buffer.cursor_down();
+        buffer.backspace(); // Should merge lines
+        assert_eq!(buffer.lines().len(), 1);
+        assert_eq!(buffer.lines()[0], "abcd");
+        assert_eq!(buffer.cursor(), (0, 2));
+    }
+
+    #[test]
+    fn test_text_buffer_delete() {
+        let mut buffer = TextBuffer::from_content("abc");
+        buffer.cursor_right();
+        buffer.delete();
+        assert_eq!(buffer.lines()[0], "ac");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // StudioView tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_studio_view_new() {
+        let view = StudioView::new();
+        assert_eq!(view.mode, EditorMode::Normal);
+        assert!(!view.modified);
+        assert!(view.path.is_none());
+    }
+
+    #[test]
+    fn test_studio_view_mode_switch() {
+        let mut view = StudioView::new();
+        assert_eq!(view.mode, EditorMode::Normal);
+
+        view.mode = EditorMode::Insert;
+        assert_eq!(view.mode, EditorMode::Insert);
+    }
+
+    #[test]
+    fn test_studio_view_validation_valid_yaml_syntax() {
+        let mut view = StudioView::new();
+
+        // Valid YAML syntax (but not a valid Nika workflow schema)
+        view.buffer = TextBuffer::from_content("key: value");
+        view.validate();
+        assert!(view.validation.yaml_valid, "YAML syntax should be valid");
+        // Note: schema validation will fail because this isn't a valid workflow
+        // but yaml_valid should be true because the syntax is correct
+        assert!(
+            !view.validation.schema_valid,
+            "Schema should be invalid for non-workflow YAML"
+        );
+    }
+
+    #[test]
+    fn test_studio_view_validation_invalid_yaml() {
+        let mut view = StudioView::new();
+
+        // Invalid YAML
+        view.buffer = TextBuffer::from_content("key: [unclosed");
+        view.validate();
+        assert!(!view.validation.yaml_valid);
+        assert!(!view.validation.errors.is_empty());
+    }
+
+    #[test]
+    fn test_studio_view_cursor_position() {
+        let view = StudioView::new();
+        assert_eq!(view.current_line(), 1);
+        assert_eq!(view.current_col(), 1);
+    }
+
+    #[test]
+    fn test_studio_view_default_validation_result() {
+        let result = ValidationResult::default();
+        assert!(result.yaml_valid);
+        assert!(result.schema_valid);
+        assert!(result.warnings.is_empty());
+        assert!(result.errors.is_empty());
+    }
+
+    #[test]
+    fn test_studio_view_status_line_normal_mode() {
+        let view = StudioView::new();
+        let state = TuiState::new("test.nika.yaml");
+        let status = view.status_line(&state);
+        assert!(status.contains("NORMAL"));
+        assert!(status.contains("Ln 1"));
+        assert!(status.contains("Col 1"));
+    }
+
+    #[test]
+    fn test_studio_view_status_line_insert_mode() {
+        let mut view = StudioView::new();
+        view.mode = EditorMode::Insert;
+        let state = TuiState::new("test.nika.yaml");
+        let status = view.status_line(&state);
+        assert!(status.contains("INSERT"));
+    }
+
+    #[test]
+    fn test_studio_view_status_line_modified() {
+        let mut view = StudioView::new();
+        view.modified = true;
+        let state = TuiState::new("test.nika.yaml");
+        let status = view.status_line(&state);
+        assert!(status.contains("●"));
+    }
+
+    #[test]
+    fn test_editor_mode_default() {
+        let mode = EditorMode::default();
+        assert_eq!(mode, EditorMode::Normal);
+    }
+
+    #[test]
+    fn test_studio_view_handle_normal_mode_quit() {
+        let mut view = StudioView::new();
+        let mut state = TuiState::new("test.nika.yaml");
+        let key = KeyEvent::from(KeyCode::Char('q'));
+        let action = view.handle_key(key, &mut state);
+        match action {
+            ViewAction::SwitchView(TuiView::Home) => {}
+            _ => panic!("Expected SwitchView(Home)"),
+        }
+    }
+
+    #[test]
+    fn test_studio_view_handle_normal_mode_insert() {
+        let mut view = StudioView::new();
+        let mut state = TuiState::new("test.nika.yaml");
+        let key = KeyEvent::from(KeyCode::Char('i'));
+        let _ = view.handle_key(key, &mut state);
+        assert_eq!(view.mode, EditorMode::Insert);
+    }
+
+    #[test]
+    fn test_studio_view_handle_insert_mode_escape() {
+        let mut view = StudioView::new();
+        view.mode = EditorMode::Insert;
+        let mut state = TuiState::new("test.nika.yaml");
+        let key = KeyEvent::from(KeyCode::Esc);
+        let _ = view.handle_key(key, &mut state);
+        assert_eq!(view.mode, EditorMode::Normal);
+    }
+
+    #[test]
+    fn test_studio_view_handle_insert_mode_typing() {
+        let mut view = StudioView::new();
+        view.mode = EditorMode::Insert;
+        let mut state = TuiState::new("test.nika.yaml");
+
+        // Type some characters
+        view.handle_key(KeyEvent::from(KeyCode::Char('a')), &mut state);
+        view.handle_key(KeyEvent::from(KeyCode::Char('b')), &mut state);
+        view.handle_key(KeyEvent::from(KeyCode::Char('c')), &mut state);
+
+        assert_eq!(view.buffer.lines()[0], "abc");
+        assert!(view.modified);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // YAML syntax highlighting tests (v0.7.0+)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_yaml_highlight_comment() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("# This is a comment", base);
+        assert_eq!(spans.len(), 1);
+        // Should have comment color (gray)
+        assert_eq!(
+            spans[0].style.fg,
+            Some(ratatui::style::Color::Rgb(107, 114, 128))
+        );
+    }
+
+    #[test]
+    fn test_yaml_highlight_key_value() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("name: my-workflow", base);
+        assert!(spans.len() >= 2, "Should have key and value spans");
+        // First span should be the key with colon
+        assert!(spans[0].content.contains("name:"));
+    }
+
+    #[test]
+    fn test_yaml_highlight_verb() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("    infer: \"prompt\"", base);
+        // Should highlight 'infer' as a Nika verb (cyan)
+        assert!(spans[0].content.contains("infer:"));
+        assert_eq!(
+            spans[0].style.fg,
+            Some(ratatui::style::Color::Rgb(6, 182, 212))
+        );
+    }
+
+    #[test]
+    fn test_yaml_highlight_boolean() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("enabled: true", base);
+        assert!(spans.len() >= 2);
+        // Value should have boolean color (purple)
+        let value_span = &spans[1];
+        assert_eq!(
+            value_span.style.fg,
+            Some(ratatui::style::Color::Rgb(168, 85, 247))
+        );
+    }
+
+    #[test]
+    fn test_yaml_highlight_number() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("port: 8080", base);
+        assert!(spans.len() >= 2);
+        // Value should have number color (orange)
+        let value_span = &spans[1];
+        assert_eq!(
+            value_span.style.fg,
+            Some(ratatui::style::Color::Rgb(251, 146, 60))
+        );
+    }
+
+    #[test]
+    fn test_yaml_highlight_string() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("prompt: \"Hello world\"", base);
+        assert!(spans.len() >= 2);
+        // Value should have string color (green)
+        let value_span = &spans[1];
+        assert_eq!(
+            value_span.style.fg,
+            Some(ratatui::style::Color::Rgb(34, 197, 94))
+        );
+    }
+
+    #[test]
+    fn test_yaml_highlight_list_item() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("  - item", base);
+        assert!(
+            spans.len() >= 2,
+            "Should have indent, dash, and value spans"
+        );
+        // Should contain dash
+        assert!(spans.iter().any(|s| s.content.contains("-")));
+    }
+
+    #[test]
+    fn test_yaml_highlight_empty_line() {
+        let base = Style::default();
+        let spans = YamlHighlight::highlight_line("", base);
+        assert_eq!(spans.len(), 1);
+        assert!(spans[0].content.is_empty());
+    }
+}

@@ -1,0 +1,101 @@
+# Example: Invoke NovaNet MCP tools
+#
+# This workflow demonstrates the invoke: verb for MCP integration.
+# Run with: cargo run -- run examples/invoke-novanet.nika.yaml
+#
+# Prerequisites:
+# 1. Neo4j running with NovaNet data: docker-compose up -d
+# 2. NovaNet MCP server available (built from novanet-dev)
+
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    # Use cargo to run MCP server from source (development mode)
+    # Run from nika-dev/tools/nika/ directory
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      # RUST_LOG: debug  # Uncomment to debug MCP issues (pollutes TUI)
+
+tasks:
+  # Step 1: Describe the NovaNet graph schema
+  - id: schema
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: schema
+    output:
+      format: json
+
+  # Step 2: Generate context for QR Code entity in French
+  - id: entity_context
+    use:
+      graph_schema: schema
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity: qr-code
+        locale: fr-FR
+        forms:
+          - text
+          - title
+    output:
+      format: json
+
+  # Step 3: Traverse from entity to its native content
+  - id: traverse_native
+    use:
+      ctx: entity_context
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "entity:qr-code"
+        arc: HAS_NATIVE
+    output:
+      format: json
+
+  # Step 4: Generate content using knowledge context
+  - id: generate_content
+    use:
+      ctx: entity_context
+      native: traverse_native
+    infer:
+      prompt: |
+        Generate a compelling product description for the hero section.
+
+        ENTITY CONTEXT:
+        {{use.ctx}}
+
+        TRAVERSAL DATA:
+        {{use.native}}
+
+        RULES:
+        - Use ONLY denomination_forms values from context
+        - NO invention, NO paraphrase of entity names
+        - Follow ADR-033: text for prose, title for headings, url for links
+
+        Output a JSON object with:
+        - headline: string (use title form)
+        - body: string (use text form)
+        - cta: string (call to action)
+    output:
+      format: json
+
+flows:
+  - source: schema
+    target: entity_context
+  - source: entity_context
+    target: traverse_native
+  - source: traverse_native
+    target: generate_content

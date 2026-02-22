@@ -1,0 +1,24 @@
+# Quick schema check - discover available arc types
+schema: "nika/workflow@0.2"
+provider: claude
+
+mcp:
+  novanet:
+    command: /Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp
+    args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+
+tasks:
+  - id: schema
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: "schema"
+    output:
+      format: json
+
+flows: []

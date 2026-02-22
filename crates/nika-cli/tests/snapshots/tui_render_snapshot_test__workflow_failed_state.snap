@@ -1,0 +1,12 @@
+---
+source: tests/tui_render_snapshot_test.rs
+expression: result
+---
+Workflow: risky-operation.nika.yaml
+Status: Failed
+
+██████████████Failed at step 3 (60%)              
+
+                                                                00:03 
+─●────────────●────────────⊗────────────○────────────○────────────────
+ setup        fetch        transform    load         verify

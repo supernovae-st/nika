@@ -1,0 +1,36 @@
+schema: nika/workflow@0.5
+workflow: test-full-integration
+description: Test full Nika v0.5.1 integration with Claude
+
+tasks:
+  - id: infer_simple
+    infer: "Count from 1 to 5, one number per line."
+
+  - id: infer_full
+    infer:
+      prompt: "What is the capital of France? Answer in one word."
+      model: claude-sonnet-4-20250514
+
+  - id: agent_thinking
+    agent:
+      prompt: "What is 8 multiplied by 9? Think carefully before answering."
+      extended_thinking: true
+      thinking_budget: 2048
+      max_turns: 1
+      model: claude-sonnet-4-20250514
+
+  - id: combine
+    use:
+      numbers: infer_simple
+      capital: infer_full
+      math: agent_thinking
+    exec: |
+      echo "=== Test Results ==="
+      echo "Numbers: {{use.numbers}}"
+      echo "Capital: {{use.capital}}"
+      echo "Math: {{use.math}}"
+      echo "===================="
+
+flows:
+  - source: [infer_simple, infer_full, agent_thinking]
+    target: combine

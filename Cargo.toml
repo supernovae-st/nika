@@ -1,0 +1,118 @@
+# ╔═══════════════════════════════════════════════════════════════════════════════╗
+# ║  NIKA — Native Intelligence Kernel Agent                                      ║
+# ║  DAG Workflow Runner for AI Tasks with MCP Integration                        ║
+# ╚═══════════════════════════════════════════════════════════════════════════════╝
+
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+version = "0.7.1"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+rust-version = "1.86"
+repository = "https://github.com/supernovae-studio/nika"
+homepage = "https://supernovae.studio/nika"
+documentation = "https://docs.rs/nika"
+authors = ["SuperNovae Studio <studio@supernovae.dev>"]
+keywords = ["workflow", "dag", "ai", "mcp", "llm"]
+categories = ["command-line-utilities", "development-tools"]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# WORKSPACE DEPENDENCIES — Shared across all crates
+# Use { workspace = true } in crate Cargo.toml to reference
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[workspace.dependencies]
+# Internal crates (dual manifest for crates.io)
+nika-core = { version = "0.7", path = "crates/nika-core" }
+nika-mcp = { version = "0.7", path = "crates/nika-mcp" }
+nika-provider = { version = "0.7", path = "crates/nika-provider" }
+nika-runtime = { version = "0.7", path = "crates/nika-runtime" }
+nika-tui = { version = "0.7", path = "crates/nika-tui" }
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# Async
+tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs"] }
+tokio-util = "0.7"
+async-trait = "0.1"
+futures = { version = "0.3.32", default-features = false, features = ["alloc"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde_yaml = "0.9"
+serde_json = "1.0"
+toml = "0.8"
+
+# JSON Schema validation
+jsonschema = "0.26"
+
+# Errors
+thiserror = "1.0"
+miette = { version = "7.6", features = ["fancy"] }
+
+# HTTP
+reqwest = { version = "0.12", features = ["json"] }
+
+# Utilities
+bytes = "1.11.1"
+regex = "1.11"
+colored = "2.1"
+dotenvy = "0.15"
+dashmap = "6.1"
+parking_lot = "0.12"
+smallvec = "1.13"
+rustc-hash = "2.1"
+uuid = { version = "1.0", features = ["v4"] }
+dirs = "5.0"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+chrono = "0.4"
+rand = "0.8"
+
+# File System
+camino = "1.1"
+ignore = "0.4"
+globset = "0.4"
+
+# MCP - Anthropic's official Rust SDK
+rmcp = { version = "0.16", features = ["client", "transport-child-process"] }
+
+# LLM Agent Framework
+rig-core = { version = "0.31", features = ["rmcp"] }
+
+# TUI
+ratatui = "0.30"
+crossterm = { version = "0.29", features = ["event-stream"] }
+tui-textarea = "0.7"
+tui-input = { version = "0.11", features = ["crossterm"] }
+arboard = "3.4"
+notify = "8"
+nucleo = "0.5"
+unicode-width = "0.2"
+unicode-segmentation = "1.11"
+terminal_size = "0.4"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Dev dependencies
+tempfile = "3.14"
+proptest = "1.4"
+insta = { version = "1.34", features = ["yaml"] }
+pretty_assertions = "1.4"
+criterion = { version = "0.5", features = ["async_tokio"] }
+serial_test = "3.1"
+wiremock = "0.6"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# WORKSPACE METADATA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[workspace.metadata.release]
+# cargo-release configuration
+shared-version = true
+tag-name = "v{{version}}"

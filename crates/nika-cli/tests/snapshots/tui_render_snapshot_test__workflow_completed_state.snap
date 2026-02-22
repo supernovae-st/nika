@@ -1,0 +1,12 @@
+---
+source: tests/tui_render_snapshot_test.rs
+expression: result
+---
+Workflow: batch-process.nika.yaml
+Status: Completed
+
+████████████████████4/4 (100%)████████████████████
+
+                                                                00:06 
+─●────────────────●────────────────●────────────────●─────────────────
+ init             process          verify           cleanup

@@ -1,0 +1,10 @@
+{"id":0,"timestamp_ms":0,"kind":{"type":"workflow_started","task_count":2,"generation_id":"gen-ce8113b8-1caf-47fd-b436-268f9a730bc1","workflow_hash":"a143e5a34f57d87d","nika_version":"0.7.1"}}
+{"id":1,"timestamp_ms":0,"kind":{"type":"task_scheduled","task_id":"greet","dependencies":[]}}
+{"id":2,"timestamp_ms":0,"kind":{"type":"task_started","task_id":"greet","verb":"exec","inputs":{}}}
+{"id":3,"timestamp_ms":0,"kind":{"type":"template_resolved","task_id":"greet","template":"echo hello","result":"echo hello"}}
+{"id":4,"timestamp_ms":4,"kind":{"type":"task_completed","task_id":"greet","output":"hello","duration_ms":3}}
+{"id":5,"timestamp_ms":4,"kind":{"type":"task_scheduled","task_id":"shout","dependencies":["greet"]}}
+{"id":6,"timestamp_ms":4,"kind":{"type":"task_started","task_id":"shout","verb":"exec","inputs":{}}}
+{"id":7,"timestamp_ms":4,"kind":{"type":"template_resolved","task_id":"shout","template":"echo DONE","result":"echo DONE"}}
+{"id":8,"timestamp_ms":8,"kind":{"type":"task_completed","task_id":"shout","output":"DONE","duration_ms":4}}
+{"id":9,"timestamp_ms":8,"kind":{"type":"workflow_completed","final_output":"DONE","total_duration_ms":8}}
