@@ -28,3 +28,7 @@ Thumbs.db
 *.profraw
 lcov.info
 tarpaulin-report.html
+
+# Cargo local overrides
+.cargo/config.toml
+*.ndjson

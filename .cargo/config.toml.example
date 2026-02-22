@@ -1,0 +1,6 @@
+# Copy to .cargo/config.toml for local development overrides
+# This file is gitignored when used as config.toml
+
+[patch.crates-io]
+# Uncomment to override with local paths when developing with repos side-by-side
+# nika-core = { path = "../some-fork/crates/nika-core" }
