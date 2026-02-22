@@ -14,17 +14,17 @@ use crossterm::{
         MouseEvent, MouseEventKind,
     },
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use dashmap::DashMap;
 use ratatui::{
+    Frame, Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     widgets::{Block, Borders, Paragraph, Widget},
-    Frame, Terminal,
 };
-use tokio::sync::{broadcast, mpsc, OnceCell};
+use tokio::sync::{OnceCell, broadcast, mpsc};
 use tokio::task::AbortHandle;
 use tokio::time::timeout;
 
@@ -111,6 +111,8 @@ pub enum Action {
     DismissNotification,
     /// Dismiss all notifications [N]
     DismissAllNotifications,
+    /// Dismiss error message [E] (P3 fix: error dismissal shortcut)
+    DismissError,
     // ═══ Filter/Search Actions (TIER 1.5) ═══
     /// Enter search/filter mode
     EnterFilter,
@@ -265,8 +267,8 @@ impl App {
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
-        // Initialize streaming channel for token-by-token updates (larger buffer for fast tokens)
-        let (stream_chunk_tx, stream_chunk_rx) = mpsc::channel(256);
+        // P1 Fix: Increase buffer from 256 to 512 for fast providers like Groq (~200 tok/s)
+        let (stream_chunk_tx, stream_chunk_rx) = mpsc::channel(512);
 
         // Initialize ChatAgent (may fail if no API keys are set, but that's OK)
         let chat_agent = ChatAgent::new().ok();
@@ -314,8 +316,8 @@ impl App {
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
-        // Initialize streaming channel for token-by-token updates (larger buffer for fast tokens)
-        let (stream_chunk_tx, stream_chunk_rx) = mpsc::channel(256);
+        // P1 Fix: Increase buffer from 256 to 512 for fast providers like Groq (~200 tok/s)
+        let (stream_chunk_tx, stream_chunk_rx) = mpsc::channel(512);
 
         // Initialize ChatAgent (may fail if no API keys are set, but that's OK)
         let chat_agent = ChatAgent::new().ok();
@@ -655,7 +657,9 @@ impl App {
                 _ => {}
             }
             if self.state.should_break(&event.kind) {
-                self.state.paused = true;
+                // P0 Fix: Use workflow.paused as single source of truth
+                self.state.workflow.paused = true;
+                self.state.workflow.phase = crate::tui::theme::MissionPhase::Pause;
             }
             // Update TuiState (Monitor view)
             self.state.handle_event(&event.kind, event.timestamp_ms);
@@ -856,7 +860,8 @@ impl App {
             let home_view = &self.home_view;
             let studio_view = &self.studio_view;
             let workflow_path = &self.state.workflow.path;
-            let paused = self.state.paused;
+            // P0 Fix: Use is_paused() accessor for unified pause state
+            let paused = self.state.is_paused();
             let input_mode = self.input_mode;
 
             // Extract data for StatusBar metrics
@@ -1004,16 +1009,16 @@ impl App {
 
             // View navigation by number (when not capturing input)
             KeyCode::Char('1') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Chat)
+                return Action::SwitchView(TuiView::Chat);
             }
             KeyCode::Char('2') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Home)
+                return Action::SwitchView(TuiView::Home);
             }
             KeyCode::Char('3') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Studio)
+                return Action::SwitchView(TuiView::Studio);
             }
             KeyCode::Char('4') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Monitor)
+                return Action::SwitchView(TuiView::Monitor);
             }
 
             // Tab cycles views (when not in Monitor, which uses Tab for panel cycling)
@@ -1023,12 +1028,12 @@ impl App {
                     && self.current_view != TuiView::Monitor
                     && !self.is_view_capturing_input() =>
             {
-                return Action::NextView
+                return Action::NextView;
             }
             KeyCode::BackTab
                 if self.current_view != TuiView::Monitor && !self.is_view_capturing_input() =>
             {
-                return Action::PrevView
+                return Action::PrevView;
             }
 
             _ => {}
@@ -1278,7 +1283,8 @@ impl App {
 
             // Execution control
             KeyCode::Char(' ') => Action::TogglePause,
-            KeyCode::Enter if self.state.paused => Action::Step,
+            // P0 Fix: Use is_paused() accessor for unified pause state
+            KeyCode::Enter if self.state.is_paused() => Action::Step,
 
             // Scrolling
             KeyCode::Up | KeyCode::Char('k') => Action::ScrollUp,
@@ -1301,6 +1307,7 @@ impl App {
             KeyCode::Char('T') => Action::ToggleTheme,      // TIER 2.4: Theme toggle (Shift+T)
             KeyCode::Char('n') => Action::DismissNotification, // TIER 3.4: Dismiss notification
             KeyCode::Char('N') => Action::DismissAllNotifications, // TIER 3.4: Dismiss all notifications
+            KeyCode::Char('E') => Action::DismissError, // P3 fix: Dismiss error message (Shift+E)
 
             // Escape
             KeyCode::Esc => Action::SetMode(TuiMode::Normal),
@@ -1600,6 +1607,14 @@ impl App {
                 if count > 0 {
                     let msg = format!("Dismissed all {} notifications", count);
                     self.set_status(&msg);
+                }
+            }
+            // P3 Fix: Error dismissal action
+            Action::DismissError => {
+                if self.state.dismiss_error() {
+                    self.set_status("Error dismissed — press 'r' to retry");
+                } else {
+                    self.set_status("No error to dismiss");
                 }
             }
             // View navigation actions (with Navigation 2.0 focus sync)
