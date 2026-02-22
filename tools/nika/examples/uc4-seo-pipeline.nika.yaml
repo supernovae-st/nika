@@ -64,9 +64,9 @@ mcp:
     args:
       - run
       - --manifest-path
-      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+      - ../../../novanet/tools/novanet-mcp/Cargo.toml
     env:
-      # Neo4j configuration (matches docker-compose in novanet-dev)
+      # Neo4j configuration (matches docker-compose in novanet)
       NOVANET_MCP_NEO4J_URI: "bolt://localhost:7687"
       NOVANET_MCP_NEO4J_USER: "neo4j"
       NOVANET_MCP_NEO4J_PASSWORD: "novanetpassword"

@@ -1014,7 +1014,7 @@ jobs:
 
       - name: Seed Neo4j
         run: |
-          cd ../novanet-dev
+          cd ../novanet
           npm run db:seed
         env:
           NEO4J_URI: bolt://localhost:7687

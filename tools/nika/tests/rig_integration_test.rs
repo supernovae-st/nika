@@ -24,18 +24,18 @@ fn novanet_mcp_bin() -> String {
         .expect("Should find workspace root");
 
     let release_path =
-        workspace_root.join("novanet-dev/tools/novanet-mcp/target/release/novanet-mcp");
+        workspace_root.join("novanet/tools/novanet-mcp/target/release/novanet-mcp");
     if release_path.exists() {
         return release_path.to_string_lossy().to_string();
     }
 
-    let debug_path = workspace_root.join("novanet-dev/tools/novanet-mcp/target/debug/novanet-mcp");
+    let debug_path = workspace_root.join("novanet/tools/novanet-mcp/target/debug/novanet-mcp");
     if debug_path.exists() {
         return debug_path.to_string_lossy().to_string();
     }
 
     // Fallback to absolute path
-    "/Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp".to_string()
+    "/Users/thibaut/supernovae-st/supernovae-agi/novanet/tools/novanet-mcp/target/release/novanet-mcp".to_string()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -49,7 +49,7 @@ async fn test_real_mcp_client_connect() {
     // Check if binary exists
     if !std::path::Path::new(&novanet_mcp_bin()).exists() {
         eprintln!("NovaNet MCP binary not found at: {}", &novanet_mcp_bin());
-        eprintln!("Build with: cd novanet-dev/tools/novanet-mcp && cargo build --release");
+        eprintln!("Build with: cd novanet/tools/novanet-mcp && cargo build --release");
         return;
     }
 

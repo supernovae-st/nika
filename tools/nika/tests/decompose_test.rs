@@ -290,10 +290,10 @@ async fn test_decompose_semantic_with_real_mcp() {
         .and_then(|p| p.parent())
         .expect("Should find workspace root");
 
-    let mcp_bin = workspace_root.join("novanet-dev/tools/novanet-mcp/target/release/novanet-mcp");
+    let mcp_bin = workspace_root.join("novanet/tools/novanet-mcp/target/release/novanet-mcp");
     if !mcp_bin.exists() {
         eprintln!("NovaNet MCP binary not found. Build with:");
-        eprintln!("  cd novanet-dev/tools/novanet-mcp && cargo build --release");
+        eprintln!("  cd novanet/tools/novanet-mcp && cargo build --release");
         return;
     }
 
