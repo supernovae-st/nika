@@ -65,7 +65,7 @@ provider: claude
 mcp:
   novanet:
     command: cargo
-    args: [run, --manifest-path, ../../../novanet-dev/tools/novanet-mcp/Cargo.toml]
+    args: [run, --manifest-path, ../../../novanet/tools/novanet-mcp/Cargo.toml]
 
 tasks:
   - id: locales

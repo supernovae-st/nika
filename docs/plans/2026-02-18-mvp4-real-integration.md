@@ -48,7 +48,7 @@ impl NovaNetMcp {
     pub async fn start() -> Result<Self, Box<dyn std::error::Error>> {
         // Start NovaNet MCP server
         let process = Command::new("node")
-            .args(["../../novanet-dev/tools/novanet-mcp/dist/index.js"])
+            .args(["../../novanet/tools/novanet-mcp/dist/index.js"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -309,7 +309,7 @@ async fn test_real_novanet_connection() {
     let config = McpConfig {
         name: "novanet".to_string(),
         command: "node".to_string(),
-        args: vec!["../../novanet-dev/tools/novanet-mcp/dist/index.js".to_string()],
+        args: vec!["../../novanet/tools/novanet-mcp/dist/index.js".to_string()],
         env: std::collections::HashMap::new(),
     };
 
@@ -635,7 +635,7 @@ mcp:
   novanet:
     command: node
     args:
-      - ../../novanet-dev/tools/novanet-mcp/dist/index.js
+      - ../../novanet/tools/novanet-mcp/dist/index.js
 
 tasks:
   generate:
@@ -677,7 +677,7 @@ mcp:
   novanet:
     command: node
     args:
-      - ../../novanet-dev/tools/novanet-mcp/dist/index.js
+      - ../../novanet/tools/novanet-mcp/dist/index.js
 
 tasks:
   describe:
@@ -741,7 +741,7 @@ mcp:
   novanet:
     command: node
     args:
-      - ../../novanet-dev/tools/novanet-mcp/dist/index.js
+      - ../../novanet/tools/novanet-mcp/dist/index.js
 
 tasks:
   research:
@@ -900,7 +900,7 @@ mcp:
   novanet:
     command: node
     args:
-      - ../../novanet-dev/tools/novanet-mcp/dist/index.js
+      - ../../novanet/tools/novanet-mcp/dist/index.js
 
 tasks:
   generate:
@@ -1008,7 +1008,7 @@ jobs:
 
       - name: Build NovaNet MCP
         run: |
-          cd ../novanet-dev/tools/novanet-mcp
+          cd ../novanet/tools/novanet-mcp
           npm install
           npm run build
 

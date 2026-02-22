@@ -388,4 +388,4 @@ while let Some(result) = join_set.join_next().await {
 
 - [MCP Specification](https://spec.modelcontextprotocol.io/)
 - [Nika Workflow Patterns](./WORKFLOW-PATTERNS.md)
-- [NovaNet MCP Server](../../novanet-dev/tools/novanet-mcp/)
+- [NovaNet MCP Server](../../novanet/tools/novanet-mcp/)

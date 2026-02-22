@@ -31,7 +31,7 @@ cargo run -- validate <workflow.yaml>
 curl -s http://localhost:3000/health || echo "MCP not running"
 
 # Start NovaNet MCP
-cd ../novanet-dev/tools/novanet-mcp
+cd ../novanet/tools/novanet-mcp
 cargo run
 ```
 
@@ -79,7 +79,7 @@ Error: [NIKA-100] MCP server 'novanet' not connected
 mcp:
   novanet:
     command: cargo
-    args: ["run", "--manifest-path", "../novanet-dev/tools/novanet-mcp/Cargo.toml"]
+    args: ["run", "--manifest-path", "../novanet/tools/novanet-mcp/Cargo.toml"]
 ```
 
 ### Pattern: "Task dependency not found"
