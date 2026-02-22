@@ -999,7 +999,7 @@ mcp:
   novanet:
     command: node
     args:
-      - ../novanet-dev/tools/novanet-mcp/dist/index.js
+      - ../novanet/tools/novanet-mcp/dist/index.js
     env:
       NEO4J_URI: bolt://localhost:7687
 
@@ -1025,7 +1025,7 @@ mcp:
   novanet:
     command: node
     args:
-      - ../novanet-dev/tools/novanet-mcp/dist/index.js
+      - ../novanet/tools/novanet-mcp/dist/index.js
 
 tasks:
   research_entity:
@@ -1056,7 +1056,7 @@ mcp:
   novanet:
     command: node
     args:
-      - ../novanet-dev/tools/novanet-mcp/dist/index.js
+      - ../novanet/tools/novanet-mcp/dist/index.js
 
 tasks:
   # Generate content for multiple locales in parallel
@@ -1115,8 +1115,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 6: NovaNet: Add context_build_log to Generate
 
 **Files:**
-- Modify: `novanet-dev/tools/novanet-mcp/src/tools/generate.ts`
-- Modify: `novanet-dev/tools/novanet-mcp/src/types.ts`
+- Modify: `novanet/tools/novanet-mcp/src/tools/generate.ts`
+- Modify: `novanet/tools/novanet-mcp/src/types.ts`
 
 > **Note:** This task is in NovaNet, not Nika. Execute in novanet-dev directory.
 
@@ -1240,7 +1240,7 @@ mcp:
   novanet:
     command: node
     args:
-      - ../novanet-dev/tools/novanet-mcp/dist/index.js
+      - ../novanet/tools/novanet-mcp/dist/index.js
 
 tasks:
   # Test for_each parallelism

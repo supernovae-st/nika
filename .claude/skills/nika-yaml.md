@@ -253,7 +253,7 @@ Define MCP servers at workflow level, use in invoke: tasks.
 mcp:
   novanet:
     command: "cargo"
-    args: ["run", "--manifest-path", "../novanet-dev/tools/novanet-mcp/Cargo.toml"]
+    args: ["run", "--manifest-path", "../novanet/tools/novanet-mcp/Cargo.toml"]
     env:
       NEO4J_URI: "bolt://localhost:7687"
     cwd: "/path/to/working/dir"
@@ -366,7 +366,7 @@ model: claude-sonnet-4-20250514
 mcp:
   novanet:
     command: "cargo"
-    args: ["run", "--manifest-path", "../novanet-dev/tools/novanet-mcp/Cargo.toml"]
+    args: ["run", "--manifest-path", "../novanet/tools/novanet-mcp/Cargo.toml"]
 
 tasks:
   # 1. Get available locales

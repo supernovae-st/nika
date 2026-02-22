@@ -1328,7 +1328,7 @@ mcp:
     args:
       - run
       - --manifest-path
-      - ../../novanet-dev/tools/novanet-mcp/Cargo.toml
+      - ../../novanet/tools/novanet-mcp/Cargo.toml
     env:
       RUST_LOG: info
 

@@ -1037,7 +1037,7 @@ provider: claude
 mcp:
   novanet:
     command: "cargo"
-    args: ["run", "--manifest-path", "../../novanet-dev/tools/novanet-mcp/Cargo.toml"]
+    args: ["run", "--manifest-path", "../../novanet/tools/novanet-mcp/Cargo.toml"]
 
 tasks:
   # 1. Discover page structure
@@ -1149,7 +1149,7 @@ async fn test_full_novanet_execution() {
 
 ```bash
 # Start NovaNet MCP server in another terminal
-cd /path/to/novanet-dev/tools/novanet-mcp
+cd /path/to/novanet/tools/novanet-mcp
 cargo run
 
 # Run integration test
