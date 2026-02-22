@@ -8,8 +8,8 @@
 #   3. Resilience patterns (v03-resilience-demo.yaml)
 #
 # Prerequisites:
-#   - Neo4j running: pnpm infra:up (from novanet-dev)
-#   - Database seeded: pnpm infra:seed (from novanet-dev)
+#   - Neo4j running: pnpm infra:up (from novanet)
+#   - Database seeded: pnpm infra:seed (from novanet)
 #   - ANTHROPIC_API_KEY set in environment
 #
 # Usage:
@@ -66,7 +66,7 @@ check_prerequisites() {
         print_status "Neo4j is running on port 7687"
     else
         print_warning "Neo4j not detected on port 7687"
-        echo "  MCP tools will fail. Run: cd ../../../novanet-dev && pnpm infra:up"
+        echo "  MCP tools will fail. Run: cd ../../../novanet && pnpm infra:up"
     fi
 
     # Check Nika binary builds

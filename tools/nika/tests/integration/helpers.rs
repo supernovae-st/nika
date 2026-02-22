@@ -20,7 +20,7 @@ use std::path::PathBuf;
 use nika::McpConfig;
 
 /// Default path to NovaNet MCP server binary.
-const DEFAULT_NOVANET_MCP_PATH: &str = "/Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp";
+const DEFAULT_NOVANET_MCP_PATH: &str = "/Users/thibaut/supernovae-st/supernovae-agi/novanet/tools/novanet-mcp/target/release/novanet-mcp";
 
 /// Default Neo4j connection settings.
 const DEFAULT_NEO4J_URI: &str = "bolt://localhost:7687";
@@ -30,7 +30,7 @@ const DEFAULT_NEO4J_PASSWORD: &str = "novanetpassword";
 /// Get NovaNet MCP server path from environment or use default.
 ///
 /// Checks `NOVANET_MCP_PATH` environment variable first, falls back to
-/// the default path at `/Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp`.
+/// the default path at `/Users/thibaut/supernovae-st/supernovae-agi/novanet/tools/novanet-mcp/target/release/novanet-mcp`.
 ///
 /// # Example
 ///

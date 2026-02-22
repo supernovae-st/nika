@@ -22,12 +22,12 @@ provider: claude
 mcp:
   novanet:
     # Development: Run novanet-mcp from source
-    # From nika-dev/tools/nika/, runs: cargo run --manifest-path ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+    # From nika-dev/tools/nika/, runs: cargo run --manifest-path ../../../novanet/tools/novanet-mcp/Cargo.toml
     command: cargo
     args:
       - run
       - --manifest-path
-      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+      - ../../../novanet/tools/novanet-mcp/Cargo.toml
     env:
       # Neo4j connection (update to your local instance)
       NOVANET_MCP_NEO4J_URI: bolt://localhost:7687

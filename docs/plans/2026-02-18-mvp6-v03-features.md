@@ -1118,7 +1118,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - Modify: `novanet/tools/novanet-mcp/src/tools/generate.ts`
 - Modify: `novanet/tools/novanet-mcp/src/types.ts`
 
-> **Note:** This task is in NovaNet, not Nika. Execute in novanet-dev directory.
+> **Note:** This task is in NovaNet, not Nika. Execute in novanet directory.
 
 **Step 1: Add context_build_log to response type**
 

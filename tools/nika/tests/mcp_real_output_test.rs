@@ -152,7 +152,7 @@ mcp:
     args:
       - run
       - --manifest-path
-      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+      - ../../../novanet/tools/novanet-mcp/Cargo.toml
     env:
       NOVANET_MCP_NEO4J_URI: "bolt://localhost:7687"
       NOVANET_MCP_NEO4J_USER: "neo4j"
@@ -192,7 +192,7 @@ mcp:
     args:
       - run
       - --manifest-path
-      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+      - ../../../novanet/tools/novanet-mcp/Cargo.toml
     env:
       NOVANET_MCP_NEO4J_URI: "bolt://localhost:7687"
       NOVANET_MCP_NEO4J_USER: "neo4j"
@@ -234,7 +234,7 @@ mcp:
     args:
       - run
       - --manifest-path
-      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+      - ../../../novanet/tools/novanet-mcp/Cargo.toml
     env:
       NOVANET_MCP_NEO4J_URI: "bolt://localhost:7687"
       NOVANET_MCP_NEO4J_USER: "neo4j"
@@ -478,7 +478,7 @@ mcp:
     args:
       - run
       - --manifest-path
-      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+      - ../../../novanet/tools/novanet-mcp/Cargo.toml
     env:
       NOVANET_MCP_NEO4J_URI: "bolt://localhost:7687"
       NOVANET_MCP_NEO4J_USER: "neo4j"
@@ -552,7 +552,7 @@ mcp:
     args:
       - run
       - --manifest-path
-      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+      - ../../../novanet/tools/novanet-mcp/Cargo.toml
     env:
       NOVANET_MCP_NEO4J_URI: "bolt://localhost:7687"
       NOVANET_MCP_NEO4J_USER: "neo4j"
@@ -643,7 +643,7 @@ mcp:
     args:
       - run
       - --manifest-path
-      - ../../../novanet-dev/tools/novanet-mcp/Cargo.toml
+      - ../../../novanet/tools/novanet-mcp/Cargo.toml
     env:
       NOVANET_MCP_NEO4J_URI: "bolt://localhost:7687"
       NOVANET_MCP_NEO4J_USER: "neo4j"
