@@ -1,0 +1,6 @@
+{"id":0,"timestamp_ms":95,"kind":{"type":"workflow_started","task_count":1,"generation_id":"gen-04f34745-52a5-4840-8db2-8086069fac78","workflow_hash":"6765291d45ab393f","nika_version":"0.7.2"}}
+{"id":1,"timestamp_ms":95,"kind":{"type":"task_scheduled","task_id":"fetch_headers","dependencies":[]}}
+{"id":2,"timestamp_ms":96,"kind":{"type":"task_started","task_id":"fetch_headers","verb":"fetch","inputs":{}}}
+{"id":3,"timestamp_ms":96,"kind":{"type":"template_resolved","task_id":"fetch_headers","template":"https://httpbin.org/headers","result":"https://httpbin.org/headers"}}
+{"id":4,"timestamp_ms":524,"kind":{"type":"task_completed","task_id":"fetch_headers","output":"{\n  \"headers\": {\n    \"Accept\": \"application/json\", \n    \"Host\": \"httpbin.org\", \n    \"User-Agent\": \"nika-cli/0.1\", \n    \"X-Amzn-Trace-Id\": \"Root=1-699b6175-29c7e55b126db05128c69c13\", \n    \"X-Custom-Header\": \"test-value\"\n  }\n}\n","duration_ms":428}}
+{"id":5,"timestamp_ms":524,"kind":{"type":"workflow_completed","final_output":"{\n  \"headers\": {\n    \"Accept\": \"application/json\", \n    \"Host\": \"httpbin.org\", \n    \"User-Agent\": \"nika-cli/0.1\", \n    \"X-Amzn-Trace-Id\": \"Root=1-699b6175-29c7e55b126db05128c69c13\", \n    \"X-Custom-Header\": \"test-value\"\n  }\n}\n","total_duration_ms":438}}

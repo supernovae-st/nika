@@ -1,0 +1,9 @@
+{"id":0,"timestamp_ms":0,"kind":{"type":"workflow_started","task_count":1,"generation_id":"gen-2d49da21-c94c-4528-82d4-0aa1e910899c","workflow_hash":"16144ec57fdc0b40","nika_version":"0.7.1"}}
+{"id":1,"timestamp_ms":0,"kind":{"type":"task_scheduled","task_id":"failfast","dependencies":[]}}
+{"id":2,"timestamp_ms":0,"kind":{"type":"task_started","task_id":"failfast[0]","verb":"exec","inputs":{"item":"ok1"}}}
+{"id":3,"timestamp_ms":0,"kind":{"type":"template_resolved","task_id":"failfast[0]","template":"test '{{use.item}}' != 'FAIL' && echo {{use.item}}","result":"test 'ok1' != 'FAIL' && echo ok1"}}
+{"id":4,"timestamp_ms":3,"kind":{"type":"task_completed","task_id":"failfast[0]","output":"ok1","duration_ms":3}}
+{"id":5,"timestamp_ms":3,"kind":{"type":"task_started","task_id":"failfast[1]","verb":"exec","inputs":{"item":"FAIL"}}}
+{"id":6,"timestamp_ms":4,"kind":{"type":"template_resolved","task_id":"failfast[1]","template":"test '{{use.item}}' != 'FAIL' && echo {{use.item}}","result":"test 'FAIL' != 'FAIL' && echo FAIL"}}
+{"id":7,"timestamp_ms":8,"kind":{"type":"task_failed","task_id":"failfast[1]","error":"Execution error: Command failed: ","duration_ms":4}}
+{"id":8,"timestamp_ms":8,"kind":{"type":"workflow_completed","final_output":"","total_duration_ms":8}}

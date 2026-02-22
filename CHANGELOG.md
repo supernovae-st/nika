@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-02-22
+
+### Added
+- **GitHub Actions CI/CD** - Complete workflow automation
+  - `ci.yml`: Format, clippy, test, coverage, security audit, build
+  - `release.yml`: Cross-platform release binaries (Linux, macOS, Windows)
+  - `dependabot.yml`: Automated dependency updates
+
+### Statistics
+- **2,323 tests passing**
+
 ## [0.7.1] - 2026-02-21
 
 ### Added

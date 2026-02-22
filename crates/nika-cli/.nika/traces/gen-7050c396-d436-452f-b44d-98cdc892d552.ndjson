@@ -1,0 +1,18 @@
+{"id":0,"timestamp_ms":97,"kind":{"type":"workflow_started","task_count":1,"generation_id":"gen-7050c396-d436-452f-b44d-98cdc892d552","workflow_hash":"79f6041b7960b0d9","nika_version":"0.7.2"}}
+{"id":1,"timestamp_ms":97,"kind":{"type":"task_scheduled","task_id":"ordered_test","dependencies":[]}}
+{"id":2,"timestamp_ms":100,"kind":{"type":"task_started","task_id":"ordered_test[0]","verb":"exec","inputs":{"word":"first"}}}
+{"id":3,"timestamp_ms":100,"kind":{"type":"template_resolved","task_id":"ordered_test[0]","template":"echo {{use.word}}","result":"echo first"}}
+{"id":4,"timestamp_ms":104,"kind":{"type":"task_completed","task_id":"ordered_test[0]","output":"first","duration_ms":4}}
+{"id":5,"timestamp_ms":104,"kind":{"type":"task_started","task_id":"ordered_test[1]","verb":"exec","inputs":{"word":"second"}}}
+{"id":6,"timestamp_ms":104,"kind":{"type":"template_resolved","task_id":"ordered_test[1]","template":"echo {{use.word}}","result":"echo second"}}
+{"id":7,"timestamp_ms":107,"kind":{"type":"task_completed","task_id":"ordered_test[1]","output":"second","duration_ms":3}}
+{"id":8,"timestamp_ms":107,"kind":{"type":"task_started","task_id":"ordered_test[2]","verb":"exec","inputs":{"word":"third"}}}
+{"id":9,"timestamp_ms":108,"kind":{"type":"template_resolved","task_id":"ordered_test[2]","template":"echo {{use.word}}","result":"echo third"}}
+{"id":10,"timestamp_ms":111,"kind":{"type":"task_completed","task_id":"ordered_test[2]","output":"third","duration_ms":3}}
+{"id":11,"timestamp_ms":111,"kind":{"type":"task_started","task_id":"ordered_test[3]","verb":"exec","inputs":{"word":"fourth"}}}
+{"id":12,"timestamp_ms":111,"kind":{"type":"template_resolved","task_id":"ordered_test[3]","template":"echo {{use.word}}","result":"echo fourth"}}
+{"id":13,"timestamp_ms":114,"kind":{"type":"task_completed","task_id":"ordered_test[3]","output":"fourth","duration_ms":2}}
+{"id":14,"timestamp_ms":114,"kind":{"type":"task_started","task_id":"ordered_test[4]","verb":"exec","inputs":{"word":"fifth"}}}
+{"id":15,"timestamp_ms":114,"kind":{"type":"template_resolved","task_id":"ordered_test[4]","template":"echo {{use.word}}","result":"echo fifth"}}
+{"id":16,"timestamp_ms":117,"kind":{"type":"task_completed","task_id":"ordered_test[4]","output":"fifth","duration_ms":3}}
+{"id":17,"timestamp_ms":118,"kind":{"type":"workflow_completed","final_output":"[\"first\",\"second\",\"third\",\"fourth\",\"fifth\"]","total_duration_ms":34}}
