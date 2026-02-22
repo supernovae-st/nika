@@ -1,0 +1,318 @@
+# Nika Release Workflow
+# Triggers on: tag push (v*) or manual dispatch
+#
+# Jobs:
+# 1. build: Cross-platform release builds
+# 2. release: Create GitHub release with binaries
+#
+# Tag format: v0.7.1
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.7.1)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run (build only, no release)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Determine Version
+  # ─────────────────────────────────────────────────────────────────────────────
+  version:
+    name: Determine Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="${INPUT_VERSION}"
+            TAG="v${VERSION}"
+          else
+            TAG="${REF#refs/tags/}"
+            VERSION="${TAG#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+          echo "Tag: $TAG"
+
+      - name: Validate version matches Cargo.toml
+        env:
+          INPUT_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          if [ "$CARGO_VERSION" != "$INPUT_VERSION" ]; then
+            echo "::warning::Cargo.toml version ($CARGO_VERSION) does not match release version ($INPUT_VERSION)"
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Build Release Binaries
+  # ─────────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: nika-linux-x64
+            binary: nika
+          # Linux ARM64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact: nika-linux-arm64
+            binary: nika
+            cross: true
+          # macOS x64 (Intel)
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: nika-macos-x64
+            binary: nika
+          # macOS ARM64 (Apple Silicon)
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: nika-macos-arm64
+            binary: nika
+          # Windows x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: nika-windows-x64
+            binary: nika.exe
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.cross
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: release-${{ matrix.target }}
+
+      - name: Build release binary
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Strip binary (Unix)
+        if: matrix.os != 'windows-latest'
+        env:
+          TARGET: ${{ matrix.target }}
+          BINARY: ${{ matrix.binary }}
+        run: |
+          BINARY_PATH="target/${TARGET}/release/${BINARY}"
+          if [ -f "$BINARY_PATH" ] && ! echo "$TARGET" | grep -q "aarch64-unknown-linux"; then
+            strip "$BINARY_PATH" || true
+          fi
+
+      - name: Create archive (Unix)
+        if: matrix.os != 'windows-latest'
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          ARTIFACT: ${{ matrix.artifact }}
+          TARGET: ${{ matrix.target }}
+          BINARY: ${{ matrix.binary }}
+        run: |
+          ARCHIVE_NAME="${ARTIFACT}-${VERSION}"
+          mkdir -p "dist/${ARCHIVE_NAME}"
+          cp "target/${TARGET}/release/${BINARY}" "dist/${ARCHIVE_NAME}/"
+          cp README.md LICENSE CHANGELOG.md "dist/${ARCHIVE_NAME}/" 2>/dev/null || true
+          cd dist
+          tar -czvf "${ARCHIVE_NAME}.tar.gz" "${ARCHIVE_NAME}"
+          shasum -a 256 "${ARCHIVE_NAME}.tar.gz" > "${ARCHIVE_NAME}.tar.gz.sha256"
+
+      - name: Create archive (Windows)
+        if: matrix.os == 'windows-latest'
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          ARTIFACT: ${{ matrix.artifact }}
+          TARGET: ${{ matrix.target }}
+          BINARY: ${{ matrix.binary }}
+        shell: pwsh
+        run: |
+          $ARCHIVE_NAME = "${env:ARTIFACT}-${env:VERSION}"
+          New-Item -ItemType Directory -Force -Path "dist\$ARCHIVE_NAME"
+          Copy-Item "target\${env:TARGET}\release\${env:BINARY}" "dist\$ARCHIVE_NAME\"
+          Copy-Item README.md, LICENSE, CHANGELOG.md "dist\$ARCHIVE_NAME\" -ErrorAction SilentlyContinue
+          Compress-Archive -Path "dist\$ARCHIVE_NAME" -DestinationPath "dist\$ARCHIVE_NAME.zip"
+          Get-FileHash "dist\$ARCHIVE_NAME.zip" -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $ARCHIVE_NAME.zip" } | Out-File -Encoding ascii "dist\$ARCHIVE_NAME.zip.sha256"
+
+      - name: Upload artifact (Unix)
+        if: matrix.os != 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+          retention-days: 7
+
+      - name: Upload artifact (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Create GitHub Release
+  # ─────────────────────────────────────────────────────────────────────────────
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [version, build]
+    if: ${{ !inputs.dry_run }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sha256" \) -exec cp {} release-assets/ \;
+          ls -la release-assets/
+
+      - name: Generate release notes
+        id: notes
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          # Extract changelog section for this version
+          if [ -f "CHANGELOG.md" ]; then
+            # Try to extract section between version headers
+            NOTES=$(awk -v ver="$VERSION" '/^## \[/{if(match($0, ver)){found=1; next}} /^## \[/{if(found) exit} found{print}' CHANGELOG.md || true)
+            if [ -z "$NOTES" ]; then
+              NOTES="Release v${VERSION}"
+            fi
+          else
+            NOTES="Release v${VERSION}"
+          fi
+
+          # Write to file for release body
+          echo "$NOTES" > release-notes.md
+
+          # Add checksums
+          echo "" >> release-notes.md
+          echo "## Checksums (SHA256)" >> release-notes.md
+          echo '```' >> release-notes.md
+          cat release-assets/*.sha256 >> release-notes.md
+          echo '```' >> release-notes.md
+
+      - name: Determine pre-release
+        id: prerelease
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          if echo "$VERSION" | grep -qE "(alpha|beta|rc|dev)"; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          elif echo "$VERSION" | grep -qE "^0\."; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: Nika ${{ needs.version.outputs.version }}
+          body_path: release-notes.md
+          prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
+          generate_release_notes: false
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Publish to crates.io (optional, manual trigger)
+  # ─────────────────────────────────────────────────────────────────────────────
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    needs: [version, release]
+    if: ${{ !inputs.dry_run && github.event_name == 'push' }}
+    environment: crates-io
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+
+      - name: Publish crates (dry-run check)
+        run: |
+          # Publish in dependency order
+          for crate in nika-core nika-mcp nika-provider nika-runtime nika-tui nika-cli; do
+            echo "Checking $crate..."
+            cargo publish --dry-run -p "$crate" || true
+          done
+
+      - name: Publish crates
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -n "$CARGO_REGISTRY_TOKEN" ]; then
+            # Publish in dependency order with delay between crates
+            for crate in nika-core nika-mcp nika-provider nika-runtime nika-tui nika-cli; do
+              echo "Publishing $crate..."
+              cargo publish -p "$crate" --no-verify || true
+              sleep 30  # Wait for crates.io to index
+            done
+          else
+            echo "CARGO_REGISTRY_TOKEN not set, skipping publish"
+          fi

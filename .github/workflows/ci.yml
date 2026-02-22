@@ -1,0 +1,425 @@
+# Nika Rust CI Pipeline
+# Runs on: push to main, pull requests
+#
+# Jobs:
+# 1. check: Format + Clippy (multi-platform)
+# 2. test: Unit + integration tests (matrix: stable, ubuntu/macos)
+# 3. coverage: Code coverage with codecov
+# 4. security: cargo-deny + cargo-audit
+# 5. build: Release build verification
+# 6. summary: PR comment with results
+#
+# Nika v0.7.1 - DAG Workflow Runner for AI Tasks
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_full_matrix:
+        description: 'Run full test matrix (stable + beta)'
+        required: false
+        default: 'false'
+        type: boolean
+
+# Cancel outdated runs for same PR/branch
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
+  NIKA_VERSION: v0.7.1
+  # Minimum Rust version (matches Cargo.toml rust-version)
+  RUST_VERSION: '1.85'
+  # Minimum coverage threshold (%)
+  COVERAGE_THRESHOLD: 70
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Quick Check (runs first, fast feedback)
+  # ─────────────────────────────────────────────────────────────────────────────
+  check:
+    name: Check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (${{ env.RUST_VERSION }})
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: check-${{ matrix.os }}
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Run clippy (all features)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Run clippy (no default features)
+        run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
+
+      - name: Check documentation
+        run: cargo doc --workspace --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: -Dwarnings
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Test Suite (matrix: rust version x os)
+  # ─────────────────────────────────────────────────────────────────────────────
+  test:
+    name: Test (${{ matrix.rust }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [stable]
+        os: [ubuntu-latest, macos-latest]
+        include:
+          # Add beta only for full matrix runs
+          - rust: beta
+            os: ubuntu-latest
+            optional: true
+    continue-on-error: ${{ matrix.optional || false }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (${{ matrix.rust }})
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: test-${{ matrix.rust }}-${{ matrix.os }}
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Run unit tests with nextest
+        id: nextest
+        run: |
+          cargo nextest run --workspace --all-features 2>&1 | tee test-results.txt
+          # Extract summary for PR comment
+          PASSED=$(grep -E "^\s*\d+ tests passed" test-results.txt | grep -oE '\d+' | head -1 || echo "0")
+          FAILED=$(grep -E "^\s*\d+ tests failed" test-results.txt | grep -oE '\d+' | head -1 || echo "0")
+          echo "passed=$PASSED" >> "$GITHUB_OUTPUT"
+          echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
+
+      - name: Run doc tests
+        run: cargo test --workspace --doc --all-features
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.rust }}-${{ matrix.os }}
+          path: test-results.txt
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Code Coverage (ubuntu + stable only)
+  # ─────────────────────────────────────────────────────────────────────────────
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: coverage
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Generate coverage report
+        run: |
+          cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
+          cargo llvm-cov report --workspace --all-features --summary-only | tee coverage-summary.txt
+
+      - name: Extract coverage percentage
+        id: coverage
+        run: |
+          # Extract line coverage percentage from summary
+          COVERAGE=$(grep -E "^Total" coverage-summary.txt | awk '{print $NF}' | tr -d '%' || echo "0")
+          echo "percentage=$COVERAGE" >> "$GITHUB_OUTPUT"
+          echo "Coverage: $COVERAGE%"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: lcov.info
+          flags: nika
+          name: nika-coverage
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            lcov.info
+            coverage-summary.txt
+          retention-days: 30
+
+      - name: Check coverage threshold
+        env:
+          COVERAGE: ${{ steps.coverage.outputs.percentage }}
+          THRESHOLD: ${{ env.COVERAGE_THRESHOLD }}
+        run: |
+          if [ -n "$COVERAGE" ] && [ "$COVERAGE" != "0" ]; then
+            COVERAGE_INT=${COVERAGE%.*}
+            if [ "$COVERAGE_INT" -lt "$THRESHOLD" ]; then
+              echo "::warning::Coverage ($COVERAGE%) is below threshold ($THRESHOLD%)"
+            else
+              echo "Coverage ($COVERAGE%) meets threshold ($THRESHOLD%)"
+            fi
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Security Audit
+  # ─────────────────────────────────────────────────────────────────────────────
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: security
+
+      - name: Install security tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny,cargo-audit
+
+      - name: Check for deny.toml
+        id: deny_config
+        run: |
+          if [ -f "deny.toml" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run cargo-deny (licenses + bans + sources)
+        if: steps.deny_config.outputs.exists == 'true'
+        id: deny
+        run: |
+          cargo deny check 2>&1 | tee deny-output.txt || true
+
+      - name: Run cargo-audit (vulnerabilities)
+        id: audit
+        run: |
+          cargo audit --json 2>&1 | tee audit-output.json || true
+          cargo audit 2>&1 | tee audit-output.txt || true
+          VULNS=$(grep -c "Vulnerability" audit-output.txt || echo "0")
+          echo "vulnerabilities=$VULNS" >> "$GITHUB_OUTPUT"
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            deny-output.txt
+            audit-output.txt
+            audit-output.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Build Verification
+  # ─────────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [test, security]
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: nika-linux-x64
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            artifact: nika-macos-arm64
+            target: aarch64-apple-darwin
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: build-${{ matrix.os }}
+
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Verify binary
+        run: |
+          BINARY="target/${{ matrix.target }}/release/nika"
+          if [ -f "$BINARY" ]; then
+            echo "Binary size: $(du -h "$BINARY" | cut -f1)"
+            file "$BINARY"
+          else
+            echo "::error::Binary not found at $BINARY"
+            exit 1
+          fi
+
+      - name: Upload binary artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: target/${{ matrix.target }}/release/nika
+          retention-days: 30
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PR Summary Comment
+  # ─────────────────────────────────────────────────────────────────────────────
+  summary:
+    name: PR Summary
+    runs-on: ubuntu-latest
+    needs: [check, test, coverage, security, build]
+    if: always() && github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Generate summary comment
+        uses: actions/github-script@v7
+        env:
+          CHECK_RESULT: ${{ needs.check.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          COVERAGE_RESULT: ${{ needs.coverage.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          NIKA_VER: ${{ env.NIKA_VERSION }}
+          RUST_VER: ${{ env.RUST_VERSION }}
+          SERVER_URL: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        with:
+          script: |
+            const checkResult = process.env.CHECK_RESULT;
+            const testResult = process.env.TEST_RESULT;
+            const coverageResult = process.env.COVERAGE_RESULT;
+            const securityResult = process.env.SECURITY_RESULT;
+            const buildResult = process.env.BUILD_RESULT;
+            const nikaVersion = process.env.NIKA_VER;
+            const rustVersion = process.env.RUST_VER;
+            const serverUrl = process.env.SERVER_URL;
+            const repo = process.env.REPO;
+            const runId = process.env.RUN_ID;
+
+            const statusEmoji = (result) => {
+              switch(result) {
+                case 'success': return ':white_check_mark:';
+                case 'failure': return ':x:';
+                case 'cancelled': return ':stop_sign:';
+                case 'skipped': return ':fast_forward:';
+                default: return ':question:';
+              }
+            };
+
+            const body = `## Nika CI Results
+
+            | Job | Status |
+            |-----|--------|
+            | Check (fmt + clippy) | ${statusEmoji(checkResult)} ${checkResult} |
+            | Test (all features) | ${statusEmoji(testResult)} ${testResult} |
+            | Coverage | ${statusEmoji(coverageResult)} ${coverageResult} |
+            | Security (audit) | ${statusEmoji(securityResult)} ${securityResult} |
+            | Build (release) | ${statusEmoji(buildResult)} ${buildResult} |
+
+            ### Nika Info
+            - **Version**: ${nikaVersion}
+            - **Rust Version**: ${rustVersion}
+            - **Crates**: nika-core, nika-mcp, nika-provider, nika-runtime, nika-tui, nika-cli
+
+            <details>
+            <summary>View detailed results</summary>
+
+            - [Workflow run](${serverUrl}/${repo}/actions/runs/${runId})
+            - Coverage report available in artifacts
+            - Security reports available in artifacts
+
+            </details>
+
+            ---
+            *Generated by Nika CI workflow*`;
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const existingComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('## Nika CI Results')
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
