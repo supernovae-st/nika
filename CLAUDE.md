@@ -28,8 +28,8 @@ Cargo workspace for Nika — semantic YAML workflow engine for AI tasks.
 
 Nika is the "body" of the SuperNovae AGI architecture, executing workflows that leverage NovaNet's "brain".
 
-**Current Version**: v0.7.1 — Full Streaming (6 providers) + RLM Enhancements (spawn_agent, decompose:, lazy:)
-**Tests**: 1,842 passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
+**Current Version**: v0.7.2 — Full Streaming (6 providers) + VS Code-like TUI + RLM Enhancements
+**Tests**: 2,323 passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
 **Target Application**: QR Code AI (https://qrcode-ai.com)
 
 ```
@@ -59,7 +59,7 @@ nika-dev/
 │   │   ├── binding/     # Data flow + lazy bindings
 │   │   └── provider/    # rig-core v0.31 wrapper
 │   ├── CLAUDE.md        # Tool-level detailed context
-│   └── Cargo.toml       # v0.7.1
+│   └── Cargo.toml       # v0.7.2
 └── docs/                # Plans + research
 ```
 
@@ -84,7 +84,7 @@ nika trace export <id>        # Export JSON/YAML
 
 # Development
 cd tools/nika
-cargo test                    # Run 1,842 tests
+cargo test                    # Run 2,323 tests
 cargo clippy -- -D warnings   # Lint
 cargo fmt                     # Format
 cargo install --path . --locked # Install binary
@@ -130,4 +130,4 @@ tasks:
       locale: "fr-FR"
 ```
 
-v0.7.2 - Full streaming, VS Code-like TUI, spawn_agent, decompose:, lazy: bindings
+**v0.7.2** - Full streaming, VS Code-like TUI, spawn_agent, decompose:, lazy: bindings

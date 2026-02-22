@@ -334,6 +334,8 @@ pub struct WorkflowState {
     pub error_message: Option<String>,
     /// Workflow is paused
     pub paused: bool,
+    /// P2 Fix: Phase before pause (for proper restoration on resume)
+    pub phase_before_pause: Option<MissionPhase>,
 }
 
 impl WorkflowState {
@@ -350,6 +352,7 @@ impl WorkflowState {
             total_duration_ms: None,
             error_message: None,
             paused: false,
+            phase_before_pause: None,
         }
     }
 
@@ -1216,8 +1219,7 @@ pub struct TuiState {
     // ═══════════════════════════════════════════
     /// Active breakpoints
     pub breakpoints: HashSet<Breakpoint>,
-    /// Execution paused
-    pub paused: bool,
+    // P0 Fix: Removed duplicate `paused` field - use workflow.paused instead via is_paused()
     /// Step mode (advance one step at a time)
     pub step_mode: bool,
 
@@ -1428,7 +1430,7 @@ impl TuiState {
             novanet_tab: NovanetTab::default(),
             reasoning_tab: ReasoningTab::default(),
             breakpoints: HashSet::new(),
-            paused: false,
+            // P0 Fix: paused field removed - workflow.paused is single source of truth
             step_mode: false,
             metrics: Metrics::default(),
             filter_query: String::new(),
@@ -1607,10 +1609,15 @@ impl TuiState {
                     ));
                 }
 
-                // Clear agent state if this was an agent task
-                self.agent_turns.clear();
-                self.streaming_buffer.clear();
-                self.agent_max_turns = None;
+                // P1 Fix: Only clear agent state if this task was actually an agent task
+                // Check task_type to avoid clearing during parallel workflows
+                if let Some(task) = self.tasks.get(task_id.as_ref()) {
+                    if task.task_type.as_deref() == Some("agent") {
+                        self.agent_turns.clear();
+                        self.streaming_buffer.clear();
+                        self.agent_max_turns = None;
+                    }
+                }
                 // TIER 4.1: Mark progress and dag dirty
                 self.dirty.progress = true;
                 self.dirty.dag = true;
@@ -1825,7 +1832,7 @@ impl TuiState {
                     }
                 }
                 let _ = turns; // Used for logging
-                               // TIER 4.1: Mark reasoning panel dirty
+                // TIER 4.1: Mark reasoning panel dirty
                 self.dirty.reasoning = true;
             }
 
@@ -1953,6 +1960,8 @@ impl TuiState {
             // PAUSE/RESUME EVENTS
             // ═══════════════════════════════════════════
             EventKind::WorkflowPaused => {
+                // P2 Fix: Save phase before pausing for proper restoration
+                self.workflow.phase_before_pause = Some(self.workflow.phase);
                 self.workflow.paused = true;
                 self.workflow.phase = MissionPhase::Pause;
                 self.add_notification(Notification::warning(
@@ -1965,8 +1974,10 @@ impl TuiState {
 
             EventKind::WorkflowResumed => {
                 self.workflow.paused = false;
-                // Restore to appropriate phase based on current state
-                if self.current_task.is_some() {
+                // P2 Fix: Restore saved phase, or infer from current state
+                if let Some(phase) = self.workflow.phase_before_pause.take() {
+                    self.workflow.phase = phase;
+                } else if self.current_task.is_some() {
                     self.workflow.phase = MissionPhase::Orbital;
                 } else {
                     self.workflow.phase = MissionPhase::Countdown;
@@ -1995,6 +2006,25 @@ impl TuiState {
             } => {
                 self.add_notification(Notification::error(
                     format!("❌ MCP '{}' error: {}", server_name, error),
+                    timestamp_ms,
+                ));
+                self.dirty.status = true;
+            }
+
+            // P2 Fix: Handle MCP retry event for visibility
+            EventKind::McpRetry {
+                server_name,
+                operation,
+                attempt,
+                max_attempts,
+                error,
+                ..
+            } => {
+                self.add_notification(Notification::warning(
+                    format!(
+                        "🔄 MCP '{}' retry {}/{} for '{}': {}",
+                        server_name, attempt, max_attempts, operation, error
+                    ),
                     timestamp_ms,
                 ));
                 self.dirty.status = true;
@@ -2249,8 +2279,23 @@ impl TuiState {
     }
 
     /// Toggle pause state
+    ///
+    /// P0 Fix: Uses workflow.paused as single source of truth (was duplicated in TuiState.paused)
     pub fn toggle_pause(&mut self) {
-        self.paused = !self.paused;
+        self.workflow.paused = !self.workflow.paused;
+        // Update phase to match pause state
+        if self.workflow.paused {
+            self.workflow.phase = MissionPhase::Pause;
+        } else if self.current_task.is_some() {
+            self.workflow.phase = MissionPhase::Orbital;
+        } else {
+            self.workflow.phase = MissionPhase::Countdown;
+        }
+    }
+
+    /// Check if execution is paused (unified accessor)
+    pub fn is_paused(&self) -> bool {
+        self.workflow.paused
     }
 
     /// Check if a breakpoint should trigger
@@ -2599,6 +2644,19 @@ impl TuiState {
         self.notifications.clear();
         // TIER 4.1: Mark notifications dirty
         self.dirty.notifications = true;
+    }
+
+    /// P3 Fix: Dismiss error message
+    /// Clears the workflow error message without resetting the entire workflow state
+    pub fn dismiss_error(&mut self) -> bool {
+        if self.workflow.error_message.is_some() {
+            self.workflow.error_message = None;
+            self.dirty.progress = true;
+            self.dirty.status = true;
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -5324,5 +5382,50 @@ mod tests {
             let max_offset = state.total.saturating_sub(state.visible);
             assert!(state.offset <= max_offset);
         }
+    }
+
+    // ═══════════════════════════════════════════
+    // P3 Fix: Error dismissal tests
+    // ═══════════════════════════════════════════
+
+    #[test]
+    fn test_dismiss_error_clears_message() {
+        let mut state = TuiState::new("test.yaml");
+        state.workflow.error_message = Some("Test error".to_string());
+
+        let dismissed = state.dismiss_error();
+
+        assert!(dismissed);
+        assert!(state.workflow.error_message.is_none());
+        assert!(state.dirty.progress);
+        assert!(state.dirty.status);
+    }
+
+    #[test]
+    fn test_dismiss_error_returns_false_when_no_error() {
+        let mut state = TuiState::new("test.yaml");
+        assert!(state.workflow.error_message.is_none());
+
+        let dismissed = state.dismiss_error();
+
+        assert!(!dismissed);
+        // dirty flags should not change when no error to dismiss
+    }
+
+    #[test]
+    fn test_dismiss_error_preserves_other_workflow_state() {
+        let mut state = TuiState::new("test.yaml");
+        state.workflow.error_message = Some("Test error".to_string());
+        state.workflow.phase = MissionPhase::Abort;
+        state.workflow.task_count = 5;
+        state.workflow.tasks_completed = 3;
+
+        state.dismiss_error();
+
+        // Error dismissed but other state preserved
+        assert!(state.workflow.error_message.is_none());
+        assert_eq!(state.workflow.phase, MissionPhase::Abort); // Phase not changed
+        assert_eq!(state.workflow.task_count, 5);
+        assert_eq!(state.workflow.tasks_completed, 3);
     }
 }
