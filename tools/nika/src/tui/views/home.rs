@@ -266,14 +266,15 @@ impl HomeView {
 
     /// Render the preview panel (right 60%)
     fn render_preview(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        let content = if let Some(entry) = self.selected_entry() {
+        // PERF: Use &str to avoid clone allocation
+        let content: &str = if let Some(entry) = self.selected_entry() {
             if entry.is_dir {
-                "Select a workflow file to preview".to_string()
+                "Select a workflow file to preview"
             } else {
-                self.standalone.preview_content.clone()
+                &self.standalone.preview_content
             }
         } else {
-            "No file selected".to_string()
+            "No file selected"
         };
 
         // Add line numbers

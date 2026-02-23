@@ -352,10 +352,12 @@ impl DagLayout {
     ) -> FxHashMap<String, NodePosition> {
         let mut positions: FxHashMap<String, NodePosition> = FxHashMap::default();
 
-        let node_height = if config.expanded { 3 } else { 1 };
+        let node_height: u16 = if config.expanded { 3 } else { 1 };
 
         for (layer_idx, layer) in layers.iter().enumerate() {
-            let y = (layer_idx as u16) * (node_height + config.v_spacing);
+            // SAFETY: Use saturating cast to prevent overflow on large DAGs
+            let layer_u16 = layer_idx.min(u16::MAX as usize) as u16;
+            let y = layer_u16.saturating_mul(node_height.saturating_add(config.v_spacing));
 
             let mut x: u16 = 0;
 
