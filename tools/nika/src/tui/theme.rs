@@ -450,6 +450,13 @@ pub struct Theme {
     pub text_muted: Color,
     pub background: Color,
     pub highlight: Color,
+
+    // ═══════════════════════════════════════════
+    // SCROLLBAR (v0.8.1 - Solarized styled)
+    // ═══════════════════════════════════════════
+    pub scrollbar_thumb: Color,  // Main thumb color (visible indicator)
+    pub scrollbar_track: Color,  // Track background (subtle)
+    pub scrollbar_arrows: Color, // Arrow symbols (accent)
 }
 
 impl Default for Theme {
@@ -493,6 +500,11 @@ impl Default for Theme {
             text_muted: Color::Rgb(107, 114, 128), // #6B7280 gray-500
             background: Color::Rgb(17, 24, 39),    // #111827 gray-900
             highlight: Color::Rgb(99, 102, 241),   // #6366F1 indigo
+
+            // Scrollbar (v0.8.1 - Solarized-inspired for dark theme)
+            scrollbar_thumb: Color::Rgb(38, 139, 210),  // #268BD2 Solarized blue
+            scrollbar_track: Color::Rgb(55, 65, 81),    // #374151 gray-700 (subtle)
+            scrollbar_arrows: Color::Rgb(147, 161, 161), // #93A1A1 Solarized base1
         }
     }
 }
@@ -560,6 +572,11 @@ impl Theme {
             text_muted: Color::Rgb(156, 163, 175),    // #9CA3AF gray-400
             background: Color::Rgb(249, 250, 251),    // #F9FAFB gray-50
             highlight: Color::Rgb(79, 70, 229),       // #4F46E5 indigo-600
+
+            // Scrollbar (v0.8.1 - Solarized-inspired for light theme)
+            scrollbar_thumb: Color::Rgb(38, 139, 210),  // #268BD2 Solarized blue
+            scrollbar_track: Color::Rgb(229, 231, 235), // #E5E7EB gray-200 (subtle)
+            scrollbar_arrows: Color::Rgb(88, 110, 117), // #586E75 Solarized base01
         }
     }
 
@@ -627,6 +644,11 @@ impl Theme {
             text_muted: Color::Rgb(88, 110, 117),      // base01
             background: Color::Rgb(0, 43, 54),         // base03
             highlight: Color::Rgb(38, 139, 210),       // blue
+
+            // Scrollbar (v0.8.1 - True Solarized)
+            scrollbar_thumb: Color::Rgb(42, 161, 152),  // #2AA198 Solarized cyan
+            scrollbar_track: Color::Rgb(7, 54, 66),     // #073642 base02 (subtle)
+            scrollbar_arrows: Color::Rgb(147, 161, 161), // #93A1A1 base1
         }
     }
 

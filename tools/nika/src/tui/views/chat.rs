@@ -3109,13 +3109,17 @@ impl ChatView {
         let list = List::new(visible_items).block(block);
         frame.render_widget(list, area);
 
-        // v0.8.1 UX: Render scrollbar if content exceeds viewport (NovaNet pattern)
+        // v0.8.1 UX: Render styled scrollbar if content exceeds viewport
+        // Uses Solarized-inspired colors from theme for consistent look
         if total_items > visible_count {
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                .begin_symbol(Some("↑"))
-                .end_symbol(Some("↓"))
-                .track_symbol(Some("│"))
-                .thumb_symbol("█");
+                .begin_symbol(Some("▲"))  // Nicer Unicode arrow
+                .end_symbol(Some("▼"))    // Nicer Unicode arrow
+                .track_symbol(Some("┃"))  // Bold vertical line
+                .thumb_symbol("█")
+                // v0.8.1: Solarized styled colors
+                .style(Style::default().fg(theme.scrollbar_thumb))
+                .track_style(Style::default().fg(theme.scrollbar_track));
 
             // Compute scrollbar state (NovaNet pattern: content_length is total - visible)
             let mut scrollbar_state = ScrollbarState::default()
