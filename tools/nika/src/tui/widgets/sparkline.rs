@@ -10,6 +10,14 @@ use ratatui::{
     widgets::{Block, Borders, Sparkline as RatatuiSparkline, Widget},
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks for theme-aware rendering)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_ERROR_COLOR: Color = Color::Rgb(239, 68, 68); // red
+const DEFAULT_WARN_COLOR: Color = Color::Rgb(245, 158, 11); // amber
+const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
+
 /// Latency sparkline with threshold-based coloring
 pub struct LatencySparkline<'a> {
     data: &'a [u64],
@@ -65,11 +73,11 @@ impl<'a> LatencySparkline<'a> {
     fn get_color(&self) -> Color {
         let max = self.data.iter().max().copied().unwrap_or(0);
         if max >= self.error_threshold {
-            Color::Rgb(239, 68, 68) // red
+            DEFAULT_ERROR_COLOR
         } else if max >= self.warn_threshold {
-            Color::Rgb(245, 158, 11) // amber
+            DEFAULT_WARN_COLOR
         } else {
-            Color::Rgb(34, 197, 94) // green
+            DEFAULT_SUCCESS_COLOR
         }
     }
 
@@ -381,14 +389,14 @@ mod tests {
     fn test_latency_sparkline_color_thresholds() {
         let fast_data: Vec<u64> = vec![10, 20, 30, 40, 50];
         let spark = LatencySparkline::new(&fast_data);
-        assert_eq!(spark.get_color(), Color::Rgb(34, 197, 94)); // green
+        assert_eq!(spark.get_color(), DEFAULT_SUCCESS_COLOR);
 
         let medium_data: Vec<u64> = vec![100, 200, 600, 400, 300];
         let spark = LatencySparkline::new(&medium_data);
-        assert_eq!(spark.get_color(), Color::Rgb(245, 158, 11)); // amber
+        assert_eq!(spark.get_color(), DEFAULT_WARN_COLOR);
 
         let slow_data: Vec<u64> = vec![100, 200, 3000, 400, 300];
         let spark = LatencySparkline::new(&slow_data);
-        assert_eq!(spark.get_color(), Color::Rgb(239, 68, 68)); // red
+        assert_eq!(spark.get_color(), DEFAULT_ERROR_COLOR);
     }
 }

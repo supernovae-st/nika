@@ -50,7 +50,7 @@ use super::standalone::{HistoryEntry, StandaloneState};
 use super::state::{PanelId, SettingsField, TuiMode, TuiState};
 use super::theme::Theme;
 use super::views::{ChatView, HomeView, McpAction, StudioView, TuiView, View, ViewAction};
-use super::widgets::{ConnectionStatus, Header, Provider, StatusBar, StatusMetrics};
+use super::widgets::{ConnectionStatus, Header, StatusBar, StatusMetrics};
 use crate::config::mask_api_key;
 use crossterm::event::KeyEvent;
 
@@ -239,6 +239,10 @@ pub struct App {
     mcp_configs: Option<FxHashMap<String, McpConfigInline>>,
     /// Cached MCP clients (lazy-initialized with OnceCell for thread-safe async init)
     mcp_client_cache: Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>,
+    /// PERF: Cached MCP connected count (reserved for future optimization)
+    /// Note: Currently unused - DashMap iteration is fast enough.
+    #[allow(dead_code)]
+    cached_mcp_connected: usize,
     // ═══ Background Task Tracking (v0.7.0) ═══
     /// AbortHandles for tracked background tasks
     /// Enables proper cancellation on app exit via abort_all()
@@ -299,6 +303,7 @@ impl App {
             chat_agent,
             mcp_configs: None, // Loaded in init_mcp_clients()
             mcp_client_cache: Arc::new(DashMap::new()),
+            cached_mcp_connected: 0,
             background_handles: Arc::new(Mutex::new(Vec::new())),
         })
     }
@@ -348,6 +353,7 @@ impl App {
             chat_agent,
             mcp_configs: None, // No workflow in standalone mode
             mcp_client_cache: Arc::new(DashMap::new()),
+            cached_mcp_connected: 0,
             background_handles: Arc::new(Mutex::new(Vec::new())),
         })
     }
@@ -870,24 +876,8 @@ impl App {
                 .filter(|entry| entry.value().get().is_some())
                 .count();
             let total_tokens = chat_view.total_tokens();
-            let model_name = chat_view.current_model.to_lowercase();
-            let provider = if model_name.contains("claude") {
-                Provider::Claude
-            } else if model_name.contains("gpt") || model_name.contains("openai") {
-                Provider::OpenAI
-            } else if model_name.contains("mistral") || model_name.contains("mixtral") {
-                Provider::Mistral
-            } else if model_name.contains("llama") || model_name.contains("ollama") {
-                Provider::Ollama
-            } else if model_name.contains("groq") {
-                Provider::Groq
-            } else if model_name.contains("deepseek") {
-                Provider::DeepSeek
-            } else if model_name.contains("mock") {
-                Provider::Mock
-            } else {
-                Provider::None
-            };
+            // PERF: Use cached provider from ChatView (computed once when model changes)
+            let provider = chat_view.provider();
 
             // Get custom status text from current view
             let status_text = match current_view {

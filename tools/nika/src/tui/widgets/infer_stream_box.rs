@@ -11,6 +11,17 @@ use ratatui::{
     widgets::Widget,
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks for theme-aware rendering)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_RUNNING_COLOR: Color = Color::Rgb(250, 204, 21); // yellow
+const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
+const DEFAULT_FAILED_COLOR: Color = Color::Rgb(239, 68, 68); // red
+const DEFAULT_BORDER_COLOR: Color = Color::Rgb(139, 92, 246); // violet
+const DEFAULT_MUTED_COLOR: Color = Color::Rgb(107, 114, 128); // gray
+const DEFAULT_SEPARATOR_COLOR: Color = Color::Rgb(55, 65, 81); // dark gray
+
 /// Status of inference
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum InferStatus {
@@ -26,10 +37,10 @@ impl InferStatus {
             Self::Running => {
                 let spinners = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
                 let idx = (frame as usize) % spinners.len();
-                (spinners[idx], Color::Rgb(250, 204, 21)) // Yellow
+                (spinners[idx], DEFAULT_RUNNING_COLOR)
             }
-            Self::Complete => ("✅", Color::Rgb(34, 197, 94)), // Green
-            Self::Failed => ("❌", Color::Rgb(239, 68, 68)),   // Red
+            Self::Complete => ("✅", DEFAULT_SUCCESS_COLOR),
+            Self::Failed => ("❌", DEFAULT_FAILED_COLOR),
         }
     }
 }
@@ -173,9 +184,9 @@ impl Widget for InferStreamBox<'_> {
         }
 
         // Border color: violet for infer
-        let border_color = Color::Rgb(139, 92, 246); // Violet
+        let border_color = DEFAULT_BORDER_COLOR;
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(107, 114, 128));
+        let dim_style = Style::default().fg(DEFAULT_MUTED_COLOR);
 
         let (status_char, _) = self.data.status.indicator(self.data.frame);
 
@@ -226,7 +237,7 @@ impl Widget for InferStreamBox<'_> {
                 area.x + 2,
                 y,
                 &separator,
-                Style::default().fg(Color::Rgb(55, 65, 81)),
+                Style::default().fg(DEFAULT_SEPARATOR_COLOR),
             );
             y += 1;
         }
@@ -368,11 +379,11 @@ mod tests {
     fn test_status_indicators() {
         let (char, color) = InferStatus::Complete.indicator(0);
         assert_eq!(char, "✅");
-        assert_eq!(color, Color::Rgb(34, 197, 94));
+        assert_eq!(color, DEFAULT_SUCCESS_COLOR);
 
         let (char, color) = InferStatus::Failed.indicator(0);
         assert_eq!(char, "❌");
-        assert_eq!(color, Color::Rgb(239, 68, 68));
+        assert_eq!(color, DEFAULT_FAILED_COLOR);
 
         // Running shows spinner
         let (char1, _) = InferStatus::Running.indicator(0);

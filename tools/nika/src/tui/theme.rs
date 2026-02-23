@@ -346,6 +346,13 @@ pub struct Theme {
     pub status_paused: Color,
 
     // ═══════════════════════════════════════════
+    // MISSION PHASES (Space Theme)
+    // ═══════════════════════════════════════════
+    pub phase_launch: Color,     // First task executing (pink)
+    pub phase_orbital: Color,    // Nominal execution (blue)
+    pub phase_rendezvous: Color, // MCP tool invocation (violet)
+
+    // ═══════════════════════════════════════════
     // MCP TOOLS
     // ═══════════════════════════════════════════
     pub mcp_describe: Color,
@@ -386,6 +393,11 @@ impl Default for Theme {
             status_success: Color::Rgb(34, 197, 94),   // #22C55E green
             status_failed: Color::Rgb(239, 68, 68),    // #EF4444 red
             status_paused: Color::Rgb(6, 182, 212),    // #06B6D4 cyan
+
+            // Mission Phases (Space Theme)
+            phase_launch: Color::Rgb(236, 72, 153),     // #EC4899 pink
+            phase_orbital: Color::Rgb(59, 130, 246),    // #3B82F6 blue
+            phase_rendezvous: Color::Rgb(139, 92, 246), // #8B5CF6 violet
 
             // MCP tools
             mcp_describe: Color::Rgb(59, 130, 246), // #3B82F6 blue
@@ -437,6 +449,11 @@ impl Theme {
             status_success: Color::Rgb(22, 163, 74), // #16A34A green-600
             status_failed: Color::Rgb(220, 38, 38), // #DC2626 red-600
             status_paused: Color::Rgb(8, 145, 178), // #0891B2 cyan-600
+
+            // Mission Phases (Space Theme) - light mode
+            phase_launch: Color::Rgb(219, 39, 119),   // #DB2777 pink-600
+            phase_orbital: Color::Rgb(37, 99, 235),   // #2563EB blue-600
+            phase_rendezvous: Color::Rgb(124, 58, 237), // #7C3AED violet-600
 
             // MCP tools
             mcp_describe: Color::Rgb(37, 99, 235), // #2563EB blue-600
@@ -534,6 +551,19 @@ pub enum TaskStatus {
     Paused,
 }
 
+impl TaskStatus {
+    /// Get theme-aware color for this status
+    pub fn color(&self, theme: &Theme) -> Color {
+        match self {
+            Self::Pending => theme.status_pending,
+            Self::Running => theme.status_running,
+            Self::Success => theme.status_success,
+            Self::Failed => theme.status_failed,
+            Self::Paused => theme.status_paused,
+        }
+    }
+}
+
 /// Mission phase for space theme
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MissionPhase {
@@ -581,6 +611,20 @@ impl MissionPhase {
             Self::MissionSuccess => "MISSION SUCCESS",
             Self::Abort => "ABORT",
             Self::Pause => "PAUSED",
+        }
+    }
+
+    /// Get color for this mission phase (theme-aware)
+    pub fn color(&self, theme: &Theme) -> Color {
+        match self {
+            Self::Preflight => theme.status_pending,
+            Self::Countdown => theme.status_running,
+            Self::Launch => theme.phase_launch,
+            Self::Orbital => theme.phase_orbital,
+            Self::Rendezvous => theme.phase_rendezvous,
+            Self::MissionSuccess => theme.status_success,
+            Self::Abort => theme.status_failed,
+            Self::Pause => theme.status_paused,
         }
     }
 }

@@ -10,7 +10,7 @@
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Widget},
 };
@@ -104,20 +104,20 @@ impl<'a> GraphPanel<'a> {
         // Stats line: ● 3 ○ 2 ◉ 1 ⊗ 0
         let stats_line = Line::from(vec![
             Span::styled("  ", Style::default()),
-            Span::styled("●", Style::default().fg(Color::Rgb(34, 197, 94))),
+            Span::styled("●", Style::default().fg(self.theme.status_success)),
             Span::styled(
                 format!(" {} ", completed),
-                Style::default().fg(Color::White),
+                Style::default().fg(self.theme.text_primary),
             ),
-            Span::styled("○", Style::default().fg(Color::Rgb(107, 114, 128))),
-            Span::styled(format!(" {} ", pending), Style::default().fg(Color::White)),
-            Span::styled("◉", Style::default().fg(Color::Rgb(245, 158, 11))),
-            Span::styled(format!(" {} ", running), Style::default().fg(Color::White)),
-            Span::styled("⊗", Style::default().fg(Color::Rgb(239, 68, 68))),
-            Span::styled(format!(" {}", failed), Style::default().fg(Color::White)),
+            Span::styled("○", Style::default().fg(self.theme.status_pending)),
+            Span::styled(format!(" {} ", pending), Style::default().fg(self.theme.text_primary)),
+            Span::styled("◉", Style::default().fg(self.theme.status_running)),
+            Span::styled(format!(" {} ", running), Style::default().fg(self.theme.text_primary)),
+            Span::styled("⊗", Style::default().fg(self.theme.status_failed)),
+            Span::styled(format!(" {}", failed), Style::default().fg(self.theme.text_primary)),
             Span::styled(
                 format!("  │ Total: {}", total),
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(self.theme.text_muted),
             ),
         ]);
 
@@ -157,15 +157,17 @@ impl<'a> GraphPanel<'a> {
         let visible_nodes: Vec<DagNode> = nodes.into_iter().skip(scroll).collect();
 
         // Pass animation frame for animated spinners on running tasks
-        let dag = Dag::new(&visible_nodes).with_frame(self.state.frame);
+        let dag = Dag::new(&visible_nodes)
+            .with_theme(self.theme)
+            .with_frame(self.state.frame);
         dag.render(dag_area, buf);
 
         // Render scroll indicator if scrollable
         if let Some(scroll_rect) = scroll_area {
             let indicator = ScrollIndicator::new()
                 .position(scroll, total_nodes, visible_count)
-                .thumb_style(Style::default().fg(Color::Rgb(59, 130, 246))) // blue
-                .track_style(Style::default().fg(Color::DarkGray));
+                .thumb_style(Style::default().fg(self.theme.highlight))
+                .track_style(Style::default().fg(self.theme.text_muted));
             indicator.render(scroll_rect, buf);
         }
     }
@@ -174,14 +176,14 @@ impl<'a> GraphPanel<'a> {
     fn render_legend(&self, area: Rect, buf: &mut Buffer) {
         let legend = Line::from(vec![
             Span::styled("  ", Style::default()),
-            Span::styled("○", Style::default().fg(Color::Rgb(107, 114, 128))),
-            Span::styled(" pending ", Style::default().fg(Color::DarkGray)),
-            Span::styled("◉", Style::default().fg(Color::Rgb(245, 158, 11))),
-            Span::styled(" running ", Style::default().fg(Color::DarkGray)),
-            Span::styled("●", Style::default().fg(Color::Rgb(34, 197, 94))),
-            Span::styled(" done ", Style::default().fg(Color::DarkGray)),
-            Span::styled("⊗", Style::default().fg(Color::Rgb(239, 68, 68))),
-            Span::styled(" failed", Style::default().fg(Color::DarkGray)),
+            Span::styled("○", Style::default().fg(self.theme.status_pending)),
+            Span::styled(" pending ", Style::default().fg(self.theme.text_muted)),
+            Span::styled("◉", Style::default().fg(self.theme.status_running)),
+            Span::styled(" running ", Style::default().fg(self.theme.text_muted)),
+            Span::styled("●", Style::default().fg(self.theme.status_success)),
+            Span::styled(" done ", Style::default().fg(self.theme.text_muted)),
+            Span::styled("⊗", Style::default().fg(self.theme.status_failed)),
+            Span::styled(" failed", Style::default().fg(self.theme.text_muted)),
         ]);
 
         let paragraph = Paragraph::new(legend);

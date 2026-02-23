@@ -13,7 +13,26 @@ use ratatui::{
     widgets::{Block, Borders, Widget},
 };
 
-use crate::tui::theme::VerbColor;
+use crate::tui::theme::{Theme, VerbColor};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks when no theme)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_HOT_COLOR: Color = Color::Rgb(34, 197, 94); // green
+const DEFAULT_WARM_COLOR: Color = Color::Rgb(250, 204, 21); // yellow
+const DEFAULT_CONNECTED_COLOR: Color = Color::Rgb(59, 130, 246); // blue
+const DEFAULT_COLD_COLOR: Color = Color::Rgb(156, 163, 175); // gray
+const DEFAULT_ERROR_COLOR: Color = Color::Rgb(239, 68, 68); // red
+const DEFAULT_MUTED_COLOR: Color = Color::Rgb(107, 114, 128); // gray-500
+const DEFAULT_BORDER_COLOR: Color = Color::Rgb(75, 85, 99); // gray-600
+const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
+const DEFAULT_INFO_COLOR: Color = Color::Rgb(147, 197, 253); // blue-300
+const DEFAULT_HIGHLIGHT_COLOR: Color = Color::Rgb(99, 102, 241); // indigo
+const DEFAULT_WARNING_COLOR: Color = Color::Rgb(250, 204, 21); // yellow
+const DEFAULT_FILES_COLOR: Color = Color::Rgb(74, 222, 128); // green-400
+const DEFAULT_COST_COLOR: Color = Color::Rgb(251, 191, 36); // amber
+const DEFAULT_ACTIVE_COLOR: Color = Color::Rgb(167, 139, 250); // violet
 
 /// MCP server connection status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -32,13 +51,36 @@ pub enum McpStatus {
 }
 
 impl McpStatus {
+    /// Get indicator emoji and default color (for backward compatibility)
     pub fn indicator(&self) -> (&'static str, Color) {
         match self {
-            Self::Hot => ("🟢", Color::Rgb(34, 197, 94)), // Green - active
-            Self::Warm => ("🟡", Color::Rgb(250, 204, 21)), // Yellow - recent
-            Self::Connected => ("🔵", Color::Rgb(59, 130, 246)), // Blue - connected idle
-            Self::Cold => ("⚪", Color::Rgb(156, 163, 175)), // Gray - not connected
-            Self::Error => ("🔴", Color::Rgb(239, 68, 68)), // Red - error
+            Self::Hot => ("🟢", DEFAULT_HOT_COLOR),
+            Self::Warm => ("🟡", DEFAULT_WARM_COLOR),
+            Self::Connected => ("🔵", DEFAULT_CONNECTED_COLOR),
+            Self::Cold => ("⚪", DEFAULT_COLD_COLOR),
+            Self::Error => ("🔴", DEFAULT_ERROR_COLOR),
+        }
+    }
+
+    /// Get indicator color with theme support
+    pub fn indicator_color_with_theme(&self, theme: Option<&Theme>) -> Color {
+        match self {
+            Self::Hot => theme.map(|t| t.status_success).unwrap_or(DEFAULT_HOT_COLOR),
+            Self::Warm => theme.map(|t| t.status_running).unwrap_or(DEFAULT_WARM_COLOR),
+            Self::Connected => theme.map(|t| t.highlight).unwrap_or(DEFAULT_CONNECTED_COLOR),
+            Self::Cold => theme.map(|t| t.text_muted).unwrap_or(DEFAULT_COLD_COLOR),
+            Self::Error => theme.map(|t| t.status_failed).unwrap_or(DEFAULT_ERROR_COLOR),
+        }
+    }
+
+    /// Get indicator emoji only
+    pub fn indicator_emoji(&self) -> &'static str {
+        match self {
+            Self::Hot => "🟢",
+            Self::Warm => "🟡",
+            Self::Connected => "🔵",
+            Self::Cold => "⚪",
+            Self::Error => "🔴",
         }
     }
 
@@ -267,6 +309,8 @@ impl SessionContext {
 pub struct SessionContextBar<'a> {
     context: &'a SessionContext,
     compact: bool,
+    /// Optional theme for colors
+    theme: Option<&'a Theme>,
 }
 
 impl<'a> SessionContextBar<'a> {
@@ -274,7 +318,14 @@ impl<'a> SessionContextBar<'a> {
         Self {
             context,
             compact: false,
+            theme: None,
         }
+    }
+
+    /// Set the theme for colors
+    pub fn with_theme(mut self, theme: &'a Theme) -> Self {
+        self.theme = Some(theme);
+        self
     }
 
     /// Use compact single-line mode
@@ -332,12 +383,8 @@ impl SessionContextBar<'_> {
         let time = format!("⏱ {}", self.context.format_duration());
 
         let line = format!("{} │ {} │ {} │ {}", cost, tokens, mcp, time);
-        buf.set_string(
-            area.x,
-            area.y,
-            &line,
-            Style::default().fg(Color::Rgb(156, 163, 175)),
-        );
+        let muted_color = self.theme.map(|t| t.text_muted).unwrap_or(DEFAULT_COLD_COLOR);
+        buf.set_string(area.x, area.y, &line, Style::default().fg(muted_color));
     }
 
     fn render_full(&self, area: Rect, buf: &mut Buffer) {
@@ -345,23 +392,59 @@ impl SessionContextBar<'_> {
             return self.render_compact(area, buf);
         }
 
+        // Extract theme colors with fallbacks
+        let border_color = self
+            .theme
+            .map(|t| t.border_normal)
+            .unwrap_or(DEFAULT_BORDER_COLOR);
+        let muted_color = self
+            .theme
+            .map(|t| t.text_muted)
+            .unwrap_or(DEFAULT_MUTED_COLOR);
+        let success_color = self
+            .theme
+            .map(|t| t.status_success)
+            .unwrap_or(DEFAULT_SUCCESS_COLOR);
+        let info_color = self.theme.map(|t| t.highlight).unwrap_or(DEFAULT_INFO_COLOR);
+        let highlight_color = self
+            .theme
+            .map(|t| t.highlight)
+            .unwrap_or(DEFAULT_HIGHLIGHT_COLOR);
+        let warning_color = self
+            .theme
+            .map(|t| t.status_running)
+            .unwrap_or(DEFAULT_WARNING_COLOR);
+        let text_color = self
+            .theme
+            .map(|t| t.text_primary)
+            .unwrap_or(Color::White);
+        let files_color = self
+            .theme
+            .map(|t| t.status_success)
+            .unwrap_or(DEFAULT_FILES_COLOR);
+        let cost_color = self
+            .theme
+            .map(|t| t.status_running)
+            .unwrap_or(DEFAULT_COST_COLOR);
+        let active_color = self
+            .theme
+            .map(|t| t.highlight)
+            .unwrap_or(DEFAULT_ACTIVE_COLOR);
+
         let block = Block::default()
             .title(" 📊 SESSION CONTEXT ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Rgb(75, 85, 99)));
+            .border_style(Style::default().fg(border_color));
 
         let inner = block.inner(area);
         block.render(area, buf);
 
         // Line 1: Tokens
         let tokens_line = Line::from(vec![
-            Span::styled(
-                "├─ 🧠 Tokens → ",
-                Style::default().fg(Color::Rgb(107, 114, 128)),
-            ),
+            Span::styled("├─ 🧠 Tokens → ", Style::default().fg(muted_color)),
             Span::styled(
                 format!("💰 ${:.2}", self.context.total_cost),
-                Style::default().fg(Color::Rgb(34, 197, 94)),
+                Style::default().fg(success_color),
             ),
             Span::raw(" • "),
             Span::styled(
@@ -370,16 +453,16 @@ impl SessionContextBar<'_> {
                     self.context.tokens_used / 1000,
                     self.context.token_limit / 1000
                 ),
-                Style::default().fg(Color::Rgb(147, 197, 253)),
+                Style::default().fg(info_color),
             ),
             Span::raw(" • "),
             Span::styled(
                 self.render_progress_bar(20),
-                Style::default().fg(Color::Rgb(99, 102, 241)),
+                Style::default().fg(highlight_color),
             ),
             Span::styled(
                 format!(" ✦★ {:.0}%", self.context.usage_percent()),
-                Style::default().fg(Color::Rgb(250, 204, 21)),
+                Style::default().fg(warning_color),
             ),
         ]);
         buf.set_line(inner.x, inner.y, &tokens_line, inner.width);
@@ -387,13 +470,10 @@ impl SessionContextBar<'_> {
         // Line 2: Stats
         if inner.height > 1 {
             let stats_line = Line::from(vec![
-                Span::styled(
-                    "├─ 📈 Stats  → ",
-                    Style::default().fg(Color::Rgb(107, 114, 128)),
-                ),
+                Span::styled("├─ 📈 Stats  → ", Style::default().fg(muted_color)),
                 Span::styled(
                     format!("⏱ {}", self.context.format_duration()),
-                    Style::default().fg(Color::White),
+                    Style::default().fg(text_color),
                 ),
                 Span::raw(" • "),
                 Span::styled(
@@ -401,12 +481,12 @@ impl SessionContextBar<'_> {
                         "📝 +{} -{}",
                         self.context.files_modified.0, self.context.files_modified.1
                     ),
-                    Style::default().fg(Color::Rgb(74, 222, 128)),
+                    Style::default().fg(files_color),
                 ),
                 Span::raw(" • "),
                 Span::styled(
                     format!("💸 ${:.3}/min", self.context.cost_per_min()),
-                    Style::default().fg(Color::Rgb(251, 191, 36)),
+                    Style::default().fg(cost_color),
                 ),
             ]);
             buf.set_line(inner.x, inner.y + 1, &stats_line, inner.width);
@@ -416,13 +496,14 @@ impl SessionContextBar<'_> {
         if inner.height > 2 && !self.context.mcp_servers.is_empty() {
             let mut spans = vec![Span::styled(
                 "├─ 🔌 MCP    → ",
-                Style::default().fg(Color::Rgb(107, 114, 128)),
+                Style::default().fg(muted_color),
             )];
             for (i, server) in self.context.mcp_servers.iter().enumerate() {
                 if i > 0 {
                     spans.push(Span::raw(" • "));
                 }
-                let (indicator, color) = server.status.indicator();
+                let indicator = server.status.indicator_emoji();
+                let color = server.status.indicator_color_with_theme(self.theme);
                 spans.push(Span::styled(indicator, Style::default().fg(color)));
                 spans.push(Span::styled(
                     format!(" {} ({})", server.name, server.status.label()),
@@ -436,7 +517,7 @@ impl SessionContextBar<'_> {
         if inner.height > 3 && !self.context.active_ops.is_empty() {
             let mut spans = vec![Span::styled(
                 "└─ 🎯 Active → ",
-                Style::default().fg(Color::Rgb(107, 114, 128)),
+                Style::default().fg(muted_color),
             )];
             for (i, op) in self.context.active_ops.iter().take(3).enumerate() {
                 if i > 0 {
@@ -444,7 +525,7 @@ impl SessionContextBar<'_> {
                 }
                 spans.push(Span::styled(
                     format!("{} {}:{}", op.verb_icon(), op.verb, op.id),
-                    Style::default().fg(Color::Rgb(167, 139, 250)),
+                    Style::default().fg(active_color),
                 ));
             }
             buf.set_line(inner.x, inner.y + 3, &Line::from(spans), inner.width);
@@ -455,7 +536,7 @@ impl SessionContextBar<'_> {
                 inner.y + 3,
                 &Line::from(vec![Span::styled(
                     "└─ 🎯 Active → (none)",
-                    Style::default().fg(Color::Rgb(107, 114, 128)),
+                    Style::default().fg(muted_color),
                 )]),
                 inner.width,
             );

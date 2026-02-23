@@ -10,7 +10,19 @@ use ratatui::{
     widgets::Widget,
 };
 
-use crate::tui::theme::TaskStatus;
+use crate::tui::theme::{TaskStatus, Theme};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks for theme-aware rendering)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_PENDING_COLOR: Color = Color::Rgb(107, 114, 128); // gray
+const DEFAULT_RUNNING_COLOR: Color = Color::Rgb(245, 158, 11); // amber
+const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
+const DEFAULT_FAILED_COLOR: Color = Color::Rgb(239, 68, 68); // red
+const DEFAULT_PAUSED_COLOR: Color = Color::Rgb(6, 182, 212); // cyan
+const DEFAULT_FOR_EACH_COLOR: Color = Color::Rgb(139, 92, 246); // violet
+const DEFAULT_DECOMPOSE_COLOR: Color = Color::Rgb(251, 146, 60); // orange
 
 /// Verb type for task icon display
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -69,42 +81,42 @@ pub enum EdgeState {
 }
 
 impl EdgeState {
-    /// Get animated edge characters based on frame
-    pub fn chars(&self, frame: u8) -> (&'static str, Color) {
+    /// Get animated edge characters based on frame (theme-aware)
+    pub fn chars(&self, frame: u8, theme: &Theme) -> (&'static str, Color) {
         match self {
-            Self::Inactive => ("│", Color::DarkGray),
+            Self::Inactive => ("│", theme.text_muted),
             Self::Active => {
                 // Animated flow characters cycling
                 let flow_chars = ["│", "┃", "║", "┃"];
                 let idx = (frame / 4) as usize % flow_chars.len();
-                (flow_chars[idx], Color::Rgb(245, 158, 11)) // Amber
+                (flow_chars[idx], theme.status_running)
             }
-            Self::Complete => ("┃", Color::Rgb(34, 197, 94)), // Green
-            Self::Failed => ("╳", Color::Rgb(239, 68, 68)),   // Red
+            Self::Complete => ("┃", theme.status_success),
+            Self::Failed => ("╳", theme.status_failed),
         }
     }
 
-    /// Get horizontal edge characters
-    pub fn horizontal_chars(&self, frame: u8) -> (&'static str, Color) {
+    /// Get horizontal edge characters (theme-aware)
+    pub fn horizontal_chars(&self, frame: u8, theme: &Theme) -> (&'static str, Color) {
         match self {
-            Self::Inactive => ("─", Color::DarkGray),
+            Self::Inactive => ("─", theme.text_muted),
             Self::Active => {
                 let flow_chars = ["─", "━", "═", "━"];
                 let idx = (frame / 4) as usize % flow_chars.len();
-                (flow_chars[idx], Color::Rgb(245, 158, 11))
+                (flow_chars[idx], theme.status_running)
             }
-            Self::Complete => ("━", Color::Rgb(34, 197, 94)),
-            Self::Failed => ("╌", Color::Rgb(239, 68, 68)),
+            Self::Complete => ("━", theme.status_success),
+            Self::Failed => ("╌", theme.status_failed),
         }
     }
 
-    /// Get data flow indicator (shows direction)
-    pub fn flow_indicator(&self, frame: u8) -> Option<(&'static str, Color)> {
+    /// Get data flow indicator (shows direction, theme-aware)
+    pub fn flow_indicator(&self, frame: u8, theme: &Theme) -> Option<(&'static str, Color)> {
         match self {
             Self::Active => {
                 let indicators = ["▼", "▽", "▼", "▽"];
                 let idx = (frame / 3) as usize % indicators.len();
-                Some((indicators[idx], Color::Rgb(245, 158, 11)))
+                Some((indicators[idx], theme.status_running))
             }
             _ => None,
         }
@@ -240,6 +252,8 @@ const SPINNER_FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦
 /// DAG visualization widget
 pub struct Dag<'a> {
     nodes: &'a [DagNode],
+    /// Theme for styling (optional for backward compat)
+    theme: Option<&'a Theme>,
     /// Selected node for details
     selected: Option<usize>,
     /// Compact mode (just icons)
@@ -252,10 +266,17 @@ impl<'a> Dag<'a> {
     pub fn new(nodes: &'a [DagNode]) -> Self {
         Self {
             nodes,
+            theme: None,
             selected: None,
             compact: false,
             frame: 0,
         }
+    }
+
+    /// Set theme for styling
+    pub fn with_theme(mut self, theme: &'a Theme) -> Self {
+        self.theme = Some(theme);
+        self
     }
 
     /// Set animation frame for spinners
@@ -280,14 +301,19 @@ impl<'a> Dag<'a> {
         SPINNER_FRAMES[idx]
     }
 
-    /// Get status color
-    fn status_color(status: TaskStatus) -> Color {
-        match status {
-            TaskStatus::Pending => Color::Rgb(107, 114, 128), // gray
-            TaskStatus::Running => Color::Rgb(245, 158, 11),  // amber
-            TaskStatus::Success => Color::Rgb(34, 197, 94),   // green
-            TaskStatus::Failed => Color::Rgb(239, 68, 68),    // red
-            TaskStatus::Paused => Color::Rgb(6, 182, 212),    // cyan
+    /// Get status color (uses theme if available, falls back to defaults)
+    fn status_color(&self, status: TaskStatus) -> Color {
+        if let Some(theme) = self.theme {
+            status.color(theme)
+        } else {
+            // Fallback for backward compatibility
+            match status {
+                TaskStatus::Pending => DEFAULT_PENDING_COLOR,
+                TaskStatus::Running => DEFAULT_RUNNING_COLOR,
+                TaskStatus::Success => DEFAULT_SUCCESS_COLOR,
+                TaskStatus::Failed => DEFAULT_FAILED_COLOR,
+                TaskStatus::Paused => DEFAULT_PAUSED_COLOR,
+            }
         }
     }
 
@@ -318,9 +344,40 @@ impl<'a> Dag<'a> {
         verb_type.icon()
     }
 
-    /// Get edge characters for rendering with animation
+    /// Get edge characters for rendering with animation (uses theme if available)
     fn edge_chars(&self, state: EdgeState) -> (&'static str, Color) {
-        state.chars(self.frame)
+        if let Some(theme) = self.theme {
+            state.chars(self.frame, theme)
+        } else {
+            // Fallback for backward compatibility
+            match state {
+                EdgeState::Inactive => ("│", Color::DarkGray),
+                EdgeState::Active => {
+                    let flow_chars = ["│", "┃", "║", "┃"];
+                    let idx = (self.frame / 4) as usize % flow_chars.len();
+                    (flow_chars[idx], DEFAULT_RUNNING_COLOR)
+                }
+                EdgeState::Complete => ("┃", DEFAULT_SUCCESS_COLOR),
+                EdgeState::Failed => ("╳", DEFAULT_FAILED_COLOR),
+            }
+        }
+    }
+
+    /// Get flow indicator for edge (uses theme if available)
+    fn flow_indicator(&self, state: EdgeState) -> Option<(&'static str, Color)> {
+        if let Some(theme) = self.theme {
+            state.flow_indicator(self.frame, theme)
+        } else {
+            // Fallback for backward compatibility
+            match state {
+                EdgeState::Active => {
+                    let indicators = ["▼", "▽", "▼", "▽"];
+                    let idx = (self.frame / 3) as usize % indicators.len();
+                    Some((indicators[idx], DEFAULT_RUNNING_COLOR))
+                }
+                _ => None,
+            }
+        }
     }
 
     /// Calculate node positions for layout
@@ -357,13 +414,35 @@ impl<'a> Dag<'a> {
 
 impl Widget for Dag<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        // Theme-aware colors with fallbacks
+        let muted_color = self
+            .theme
+            .map(|t| t.text_muted)
+            .unwrap_or(Color::DarkGray);
+        let highlight_color = self
+            .theme
+            .map(|t| t.highlight)
+            .unwrap_or(Color::Cyan);
+        let text_primary = self
+            .theme
+            .map(|t| t.text_primary)
+            .unwrap_or(Color::White);
+        let for_each_color = self
+            .theme
+            .map(|t| t.trait_authored)
+            .unwrap_or(DEFAULT_FOR_EACH_COLOR);
+        let decompose_color = self
+            .theme
+            .map(|t| t.status_running)
+            .unwrap_or(DEFAULT_DECOMPOSE_COLOR);
+
         if area.height < 2 || area.width < 10 || self.nodes.is_empty() {
             if self.nodes.is_empty() {
                 buf.set_string(
                     area.x + 2,
                     area.y,
                     "(no tasks scheduled)",
-                    Style::default().fg(Color::DarkGray),
+                    Style::default().fg(muted_color),
                 );
             }
             return;
@@ -379,12 +458,12 @@ impl Widget for Dag<'_> {
                     area.x + 2,
                     area.y + area.height - 1,
                     format!("... +{} more", self.nodes.len() - i),
-                    Style::default().fg(Color::DarkGray),
+                    Style::default().fg(muted_color),
                 );
                 break;
             }
 
-            let color = Self::status_color(node.status);
+            let color = self.status_color(node.status);
             let icon = self.status_icon(node.status, node.is_current);
 
             // Draw dependency lines with animated edges
@@ -403,7 +482,7 @@ impl Widget for Dag<'_> {
 
                 // Draw flow indicator for active edges
                 if let Some((indicator, ind_color)) =
-                    node.incoming_edge_state.flow_indicator(self.frame)
+                    self.flow_indicator(node.incoming_edge_state)
                 {
                     if y > 1 && x > 0 {
                         buf.set_string(
@@ -441,11 +520,11 @@ impl Widget for Dag<'_> {
 
             let id_style = if node.is_current {
                 Style::default()
-                    .fg(Color::White)
+                    .fg(text_primary)
                     .add_modifier(Modifier::BOLD)
             } else if self.selected == Some(i) {
                 Style::default()
-                    .fg(Color::Cyan)
+                    .fg(highlight_color)
                     .add_modifier(Modifier::UNDERLINED)
             } else {
                 Style::default().fg(color)
@@ -472,7 +551,7 @@ impl Widget for Dag<'_> {
                             next_x,
                             area.y + y,
                             &loop_indicator,
-                            Style::default().fg(Color::Rgb(139, 92, 246)), // violet
+                            Style::default().fg(for_each_color),
                         );
                         next_x += loop_indicator.chars().count() as u16 + 1;
                     }
@@ -486,7 +565,7 @@ impl Widget for Dag<'_> {
                             next_x,
                             area.y + y,
                             &decompose_indicator,
-                            Style::default().fg(Color::Rgb(251, 146, 60)), // orange
+                            Style::default().fg(decompose_color),
                         );
                     }
                 } else if node.decompose_parent_id.is_some() {
@@ -496,7 +575,7 @@ impl Widget for Dag<'_> {
                             next_x,
                             area.y + y,
                             "↳",
-                            Style::default().fg(Color::Rgb(251, 146, 60)), // orange
+                            Style::default().fg(decompose_color),
                         );
                     }
                 }
@@ -509,7 +588,7 @@ impl Widget for Dag<'_> {
                         duration_x,
                         area.y + y,
                         &duration_str,
-                        Style::default().fg(Color::DarkGray),
+                        Style::default().fg(muted_color),
                     );
                 }
             }
@@ -533,6 +612,7 @@ fn format_duration_short(ms: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tui::theme::Theme;
 
     #[test]
     fn test_dag_node_creation() {
@@ -556,12 +636,16 @@ mod tests {
 
     #[test]
     fn test_status_colors_distinct() {
+        // Create a dag instance to access status_color method
+        let nodes = vec![];
+        let dag = Dag::new(&nodes);
+
         let colors = [
-            Dag::status_color(TaskStatus::Pending),
-            Dag::status_color(TaskStatus::Running),
-            Dag::status_color(TaskStatus::Success),
-            Dag::status_color(TaskStatus::Failed),
-            Dag::status_color(TaskStatus::Paused),
+            dag.status_color(TaskStatus::Pending),
+            dag.status_color(TaskStatus::Running),
+            dag.status_color(TaskStatus::Success),
+            dag.status_color(TaskStatus::Failed),
+            dag.status_color(TaskStatus::Paused),
         ];
 
         // Verify colors are distinct
@@ -610,15 +694,17 @@ mod tests {
 
     #[test]
     fn test_edge_state_chars_inactive() {
-        let (ch, color) = EdgeState::Inactive.chars(0);
+        let theme = Theme::novanet();
+        let (ch, color) = EdgeState::Inactive.chars(0, &theme);
         assert_eq!(ch, "│");
-        assert_eq!(color, Color::DarkGray);
+        assert_eq!(color, theme.text_muted);
     }
 
     #[test]
     fn test_edge_state_chars_active_animates() {
-        let (ch0, _) = EdgeState::Active.chars(0);
-        let (ch1, _) = EdgeState::Active.chars(4);
+        let theme = Theme::novanet();
+        let (ch0, _) = EdgeState::Active.chars(0, &theme);
+        let (ch1, _) = EdgeState::Active.chars(4, &theme);
 
         // Characters should cycle
         assert!(ch0 == "│" || ch0 == "┃" || ch0 == "║");
@@ -627,30 +713,34 @@ mod tests {
 
     #[test]
     fn test_edge_state_complete() {
-        let (ch, color) = EdgeState::Complete.chars(0);
+        let theme = Theme::novanet();
+        let (ch, color) = EdgeState::Complete.chars(0, &theme);
         assert_eq!(ch, "┃");
-        assert_eq!(color, Color::Rgb(34, 197, 94)); // Green
+        assert_eq!(color, theme.status_success);
     }
 
     #[test]
     fn test_edge_state_failed() {
-        let (ch, color) = EdgeState::Failed.chars(0);
+        let theme = Theme::novanet();
+        let (ch, color) = EdgeState::Failed.chars(0, &theme);
         assert_eq!(ch, "╳");
-        assert_eq!(color, Color::Rgb(239, 68, 68)); // Red
+        assert_eq!(color, theme.status_failed);
     }
 
     #[test]
     fn test_edge_state_flow_indicator() {
+        let theme = Theme::novanet();
+
         // Active state has flow indicator
-        let indicator = EdgeState::Active.flow_indicator(0);
+        let indicator = EdgeState::Active.flow_indicator(0, &theme);
         assert!(indicator.is_some());
 
         // Inactive state has no flow indicator
-        let indicator = EdgeState::Inactive.flow_indicator(0);
+        let indicator = EdgeState::Inactive.flow_indicator(0, &theme);
         assert!(indicator.is_none());
 
         // Complete state has no flow indicator
-        let indicator = EdgeState::Complete.flow_indicator(0);
+        let indicator = EdgeState::Complete.flow_indicator(0, &theme);
         assert!(indicator.is_none());
     }
 

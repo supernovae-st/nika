@@ -10,6 +10,17 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Widget},
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks for theme-aware rendering)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_BORDER_COLOR: Color = Color::Rgb(99, 102, 241); // indigo
+const DEFAULT_BG_COLOR: Color = Color::Rgb(17, 24, 39); // dark slate
+const DEFAULT_PLACEHOLDER_COLOR: Color = Color::Rgb(156, 163, 175); // gray
+const DEFAULT_SEPARATOR_COLOR: Color = Color::Rgb(55, 65, 81); // dark gray
+const DEFAULT_TEXT_COLOR: Color = Color::Rgb(229, 231, 235); // light text
+const DEFAULT_MUTED_COLOR: Color = Color::Rgb(107, 114, 128); // muted text
+
 /// A command in the palette
 #[derive(Debug, Clone)]
 pub struct PaletteCommand {
@@ -360,15 +371,15 @@ impl Widget for CommandPalette<'_> {
         // Draw border
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Rgb(99, 102, 241)))
-            .style(Style::default().bg(Color::Rgb(17, 24, 39)));
+            .border_style(Style::default().fg(DEFAULT_BORDER_COLOR))
+            .style(Style::default().bg(DEFAULT_BG_COLOR));
         let inner = block.inner(palette_area);
         block.render(palette_area, buf);
 
         // Search input
         let cursor = if self.state.visible { "_" } else { "" };
         let input_line = Line::from(vec![
-            Span::styled("🔍 > ", Style::default().fg(Color::Rgb(156, 163, 175))),
+            Span::styled("🔍 > ", Style::default().fg(DEFAULT_PLACEHOLDER_COLOR)),
             Span::styled(&self.state.query, Style::default().fg(Color::White)),
             Span::styled(
                 cursor,
@@ -385,7 +396,7 @@ impl Widget for CommandPalette<'_> {
             inner.x + 1,
             inner.y + 1,
             &sep,
-            Style::default().fg(Color::Rgb(55, 65, 81)),
+            Style::default().fg(DEFAULT_SEPARATOR_COLOR),
         );
 
         // Command list
@@ -402,9 +413,9 @@ impl Widget for CommandPalette<'_> {
             let row_y = list_y + i as u16;
 
             let bg = if is_selected {
-                Color::Rgb(55, 65, 81)
+                DEFAULT_SEPARATOR_COLOR
             } else {
-                Color::Rgb(17, 24, 39)
+                DEFAULT_BG_COLOR
             };
 
             // Clear line background
@@ -420,7 +431,7 @@ impl Widget for CommandPalette<'_> {
                     .fg(Color::White)
                     .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(Color::Rgb(229, 231, 235))
+                Style::default().fg(DEFAULT_TEXT_COLOR)
             };
 
             buf.set_string(inner.x + 2, row_y, cmd.icon, Style::default());
@@ -434,7 +445,7 @@ impl Widget for CommandPalette<'_> {
                         shortcut_x,
                         row_y,
                         shortcut,
-                        Style::default().fg(Color::Rgb(107, 114, 128)),
+                        Style::default().fg(DEFAULT_MUTED_COLOR),
                     );
                 }
             }
@@ -447,7 +458,7 @@ impl Widget for CommandPalette<'_> {
                 inner.x + 2,
                 footer_y,
                 "↑↓ Navigate  ⏎ Select  Esc Cancel",
-                Style::default().fg(Color::Rgb(107, 114, 128)),
+                Style::default().fg(DEFAULT_MUTED_COLOR),
             );
         }
     }

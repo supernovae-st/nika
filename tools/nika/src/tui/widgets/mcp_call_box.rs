@@ -11,6 +11,16 @@ use ratatui::{
     widgets::Widget,
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks for theme-aware rendering)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_RUNNING_COLOR: Color = Color::Rgb(250, 204, 21); // yellow
+const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
+const DEFAULT_FAILED_COLOR: Color = Color::Rgb(239, 68, 68); // red
+const DEFAULT_BORDER_COLOR: Color = Color::Rgb(16, 185, 129); // emerald
+const DEFAULT_MUTED_COLOR: Color = Color::Rgb(107, 114, 128); // gray
+
 /// Status of an MCP call
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum McpCallStatus {
@@ -26,10 +36,10 @@ impl McpCallStatus {
             Self::Running => {
                 let spinners = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
                 let idx = (frame as usize) % spinners.len();
-                (spinners[idx], Color::Rgb(250, 204, 21)) // Yellow
+                (spinners[idx], DEFAULT_RUNNING_COLOR)
             }
-            Self::Success => ("✅", Color::Rgb(34, 197, 94)), // Green
-            Self::Failed => ("❌", Color::Rgb(239, 68, 68)),  // Red
+            Self::Success => ("✅", DEFAULT_SUCCESS_COLOR),
+            Self::Failed => ("❌", DEFAULT_FAILED_COLOR),
         }
     }
 }
@@ -186,9 +196,9 @@ impl Widget for McpCallBox<'_> {
         let (status_char, _status_color) = self.data.status.indicator(self.data.frame);
 
         // Border color: emerald for invoke
-        let border_color = Color::Rgb(16, 185, 129); // Emerald
+        let border_color = DEFAULT_BORDER_COLOR;
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(107, 114, 128));
+        let dim_style = Style::default().fg(DEFAULT_MUTED_COLOR);
 
         // Top border with title
         let duration_str = format!("{:.1}s", self.data.duration.as_secs_f64());
@@ -234,7 +244,7 @@ impl Widget for McpCallBox<'_> {
                     area.x + 2,
                     y,
                     format!("❌ Error: {}", error_display),
-                    Style::default().fg(Color::Rgb(239, 68, 68)),
+                    Style::default().fg(DEFAULT_FAILED_COLOR),
                 );
             } else if let Some(ref result) = self.data.result {
                 let max_len = (area.width - 15) as usize;
@@ -243,14 +253,14 @@ impl Widget for McpCallBox<'_> {
                     area.x + 2,
                     y,
                     format!("📤 result: {}", result_display),
-                    Style::default().fg(Color::Rgb(34, 197, 94)),
+                    Style::default().fg(DEFAULT_SUCCESS_COLOR),
                 );
             } else {
                 buf.set_string(
                     area.x + 2,
                     y,
                     "⏳ Running...",
-                    Style::default().fg(Color::Rgb(250, 204, 21)),
+                    Style::default().fg(DEFAULT_RUNNING_COLOR),
                 );
             }
             y += 1;
@@ -308,11 +318,11 @@ mod tests {
     fn test_status_indicators() {
         let (char, color) = McpCallStatus::Success.indicator(0);
         assert_eq!(char, "✅");
-        assert_eq!(color, Color::Rgb(34, 197, 94));
+        assert_eq!(color, DEFAULT_SUCCESS_COLOR);
 
         let (char, color) = McpCallStatus::Failed.indicator(0);
         assert_eq!(char, "❌");
-        assert_eq!(color, Color::Rgb(239, 68, 68));
+        assert_eq!(color, DEFAULT_FAILED_COLOR);
 
         // Running shows spinner
         let (char1, _) = McpCallStatus::Running.indicator(0);

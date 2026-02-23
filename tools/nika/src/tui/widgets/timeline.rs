@@ -9,7 +9,17 @@ use ratatui::{
     widgets::Widget,
 };
 
-use crate::tui::theme::TaskStatus;
+use crate::tui::theme::{TaskStatus, Theme};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks when no theme)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_PENDING_COLOR: Color = Color::Rgb(107, 114, 128); // gray
+const DEFAULT_RUNNING_COLOR: Color = Color::Rgb(245, 158, 11); // amber
+const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
+const DEFAULT_FAILED_COLOR: Color = Color::Rgb(239, 68, 68); // red
+const DEFAULT_PAUSED_COLOR: Color = Color::Rgb(6, 182, 212); // cyan
 
 /// Single entry in the timeline
 #[derive(Debug, Clone)]
@@ -64,6 +74,8 @@ pub struct Timeline<'a> {
     style: Style,
     /// Animation frame (for spinners)
     frame: u8,
+    /// Optional theme for colors
+    theme: Option<&'a Theme>,
 }
 
 impl<'a> Timeline<'a> {
@@ -73,7 +85,14 @@ impl<'a> Timeline<'a> {
             elapsed_ms: 0,
             style: Style::default(),
             frame: 0,
+            theme: None,
         }
+    }
+
+    /// Set the theme for colors
+    pub fn with_theme(mut self, theme: &'a Theme) -> Self {
+        self.theme = Some(theme);
+        self
     }
 
     pub fn elapsed(mut self, ms: u64) -> Self {
@@ -98,14 +117,29 @@ impl<'a> Timeline<'a> {
         SPINNER_FRAMES[idx]
     }
 
-    /// Get status color
-    fn status_color(status: TaskStatus) -> Color {
+    /// Get status color with theme fallback
+    fn status_color(&self, status: TaskStatus) -> Color {
         match status {
-            TaskStatus::Pending => Color::Rgb(107, 114, 128), // gray
-            TaskStatus::Running => Color::Rgb(245, 158, 11),  // amber
-            TaskStatus::Success => Color::Rgb(34, 197, 94),   // green
-            TaskStatus::Failed => Color::Rgb(239, 68, 68),    // red
-            TaskStatus::Paused => Color::Rgb(6, 182, 212),    // cyan
+            TaskStatus::Pending => self
+                .theme
+                .map(|t| t.status_pending)
+                .unwrap_or(DEFAULT_PENDING_COLOR),
+            TaskStatus::Running => self
+                .theme
+                .map(|t| t.status_running)
+                .unwrap_or(DEFAULT_RUNNING_COLOR),
+            TaskStatus::Success => self
+                .theme
+                .map(|t| t.status_success)
+                .unwrap_or(DEFAULT_SUCCESS_COLOR),
+            TaskStatus::Failed => self
+                .theme
+                .map(|t| t.status_failed)
+                .unwrap_or(DEFAULT_FAILED_COLOR),
+            TaskStatus::Paused => self
+                .theme
+                .map(|t| t.status_paused)
+                .unwrap_or(DEFAULT_PAUSED_COLOR),
         }
     }
 
@@ -138,6 +172,13 @@ impl Widget for Timeline<'_> {
             return;
         }
 
+        // Extract theme colors with fallbacks
+        let muted_color = self
+            .theme
+            .map(|t| t.text_muted)
+            .unwrap_or(Color::DarkGray);
+        let highlight_color = self.theme.map(|t| t.highlight).unwrap_or(Color::Cyan);
+
         // Calculate layout
         let num_entries = self.entries.len();
         let available_width = area.width.saturating_sub(2) as usize;
@@ -147,7 +188,7 @@ impl Widget for Timeline<'_> {
         let track_y = area.y + 1;
         let track_char = "─";
         for x in area.x..(area.x + area.width) {
-            buf.set_string(x, track_y, track_char, Style::default().fg(Color::DarkGray));
+            buf.set_string(x, track_y, track_char, Style::default().fg(muted_color));
         }
 
         // Draw entries
@@ -157,12 +198,17 @@ impl Widget for Timeline<'_> {
                 break;
             }
 
-            let color = Self::status_color(entry.status);
+            let color = self.status_color(entry.status);
             let icon = self.status_icon(entry.status, entry.is_current);
 
             // Draw breakpoint indicator above track (TIER 2.3)
             if entry.has_breakpoint && area.y > 0 {
-                buf.set_string(x, area.y, "🔴", Style::default().fg(Color::Red));
+                buf.set_string(
+                    x,
+                    area.y,
+                    "🔴",
+                    Style::default().fg(self.status_color(TaskStatus::Failed)),
+                );
             }
 
             // Draw marker on track
@@ -189,7 +235,7 @@ impl Widget for Timeline<'_> {
                 elapsed_x,
                 area.y,
                 &elapsed_str,
-                Style::default().fg(Color::Cyan),
+                Style::default().fg(highlight_color),
             );
         }
     }
@@ -235,10 +281,14 @@ mod tests {
 
     #[test]
     fn test_status_colors() {
-        // Verify colors are assigned
+        // Create a timeline instance to test status_color
+        let entries: &[TimelineEntry] = &[];
+        let timeline = Timeline::new(entries);
+
+        // Verify colors are assigned and different for different statuses
         assert_ne!(
-            Timeline::status_color(TaskStatus::Running),
-            Timeline::status_color(TaskStatus::Success)
+            timeline.status_color(TaskStatus::Running),
+            timeline.status_color(TaskStatus::Success)
         );
     }
 
