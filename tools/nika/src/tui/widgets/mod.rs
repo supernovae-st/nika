@@ -33,8 +33,11 @@ mod session_context;
 mod sparkline;
 mod status_bar;
 mod timeline;
+mod provider_selector;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
+// Provider selector popup (v0.7.2)
+pub use provider_selector::{ProviderSelector, ProviderSelectorState};
 
 // === Chat UX Enrichment Widgets ===
 // Session context bar for tokens, cost, MCP status
