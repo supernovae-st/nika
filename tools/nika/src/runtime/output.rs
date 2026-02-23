@@ -634,7 +634,9 @@ This is based on ancient wisdom."#;
         let input = "This is just plain text without any JSON.";
         let result = extract_json_from_output(input);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("No JSON object or array found"));
+        assert!(result
+            .unwrap_err()
+            .contains("No JSON object or array found"));
     }
 
     #[tokio::test]

@@ -411,8 +411,8 @@ impl HomeView {
                         Style::default().fg(theme.text_muted),
                     )),
                 ];
-                let paragraph = Paragraph::new(hint_lines)
-                    .alignment(ratatui::layout::Alignment::Center);
+                let paragraph =
+                    Paragraph::new(hint_lines).alignment(ratatui::layout::Alignment::Center);
                 frame.render_widget(paragraph, inner);
                 return;
             }
@@ -433,11 +433,13 @@ impl HomeView {
                 Line::from(""),
                 Line::from(Span::styled(
                     "Use ↑↓ or j/k to navigate",
-                    Style::default().fg(theme.text_muted).add_modifier(Modifier::DIM),
+                    Style::default()
+                        .fg(theme.text_muted)
+                        .add_modifier(Modifier::DIM),
                 )),
             ];
-            let paragraph = Paragraph::new(hint_lines)
-                .alignment(ratatui::layout::Alignment::Center);
+            let paragraph =
+                Paragraph::new(hint_lines).alignment(ratatui::layout::Alignment::Center);
             frame.render_widget(paragraph, inner);
             return;
         };
@@ -479,8 +481,8 @@ impl HomeView {
                     .iter()
                     .map(|task| {
                         let verb = Self::task_verb_color(task.as_ref());
-                        let mut node = NodeBoxData::new(&task.id, verb)
-                            .with_status(TaskStatus::Pending);
+                        let mut node =
+                            NodeBoxData::new(&task.id, verb).with_status(TaskStatus::Pending);
 
                         // Add prompt preview if available (for infer/agent)
                         if let Some(prompt) = Self::extract_prompt_preview(task.as_ref()) {
@@ -584,8 +586,7 @@ impl HomeView {
                 let (prefix_icon, line_style): (Cow<'static, str>, Style) = match current_verb {
                     Some(verb) => {
                         // Verb icon as prefix for verb lines only
-                        let icon: Cow<'static, str> = if Self::get_line_verb_color(line).is_some()
-                        {
+                        let icon: Cow<'static, str> = if Self::get_line_verb_color(line).is_some() {
                             Cow::Owned(format!("{} ", verb.icon()))
                         } else {
                             Cow::Borrowed("  ") // Static str, no allocation
@@ -645,7 +646,9 @@ impl HomeView {
                 }
             }
             TaskAction::Fetch { fetch } => Some(fetch.url.clone()),
-            TaskAction::Invoke { invoke } => invoke.tool.clone().or_else(|| invoke.resource.clone()),
+            TaskAction::Invoke { invoke } => {
+                invoke.tool.clone().or_else(|| invoke.resource.clone())
+            }
         }
     }
 

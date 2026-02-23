@@ -301,11 +301,7 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = anthropic::Client::from_env();
-        let model_name = self
-            .params
-            .model
-            .as_deref()
-            .unwrap_or("claude-sonnet-4-6");
+        let model_name = self.params.model.as_deref().unwrap_or("claude-sonnet-4-6");
         let model = client.completion_model(model_name);
 
         let turn_index = (self.history.len() / 2 + 1) as u32;
@@ -924,11 +920,7 @@ impl RigAgentLoop {
         let client = anthropic::Client::from_env();
 
         // Get model name (default to claude-sonnet-4-6)
-        let model_name = self
-            .params
-            .model
-            .as_deref()
-            .unwrap_or("claude-sonnet-4-6");
+        let model_name = self.params.model.as_deref().unwrap_or("claude-sonnet-4-6");
         let model = client.completion_model(model_name);
 
         // Take ownership of tools (they'll be consumed by the builder)
@@ -1009,11 +1001,7 @@ impl RigAgentLoop {
         let client = anthropic::Client::from_env();
 
         // Get model name (default to claude-sonnet-4-6)
-        let model_name = self
-            .params
-            .model
-            .as_deref()
-            .unwrap_or("claude-sonnet-4-6");
+        let model_name = self.params.model.as_deref().unwrap_or("claude-sonnet-4-6");
         let model = client.completion_model(model_name);
 
         // Build completion request with thinking enabled

@@ -28,12 +28,12 @@ mod header;
 mod infer_stream_box;
 mod mcp_call_box;
 mod mcp_log;
+mod provider_selector;
 mod scroll_indicator;
 mod session_context;
 mod sparkline;
 mod status_bar;
 mod timeline;
-mod provider_selector;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
 // Provider selector popup (v0.7.2)

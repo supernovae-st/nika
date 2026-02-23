@@ -197,8 +197,7 @@ impl<'a> DagAscii<'a> {
                         layout.get(src_id).map(|pos| {
                             let src_x =
                                 area.x + pos.x.saturating_sub(self.scroll.0) + pos.width / 2;
-                            let src_y =
-                                area.y + pos.y.saturating_sub(self.scroll.1) + pos.height;
+                            let src_y = area.y + pos.y.saturating_sub(self.scroll.1) + pos.height;
                             (src_x, src_y)
                         })
                     })
@@ -290,7 +289,9 @@ impl<'a> DagAscii<'a> {
             .map(|t| t.text_muted)
             .unwrap_or(DEFAULT_FOOTER_COLOR);
 
-        if footer_y >= area.y && footer_x + footer_text.len() as u16 <= area.x + area.width {
+        // SAFETY: Clamp footer_text length to u16::MAX before cast to prevent truncation
+        let footer_len = footer_text.len().min(u16::MAX as usize) as u16;
+        if footer_y >= area.y && footer_x.saturating_add(footer_len) <= area.x.saturating_add(area.width) {
             buf.set_string(
                 footer_x,
                 footer_y,
@@ -750,8 +751,8 @@ mod tests {
     fn test_dag_ascii_renders_with_area_offset() {
         // Simulate a panel at (20, 5) with width 40, height 15
         // This is the typical case in Home view where DAG preview is on the right
-        let nodes = vec![NodeBoxData::new("task1", VerbColor::Infer)
-            .with_status(TaskStatus::Pending)];
+        let nodes =
+            vec![NodeBoxData::new("task1", VerbColor::Infer).with_status(TaskStatus::Pending)];
 
         let widget = DagAscii::new(&nodes);
 
@@ -801,7 +802,10 @@ mod tests {
     #[test]
     fn test_dag_ascii_clips_nodes_to_area() {
         // Test that nodes too wide for the area are clipped
-        let nodes = vec![NodeBoxData::new("very_long_task_name_that_exceeds_width", VerbColor::Infer)];
+        let nodes = vec![NodeBoxData::new(
+            "very_long_task_name_that_exceeds_width",
+            VerbColor::Infer,
+        )];
 
         let widget = DagAscii::new(&nodes);
 

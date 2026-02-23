@@ -117,10 +117,7 @@ impl Widget for McpLog<'_> {
             .theme
             .map(|t| t.status_running)
             .unwrap_or(DEFAULT_RUNNING_COLOR);
-        let muted_color = self
-            .theme
-            .map(|t| t.text_muted)
-            .unwrap_or(Color::DarkGray);
+        let muted_color = self.theme.map(|t| t.text_muted).unwrap_or(Color::DarkGray);
         let text_color = self.theme.map(|t| t.text_primary).unwrap_or(Color::White);
 
         if self.entries.is_empty() {

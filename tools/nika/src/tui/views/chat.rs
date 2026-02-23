@@ -998,7 +998,8 @@ impl View for ChatView {
         // 6. Provider selector overlay (if visible) - ⌘P
         if self.provider_selector.visible {
             let selector_area = centered_rect(70, 60, area);
-            ProviderSelector::new(&self.provider_selector).render(selector_area, frame.buffer_mut());
+            ProviderSelector::new(&self.provider_selector)
+                .render(selector_area, frame.buffer_mut());
         }
     }
 
@@ -1341,7 +1342,11 @@ impl ChatView {
                     let thinking_indicator = if model_info.thinking { " 🧠" } else { "" };
                     self.add_system_message(format!(
                         "{} {} Switched to {} {}{}",
-                        streaming_indicator, provider.icon, provider.name, model_info.name, thinking_indicator
+                        streaming_indicator,
+                        provider.icon,
+                        provider.name,
+                        model_info.name,
+                        thinking_indicator
                     ));
                 }
 

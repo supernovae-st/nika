@@ -23,8 +23,7 @@ fn novanet_mcp_bin() -> String {
         .and_then(|p| p.parent()) // supernovae-agi/
         .expect("Should find workspace root");
 
-    let release_path =
-        workspace_root.join("novanet/tools/novanet-mcp/target/release/novanet-mcp");
+    let release_path = workspace_root.join("novanet/tools/novanet-mcp/target/release/novanet-mcp");
     if release_path.exists() {
         return release_path.to_string_lossy().to_string();
     }

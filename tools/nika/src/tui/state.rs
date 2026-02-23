@@ -1841,7 +1841,7 @@ impl TuiState {
                     }
                 }
                 let _ = turns; // Used for logging
-                // TIER 4.1: Mark reasoning panel dirty
+                               // TIER 4.1: Mark reasoning panel dirty
                 self.dirty.reasoning = true;
             }
 

@@ -375,8 +375,8 @@ fn test_infer_stream_progress() {
 
 #[test]
 fn test_infer_stream_box_rendering() {
-    let data = InferStreamData::new("claude-sonnet-4-6")
-        .with_content("This is a streaming response...");
+    let data =
+        InferStreamData::new("claude-sonnet-4-6").with_content("This is a streaming response...");
 
     let stream_box = InferStreamBox::new(&data);
 

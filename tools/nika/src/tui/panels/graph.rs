@@ -110,11 +110,20 @@ impl<'a> GraphPanel<'a> {
                 Style::default().fg(self.theme.text_primary),
             ),
             Span::styled("○", Style::default().fg(self.theme.status_pending)),
-            Span::styled(format!(" {} ", pending), Style::default().fg(self.theme.text_primary)),
+            Span::styled(
+                format!(" {} ", pending),
+                Style::default().fg(self.theme.text_primary),
+            ),
             Span::styled("◉", Style::default().fg(self.theme.status_running)),
-            Span::styled(format!(" {} ", running), Style::default().fg(self.theme.text_primary)),
+            Span::styled(
+                format!(" {} ", running),
+                Style::default().fg(self.theme.text_primary),
+            ),
             Span::styled("⊗", Style::default().fg(self.theme.status_failed)),
-            Span::styled(format!(" {}", failed), Style::default().fg(self.theme.text_primary)),
+            Span::styled(
+                format!(" {}", failed),
+                Style::default().fg(self.theme.text_primary),
+            ),
             Span::styled(
                 format!("  │ Total: {}", total),
                 Style::default().fg(self.theme.text_muted),

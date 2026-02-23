@@ -415,18 +415,9 @@ impl<'a> Dag<'a> {
 impl Widget for Dag<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         // Theme-aware colors with fallbacks
-        let muted_color = self
-            .theme
-            .map(|t| t.text_muted)
-            .unwrap_or(Color::DarkGray);
-        let highlight_color = self
-            .theme
-            .map(|t| t.highlight)
-            .unwrap_or(Color::Cyan);
-        let text_primary = self
-            .theme
-            .map(|t| t.text_primary)
-            .unwrap_or(Color::White);
+        let muted_color = self.theme.map(|t| t.text_muted).unwrap_or(Color::DarkGray);
+        let highlight_color = self.theme.map(|t| t.highlight).unwrap_or(Color::Cyan);
+        let text_primary = self.theme.map(|t| t.text_primary).unwrap_or(Color::White);
         let for_each_color = self
             .theme
             .map(|t| t.trait_authored)
@@ -481,8 +472,7 @@ impl Widget for Dag<'_> {
                 }
 
                 // Draw flow indicator for active edges
-                if let Some((indicator, ind_color)) =
-                    self.flow_indicator(node.incoming_edge_state)
+                if let Some((indicator, ind_color)) = self.flow_indicator(node.incoming_edge_state)
                 {
                     if y > 1 && x > 0 {
                         buf.set_string(
@@ -513,7 +503,8 @@ impl Widget for Dag<'_> {
             // Draw task ID (UTF-8 safe truncation)
             let max_id_len = (area.width as usize).saturating_sub(x as usize + 4);
             let display_id = if node.id.chars().count() > max_id_len {
-                let truncated: String = node.id.chars().take(max_id_len.saturating_sub(1)).collect();
+                let truncated: String =
+                    node.id.chars().take(max_id_len.saturating_sub(1)).collect();
                 format!("{}…", truncated)
             } else {
                 node.id.clone()

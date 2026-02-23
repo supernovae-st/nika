@@ -395,8 +395,8 @@ impl Default for Theme {
             status_paused: Color::Rgb(6, 182, 212),    // #06B6D4 cyan
 
             // Mission Phases (Space Theme)
-            phase_launch: Color::Rgb(236, 72, 153),     // #EC4899 pink
-            phase_orbital: Color::Rgb(59, 130, 246),    // #3B82F6 blue
+            phase_launch: Color::Rgb(236, 72, 153), // #EC4899 pink
+            phase_orbital: Color::Rgb(59, 130, 246), // #3B82F6 blue
             phase_rendezvous: Color::Rgb(139, 92, 246), // #8B5CF6 violet
 
             // MCP tools
@@ -451,8 +451,8 @@ impl Theme {
             status_paused: Color::Rgb(8, 145, 178), // #0891B2 cyan-600
 
             // Mission Phases (Space Theme) - light mode
-            phase_launch: Color::Rgb(219, 39, 119),   // #DB2777 pink-600
-            phase_orbital: Color::Rgb(37, 99, 235),   // #2563EB blue-600
+            phase_launch: Color::Rgb(219, 39, 119), // #DB2777 pink-600
+            phase_orbital: Color::Rgb(37, 99, 235), // #2563EB blue-600
             phase_rendezvous: Color::Rgb(124, 58, 237), // #7C3AED violet-600
 
             // MCP tools
