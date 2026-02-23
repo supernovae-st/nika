@@ -1,17 +1,19 @@
-//! Home View - Workflow browser with file tree and preview
+//! Home View - Workflow browser with file tree and DAG preview
 //!
 //! Layout:
 //! ```text
 //! +-----------------------------------+---------------------------------------------+
 //! | SEARCH: [fuzzy search bar]        | (when active)                               |
 //! +-----------------------------------+---------------------------------------------+
-//! | FILES (40%)                       | PREVIEW (60%)                               |
-//! | Tree view of .nika.yaml files     | YAML syntax highlighted                     |
+//! | FILES (40%)                       | DAG PREVIEW (60%)                           |
+//! | Tree view of .nika.yaml files     | Visual task dependency graph                |
 //! +-----------------------------------+---------------------------------------------+
 //! | HISTORY: recent workflow runs (toggleable with [h])                             |
 //! +---------------------------------------------------------------------------------+
 //! ```
 
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -20,16 +22,18 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Widget},
     Frame,
 };
 
 use super::trait_view::View;
 use super::ViewAction;
+use crate::ast::{TaskAction, Workflow};
 use crate::tui::standalone::{BrowserEntry, StandaloneState};
 use crate::tui::state::TuiState;
-use crate::tui::theme::Theme;
+use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
+use crate::tui::widgets::{DagAscii, NodeBoxData, NodeBoxMode};
 
 /// Home view state
 pub struct HomeView {
@@ -51,6 +55,12 @@ pub struct HomeView {
     matcher: Matcher,
     /// Cached: whether .nika directory exists (avoid syscall per frame)
     has_nika_dir: bool,
+    /// Cached parsed workflow (PERF: avoid re-parsing YAML every frame)
+    cached_workflow: RefCell<Option<Workflow>>,
+    /// Content hash for cache invalidation
+    cached_content_hash: Cell<u64>,
+    /// DAG expanded mode toggle
+    pub dag_expanded: bool,
 }
 
 impl HomeView {
@@ -75,6 +85,9 @@ impl HomeView {
             filtered_indices: (0..entry_count).collect(),
             matcher: Matcher::new(Config::DEFAULT),
             has_nika_dir,
+            cached_workflow: RefCell::new(None),
+            cached_content_hash: Cell::new(0),
+            dag_expanded: false,
         }
     }
 
@@ -264,42 +277,209 @@ impl HomeView {
         frame.render_stateful_widget(list, list_area, &mut self.list_state.clone());
     }
 
-    /// Render the preview panel (right 60%)
+    // =========================================================================
+    // DAG PREVIEW HELPERS (v0.7.2+)
+    // =========================================================================
+
+    /// Compute a simple hash of content for cache invalidation
+    fn content_hash(content: &str) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        content.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    /// Extract dependencies from Flow objects
+    ///
+    /// Returns a map: target_task_id -> [source_task_ids]
+    fn extract_flow_dependencies(wf: &Workflow) -> HashMap<String, Vec<String>> {
+        let mut deps: HashMap<String, Vec<String>> = HashMap::new();
+
+        for flow in &wf.flows {
+            let sources = flow.source.as_vec();
+            let targets = flow.target.as_vec();
+
+            // Each target depends on all sources
+            for target in &targets {
+                let entry = deps.entry(target.to_string()).or_default();
+                for source in &sources {
+                    if !entry.contains(&source.to_string()) {
+                        entry.push(source.to_string());
+                    }
+                }
+            }
+        }
+
+        deps
+    }
+
+    /// Get VerbColor from task action
+    fn task_verb_color(task: &crate::ast::Task) -> VerbColor {
+        match &task.action {
+            TaskAction::Infer { .. } => VerbColor::Infer,
+            TaskAction::Exec { .. } => VerbColor::Exec,
+            TaskAction::Fetch { .. } => VerbColor::Fetch,
+            TaskAction::Invoke { .. } => VerbColor::Invoke,
+            TaskAction::Agent { .. } => VerbColor::Agent,
+        }
+    }
+
+    /// Render the preview panel (right 60%) with DAG visualization
     fn render_preview(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        // PERF: Use &str to avoid clone allocation
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(if self.dag_expanded {
+                " DAG PREVIEW [E]xpanded "
+            } else {
+                " DAG PREVIEW [E]→expand "
+            })
+            .border_style(Style::default().fg(theme.border_normal));
+
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        // Check if we have a valid file selected
         let content: &str = if let Some(entry) = self.selected_entry() {
             if entry.is_dir {
-                "Select a workflow file to preview"
-            } else {
-                &self.standalone.preview_content
+                // Directory selected - show hint
+                let paragraph = Paragraph::new("Select a .nika.yaml file to preview task graph")
+                    .style(Style::default().fg(theme.text_muted));
+                frame.render_widget(paragraph, inner);
+                return;
             }
+            &self.standalone.preview_content
         } else {
-            "No file selected"
+            // No file selected
+            let paragraph = Paragraph::new("No file selected")
+                .style(Style::default().fg(theme.text_muted));
+            frame.render_widget(paragraph, inner);
+            return;
         };
 
-        // Add line numbers
-        let lines: Vec<Line> = content
-            .lines()
-            .enumerate()
-            .map(|(i, line)| {
-                Line::from(vec![
-                    Span::styled(
-                        format!("{:4} | ", i + 1),
-                        Style::default().fg(theme.text_muted),
-                    ),
-                    Span::raw(line),
-                ])
-            })
-            .collect();
+        // PERF: Compute content hash to check if we need to re-parse
+        let current_hash = Self::content_hash(content);
+        let cached_hash = self.cached_content_hash.get();
 
-        let paragraph = Paragraph::new(lines).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" PREVIEW ")
-                .border_style(Style::default().fg(theme.border_normal)),
-        );
+        // Update cache if content changed
+        if current_hash != cached_hash {
+            let workflow: Result<Workflow, _> = serde_yaml::from_str(content);
+            *self.cached_workflow.borrow_mut() = workflow.ok();
+            self.cached_content_hash.set(current_hash);
+        }
 
-        frame.render_widget(paragraph, area);
+        // Use cached workflow (avoids parsing every frame)
+        let cached = self.cached_workflow.borrow();
+        match cached.as_ref() {
+            Some(wf) => {
+                if wf.tasks.is_empty() {
+                    let paragraph = Paragraph::new("(no tasks defined)")
+                        .style(Style::default().fg(theme.text_muted));
+                    frame.render_widget(paragraph, inner);
+                    return;
+                }
+
+                // Build dependency map from Flow objects
+                let deps = Self::extract_flow_dependencies(wf);
+
+                // Convert tasks to NodeBoxData
+                let nodes: Vec<NodeBoxData> = wf
+                    .tasks
+                    .iter()
+                    .map(|task| {
+                        let verb = Self::task_verb_color(task.as_ref());
+                        let mut node = NodeBoxData::new(&task.id, verb)
+                            .with_status(TaskStatus::Pending);
+
+                        // Add prompt preview if available (for infer/agent)
+                        if let Some(prompt) = Self::extract_prompt_preview(task.as_ref()) {
+                            node = node.with_prompt_preview(prompt);
+                        }
+
+                        // Add for_each info if present
+                        if let Some(for_each) = &task.for_each {
+                            if let Some(arr) = for_each.as_array() {
+                                node = node.with_for_each_count(arr.len());
+                            }
+                        }
+
+                        node
+                    })
+                    .collect();
+
+                let mode = if self.dag_expanded {
+                    NodeBoxMode::Expanded
+                } else {
+                    NodeBoxMode::Minimal
+                };
+
+                // Create and render DagAscii widget
+                let widget = DagAscii::new(&nodes)
+                    .with_dependencies(deps)
+                    .mode(mode)
+                    .scroll(0, 0);
+
+                // Render to buffer (DagAscii implements Widget)
+                let buf = frame.buffer_mut();
+                widget.render(inner, buf);
+            }
+            None => {
+                // YAML doesn't parse as workflow - show text fallback with line numbers
+                let lines: Vec<Line> = content
+                    .lines()
+                    .take(inner.height as usize) // Limit to visible area
+                    .enumerate()
+                    .map(|(i, line)| {
+                        Line::from(vec![
+                            Span::styled(
+                                format!("{:4} │ ", i + 1),
+                                Style::default().fg(theme.text_muted),
+                            ),
+                            Span::raw(line),
+                        ])
+                    })
+                    .collect();
+
+                let paragraph = Paragraph::new(lines);
+                frame.render_widget(paragraph, inner);
+            }
+        }
+    }
+
+    /// Extract prompt preview from task for DAG display
+    fn extract_prompt_preview(task: &crate::ast::Task) -> Option<String> {
+        match &task.action {
+            TaskAction::Infer { infer } => {
+                // Truncate to ~50 chars for preview
+                let prompt = &infer.prompt;
+                let preview: String = prompt.chars().take(50).collect();
+                if prompt.len() > 50 {
+                    Some(format!("{}...", preview))
+                } else {
+                    Some(preview)
+                }
+            }
+            TaskAction::Agent { agent } => {
+                let prompt = &agent.prompt;
+                let preview: String = prompt.chars().take(50).collect();
+                if prompt.len() > 50 {
+                    Some(format!("{}...", preview))
+                } else {
+                    Some(preview)
+                }
+            }
+            TaskAction::Exec { exec } => {
+                let command = &exec.command;
+                let preview: String = command.chars().take(40).collect();
+                if command.len() > 40 {
+                    Some(format!("$ {}...", preview))
+                } else {
+                    Some(format!("$ {}", command))
+                }
+            }
+            TaskAction::Fetch { fetch } => Some(fetch.url.clone()),
+            TaskAction::Invoke { invoke } => invoke.tool.clone().or_else(|| invoke.resource.clone()),
+        }
     }
 
     /// Render the welcome screen (v0.5.2+)
@@ -611,12 +791,18 @@ impl View for HomeView {
             }
 
             // Edit: open in Studio
-            KeyCode::Char('e') => {
+            KeyCode::Char('e') if !key.modifiers.contains(KeyModifiers::SHIFT) => {
                 if let Some(entry) = self.selected_entry() {
                     if !entry.is_dir {
                         return ViewAction::OpenInStudio(entry.path.clone());
                     }
                 }
+                ViewAction::None
+            }
+
+            // Toggle DAG expand mode (Shift+E)
+            KeyCode::Char('E') => {
+                self.dag_expanded = !self.dag_expanded;
                 ViewAction::None
             }
 

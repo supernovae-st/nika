@@ -11,6 +11,7 @@ use ratatui::{
 };
 
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
+use crate::tui::utils::truncate_str;
 use ratatui::style::Color;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -605,16 +606,9 @@ impl Widget for NodeBox<'_> {
             x += 1;
         }
 
-        // ID (truncate if needed)
+        // ID (truncate if needed) - UTF-8 safe
         let available_for_id = (max_x - x).saturating_sub(self.data.estimate.len() as u16 + 3);
-        let id_display = if self.data.id.len() as u16 > available_for_id && available_for_id > 3 {
-            format!(
-                "{}...",
-                &self.data.id[..(available_for_id as usize - 3).max(1)]
-            )
-        } else {
-            self.data.id.clone()
-        };
+        let id_display = truncate_str(&self.data.id, available_for_id as usize);
 
         if x + id_display.len() as u16 <= max_x {
             buf.set_string(x, content_y, &id_display, content_style);
@@ -681,11 +675,8 @@ impl Widget for NodeBox<'_> {
                         buf.set_string(x, extra_y, " ", content_style);
                     }
                     let model_text = format!(" {}", model);
-                    let truncated = if model_text.len() as u16 > area.width - 3 {
-                        format!("{}...", &model_text[..(area.width as usize - 6).max(3)])
-                    } else {
-                        model_text
-                    };
+                    // UTF-8 safe truncation
+                    let truncated = truncate_str(&model_text, (area.width as usize).saturating_sub(3));
                     buf.set_string(
                         area.x + 1,
                         extra_y,
@@ -715,8 +706,12 @@ impl Widget for NodeBox<'_> {
                         buf.set_string(x, extra_y, " ", content_style);
                     }
                     let preview_text = format!(" \"{}\"", preview);
-                    let truncated = if preview_text.len() as u16 > area.width - 3 {
-                        format!("{}...\"", &preview_text[..(area.width as usize - 7).max(3)])
+                    // UTF-8 safe truncation with closing quote
+                    let max_chars = (area.width as usize).saturating_sub(3);
+                    let truncated = if preview_text.chars().count() > max_chars {
+                        // Truncate content and preserve closing quote
+                        let content: String = preview_text.chars().take(max_chars.saturating_sub(4)).collect();
+                        format!("{}...\"", content)
                     } else {
                         preview_text
                     };

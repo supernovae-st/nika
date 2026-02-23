@@ -510,10 +510,11 @@ impl Widget for Dag<'_> {
                 buf.set_string(area.x + x + 1, area.y + y, "🔴", Style::default());
             }
 
-            // Draw task ID
+            // Draw task ID (UTF-8 safe truncation)
             let max_id_len = (area.width as usize).saturating_sub(x as usize + 4);
-            let display_id = if node.id.len() > max_id_len {
-                format!("{}…", &node.id[..max_id_len.saturating_sub(1)])
+            let display_id = if node.id.chars().count() > max_id_len {
+                let truncated: String = node.id.chars().take(max_id_len.saturating_sub(1)).collect();
+                format!("{}…", truncated)
             } else {
                 node.id.clone()
             };

@@ -214,16 +214,16 @@ impl Widget for Timeline<'_> {
             // Draw marker on track
             buf.set_string(x, track_y, icon, Style::default().fg(color));
 
-            // Draw task ID below (truncated if needed)
+            // Draw task ID below (truncated if needed, UTF-8 safe)
             if area.height > 2 {
                 let label_y = track_y + 1;
                 let max_len = entry_width.saturating_sub(1);
-                let label = if entry.id.len() > max_len {
-                    &entry.id[..max_len]
+                let label: String = if entry.id.chars().count() > max_len {
+                    entry.id.chars().take(max_len).collect()
                 } else {
-                    &entry.id
+                    entry.id.clone()
                 };
-                buf.set_string(x, label_y, label, Style::default().fg(color));
+                buf.set_string(x, label_y, &label, Style::default().fg(color));
             }
         }
 
