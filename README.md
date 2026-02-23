@@ -603,25 +603,27 @@ cargo run -- --help  # Run
 
 ## 🌟 Part of the SuperNovae Ecosystem
 
-<br>
-
+<table>
+<tr>
+<td align="center">
 <a href="https://github.com/supernovae-st/novanet">
-  <img src="https://img.shields.io/badge/NovaNet-Knowledge_Graph-0ea5e9?style=for-the-badge&logo=neo4j&logoColor=white" alt="NovaNet">
+<img src="https://img.shields.io/badge/NovaNet-Knowledge_Graph-0ea5e9?style=for-the-badge&logo=neo4j&logoColor=white" alt="NovaNet">
 </a>
-&nbsp;
+</td>
+<td align="center">
 <a href="https://github.com/supernovae-st/nika">
-  <img src="https://img.shields.io/badge/Nika-Workflow_Engine-7c3aed?style=for-the-badge&logo=yaml&logoColor=white" alt="Nika">
+<img src="https://img.shields.io/badge/Nika-Workflow_Engine-7c3aed?style=for-the-badge&logo=yaml&logoColor=white" alt="Nika">
 </a>
-
-<br><br>
-
-### Created & Maintained by
-
-<a href="https://supernovae.studio">
-  <img src="https://raw.githubusercontent.com/supernovae-st/nika/main/assets/supernovae-logo.svg" alt="SuperNovae Studio" width="140">
-</a>
+</td>
+</tr>
+</table>
 
 <br>
+
+<!-- SuperNovae Studio -->
+<a href="https://supernovae.studio">
+<img src="https://avatars.githubusercontent.com/u/33066282?s=200&v=4" width="80" height="80" alt="SuperNovae Studio">
+</a>
 
 **[SuperNovae Studio](https://supernovae.studio)**
 
@@ -629,39 +631,43 @@ cargo run -- --help  # Run
 
 <br>
 
-### 👥 Team
-
+<!-- Team -->
+<table>
+<tr>
+<td align="center">
 <a href="https://github.com/ThibautMelen">
-  <img src="https://github.com/ThibautMelen.png" width="60" height="60" style="border-radius: 50%;" alt="Thibaut Melen">
+<img src="https://github.com/ThibautMelen.png" width="80" height="80" alt="Thibaut Melen"><br>
+<sub><b>Thibaut Melen</b></sub>
 </a>
-&nbsp;&nbsp;
+</td>
+<td align="center">
 <a href="https://github.com/NicolasCELLA">
-  <img src="https://github.com/NicolasCELLA.png" width="60" height="60" style="border-radius: 50%;" alt="Nicolas Cella">
+<img src="https://github.com/NicolasCELLA.png" width="80" height="80" alt="Nicolas Cella"><br>
+<sub><b>Nicolas Cella</b></sub>
 </a>
-
-<sub>
-<a href="https://github.com/ThibautMelen"><b>Thibaut Melen</b></a> ·
-<a href="https://github.com/NicolasCELLA"><b>Nicolas Cella</b></a>
-</sub>
-
-<br><br>
-
-### 🔗 Links
-
-[![Website](https://img.shields.io/badge/Website-supernovae.studio-f97316?style=flat-square&logo=safari&logoColor=white)](https://supernovae.studio)
-[![GitHub Org](https://img.shields.io/badge/GitHub-supernovae--st-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/supernovae-st)
-[![Twitter](https://img.shields.io/badge/Twitter-@supernovaestudio-1DA1F2?style=flat-square&logo=twitter&logoColor=white)](https://twitter.com/supernovaestudio)
+</td>
+</tr>
+</table>
 
 <br>
 
-[![GitHub Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=social)](https://github.com/supernovae-st/nika)
-[![GitHub Forks](https://img.shields.io/github/forks/supernovae-st/nika?style=social)](https://github.com/supernovae-st/nika/fork)
-[![GitHub Watchers](https://img.shields.io/github/watchers/supernovae-st/nika?style=social)](https://github.com/supernovae-st/nika)
+<!-- Links -->
+[![Website](https://img.shields.io/badge/supernovae.studio-f97316?style=for-the-badge&logo=safari&logoColor=white)](https://supernovae.studio)
+[![GitHub](https://img.shields.io/badge/supernovae--st-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/supernovae-st)
+[![Twitter](https://img.shields.io/badge/@supernovaestudio-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/supernovaestudio)
+
+<br>
+
+[![Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=social)](https://github.com/supernovae-st/nika)
+&nbsp;&nbsp;
+[![Forks](https://img.shields.io/github/forks/supernovae-st/nika?style=social)](https://github.com/supernovae-st/nika/fork)
+&nbsp;&nbsp;
+[![Watchers](https://img.shields.io/github/watchers/supernovae-st/nika?style=social)](https://github.com/supernovae-st/nika)
 
 <br>
 
 ---
 
-<sub>Made with 🦋 and 🦀 Rust</sub>
+<sub>Made with 🦋 and 🦀 by SuperNovae Studio</sub>
 
 </div>
