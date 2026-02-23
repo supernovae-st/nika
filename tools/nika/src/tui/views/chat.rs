@@ -48,12 +48,17 @@ fn is_cmd_pressed(modifiers: KeyModifiers) -> bool {
 use crate::tui::file_resolve::FileResolver;
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
+
+// PERF: Pre-computed constants to avoid allocations in render loop
+const SEPARATOR_20: &str = "────────────────────"; // 20 Unicode box chars (─), compile-time
+const SEPARATOR_20_ASCII: &str = "--------------------"; // 20 ASCII dashes (-), compile-time
+const SEPARATOR_52: &str = "╰───────────────────────────────────────────────────╯"; // MCP box bottom
 use crate::tui::utils::truncate_str;
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
     ActivityItem, ActivityStack, ActivityTemp, CommandPalette, CommandPaletteState,
     InferStreamData, McpCallData, McpCallStatus, McpServerInfo, McpStatus, Provider,
-    SessionContext, SessionContextBar,
+    ProviderSelector, ProviderSelectorState, SessionContext, SessionContextBar,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -267,6 +272,8 @@ pub struct ChatView {
     pub activity_items: Vec<ActivityItem>,
     /// Command palette state (⌘K)
     pub command_palette: CommandPaletteState,
+    /// Provider selector state (⌘P - v0.7.2)
+    pub provider_selector: ProviderSelectorState,
     /// Inline content for current streaming (MCP calls, infer boxes)
     pub inline_content: Vec<InlineContent>,
     /// Animation frame counter (for spinners)
@@ -331,6 +338,7 @@ impl ChatView {
             session_context,
             activity_items: vec![],
             command_palette: CommandPaletteState::new(),
+            provider_selector: ProviderSelectorState::new(),
             inline_content: vec![],
             frame: 0,
 
@@ -624,6 +632,11 @@ impl ChatView {
         self.command_palette.toggle();
     }
 
+    /// Toggle provider selector visibility (⌘P)
+    pub fn toggle_provider_selector(&mut self) {
+        self.provider_selector.toggle();
+    }
+
     /// Transition activity from hot to warm
     fn transition_activity_to_warm(&mut self, verb: &str) {
         if let Some(item) = self
@@ -806,26 +819,40 @@ impl ChatView {
         }
         match self.history_index {
             None => {
-                self.history_index = Some(self.history.len() - 1);
+                // Safe: already checked history is not empty above
+                self.history_index = Some(self.history.len().saturating_sub(1));
             }
             Some(i) if i > 0 => {
-                self.history_index = Some(i - 1);
+                self.history_index = Some(i.saturating_sub(1));
             }
             _ => {}
         }
         if let Some(i) = self.history_index {
-            self.input = Input::new(self.history[i].clone());
-            self.input.handle(InputRequest::GoToEnd);
+            // Safe bounds check with .get()
+            if let Some(entry) = self.history.get(i) {
+                self.input = Input::new(entry.clone());
+                self.input.handle(InputRequest::GoToEnd);
+            }
         }
     }
 
     /// Navigate history down
     pub fn history_down(&mut self) {
+        // Early return if history is empty (prevents underflow on len() - 1)
+        if self.history.is_empty() {
+            self.history_index = None;
+            return;
+        }
+        let last_idx = self.history.len().saturating_sub(1);
         match self.history_index {
-            Some(i) if i < self.history.len() - 1 => {
-                self.history_index = Some(i + 1);
-                self.input = Input::new(self.history[i + 1].clone());
-                self.input.handle(InputRequest::GoToEnd);
+            Some(i) if i < last_idx => {
+                let next_idx = i.saturating_add(1);
+                self.history_index = Some(next_idx);
+                // Safe bounds check with .get()
+                if let Some(entry) = self.history.get(next_idx) {
+                    self.input = Input::new(entry.clone());
+                    self.input.handle(InputRequest::GoToEnd);
+                }
             }
             Some(_) => {
                 self.history_index = None;
@@ -967,6 +994,12 @@ impl View for ChatView {
             let palette_area = centered_rect(60, 50, area);
             CommandPalette::new(&self.command_palette).render(palette_area, frame.buffer_mut());
         }
+
+        // 6. Provider selector overlay (if visible) - ⌘P
+        if self.provider_selector.visible {
+            let selector_area = centered_rect(70, 60, area);
+            ProviderSelector::new(&self.provider_selector).render(selector_area, frame.buffer_mut());
+        }
     }
 
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
@@ -975,9 +1008,20 @@ impl View for ChatView {
             return self.handle_palette_key(key);
         }
 
+        // Handle provider selector when visible
+        if self.provider_selector.visible {
+            return self.handle_provider_selector_key(key);
+        }
+
         // Check for Cmd/Ctrl+K (command palette toggle)
         if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('k') {
             self.toggle_command_palette();
+            return ViewAction::None;
+        }
+
+        // Check for Cmd/Ctrl+P (provider selector toggle)
+        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('p') {
+            self.toggle_provider_selector();
             return ViewAction::None;
         }
 
@@ -1274,6 +1318,59 @@ impl ChatView {
         }
     }
 
+    /// Handle key events when provider selector is visible
+    fn handle_provider_selector_key(&mut self, key: KeyEvent) -> ViewAction {
+        match key.code {
+            KeyCode::Esc => {
+                self.provider_selector.close();
+                ViewAction::None
+            }
+            KeyCode::Enter => {
+                // Get selected provider and model
+                let provider = self.provider_selector.selected_provider();
+                let model = self.provider_selector.selected_model();
+
+                if let Some(model_info) = model {
+                    // Update current model
+                    self.current_model = model_info.id.clone();
+                    self.cached_provider = Provider::from_model_name(&self.current_model);
+                    self.provider_name = provider.name.clone();
+
+                    // Add system message
+                    let streaming_indicator = if model_info.streaming { "⚡" } else { "📄" };
+                    let thinking_indicator = if model_info.thinking { " 🧠" } else { "" };
+                    self.add_system_message(format!(
+                        "{} {} Switched to {} {}{}",
+                        streaming_indicator, provider.icon, provider.name, model_info.name, thinking_indicator
+                    ));
+                }
+
+                self.provider_selector.close();
+                ViewAction::None
+            }
+            KeyCode::Up => {
+                self.provider_selector.move_up();
+                ViewAction::None
+            }
+            KeyCode::Down => {
+                self.provider_selector.move_down();
+                ViewAction::None
+            }
+            KeyCode::Left => {
+                // Exit model mode back to provider mode
+                self.provider_selector.model_mode = false;
+                self.provider_selector.selected_model = 0;
+                ViewAction::None
+            }
+            KeyCode::Right | KeyCode::Tab => {
+                // Enter model mode
+                self.provider_selector.enter_model_mode();
+                ViewAction::None
+            }
+            _ => ViewAction::None,
+        }
+    }
+
     fn render_messages(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let mut items: Vec<ListItem> = self
             .messages
@@ -1295,7 +1392,7 @@ impl ChatView {
 
                 let mut lines = vec![ListItem::new(Line::from(vec![
                     Span::styled(format!("{} ", prefix), style.add_modifier(Modifier::BOLD)),
-                    Span::styled("-".repeat(20), Style::default().fg(theme.text_muted)),
+                    Span::styled(SEPARATOR_20_ASCII, Style::default().fg(theme.text_muted)),
                 ]))];
 
                 // Wrap message content with colored prefix indicator
@@ -1342,7 +1439,7 @@ impl ChatView {
                         .fg(theme.status_success)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled("-".repeat(20), Style::default().fg(theme.text_muted)),
+                Span::styled(SEPARATOR_20_ASCII, Style::default().fg(theme.text_muted)),
             ])));
 
             // Show partial response if any
@@ -1479,16 +1576,25 @@ impl ChatView {
 
                 let style = Style::default().fg(color);
 
+                // PERF: Use const prefix strings to avoid format! allocation
+                let prefix_with_space = match msg.role {
+                    MessageRole::User => "👤 You ",
+                    MessageRole::Nika => "🤖 AI ",
+                    MessageRole::System => "💡 System ",
+                    MessageRole::Tool => "🔧 Tool ",
+                };
+
                 let mut lines = vec![ListItem::new(Line::from(vec![
-                    Span::styled(format!("{} ", prefix), style.add_modifier(Modifier::BOLD)),
-                    Span::styled("─".repeat(20), Style::default().fg(theme.text_muted)),
+                    Span::styled(prefix_with_space, style.add_modifier(Modifier::BOLD)),
+                    Span::styled(SEPARATOR_20, Style::default().fg(theme.text_muted)),
                 ]))];
 
                 // Wrap message content with colored prefix indicator
+                // PERF: Use Span::raw(line) directly - no allocation needed
                 for line in msg.content.lines() {
                     lines.push(ListItem::new(Line::from(vec![
                         Span::styled("│ ", Style::default().fg(color)),
-                        Span::raw(line.to_string()),
+                        Span::raw(line),
                     ])));
                 }
 
@@ -1608,8 +1714,9 @@ impl ChatView {
                         ])));
                     }
 
+                    // PERF: Use const for MCP box bottom border
                     items.push(ListItem::new(Line::from(vec![Span::styled(
-                        "╰───────────────────────────────────────────────────╯",
+                        SEPARATOR_52,
                         Style::default().fg(mcp_box_color),
                     )])));
                     items.push(ListItem::new("")); // spacing
@@ -1669,7 +1776,7 @@ impl ChatView {
                         .fg(theme.status_success)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled("─".repeat(20), Style::default().fg(theme.text_muted)),
+                Span::styled(SEPARATOR_20, Style::default().fg(theme.text_muted)),
             ])));
 
             if !self.partial_response.is_empty() {
@@ -1714,10 +1821,15 @@ impl ChatView {
             ),
             Span::raw(" commands  "),
             Span::styled(
+                " ⌘P ",
+                Style::default().fg(Color::Black).bg(theme.highlight),
+            ),
+            Span::raw(" model  "),
+            Span::styled(
                 " Tab ",
                 Style::default().fg(Color::Black).bg(theme.highlight),
             ),
-            Span::raw(" switch view  "),
+            Span::raw(" view  "),
             Span::styled(
                 " Esc ",
                 Style::default().fg(Color::Black).bg(theme.highlight),
@@ -1727,7 +1839,7 @@ impl ChatView {
                 " ↑↓ ",
                 Style::default().fg(Color::Black).bg(theme.highlight),
             ),
-            Span::raw(" history"),
+            Span::raw(" hist"),
         ]);
 
         let paragraph = Paragraph::new(hints);
