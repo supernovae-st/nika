@@ -29,10 +29,10 @@ mod gauge;
 mod header;
 mod help_overlay;
 mod infer_stream_box;
-mod mcp_call_box;
-mod mcp_log;
 mod matrix_decrypt;
 mod matrix_rain;
+mod mcp_call_box;
+mod mcp_log;
 mod mention_system;
 mod message_bubble;
 mod mission_control;
@@ -115,6 +115,4 @@ pub use big_text::{BigText, BigTextGradient, GradientType};
 // Matrix Rain effect (v0.8 - WOW dither effect)
 pub use matrix_rain::MatrixRain;
 // Matrix Decrypt effect (v0.8 - streaming text reveal with verb themes)
-pub use matrix_decrypt::{
-    DecryptVerb, MatrixDecrypt, MultiLineDecrypt, StreamingDecrypt,
-};
+pub use matrix_decrypt::{DecryptVerb, MatrixDecrypt, MultiLineDecrypt, StreamingDecrypt};

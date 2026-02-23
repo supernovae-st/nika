@@ -195,14 +195,25 @@ impl PanelScrollState {
         self.ensure_cursor_visible();
     }
 
-    /// Scroll down by one item (legacy, for compatibility)
+    /// Scroll down by one item
+    /// v0.8.1: NovaNet pattern - scroll works before render sets `visible`
     pub fn scroll_down(&mut self) {
-        if self.offset + self.visible < self.total {
+        // Calculate max offset:
+        // - If visible is known (> 0), cap at total - visible
+        // - Otherwise, allow scrolling to total - 1 (will be clamped at render)
+        let max_offset = if self.visible > 0 {
+            self.total.saturating_sub(self.visible)
+        } else {
+            self.total.saturating_sub(1)
+        };
+
+        if self.offset < max_offset {
             self.offset += 1;
         }
     }
 
-    /// Scroll up by one item (legacy, for compatibility)
+    /// Scroll up by one item
+    /// v0.8.1: NovaNet pattern - scroll works before render sets `visible`
     pub fn scroll_up(&mut self) {
         if self.offset > 0 {
             self.offset -= 1;

@@ -31,8 +31,8 @@ use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{
-        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
-        Widget,
+        Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation,
+        ScrollbarState, Widget,
     },
     Frame,
 };
@@ -57,14 +57,14 @@ use crate::util::atomic_write;
 const SEPARATOR_20: &str = "────────────────────"; // 20 Unicode box chars (─), compile-time
 const SEPARATOR_20_ASCII: &str = "--------------------"; // 20 ASCII dashes (-), compile-time
 const SEPARATOR_52: &str = "╰───────────────────────────────────────────────────╯"; // MCP box bottom
-use crate::tui::utils::truncate_str;
+use crate::tui::utils::{truncate_str, wrap_text};
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
     ActivityItem, ActivityTemp, ChatModeIndicator, CommandPalette, CommandPaletteState,
-    ContextItem, CurrentVerb, DecryptVerb, InferStreamData, McpCallData, McpCallStatus,
-    McpServerInfo, McpStatus, MemoryFile, MissionControlPanel, ParsedInput, ProStatusBar,
-    Provider, ProviderSelector, ProviderSelectorState, SessionContext, SessionMetrics,
-    StreamingDecrypt, SystemCommand, TurnMetrics,
+    ContextItem, CurrentVerb, DecryptVerb, HelpOverlay, HelpOverlayState, InferStreamData,
+    McpCallData, McpCallStatus, McpServerInfo, McpStatus, MemoryFile, MissionControlPanel,
+    ParsedInput, ProStatusBar, Provider, ProviderSelector, ProviderSelectorState, SessionContext,
+    SessionMetrics, StreamingDecrypt, SystemCommand, TurnMetrics,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -315,6 +315,8 @@ pub struct ChatView {
     pub scrollbar_activity: ScrollbarState,
     /// Cached panel rects for mouse click detection
     pub panel_rects: std::collections::HashMap<ChatPanel, Rect>,
+    /// List state for conversation (ratatui StatefulWidget)
+    pub conversation_list_state: ListState,
 
     // === v0.8 WOW Effects ===
     /// Index of last copied message (for flash effect)
@@ -341,6 +343,94 @@ pub struct ChatView {
     // === v0.7.3 YAML View Toggle ===
     /// Show messages as YAML tasks instead of chat bubbles
     pub show_yaml: bool,
+
+    // === v0.8 Text Selection ===
+    /// Text selection state (for copy support)
+    pub text_selection: Option<TextSelection>,
+    /// Whether a mouse drag selection is in progress
+    pub is_selecting: bool,
+    /// Cached line content for hit testing during selection
+    /// Maps (message_index, line_in_message) -> (start_x, text_content)
+    pub line_positions: Vec<LinePosition>,
+
+    // === v0.8.1 Help Overlay ===
+    /// Help overlay state (toggle with ? or F1)
+    pub help_overlay: HelpOverlayState,
+}
+
+/// Position of a rendered line for hit testing
+#[derive(Debug, Clone)]
+pub struct LinePosition {
+    /// Index of the message this line belongs to
+    pub message_index: usize,
+    /// Which line within the message (0 = first)
+    pub line_in_message: usize,
+    /// Y coordinate on screen
+    pub screen_y: u16,
+    /// Starting X coordinate (after prefix)
+    pub start_x: u16,
+    /// The actual text content of this line
+    pub text: String,
+}
+
+/// Text selection state
+#[derive(Debug, Clone)]
+pub struct TextSelection {
+    /// Starting position of selection
+    pub start: SelectionPos,
+    /// Ending position of selection (current drag position)
+    pub end: SelectionPos,
+}
+
+/// Position within the chat for selection
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectionPos {
+    /// Message index in the messages vec
+    pub message_index: usize,
+    /// Character offset within the message content
+    pub char_offset: usize,
+}
+
+impl TextSelection {
+    /// Create a new selection starting at the given position
+    pub fn new(start: SelectionPos) -> Self {
+        Self { start, end: start }
+    }
+
+    /// Get the normalized selection (start <= end)
+    pub fn normalized(&self) -> (SelectionPos, SelectionPos) {
+        if self.start.message_index < self.end.message_index
+            || (self.start.message_index == self.end.message_index
+                && self.start.char_offset <= self.end.char_offset)
+        {
+            (self.start, self.end)
+        } else {
+            (self.end, self.start)
+        }
+    }
+
+    /// Check if a position is within the selection
+    pub fn contains(&self, pos: SelectionPos) -> bool {
+        let (start, end) = self.normalized();
+
+        if pos.message_index < start.message_index || pos.message_index > end.message_index {
+            return false;
+        }
+
+        if pos.message_index == start.message_index && pos.message_index == end.message_index {
+            // Same message: check char range
+            pos.char_offset >= start.char_offset && pos.char_offset < end.char_offset
+        } else if pos.message_index == start.message_index {
+            // First message: from start.char_offset to end of message
+            pos.char_offset >= start.char_offset
+        } else if pos.message_index == end.message_index {
+            // Last message: from 0 to end.char_offset
+            pos.char_offset < end.char_offset
+        } else {
+            // Middle messages: fully selected
+            true
+        }
+    }
 }
 
 impl ChatView {
@@ -406,6 +496,7 @@ impl ChatView {
             scrollbar_conversation: ScrollbarState::default(),
             scrollbar_activity: ScrollbarState::default(),
             panel_rects: std::collections::HashMap::new(),
+            conversation_list_state: ListState::default(),
 
             // v0.8 WOW Effects
             copy_flash_index: None,
@@ -422,6 +513,14 @@ impl ChatView {
             turn_metrics: TurnMetrics::default(),
             session_metrics: SessionMetrics::new(),
             show_yaml: false,
+
+            // v0.8 Text Selection
+            text_selection: None,
+            is_selecting: false,
+            line_positions: Vec::new(),
+
+            // v0.8.1 Help Overlay
+            help_overlay: HelpOverlayState::new(),
         }
     }
 
@@ -534,45 +633,78 @@ impl ChatView {
         }
     }
 
-    /// Scroll focused panel down by one item
+    /// Scroll down by one item (v0.8.1: scrolls conversation even from input panel)
     pub fn scroll_down(&mut self) {
-        if let Some(scroll) = self.focused_scroll_mut() {
-            scroll.cursor_down();
+        // v0.8.1: Don't update total here - add_message() and render() handle it
+        // This lets tests configure scroll state manually
+        match self.focused_panel {
+            ChatPanel::Input | ChatPanel::Conversation => {
+                self.conversation_scroll.scroll_down();
+            }
+            ChatPanel::Activity => {
+                self.activity_scroll.scroll_down();
+            }
         }
     }
 
-    /// Scroll focused panel up by one item
+    /// Scroll up by one item (v0.8.1: scrolls conversation even from input panel)
     pub fn scroll_up(&mut self) {
-        if let Some(scroll) = self.focused_scroll_mut() {
-            scroll.cursor_up();
+        // v0.8.1: Don't update total here - add_message() and render() handle it
+        match self.focused_panel {
+            ChatPanel::Input | ChatPanel::Conversation => {
+                self.conversation_scroll.scroll_up();
+            }
+            ChatPanel::Activity => {
+                self.activity_scroll.scroll_up();
+            }
         }
     }
 
-    /// Scroll focused panel to top
+    /// Scroll to top (v0.8.1: scrolls conversation even from input panel)
     pub fn scroll_to_top(&mut self) {
-        if let Some(scroll) = self.focused_scroll_mut() {
-            scroll.cursor_first();
+        match self.focused_panel {
+            ChatPanel::Input | ChatPanel::Conversation => {
+                self.conversation_scroll.scroll_to_top();
+            }
+            ChatPanel::Activity => {
+                self.activity_scroll.scroll_to_top();
+            }
         }
     }
 
-    /// Scroll focused panel to bottom
+    /// Scroll to bottom (v0.8.1: scrolls conversation even from input panel)
     pub fn scroll_to_bottom(&mut self) {
-        if let Some(scroll) = self.focused_scroll_mut() {
-            scroll.cursor_last();
+        match self.focused_panel {
+            ChatPanel::Input | ChatPanel::Conversation => {
+                self.conversation_scroll.scroll_to_bottom();
+            }
+            ChatPanel::Activity => {
+                self.activity_scroll.scroll_to_bottom();
+            }
         }
     }
 
-    /// Page down on focused panel
+    /// Page down (v0.8.1: scrolls conversation even from input panel)
     pub fn page_down(&mut self) {
-        if let Some(scroll) = self.focused_scroll_mut() {
-            scroll.page_down();
+        match self.focused_panel {
+            ChatPanel::Input | ChatPanel::Conversation => {
+                self.conversation_scroll.page_down();
+            }
+            ChatPanel::Activity => {
+                self.activity_scroll.page_down();
+            }
         }
     }
 
-    /// Page up on focused panel
+    /// Page up (v0.8.1: scrolls conversation even from input panel)
     pub fn page_up(&mut self) {
-        if let Some(scroll) = self.focused_scroll_mut() {
-            scroll.page_up();
+        match self.focused_panel {
+            ChatPanel::Input | ChatPanel::Conversation => {
+                self.conversation_scroll.page_up();
+            }
+            ChatPanel::Activity => {
+                self.activity_scroll.page_up();
+            }
         }
     }
 
@@ -703,35 +835,166 @@ impl ChatView {
         use crossterm::event::{MouseButton, MouseEventKind};
 
         match kind {
-            // Left click - focus panel at click position
+            // Left click - start text selection (no panel focus change)
             MouseEventKind::Down(MouseButton::Left) => {
-                if let Some(panel) = self.panel_at_position(x, y, area) {
-                    self.focus_panel(panel);
+                // Check if click is in conversation area (for text selection)
+                if let Some(pos) = self.screen_to_selection_pos(x, y) {
+                    // Start a new selection
+                    self.text_selection = Some(TextSelection::new(pos));
+                    self.is_selecting = true;
+                    true
+                } else {
+                    // Clear any existing selection when clicking elsewhere
+                    // v0.8: No panel focus change on click - use Tab only
+                    self.text_selection = None;
+                    self.is_selecting = false;
+                    self.panel_at_position(x, y, area).is_some() // Return true if within panels
+                }
+            }
+            // Mouse drag - extend selection
+            MouseEventKind::Drag(MouseButton::Left) => {
+                if self.is_selecting {
+                    if let Some(pos) = self.screen_to_selection_pos(x, y) {
+                        if let Some(ref mut selection) = self.text_selection {
+                            selection.end = pos;
+                        }
+                    }
                     true
                 } else {
                     false
                 }
             }
-            // Scroll wheel up
-            MouseEventKind::ScrollUp => {
-                // Scroll the panel under cursor, or focused panel if none
-                if let Some(panel) = self.panel_at_position(x, y, area) {
-                    self.focus_panel(panel);
+            // Mouse release - finalize selection
+            MouseEventKind::Up(MouseButton::Left) => {
+                if self.is_selecting {
+                    self.is_selecting = false;
+                    // Keep selection visible (it will be cleared on next click)
+                    // If selection is empty (same start/end), clear it
+                    if let Some(ref selection) = self.text_selection {
+                        if selection.start == selection.end {
+                            self.text_selection = None;
+                        }
+                    }
+                    true
+                } else {
+                    false
                 }
+            }
+            // Scroll wheel up - scroll focused panel (no panel switch)
+            MouseEventKind::ScrollUp => {
                 self.scroll_up();
                 true
             }
-            // Scroll wheel down
+            // Scroll wheel down - scroll focused panel (no panel switch)
             MouseEventKind::ScrollDown => {
-                // Scroll the panel under cursor, or focused panel if none
-                if let Some(panel) = self.panel_at_position(x, y, area) {
-                    self.focus_panel(panel);
-                }
                 self.scroll_down();
                 true
             }
             _ => false,
         }
+    }
+
+    /// Convert screen coordinates to selection position
+    /// Returns None if not within a message text area
+    fn screen_to_selection_pos(&self, x: u16, y: u16) -> Option<SelectionPos> {
+        // Find which line is at this Y coordinate
+        for line_pos in &self.line_positions {
+            if line_pos.screen_y == y && x >= line_pos.start_x {
+                // Calculate character offset within the line
+                let x_offset = (x - line_pos.start_x) as usize;
+                let char_offset = x_offset.min(line_pos.text.len());
+
+                // Calculate total char offset in the message
+                // This is simplified - we sum up characters from all previous lines in this message
+                let mut total_offset = char_offset;
+                for prev in &self.line_positions {
+                    if prev.message_index == line_pos.message_index
+                        && prev.line_in_message < line_pos.line_in_message
+                    {
+                        total_offset += prev.text.len();
+                    }
+                }
+
+                return Some(SelectionPos {
+                    message_index: line_pos.message_index,
+                    char_offset: total_offset,
+                });
+            }
+        }
+        None
+    }
+
+    /// Get the selected text (if any)
+    pub fn get_selected_text(&self) -> Option<String> {
+        let selection = self.text_selection.as_ref()?;
+        let (start, end) = selection.normalized();
+
+        let mut result = String::new();
+
+        for (idx, msg) in self.messages.iter().enumerate() {
+            if idx < start.message_index || idx > end.message_index {
+                continue;
+            }
+
+            let content = &msg.content;
+
+            if idx == start.message_index && idx == end.message_index {
+                // Single message selection
+                let start_byte = char_to_byte_offset(content, start.char_offset);
+                let end_byte = char_to_byte_offset(content, end.char_offset);
+                if start_byte < content.len() && end_byte <= content.len() {
+                    result.push_str(&content[start_byte..end_byte]);
+                }
+            } else if idx == start.message_index {
+                // First message of multi-message selection
+                let start_byte = char_to_byte_offset(content, start.char_offset);
+                if start_byte < content.len() {
+                    result.push_str(&content[start_byte..]);
+                    result.push('\n');
+                }
+            } else if idx == end.message_index {
+                // Last message of multi-message selection
+                let end_byte = char_to_byte_offset(content, end.char_offset);
+                if end_byte <= content.len() {
+                    result.push_str(&content[..end_byte]);
+                }
+            } else {
+                // Middle messages - fully selected
+                result.push_str(content);
+                result.push('\n');
+            }
+        }
+
+        if result.is_empty() {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    /// Copy selection to clipboard
+    /// Returns true if copy succeeded
+    pub fn copy_selection(&mut self) -> bool {
+        if let Some(text) = self.get_selected_text() {
+            if let Some(ref mut clipboard) = self.clipboard {
+                if clipboard.set_text(&text).is_ok() {
+                    // Flash effect for feedback
+                    if let Some(ref selection) = self.text_selection {
+                        let (start, _) = selection.normalized();
+                        self.copy_flash_index = Some(start.message_index);
+                        self.copy_flash_start = self.frame;
+                    }
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Clear the current text selection
+    pub fn clear_selection(&mut self) {
+        self.text_selection = None;
+        self.is_selecting = false;
     }
 
     /// Start streaming mode
@@ -766,6 +1029,9 @@ impl ChatView {
         self.is_streaming = false;
         // v0.8 WOW: Reveal all remaining text instantly
         self.streaming_decrypt.reveal_all();
+        // v0.8 FIX: Clear inline boxes when streaming completes
+        // They represent the operation that just finished, not history
+        self.inline_content.clear();
         std::mem::take(&mut self.partial_response)
     }
 
@@ -969,15 +1235,17 @@ impl ChatView {
     }
 
     /// Start an inference stream
-    pub fn start_infer_stream(&mut self, model: &str, tokens_in: u32, max_tokens: u32) {
-        let data = InferStreamData::new(model)
-            .with_tokens(tokens_in, 0)
-            .with_max_tokens(max_tokens);
-        self.inline_content.push(InlineContent::InferStream(data));
+    ///
+    /// v0.8 FIX: Don't create InferStream box - use streaming_decrypt for visual effect instead.
+    /// The streaming decrypt provides the matrix reveal effect, while InferStream boxes
+    /// were redundant and blocked the decrypt from showing.
+    pub fn start_infer_stream(&mut self, model: &str, _tokens_in: u32, _max_tokens: u32) {
+        // v0.8 FIX: Don't add to inline_content - let streaming_decrypt handle the visual
+        // The matrix decrypt effect is the WOW feature, not the INFER boxes
 
-        // Add to activity stack as hot
+        // Add to activity stack as hot (for Mission Control panel)
         self.activity_items.push(ActivityItem::hot(
-            format!("infer-{}", self.inline_content.len()),
+            format!("infer-{}-{}", model, self.frame),
             "infer",
         ));
     }
@@ -999,6 +1267,49 @@ impl ChatView {
         }
         // Move activity from hot to warm
         self.transition_activity_to_warm("infer");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // v0.8.0: Activity tracking for /exec, /fetch, /agent commands
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// Add exec activity to the stack
+    pub fn add_exec_activity(&mut self, command: &str) {
+        let activity_id = format!("exec-{}", self.inline_content.len());
+        self.activity_items
+            .push(ActivityItem::hot(activity_id, "exec"));
+        tracing::debug!(command = %command, "Added exec activity");
+    }
+
+    /// Complete exec activity
+    pub fn complete_exec_activity(&mut self) {
+        self.transition_activity_to_warm("exec");
+    }
+
+    /// Add fetch activity to the stack
+    pub fn add_fetch_activity(&mut self, url: &str, method: &str) {
+        let activity_id = format!("fetch-{}", self.inline_content.len());
+        self.activity_items
+            .push(ActivityItem::hot(activity_id, "fetch"));
+        tracing::debug!(url = %url, method = %method, "Added fetch activity");
+    }
+
+    /// Complete fetch activity
+    pub fn complete_fetch_activity(&mut self) {
+        self.transition_activity_to_warm("fetch");
+    }
+
+    /// Add agent activity to the stack
+    pub fn add_agent_activity(&mut self, goal: &str) {
+        let activity_id = format!("agent-{}", self.inline_content.len());
+        self.activity_items
+            .push(ActivityItem::hot(activity_id, "agent"));
+        tracing::debug!(goal = %goal, "Added agent activity");
+    }
+
+    /// Complete agent activity
+    pub fn complete_agent_activity(&mut self) {
+        self.transition_activity_to_warm("agent");
     }
 
     /// Update session token usage
@@ -1049,6 +1360,9 @@ impl ChatView {
         // Session metrics are already updated incrementally via update_turn_metrics()
         // Just reset turn metrics for the next turn
         self.reset_turn_metrics();
+        // v0.8 FIX: Clear inline boxes and activities on turn completion
+        self.inline_content.clear();
+        self.activity_items.clear();
     }
 
     /// Toggle command palette visibility
@@ -1096,6 +1410,7 @@ impl ChatView {
         });
         self.history.push(content);
         self.history_index = None;
+        self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
     }
 
     /// Add a Nika response
@@ -1107,6 +1422,7 @@ impl ChatView {
             execution,
             thinking: None,
         });
+        self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
     }
 
     /// Add a Nika response with thinking content (v0.5.2+)
@@ -1123,6 +1439,7 @@ impl ChatView {
             execution,
             thinking,
         });
+        self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
     }
 
     /// Add a system message (for mode changes, status updates)
@@ -1134,12 +1451,31 @@ impl ChatView {
             execution: None,
             thinking: None,
         });
+        self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
+    }
+
+    /// v0.8.1 FIX: Auto-scroll to bottom of conversation (NovaNet pattern)
+    /// Called when new messages are added to keep latest content visible
+    fn auto_scroll_to_bottom(&mut self) {
+        // Update total immediately (don't wait for render)
+        // Use estimated lines per message until render computes exact count
+        let estimated_lines_per_message = 4; // header + content + spacing
+        let estimated_total = self.messages.len() * estimated_lines_per_message;
+
+        // Update scroll state total (will be refined during render)
+        self.conversation_scroll.total = estimated_total;
+
+        // Scroll to bottom using the estimated total
+        let visible = self.conversation_scroll.visible.max(1);
+        self.conversation_scroll.offset = estimated_total.saturating_sub(visible);
+        self.conversation_scroll.cursor = estimated_total.saturating_sub(1);
     }
 
     /// Append text to the last message (for streaming tokens)
     ///
     /// Used for Claude Code-like streaming where tokens appear in real-time.
     /// If the last message is "Thinking...", it will be replaced.
+    /// v0.8.1: Auto-scrolls to keep streaming content visible
     pub fn append_to_last_message(&mut self, token: &str) {
         if let Some(last) = self.messages.last_mut() {
             // If it's "Thinking...", replace it with the first token
@@ -1150,6 +1486,8 @@ impl ChatView {
                 last.content.push_str(token);
             }
         }
+        // v0.8.1: Auto-scroll during streaming to follow new content
+        self.auto_scroll_to_bottom();
     }
 
     /// Replace the last message content (for error display)
@@ -1422,7 +1760,7 @@ impl Default for ChatView {
 }
 
 impl View for ChatView {
-    fn render(&self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
+    fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
         // Layout v3: ProStatusBar (2 lines) | Messages + Mission Control | Input + Hints
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -1456,6 +1794,7 @@ impl View for ChatView {
         self.render_messages_v2(frame, main_chunks[0], theme);
 
         // Mission Control panel (v0.7.3 - replaces Activity Stack)
+        // v0.8.1: Now includes Activity section with hot/warm/queued tasks
         MissionControlPanel::new(&self.session_context.mcp_servers)
             .context(&self.context_items)
             .memory(&self.memory_files)
@@ -1467,6 +1806,8 @@ impl View for ChatView {
             )
             .verb(self.current_verb)
             .metrics(self.turn_metrics.clone())
+            .activities(&self.activity_items) // v0.8.1: Activity items
+            .frame(self.frame) // v0.8.1: Animation frame for spinners
             .focused(self.focused_panel == ChatPanel::Activity)
             .render(main_chunks[1], frame.buffer_mut());
 
@@ -1488,9 +1829,20 @@ impl View for ChatView {
             ProviderSelector::new(&self.provider_selector)
                 .render(selector_area, frame.buffer_mut());
         }
+
+        // 7. Help overlay (if visible) - ? or F1
+        if self.help_overlay.visible {
+            let help_area = centered_rect(70, 80, area);
+            HelpOverlay::new(&self.help_overlay).render(help_area, frame.buffer_mut());
+        }
     }
 
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
+        // Handle help overlay when visible (highest priority)
+        if self.help_overlay.visible {
+            return self.handle_help_overlay_key(key);
+        }
+
         // Handle command palette when visible
         if self.command_palette.visible {
             return self.handle_palette_key(key);
@@ -1536,9 +1888,18 @@ impl View for ChatView {
             return ViewAction::None;
         }
 
-        // Cmd/Ctrl+C = Copy input to system clipboard (NOT exit!)
+        // Cmd/Ctrl+C = Copy selection or input to system clipboard (NOT exit!)
         if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('c') {
-            self.copy_to_clipboard();
+            // v0.8 Text Selection: If there's a selection, copy it
+            if self.text_selection.is_some() {
+                if self.copy_selection() {
+                    self.add_system_message("📋 Selection copied to clipboard");
+                    self.clear_selection();
+                }
+            } else {
+                // Otherwise copy the input field
+                self.copy_to_clipboard();
+            }
             return ViewAction::None;
         }
 
@@ -1578,27 +1939,35 @@ impl View for ChatView {
             return ViewAction::None;
         }
 
+        // F1 or ? = Toggle help overlay (global, works from any panel)
+        if key.code == KeyCode::F(1)
+            || (key.code == KeyCode::Char('?') && self.focused_panel != ChatPanel::Input)
+        {
+            self.help_overlay.toggle();
+            return ViewAction::None;
+        }
+
         // ═══════════════════════════════════════════════════════════════════════════════
         // Panel Navigation (v0.8 UX Enhancement)
-        // Tab/Shift+Tab ONLY switch panels when NOT in Input panel
-        // When Input is focused, keys go to the text input field
+        // Tab/Shift+Tab ALWAYS cycle panels: Conversation → Activity → Input → ...
         // ═══════════════════════════════════════════════════════════════════════════════
 
-        // Scroll keys and Tab navigation when NOT in Input panel (vim-style navigation)
-        if self.focused_panel != ChatPanel::Input {
-            // Tab = Focus next panel (Conversation → Activity → Input → Conversation)
-            if key.code == KeyCode::Tab && !key.modifiers.contains(KeyModifiers::SHIFT) {
-                self.focus_next_panel();
-                return ViewAction::None;
-            }
+        // Tab = Focus next panel (always works, even in Input panel)
+        if key.code == KeyCode::Tab && !key.modifiers.contains(KeyModifiers::SHIFT) {
+            self.focus_next_panel();
+            return ViewAction::None;
+        }
 
-            // Shift+Tab = Focus previous panel
-            if key.code == KeyCode::BackTab
-                || (key.code == KeyCode::Tab && key.modifiers.contains(KeyModifiers::SHIFT))
-            {
-                self.focus_prev_panel();
-                return ViewAction::None;
-            }
+        // Shift+Tab = Focus previous panel (always works)
+        if key.code == KeyCode::BackTab
+            || (key.code == KeyCode::Tab && key.modifiers.contains(KeyModifiers::SHIFT))
+        {
+            self.focus_prev_panel();
+            return ViewAction::None;
+        }
+
+        // Scroll keys and vim-style navigation when NOT in Input panel
+        if self.focused_panel != ChatPanel::Input {
             match key.code {
                 // j/Down = Scroll down
                 KeyCode::Char('j') | KeyCode::Down => {
@@ -1658,6 +2027,15 @@ impl View for ChatView {
         }
 
         match key.code {
+            // v0.8.1: Ctrl+j/k scroll conversation while typing (NovaNet pattern)
+            KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.scroll_down();
+                ViewAction::None
+            }
+            KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.scroll_up();
+                ViewAction::None
+            }
             KeyCode::Char('q') if self.input.value().is_empty() => ViewAction::Quit,
             // 's' when empty opens Settings view (consistent with other views)
             KeyCode::Char('s') if self.input.value().is_empty() => ViewAction::OpenSettings,
@@ -1752,12 +2130,22 @@ impl View for ChatView {
                     ViewAction::None
                 }
             }
-            KeyCode::Up => {
+            // v0.8.1: Up/Down ALWAYS scroll conversation (NovaNet pattern)
+            // Use Ctrl+Up/Down for history navigation
+            KeyCode::Up if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.history_up();
                 ViewAction::None
             }
-            KeyCode::Down => {
+            KeyCode::Down if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.history_down();
+                ViewAction::None
+            }
+            KeyCode::Up => {
+                self.scroll_up();
+                ViewAction::None
+            }
+            KeyCode::Down => {
+                self.scroll_down();
                 ViewAction::None
             }
             KeyCode::Left => {
@@ -1777,11 +2165,11 @@ impl View for ChatView {
                 ViewAction::None
             }
             KeyCode::PageUp => {
-                self.scroll_up();
+                self.page_up(); // v0.8.1: Use page scroll, not single line
                 ViewAction::None
             }
             KeyCode::PageDown => {
-                self.scroll_down();
+                self.page_down(); // v0.8.1: Use page scroll, not single line
                 ViewAction::None
             }
             KeyCode::Home => {
@@ -1816,6 +2204,49 @@ impl View for ChatView {
 }
 
 impl ChatView {
+    /// Handle key events when help overlay is visible
+    fn handle_help_overlay_key(&mut self, key: KeyEvent) -> ViewAction {
+        match key.code {
+            // Escape, ?, F1 = Close help
+            KeyCode::Esc | KeyCode::Char('?') | KeyCode::F(1) => {
+                self.help_overlay.hide();
+                ViewAction::None
+            }
+            // j/Down = Scroll down
+            KeyCode::Char('j') | KeyCode::Down => {
+                // Max scroll based on content (HELP_SECTIONS has ~30 lines)
+                self.help_overlay.scroll_down(30);
+                ViewAction::None
+            }
+            // k/Up = Scroll up
+            KeyCode::Char('k') | KeyCode::Up => {
+                self.help_overlay.scroll_up();
+                ViewAction::None
+            }
+            // g = Scroll to top
+            KeyCode::Char('g') => {
+                self.help_overlay.scroll = 0;
+                ViewAction::None
+            }
+            // G = Scroll to bottom
+            KeyCode::Char('G') => {
+                self.help_overlay.scroll = 30;
+                ViewAction::None
+            }
+            // PageUp
+            KeyCode::PageUp => {
+                self.help_overlay.scroll_page_up(10);
+                ViewAction::None
+            }
+            // PageDown
+            KeyCode::PageDown => {
+                self.help_overlay.scroll_page_down(30, 10);
+                ViewAction::None
+            }
+            _ => ViewAction::None,
+        }
+    }
+
     /// Handle key events when command palette is visible
     fn handle_palette_key(&mut self, key: KeyEvent) -> ViewAction {
         match key.code {
@@ -2017,9 +2448,10 @@ impl ChatView {
                 // v0.8 WOW: Use matrix decrypt effect if enabled
                 if self.matrix_effect_enabled {
                     for decrypt_line in self.streaming_decrypt.build_lines() {
-                        let mut spans = vec![
-                            Span::styled("  | ", Style::default().fg(theme.status_success)),
-                        ];
+                        let mut spans = vec![Span::styled(
+                            "  | ",
+                            Style::default().fg(theme.status_success),
+                        )];
                         spans.extend(decrypt_line.spans);
                         items.push(ListItem::new(Line::from(spans)));
                     }
@@ -2170,7 +2602,7 @@ impl ChatView {
     }
 
     /// Render messages v2 with inline MCP/Infer boxes
-    fn render_messages_v2(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+    fn render_messages_v2(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
         // Extract theme colors with fallbacks
         let thinking_header_color = theme.status_running; // Use running (amber-ish) for thinking
         let thinking_content_color = theme.text_muted;
@@ -2180,6 +2612,64 @@ impl ChatView {
         let error_color = theme.status_failed;
         let infer_box_color = theme.highlight; // Violet-like
         let status_running_color = theme.status_running;
+
+        // v0.8.1 FIX: Calculate content width for word wrapping
+        // area.width - 2 (borders) - 2 ("│ " prefix) = available text width
+        let content_width = area.width.saturating_sub(4) as usize;
+
+        // v0.8 FIX: Update visible count based on actual viewport height (minus borders)
+        let viewport_height = area.height.saturating_sub(2) as usize; // -2 for borders
+        self.conversation_scroll.visible = viewport_height;
+
+        // v0.8 Text Selection: Build line positions cache for mouse hit testing
+        self.line_positions.clear();
+        let content_start_x = area.x + 3; // "│ " prefix = 2 chars + border
+        let mut current_line = 0usize;
+        for (msg_idx, msg) in self.messages.iter().enumerate() {
+            current_line += 1; // Header line (e.g., "👤 You ────")
+
+            for (line_idx, line_text) in msg.content.lines().enumerate() {
+                // Calculate screen Y based on scroll offset
+                let line_in_list = current_line;
+                let scroll_offset = self.conversation_scroll.offset;
+
+                // Only track lines that could be visible
+                if line_in_list >= scroll_offset {
+                    let screen_y = area.y + 1 + (line_in_list - scroll_offset) as u16; // +1 for border
+                    if screen_y < area.y + area.height - 1 {
+                        self.line_positions.push(LinePosition {
+                            message_index: msg_idx,
+                            line_in_message: line_idx,
+                            screen_y,
+                            start_x: content_start_x,
+                            text: line_text.to_string(),
+                        });
+                    }
+                }
+                current_line += 1;
+            }
+
+            // Account for thinking lines if present
+            if let Some(ref thinking) = msg.thinking {
+                current_line += 1; // "🧠 Thinking:" header
+                let think_lines = thinking.lines().take(3).count();
+                current_line += think_lines;
+                if thinking.lines().count() > 3 {
+                    current_line += 1; // "... (N more lines)"
+                }
+            }
+
+            // Account for execution result if present
+            if msg.execution.is_some() {
+                current_line += 1;
+            }
+
+            current_line += 1; // Spacing line
+        }
+
+        // v0.8 Text Selection: Extract selection state for use in closure
+        let selection = self.text_selection.clone();
+        let selection_bg = theme.highlight; // Use highlight color for selection background
 
         let mut items: Vec<ListItem> = self
             .messages
@@ -2229,13 +2719,60 @@ impl ChatView {
                 }
                 let mut lines = vec![ListItem::new(Line::from(header_spans))];
 
-                // Wrap message content with colored prefix indicator
-                // PERF: Use Span::raw(line) directly - no allocation needed
-                for line in msg.content.lines() {
+                // v0.8 Text Selection: Check if this message is in the selection range
+                let is_selected = selection.as_ref().is_some_and(|sel| {
+                    let (start, end) = sel.normalized();
+                    idx >= start.message_index && idx <= end.message_index
+                });
+
+                // v0.8.1 FIX: Wrap message content to fit panel width
+                // Use wrap_text for proper word wrapping
+                let wrapped_lines = wrap_text(&msg.content, content_width);
+
+                // v0.8 Text Selection: Track char offset for selection highlighting
+                let mut char_offset = 0usize;
+                for wrapped_line in &wrapped_lines {
+                    let line_len = wrapped_line.chars().count();
+
+                    // v0.8 Text Selection: Apply highlighting if selected
+                    let text_style = if is_selected {
+                        if let Some(ref sel) = selection {
+                            let (start, end) = sel.normalized();
+                            // Check if this line is within the selection
+                            let line_start = char_offset;
+                            let line_end = char_offset + line_len;
+
+                            // Calculate selection overlap with this line
+                            let sel_start_in_msg = if idx == start.message_index {
+                                start.char_offset
+                            } else {
+                                0
+                            };
+                            let sel_end_in_msg = if idx == end.message_index {
+                                end.char_offset
+                            } else {
+                                usize::MAX
+                            };
+
+                            // Check if this line overlaps with selection
+                            if line_end > sel_start_in_msg && line_start < sel_end_in_msg {
+                                Style::default().bg(selection_bg).fg(Color::Black)
+                            } else {
+                                Style::default()
+                            }
+                        } else {
+                            Style::default()
+                        }
+                    } else {
+                        Style::default()
+                    };
+
                     lines.push(ListItem::new(Line::from(vec![
                         Span::styled("│ ", Style::default().fg(color)),
-                        Span::raw(line),
+                        Span::styled(wrapped_line.to_string(), text_style),
                     ])));
+
+                    char_offset += line_len + 1; // +1 for newline/wrap
                 }
 
                 // Add thinking display if present (v0.5.2+)
@@ -2420,22 +2957,25 @@ impl ChatView {
             ])));
 
             if !self.partial_response.is_empty() {
+                // v0.8.1 FIX: Use content_width for word wrapping to prevent overflow
                 // v0.8 WOW: Use matrix decrypt effect if enabled
                 if self.matrix_effect_enabled {
-                    for decrypt_line in self.streaming_decrypt.build_lines() {
+                    for decrypt_line in self.streaming_decrypt.build_lines_wrapped(content_width) {
                         // Prepend the prefix to each line
-                        let mut spans = vec![
-                            Span::styled("│ ", Style::default().fg(theme.status_success)),
-                        ];
+                        let mut spans = vec![Span::styled(
+                            "│ ",
+                            Style::default().fg(theme.status_success),
+                        )];
                         spans.extend(decrypt_line.spans);
                         items.push(ListItem::new(Line::from(spans)));
                     }
                 } else {
-                    // Fallback: plain text rendering
-                    for line in self.partial_response.lines() {
+                    // Fallback: plain text rendering with word wrap (v0.8.1)
+                    let wrapped_lines = wrap_text(&self.partial_response, content_width);
+                    for line in wrapped_lines {
                         items.push(ListItem::new(Line::from(vec![
                             Span::styled("│ ", Style::default().fg(theme.status_success)),
-                            Span::raw(line.to_string()),
+                            Span::raw(line),
                         ])));
                     }
                 }
@@ -2498,22 +3038,45 @@ impl ChatView {
             .title_style(title_style)
             .border_style(Style::default().fg(border_color));
 
-        let list = List::new(items).block(block);
+        // v0.8.1 FIX: Update total item count for scroll state BEFORE any scroll operations
+        let total_items = items.len();
+        self.conversation_scroll.total = total_items;
+
+        // v0.8.1 FIX (NovaNet pattern): Apply scroll using .skip().take() directly
+        // This is more reliable than relying on ListState's internal offset mechanism
+        let visible_count = viewport_height;
+        let scroll_offset = self.conversation_scroll.offset;
+
+        // Clamp offset to valid range
+        let clamped_offset = if total_items > visible_count {
+            scroll_offset.min(total_items.saturating_sub(visible_count))
+        } else {
+            0
+        };
+        self.conversation_scroll.offset = clamped_offset;
+
+        // Apply scroll - only show visible lines (NovaNet pattern)
+        let visible_items: Vec<ListItem> = items
+            .into_iter()
+            .skip(clamped_offset)
+            .take(visible_count)
+            .collect();
+
+        let list = List::new(visible_items).block(block);
         frame.render_widget(list, area);
 
-        // v0.8 UX: Render scrollbar if content exceeds viewport
-        if self.conversation_scroll.total > self.conversation_scroll.visible {
+        // v0.8.1 UX: Render scrollbar if content exceeds viewport (NovaNet pattern)
+        if total_items > visible_count {
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .begin_symbol(Some("↑"))
                 .end_symbol(Some("↓"))
                 .track_symbol(Some("│"))
                 .thumb_symbol("█");
 
-            // Compute scrollbar state from PanelScrollState
+            // Compute scrollbar state (NovaNet pattern: content_length is total - visible)
             let mut scrollbar_state = ScrollbarState::default()
-                .content_length(self.conversation_scroll.total)
-                .viewport_content_length(self.conversation_scroll.visible)
-                .position(self.conversation_scroll.offset);
+                .content_length(total_items.saturating_sub(visible_count))
+                .position(clamped_offset);
 
             // Render inside the block area (excluding borders)
             let scrollbar_area = Rect {
@@ -2559,6 +3122,15 @@ impl ChatView {
         let paragraph = Paragraph::new(hints);
         frame.render_widget(paragraph, area);
     }
+}
+
+/// Convert character offset to byte offset in a UTF-8 string
+/// This handles multi-byte characters correctly
+fn char_to_byte_offset(s: &str, char_offset: usize) -> usize {
+    s.char_indices()
+        .nth(char_offset)
+        .map(|(i, _)| i)
+        .unwrap_or(s.len())
 }
 
 /// Helper function to create a centered rectangle for overlays
@@ -2997,16 +3569,10 @@ mod tests {
         let mut view = ChatView::new();
         view.start_infer_stream("claude-sonnet-4", 100, 2000);
 
-        assert_eq!(view.inline_content.len(), 1);
-        if let InlineContent::InferStream(data) = &view.inline_content[0] {
-            assert_eq!(data.model, "claude-sonnet-4");
-            assert_eq!(data.tokens_in, 100);
-            assert_eq!(data.max_tokens, 2000);
-        } else {
-            panic!("Expected InferStream");
-        }
+        // v0.8 FIX: InferStream boxes no longer created - streaming_decrypt handles visual
+        assert_eq!(view.inline_content.len(), 0);
 
-        // Should add activity item
+        // Should add activity item for Mission Control panel
         assert_eq!(view.activity_items.len(), 1);
         assert_eq!(view.activity_items[0].verb, "infer");
     }
@@ -3018,14 +3584,10 @@ mod tests {
         view.append_infer_content("Hello ", 10);
         view.append_infer_content("World!", 20);
 
-        if let InlineContent::InferStream(data) = &view.inline_content[0] {
-            assert_eq!(data.content, "Hello World!");
-            assert_eq!(data.tokens_out, 20);
-        } else {
-            panic!("Expected InferStream");
-        }
+        // v0.8 FIX: No InferStream in inline_content - streaming_decrypt handles visual
+        assert_eq!(view.inline_content.len(), 0);
 
-        // Should also update partial_response for backwards compatibility
+        // partial_response is used by streaming_decrypt for the matrix reveal effect
         assert_eq!(view.partial_response, "Hello World!");
     }
 
@@ -3072,27 +3634,29 @@ mod tests {
     }
 
     // === Scroll Tests (Panel-based scroll system) ===
+    // v0.8.1: Updated to test offset-based scrolling (NovaNet pattern)
 
     #[test]
     fn test_chat_view_scroll_up() {
         let mut view = ChatView::new();
-        // Focus conversation panel and set cursor position
+        // Focus conversation panel and set offset position
         view.focus_panel(ChatPanel::Conversation);
-        view.conversation_scroll.cursor = 5;
-        view.conversation_scroll.total = 10;
+        view.conversation_scroll.offset = 5;
+        view.conversation_scroll.total = 20;
+        view.conversation_scroll.visible = 10;
 
         view.scroll_up();
-        assert_eq!(view.conversation_scroll.cursor, 4);
+        assert_eq!(view.conversation_scroll.offset, 4);
 
         view.scroll_up();
         view.scroll_up();
         view.scroll_up();
         view.scroll_up();
-        assert_eq!(view.conversation_scroll.cursor, 0);
+        assert_eq!(view.conversation_scroll.offset, 0);
 
         // Should not go negative
         view.scroll_up();
-        assert_eq!(view.conversation_scroll.cursor, 0);
+        assert_eq!(view.conversation_scroll.offset, 0);
     }
 
     #[test]
@@ -3100,32 +3664,59 @@ mod tests {
         let mut view = ChatView::new();
         // Focus conversation panel and set up scrollable content
         view.focus_panel(ChatPanel::Conversation);
-        view.conversation_scroll.total = 4;
-        view.conversation_scroll.cursor = 0;
+        view.conversation_scroll.total = 20;
+        view.conversation_scroll.visible = 10;
+        view.conversation_scroll.offset = 0;
 
         // Can scroll down when there's content
         view.scroll_down();
-        assert_eq!(view.conversation_scroll.cursor, 1);
+        assert_eq!(view.conversation_scroll.offset, 1);
 
         view.scroll_down();
         view.scroll_down();
-        assert_eq!(view.conversation_scroll.cursor, 3);
+        assert_eq!(view.conversation_scroll.offset, 3);
 
-        // Should cap at total - 1
+        // Set offset near end
+        view.conversation_scroll.offset = 9;
         view.scroll_down();
-        assert_eq!(view.conversation_scroll.cursor, 3);
+        assert_eq!(view.conversation_scroll.offset, 10); // max is total - visible
+
+        // Should cap at total - visible
+        view.scroll_down();
+        assert_eq!(view.conversation_scroll.offset, 10);
     }
 
     #[test]
     fn test_chat_view_scroll_to_bottom() {
         let mut view = ChatView::new();
         view.focus_panel(ChatPanel::Conversation);
-        view.conversation_scroll.total = 10;
+        view.conversation_scroll.total = 20;
+        view.conversation_scroll.visible = 10;
+        view.conversation_scroll.offset = 3;
         view.conversation_scroll.cursor = 3;
 
         view.scroll_to_bottom();
-        // cursor_last() sets cursor to total - 1
-        assert_eq!(view.conversation_scroll.cursor, 9);
+        // scroll_to_bottom sets offset to total - visible and cursor to total - 1
+        assert_eq!(view.conversation_scroll.offset, 10);
+        assert_eq!(view.conversation_scroll.cursor, 19);
+    }
+
+    #[test]
+    fn test_chat_view_scroll_from_input_panel() {
+        // v0.8.1: Test that scroll works from Input panel (NovaNet pattern)
+        let mut view = ChatView::new();
+        // Default focus is Input panel
+        assert_eq!(view.focused_panel, ChatPanel::Input);
+        view.conversation_scroll.total = 20;
+        view.conversation_scroll.visible = 10;
+        view.conversation_scroll.offset = 5;
+
+        // Scroll should still work on conversation panel
+        view.scroll_down();
+        assert_eq!(view.conversation_scroll.offset, 6);
+
+        view.scroll_up();
+        assert_eq!(view.conversation_scroll.offset, 5);
     }
 
     // === Thinking Display Tests (CRITICAL 3) ===
@@ -3668,5 +4259,223 @@ mod tests {
         assert_eq!(view.session_metrics.input_tokens, 300); // 100 + 200
         assert_eq!(view.session_metrics.output_tokens, 150); // 50 + 100
         assert!((view.session_metrics.cost_usd - 0.004).abs() < 0.0001);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // v0.8.0: Tests for activity tracking methods (exec, fetch, agent)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_exec_activity_lifecycle() {
+        use crate::tui::widgets::ActivityTemp;
+
+        let mut view = ChatView::new();
+
+        // Initially no activities
+        assert!(view.activity_items.is_empty());
+
+        // Add exec activity
+        view.add_exec_activity("ls -la");
+        assert_eq!(view.activity_items.len(), 1);
+        assert_eq!(view.activity_items[0].verb, "exec");
+        assert!(matches!(view.activity_items[0].temp, ActivityTemp::Hot));
+
+        // Complete exec activity
+        view.complete_exec_activity();
+        assert!(matches!(view.activity_items[0].temp, ActivityTemp::Warm));
+    }
+
+    #[test]
+    fn test_fetch_activity_lifecycle() {
+        use crate::tui::widgets::ActivityTemp;
+
+        let mut view = ChatView::new();
+
+        // Add fetch activity
+        view.add_fetch_activity("https://example.com", "GET");
+        assert_eq!(view.activity_items.len(), 1);
+        assert_eq!(view.activity_items[0].verb, "fetch");
+
+        // Complete fetch activity
+        view.complete_fetch_activity();
+        assert!(matches!(view.activity_items[0].temp, ActivityTemp::Warm));
+    }
+
+    #[test]
+    fn test_agent_activity_lifecycle() {
+        use crate::tui::widgets::ActivityTemp;
+
+        let mut view = ChatView::new();
+
+        // Add agent activity
+        view.add_agent_activity("Generate a landing page");
+        assert_eq!(view.activity_items.len(), 1);
+        assert_eq!(view.activity_items[0].verb, "agent");
+
+        // Complete agent activity
+        view.complete_agent_activity();
+        assert!(matches!(view.activity_items[0].temp, ActivityTemp::Warm));
+    }
+
+    #[test]
+    fn test_multiple_concurrent_activities() {
+        use crate::tui::widgets::ActivityTemp;
+
+        let mut view = ChatView::new();
+
+        // Start multiple activities concurrently
+        view.add_exec_activity("npm run build");
+        view.add_fetch_activity("https://api.example.com", "POST");
+        view.add_agent_activity("Analyze results");
+
+        assert_eq!(view.activity_items.len(), 3);
+
+        // All should be hot initially
+        for item in &view.activity_items {
+            assert!(matches!(item.temp, ActivityTemp::Hot));
+        }
+
+        // Complete them in different order
+        view.complete_fetch_activity();
+        view.complete_exec_activity();
+        view.complete_agent_activity();
+
+        // All should be warm now
+        for item in &view.activity_items {
+            assert!(matches!(item.temp, ActivityTemp::Warm));
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // v0.8 Text Selection Tests
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_text_selection_new() {
+        let pos = SelectionPos {
+            message_index: 0,
+            char_offset: 5,
+        };
+        let selection = TextSelection::new(pos);
+        assert_eq!(selection.start, pos);
+        assert_eq!(selection.end, pos);
+    }
+
+    #[test]
+    fn test_text_selection_normalized() {
+        // Forward selection (start < end)
+        let sel = TextSelection {
+            start: SelectionPos {
+                message_index: 0,
+                char_offset: 5,
+            },
+            end: SelectionPos {
+                message_index: 0,
+                char_offset: 10,
+            },
+        };
+        let (start, end) = sel.normalized();
+        assert_eq!(start.char_offset, 5);
+        assert_eq!(end.char_offset, 10);
+
+        // Backward selection (end < start)
+        let sel = TextSelection {
+            start: SelectionPos {
+                message_index: 0,
+                char_offset: 10,
+            },
+            end: SelectionPos {
+                message_index: 0,
+                char_offset: 5,
+            },
+        };
+        let (start, end) = sel.normalized();
+        assert_eq!(start.char_offset, 5);
+        assert_eq!(end.char_offset, 10);
+    }
+
+    #[test]
+    fn test_text_selection_contains() {
+        let sel = TextSelection {
+            start: SelectionPos {
+                message_index: 1,
+                char_offset: 5,
+            },
+            end: SelectionPos {
+                message_index: 1,
+                char_offset: 15,
+            },
+        };
+
+        // Inside selection
+        assert!(sel.contains(SelectionPos {
+            message_index: 1,
+            char_offset: 10
+        }));
+
+        // At start
+        assert!(sel.contains(SelectionPos {
+            message_index: 1,
+            char_offset: 5
+        }));
+
+        // Before selection
+        assert!(!sel.contains(SelectionPos {
+            message_index: 1,
+            char_offset: 4
+        }));
+    }
+
+    #[test]
+    fn test_get_selected_text() {
+        let mut view = ChatView::new();
+        view.messages.clear();
+        view.add_user_message("Hello, World!".to_string());
+
+        // Select "World"
+        view.text_selection = Some(TextSelection {
+            start: SelectionPos {
+                message_index: 0,
+                char_offset: 7,
+            },
+            end: SelectionPos {
+                message_index: 0,
+                char_offset: 12,
+            },
+        });
+
+        let selected = view.get_selected_text();
+        assert_eq!(selected, Some("World".to_string()));
+    }
+
+    #[test]
+    fn test_clear_selection() {
+        let mut view = ChatView::new();
+        view.text_selection = Some(TextSelection::new(SelectionPos {
+            message_index: 0,
+            char_offset: 0,
+        }));
+        view.is_selecting = true;
+
+        view.clear_selection();
+
+        assert!(view.text_selection.is_none());
+        assert!(!view.is_selecting);
+    }
+
+    #[test]
+    fn test_char_to_byte_offset_helper() {
+        assert_eq!(char_to_byte_offset("hello", 2), 2);
+        assert_eq!(char_to_byte_offset("héllo", 2), 3); // é is 2 bytes
+        assert_eq!(char_to_byte_offset("a🦀b", 2), 5); // 🦀 is 4 bytes
+        assert_eq!(char_to_byte_offset("hi", 10), 2); // Beyond end
+    }
+
+    #[test]
+    fn test_selection_initialization() {
+        let view = ChatView::new();
+        assert!(view.text_selection.is_none());
+        assert!(!view.is_selecting);
+        assert!(view.line_positions.is_empty());
     }
 }

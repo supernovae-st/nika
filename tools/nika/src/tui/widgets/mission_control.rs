@@ -32,7 +32,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Widget},
 };
 
-use super::{McpServerInfo, McpStatus};
+use super::{ActivityItem, ActivityTemp, McpServerInfo, McpStatus};
 
 // Solarized-inspired colors
 const COLOR_HEADER: Color = Color::Rgb(250, 204, 21); // Gold
@@ -203,6 +203,10 @@ pub struct MissionControlPanel<'a> {
     turn_metrics: TurnMetrics,
     /// Is panel focused
     focused: bool,
+    /// v0.8.1: Activity items (hot/warm/queued)
+    activities: &'a [ActivityItem],
+    /// Animation frame for spinners
+    frame: u8,
 }
 
 impl<'a> MissionControlPanel<'a> {
@@ -215,6 +219,8 @@ impl<'a> MissionControlPanel<'a> {
             current_verb: CurrentVerb::None,
             turn_metrics: TurnMetrics::default(),
             focused: false,
+            activities: &[],
+            frame: 0,
         }
     }
 
@@ -245,6 +251,18 @@ impl<'a> MissionControlPanel<'a> {
 
     pub fn focused(mut self, focused: bool) -> Self {
         self.focused = focused;
+        self
+    }
+
+    /// v0.8.1: Set activity items (hot/warm/queued tasks)
+    pub fn activities(mut self, activities: &'a [ActivityItem]) -> Self {
+        self.activities = activities;
+        self
+    }
+
+    /// v0.8.1: Set animation frame for spinners
+    pub fn frame(mut self, frame: u8) -> Self {
+        self.frame = frame;
         self
     }
 
@@ -429,6 +447,103 @@ impl<'a> MissionControlPanel<'a> {
         let para = Paragraph::new(lines);
         para.render(area, buf);
     }
+
+    /// v0.8.1: Render activity section (hot/warm/queued tasks)
+    fn render_activity_section(&self, area: Rect, buf: &mut Buffer) {
+        // Group activities by temperature
+        let hot: Vec<_> = self
+            .activities
+            .iter()
+            .filter(|a| a.temp == ActivityTemp::Hot)
+            .collect();
+        let warm: Vec<_> = self
+            .activities
+            .iter()
+            .filter(|a| a.temp == ActivityTemp::Warm)
+            .collect();
+        let queued: Vec<_> = self
+            .activities
+            .iter()
+            .filter(|a| a.temp == ActivityTemp::Queued)
+            .collect();
+
+        let mut lines = vec![Line::from(vec![
+            Span::styled("🎯 ", Style::default()),
+            Span::styled(
+                "ACTIVITY",
+                Style::default()
+                    .fg(COLOR_HEADER)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ])];
+
+        if self.activities.is_empty() {
+            lines.push(Line::from(Span::styled(
+                "  No active tasks",
+                Style::default().fg(COLOR_MUTED),
+            )));
+        } else {
+            // Hot (executing) - orange spinner
+            for item in hot.iter().take(3) {
+                let spinners = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
+                let spinner = spinners[(self.frame as usize) % spinners.len()];
+                let duration = item
+                    .started
+                    .map(|s| format!(" ({:.1}s)", s.elapsed().as_secs_f64()))
+                    .unwrap_or_default();
+                lines.push(Line::from(vec![
+                    Span::raw("  "),
+                    Span::styled(spinner, Style::default().fg(Color::Rgb(251, 146, 60))), // orange
+                    Span::raw(" "),
+                    Span::styled(&item.verb, Style::default().fg(Color::White)),
+                    Span::styled(duration, Style::default().fg(COLOR_MUTED)),
+                ]));
+            }
+
+            // Warm (recent) - yellow checkmark
+            for item in warm.iter().take(2) {
+                let duration = item
+                    .duration
+                    .map(|d| format!(" ({:.1}s)", d.as_secs_f64()))
+                    .unwrap_or_default();
+                lines.push(Line::from(vec![
+                    Span::raw("  "),
+                    Span::styled("✓", Style::default().fg(Color::Rgb(250, 204, 21))), // yellow
+                    Span::raw(" "),
+                    Span::styled(&item.verb, Style::default().fg(COLOR_MUTED)),
+                    Span::styled(duration, Style::default().fg(COLOR_MUTED)),
+                ]));
+            }
+
+            // Queued (waiting) - gray
+            for item in queued.iter().take(2) {
+                let waiting = item
+                    .waiting_on
+                    .as_ref()
+                    .map(|w| format!(" (→ {})", w))
+                    .unwrap_or_default();
+                lines.push(Line::from(vec![
+                    Span::raw("  "),
+                    Span::styled("○", Style::default().fg(COLOR_MUTED)),
+                    Span::raw(" "),
+                    Span::styled(&item.verb, Style::default().fg(COLOR_MUTED)),
+                    Span::styled(waiting, Style::default().fg(COLOR_MUTED)),
+                ]));
+            }
+
+            // Summary if more items
+            let remaining = self.activities.len().saturating_sub(7);
+            if remaining > 0 {
+                lines.push(Line::from(Span::styled(
+                    format!("  +{} more", remaining),
+                    Style::default().fg(COLOR_MUTED),
+                )));
+            }
+        }
+
+        let para = Paragraph::new(lines);
+        para.render(area, buf);
+    }
 }
 
 fn format_tokens(tokens: u64) -> String {
@@ -473,7 +588,13 @@ impl Widget for MissionControlPanel<'_> {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        // Split into 4 sections
+        // Split into 5 sections (v0.8.1: added Activity)
+        let activity_lines = if self.activities.is_empty() {
+            2 // header + "No active tasks"
+        } else {
+            2 + self.activities.len().min(7) // header + up to 7 items
+        };
+
         let sections = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -483,6 +604,7 @@ impl Widget for MissionControlPanel<'_> {
                     3 + self.memory_files.len().min(3) as u16
                         + if self.conversation_turns > 0 { 1 } else { 0 },
                 ), // Memory
+                Constraint::Length(activity_lines as u16),                    // Activity (v0.8.1)
                 Constraint::Min(5),                                           // Runtime
             ])
             .split(inner);
@@ -490,7 +612,8 @@ impl Widget for MissionControlPanel<'_> {
         self.render_mcp_section(sections[0], buf);
         self.render_context_section(sections[1], buf);
         self.render_memory_section(sections[2], buf);
-        self.render_runtime_section(sections[3], buf);
+        self.render_activity_section(sections[3], buf); // v0.8.1
+        self.render_runtime_section(sections[4], buf);
     }
 }
 
