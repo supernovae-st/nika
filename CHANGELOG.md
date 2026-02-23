@@ -37,22 +37,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **1,879 tests passing**
 - **Zero clippy warnings**
 
-## [0.7.3] - 2026-02-23
-
-### Fixed
-- **Clippy compliance** - Fixed all clippy warnings with `-D warnings`
-  - `io_other_error`: Use `std::io::Error::other()` instead of `new(Other, e)`
-  - `should_implement_trait`: Renamed `VerbType::from_str()` to `try_parse()`
-- **ThemeMode exhaustive match** - Added `Solarized` variant handling in theme toggle
-- **Code formatting** - Applied `cargo fmt` to all files
-
-### Changed
-- `VerbType::from_str()` → `VerbType::try_parse()` (idiomatic naming)
-
-### Statistics
-- **1,808 tests passing** (lib tests)
-- **Zero clippy warnings**
-
 ## [0.7.2] - 2026-02-23
 
 ### Added
