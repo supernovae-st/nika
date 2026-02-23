@@ -400,10 +400,11 @@ impl RigProvider {
                         Ok(content) => match content {
                             StreamedAssistantContent::Text(text) => {
                                 response_parts.push(text.text.clone());
-                                let _ = tx.send(StreamChunk::Token(text.text)).await;
+                                // Use try_send to avoid blocking when receiver is dropped (executor mode)
+                                let _ = tx.try_send(StreamChunk::Token(text.text));
                             }
                             StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
-                                let _ = tx.send(StreamChunk::Thinking(reasoning)).await;
+                                let _ = tx.try_send(StreamChunk::Thinking(reasoning));
                             }
                             StreamedAssistantContent::Final(response) => {
                                 // Extract token usage from final response
@@ -419,7 +420,7 @@ impl RigProvider {
                             }
                         },
                         Err(e) => {
-                            let _ = tx.send(StreamChunk::Error(e.to_string())).await;
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
                             return Err(RigInferError::PromptError(e.to_string()));
                         }
                     }
@@ -439,7 +440,7 @@ impl RigProvider {
                         Ok(content) => match content {
                             StreamedAssistantContent::Text(text) => {
                                 response_parts.push(text.text.clone());
-                                let _ = tx.send(StreamChunk::Token(text.text)).await;
+                                let _ = tx.try_send(StreamChunk::Token(text.text));
                             }
                             StreamedAssistantContent::Final(response) => {
                                 // Extract token usage from final response
@@ -453,7 +454,7 @@ impl RigProvider {
                             _ => {}
                         },
                         Err(e) => {
-                            let _ = tx.send(StreamChunk::Error(e.to_string())).await;
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
                             return Err(RigInferError::PromptError(e.to_string()));
                         }
                     }
@@ -474,7 +475,7 @@ impl RigProvider {
                         Ok(content) => match content {
                             StreamedAssistantContent::Text(text) => {
                                 response_parts.push(text.text.clone());
-                                let _ = tx.send(StreamChunk::Token(text.text)).await;
+                                let _ = tx.try_send(StreamChunk::Token(text.text));
                             }
                             StreamedAssistantContent::Final(response) => {
                                 if let Some(usage) = response.token_usage() {
@@ -487,7 +488,7 @@ impl RigProvider {
                             _ => {}
                         },
                         Err(e) => {
-                            let _ = tx.send(StreamChunk::Error(e.to_string())).await;
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
                             return Err(RigInferError::PromptError(e.to_string()));
                         }
                     }
@@ -507,7 +508,7 @@ impl RigProvider {
                         Ok(content) => match content {
                             StreamedAssistantContent::Text(text) => {
                                 response_parts.push(text.text.clone());
-                                let _ = tx.send(StreamChunk::Token(text.text)).await;
+                                let _ = tx.try_send(StreamChunk::Token(text.text));
                             }
                             StreamedAssistantContent::Final(response) => {
                                 if let Some(usage) = response.token_usage() {
@@ -520,7 +521,7 @@ impl RigProvider {
                             _ => {}
                         },
                         Err(e) => {
-                            let _ = tx.send(StreamChunk::Error(e.to_string())).await;
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
                             return Err(RigInferError::PromptError(e.to_string()));
                         }
                     }
@@ -540,7 +541,7 @@ impl RigProvider {
                         Ok(content) => match content {
                             StreamedAssistantContent::Text(text) => {
                                 response_parts.push(text.text.clone());
-                                let _ = tx.send(StreamChunk::Token(text.text)).await;
+                                let _ = tx.try_send(StreamChunk::Token(text.text));
                             }
                             StreamedAssistantContent::Final(response) => {
                                 if let Some(usage) = response.token_usage() {
@@ -553,7 +554,7 @@ impl RigProvider {
                             _ => {}
                         },
                         Err(e) => {
-                            let _ = tx.send(StreamChunk::Error(e.to_string())).await;
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
                             return Err(RigInferError::PromptError(e.to_string()));
                         }
                     }
@@ -573,7 +574,7 @@ impl RigProvider {
                         Ok(content) => match content {
                             StreamedAssistantContent::Text(text) => {
                                 response_parts.push(text.text.clone());
-                                let _ = tx.send(StreamChunk::Token(text.text)).await;
+                                let _ = tx.try_send(StreamChunk::Token(text.text));
                             }
                             StreamedAssistantContent::Final(response) => {
                                 if let Some(usage) = response.token_usage() {
@@ -586,7 +587,7 @@ impl RigProvider {
                             _ => {}
                         },
                         Err(e) => {
-                            let _ = tx.send(StreamChunk::Error(e.to_string())).await;
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
                             return Err(RigInferError::PromptError(e.to_string()));
                         }
                     }
@@ -595,15 +596,13 @@ impl RigProvider {
         }
 
         let complete_response = response_parts.concat();
-        let _ = tx.send(StreamChunk::Done(complete_response.clone())).await;
+        let _ = tx.try_send(StreamChunk::Done(complete_response.clone()));
 
-        // Send metrics after Done (v0.7.0)
-        let _ = tx
-            .send(StreamChunk::Metrics {
-                input_tokens: result.input_tokens,
-                output_tokens: result.output_tokens,
-            })
-            .await;
+        // Send metrics after Done (v0.7.0) - use try_send to avoid blocking
+        let _ = tx.try_send(StreamChunk::Metrics {
+            input_tokens: result.input_tokens,
+            output_tokens: result.output_tokens,
+        });
 
         result.text = complete_response;
         Ok(result)
