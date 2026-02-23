@@ -14,6 +14,7 @@
 //! let (text, cursor) = history.redo().unwrap(); // "hello!", 6
 //! ```
 
+use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 /// How long between keystrokes to consider them part of the same "edit group"
@@ -52,9 +53,9 @@ impl EditState {
 #[derive(Debug, Clone)]
 pub struct EditHistory {
     /// Stack of past states (undo targets)
-    undo_stack: Vec<EditState>,
+    undo_stack: VecDeque<EditState>,
     /// Stack of undone states (redo targets)
-    redo_stack: Vec<EditState>,
+    redo_stack: VecDeque<EditState>,
     /// Maximum number of states to keep
     max_size: usize,
     /// Current state (not in either stack)
@@ -71,8 +72,8 @@ impl EditHistory {
     /// Create a new edit history with given max size
     pub fn new(max_size: usize) -> Self {
         Self {
-            undo_stack: Vec::new(),
-            redo_stack: Vec::new(),
+            undo_stack: VecDeque::new(),
+            redo_stack: VecDeque::new(),
             max_size,
             current: None,
         }
@@ -113,11 +114,11 @@ impl EditHistory {
             }
 
             // Not coalescing: push current to undo stack
-            self.undo_stack.push(current.clone());
+            self.undo_stack.push_back(current.clone());
 
-            // Enforce max size
+            // Enforce max size - O(1) with VecDeque
             if self.undo_stack.len() > self.max_size {
-                self.undo_stack.remove(0);
+                self.undo_stack.pop_front();
             }
         }
 
@@ -133,9 +134,10 @@ impl EditHistory {
     /// Use this before operations like paste or clear.
     pub fn checkpoint(&mut self, text: &str, cursor: usize) {
         if let Some(ref current) = self.current {
-            self.undo_stack.push(current.clone());
+            self.undo_stack.push_back(current.clone());
+            // Enforce max size - O(1) with VecDeque
             if self.undo_stack.len() > self.max_size {
-                self.undo_stack.remove(0);
+                self.undo_stack.pop_front();
             }
         }
         self.current = Some(EditState::new(text.to_string(), cursor));
@@ -146,11 +148,11 @@ impl EditHistory {
     ///
     /// Returns the state to restore, or None if nothing to undo.
     pub fn undo(&mut self) -> Option<(String, usize)> {
-        let previous = self.undo_stack.pop()?;
+        let previous = self.undo_stack.pop_back()?;
 
         // Push current to redo stack
         if let Some(current) = self.current.take() {
-            self.redo_stack.push(current);
+            self.redo_stack.push_back(current);
         }
 
         // Make previous the current
@@ -164,11 +166,11 @@ impl EditHistory {
     ///
     /// Returns the state to restore, or None if nothing to redo.
     pub fn redo(&mut self) -> Option<(String, usize)> {
-        let next = self.redo_stack.pop()?;
+        let next = self.redo_stack.pop_back()?;
 
         // Push current to undo stack
         if let Some(current) = self.current.take() {
-            self.undo_stack.push(current);
+            self.undo_stack.push_back(current);
         }
 
         // Make next the current

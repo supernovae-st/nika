@@ -18,6 +18,9 @@ pub enum ConfigError {
     #[error("Failed to read config: {0}")]
     ReadError(#[from] std::io::Error),
 
+    #[error("Failed to write config: {0}")]
+    WriteError(std::io::Error),
+
     #[error("Failed to parse config: {0}")]
     ParseError(#[from] toml::de::Error),
 
@@ -195,8 +198,7 @@ impl TuiConfig {
     pub fn save(&self) -> Result<(), ConfigError> {
         let path = Self::config_path()?;
         let content = toml::to_string_pretty(self)?;
-        atomic_write(&path, content.as_bytes())
-            .map_err(|e| ConfigError::ReadError(std::io::Error::other(e)))?;
+        atomic_write(&path, content.as_bytes()).map_err(ConfigError::WriteError)?;
         Ok(())
     }
 

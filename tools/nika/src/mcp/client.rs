@@ -150,8 +150,19 @@ impl ResponseCache {
     /// Generate cache key from tool name and params.
     fn cache_key(tool: &str, params: &Value) -> String {
         let mut hasher = FxHasher::default();
-        // Serialize params to canonical JSON for consistent hashing
-        let params_str = serde_json::to_string(params).unwrap_or_default();
+        // Serialize params to canonical JSON for consistent hashing.
+        // Falls back to Debug format if JSON serialization fails (unlikely for Value).
+        let params_str = match serde_json::to_string(params) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(
+                    tool = tool,
+                    error = %e,
+                    "JSON serialization failed for cache key, using Debug format"
+                );
+                format!("{:?}", params)
+            }
+        };
         params_str.hash(&mut hasher);
         format!("{}:{:016x}", tool, hasher.finish())
     }

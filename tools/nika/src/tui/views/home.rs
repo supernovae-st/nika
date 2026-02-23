@@ -20,7 +20,7 @@ use std::path::PathBuf;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use nucleo::{Config, Matcher, Utf32Str};
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Widget},
@@ -44,7 +44,10 @@ use crate::tui::standalone::{BrowserEntry, StandaloneState};
 use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
-use crate::tui::widgets::{BigText, DagAscii, NodeBoxData, NodeBoxMode};
+use crate::tui::widgets::{
+    AnimatedLatencySparkline, BigTextGradient, DagAscii, GradientType, NodeBoxData, NodeBoxMode,
+    SparklineAnimation,
+};
 
 /// Home view state
 pub struct HomeView {
@@ -74,6 +77,10 @@ pub struct HomeView {
     pub dag_expanded: bool,
     /// Preview mode: DAG visualization or verb-colored YAML
     pub preview_mode: PreviewMode,
+    /// Animation frame counter (0-255, wraps)
+    pub frame: u8,
+    /// Activity sparkline data (simulated for demo)
+    activity_data: Vec<u64>,
 }
 
 impl HomeView {
@@ -88,6 +95,15 @@ impl HomeView {
         if !standalone.browser_entries.is_empty() {
             list_state.select(Some(0));
         }
+        // Generate initial activity data for sparkline (demo)
+        let activity_data: Vec<u64> = (0..30)
+            .map(|i| {
+                // Wave pattern for visual interest
+                let wave = ((i as f64 * 0.3).sin() * 30.0 + 50.0) as u64;
+                wave.clamp(20, 80)
+            })
+            .collect();
+
         Self {
             standalone,
             list_state,
@@ -102,6 +118,24 @@ impl HomeView {
             cached_content_hash: Cell::new(0),
             dag_expanded: false,
             preview_mode: PreviewMode::Dag,
+            frame: 0,
+            activity_data,
+        }
+    }
+
+    /// Tick animation frame (called from main loop)
+    /// Note: Animation integration pending - will be wired in v0.8.1
+    #[allow(dead_code)]
+    pub fn tick(&mut self) {
+        self.frame = self.frame.wrapping_add(1);
+        // Shift activity data for flow effect
+        if self.frame % 4 == 0 {
+            self.activity_data.rotate_left(1);
+            // Add new random-ish value
+            let new_val = ((self.frame as f64 * 0.1).sin() * 25.0 + 55.0) as u64;
+            if let Some(last) = self.activity_data.last_mut() {
+                *last = new_val.clamp(20, 80);
+            }
         }
     }
 
@@ -653,125 +687,165 @@ impl HomeView {
     }
 
     /// Render the welcome screen (v0.5.2+)
-    fn render_welcome(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+    fn render_welcome(&self, frame_ctx: &mut Frame, area: Rect, theme: &Theme) {
+        // ═══════════════════════════════════════════════════════════════════════════
+        // LAYOUT: Logo (5) + Sparkline (3) + Content (rest)
+        // ═══════════════════════════════════════════════════════════════════════════
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(5), // BigText logo (3 lines + padding)
+                Constraint::Length(3), // Activity sparkline
+                Constraint::Min(10),   // Content
+            ])
+            .split(area);
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 1. ANIMATED GRADIENT BIGTEXT LOGO (WOW EFFECT)
+        // ═══════════════════════════════════════════════════════════════════════════
+        let logo_area = chunks[0];
+        let big_text = BigTextGradient::new("NIKA")
+            .gradient(GradientType::Solarized)
+            .frame(self.frame)
+            .alignment(Alignment::Center)
+            .bold(true);
+        frame_ctx.render_widget(big_text, logo_area);
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 2. ANIMATED ACTIVITY SPARKLINE
+        // ═══════════════════════════════════════════════════════════════════════════
+        let sparkline_area = chunks[1];
+        let sparkline = AnimatedLatencySparkline::new(&self.activity_data)
+            .animation(SparklineAnimation::Pulse)
+            .frame(self.frame)
+            .warn_threshold(70)
+            .error_threshold(90);
+        frame_ctx.render_widget(sparkline, sparkline_area);
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 3. WELCOME CONTENT WITH VERB COLORS
+        // ═══════════════════════════════════════════════════════════════════════════
+        let content_area = chunks[2];
+
+        // Get verb colors for visual showcase
+        let infer_color = VerbColor::Infer.rgb();
+        let exec_color = VerbColor::Exec.rgb();
+        let fetch_color = VerbColor::Fetch.rgb();
+        let invoke_color = VerbColor::Invoke.rgb();
+        let agent_color = VerbColor::Agent.rgb();
+
         let welcome_lines = vec![
             Line::from(vec![
-                Span::styled("🐔 ", Style::default()),
+                Span::styled("AI Workflow Engine ", Style::default().fg(theme.text_muted)),
+                Span::styled("v0.8.0", Style::default().fg(theme.highlight)),
+            ]),
+            Line::from(""),
+            // ── Keybindings FIRST (must be visible for tests) ──
+            Line::from(vec![
                 Span::styled(
-                    "Welcome to Nika",
+                    "Tab",
                     Style::default()
                         .fg(theme.highlight)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(" v0.5.2", Style::default().fg(theme.text_muted)),
-            ]),
-            Line::from(""),
-            Line::from(Span::styled(
-                "Semantic YAML workflow engine for AI tasks",
-                Style::default().fg(theme.text_primary),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(
-                "── Quick Start ──",
-                Style::default()
-                    .fg(theme.highlight)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("  1. ", Style::default().fg(theme.text_muted)),
-                Span::raw("Create a workflow: "),
-                Span::styled("example.nika.yaml", Style::default().fg(theme.highlight)),
-            ]),
-            Line::from(vec![
-                Span::styled("  2. ", Style::default().fg(theme.text_muted)),
-                Span::raw("Run it: "),
+                Span::styled(" views  ", Style::default().fg(theme.text_muted)),
                 Span::styled(
-                    "nika run example.nika.yaml",
-                    Style::default().fg(theme.highlight),
+                    "Enter",
+                    Style::default()
+                        .fg(theme.highlight)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(" run  ", Style::default().fg(theme.text_muted)),
+                Span::styled(
+                    "?",
+                    Style::default()
+                        .fg(theme.highlight)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(" help  ", Style::default().fg(theme.text_muted)),
+                Span::styled(
+                    "q",
+                    Style::default()
+                        .fg(theme.highlight)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(" quit", Style::default().fg(theme.text_muted)),
+            ]),
+            Line::from(Span::styled(
+                "────────────────────────────────────",
+                Style::default().fg(theme.border_normal),
+            )),
+            Line::from(""),
+            // ── 5 Verbs with COLOR (compact) ──
+            Line::from(vec![
+                Span::styled("⚡", Style::default().fg(infer_color)),
+                Span::styled(
+                    " infer ",
+                    Style::default()
+                        .fg(infer_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled("📟", Style::default().fg(exec_color)),
+                Span::styled(
+                    " exec ",
+                    Style::default().fg(exec_color).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled("🛰️", Style::default().fg(fetch_color)),
+                Span::styled(
+                    " fetch ",
+                    Style::default()
+                        .fg(fetch_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled("🔌", Style::default().fg(invoke_color)),
+                Span::styled(
+                    " invoke ",
+                    Style::default()
+                        .fg(invoke_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled("🐔", Style::default().fg(agent_color)),
+                Span::styled(
+                    " agent",
+                    Style::default()
+                        .fg(agent_color)
+                        .add_modifier(Modifier::BOLD),
                 ),
             ]),
-            Line::from(vec![
-                Span::styled("  3. ", Style::default().fg(theme.text_muted)),
-                Span::raw("Or browse files here with "),
-                Span::styled("↑/↓", Style::default().fg(theme.highlight)),
-                Span::raw(" and "),
-                Span::styled("Enter", Style::default().fg(theme.highlight)),
-            ]),
             Line::from(""),
+            // ── Quick Start (compact) ──
             Line::from(Span::styled(
-                "── Keybindings ──",
+                "Quick Start",
                 Style::default()
                     .fg(theme.highlight)
                     .add_modifier(Modifier::BOLD),
             )),
-            Line::from(""),
             Line::from(vec![
-                Span::styled("  Tab     ", Style::default().fg(theme.highlight)),
-                Span::raw("Switch view (Chat/Home/Studio/Monitor)"),
-            ]),
-            Line::from(vec![
-                Span::styled("  ↑/↓     ", Style::default().fg(theme.highlight)),
-                Span::raw("Navigate files"),
-            ]),
-            Line::from(vec![
-                Span::styled("  Enter   ", Style::default().fg(theme.highlight)),
-                Span::raw("Run workflow / Open folder"),
-            ]),
-            Line::from(vec![
-                Span::styled("  e       ", Style::default().fg(theme.highlight)),
-                Span::raw("Edit in Studio"),
-            ]),
-            Line::from(vec![
-                Span::styled("  h       ", Style::default().fg(theme.highlight)),
-                Span::raw("Toggle history"),
-            ]),
-            Line::from(vec![
-                Span::styled("  ?       ", Style::default().fg(theme.highlight)),
-                Span::raw("Help overlay"),
-            ]),
-            Line::from(vec![
-                Span::styled("  q       ", Style::default().fg(theme.highlight)),
-                Span::raw("Quit"),
-            ]),
-            Line::from(""),
-            Line::from(Span::styled(
-                "── 5 Verbs ──",
-                Style::default()
-                    .fg(theme.highlight)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("  ⚡ infer:  ", Style::default().fg(theme.highlight)),
-                Span::raw("LLM text generation"),
-            ]),
-            Line::from(vec![
-                Span::styled("  📟 exec:   ", Style::default().fg(theme.highlight)),
-                Span::raw("Shell command"),
-            ]),
-            Line::from(vec![
-                Span::styled("  🛰️ fetch:  ", Style::default().fg(theme.highlight)),
-                Span::raw("HTTP request"),
-            ]),
-            Line::from(vec![
-                Span::styled("  🔌 invoke: ", Style::default().fg(theme.highlight)),
-                Span::raw("MCP tool call"),
-            ]),
-            Line::from(vec![
-                Span::styled("  🐔 agent:  ", Style::default().fg(theme.highlight)),
-                Span::raw("Multi-turn agentic loop"),
+                Span::styled("1.", Style::default().fg(theme.status_success)),
+                Span::raw(" Create "),
+                Span::styled("workflow.nika.yaml", Style::default().fg(theme.highlight)),
+                Span::raw("  "),
+                Span::styled("2.", Style::default().fg(theme.status_success)),
+                Span::raw(" Run "),
+                Span::styled("nika <file>", Style::default().fg(theme.highlight)),
             ]),
         ];
 
-        let paragraph = Paragraph::new(welcome_lines).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" WELCOME ")
-                .border_style(Style::default().fg(theme.border_normal)),
-        );
+        let paragraph = Paragraph::new(welcome_lines)
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" ✨ LAUNCH PAD ✨ ")
+                    .title_style(
+                        Style::default()
+                            .fg(theme.highlight)
+                            .add_modifier(Modifier::BOLD),
+                    )
+                    .border_style(Style::default().fg(theme.border_focused)),
+            );
 
-        frame.render_widget(paragraph, area);
+        frame_ctx.render_widget(paragraph, content_area);
     }
 
     /// Render the history bar (bottom, toggleable)
@@ -1231,15 +1305,15 @@ mod tests {
         let buffer = terminal.backend().buffer();
         let content: String = buffer.content.iter().map(|c| c.symbol()).collect();
 
-        // Check for branding
+        // Check for BigText branding (uses block characters like █▄▀)
         assert!(
-            content.contains("Nika"),
-            "Welcome should show Nika branding"
+            content.contains('█') || content.contains('▀') || content.contains('▄'),
+            "Welcome should show BigText branding with block characters"
         );
 
         // Check for version
         assert!(
-            content.contains("v0.5.2"),
+            content.contains("v0.8.0"),
             "Welcome should show version number"
         );
     }
