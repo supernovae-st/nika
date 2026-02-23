@@ -62,10 +62,10 @@ Production-ready workflow patterns for real-world scenarios.
 
 ## Workflow Schema
 
-All workflows use schema `nika/workflow@0.4` (or earlier versions for compatibility):
+All workflows use schema `nika/workflow@0.8` (or earlier versions for compatibility):
 
 ```yaml
-schema: "nika/workflow@0.4"
+schema: "nika/workflow@0.8"
 provider: claude  # or openai (via rig-core)
 
 mcp:

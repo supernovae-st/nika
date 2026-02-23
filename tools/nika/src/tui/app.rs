@@ -1872,12 +1872,13 @@ impl App {
         }
     }
 
-    /// Toggle theme between dark and light (TIER 2.4)
+    /// Toggle theme between dark, light, and solarized (TIER 2.4)
     fn toggle_theme(&mut self) {
         self.state.theme_mode = self.state.theme_mode.toggle();
         let mode_name = match self.state.theme_mode {
             super::theme::ThemeMode::Dark => "Dark",
             super::theme::ThemeMode::Light => "Light",
+            super::theme::ThemeMode::Solarized => "Solarized",
         };
         self.set_status(&format!("🎨 Theme: {}", mode_name));
     }

@@ -1,0 +1,1 @@
+../../../../../dx/.claude/hooks/shared/stop-test-reminder.sh

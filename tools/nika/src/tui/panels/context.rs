@@ -17,7 +17,7 @@ use ratatui::{
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
 use crate::tui::utils::format_number;
-use crate::tui::widgets::{Gauge, LatencySparkline, McpEntry, McpLog};
+use crate::tui::widgets::{AnimatedLatencySparkline, Gauge, McpEntry, McpLog, SparklineAnimation};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFAULT COLORS (fallbacks for theme-aware rendering)
@@ -303,7 +303,9 @@ impl<'a> ContextPanel<'a> {
             height: 1,
         };
 
-        let sparkline = LatencySparkline::new(&metrics.latency_history)
+        let sparkline = AnimatedLatencySparkline::new(&metrics.latency_history)
+            .frame(self.state.frame)
+            .animation(SparklineAnimation::Pulse)
             .warn_threshold(500)
             .error_threshold(2000);
         sparkline.render(sparkline_area, buf);

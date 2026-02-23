@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-02-23
+
+### Added
+- **Edit History (Undo/Redo)** - `src/tui/edit_history.rs` with intelligent coalescing
+  - Ctrl+Z/Ctrl+Y support in ChatOverlayState
+  - Intelligent grouping of rapid keystrokes (500ms timeout)
+  - Preserve user intent across edits
+  - 19 tests for edge cases and coalescing logic
+- **Session Persistence** - `src/tui/session.rs` saves/loads chat conversations
+  - Storage: `.nika/sessions/*.json` per session
+  - Atomic writes using temp + rename pattern
+  - Auto-cleanup to maintain max 50 sessions
+  - Fast deserialization with serde
+  - 13 tests for persistence and recovery
+- **Solarized Theme** - Third theme option in theme system
+  - `ThemeMode::Solarized` variant alongside Default and Custom
+  - Based on Ethan Schoonover's color palette
+  - High contrast for accessibility
+  - Warmth and precision for terminal readability
+- **Config System** - `.nika/config.toml` for persistent TUI preferences
+  - `TuiSettings`: theme, font_size, ui_density
+  - `ChatSettings`: auto_save, session_limit, history_limit
+  - `StudioSettings`: auto_format, tab_width, line_numbers
+  - `PathSettings`: custom session/trace directories
+  - Type-safe TOML serialization with serde
+
+### Statistics
+- **1,879 tests passing**
+- **Zero clippy warnings**
+
+## [0.7.3] - 2026-02-23
+
+### Fixed
+- **Clippy compliance** - Fixed all clippy warnings with `-D warnings`
+  - `io_other_error`: Use `std::io::Error::other()` instead of `new(Other, e)`
+  - `should_implement_trait`: Renamed `VerbType::from_str()` to `try_parse()`
+- **ThemeMode exhaustive match** - Added `Solarized` variant handling in theme toggle
+- **Code formatting** - Applied `cargo fmt` to all files
+
+### Changed
+- `VerbType::from_str()` → `VerbType::try_parse()` (idiomatic naming)
+
+### Statistics
+- **1,808 tests passing** (lib tests)
+- **Zero clippy warnings**
+
 ## [0.7.2] - 2026-02-23
 
 ### Added

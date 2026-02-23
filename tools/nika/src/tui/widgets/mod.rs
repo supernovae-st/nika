@@ -18,6 +18,7 @@
 mod activity_stack;
 mod agent_steps;
 mod agent_turns;
+mod big_text;
 mod command_palette;
 mod dag;
 mod dag_ascii;
@@ -39,6 +40,7 @@ mod scroll_indicator;
 mod session_context;
 mod sparkline;
 mod status_bar;
+mod status_message;
 mod terminal_size;
 mod timeline;
 mod verb_input;
@@ -72,7 +74,7 @@ pub use gauge::Gauge;
 pub use header::Header;
 pub use mcp_log::{McpEntry, McpLog};
 pub use scroll_indicator::{ScrollHint, ScrollIndicator};
-pub use sparkline::LatencySparkline;
+pub use sparkline::{AnimatedLatencySparkline, LatencyHistory, LatencySparkline, SparklineAnimation};
 pub use status_bar::{ConnectionStatus, Provider, StatusBar, StatusMetrics};
 pub use timeline::{Timeline, TimelineEntry};
 // Pro status bar for Chat view (Claude Code-inspired)
@@ -100,3 +102,7 @@ pub use terminal_size::{
 };
 // Help overlay (v0.8 - ? or F1)
 pub use help_overlay::{HelpOverlay, HelpOverlayState, HelpSection, HELP_SECTIONS};
+// Status messages (v0.8 - user feedback)
+pub use status_message::{StatusLevel, StatusMessage, StatusMessageWidget, StatusQueue};
+// BigText widget for ASCII art titles (v0.8)
+pub use big_text::BigText;

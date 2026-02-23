@@ -715,6 +715,14 @@ impl RigAgentLoop {
         if let Some(sys) = system {
             request_builder = request_builder.preamble(sys.to_string());
         }
+
+        // Apply temperature if specified (v0.8.0)
+        if let Some(temp) = self.params.effective_temperature() {
+            request_builder = request_builder.additional_params(serde_json::json!({
+                "temperature": temp
+            }));
+        }
+
         let request = request_builder.max_tokens(8192).build();
 
         // Execute streaming request
@@ -1007,16 +1015,23 @@ impl RigAgentLoop {
         // Build completion request with thinking enabled
         // Use configurable thinking_budget from AgentParams (default: 4096)
         let thinking_budget = self.params.effective_thinking_budget();
+
+        // Build additional params with thinking + optional temperature (v0.8.0)
+        let mut additional = serde_json::json!({
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": thinking_budget
+            }
+        });
+        if let Some(temp) = self.params.effective_temperature() {
+            additional["temperature"] = serde_json::json!(temp);
+        }
+
         let request = model
             .completion_request(&self.params.prompt)
             .preamble(self.params.system.clone().unwrap_or_default())
             .max_tokens(8192)
-            .additional_params(serde_json::json!({
-                "thinking": {
-                    "type": "enabled",
-                    "budget_tokens": thinking_budget
-                }
-            }))
+            .additional_params(additional)
             .build();
 
         // Emit start event

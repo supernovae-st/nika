@@ -20,8 +20,8 @@ mod workflow;
 
 // Re-export all public types
 pub use action::{ExecParams, FetchParams, InferParams, TaskAction};
-// AgentParams is defined in agent.rs (v0.2 - Agentic execution)
-pub use agent::AgentParams;
+// AgentParams + ToolChoice are defined in agent.rs
+pub use agent::{AgentParams, ToolChoice};
 // InvokeParams is defined in invoke.rs and re-exported here
 // (also used by action.rs for TaskAction::Invoke variant)
 pub use invoke::InvokeParams;

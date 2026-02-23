@@ -1785,6 +1785,8 @@ mod tests {
                 extended_thinking: None,
                 thinking_budget: None,
                 depth_limit: None,
+                tool_choice: None,
+                temperature: None,
             },
         };
         assert_eq!(action_type(&agent_action), "agent");

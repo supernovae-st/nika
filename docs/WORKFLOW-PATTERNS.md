@@ -1,14 +1,88 @@
-# Nika v0.2 Workflow Patterns
+# Nika v0.8.0 Workflow Patterns
 
 Reference guide for building effective workflows with Nika's DAG execution engine.
 
 ## Schema Version
 
 ```yaml
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.8"
 ```
 
-v0.2 adds `invoke:` and `agent:` verbs for MCP integration.
+v0.8.0 adds `for_each` parallelism, `spawn_agent` nesting, `decompose:` dynamic DAG expansion, and `lazy:` binding modifiers.
+
+---
+
+## v0.8.0 New Features
+
+### for_each Parallelism
+
+Iterate over arrays with full parallelism:
+
+```yaml
+tasks:
+  - id: generate_locales
+    for_each: ["en-US", "fr-FR", "de-DE", "es-ES"]
+    as: locale
+    concurrency: 5
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity: "qr-code"
+        locale: "{{use.locale}}"
+```
+
+### spawn_agent (Nested Agents)
+
+Create agents that spawn other agents:
+
+```yaml
+tasks:
+  - id: research_agent
+    agent:
+      prompt: "Use spawn_agent to research related topics"
+      mcp: [novanet]
+      max_turns: 15
+```
+
+The agent can internally call `spawn_agent` tool to:
+- Delegate tasks to sub-agents
+- Parallelize research
+- Avoid token limits on single agent
+
+### decompose: (Runtime DAG Expansion)
+
+Dynamically expand task DAG based on graph traversal:
+
+```yaml
+tasks:
+  - id: expand_and_process
+    decompose:
+      strategy: semantic
+      traverse: "HAS_CHILD"
+      source: $category
+    infer: "Process {{item}}"
+```
+
+### lazy: Bindings
+
+Defer binding resolution until first access:
+
+```yaml
+tasks:
+  - id: task_a
+    # expensive operation
+
+  - id: task_b
+    use:
+      result:
+        path: task_a
+        lazy: true
+        default: "fallback"
+    infer: "Process {{use.result}}"
+```
+
+Result is only fetched if `{{use.result}}` is referenced.
 
 ---
 

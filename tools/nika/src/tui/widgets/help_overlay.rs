@@ -271,7 +271,9 @@ impl Widget for HelpOverlay<'_> {
             );
 
             // Bottom right of box
-            let info_x = box_area.right().saturating_sub(scroll_info.len() as u16 + 1);
+            let info_x = box_area
+                .right()
+                .saturating_sub(scroll_info.len() as u16 + 1);
             let info_y = box_area.bottom().saturating_sub(1);
 
             for (i, ch) in scroll_info.chars().enumerate() {
@@ -290,11 +292,7 @@ impl Widget for HelpOverlay<'_> {
         for (i, ch) in hint.chars().enumerate() {
             if let Some(cell) = buf.cell_mut((hint_x + i as u16, hint_y)) {
                 cell.set_char(ch);
-                cell.set_style(
-                    Style::default()
-                        .fg(COLOR_MUTED)
-                        .add_modifier(Modifier::DIM),
-                );
+                cell.set_style(Style::default().fg(COLOR_MUTED).add_modifier(Modifier::DIM));
             }
         }
     }

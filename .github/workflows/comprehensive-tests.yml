@@ -9,7 +9,7 @@
 # 5. live-tests: (optional) Real API integration tests
 # 6. mcp-tests: (optional) MCP server integration tests
 #
-# Nika v0.7.2 - Comprehensive Test Suite
+# Nika v0.8.0 - Comprehensive Test Suite
 
 name: Comprehensive Tests
 

@@ -1,6 +1,6 @@
-# Nika MCP Client API Reference
+# Nika MCP Client API Reference (v0.8.0)
 
-This document describes Nika's MCP (Model Context Protocol) client implementation for connecting to MCP servers.
+This document describes Nika's MCP (Model Context Protocol) client implementation for connecting to MCP servers via rmcp v0.16.
 
 ## Overview
 

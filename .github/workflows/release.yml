@@ -5,7 +5,7 @@
 # 1. build: Cross-platform release builds
 # 2. release: Create GitHub release with binaries
 #
-# Tag format: v0.7.1
+# Tag format: v0.8.0
 
 name: Release
 
