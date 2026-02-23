@@ -60,9 +60,11 @@ const SEPARATOR_52: &str = "╰────────────────�
 use crate::tui::utils::truncate_str;
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
-    ActivityItem, ActivityStack, ActivityTemp, CommandPalette, CommandPaletteState,
-    InferStreamData, McpCallData, McpCallStatus, McpServerInfo, McpStatus, Provider,
-    ProviderSelector, ProviderSelectorState, SessionContext, SessionContextBar,
+    ActivityItem, ActivityStack, ActivityTemp, ChatModeIndicator, CommandPalette,
+    CommandPaletteState, ContextItem, CurrentVerb, InferStreamData, McpCallData, McpCallStatus,
+    McpServerInfo, McpStatus, MemoryFile, MissionControlPanel, ProStatusBar, Provider,
+    ProviderSelector, ProviderSelectorState, SessionContext, SessionContextBar, SessionMetrics,
+    TurnMetrics,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -319,6 +321,18 @@ pub struct ChatView {
     pub copy_flash_index: Option<usize>,
     /// Frame when copy happened (for flash duration)
     pub copy_flash_start: u8,
+
+    // === v0.7.3 Mission Control ===
+    /// Context items loaded via @ mentions
+    pub context_items: Vec<ContextItem>,
+    /// Memory files (CLAUDE.md, session memory)
+    pub memory_files: Vec<MemoryFile>,
+    /// Current verb being executed (for runtime display)
+    pub current_verb: CurrentVerb,
+    /// Runtime metrics for current turn
+    pub turn_metrics: TurnMetrics,
+    /// Session metrics for ProStatusBar
+    pub session_metrics: SessionMetrics,
 }
 
 impl ChatView {
