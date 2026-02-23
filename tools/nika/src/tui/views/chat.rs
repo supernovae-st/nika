@@ -60,11 +60,10 @@ const SEPARATOR_52: &str = "╰────────────────�
 use crate::tui::utils::truncate_str;
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
-    ActivityItem, ActivityStack, ActivityTemp, ChatModeIndicator, CommandPalette,
-    CommandPaletteState, ContextItem, CurrentVerb, InferStreamData, McpCallData, McpCallStatus,
-    McpServerInfo, McpStatus, MemoryFile, MissionControlPanel, ProStatusBar, Provider,
-    ProviderSelector, ProviderSelectorState, SessionContext, SessionContextBar, SessionMetrics,
-    TurnMetrics,
+    ActivityItem, ActivityTemp, ChatModeIndicator, CommandPalette, CommandPaletteState,
+    ContextItem, CurrentVerb, InferStreamData, McpCallData, McpCallStatus, McpServerInfo,
+    McpStatus, MemoryFile, MissionControlPanel, ProStatusBar, Provider, ProviderSelector,
+    ProviderSelectorState, SessionContext, SessionMetrics, TurnMetrics,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1274,7 +1273,12 @@ impl View for ChatView {
         MissionControlPanel::new(&self.session_context.mcp_servers)
             .context(&self.context_items)
             .memory(&self.memory_files)
-            .turns(self.messages.iter().filter(|m| m.role == MessageRole::User).count())
+            .turns(
+                self.messages
+                    .iter()
+                    .filter(|m| m.role == MessageRole::User)
+                    .count(),
+            )
             .verb(self.current_verb)
             .metrics(self.turn_metrics.clone())
             .focused(self.focused_panel == ChatPanel::Activity)

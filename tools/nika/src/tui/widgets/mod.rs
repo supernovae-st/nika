@@ -28,6 +28,8 @@ mod header;
 mod infer_stream_box;
 mod mcp_call_box;
 mod mcp_log;
+mod mention_system;
+mod message_bubble;
 mod mission_control;
 mod pro_status_bar;
 mod provider_selector;
@@ -36,6 +38,7 @@ mod session_context;
 mod sparkline;
 mod status_bar;
 mod timeline;
+mod verb_input;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
 // Provider selector popup (v0.7.2)
@@ -75,4 +78,13 @@ pub use pro_status_bar::{ChatModeIndicator, ProStatusBar, SessionMetrics};
 pub use mission_control::{
     ContextItem, ContextStatus, CurrentVerb, MemoryFile, MemoryKind, MissionControlPanel,
     TurnMetrics,
+};
+// Message bubble for Chat view (v0.7.3)
+pub use message_bubble::{BubbleRole, MessageBubble, ThinkingBlock};
+// Verb input system for Chat view (v0.7.3)
+pub use verb_input::{ChatVerb, ParsedInput, SystemCommand, VerbIndicator, VerbPrompt};
+// Mention system for Chat view (v0.7.3)
+pub use mention_system::{
+    highlight_mentions, Mention, MentionAutocomplete, MentionAutocompleteState, MentionSuggestion,
+    MentionTrigger, MentionType,
 };
