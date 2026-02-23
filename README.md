@@ -1,27 +1,29 @@
 <div align="center">
 
-<!-- Logo & Title -->
-<img src="https://raw.githubusercontent.com/supernovae-st/nika/main/assets/nika-logo.svg" alt="Nika Logo" width="120" height="120">
+<!-- Animated Header -->
+<img src="https://raw.githubusercontent.com/supernovae-st/nika/main/assets/nika-logo.svg" alt="Nika Logo" width="140" height="140">
 
 # 🦋 Nika
 
 ### **Native Intelligence Kernel Agent**
 
-*Transform YAML into intelligent workflows*
+<sup>Transform YAML into intelligent workflows</sup>
 
-<!-- Badges Row 1 -->
-[![Version](https://img.shields.io/badge/version-0.8.0-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
-[![Rust](https://img.shields.io/badge/rust-1.86+-f97316?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![License](https://img.shields.io/badge/license-AGPL--3.0-22c55e?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
+<!-- Primary Badges -->
+[![Version](https://img.shields.io/badge/v0.8.0-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
 
-<!-- Badges Row 2 -->
-[![Tests](https://img.shields.io/badge/tests-1,902_passing-10b981?style=flat-square&logo=checkmarx&logoColor=white)](https://github.com/supernovae-st/nika/actions)
-[![Providers](https://img.shields.io/badge/LLM_providers-6-8b5cf6?style=flat-square&logo=openai&logoColor=white)](#providers)
-[![MCP](https://img.shields.io/badge/MCP-compatible-0ea5e9?style=flat-square&logo=protocol&logoColor=white)](#mcp-integration)
+<!-- GitHub Badges -->
+[![CI](https://img.shields.io/github/actions/workflow/status/supernovae-st/nika/ci.yml?style=flat-square&logo=github&label=CI)](https://github.com/supernovae-st/nika/actions)
+[![Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=flat-square&logo=github&label=Stars)](https://github.com/supernovae-st/nika/stargazers)
+[![Tests](https://img.shields.io/badge/tests-1,902_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
+[![Providers](https://img.shields.io/badge/LLM_providers-6-8b5cf6?style=flat-square&logo=openai)](#-providers)
 
 <!-- Navigation -->
 <p>
 <a href="#-quick-start">Quick Start</a> •
+<a href="#-whats-new-in-v080">What's New</a> •
 <a href="#-features">Features</a> •
 <a href="#-architecture">Architecture</a> •
 <a href="#-examples">Examples</a> •
@@ -30,48 +32,92 @@
 
 ---
 
-<br>
-
-<!-- Hero Description -->
 **Nika** executes YAML-defined workflows as **directed acyclic graphs (DAGs)**.<br>
 Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative file.
 
-<br>
-
 </div>
 
-<!-- Demo GIF placeholder -->
-<p align="center">
-  <img src="https://raw.githubusercontent.com/supernovae-st/nika/main/assets/demo.gif" alt="Nika Demo" width="700">
-</p>
+<br>
+
+<!-- TUI Screenshot as ASCII Art -->
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│  🦋 Nika Studio                                              v0.8.0  ⌘K ?  │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│ ┌─ Files ────────────┐ ┌─ Editor ─────────────────────────────────────────────┐ │
+│ │ 📁 workflows/      │ │  1 │ schema: "nika/workflow@0.8"                     │ │
+│ │   📄 deploy.yaml   │ │  2 │ provider: claude                                │ │
+│ │   📄 review.yaml   │ │  3 │                                                 │ │
+│ │ ▸ 📄 hello.yaml ◀  │ │  4 │ tasks:                                          │ │
+│ │   📄 test.yaml     │ │  5 │   - id: greet                                   │ │
+│ │                    │ │  6 │     infer: "Say hello in French"                │ │
+│ └────────────────────┘ │  7 │                                                 │ │
+│ ┌─ DAG Preview ──────┐ │  8 │   - id: format                                  │ │
+│ │                    │ │  9 │     use: { msg: greet }                         │ │
+│ │   ┌───────┐        │ │ 10 │     exec: "echo '{{use.msg}}' | cowsay"         │ │
+│ │   │ greet │        │ └───────────────────────────────────────────────────────┘ │
+│ │   └───┬───┘        │ ┌─ Output ─────────────────────────────────────────────┐ │
+│ │       │            │ │ ✅ greet completed (1.2s)                             │ │
+│ │   ┌───▼───┐        │ │    Bonjour! Comment allez-vous?                      │ │
+│ │   │format │        │ │ ⏳ format running...                                  │ │
+│ │   └───────┘        │ │                                                       │ │
+│ └────────────────────┘ └───────────────────────────────────────────────────────┘ │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│  Chat[c] Home[h] Studio[s] Monitor[m]  │  claude-sonnet-4  │  2 tasks  │  1.2s  │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
 
 <br>
 
-## ✨ Why Nika?
+## ✨ What's New in v0.8.0
+
+<table>
+<tr>
+<td>
+
+**🎨 Studio DX Enhancement**
+
+</td>
+<td>
+
+- **Edit History** — Ctrl+Z/Y with intelligent 500ms coalescing
+- **Session Persistence** — Auto-save to `.nika/sessions/`
+- **Solarized Theme** — Beautiful dark/light modes
+- **Config System** — `.nika/config.toml` for preferences
+
+</td>
+</tr>
+</table>
+
+> 📦 **Upgrade:** `cargo install --git https://github.com/supernovae-st/nika.git --force`
+
+<br>
+
+## 🎯 Why Nika?
 
 <table>
 <tr>
 <td width="50%">
 
-### 🎯 **The Problem**
+### ❌ The Problem
 
 ```
-❌ LLM calls buried in code = untraceable
-❌ Custom glue code for each integration
-❌ No standard format for AI workflows
-❌ Hard to debug multi-step pipelines
+LLM calls buried in code = untraceable
+Custom glue code for each integration
+No standard format for AI workflows
+Hard to debug multi-step pipelines
 ```
 
 </td>
 <td width="50%">
 
-### 💡 **The Solution**
+### ✅ The Solution
 
 ```
-✅ YAML workflows = version-controlled
-✅ 5 semantic verbs for everything
-✅ Full observability via NDJSON traces
-✅ Native MCP client for tool calling
+YAML workflows = version-controlled
+5 semantic verbs cover everything
+Full observability via NDJSON traces
+Native MCP client for tool calling
 ```
 
 </td>
@@ -85,18 +131,15 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 ### Installation
 
 ```bash
-# From crates.io (coming soon)
-cargo install nika
-
-# From source
+# From source (recommended)
 cargo install --git https://github.com/supernovae-st/nika.git
 
 # Or clone and build
 git clone https://github.com/supernovae-st/nika.git
-cd nika && cargo install --path tools/nika
+cd nika && cargo install --path .
 ```
 
-### Your First Workflow
+### Hello World
 
 ```yaml
 # hello.nika.yaml
@@ -109,9 +152,23 @@ tasks:
 ```
 
 ```bash
-export ANTHROPIC_API_KEY=your-key
+export ANTHROPIC_API_KEY=sk-ant-...
 nika hello.nika.yaml
 ```
+
+<details>
+<summary>📺 <b>Output</b></summary>
+
+```
+✅ Workflow completed in 1.4s
+
+greet:
+  Bonjour! 👋
+
+  こんにちは! 🇯🇵
+```
+
+</details>
 
 <br>
 
@@ -122,14 +179,15 @@ nika hello.nika.yaml
 | | Feature | Description |
 |:---:|:---|:---|
 | 🧠 | **5 Semantic Verbs** | `infer` `exec` `fetch` `invoke` `agent` |
-| ⚡ | **Parallel DAG Execution** | Automatic dependency resolution |
-| 🔄 | **for_each Loops** | Process arrays in parallel |
-| 🔌 | **MCP Integration** | Connect to any MCP server |
+| ⚡ | **Parallel DAG** | Automatic dependency resolution & parallel execution |
+| 🔄 | **for_each Loops** | Process arrays with configurable concurrency |
+| 🔌 | **MCP Native** | Connect to any MCP server (NovaNet, filesystem, etc.) |
 | 🤖 | **6 LLM Providers** | Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama |
 | 🖥️ | **Studio TUI** | VS Code-like terminal interface |
 | ↩️ | **Undo/Redo** | Ctrl+Z/Y with intelligent coalescing |
-| 💾 | **Session Persistence** | Auto-save your work |
-| 🎨 | **Solarized Theme** | Beautiful dark/light modes |
+| 💾 | **Sessions** | Auto-save & restore your work |
+| 🎨 | **Themes** | Default, Solarized, Custom |
+| 📊 | **Traces** | NDJSON traces for full observability |
 
 </div>
 
@@ -143,7 +201,7 @@ flowchart TB
         YAML[("workflow.nika.yaml")]
     end
 
-    subgraph Nika["🦋 Nika Engine"]
+    subgraph Engine["🦋 Nika Engine"]
         Parser["AST Parser"]
         DAG["DAG Builder"]
         Executor["Task Executor"]
@@ -151,7 +209,7 @@ flowchart TB
         Parser --> DAG --> Executor
     end
 
-    subgraph Verbs["⚡ 5 Verbs"]
+    subgraph Verbs["⚡ Semantic Verbs"]
         direction LR
         Infer["🧠 infer"]
         Exec["⚙️ exec"]
@@ -160,12 +218,12 @@ flowchart TB
         Agent["🤖 agent"]
     end
 
-    subgraph Providers["🔮 Providers"]
+    subgraph Providers["🔮 LLM Providers"]
         direction LR
         Claude["Claude"]
         OpenAI["OpenAI"]
         Mistral["Mistral"]
-        Others["..."]
+        More["+ 3 more"]
     end
 
     subgraph Output["📊 Output"]
@@ -179,7 +237,7 @@ flowchart TB
     Agent --> Providers
     Executor --> Output
 
-    style Nika fill:#7c3aed,color:#fff
+    style Engine fill:#7c3aed,color:#fff
     style YAML fill:#f97316,color:#fff
     style Infer fill:#10b981,color:#fff
     style Exec fill:#6366f1,color:#fff
@@ -188,16 +246,42 @@ flowchart TB
     style Agent fill:#f59e0b,color:#fff
 ```
 
+### Execution Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant N as Nika CLI
+    participant P as Parser
+    participant D as DAG
+    participant E as Executor
+    participant L as LLM Provider
+
+    U->>N: nika workflow.yaml
+    N->>P: Parse YAML
+    P->>D: Build DAG
+    D->>E: Execute tasks
+
+    loop For each task
+        E->>L: Call provider
+        L-->>E: Response + tokens
+        E->>E: Store result
+    end
+
+    E-->>N: Final results
+    N-->>U: Output + traces
+```
+
 <br>
 
 ## 📖 The 5 Verbs
 
-<details>
+<details open>
 <summary><b>🧠 infer</b> — LLM Generation</summary>
 
 ```yaml
-# Simple
-- id: generate
+# Shorthand
+- id: haiku
   infer: "Write a haiku about Rust"
 
 # Full options
@@ -207,6 +291,7 @@ flowchart TB
     provider: openai
     model: gpt-4o
     temperature: 0.7
+    max_tokens: 2000
 ```
 
 </details>
@@ -215,16 +300,17 @@ flowchart TB
 <summary><b>⚙️ exec</b> — Shell Commands</summary>
 
 ```yaml
-# Simple
+# Simple command
 - id: build
   exec: "cargo build --release"
 
-# With template
+# With templating
 - id: deploy
   use:
     env: staging
   exec:
     command: "kubectl apply -f {{use.env}}.yaml"
+    timeout: 60
 ```
 
 </details>
@@ -233,7 +319,7 @@ flowchart TB
 <summary><b>🌐 fetch</b> — HTTP Requests</summary>
 
 ```yaml
-- id: get_data
+- id: get_users
   fetch:
     url: "https://api.example.com/users"
     method: GET
@@ -266,11 +352,10 @@ flowchart TB
 ```yaml
 - id: research
   agent:
-    prompt: "Research and summarize recent AI papers"
-    tools:
-      - web_search
-      - read_file
-    max_iterations: 10
+    prompt: "Research recent AI papers and summarize findings"
+    mcp: [filesystem, web_search]
+    max_turns: 10
+    thinking: true  # Enable extended thinking
 ```
 
 </details>
@@ -281,47 +366,46 @@ flowchart TB
 
 <div align="center">
 
-| Provider | Environment Variable | Default Model |
-|:--------:|:---------------------|:--------------|
-| <img src="https://www.anthropic.com/favicon.ico" width="16"> **Claude** | `ANTHROPIC_API_KEY` | `claude-sonnet-4-20250514` |
-| <img src="https://openai.com/favicon.ico" width="16"> **OpenAI** | `OPENAI_API_KEY` | `gpt-4o` |
-| <img src="https://mistral.ai/favicon.ico" width="16"> **Mistral** | `MISTRAL_API_KEY` | `mistral-large-latest` |
-| ⚡ **Groq** | `GROQ_API_KEY` | `llama-3.1-70b-versatile` |
-| 🌊 **DeepSeek** | `DEEPSEEK_API_KEY` | `deepseek-chat` |
-| 🦙 **Ollama** | `OLLAMA_API_BASE_URL` | `llama3.2` |
+| Provider | Environment Variable | Default Model | Streaming |
+|:--------:|:---------------------|:--------------|:---------:|
+| <img src="https://www.anthropic.com/favicon.ico" width="16"> **Claude** | `ANTHROPIC_API_KEY` | `claude-sonnet-4-20250514` | ✅ |
+| <img src="https://openai.com/favicon.ico" width="16"> **OpenAI** | `OPENAI_API_KEY` | `gpt-4o` | ✅ |
+| <img src="https://mistral.ai/favicon.ico" width="16"> **Mistral** | `MISTRAL_API_KEY` | `mistral-large-latest` | ✅ |
+| ⚡ **Groq** | `GROQ_API_KEY` | `llama-3.1-70b-versatile` | ✅ |
+| 🌊 **DeepSeek** | `DEEPSEEK_API_KEY` | `deepseek-chat` | ✅ |
+| 🦙 **Ollama** | `OLLAMA_API_BASE_URL` | `llama3.2` | ✅ |
 
 </div>
 
-Auto-detection priority: Claude → OpenAI → Mistral → Groq → DeepSeek → Ollama
+**Auto-detection priority:** Claude → OpenAI → Mistral → Groq → DeepSeek → Ollama
 
 <br>
 
 ## 💻 Studio TUI
 
-Nika includes a powerful terminal UI with VS Code-like features:
+Launch the terminal UI:
 
 ```bash
-nika              # Launch TUI (Home view)
+nika              # Home view (browse workflows)
 nika chat         # Chat with AI
 nika studio       # YAML editor
+nika studio file.yaml  # Edit specific file
 ```
 
 ### Keyboard Shortcuts
 
-| Key | Action |
-|:---:|:-------|
-| `Tab` | Switch views |
-| `Ctrl+Z` | Undo |
-| `Ctrl+Y` | Redo |
-| `Ctrl+P` | Fuzzy file search |
-| `Ctrl+W` | Close tab |
-| `?` | Help overlay |
+| Key | Action | | Key | Action |
+|:---:|:-------|---|:---:|:-------|
+| `Tab` | Switch views | | `Ctrl+Z` | Undo |
+| `Ctrl+P` | Fuzzy search | | `Ctrl+Y` | Redo |
+| `Ctrl+W` | Close tab | | `Ctrl+S` | Save |
+| `?` | Help overlay | | `q` | Quit |
 
 <br>
 
 ## 📚 Examples
 
-### 🔍 Code Review Automation
+### 🔍 Code Review Pipeline
 
 ```yaml
 schema: "nika/workflow@0.8"
@@ -359,17 +443,18 @@ tasks:
   - id: translate
     for_each: ["en-US", "fr-FR", "de-DE", "ja-JP", "es-ES"]
     as: locale
+    concurrency: 5
     infer:
-      prompt: "Translate 'Hello World' to {{use.locale}}"
+      prompt: "Write a marketing tagline in {{use.locale}}"
 ```
 
 ### 💎 Diamond DAG Pattern
 
 ```mermaid
 graph LR
-    A[outline] --> B[write_intro]
-    A --> C[write_conclusion]
-    B --> D[assemble]
+    A[📝 outline] --> B[✍️ intro]
+    A --> C[✍️ conclusion]
+    B --> D[📄 assemble]
     C --> D
 
     style A fill:#7c3aed,color:#fff
@@ -384,18 +469,17 @@ provider: claude
 
 tasks:
   - id: outline
-    infer:
-      prompt: "Create blog outline about AI"
+    infer: "Create blog outline about AI agents"
     output:
       format: json
 
   - id: write_intro
     use: { title: outline.title }
-    infer: "Write intro for: {{use.title}}"
+    infer: "Write engaging intro for: {{use.title}}"
 
   - id: write_conclusion
     use: { title: outline.title }
-    infer: "Write conclusion for: {{use.title}}"
+    infer: "Write compelling conclusion for: {{use.title}}"
 
   - id: assemble
     use:
@@ -403,7 +487,7 @@ tasks:
       conclusion: write_conclusion
     exec: |
       echo "{{use.intro}}"
-      echo "---"
+      echo -e "\n---\n"
       echo "{{use.conclusion}}"
 
 flows:
@@ -417,7 +501,7 @@ flows:
 
 ## 🔌 MCP Integration
 
-Connect Nika to any MCP server:
+Connect Nika to any [Model Context Protocol](https://modelcontextprotocol.io/) server:
 
 ```yaml
 schema: "nika/workflow@0.8"
@@ -427,6 +511,9 @@ mcp:
     command: novanet-mcp
     env:
       NEO4J_URI: bolt://localhost:7687
+  filesystem:
+    command: npx
+    args: ["-y", "@anthropic/mcp-filesystem"]
 
 tasks:
   - id: generate
@@ -445,17 +532,32 @@ tasks:
 <div align="center">
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    Nika v0.8.0                      │
-├─────────────────────────────────────────────────────┤
-│  Tests         │  1,902 passing                     │
-│  Clippy        │  0 warnings                        │
-│  Providers     │  6 (Claude, OpenAI, Mistral...)    │
-│  Verbs         │  5 semantic actions                │
-│  Schema        │  nika/workflow@0.8                 │
-│  TUI Views     │  4 (Chat, Home, Studio, Monitor)   │
-└─────────────────────────────────────────────────────┘
+╔═══════════════════════════════════════════════════════════════╗
+║                      🦋 Nika v0.8.0                           ║
+╠═══════════════════════════════════════════════════════════════╣
+║  Tests           │  1,902 passing                             ║
+║  Clippy          │  0 warnings                                ║
+║  Providers       │  6 (Claude, OpenAI, Mistral, Groq...)      ║
+║  Verbs           │  5 semantic actions                        ║
+║  Schema          │  nika/workflow@0.8                         ║
+║  TUI Views       │  4 (Chat, Home, Studio, Monitor)           ║
+║  Rust Edition    │  2024                                      ║
+╚═══════════════════════════════════════════════════════════════╝
 ```
+
+</div>
+
+<br>
+
+## ⚡ Powered By
+
+<div align="center">
+
+[![rig-core](https://img.shields.io/badge/rig--core-0.31-f97316?style=flat-square)](https://github.com/0xPlaygrounds/rig)
+[![tokio](https://img.shields.io/badge/tokio-1.49-3b82f6?style=flat-square)](https://tokio.rs/)
+[![ratatui](https://img.shields.io/badge/ratatui-0.30-10b981?style=flat-square)](https://ratatui.rs/)
+[![rmcp](https://img.shields.io/badge/rmcp-0.16-8b5cf6?style=flat-square)](https://github.com/anthropics/anthropic-cookbook)
+[![serde](https://img.shields.io/badge/serde-1.0-ec4899?style=flat-square)](https://serde.rs/)
 
 </div>
 
@@ -465,11 +567,11 @@ tasks:
 
 | Resource | Description |
 |:---------|:------------|
-| [CHANGELOG.md](CHANGELOG.md) | Version history |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design |
-| [docs/MIGRATION-v0.8.0.md](docs/MIGRATION-v0.8.0.md) | Upgrade guide |
-| [tools/nika/CLAUDE.md](tools/nika/CLAUDE.md) | AI context |
-| [examples/](tools/nika/examples/) | Sample workflows |
+| 📋 [CHANGELOG.md](CHANGELOG.md) | Version history |
+| 🏗️ [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design |
+| 🔄 [docs/MIGRATION-v0.8.0.md](docs/MIGRATION-v0.8.0.md) | Upgrade guide |
+| 🤖 [tools/nika/CLAUDE.md](tools/nika/CLAUDE.md) | AI context |
+| 📁 [examples/](tools/nika/examples/) | Sample workflows |
 
 <br>
 
@@ -478,18 +580,13 @@ tasks:
 We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ```bash
-# Clone
 git clone https://github.com/supernovae-st/nika.git
 cd nika
 
-# Build
-cargo build
-
-# Test
-cargo test
-
-# Run
-cargo run -- --help
+cargo build          # Build
+cargo test           # Test (1,902 tests)
+cargo clippy         # Lint
+cargo run -- --help  # Run
 ```
 
 <br>
@@ -504,7 +601,7 @@ cargo run -- --help
 
 <br>
 
-<img src="https://raw.githubusercontent.com/supernovae-st/nika/main/assets/supernovae-logo.svg" alt="SuperNovae" width="150">
+<img src="https://raw.githubusercontent.com/supernovae-st/nika/main/assets/supernovae-logo.svg" alt="SuperNovae" width="120">
 
 **[SuperNovae Studio](https://supernovae.studio)**
 
@@ -512,7 +609,9 @@ cargo run -- --help
 
 <br>
 
-Made with 🦋 and Rust
+Made with 🦋 and 🦀 Rust
+
+<br>
 
 [![GitHub Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=social)](https://github.com/supernovae-st/nika)
 [![Twitter Follow](https://img.shields.io/twitter/follow/supernovaestudio?style=social)](https://twitter.com/supernovaestudio)
