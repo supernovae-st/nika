@@ -372,7 +372,8 @@ impl<'a> NodeBox<'a> {
             format!(" x{}", count).len()
         });
 
-        (content_width + for_each_width + borders).max(12) as u16
+        // SAFETY: Saturating cast to prevent overflow on very large content
+        (content_width + for_each_width + borders).max(12).min(u16::MAX as usize) as u16
     }
 
     /// Calculate required height for this node
@@ -414,7 +415,8 @@ impl<'a> NodeBox<'a> {
     /// Render a mini progress bar for running tasks
     fn render_progress_bar(&self, buf: &mut Buffer, x: u16, y: u16, width: u16) {
         if let Some(progress) = self.progress {
-            let filled = ((progress as u16) * width) / 100;
+            // SAFETY: Use saturating_mul to prevent overflow with wide progress bars
+            let filled = (progress as u16).saturating_mul(width) / 100;
             let progress_color = self
                 .theme
                 .map(|t| t.status_success)

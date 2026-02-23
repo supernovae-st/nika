@@ -113,7 +113,8 @@ impl Command {
 
         if input.starts_with('/') {
             let parts: Vec<&str> = input.splitn(2, ' ').collect();
-            let verb = parts[0].to_lowercase();
+            // Safe: splitn always returns at least one element for non-empty input
+            let verb = parts.first().map(|s| s.to_lowercase()).unwrap_or_default();
             let args = parts.get(1).map(|s| s.trim()).unwrap_or("");
 
             match verb.as_str() {
@@ -176,13 +177,17 @@ impl Command {
         } else {
             // No JSON params, entire args is tool spec
             let parts: Vec<&str> = args.splitn(2, ' ').collect();
-            (parts[0], None)
+            // Safe: splitn on non-empty string returns at least one element
+            (parts.first().copied().unwrap_or(""), None)
         };
 
         // Parse server:tool or just tool
         let (server, tool) = if tool_spec.contains(':') {
             let tp: Vec<&str> = tool_spec.splitn(2, ':').collect();
-            (Some(tp[0].to_string()), tp[1].to_string())
+            // Safe: splitn(2, ':') on string containing ':' returns at least 2 elements
+            let server_part = tp.first().copied().unwrap_or("");
+            let tool_part = tp.get(1).copied().unwrap_or("");
+            (Some(server_part.to_string()), tool_part.to_string())
         } else {
             (None, tool_spec.to_string())
         };
@@ -304,7 +309,8 @@ impl Command {
         }
 
         let parts: Vec<&str> = args.splitn(2, ' ').collect();
-        let action = parts[0].to_lowercase();
+        // Safe: splitn on non-empty args returns at least one element
+        let action = parts.first().map(|s| s.to_lowercase()).unwrap_or_default();
         let server_args = parts.get(1).map(|s| s.trim()).unwrap_or("");
 
         match action.as_str() {

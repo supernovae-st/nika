@@ -5,8 +5,13 @@
 
 use std::io::{self, Stdout};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
+
+// PERF: Use parking_lot::Mutex instead of std::sync::Mutex
+// - No poisoning (simpler error handling)
+// - Faster lock acquisition for short critical sections
+use parking_lot::Mutex;
 
 use crossterm::{
     event::{
@@ -1156,7 +1161,10 @@ impl App {
                         });
                     } else {
                         // No API key available
-                        self.chat_view.messages.pop(); // Remove "Thinking..."
+                        // SAFETY: Only pop if last message is "Thinking..."
+                        if self.chat_view.messages.last().map(|m| m.content.as_str()) == Some("Thinking...") {
+                            self.chat_view.messages.pop();
+                        }
                         self.chat_view.add_nika_message(
                             "No API key configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY."
                                 .to_string(),
@@ -1936,7 +1944,10 @@ impl App {
             });
         } else {
             // No API key available
-            self.chat_view.messages.pop(); // Remove "Thinking..."
+            // SAFETY: Only pop if last message is "Thinking..."
+            if self.chat_view.messages.last().map(|m| m.content.as_str()) == Some("Thinking...") {
+                self.chat_view.messages.pop();
+            }
             self.chat_view.add_nika_message(
                 "No API key configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.".to_string(),
                 None,
@@ -2068,15 +2079,17 @@ impl App {
             name.clone()
         } else {
             // Use first available server
-            if available_servers.is_empty() {
-                self.chat_view.add_nika_message(
-                    "Error: No MCP servers configured.\nAdd mcp.servers to your workflow."
-                        .to_string(),
-                    None,
-                );
-                return;
+            match available_servers.into_iter().next() {
+                Some(server) => server,
+                None => {
+                    self.chat_view.add_nika_message(
+                        "Error: No MCP servers configured.\nAdd mcp.servers to your workflow."
+                            .to_string(),
+                        None,
+                    );
+                    return;
+                }
             }
-            available_servers.into_iter().next().unwrap()
         };
 
         let tx = self.llm_response_tx.clone();
@@ -2726,12 +2739,8 @@ impl App {
         F: std::future::Future<Output = ()> + Send + 'static,
     {
         let handle = tokio::spawn(future);
-        // Use if let to handle potential mutex poisoning gracefully
-        if let Ok(mut handles) = self.background_handles.lock() {
-            handles.push(handle.abort_handle());
-        } else {
-            tracing::warn!("Failed to acquire lock for background_handles - mutex may be poisoned");
-        }
+        // PERF: parking_lot::Mutex doesn't poison, so this is infallible
+        self.background_handles.lock().push(handle.abort_handle());
     }
 
     /// Cancel all background tasks
@@ -2739,28 +2748,13 @@ impl App {
     /// Should be called during cleanup to ensure graceful shutdown.
     /// Tasks are aborted immediately; no waiting for completion.
     fn cancel_background_tasks(&self) {
-        // Handle potential mutex poisoning gracefully during cleanup
-        match self.background_handles.lock() {
-            Ok(handles) => {
-                let count = handles.len();
-                for handle in handles.iter() {
-                    handle.abort();
-                }
-                tracing::debug!("Aborted {} background tasks", count);
-            }
-            Err(poisoned) => {
-                // Even with poisoned mutex, attempt to abort tasks
-                let handles = poisoned.into_inner();
-                let count = handles.len();
-                for handle in handles.iter() {
-                    handle.abort();
-                }
-                tracing::warn!(
-                    "Aborted {} background tasks (mutex was poisoned)",
-                    count
-                );
-            }
+        // PERF: parking_lot::Mutex doesn't poison, so this is simple
+        let handles = self.background_handles.lock();
+        let count = handles.len();
+        for handle in handles.iter() {
+            handle.abort();
         }
+        tracing::debug!("Aborted {} background tasks", count);
     }
 
     /// Cleanup terminal state
@@ -2990,16 +2984,10 @@ fn render_settings_overlay(frame: &mut Frame, state: &TuiState, theme: &Theme, a
 
         // Get display value
         let value = if is_editing {
-            // Show input buffer with cursor
+            // Show input buffer with cursor (UTF-8 safe)
             let buf = &settings.input_buffer;
             let cursor_pos = settings.cursor;
-            let before = &buf[..cursor_pos.min(buf.len())];
-            let cursor_char = buf.chars().nth(cursor_pos).unwrap_or(' ');
-            let after = if cursor_pos < buf.len() {
-                &buf[cursor_pos + 1..]
-            } else {
-                ""
-            };
+            let (before, cursor_char, after) = split_at_cursor_utf8(buf, cursor_pos);
             format!("{}│{}{}", before, cursor_char, after)
         } else {
             // Show masked or actual value
@@ -3129,18 +3117,8 @@ fn render_search_bar(frame: &mut Frame, state: &TuiState, theme: &Theme, area: R
     let query = &state.filter_query;
     let cursor = state.filter_cursor;
 
-    let (before, cursor_char, after) = if query.is_empty() {
-        ("", ' ', "")
-    } else {
-        let before = &query[..cursor.min(query.len())];
-        let cursor_char = query.chars().nth(cursor).unwrap_or(' ');
-        let after = if cursor < query.len() {
-            &query[cursor + 1..]
-        } else {
-            ""
-        };
-        (before, cursor_char, after)
-    };
+    // UTF-8 safe cursor slicing (handles emoji, accents, etc.)
+    let (before, cursor_char, after) = split_at_cursor_utf8(query, cursor);
 
     let content = Line::from(vec![
         Span::styled(
@@ -3196,7 +3174,8 @@ fn render_filter_indicator(frame: &mut Frame, state: &TuiState, _theme: &Theme, 
     ]);
 
     // Position at bottom right
-    let indicator_width = (query.len() + match_info.len() + 20) as u16;
+    // SAFETY: Saturating cast to prevent overflow with very long queries
+    let indicator_width = (query.len() + match_info.len() + 20).min(u16::MAX as usize) as u16;
     let indicator_area = Rect {
         x: area.width.saturating_sub(indicator_width + 2),
         y: area.height.saturating_sub(1),
@@ -3340,9 +3319,11 @@ fn render_chat_overlay(frame: &mut Frame, state: &TuiState, theme: &Theme, area:
         .title(title)
         .border_style(Style::default().fg(theme.border_focused));
 
+    // SAFETY: Cap scroll to u16::MAX to prevent overflow on very long chats
+    let scroll_u16 = chat.scroll.min(u16::MAX as usize) as u16;
     let messages_paragraph = Paragraph::new(message_lines)
         .block(messages_block)
-        .scroll((chat.scroll as u16, 0));
+        .scroll((scroll_u16, 0));
 
     frame.render_widget(messages_paragraph, chunks[0]);
 
@@ -3350,18 +3331,8 @@ fn render_chat_overlay(frame: &mut Frame, state: &TuiState, theme: &Theme, area:
     let input = &chat.input;
     let cursor = chat.cursor;
 
-    let (before, cursor_char, after) = if input.is_empty() {
-        ("", ' ', "")
-    } else {
-        let before = &input[..cursor.min(input.len())];
-        let cursor_char = input.chars().nth(cursor).unwrap_or(' ');
-        let after = if cursor < input.len() {
-            &input[cursor + 1..]
-        } else {
-            ""
-        };
-        (before, cursor_char, after)
-    };
+    // UTF-8 safe cursor slicing (handles emoji, accents, etc.)
+    let (before, cursor_char, after) = split_at_cursor_utf8(input, cursor);
 
     let input_line = Line::from(vec![
         Span::styled(" > ", Style::default().fg(theme.highlight)),
@@ -3397,6 +3368,36 @@ fn render_chat_overlay(frame: &mut Frame, state: &TuiState, theme: &Theme, area:
 // ═══════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════
+
+/// Split a string at a cursor position (character index), returning UTF-8 safe slices.
+///
+/// Returns `(before_cursor, char_at_cursor, after_cursor)`.
+/// Handles multi-byte UTF-8 characters safely (emoji, accents, etc.).
+fn split_at_cursor_utf8(s: &str, cursor: usize) -> (&str, char, &str) {
+    if s.is_empty() {
+        return ("", ' ', "");
+    }
+
+    let char_indices: Vec<(usize, char)> = s.char_indices().collect();
+    let char_count = char_indices.len();
+
+    // Clamp cursor to valid range
+    let cursor = cursor.min(char_count);
+
+    if cursor >= char_count {
+        // Cursor is at or past end - return full string as "before"
+        (s, ' ', "")
+    } else {
+        let (cursor_byte_pos, cursor_char) = char_indices[cursor];
+        let before = &s[..cursor_byte_pos];
+        let after_byte_pos = char_indices
+            .get(cursor + 1)
+            .map(|(i, _)| *i)
+            .unwrap_or(s.len());
+        let after = &s[after_byte_pos..];
+        (before, cursor_char, after)
+    }
+}
 
 /// Create a centered rectangle
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
@@ -4048,7 +4049,7 @@ mod tests {
         let app = App::new(&workflow_path).unwrap();
 
         // Background handles should start empty
-        let handles = app.background_handles.lock().unwrap();
+        let handles = app.background_handles.lock();
         assert!(handles.is_empty());
     }
 
@@ -4068,7 +4069,7 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
         // Should have one handle
-        let handles = app.background_handles.lock().unwrap();
+        let handles = app.background_handles.lock();
         assert_eq!(handles.len(), 1, "spawn_tracked should add one handle");
     }
 
@@ -4090,7 +4091,7 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
         // Should have 5 handles
-        let handles = app.background_handles.lock().unwrap();
+        let handles = app.background_handles.lock();
         assert_eq!(handles.len(), 5, "spawn_tracked should track all tasks");
     }
 
