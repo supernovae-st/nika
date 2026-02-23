@@ -52,5 +52,7 @@ mod validate;
 // Re-export public types
 pub use entry::{parse_use_entry, UseEntry, WiringSpec};
 pub use resolve::{LazyBinding, ResolvedBindings};
-pub use template::{extract_refs, resolve as template_resolve, validate_refs};
+pub use template::{
+    detect_deprecated_dollar_syntax, extract_refs, resolve as template_resolve, validate_refs,
+};
 pub use validate::validate_task_id;

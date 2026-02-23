@@ -27,6 +27,11 @@ use super::resolve::ResolvedBindings;
 static USE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\{\{\s*use\.(\w+(?:\.\w+)*)\s*\}\}").unwrap());
 
+/// Pre-compiled regex for deprecated $alias syntax
+/// Matches: $alias or $alias.field (but not $$, $1, ${, $( which are shell syntax)
+static DEPRECATED_DOLLAR_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\$([a-zA-Z_][a-zA-Z0-9_]*)(?:\.(\w+))*").unwrap());
+
 /// Escape for JSON string context
 fn escape_for_json(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
@@ -248,6 +253,56 @@ pub fn validate_refs(
     Ok(())
 }
 
+/// Detect deprecated $alias syntax and return error with migration guidance
+///
+/// The $alias syntax was never officially supported but appeared in some examples.
+/// Only {{use.alias}} is the valid syntax.
+///
+/// Returns Ok(()) if no deprecated syntax found, Err with details if found.
+pub fn detect_deprecated_dollar_syntax(template: &str, task_id: &str) -> Result<(), NikaError> {
+    // Skip if template doesn't contain $ (fast path)
+    if !template.contains('$') {
+        return Ok(());
+    }
+
+    // Find all $alias patterns (but exclude shell patterns like $$, $1, ${, $()
+    for cap in DEPRECATED_DOLLAR_RE.captures_iter(template) {
+        let full_match = cap.get(0).unwrap().as_str();
+        let identifier = full_match.trim_start_matches('$');
+
+        // Skip UPPERCASE identifiers - these are shell environment variables ($INPUT, $HOME, $RANDOM)
+        // Nika aliases use lowercase snake_case ($ctx, $msg, $data)
+        if identifier
+            .chars()
+            .next()
+            .map(|c| c.is_uppercase())
+            .unwrap_or(false)
+        {
+            continue;
+        }
+
+        // Skip if this looks like it's intentionally a shell variable
+        // Check context: is it preceded by another $ or followed by shell syntax?
+        let start = cap.get(0).unwrap().start();
+        if start > 0 {
+            let before = template.chars().nth(start - 1);
+            // Skip $$ (shell special) or in shell variable like ${var}
+            if before == Some('$') || before == Some('{') {
+                continue;
+            }
+        }
+
+        // Use full path (e.g., $ctx.locale -> {{use.ctx.locale}})
+        return Err(NikaError::DeprecatedSyntax {
+            found: full_match.to_string(),
+            suggestion: format!("{{{{use.{}}}}}", identifier),
+            task_id: task_id.to_string(),
+        });
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -465,5 +520,87 @@ mod tests {
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-071"));
         assert!(err.to_string().contains("unknown"));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // v0.7.2: Deprecated $alias syntax detection (NIKA-075)
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn deprecated_dollar_simple_alias() {
+        let result = detect_deprecated_dollar_syntax("Process: $msg", "task1");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("NIKA-075"));
+        assert!(err.to_string().contains("$msg"));
+        assert!(err.to_string().contains("{{use.msg}}"));
+    }
+
+    #[test]
+    fn deprecated_dollar_with_path() {
+        let result = detect_deprecated_dollar_syntax("Locale: $ctx.locale", "task1");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("NIKA-075"));
+        assert!(err.to_string().contains("$ctx.locale"));
+        assert!(err.to_string().contains("{{use.ctx.locale}}"));
+    }
+
+    #[test]
+    fn deprecated_dollar_deep_path() {
+        let result = detect_deprecated_dollar_syntax("Value: $data.level1.level2", "task1");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("$data.level1.level2"));
+        assert!(err.to_string().contains("{{use.data.level1.level2}}"));
+    }
+
+    #[test]
+    fn deprecated_dollar_allows_uppercase() {
+        // Shell env vars ($INPUT, $HOME, $RANDOM) should be allowed
+        let result = detect_deprecated_dollar_syntax("echo $INPUT", "task1");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn deprecated_dollar_allows_uppercase_with_underscore() {
+        let result = detect_deprecated_dollar_syntax("echo $LAST_TAG", "task1");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn deprecated_dollar_allows_shell_double_dollar() {
+        // $$ is shell PID
+        let result = detect_deprecated_dollar_syntax("echo $$", "task1");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn deprecated_dollar_allows_shell_brace_syntax() {
+        // ${var} is shell brace expansion
+        let result = detect_deprecated_dollar_syntax("echo ${myvar}", "task1");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn deprecated_dollar_no_dollar_sign() {
+        // No $ in template = fast path OK
+        let result = detect_deprecated_dollar_syntax("Just plain text", "task1");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn deprecated_dollar_valid_mustache_syntax() {
+        // Valid {{use.alias}} syntax should pass
+        let result = detect_deprecated_dollar_syntax("Process: {{use.msg}}", "task1");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn deprecated_dollar_mixed_valid_and_invalid() {
+        // If both valid and invalid syntax present, should catch the invalid one
+        let result = detect_deprecated_dollar_syntax("{{use.valid}} and $invalid", "task1");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("$invalid"));
     }
 }
