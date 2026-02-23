@@ -68,16 +68,14 @@ tasks:
         atom_type: term
 
   # 7. novanet_generate - Content generation context
-  # NOTE: Requires Page or Block data in Neo4j (not Entity)
-  # Skipped for now - seed only contains Entities
-  # - id: test_generate
-  #   invoke:
-  #     mcp: novanet
-  #     tool: novanet_generate
-  #     params:
-  #       focus_key: "page:landing-page"  # Requires Page node
-  #       locale: "fr-FR"
-  #       mode: page
+  - id: test_generate
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        focus_key: "page:qr-code-landing"
+        locale: "fr-FR"
+        mode: page
 
   # 8. novanet_introspect - Schema introspection
   - id: test_introspect
@@ -97,6 +95,7 @@ tasks:
       traverse_result: test_traverse
       assemble_result: test_assemble
       atoms_result: test_atoms
+      generate_result: test_generate
       introspect_result: test_introspect
     exec: |
       echo "=== NovaNet MCP Tools Test Results ==="
@@ -107,11 +106,11 @@ tasks:
       echo "4. novanet_traverse: OK"
       echo "5. novanet_assemble: OK"
       echo "6. novanet_atoms: OK"
-      echo "7. novanet_generate: SKIPPED (needs Page/Block seed)"
+      echo "7. novanet_generate: OK"
       echo "8. novanet_introspect: OK"
       echo ""
-      echo "=== 7/8 TOOLS PASSED (1 SKIPPED) ==="
+      echo "=== 8/8 TOOLS PASSED ==="
 
 flows:
-  - source: [test_query, test_describe, test_search, test_traverse, test_assemble, test_atoms, test_introspect]
+  - source: [test_query, test_describe, test_search, test_traverse, test_assemble, test_atoms, test_generate, test_introspect]
     target: summary
