@@ -35,14 +35,14 @@ use ratatui::{
 use super::{McpServerInfo, McpStatus};
 
 // Solarized-inspired colors
-const COLOR_HEADER: Color = Color::Rgb(250, 204, 21);     // Gold
-const COLOR_SECTION: Color = Color::Rgb(147, 161, 161);   // Gray
-const COLOR_SUCCESS: Color = Color::Rgb(133, 153, 0);     // Green
-const COLOR_WARNING: Color = Color::Rgb(181, 137, 0);     // Yellow
-const COLOR_ERROR: Color = Color::Rgb(220, 50, 47);       // Red
-const COLOR_MUTED: Color = Color::Rgb(88, 110, 117);      // Muted
-const COLOR_CYAN: Color = Color::Rgb(42, 161, 152);       // Cyan
-const COLOR_VIOLET: Color = Color::Rgb(108, 113, 196);    // Violet
+const COLOR_HEADER: Color = Color::Rgb(250, 204, 21); // Gold
+const COLOR_SECTION: Color = Color::Rgb(147, 161, 161); // Gray
+const COLOR_SUCCESS: Color = Color::Rgb(133, 153, 0); // Green
+const COLOR_WARNING: Color = Color::Rgb(181, 137, 0); // Yellow
+const COLOR_ERROR: Color = Color::Rgb(220, 50, 47); // Red
+const COLOR_MUTED: Color = Color::Rgb(88, 110, 117); // Muted
+const COLOR_CYAN: Color = Color::Rgb(42, 161, 152); // Cyan
+const COLOR_VIOLET: Color = Color::Rgb(108, 113, 196); // Violet
 
 /// Verb type for runtime display
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -158,9 +158,9 @@ pub struct MemoryFile {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryKind {
-    Project,  // CLAUDE.md
-    Session,  // .nika/memory.json
-    System,   // System context
+    Project, // CLAUDE.md
+    Session, // .nika/memory.json
+    System,  // System context
 }
 
 impl MemoryFile {
@@ -268,11 +268,11 @@ impl<'a> MissionControlPanel<'a> {
             for server in self.mcp_servers {
                 // Map McpStatus to icon and color
                 let (icon, color) = match server.status {
-                    McpStatus::Hot => ("●", COLOR_SUCCESS),      // Active
-                    McpStatus::Warm => ("◐", COLOR_WARNING),     // Idle
+                    McpStatus::Hot => ("●", COLOR_SUCCESS),       // Active
+                    McpStatus::Warm => ("◐", COLOR_WARNING),      // Idle
                     McpStatus::Connected => ("●", COLOR_SUCCESS), // Connected
-                    McpStatus::Cold => ("○", COLOR_MUTED),       // Not used recently
-                    McpStatus::Error => ("✗", COLOR_ERROR),      // Error
+                    McpStatus::Cold => ("○", COLOR_MUTED),        // Not used recently
+                    McpStatus::Error => ("✗", COLOR_ERROR),       // Error
                 };
 
                 // Show call count as activity indicator
@@ -462,7 +462,11 @@ impl Widget for MissionControlPanel<'_> {
 
         let block = Block::default()
             .title(" 📊 MISSION CONTROL ")
-            .title_style(Style::default().fg(COLOR_HEADER).add_modifier(Modifier::BOLD))
+            .title_style(
+                Style::default()
+                    .fg(COLOR_HEADER)
+                    .add_modifier(Modifier::BOLD),
+            )
             .borders(Borders::ALL)
             .border_style(border_style);
 
@@ -475,8 +479,11 @@ impl Widget for MissionControlPanel<'_> {
             .constraints([
                 Constraint::Length(3 + self.mcp_servers.len().min(5) as u16), // MCP
                 Constraint::Length(3 + self.context_items.len().min(5) as u16), // Context
-                Constraint::Length(3 + self.memory_files.len().min(3) as u16 + if self.conversation_turns > 0 { 1 } else { 0 }), // Memory
-                Constraint::Min(5), // Runtime
+                Constraint::Length(
+                    3 + self.memory_files.len().min(3) as u16
+                        + if self.conversation_turns > 0 { 1 } else { 0 },
+                ), // Memory
+                Constraint::Min(5),                                           // Runtime
             ])
             .split(inner);
 
