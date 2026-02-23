@@ -157,14 +157,24 @@ impl EditTool {
             message: format!("Failed to flush file: {}", e),
         })?;
 
-        // Atomic rename
-        fs::rename(&temp_path, &path).await.map_err(|e| {
-            let _ = std::fs::remove_file(&temp_path);
-            NikaError::ToolError {
+        // Ensure data hits disk before rename (durability)
+        file.sync_all().await.map_err(|e| NikaError::ToolError {
+            code: ToolErrorCode::EditFailed.code(),
+            message: format!("Failed to sync file: {}", e),
+        })?;
+
+        // Atomic rename with async cleanup on error
+        if let Err(e) = fs::rename(&temp_path, &path).await {
+            // Async cleanup to avoid blocking the executor
+            let temp_clone = temp_path.clone();
+            tokio::spawn(async move {
+                let _ = fs::remove_file(temp_clone).await;
+            });
+            return Err(NikaError::ToolError {
                 code: ToolErrorCode::EditFailed.code(),
                 message: format!("Failed to finalize edit: {}", e),
-            }
-        })?;
+            });
+        }
 
         // Emit event
         self.ctx

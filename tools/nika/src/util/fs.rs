@@ -1,7 +1,13 @@
-//! Filesystem Utilities - atomic write operations (v0.7.3)
+//! Filesystem Utilities - atomic write operations (v0.7.4)
 //!
 //! Provides safe, atomic file write operations to prevent data corruption
 //! on crash or interrupt. Uses temp file + rename pattern.
+//!
+//! # Design Decisions
+//! - **TOCTOU-safe**: No exists() checks before idempotent operations
+//! - **Atomic rename**: Guaranteed atomic on POSIX within same filesystem
+//! - **fsync before rename**: Ensures data durability before visibility
+//! - **Async cleanup**: Non-blocking error recovery
 
 use std::io::{self, Write};
 use std::path::Path;
@@ -20,6 +26,10 @@ pub const MAX_FILE_MENTION_SIZE: u64 = 1024 * 1024;
 /// 3. Atomic rename to target path
 /// 4. Cleanup temp file on error
 ///
+/// # Safety
+/// - TOCTOU-safe: uses idempotent create_dir_all without existence check
+/// - Atomic on POSIX systems within same filesystem
+///
 /// # Example
 /// ```ignore
 /// use nika::util::fs::atomic_write;
@@ -30,11 +40,9 @@ pub fn atomic_write(path: impl AsRef<Path>, content: &[u8]) -> io::Result<()> {
     let path = path.as_ref();
     let temp_path = path.with_extension("tmp.nika");
 
-    // Create parent directories if needed
+    // Create parent directories (idempotent, no TOCTOU race)
     if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            std::fs::create_dir_all(parent)?;
-        }
+        std::fs::create_dir_all(parent)?;
     }
 
     // Write to temp file with fsync
@@ -44,27 +52,25 @@ pub fn atomic_write(path: impl AsRef<Path>, content: &[u8]) -> io::Result<()> {
     file.sync_all()?; // Ensure data hits disk
 
     // Atomic rename (on POSIX systems, this is atomic within same filesystem)
-    std::fs::rename(&temp_path, path).map_err(|e| {
+    std::fs::rename(&temp_path, path).inspect_err(|_| {
         // Cleanup temp file on rename failure
         let _ = std::fs::remove_file(&temp_path);
-        e
     })
 }
 
 /// Async version of atomic_write using tokio.
 ///
 /// Preferred for TUI operations to avoid blocking the event loop.
+/// Uses fully async operations including error cleanup.
 pub async fn atomic_write_async(path: impl AsRef<Path>, content: &[u8]) -> io::Result<()> {
     use tokio::io::AsyncWriteExt;
 
     let path = path.as_ref();
     let temp_path = path.with_extension("tmp.nika");
 
-    // Create parent directories if needed
+    // Create parent directories (idempotent, no TOCTOU race)
     if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
+        tokio::fs::create_dir_all(parent).await?;
     }
 
     // Write to temp file
@@ -73,12 +79,18 @@ pub async fn atomic_write_async(path: impl AsRef<Path>, content: &[u8]) -> io::R
     file.flush().await?;
     file.sync_all().await?; // Ensure data hits disk
 
-    // Atomic rename
-    tokio::fs::rename(&temp_path, path).await.map_err(|e| {
-        // Cleanup temp file on rename failure (sync is fine for cleanup)
-        let _ = std::fs::remove_file(&temp_path);
-        e
-    })
+    // Atomic rename with async cleanup on error
+    match tokio::fs::rename(&temp_path, path).await {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            // Async cleanup to avoid blocking the executor
+            let temp_clone = temp_path.clone();
+            tokio::spawn(async move {
+                let _ = tokio::fs::remove_file(temp_clone).await;
+            });
+            Err(e)
+        }
+    }
 }
 
 /// Check if a file size is within preview limits.
