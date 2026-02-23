@@ -12,6 +12,7 @@
 //! +---------------------------------------------------------------------------------+
 //! ```
 
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -29,6 +30,16 @@ use ratatui::{
 use super::trait_view::View;
 use super::ViewAction;
 use crate::ast::{TaskAction, Workflow};
+
+/// Preview mode for DAG preview panel
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PreviewMode {
+    /// DAG visualization (default)
+    #[default]
+    Dag,
+    /// Raw YAML text with verb-colored syntax highlighting
+    Yaml,
+}
 use crate::tui::standalone::{BrowserEntry, StandaloneState};
 use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
@@ -61,6 +72,8 @@ pub struct HomeView {
     cached_content_hash: Cell<u64>,
     /// DAG expanded mode toggle
     pub dag_expanded: bool,
+    /// Preview mode: DAG visualization or verb-colored YAML
+    pub preview_mode: PreviewMode,
 }
 
 impl HomeView {
@@ -88,6 +101,7 @@ impl HomeView {
             cached_workflow: RefCell::new(None),
             cached_content_hash: Cell::new(0),
             dag_expanded: false,
+            preview_mode: PreviewMode::Dag,
         }
     }
 
@@ -325,15 +339,23 @@ impl HomeView {
         }
     }
 
-    /// Render the preview panel (right 60%) with DAG visualization
+    /// Render the preview panel (right 60%) with DAG visualization or YAML
     fn render_preview(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        // Build title showing mode toggle key [D]
+        let title = match self.preview_mode {
+            PreviewMode::Dag => {
+                if self.dag_expanded {
+                    " [D]AG Preview [E]xpanded "
+                } else {
+                    " [D]AG Preview [E]→expand "
+                }
+            }
+            PreviewMode::Yaml => " YAML (verb-colored) [D]→DAG ",
+        };
+
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(if self.dag_expanded {
-                " DAG PREVIEW [E]xpanded "
-            } else {
-                " DAG PREVIEW [E]→expand "
-            })
+            .title(title)
             .border_style(Style::default().fg(theme.border_normal));
 
         let inner = block.inner(area);
@@ -356,6 +378,12 @@ impl HomeView {
             frame.render_widget(paragraph, inner);
             return;
         };
+
+        // YAML mode: render verb-colored text directly (no DAG parsing needed)
+        if self.preview_mode == PreviewMode::Yaml {
+            Self::render_yaml_preview(frame, inner, content, theme);
+            return;
+        }
 
         // PERF: Compute content hash to check if we need to re-parse
         let current_hash = Self::content_hash(content);
@@ -444,6 +472,82 @@ impl HomeView {
                 frame.render_widget(paragraph, inner);
             }
         }
+    }
+
+    /// Get VerbColor for YAML line highlighting
+    /// Returns the VerbColor if the line starts a verb block (infer:, exec:, etc.)
+    fn get_line_verb_color(line: &str) -> Option<VerbColor> {
+        let trimmed = line.trim();
+
+        // Check for verb declarations (exact match with VerbColor)
+        if trimmed.starts_with("infer:") {
+            Some(VerbColor::Infer) // ⚡ Infer - violet
+        } else if trimmed.starts_with("exec:") {
+            Some(VerbColor::Exec) // 📟 Exec - amber
+        } else if trimmed.starts_with("fetch:") {
+            Some(VerbColor::Fetch) // 🛰️ Fetch - cyan
+        } else if trimmed.starts_with("invoke:") {
+            Some(VerbColor::Invoke) // 🔌 Invoke - emerald
+        } else if trimmed.starts_with("agent:") {
+            Some(VerbColor::Agent) // 🐔 Agent - rose
+        } else {
+            None
+        }
+    }
+
+    /// Render YAML content with verb-colored syntax highlighting
+    ///
+    /// Each verb (infer, exec, fetch, invoke, agent) gets its canonical VerbColor.
+    /// Lines within a verb block inherit the color until a new top-level key appears.
+    fn render_yaml_preview(frame: &mut Frame, area: Rect, content: &str, theme: &Theme) {
+        // Track current verb context for indented lines
+        let mut current_verb: Option<VerbColor> = None;
+
+        let lines: Vec<Line> = content
+            .lines()
+            .take(area.height as usize) // Limit to visible area
+            .enumerate()
+            .map(|(i, line)| {
+                // Check if line starts a new verb block
+                if let Some(verb) = Self::get_line_verb_color(line) {
+                    current_verb = Some(verb);
+                } else if !line.starts_with(' ') && !line.starts_with('\t') && !line.is_empty() {
+                    // Non-indented, non-empty line resets verb context
+                    current_verb = None;
+                }
+
+                // Build styled line with verb coloring
+                // Use Cow to avoid allocations for static strings (performance)
+                let (prefix_icon, line_style): (Cow<'static, str>, Style) = match current_verb {
+                    Some(verb) => {
+                        // Verb icon as prefix for verb lines only
+                        let icon: Cow<'static, str> = if Self::get_line_verb_color(line).is_some()
+                        {
+                            Cow::Owned(format!("{} ", verb.icon()))
+                        } else {
+                            Cow::Borrowed("  ") // Static str, no allocation
+                        };
+                        (icon, Style::default().fg(verb.rgb()))
+                    }
+                    None => (
+                        Cow::Borrowed("  "), // Static str, no allocation
+                        Style::default().fg(theme.text_secondary),
+                    ),
+                };
+
+                Line::from(vec![
+                    Span::styled(
+                        format!("{:4} │", i + 1),
+                        Style::default().fg(theme.text_muted),
+                    ),
+                    Span::styled(prefix_icon, line_style),
+                    Span::styled(line.to_string(), line_style),
+                ])
+            })
+            .collect();
+
+        let paragraph = Paragraph::new(lines);
+        frame.render_widget(paragraph, area);
     }
 
     /// Extract prompt preview from task for DAG display
@@ -806,6 +910,18 @@ impl View for HomeView {
                 ViewAction::None
             }
 
+            // Toggle preview mode: DAG ↔ YAML (D key)
+            KeyCode::Char('d') | KeyCode::Char('D')
+                if !key.modifiers.contains(KeyModifiers::SHIFT)
+                    && !key.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                self.preview_mode = match self.preview_mode {
+                    PreviewMode::Dag => PreviewMode::Yaml,
+                    PreviewMode::Yaml => PreviewMode::Dag,
+                };
+                ViewAction::None
+            }
+
             // Toggle history expansion
             KeyCode::Char('h') => {
                 self.history_expanded = !self.history_expanded;
@@ -893,6 +1009,78 @@ mod tests {
 
         view.history_expanded = false;
         assert!(!view.history_expanded);
+    }
+
+    #[test]
+    fn test_preview_mode_toggle() {
+        let mut view = HomeView::new(PathBuf::from("."));
+
+        // Default is DAG mode
+        assert_eq!(view.preview_mode, PreviewMode::Dag);
+
+        // Toggle to YAML
+        view.preview_mode = PreviewMode::Yaml;
+        assert_eq!(view.preview_mode, PreviewMode::Yaml);
+
+        // Toggle back to DAG
+        view.preview_mode = PreviewMode::Dag;
+        assert_eq!(view.preview_mode, PreviewMode::Dag);
+    }
+
+    #[test]
+    fn test_preview_mode_key_handler() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+        let mut view = HomeView::new(PathBuf::from("."));
+        let mut state = TuiState::new("test.nika.yaml");
+
+        // Initial state: DAG mode
+        assert_eq!(view.preview_mode, PreviewMode::Dag);
+
+        // Press 'D' to toggle to YAML
+        let key = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE);
+        view.handle_key(key, &mut state);
+        assert_eq!(view.preview_mode, PreviewMode::Yaml);
+
+        // Press 'D' again to toggle back to DAG
+        view.handle_key(key, &mut state);
+        assert_eq!(view.preview_mode, PreviewMode::Dag);
+    }
+
+    #[test]
+    fn test_get_line_verb_color() {
+        // Test verb detection
+        assert_eq!(
+            HomeView::get_line_verb_color("infer: prompt"),
+            Some(VerbColor::Infer)
+        );
+        assert_eq!(
+            HomeView::get_line_verb_color("exec: command"),
+            Some(VerbColor::Exec)
+        );
+        assert_eq!(
+            HomeView::get_line_verb_color("fetch: url"),
+            Some(VerbColor::Fetch)
+        );
+        assert_eq!(
+            HomeView::get_line_verb_color("invoke: tool"),
+            Some(VerbColor::Invoke)
+        );
+        assert_eq!(
+            HomeView::get_line_verb_color("agent: loop"),
+            Some(VerbColor::Agent)
+        );
+
+        // Test non-verb lines return None
+        assert_eq!(HomeView::get_line_verb_color("tasks:"), None);
+        assert_eq!(HomeView::get_line_verb_color("  - id: step1"), None);
+        assert_eq!(HomeView::get_line_verb_color(""), None);
+
+        // Test indented verb lines (still detect verb)
+        assert_eq!(
+            HomeView::get_line_verb_color("    infer: nested"),
+            Some(VerbColor::Infer)
+        );
     }
 
     #[test]

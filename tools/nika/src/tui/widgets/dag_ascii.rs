@@ -184,9 +184,10 @@ impl<'a> DagAscii<'a> {
                 continue;
             };
 
-            // Calculate target connection point (top center)
-            let target_x = target_pos.x.saturating_sub(self.scroll.0) + target_pos.width / 2;
-            let target_y = target_pos.y.saturating_sub(self.scroll.1);
+            // Calculate target connection point (top center) with area offset
+            let target_x =
+                area.x + target_pos.x.saturating_sub(self.scroll.0) + target_pos.width / 2;
+            let target_y = area.y + target_pos.y.saturating_sub(self.scroll.1);
 
             if sources.len() > 1 {
                 // Multiple dependencies: use merge rendering
@@ -194,8 +195,10 @@ impl<'a> DagAscii<'a> {
                     .iter()
                     .filter_map(|src_id| {
                         layout.get(src_id).map(|pos| {
-                            let src_x = pos.x.saturating_sub(self.scroll.0) + pos.width / 2;
-                            let src_y = pos.y.saturating_sub(self.scroll.1) + pos.height;
+                            let src_x =
+                                area.x + pos.x.saturating_sub(self.scroll.0) + pos.width / 2;
+                            let src_y =
+                                area.y + pos.y.saturating_sub(self.scroll.1) + pos.height;
                             (src_x, src_y)
                         })
                     })
@@ -216,8 +219,9 @@ impl<'a> DagAscii<'a> {
                 // Single dependency: simple edge
                 if let Some(source_pos) = layout.get(source_id) {
                     let source_x =
-                        source_pos.x.saturating_sub(self.scroll.0) + source_pos.width / 2;
-                    let source_y = source_pos.y.saturating_sub(self.scroll.1) + source_pos.height;
+                        area.x + source_pos.x.saturating_sub(self.scroll.0) + source_pos.width / 2;
+                    let source_y =
+                        area.y + source_pos.y.saturating_sub(self.scroll.1) + source_pos.height;
 
                     let mut edge = DagEdge::new((source_x, source_y), (target_x, target_y));
 
@@ -241,14 +245,29 @@ impl<'a> DagAscii<'a> {
     }
 
     /// Render all nodes
-    fn render_nodes(&self, buf: &mut Buffer, layout: &DagLayout) {
+    fn render_nodes(&self, buf: &mut Buffer, area: Rect, layout: &DagLayout) {
         for node_data in self.nodes {
             if let Some(pos) = layout.get(&node_data.id) {
-                // Apply scroll offset
-                let x = pos.x.saturating_sub(self.scroll.0);
-                let y = pos.y.saturating_sub(self.scroll.1);
+                // Apply scroll offset and area offset
+                let x = area.x + pos.x.saturating_sub(self.scroll.0);
+                let y = area.y + pos.y.saturating_sub(self.scroll.1);
 
-                let node_rect = Rect::new(x, y, pos.width, pos.height);
+                // Clip to area bounds
+                if x >= area.x + area.width || y >= area.y + area.height {
+                    continue;
+                }
+
+                // Clamp width/height to fit within area
+                let max_width = (area.x + area.width).saturating_sub(x);
+                let max_height = (area.y + area.height).saturating_sub(y);
+                let width = pos.width.min(max_width);
+                let height = pos.height.min(max_height);
+
+                if width < 5 || height < 3 {
+                    continue; // Too small to render (NodeBox needs min 3 height)
+                }
+
+                let node_rect = Rect::new(x, y, width, height);
 
                 let widget = NodeBox::new(node_data).mode(self.mode);
                 widget.render(node_rect, buf);
@@ -336,7 +355,7 @@ impl Widget for DagAscii<'_> {
         self.render_edges(buf, content_area, &layout);
 
         // Step 6: Render nodes (on top of edges)
-        self.render_nodes(buf, &layout);
+        self.render_nodes(buf, content_area, &layout);
 
         // Step 7: Render footer
         self.render_footer(buf, area, layout.layer_count());
@@ -721,5 +740,86 @@ mod tests {
             Some(&"preview text".to_string())
         );
         assert_eq!(widget.get_preview("{{use.other}}"), None);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AREA OFFSET TESTS (verifies nodes render in correct panel location)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_dag_ascii_renders_with_area_offset() {
+        // Simulate a panel at (20, 5) with width 40, height 15
+        // This is the typical case in Home view where DAG preview is on the right
+        let nodes = vec![NodeBoxData::new("task1", VerbColor::Infer)
+            .with_status(TaskStatus::Pending)];
+
+        let widget = DagAscii::new(&nodes);
+
+        // Create buffer larger than area to detect misaligned rendering
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 30));
+        let area = Rect::new(20, 5, 40, 15);
+        widget.render(area, &mut buffer);
+
+        // The node should be rendered WITHIN the area (20..60, 5..20)
+        // NOT at (0, 0) which would be wrong
+
+        // Check that nothing is rendered at (0, 0) - the old bug location
+        let cell_origin = buffer.cell((0, 0)).unwrap();
+        assert_eq!(
+            cell_origin.symbol(),
+            " ",
+            "Nothing should render at buffer origin (0,0)"
+        );
+
+        // Check that footer appears at correct position (within area)
+        // Footer is at y = area.y + area.height - 1 = 5 + 15 - 1 = 19
+        let footer_y = 19;
+        let footer: String = (20..60)
+            .map(|x| buffer.cell((x, footer_y)).unwrap().symbol().to_string())
+            .collect();
+        assert!(
+            footer.contains("1 tasks") && footer.contains("1 layers"),
+            "Footer should be at y={} within area, got: '{}'",
+            footer_y,
+            footer
+        );
+
+        // Verify node box renders within area (not at origin)
+        // The node should start somewhere after area.x (20) and area.y (5)
+        let node_area_start_y = 5;
+        let found_node_content = (20..60).any(|x| {
+            let cell = buffer.cell((x, node_area_start_y)).unwrap();
+            cell.symbol() != " "
+        });
+        assert!(
+            found_node_content,
+            "Node content should be rendered within area starting at y={}",
+            node_area_start_y
+        );
+    }
+
+    #[test]
+    fn test_dag_ascii_clips_nodes_to_area() {
+        // Test that nodes too wide for the area are clipped
+        let nodes = vec![NodeBoxData::new("very_long_task_name_that_exceeds_width", VerbColor::Infer)];
+
+        let widget = DagAscii::new(&nodes);
+
+        // Small area
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 50, 20));
+        let area = Rect::new(5, 5, 20, 10);
+        widget.render(area, &mut buffer);
+
+        // Should render without panic and clip to area
+        // Check that nothing renders outside the area bounds
+        for x in 0..5 {
+            let cell = buffer.cell((x, 5)).unwrap();
+            assert_eq!(
+                cell.symbol(),
+                " ",
+                "Nothing should render before area.x at ({}, 5)",
+                x
+            );
+        }
     }
 }

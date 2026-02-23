@@ -352,7 +352,10 @@ impl DagLayout {
     ) -> FxHashMap<String, NodePosition> {
         let mut positions: FxHashMap<String, NodePosition> = FxHashMap::default();
 
-        let node_height: u16 = if config.expanded { 3 } else { 1 };
+        // Minimal mode: 3 lines (top border + content + bottom border)
+        // Expanded mode: 5 lines (3 base + prompt line + model line)
+        // These match NodeBox::required_height() return values
+        let node_height: u16 = if config.expanded { 5 } else { 3 };
 
         for (layer_idx, layer) in layers.iter().enumerate() {
             // SAFETY: Use saturating cast to prevent overflow on large DAGs
