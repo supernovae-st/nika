@@ -28,6 +28,8 @@ mod header;
 mod infer_stream_box;
 mod mcp_call_box;
 mod mcp_log;
+mod mission_control;
+mod pro_status_bar;
 mod provider_selector;
 mod scroll_indicator;
 mod session_context;
@@ -67,3 +69,10 @@ pub use scroll_indicator::{ScrollHint, ScrollIndicator};
 pub use sparkline::LatencySparkline;
 pub use status_bar::{ConnectionStatus, Provider, StatusBar, StatusMetrics};
 pub use timeline::{Timeline, TimelineEntry};
+// Pro status bar for Chat view (Claude Code-inspired)
+pub use pro_status_bar::{ChatModeIndicator, ProStatusBar, SessionMetrics};
+// Mission Control panel for Chat view (v0.7.3)
+pub use mission_control::{
+    ContextItem, ContextStatus, CurrentVerb, MemoryFile, MemoryKind, MissionControlPanel,
+    TurnMetrics,
+};

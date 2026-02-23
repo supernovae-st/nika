@@ -1433,7 +1433,10 @@ impl App {
         if self.current_view == TuiView::Chat {
             // Compute the view area (same as render_frame but for Chat)
             let view_area = self.compute_view_area(size);
-            if self.chat_view.handle_mouse(mouse.kind, mouse.column, mouse.row, view_area) {
+            if self
+                .chat_view
+                .handle_mouse(mouse.kind, mouse.column, mouse.row, view_area)
+            {
                 return Action::Continue; // Event handled by ChatView
             }
         }

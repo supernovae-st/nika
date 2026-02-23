@@ -27,7 +27,6 @@ use std::time::Instant;
 use arboard::Clipboard;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
-    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
@@ -35,13 +34,14 @@ use ratatui::{
         Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
         Widget,
     },
+    Frame,
 };
 use serde::{Deserialize, Serialize};
 use tui_input::{Input, InputRequest};
 
-use super::ViewAction;
 use super::trait_view::View;
-use crate::tui::command::{Command, HELP_TEXT, ModelProvider};
+use super::ViewAction;
+use crate::tui::command::{Command, ModelProvider, HELP_TEXT};
 
 /// Check if the "command" modifier is pressed (Ctrl on Linux/Windows, Cmd on macOS)
 /// On macOS, Cmd key maps to SUPER modifier in crossterm
@@ -569,7 +569,13 @@ impl ChatView {
             .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(chunks[1]);
 
-        (chunks[0], main_chunks[0], main_chunks[1], chunks[2], chunks[3])
+        (
+            chunks[0],
+            main_chunks[0],
+            main_chunks[1],
+            chunks[2],
+            chunks[3],
+        )
     }
 
     /// Determine which panel is at the given screen position
@@ -595,7 +601,13 @@ impl ChatView {
 
     /// Handle mouse event for Chat view
     /// Returns true if the event was handled
-    pub fn handle_mouse(&mut self, kind: crossterm::event::MouseEventKind, x: u16, y: u16, area: Rect) -> bool {
+    pub fn handle_mouse(
+        &mut self,
+        kind: crossterm::event::MouseEventKind,
+        x: u16,
+        y: u16,
+        area: Rect,
+    ) -> bool {
         use crossterm::event::{MouseButton, MouseEventKind};
 
         match kind {
@@ -1854,10 +1866,7 @@ impl ChatView {
 
             // Show blinking cursor at start
             if cursor_visible {
-                spans.push(Span::styled(
-                    "█",
-                    Style::default().fg(theme.highlight),
-                ));
+                spans.push(Span::styled("█", Style::default().fg(theme.highlight)));
             } else {
                 spans.push(Span::raw(" "));
             }
@@ -1939,7 +1948,11 @@ impl ChatView {
                 };
 
                 // v0.8 WOW: Flash effect - bright highlight when copied
-                let color = if is_flashing { theme.highlight } else { base_color };
+                let color = if is_flashing {
+                    theme.highlight
+                } else {
+                    base_color
+                };
                 let style = Style::default().fg(color);
 
                 // PERF: Use const prefix strings to avoid format! allocation
@@ -2188,10 +2201,7 @@ impl ChatView {
                         .fg(theme.status_running)
                         .add_modifier(Modifier::ITALIC),
                 ),
-                Span::styled(
-                    format!(" {} ", wave),
-                    Style::default().fg(theme.highlight),
-                ),
+                Span::styled(format!(" {} ", wave), Style::default().fg(theme.highlight)),
             ])));
         }
 
