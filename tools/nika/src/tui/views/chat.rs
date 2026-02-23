@@ -402,7 +402,31 @@ impl ChatView {
             // v0.8 WOW Effects
             copy_flash_index: None,
             copy_flash_start: 0,
+
+            // v0.7.3 Mission Control
+            context_items: vec![],
+            memory_files: Self::detect_memory_files(),
+            current_verb: CurrentVerb::None,
+            turn_metrics: TurnMetrics::default(),
+            session_metrics: SessionMetrics::new(),
         }
+    }
+
+    /// Detect available memory files (CLAUDE.md, etc.)
+    fn detect_memory_files() -> Vec<MemoryFile> {
+        let mut files = vec![];
+
+        // Check for CLAUDE.md in current directory
+        if std::path::Path::new("CLAUDE.md").exists() {
+            files.push(MemoryFile::project("CLAUDE.md"));
+        }
+
+        // Check for .nika directory
+        if std::path::Path::new(".nika/memory.json").exists() {
+            files.push(MemoryFile::session(".nika/memory.json"));
+        }
+
+        files
     }
 
     /// Toggle between Infer and Agent modes
