@@ -593,15 +593,35 @@ cargo run -- --help  # Run
 
 ## 📜 License
 
-<div align="center">
-
 **AGPL-3.0** — See [LICENSE](LICENSE) for details.
-
----
 
 <br>
 
-<img src="https://raw.githubusercontent.com/supernovae-st/nika/main/assets/supernovae-logo.svg" alt="SuperNovae" width="120">
+---
+
+<div align="center">
+
+## 🌟 Part of the SuperNovae Ecosystem
+
+<br>
+
+<a href="https://github.com/supernovae-st/novanet">
+  <img src="https://img.shields.io/badge/NovaNet-Knowledge_Graph-0ea5e9?style=for-the-badge&logo=neo4j&logoColor=white" alt="NovaNet">
+</a>
+&nbsp;
+<a href="https://github.com/supernovae-st/nika">
+  <img src="https://img.shields.io/badge/Nika-Workflow_Engine-7c3aed?style=for-the-badge&logo=yaml&logoColor=white" alt="Nika">
+</a>
+
+<br><br>
+
+### Created & Maintained by
+
+<a href="https://supernovae.studio">
+  <img src="https://raw.githubusercontent.com/supernovae-st/nika/main/assets/supernovae-logo.svg" alt="SuperNovae Studio" width="140">
+</a>
+
+<br>
 
 **[SuperNovae Studio](https://supernovae.studio)**
 
@@ -609,11 +629,39 @@ cargo run -- --help  # Run
 
 <br>
 
-Made with 🦋 and 🦀 Rust
+### 👥 Team
+
+<a href="https://github.com/ThibautMelen">
+  <img src="https://github.com/ThibautMelen.png" width="60" height="60" style="border-radius: 50%;" alt="Thibaut Melen">
+</a>
+&nbsp;&nbsp;
+<a href="https://github.com/NicolasCELLA">
+  <img src="https://github.com/NicolasCELLA.png" width="60" height="60" style="border-radius: 50%;" alt="Nicolas Cella">
+</a>
+
+<sub>
+<a href="https://github.com/ThibautMelen"><b>Thibaut Melen</b></a> ·
+<a href="https://github.com/NicolasCELLA"><b>Nicolas Cella</b></a>
+</sub>
+
+<br><br>
+
+### 🔗 Links
+
+[![Website](https://img.shields.io/badge/Website-supernovae.studio-f97316?style=flat-square&logo=safari&logoColor=white)](https://supernovae.studio)
+[![GitHub Org](https://img.shields.io/badge/GitHub-supernovae--st-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/supernovae-st)
+[![Twitter](https://img.shields.io/badge/Twitter-@supernovaestudio-1DA1F2?style=flat-square&logo=twitter&logoColor=white)](https://twitter.com/supernovaestudio)
 
 <br>
 
 [![GitHub Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=social)](https://github.com/supernovae-st/nika)
-[![Twitter Follow](https://img.shields.io/twitter/follow/supernovaestudio?style=social)](https://twitter.com/supernovaestudio)
+[![GitHub Forks](https://img.shields.io/github/forks/supernovae-st/nika?style=social)](https://github.com/supernovae-st/nika/fork)
+[![GitHub Watchers](https://img.shields.io/github/watchers/supernovae-st/nika?style=social)](https://github.com/supernovae-st/nika)
+
+<br>
+
+---
+
+<sub>Made with 🦋 and 🦀 Rust</sub>
 
 </div>
