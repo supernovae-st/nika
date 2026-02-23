@@ -139,9 +139,12 @@ impl Widget for ScrollIndicator {
         // If not scrollable, just draw a faint track
         if !self.is_scrollable() {
             for y in 0..height {
-                let cell = buf.cell_mut((area.x, area.y + y as u16)).unwrap();
-                cell.set_char('│');
-                cell.set_style(self.track_style);
+                let pos_y = area.y + y as u16;
+                // Check bounds before accessing cell
+                if let Some(cell) = buf.cell_mut((area.x, pos_y)) {
+                    cell.set_char('│');
+                    cell.set_style(self.track_style);
+                }
             }
             return;
         }
@@ -155,24 +158,26 @@ impl Widget for ScrollIndicator {
 
         // Draw arrows if enabled
         if self.show_arrows && height >= 3 {
-            // Up arrow
-            let up_cell = buf.cell_mut((area.x, area.y)).unwrap();
-            if self.can_scroll_up() {
-                up_cell.set_char('▲');
-                up_cell.set_style(self.thumb_style);
-            } else {
-                up_cell.set_char('△');
-                up_cell.set_style(self.track_style);
+            // Up arrow (check bounds)
+            if let Some(up_cell) = buf.cell_mut((area.x, area.y)) {
+                if self.can_scroll_up() {
+                    up_cell.set_char('▲');
+                    up_cell.set_style(self.thumb_style);
+                } else {
+                    up_cell.set_char('△');
+                    up_cell.set_style(self.track_style);
+                }
             }
 
-            // Down arrow
-            let down_cell = buf.cell_mut((area.x, area.y + area.height - 1)).unwrap();
-            if self.can_scroll_down() {
-                down_cell.set_char('▼');
-                down_cell.set_style(self.thumb_style);
-            } else {
-                down_cell.set_char('▽');
-                down_cell.set_style(self.track_style);
+            // Down arrow (check bounds)
+            if let Some(down_cell) = buf.cell_mut((area.x, area.y + area.height - 1)) {
+                if self.can_scroll_down() {
+                    down_cell.set_char('▼');
+                    down_cell.set_style(self.thumb_style);
+                } else {
+                    down_cell.set_char('▽');
+                    down_cell.set_style(self.track_style);
+                }
             }
         }
 
@@ -182,16 +187,17 @@ impl Widget for ScrollIndicator {
         // Draw track and thumb
         for i in 0..track_height {
             let y = area.y + (track_start + i) as u16;
-            let cell = buf.cell_mut((area.x, y)).unwrap();
-
-            if i >= thumb_pos && i < thumb_pos + thumb_size {
-                // Thumb
-                cell.set_char('█');
-                cell.set_style(self.thumb_style);
-            } else {
-                // Track
-                cell.set_char('░');
-                cell.set_style(self.track_style);
+            // Check bounds before accessing cell
+            if let Some(cell) = buf.cell_mut((area.x, y)) {
+                if i >= thumb_pos && i < thumb_pos + thumb_size {
+                    // Thumb
+                    cell.set_char('█');
+                    cell.set_style(self.thumb_style);
+                } else {
+                    // Track
+                    cell.set_char('░');
+                    cell.set_style(self.track_style);
+                }
             }
         }
     }
