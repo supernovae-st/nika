@@ -60,8 +60,7 @@ use super::widgets::{ConnectionStatus, Header, StatusBar, StatusMetrics};
 use crate::config::mask_api_key;
 use crossterm::event::KeyEvent;
 
-/// Frame rate target (60 FPS)
-const FRAME_RATE_MS: u64 = 16;
+// Note: Frame rate is now adaptive - see FAST_TICK_MS/SLOW_TICK_MS in run_unified()
 
 /// Action resulting from input handling
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -547,21 +546,34 @@ impl App {
         // Initialize terminal
         self.init_terminal()?;
 
-        let tick_rate = Duration::from_millis(FRAME_RATE_MS);
+        // PERF: Adaptive frame rate
+        // - Fast (60 FPS) when streaming or animations active
+        // - Slow (10 FPS) when idle to save CPU
+        const FAST_TICK_MS: u64 = 16; // 60 FPS for smooth animations
+        const SLOW_TICK_MS: u64 = 100; // 10 FPS when idle
+
+        // Track if user had recent input (stays fast for one frame after input)
+        let mut had_recent_input = true; // Start fast on first frame
 
         loop {
             // 1. Poll runtime events (same as run())
             self.poll_runtime_events();
 
-            // 2. Update elapsed time and animations
+            // 2. Determine if we need fast rendering
+            let is_streaming = self.chat_view.is_streaming;
+            let has_inline_content = !self.chat_view.inline_content.is_empty();
+            let needs_fast_render = is_streaming || has_inline_content || had_recent_input;
+            had_recent_input = false; // Consume the flag
+
+            // 3. Update elapsed time and animations
             self.state.tick();
             self.chat_view.tick(); // FIX: was missing - enables inline MCP/Infer animations
             self.studio_view.maybe_validate(); // Debounced validation (300ms after last edit)
 
-            // 3. Render frame based on current view
+            // 4. Render frame based on current view
             self.render_unified_frame()?;
 
-            // 4. Get terminal size for input handling
+            // 5. Get terminal size for input handling
             let terminal_size = if let Some(ref terminal) = self.terminal {
                 terminal
                     .size()
@@ -571,7 +583,13 @@ impl App {
                 None
             };
 
-            // 5. Poll input events
+            // 6. Poll input events (adaptive tick rate)
+            let tick_rate = if needs_fast_render {
+                Duration::from_millis(FAST_TICK_MS)
+            } else {
+                Duration::from_millis(SLOW_TICK_MS)
+            };
+
             if event::poll(tick_rate).map_err(|e| NikaError::TuiError {
                 reason: format!("Failed to poll events: {}", e),
             })? {
@@ -585,9 +603,12 @@ impl App {
                     _ => Action::Continue,
                 };
                 self.apply_action(action);
+
+                // After input, render at full speed on next frame
+                had_recent_input = true;
             }
 
-            // 6. Check quit flag
+            // 7. Check quit flag
             if self.should_quit {
                 break;
             }
@@ -1402,11 +1423,22 @@ impl App {
     /// Handle mouse input (TIER 3.1)
     ///
     /// Maps mouse clicks to panel focus and scroll wheel to scrolling.
-    fn handle_mouse(&self, mouse: MouseEvent, terminal_size: Option<Rect>) -> Action {
+    /// v0.8: Dispatches to view-specific mouse handlers for Chat view.
+    fn handle_mouse(&mut self, mouse: MouseEvent, terminal_size: Option<Rect>) -> Action {
         let Some(size) = terminal_size else {
             return Action::Continue;
         };
 
+        // v0.8 UX: Dispatch mouse events to Chat view when in Chat mode
+        if self.current_view == TuiView::Chat {
+            // Compute the view area (same as render_frame but for Chat)
+            let view_area = self.compute_view_area(size);
+            if self.chat_view.handle_mouse(mouse.kind, mouse.column, mouse.row, view_area) {
+                return Action::Continue; // Event handled by ChatView
+            }
+        }
+
+        // Default handling for other views (Monitor 2x2 grid)
         match mouse.kind {
             // Left click - focus panel at click position
             MouseEventKind::Down(MouseButton::Left) => {
@@ -1422,6 +1454,13 @@ impl App {
             // Other mouse events - ignore
             _ => Action::Continue,
         }
+    }
+
+    /// Compute the view area for the current frame (excluding status bar etc.)
+    fn compute_view_area(&self, terminal_size: Rect) -> Rect {
+        // Simple layout: just use full terminal for now
+        // TODO: Subtract status bar height if needed
+        terminal_size
     }
 
     /// Determine which panel is at the given screen position (TIER 3.1)
