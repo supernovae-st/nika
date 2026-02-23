@@ -738,8 +738,10 @@ impl App {
         while let Ok(chunk) = self.stream_chunk_rx.try_recv() {
             match chunk {
                 StreamChunk::Token(token) => {
-                    // Append token to last message for real-time streaming
-                    self.chat_view.append_to_last_message(&token);
+                    // v0.8.1 FIX: ONLY update streaming_decrypt for Matrix effect
+                    // DON'T append to message directly - that causes double display
+                    // The message will be updated when streaming finishes
+                    self.chat_view.append_streaming(&token);
                     // Also update ChatOverlay if it has a pending message
                     if let Some(last) = self.state.chat_overlay.messages.last_mut() {
                         if last.content == "Thinking..." {
@@ -757,6 +759,16 @@ impl App {
                 StreamChunk::Done(_complete) => {
                     // Stream completed - finalize thinking and attach to last message
                     self.chat_view.finalize_thinking();
+                    // v0.8.1 FIX: Transfer partial_response to message when streaming finishes
+                    if self.chat_view.is_streaming {
+                        let final_response = self.chat_view.finish_streaming();
+                        // Replace placeholder with final streamed response
+                        if !final_response.is_empty() {
+                            if let Some(last) = self.chat_view.messages.last_mut() {
+                                last.content = final_response;
+                            }
+                        }
+                    }
                     tracing::debug!("Stream completed");
                 }
                 StreamChunk::Error(err) => {
@@ -765,6 +777,10 @@ impl App {
                         if last.content == "Thinking..." {
                             self.chat_view.messages.pop();
                         }
+                    }
+                    // v0.8.1 FIX: Ensure streaming is finished on error
+                    if self.chat_view.is_streaming {
+                        self.chat_view.finish_streaming();
                     }
                     self.chat_view.show_error(&err);
 
@@ -795,6 +811,85 @@ impl App {
                     self.chat_view.mark_mcp_server_error(&server_name);
                     self.state.dirty.status = true;
                     tracing::warn!(server = %server_name, error = %error, "MCP server connection failed");
+                }
+                // ═══════════════════════════════════════════════════════════════════════
+                // Chat Inline Box Events (v0.8.0 - wire widgets to chat commands)
+                // ═══════════════════════════════════════════════════════════════════════
+                StreamChunk::McpCallStart {
+                    tool,
+                    server,
+                    params,
+                } => {
+                    // Start inline MCP call visualization in ChatView
+                    self.chat_view.add_mcp_call(&tool, &server, &params);
+                    tracing::debug!(tool = %tool, server = %server, "MCP call started");
+                }
+                StreamChunk::McpCallComplete { result } => {
+                    // Complete inline MCP call visualization
+                    self.chat_view.complete_mcp_call(&result);
+                    tracing::debug!("MCP call completed");
+                }
+                StreamChunk::McpCallFailed { error } => {
+                    // Mark inline MCP call as failed
+                    self.chat_view.fail_mcp_call(&error);
+                    tracing::warn!(error = %error, "MCP call failed");
+                }
+                StreamChunk::InferStart {
+                    model,
+                    prompt_tokens,
+                    max_tokens,
+                } => {
+                    // Start inline inference visualization
+                    self.chat_view
+                        .start_infer_stream(&model, prompt_tokens, max_tokens);
+                    // v0.8.1 FIX: Also start streaming for Matrix Decrypt effect
+                    use crate::tui::widgets::DecryptVerb;
+                    self.chat_view.start_streaming_with_verb(DecryptVerb::Infer);
+                    tracing::debug!(model = %model, prompt_tokens, max_tokens, "Infer started");
+                }
+                StreamChunk::InferTokens { output_tokens } => {
+                    // Update inline inference token count (using append with empty chunk)
+                    self.chat_view.append_infer_content("", output_tokens);
+                }
+                StreamChunk::InferComplete => {
+                    // Complete inline inference visualization
+                    self.chat_view.complete_infer_stream();
+                    // v0.8.1 FIX: Transfer partial_response to message when streaming finishes
+                    let final_response = self.chat_view.finish_streaming();
+                    if !final_response.is_empty() {
+                        if let Some(last) = self.chat_view.messages.last_mut() {
+                            // Replace placeholder with final streamed response
+                            last.content = final_response;
+                        }
+                    }
+                    tracing::debug!("Infer completed");
+                }
+                // ═══════════════════════════════════════════════════════════════════════
+                // Activity Events for /exec, /fetch, /agent (v0.8.0)
+                // ═══════════════════════════════════════════════════════════════════════
+                StreamChunk::ExecStart { command } => {
+                    self.chat_view.add_exec_activity(&command);
+                    tracing::debug!(command = %command, "Exec started");
+                }
+                StreamChunk::ExecComplete => {
+                    self.chat_view.complete_exec_activity();
+                    tracing::debug!("Exec completed");
+                }
+                StreamChunk::FetchStart { url, method } => {
+                    self.chat_view.add_fetch_activity(&url, &method);
+                    tracing::debug!(url = %url, method = %method, "Fetch started");
+                }
+                StreamChunk::FetchComplete => {
+                    self.chat_view.complete_fetch_activity();
+                    tracing::debug!("Fetch completed");
+                }
+                StreamChunk::AgentStart { goal } => {
+                    self.chat_view.add_agent_activity(&goal);
+                    tracing::debug!(goal = %goal, "Agent started");
+                }
+                StreamChunk::AgentComplete => {
+                    self.chat_view.complete_agent_activity();
+                    tracing::debug!("Agent completed");
                 }
             }
         }
@@ -892,12 +987,34 @@ impl App {
             }
 
             // All views use unified layout with Header + Content + StatusBar
+            // v0.8 FIX: Extract read-only values BEFORE taking mutable references
+            // This allows render() to take &mut self for scroll state updates
+            let total_tokens = self.chat_view.total_tokens();
+            let provider = self.chat_view.provider();
+            let chat_status = self.chat_view.status_line(&self.state);
+            let home_status = self
+                .home_view
+                .as_ref()
+                .map(|hv| hv.status_line(&self.state))
+                .unwrap_or_default();
+            let studio_status = self.studio_view.status_line(&self.state);
+            let monitor_status = {
+                let task_count = self.state.tasks.len();
+                let completed = self
+                    .state
+                    .tasks
+                    .values()
+                    .filter(|t| t.status == super::theme::TaskStatus::Success)
+                    .count();
+                format!("Tasks: {}/{}", completed, task_count)
+            };
+
             // Extract references to avoid borrow issues with the closure
             let theme = &self.theme;
             let state = &self.state;
-            let chat_view = &self.chat_view;
-            let home_view = &self.home_view;
-            let studio_view = &self.studio_view;
+            let chat_view = &mut self.chat_view;
+            let home_view = &mut self.home_view;
+            let studio_view = &mut self.studio_view;
             let workflow_path = &self.state.workflow.path;
             // P0 Fix: Use is_paused() accessor for unified pause state
             let paused = self.state.is_paused();
@@ -911,27 +1028,13 @@ impl App {
                 .iter()
                 .filter(|entry| entry.value().get().is_some())
                 .count();
-            let total_tokens = chat_view.total_tokens();
-            // PERF: Use cached provider from ChatView (computed once when model changes)
-            let provider = chat_view.provider();
 
-            // Get custom status text from current view
+            // Get custom status text from current view (using pre-computed values)
             let status_text = match current_view {
-                TuiView::Chat => chat_view.status_line(state),
-                TuiView::Home => home_view
-                    .as_ref()
-                    .map(|hv| hv.status_line(state))
-                    .unwrap_or_default(),
-                TuiView::Studio => studio_view.status_line(state),
-                TuiView::Monitor => {
-                    let task_count = state.tasks.len();
-                    let completed = state
-                        .tasks
-                        .values()
-                        .filter(|t| t.status == super::theme::TaskStatus::Success)
-                        .count();
-                    format!("Tasks: {}/{}", completed, task_count)
-                }
+                TuiView::Chat => chat_status,
+                TuiView::Home => home_status,
+                TuiView::Studio => studio_status,
+                TuiView::Monitor => monitor_status,
             };
 
             terminal
@@ -975,7 +1078,7 @@ impl App {
                             chat_view.render(frame, chunks[1], state, theme);
                         }
                         TuiView::Home => {
-                            if let Some(ref hv) = home_view {
+                            if let Some(ref mut hv) = home_view {
                                 hv.render(frame, chunks[1], state, theme);
                             } else {
                                 // Fallback: show placeholder if no home view
@@ -1076,7 +1179,6 @@ impl App {
             // Tab/BackTab delegated to views for panel navigation (v0.8 UX)
             // Use number keys 1/2/3/4 to switch views
             // Views handle Tab internally for panel focus cycling
-
             _ => {}
         }
 
@@ -1275,6 +1377,10 @@ impl App {
                 Action::Continue
             }
             ViewAction::OpenSettings => Action::SetMode(TuiMode::Settings),
+            ViewAction::ToggleTheme => {
+                self.toggle_theme();
+                Action::Continue
+            }
         }
     }
 
@@ -1958,9 +2064,25 @@ impl App {
         // (llm_response_tx would cause duplicate messages)
         let stream_tx = self.stream_chunk_tx.clone();
 
+        // ═══════════════════════════════════════════════════════════════════════
+        // v0.8.0: Capture model for InferStart inline visualization
+        // ═══════════════════════════════════════════════════════════════════════
+        let model_name = self.chat_view.current_model.clone();
+        // Estimate prompt tokens (rough approximation: chars / 4)
+        let prompt_tokens = (prompt_with_context.len() / 4) as u32;
+        let max_tokens = 4096u32;
+
         // Check if agent exists or can be created
         if self.ensure_chat_agent().is_some() {
             self.spawn_tracked(async move {
+                // v0.8.0: Send InferStart for inline visualization
+                let _ = stream_tx
+                    .send(StreamChunk::InferStart {
+                        model: model_name,
+                        prompt_tokens,
+                        max_tokens,
+                    })
+                    .await;
                 // Create a new agent for the async task (ChatAgent is not Send)
                 // Wire streaming for real-time token display (Claude Code-like UX)
                 match ChatAgent::new() {
@@ -1987,12 +2109,16 @@ impl App {
                                     .await;
                             }
                         }
+                        // v0.8.0: Send InferComplete for inline visualization (success or error)
+                        let _ = stream_tx.send(StreamChunk::InferComplete).await;
                     }
                     Err(e) => {
                         // Agent creation failed - send error via streaming channel
                         let _ = stream_tx
                             .send(StreamChunk::Error(format!("Error creating agent: {}", e)))
                             .await;
+                        // v0.8.0: Send InferComplete even on agent creation failure
+                        let _ = stream_tx.send(StreamChunk::InferComplete).await;
                     }
                 }
             });
@@ -2023,7 +2149,14 @@ impl App {
 
         // Spawn tracked task for shell execution with timeout protection
         let tx = self.llm_response_tx.clone();
+        let status_tx = self.stream_chunk_tx.clone();
+        let cmd_clone = command.clone();
         self.spawn_tracked(async move {
+            // v0.8.0: Send ExecStart for activity tracking
+            let _ = status_tx
+                .send(StreamChunk::ExecStart { command: cmd_clone })
+                .await;
+
             match ChatAgent::new() {
                 Ok(agent) => match timeout(EXEC_TIMEOUT, agent.exec_command(&command)).await {
                     Ok(Ok(output)) => {
@@ -2045,6 +2178,9 @@ impl App {
                     let _ = tx.send(format!("Error: {}", e)).await;
                 }
             }
+
+            // v0.8.0: Send ExecComplete for activity tracking
+            let _ = status_tx.send(StreamChunk::ExecComplete).await;
         });
     }
 
@@ -2062,7 +2198,18 @@ impl App {
 
         // Spawn tracked task for HTTP request with timeout protection
         let tx = self.llm_response_tx.clone();
+        let status_tx = self.stream_chunk_tx.clone();
+        let url_clone = url.clone();
+        let method_clone = method.clone();
         self.spawn_tracked(async move {
+            // v0.8.0: Send FetchStart for activity tracking
+            let _ = status_tx
+                .send(StreamChunk::FetchStart {
+                    url: url_clone,
+                    method: method_clone,
+                })
+                .await;
+
             match ChatAgent::new() {
                 Ok(agent) => {
                     match timeout(FETCH_TIMEOUT, agent.fetch(&url, &method)).await {
@@ -2097,6 +2244,9 @@ impl App {
                     let _ = tx.send(format!("Error: {}", e)).await;
                 }
             }
+
+            // v0.8.0: Send FetchComplete for activity tracking
+            let _ = status_tx.send(StreamChunk::FetchComplete).await;
         });
     }
 
@@ -2228,6 +2378,16 @@ impl App {
                 }
             };
 
+            // ═══════════════════════════════════════════════════════════════════════
+            // v0.8.0: Send McpCallStart for inline visualization BEFORE the call
+            // ═══════════════════════════════════════════════════════════════════════
+            let params_str = serde_json::to_string(&params).unwrap_or_else(|_| "{}".to_string());
+            let _ = status_tx.send(StreamChunk::McpCallStart {
+                tool: tool_name.clone(),
+                server: server_name_clone.clone(),
+                params: params_str,
+            }).await;
+
             // Call the tool
             match client.call_tool(&tool_name, params).await {
                 Ok(result) => {
@@ -2252,14 +2412,29 @@ impl App {
                             status, server_name_clone, tool_name, display
                         ))
                         .await;
+
+                    // v0.8.0: Send McpCallComplete/Failed for inline visualization
+                    if result.is_error {
+                        let _ = status_tx.send(StreamChunk::McpCallFailed {
+                            error: display.clone(),
+                        }).await;
+                    } else {
+                        let _ = status_tx.send(StreamChunk::McpCallComplete {
+                            result: display.clone(),
+                        }).await;
+                    }
                 }
                 Err(e) => {
-                    let _ = tx
-                        .send(format!(
-                            "❌ {}:{} failed: {}",
-                            server_name_clone, tool_name, e
-                        ))
-                        .await;
+                    let error_msg = format!(
+                        "❌ {}:{} failed: {}",
+                        server_name_clone, tool_name, e
+                    );
+                    let _ = tx.send(error_msg.clone()).await;
+
+                    // v0.8.0: Send McpCallFailed for inline visualization
+                    let _ = status_tx.send(StreamChunk::McpCallFailed {
+                        error: e.to_string(),
+                    }).await;
                 }
             }
         });
@@ -2338,9 +2513,13 @@ impl App {
         // Clone channel senders for async task
         let response_tx = self.llm_response_tx.clone();
         let status_tx = self.stream_chunk_tx.clone();
+        let goal_clone = goal.clone();
 
         // Spawn tracked task to connect MCP servers and run the agent
         self.spawn_tracked(async move {
+            // v0.8.0: Send AgentStart for activity tracking
+            let _ = status_tx.send(StreamChunk::AgentStart { goal: goal_clone }).await;
+
             // Connect MCP servers lazily
             let mut mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
             for server_name in &mcp_server_names {
@@ -2453,6 +2632,9 @@ impl App {
                     let _ = response_tx.send(format!("❌ Agent failed: {}", e)).await;
                 }
             }
+
+            // v0.8.0: Send AgentComplete for activity tracking
+            let _ = status_tx.send(StreamChunk::AgentComplete).await;
         });
     }
 
@@ -3697,11 +3879,7 @@ mod tests {
 
         // Tab should be routed to view (returns Continue, not SwitchView)
         let action = app.handle_unified_key(KeyCode::Tab, KeyModifiers::empty());
-        assert_ne!(
-            action,
-            Action::Quit,
-            "Tab should not quit"
-        );
+        assert_ne!(action, Action::Quit, "Tab should not quit");
         // Tab is handled by view, not app-level view switching
         assert!(
             !matches!(action, Action::SwitchView(_)),

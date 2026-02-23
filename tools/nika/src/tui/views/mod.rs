@@ -266,6 +266,8 @@ pub enum ViewAction {
     ChatClear,
     /// Open Settings view
     OpenSettings,
+    /// Toggle theme (v0.8.1)
+    ToggleTheme,
 }
 
 #[cfg(test)]

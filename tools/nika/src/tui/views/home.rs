@@ -910,7 +910,7 @@ impl HomeView {
 }
 
 impl View for HomeView {
-    fn render(&self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
+    fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
         // Show welcome screen when no files or explicitly requested
         if self.show_welcome || self.standalone.browser_entries.is_empty() {
             // Layout: Welcome (60%) | Tips (40%) above, History bar below
@@ -1007,6 +1007,8 @@ impl View for HomeView {
             KeyCode::Char('q') => ViewAction::Quit,
             // 's' opens Settings view
             KeyCode::Char('s') => ViewAction::OpenSettings,
+            // Shift+T toggles theme (v0.8.1 - consistent across all views)
+            KeyCode::Char('T') => ViewAction::ToggleTheme,
 
             // Start search with / or Ctrl+P
             KeyCode::Char('/') => {

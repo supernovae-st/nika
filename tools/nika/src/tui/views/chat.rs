@@ -2071,18 +2071,17 @@ impl View for ChatView {
         }
 
         match key.code {
-            // v0.8.1: Ctrl+j/k scroll conversation while typing (NovaNet pattern)
+            // NOTE: Ctrl+K is handled earlier for Command Palette (line ~1901)
+            // Ctrl+J scrolls down (vi-like) - doesn't conflict with anything
             KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.scroll_down();
-                ViewAction::None
-            }
-            KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.scroll_up();
                 ViewAction::None
             }
             KeyCode::Char('q') if self.input.value().is_empty() => ViewAction::Quit,
             // 's' when empty opens Settings view (consistent with other views)
             KeyCode::Char('s') if self.input.value().is_empty() => ViewAction::OpenSettings,
+            // Shift+T toggles theme (v0.8.1 - consistent with app.rs)
+            KeyCode::Char('T') => ViewAction::ToggleTheme,
             // "/" at start of empty input triggers command palette with verbs
             KeyCode::Char('/') if self.input.value().is_empty() => {
                 self.toggle_command_palette();
@@ -2417,10 +2416,18 @@ impl ChatView {
     }
 
     fn render_messages(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let msg_count = self.messages.len();
         let mut items: Vec<ListItem> = self
             .messages
             .iter()
-            .flat_map(|msg| {
+            .enumerate()
+            .flat_map(|(idx, msg)| {
+                // v0.8.1 FIX: Skip "Thinking..." placeholder during streaming
+                let is_last = idx == msg_count.saturating_sub(1);
+                if self.is_streaming && is_last && msg.content == "Thinking..." {
+                    return vec![];
+                }
+
                 // Color-coded message bubbles based on role
                 let (prefix, color) = match msg.role {
                     // User: Cyan color
@@ -2720,6 +2727,13 @@ impl ChatView {
             .iter()
             .enumerate()
             .flat_map(|(idx, msg)| {
+                // v0.8.1 FIX: Skip "Thinking..." placeholder during streaming
+                // The streaming section shows the Matrix Decrypt effect instead
+                let is_last_message = idx == self.messages.len().saturating_sub(1);
+                if self.is_streaming && is_last_message && msg.content == "Thinking..." {
+                    return vec![]; // Don't render placeholder during streaming
+                }
+
                 // v0.8 WOW: Check if this message has the flash effect
                 let is_flashing = self.copy_flash_index == Some(idx);
 
@@ -3113,9 +3127,9 @@ impl ChatView {
         // Uses Solarized-inspired colors from theme for consistent look
         if total_items > visible_count {
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                .begin_symbol(Some("▲"))  // Nicer Unicode arrow
-                .end_symbol(Some("▼"))    // Nicer Unicode arrow
-                .track_symbol(Some("┃"))  // Bold vertical line
+                .begin_symbol(Some("▲")) // Nicer Unicode arrow
+                .end_symbol(Some("▼")) // Nicer Unicode arrow
+                .track_symbol(Some("┃")) // Bold vertical line
                 .thumb_symbol("█")
                 // v0.8.1: Solarized styled colors
                 .style(Style::default().fg(theme.scrollbar_thumb))

@@ -442,7 +442,7 @@ impl Default for StudioView {
 }
 
 impl View for StudioView {
-    fn render(&self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
+    fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
         // Layout: Editor (70%) | Structure (30%) above, Validation bar below
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -501,6 +501,8 @@ impl StudioView {
             }
             // 's' opens Settings view
             KeyCode::Char('s') => ViewAction::OpenSettings,
+            // Shift+T toggles theme (v0.8.1 - consistent across all views)
+            KeyCode::Char('T') => ViewAction::ToggleTheme,
             KeyCode::Char('i') => {
                 self.mode = EditorMode::Insert;
                 ViewAction::None
