@@ -1567,7 +1567,7 @@ impl ChatView {
             .iter()
             .flat_map(|msg| {
                 // Color-coded message bubbles based on role
-                let (prefix, color) = match msg.role {
+                let (_prefix, color) = match msg.role {
                     MessageRole::User => ("👤 You", theme.trait_retrieved),
                     MessageRole::Nika => ("🤖 AI", theme.status_success),
                     MessageRole::System => ("💡 System", theme.status_running),

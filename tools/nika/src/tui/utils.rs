@@ -86,6 +86,7 @@ pub fn truncate_str(s: &str, max_chars: usize) -> String {
 /// Safely truncate a string to a maximum width, without adding suffix
 ///
 /// Useful when you just want to cut content without indicating truncation.
+#[allow(dead_code)]
 pub fn truncate_str_no_suffix(s: &str, max_chars: usize) -> String {
     s.chars().take(max_chars).collect()
 }
