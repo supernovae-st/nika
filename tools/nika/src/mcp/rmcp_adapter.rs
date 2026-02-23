@@ -409,9 +409,15 @@ impl RmcpClientAdapter {
                 if let Some(desc) = &t.description {
                     tool = tool.with_description(desc.as_ref());
                 }
-                if let Some(schema) = t.input_schema.get("properties") {
-                    tool = tool.with_input_schema(schema.clone());
+                // Convert Arc<Map> to Value and ensure "type": "object" for Claude API
+                // Claude requires the root schema to have a "type" field
+                let mut schema_map: serde_json::Map<String, serde_json::Value> =
+                    (*t.input_schema).clone();
+                // Ensure "type": "object" is present (required by Claude API)
+                if !schema_map.contains_key("type") {
+                    schema_map.insert("type".to_string(), serde_json::json!("object"));
                 }
+                tool = tool.with_input_schema(serde_json::Value::Object(schema_map));
                 tool
             })
             .collect();

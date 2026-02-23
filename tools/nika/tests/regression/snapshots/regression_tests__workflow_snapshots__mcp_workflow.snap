@@ -1,0 +1,8 @@
+---
+source: tests/regression/workflow_snapshots.rs
+expression: "json!({\n    \"has_mcp\": workflow.mcp.is_some(), \"mcp_servers\":\n    workflow.mcp.as_ref().map(|m|\n    m.keys().collect::<Vec<_>>()).unwrap_or_default(), \"task_count\":\n    workflow.tasks.len()\n})"
+---
+has_mcp: true
+mcp_servers:
+  - novanet
+task_count: 1

@@ -5,7 +5,7 @@
 #
 # COMPLEXITY: Uses agent: verb for autonomous tool calling
 #
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.5"
 provider: claude
 
 mcp:

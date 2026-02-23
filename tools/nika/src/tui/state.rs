@@ -283,6 +283,102 @@ impl PanelScrollState {
     pub fn at_bottom(&self) -> bool {
         self.total <= self.visible || self.offset >= self.total - self.visible
     }
+
+    /// Compact scroll indicator for panel titles
+    ///
+    /// Returns `None` if content fits in viewport (no scroll needed).
+    /// Format: `" ↕ [3/15] "` with directional arrow:
+    /// - `↓` at top (can scroll down)
+    /// - `↑` at bottom (can scroll up)
+    /// - `↕` in middle (can scroll both ways)
+    pub fn indicator(&self) -> Option<String> {
+        if self.total <= self.visible {
+            return None;
+        }
+
+        let arrow = if self.at_top() {
+            "↓"
+        } else if self.at_bottom() {
+            "↑"
+        } else {
+            "↕"
+        };
+
+        // Current page (1-indexed) and total pages
+        let max_scroll = self.total.saturating_sub(self.visible);
+        let current = self.offset + 1;
+        let total = max_scroll + 1;
+
+        Some(format!(" {} [{}/{}]", arrow, current, total))
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ChatPanel - Focus management for Chat View (v0.8 UX Enhancement)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Panel identifiers for Chat View focus management
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ChatPanel {
+    /// Conversation history panel (left main area)
+    #[default]
+    Conversation,
+    /// Activity stack panel (right sidebar)
+    Activity,
+    /// Input field (bottom)
+    Input,
+}
+
+impl ChatPanel {
+    /// Get all panels in order for Tab cycling
+    pub fn all() -> &'static [ChatPanel] {
+        &[
+            ChatPanel::Conversation,
+            ChatPanel::Activity,
+            ChatPanel::Input,
+        ]
+    }
+
+    /// Get next panel (Tab key)
+    pub fn next(self) -> ChatPanel {
+        match self {
+            ChatPanel::Conversation => ChatPanel::Activity,
+            ChatPanel::Activity => ChatPanel::Input,
+            ChatPanel::Input => ChatPanel::Conversation,
+        }
+    }
+
+    /// Get previous panel (Shift+Tab)
+    pub fn prev(self) -> ChatPanel {
+        match self {
+            ChatPanel::Conversation => ChatPanel::Input,
+            ChatPanel::Activity => ChatPanel::Conversation,
+            ChatPanel::Input => ChatPanel::Activity,
+        }
+    }
+
+    /// Panel title for display
+    pub fn title(&self) -> &'static str {
+        match self {
+            ChatPanel::Conversation => "CONVERSATION",
+            ChatPanel::Activity => "ACTIVITY STACK",
+            ChatPanel::Input => "INPUT",
+        }
+    }
+
+    /// Panel icon
+    pub fn icon(&self) -> &'static str {
+        match self {
+            ChatPanel::Conversation => "💬",
+            ChatPanel::Activity => "🎯",
+            ChatPanel::Input => "✏️",
+        }
+    }
+
+    /// Check if this panel supports scrolling
+    pub fn is_scrollable(&self) -> bool {
+        matches!(self, ChatPanel::Conversation | ChatPanel::Activity)
+    }
 }
 
 /// TUI interaction mode
@@ -1841,7 +1937,7 @@ impl TuiState {
                     }
                 }
                 let _ = turns; // Used for logging
-                               // TIER 4.1: Mark reasoning panel dirty
+                // TIER 4.1: Mark reasoning panel dirty
                 self.dirty.reasoning = true;
             }
 

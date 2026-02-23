@@ -34,7 +34,6 @@ tasks:
       tool: novanet_describe
       params:
         entity: "qr-code-generator"
-    use.entity: entity_info
 
   # Step 2: Generate locale-specific content in parallel
   - id: generate_locales
@@ -45,10 +44,9 @@ tasks:
       mcp: novanet
       tool: novanet_generate
       params:
-        entity: "qr-code-generator"
+        focus_key: "entity:qr-code-generator"
         locale: "{{use.locale}}"
-        forms: ["text", "title", "description", "url"]
-    use.content: locale_content
+        mode: block
 
   # Step 3: Generate hero section for French (primary locale)
   - id: generate_hero_fr

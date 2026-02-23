@@ -1,0 +1,197 @@
+# Collaborative Story Generator 📚✨
+# Multi-agent story creation with different "character" perspectives
+#
+# Usage:
+#   GENRE="sci-fi" SETTING="space station" nika examples/public/story-collab.nika.yaml
+#
+# Pattern: Agent loop with spawn_agent
+# Showcases: agent: verb, spawn_agent tool, multi-turn creative generation
+
+schema: "nika/workflow@0.5"
+workflow: story-collab
+description: "Multi-agent collaborative story creation"
+provider: claude
+
+tasks:
+  # Step 1: Get story parameters
+  - id: get_genre
+    exec: "echo \"${GENRE:-fantasy}\""
+
+  - id: get_setting
+    exec: "echo \"${SETTING:-enchanted forest}\""
+
+  # Step 2: Create story outline with main agent
+  - id: story_master
+    use:
+      genre: get_genre
+      setting: get_setting
+    agent:
+      prompt: |
+        You are a Story Master orchestrating a collaborative story.
+
+        GENRE: {{use.genre}}
+        SETTING: {{use.setting}}
+
+        Your job:
+        1. Create a compelling story premise (2-3 sentences)
+        2. Define 3 unique characters with distinct voices
+        3. Set up the opening scene
+
+        Output a story bible with:
+        - Title
+        - Premise
+        - Characters (name, role, personality, speech style)
+        - Opening scene setup
+        - Central conflict
+
+        Be creative and engaging!
+      max_turns: 3
+
+  # Step 3: Write Act 1 - Setup (parallel character perspectives)
+  - id: act1_perspectives
+    for_each: ["protagonist", "ally", "mysterious_stranger"]
+    as: character
+    concurrency: 3
+    use:
+      bible: story_master
+    infer:
+      prompt: |
+        You are writing from the perspective of the {{use.character}}.
+
+        STORY BIBLE:
+        {{use.bible}}
+
+        Write a short scene (100-150 words) from this character's POV.
+        Show their personality through:
+        - Internal thoughts
+        - Dialogue style
+        - Actions and reactions
+
+        Start with: "From {{use.character}}'s perspective..."
+
+  # Step 4: Weave perspectives into Act 1
+  - id: weave_act1
+    use:
+      bible: story_master
+      perspectives: act1_perspectives
+    infer:
+      prompt: |
+        You are an editor weaving multiple perspectives into a cohesive narrative.
+
+        STORY BIBLE:
+        {{use.bible}}
+
+        CHARACTER PERSPECTIVES:
+        {{use.perspectives}}
+
+        Weave these into Act 1 (300-400 words):
+        - Smooth transitions between POVs
+        - Building tension
+        - Ending with a hook
+
+        Format as narrative prose, not screenplay.
+
+  # Step 5: Generate plot twist with agent
+  - id: twist_agent
+    use:
+      bible: story_master
+      act1: weave_act1
+    agent:
+      prompt: |
+        You are a Plot Twist Specialist.
+
+        STORY SO FAR:
+        {{use.bible}}
+
+        ACT 1:
+        {{use.act1}}
+
+        Generate a surprising but logical plot twist that:
+        1. Recontextualizes something from Act 1
+        2. Raises the stakes
+        3. Reveals something about a character
+
+        Then write Act 2 (200-300 words) incorporating this twist.
+      max_turns: 2
+
+  # Step 6: Write climax
+  - id: climax
+    use:
+      bible: story_master
+      act1: weave_act1
+      act2: twist_agent
+    infer:
+      prompt: |
+        Write the climactic Act 3 (200-300 words).
+
+        STORY BIBLE: {{use.bible}}
+        ACT 1: {{use.act1}}
+        ACT 2: {{use.act2}}
+
+        The climax should:
+        - Resolve the central conflict
+        - Show character growth
+        - Have emotional payoff
+        - End with a memorable final line
+
+  # Step 7: Assemble final story
+  - id: assemble
+    use:
+      genre: get_genre
+      setting: get_setting
+      bible: story_master
+      act1: weave_act1
+      act2: twist_agent
+      act3: climax
+    exec: |
+      cat > /tmp/story.md << 'STORY_EOF'
+      # {{use.genre}} Story in {{use.setting}}
+
+      ---
+
+      ## Story Bible
+      {{use.bible}}
+
+      ---
+
+      ## Act 1: The Setup
+      {{use.act1}}
+
+      ---
+
+      ## Act 2: The Twist
+      {{use.act2}}
+
+      ---
+
+      ## Act 3: The Climax
+      {{use.act3}}
+
+      ---
+
+      *Generated collaboratively by multiple AI agents 🤖✨*
+      STORY_EOF
+
+      echo "📚 Story generated!"
+      echo ""
+      head -50 /tmp/story.md
+      echo ""
+      echo "..."
+      echo "📄 Full story saved to /tmp/story.md"
+      wc -w /tmp/story.md | awk '{print "📊 Word count: " $1}'
+
+flows:
+  - source: get_genre
+    target: story_master
+  - source: get_setting
+    target: story_master
+  - source: story_master
+    target: act1_perspectives
+  - source: act1_perspectives
+    target: weave_act1
+  - source: weave_act1
+    target: twist_agent
+  - source: twist_agent
+    target: climax
+  - source: climax
+    target: assemble

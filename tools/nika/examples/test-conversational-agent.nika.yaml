@@ -20,7 +20,6 @@ tasks:
 
         Respond with just the answer.
       max_turns: 1
-    use.answer: simple_result
 
   # ============================================================================
   # TEST: Multi-turn Conversation
@@ -40,7 +39,6 @@ tasks:
         Now, what is that result multiplied by 3?
         Respond with just the number.
       max_turns: 2
-    use.answer: multi_result
 
   # ============================================================================
   # TEST: Agent with Depth Limit (spawn_agent)
@@ -64,7 +62,6 @@ tasks:
         Then report the final answer.
       depth_limit: 2
       max_turns: 5
-    use.answer: orchestrator_result
 
   # ============================================================================
   # TEST: Agent with Context Data (via prompt)
@@ -82,7 +79,6 @@ tasks:
 
         Summarize this entity in one sentence.
       max_turns: 1
-    use.summary: entity_summary
 
 # Explicit DAG flows for use: binding validation
 flows:

@@ -1,0 +1,160 @@
+# Fortune Teller 🔮✨
+# Get your daily fortune with cosmic wisdom
+#
+# Usage:
+#   nika examples/public/fortune-teller.nika.yaml
+#   SIGN="scorpio" nika examples/public/fortune-teller.nika.yaml
+#   NAME="Thibaut" BIRTH_MONTH="march" nika examples/public/fortune-teller.nika.yaml
+#
+# Pattern: Simple linear with creative generation
+# Showcases: Entertainment generation, personality, ASCII art
+
+schema: "nika/workflow@0.5"
+workflow: fortune-teller
+description: "AI fortune teller with cosmic wisdom"
+provider: claude
+
+tasks:
+  # Step 1: Get user info
+  - id: get_name
+    exec: "echo \"${NAME:-Seeker}\""
+
+  - id: get_sign
+    exec: "echo \"${SIGN:-random}\""
+
+  - id: get_date
+    exec: "date '+%Y-%m-%d'"
+
+  - id: get_seed
+    exec: "echo $RANDOM"
+
+  # Step 2: Generate cosmic reading
+  - id: cosmic_reading
+    use:
+      name: get_name
+      sign: get_sign
+      date: get_date
+      seed: get_seed
+    infer:
+      prompt: |
+        You are Madame Astra, a mystical fortune teller with cosmic wisdom and theatrical flair.
+        Use randomness seed {{use.seed}} to vary your predictions.
+
+        SEEKER: {{use.name}}
+        SIGN: {{use.sign}} (if "random", pick one that feels right)
+        DATE: {{use.date}}
+
+        Generate a fortune reading with:
+
+        1. **Daily Horoscope** - 2-3 mystical sentences about today
+        2. **Lucky Elements** - Number, Color, Time of day
+        3. **Cosmic Warning** - Something playful to avoid
+        4. **Opportunity Ahead** - Something positive coming
+        5. **Mystical Advice** - Cryptic but actually useful wisdom
+        6. **Power Word** - A word to meditate on
+
+        Output JSON:
+        {
+          "seeker_name": "{{use.name}}",
+          "zodiac_sign": "<sign>",
+          "sign_symbol": "♈/♉/♊/etc",
+          "daily_horoscope": "Mystical reading...",
+          "lucky_number": 7,
+          "lucky_color": "cosmic purple",
+          "power_hour": "3:33 PM",
+          "cosmic_warning": "Avoid...",
+          "opportunity": "Look for...",
+          "mystical_advice": "Cryptic wisdom...",
+          "power_word": "TRANSFORM",
+          "overall_energy": "⭐⭐⭐⭐☆",
+          "fortune_cookie": "Short fortune cookie style message"
+        }
+
+        Be theatrical, mystical, but also genuinely uplifting!
+    output:
+      format: json
+
+  # Step 3: Generate ASCII art card
+  - id: format_fortune
+    use:
+      reading: cosmic_reading
+      date: get_date
+    infer:
+      prompt: |
+        Create a beautiful mystical fortune card from this reading:
+
+        {{use.reading}}
+
+        Format as ASCII art:
+
+        ```
+        ╔══════════════════════════════════════════════════════════════════╗
+        ║                                                                  ║
+        ║    🔮 MADAME ASTRA'S COSMIC READING 🔮                          ║
+        ║                                                                  ║
+        ╠══════════════════════════════════════════════════════════════════╣
+        ║                                                                  ║
+        ║    Dear [Name], [Sign Symbol] [Sign]                            ║
+        ║    {{date}}                                                      ║
+        ║                                                                  ║
+        ║    ════════════════════════════════════════                      ║
+        ║    ✨ THE STARS SPEAK ✨                                         ║
+        ║    ════════════════════════════════════════                      ║
+        ║                                                                  ║
+        ║    [Daily horoscope text wrapped nicely]                        ║
+        ║                                                                  ║
+        ║    ┌─────────────────────────────────────────┐                  ║
+        ║    │ 🔢 Lucky Number: X                      │                  ║
+        ║    │ 🎨 Lucky Color:  Color                  │                  ║
+        ║    │ ⏰ Power Hour:   X:XX                   │                  ║
+        ║    └─────────────────────────────────────────┘                  ║
+        ║                                                                  ║
+        ║    ⚠️  COSMIC WARNING                                           ║
+        ║    [Warning text]                                               ║
+        ║                                                                  ║
+        ║    🌟 OPPORTUNITY AHEAD                                         ║
+        ║    [Opportunity text]                                           ║
+        ║                                                                  ║
+        ║    💫 MYSTICAL ADVICE                                           ║
+        ║    "[Cryptic advice in quotes]"                                ║
+        ║                                                                  ║
+        ║    ════════════════════════════════════════                      ║
+        ║    🗝️ POWER WORD: [WORD]                                        ║
+        ║    ════════════════════════════════════════                      ║
+        ║                                                                  ║
+        ║    Overall Energy: ⭐⭐⭐⭐☆                                    ║
+        ║                                                                  ║
+        ║    ┌─────────────────────────────────────────┐                  ║
+        ║    │ 🥠 "[Fortune cookie message]"           │                  ║
+        ║    └─────────────────────────────────────────┘                  ║
+        ║                                                                  ║
+        ╚══════════════════════════════════════════════════════════════════╝
+        ```
+
+        Make it mystical and visually stunning!
+
+  # Step 4: Display
+  - id: display
+    use:
+      fortune: format_fortune
+    exec: |
+      clear 2>/dev/null || true
+      echo ""
+      echo "{{use.fortune}}"
+      echo ""
+      echo "✨ May the cosmos guide your path ✨"
+      echo ""
+
+flows:
+  - source: get_name
+    target: cosmic_reading
+  - source: get_sign
+    target: cosmic_reading
+  - source: get_date
+    target: cosmic_reading
+  - source: get_seed
+    target: cosmic_reading
+  - source: cosmic_reading
+    target: format_fortune
+  - source: format_fortune
+    target: display

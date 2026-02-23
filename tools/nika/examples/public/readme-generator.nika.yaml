@@ -1,0 +1,152 @@
+# README Generator
+# Generate a comprehensive README from codebase analysis
+#
+# Usage:
+#   nika examples/public/readme-generator.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY or OPENAI_API_KEY
+#   - Run from project root
+
+schema: "nika/workflow@0.5"
+workflow: readme-generator
+description: "Generate README.md from codebase structure"
+provider: claude
+
+tasks:
+  # Step 1: Analyze project structure
+  - id: get_structure
+    exec: |
+      echo "=== Project Structure ==="
+      find . -type f -name "*.json" -o -name "*.toml" -o -name "*.yaml" | grep -E "(package|Cargo|pyproject)" | head -5
+      echo ""
+      echo "=== Directory Tree ==="
+      find . -type d -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/target/*" | head -20
+
+  # Step 2: Get package info
+  - id: get_package
+    exec: |
+      if [ -f "package.json" ]; then
+        cat package.json | head -30
+      elif [ -f "Cargo.toml" ]; then
+        cat Cargo.toml | head -30
+      elif [ -f "pyproject.toml" ]; then
+        cat pyproject.toml | head -30
+      else
+        echo "No package file found"
+      fi
+
+  # Step 3: Get existing docs
+  - id: get_docs
+    exec: |
+      if [ -f "README.md" ]; then
+        echo "=== Existing README (first 50 lines) ==="
+        head -50 README.md
+      fi
+      if [ -d "docs" ]; then
+        echo "=== Docs directory ==="
+        ls -la docs/ 2>/dev/null | head -10
+      fi
+
+  # Step 4: Detect tech stack
+  - id: detect_stack
+    exec: |
+      echo "=== Tech Stack Detection ==="
+      [ -f "package.json" ] && echo "- Node.js/JavaScript"
+      [ -f "Cargo.toml" ] && echo "- Rust"
+      [ -f "pyproject.toml" ] && echo "- Python"
+      [ -f "go.mod" ] && echo "- Go"
+      [ -f "tsconfig.json" ] && echo "- TypeScript"
+      [ -f "docker-compose.yml" ] && echo "- Docker"
+      [ -f ".github/workflows" ] && echo "- GitHub Actions"
+
+  # Step 5: Generate README
+  - id: generate_readme
+    use:
+      structure: get_structure
+      package: get_package
+      docs: get_docs
+      stack: detect_stack
+    infer:
+      prompt: |
+        Generate a professional README.md for this project.
+
+        PROJECT STRUCTURE:
+        {{use.structure}}
+
+        PACKAGE CONFIG:
+        {{use.package}}
+
+        EXISTING DOCS:
+        {{use.docs}}
+
+        TECH STACK:
+        {{use.stack}}
+
+        Generate a complete README with:
+
+        # Project Name
+
+        [One-line description]
+
+        ## Features
+
+        - [Key feature 1]
+        - [Key feature 2]
+
+        ## Installation
+
+        ```bash
+        [Installation commands]
+        ```
+
+        ## Quick Start
+
+        ```bash
+        [Getting started commands]
+        ```
+
+        ## Usage
+
+        [Basic usage examples]
+
+        ## Documentation
+
+        [Link to docs if exists]
+
+        ## Contributing
+
+        [Brief contribution guide]
+
+        ## License
+
+        [License info]
+
+        Rules:
+        - Infer project name from package config
+        - Use actual commands from package.json/Cargo.toml
+        - Be concise but comprehensive
+        - Include badges if CI detected
+
+  # Step 6: Save
+  - id: save
+    use:
+      readme: generate_readme
+    exec: |
+      echo "{{use.readme}}" > /tmp/README-generated.md
+      echo "✅ README generated at /tmp/README-generated.md"
+      echo ""
+      echo "Preview (first 30 lines):"
+      head -30 /tmp/README-generated.md
+
+flows:
+  - source: get_structure
+    target: generate_readme
+  - source: get_package
+    target: generate_readme
+  - source: get_docs
+    target: generate_readme
+  - source: detect_stack
+    target: generate_readme
+  - source: generate_readme
+    target: save

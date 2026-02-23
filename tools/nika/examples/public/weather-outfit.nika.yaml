@@ -1,0 +1,119 @@
+# Weather Outfit Suggester 🌤️👔
+# Get weather forecast and suggest outfit for the day
+#
+# Usage:
+#   CITY="Paris" nika examples/public/weather-outfit.nika.yaml
+#
+# Pattern: Linear DAG (A → B → C → D)
+# Showcases: fetch: verb, data transformation, creative generation
+
+schema: "nika/workflow@0.5"
+workflow: weather-outfit
+description: "Get weather and suggest perfect outfit for the day"
+provider: claude
+
+tasks:
+  # Step 1: Get city from env or default
+  - id: get_city
+    exec: "echo \"${CITY:-Paris}\""
+
+  # Step 2: Fetch weather data (using wttr.in - no API key needed!)
+  - id: fetch_weather
+    use:
+      city: get_city
+    fetch:
+      url: "https://wttr.in/{{use.city}}?format=j1"
+      method: GET
+    output:
+      format: json
+
+  # Step 3: Parse weather conditions
+  - id: parse_weather
+    use:
+      weather: fetch_weather
+      city: get_city
+    infer:
+      prompt: |
+        Extract key weather info from this data:
+
+        {{use.weather}}
+
+        Output JSON:
+        {
+          "city": "{{use.city}}",
+          "temperature_c": <number>,
+          "feels_like_c": <number>,
+          "condition": "<sunny/cloudy/rainy/snowy/etc>",
+          "humidity": <percent>,
+          "wind_kmh": <number>,
+          "uv_index": <number>,
+          "summary": "<one sentence description>"
+        }
+    output:
+      format: json
+
+  # Step 4: Generate outfit suggestion
+  - id: suggest_outfit
+    use:
+      weather: parse_weather
+    infer:
+      prompt: |
+        You are a stylish fashion advisor. Based on today's weather, suggest the perfect outfit.
+
+        WEATHER CONDITIONS:
+        - City: {{use.weather.city}}
+        - Temperature: {{use.weather.temperature_c}}°C (feels like {{use.weather.feels_like_c}}°C)
+        - Condition: {{use.weather.condition}}
+        - Humidity: {{use.weather.humidity}}%
+        - Wind: {{use.weather.wind_kmh}} km/h
+        - UV Index: {{use.weather.uv_index}}
+
+        Generate a fun, practical outfit suggestion with:
+
+        ## 🌤️ Weather in {{use.weather.city}}
+        {{use.weather.summary}}
+
+        ## 👕 Today's Outfit
+
+        ### Top
+        [Specific item + why]
+
+        ### Bottom
+        [Specific item + why]
+
+        ### Footwear
+        [Specific item + why]
+
+        ### Accessories
+        - [Item 1]
+        - [Item 2]
+
+        ### 💡 Pro Tips
+        - [Weather-specific advice]
+        - [Style tip]
+
+        ### 🎨 Color Palette
+        [Suggested colors that work together]
+
+        Be fun, practical, and specific!
+
+  # Step 5: Display
+  - id: display
+    use:
+      outfit: suggest_outfit
+      weather: parse_weather
+    exec: |
+      echo "{{use.outfit}}"
+      echo ""
+      echo "---"
+      echo "🌡️ Current: {{use.weather.temperature_c}}°C | {{use.weather.condition}}"
+
+flows:
+  - source: get_city
+    target: fetch_weather
+  - source: fetch_weather
+    target: parse_weather
+  - source: parse_weather
+    target: suggest_outfit
+  - source: suggest_outfit
+    target: display

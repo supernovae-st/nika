@@ -291,7 +291,9 @@ impl<'a> DagAscii<'a> {
 
         // SAFETY: Clamp footer_text length to u16::MAX before cast to prevent truncation
         let footer_len = footer_text.len().min(u16::MAX as usize) as u16;
-        if footer_y >= area.y && footer_x.saturating_add(footer_len) <= area.x.saturating_add(area.width) {
+        if footer_y >= area.y
+            && footer_x.saturating_add(footer_len) <= area.x.saturating_add(area.width)
+        {
             buf.set_string(
                 footer_x,
                 footer_y,

@@ -19,7 +19,7 @@
 # - Context binding across validation rounds
 # - Structured output with metadata
 #
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.5"
 provider: claude
 
 mcp:

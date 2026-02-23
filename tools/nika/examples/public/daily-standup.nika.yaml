@@ -1,0 +1,101 @@
+# Daily Standup Generator
+# Generate standup notes from git activity and Linear issues
+#
+# Usage:
+#   nika examples/public/daily-standup.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY or OPENAI_API_KEY
+#   - LINEAR_API_KEY (optional, for issue context)
+#   - Git repository
+
+schema: "nika/workflow@0.5"
+workflow: daily-standup
+description: "Generate daily standup from git and task activity"
+provider: claude
+
+mcp:
+  linear:
+    command: npx
+    args: ["-y", "@anthropic/linear-mcp"]
+    env:
+      LINEAR_API_KEY: "${LINEAR_API_KEY}"
+
+tasks:
+  # Step 1: Get yesterday's commits
+  - id: get_commits
+    exec: |
+      echo "=== Commits (last 24h) ==="
+      git log --since="24 hours ago" --author="$(git config user.email)" --pretty=format:"%h %s" --no-merges 2>/dev/null || echo "No commits"
+
+  # Step 2: Get current branch work
+  - id: get_branch
+    exec: |
+      echo "Branch: $(git branch --show-current)"
+      echo "Status:"
+      git status --short 2>/dev/null | head -10
+
+  # Step 3: Get Linear issues (if available)
+  - id: get_issues
+    invoke:
+      mcp: linear
+      tool: list_issues
+      params:
+        assignee: "me"
+        state: "started"
+        limit: 10
+
+  # Step 4: Generate standup
+  - id: generate_standup
+    use:
+      commits: get_commits
+      branch: get_branch
+      issues: get_issues
+    infer:
+      prompt: |
+        Generate a concise daily standup update.
+
+        GIT ACTIVITY:
+        {{use.commits}}
+
+        CURRENT WORK:
+        {{use.branch}}
+
+        ACTIVE ISSUES:
+        {{use.issues}}
+
+        Format:
+
+        ## 🌅 Daily Standup - [Date]
+
+        ### ✅ Yesterday
+        - [What was completed, based on commits]
+
+        ### 🎯 Today
+        - [What's planned, based on active issues/branch]
+
+        ### 🚧 Blockers
+        - [Any blockers, or "None"]
+
+        Keep it concise (3-5 bullets per section max).
+        Focus on outcomes, not activities.
+
+  # Step 5: Output
+  - id: output
+    use:
+      standup: generate_standup
+    exec: |
+      echo "{{use.standup}}"
+      echo ""
+      echo "---"
+      echo "📋 Ready to paste in Slack/Linear/Discord"
+
+flows:
+  - source: get_commits
+    target: generate_standup
+  - source: get_branch
+    target: generate_standup
+  - source: get_issues
+    target: generate_standup
+  - source: generate_standup
+    target: output

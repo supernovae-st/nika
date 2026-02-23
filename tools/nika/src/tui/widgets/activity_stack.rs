@@ -22,6 +22,7 @@ const DEFAULT_HOT_COLOR: Color = Color::Rgb(251, 146, 60); // orange
 const DEFAULT_WARM_COLOR: Color = Color::Rgb(250, 204, 21); // yellow
 const DEFAULT_QUEUED_COLOR: Color = Color::Rgb(156, 163, 175); // gray
 const DEFAULT_BORDER_COLOR: Color = Color::Rgb(75, 85, 99); // gray
+const DEFAULT_HIGHLIGHT_COLOR: Color = Color::Rgb(139, 92, 246); // violet (focused)
 const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
 const DEFAULT_MUTED_COLOR: Color = Color::Rgb(107, 114, 128); // gray
 const DEFAULT_VIOLET_COLOR: Color = Color::Rgb(139, 92, 246); // violet
@@ -146,15 +147,36 @@ impl ActivityItem {
 pub struct ActivityStack<'a> {
     items: &'a [ActivityItem],
     frame: u8,
+    /// v0.8 UX: Whether this panel is focused
+    focused: bool,
+    /// v0.8 UX: Highlight color for focused state
+    highlight_color: Option<Color>,
 }
 
 impl<'a> ActivityStack<'a> {
     pub fn new(items: &'a [ActivityItem]) -> Self {
-        Self { items, frame: 0 }
+        Self {
+            items,
+            frame: 0,
+            focused: false,
+            highlight_color: None,
+        }
     }
 
     pub fn frame(mut self, frame: u8) -> Self {
         self.frame = frame;
+        self
+    }
+
+    /// v0.8 UX: Set focused state for visual feedback
+    pub fn focused(mut self, focused: bool) -> Self {
+        self.focused = focused;
+        self
+    }
+
+    /// v0.8 UX: Set highlight color for focused border
+    pub fn highlight_color(mut self, color: Color) -> Self {
+        self.highlight_color = Some(color);
         self
     }
 
@@ -170,10 +192,27 @@ impl Widget for ActivityStack<'_> {
             return;
         }
 
+        // v0.8 UX: Focus indicators
+        let border_color = if self.focused {
+            self.highlight_color.unwrap_or(DEFAULT_HIGHLIGHT_COLOR)
+        } else {
+            DEFAULT_BORDER_COLOR
+        };
+        let title = if self.focused {
+            " ▸ 🎯 ACTIVITY STACK "
+        } else {
+            " 🎯 ACTIVITY STACK "
+        };
+        let mut title_style = Style::default().fg(border_color);
+        if self.focused {
+            title_style = title_style.add_modifier(Modifier::BOLD);
+        }
+
         let block = Block::default()
-            .title(" 🎯 ACTIVITY STACK ")
+            .title(title)
+            .title_style(title_style)
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(DEFAULT_BORDER_COLOR));
+            .border_style(Style::default().fg(border_color));
 
         let inner = block.inner(area);
         block.render(area, buf);

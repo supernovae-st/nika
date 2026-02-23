@@ -1,0 +1,121 @@
+# Blog Post Generator
+# Generate a complete blog post from a topic
+#
+# Usage:
+#   TOPIC="How to use Rust for CLI tools" nika examples/public/blog-post.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY or OPENAI_API_KEY
+#   - TOPIC environment variable
+
+schema: "nika/workflow@0.5"
+workflow: blog-post
+description: "Generate a complete blog post from a topic"
+provider: claude
+
+tasks:
+  # Step 1: Get topic from environment
+  - id: get_topic
+    exec: "echo \"${TOPIC:-Introduction to Nika workflow engine}\""
+
+  # Step 2: Generate outline
+  - id: generate_outline
+    use:
+      topic: get_topic
+    infer:
+      prompt: |
+        Create a detailed blog post outline for: {{use.topic}}
+
+        Include:
+        1. Catchy title (SEO-friendly)
+        2. Introduction hook
+        3. 4-6 main sections with subpoints
+        4. Conclusion with CTA
+
+        Output as structured markdown outline.
+    output:
+      format: text
+
+  # Step 3: Generate full content (parallel sections)
+  - id: generate_intro
+    use:
+      topic: get_topic
+      outline: generate_outline
+    infer: |
+      Write an engaging introduction (150-200 words) for this blog post.
+
+      Topic: {{use.topic}}
+      Outline: {{use.outline}}
+
+      Hook the reader, state the problem, preview the solution.
+      Write in a conversational but professional tone.
+
+  # Step 4: Generate body sections
+  - id: generate_body
+    use:
+      topic: get_topic
+      outline: generate_outline
+    infer:
+      prompt: |
+        Write the main body sections for this blog post (800-1000 words).
+
+        Topic: {{use.topic}}
+        Outline: {{use.outline}}
+
+        For each section:
+        - Use H2 headers
+        - Include code examples if relevant
+        - Add practical tips
+        - Keep paragraphs short (3-4 sentences)
+
+        Write in markdown format.
+
+  # Step 5: Generate conclusion
+  - id: generate_conclusion
+    use:
+      topic: get_topic
+      outline: generate_outline
+    infer: |
+      Write a strong conclusion (100-150 words) for this blog post.
+
+      Topic: {{use.topic}}
+
+      Summarize key points, provide actionable takeaway, include CTA.
+
+  # Step 6: Assemble full post
+  - id: assemble_post
+    use:
+      outline: generate_outline
+      intro: generate_intro
+      body: generate_body
+      conclusion: generate_conclusion
+    exec: |
+      cat > /tmp/blog-post.md << 'BLOG_EOF'
+      {{use.intro}}
+
+      {{use.body}}
+
+      {{use.conclusion}}
+
+      ---
+      *Generated with [Nika](https://github.com/supernovae-st/nika)*
+      BLOG_EOF
+
+      echo "✅ Blog post saved to /tmp/blog-post.md"
+      wc -w /tmp/blog-post.md | awk '{print "📝 Word count: " $1}'
+
+flows:
+  - source: get_topic
+    target: generate_outline
+  - source: generate_outline
+    target: generate_intro
+  - source: generate_outline
+    target: generate_body
+  - source: generate_outline
+    target: generate_conclusion
+  - source: generate_intro
+    target: assemble_post
+  - source: generate_body
+    target: assemble_post
+  - source: generate_conclusion
+    target: assemble_post

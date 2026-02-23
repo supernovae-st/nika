@@ -758,26 +758,22 @@ default = "claude"
             let example_content = r#"# Example Nika Workflow
 # Run with: nika run hello.nika.yaml
 
-schema: nika/workflow@0.2
+schema: "nika/workflow@0.5"
 workflow: hello-world
 description: "Simple hello world workflow demonstrating basic features"
-
-# Default provider and model
-provider: claude
-# model: claude-sonnet-4-6
 
 tasks:
   - id: greet
     infer: "Generate a friendly greeting message in one sentence."
-    use.greeting: result
 
   - id: expand
+    use:
+      greeting: greet
     infer: "Take this greeting and expand it into a motivational paragraph: {{use.greeting}}"
-    use.message: result
 
 flows:
-  - from: greet
-    to: expand
+  - source: greet
+    target: expand
 "#;
             fs::write(&example_path, example_content)?;
             println!("{} Created {}", "✓".green(), example_path.display());

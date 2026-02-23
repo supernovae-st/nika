@@ -1,0 +1,151 @@
+# AI Code Review
+# Perform automated code review on staged changes
+#
+# Usage:
+#   nika examples/public/code-review.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY or OPENAI_API_KEY
+#   - Git repository with staged changes
+
+schema: "nika/workflow@0.5"
+workflow: code-review
+description: "AI-powered code review with actionable suggestions"
+provider: claude
+model: claude-sonnet-4-6
+
+tasks:
+  # Step 1: Get staged diff
+  - id: get_diff
+    exec: "git diff --cached"
+
+  # Step 2: Get file list
+  - id: get_files
+    exec: "git diff --cached --name-only"
+
+  # Step 3: Security review
+  - id: review_security
+    use:
+      diff: get_diff
+    infer:
+      prompt: |
+        You are a security expert. Review this code for security issues.
+
+        CODE DIFF:
+        {{use.diff}}
+
+        Check for:
+        - SQL injection
+        - XSS vulnerabilities
+        - Hardcoded secrets
+        - Insecure dependencies
+        - Authentication/authorization issues
+        - Input validation
+
+        Output JSON:
+        {
+          "severity": "critical|high|medium|low|none",
+          "issues": [
+            {
+              "line": "approximate location",
+              "issue": "description",
+              "fix": "how to fix"
+            }
+          ]
+        }
+    output:
+      format: json
+
+  # Step 4: Quality review
+  - id: review_quality
+    use:
+      diff: get_diff
+    infer:
+      prompt: |
+        You are a senior developer. Review this code for quality.
+
+        CODE DIFF:
+        {{use.diff}}
+
+        Check for:
+        - Code clarity and readability
+        - DRY violations
+        - Proper error handling
+        - Edge cases
+        - Performance concerns
+        - Test coverage implications
+
+        Output JSON:
+        {
+          "overall_quality": "excellent|good|needs_work|poor",
+          "suggestions": [
+            {
+              "type": "improvement|refactor|question",
+              "location": "file or function",
+              "suggestion": "what to improve",
+              "priority": "high|medium|low"
+            }
+          ]
+        }
+    output:
+      format: json
+
+  # Step 5: Generate summary
+  - id: generate_summary
+    use:
+      files: get_files
+      security: review_security
+      quality: review_quality
+    infer:
+      prompt: |
+        Generate a code review summary.
+
+        FILES CHANGED:
+        {{use.files}}
+
+        SECURITY REVIEW:
+        {{use.security}}
+
+        QUALITY REVIEW:
+        {{use.quality}}
+
+        Format as markdown:
+
+        # Code Review Summary
+
+        ## 🔒 Security
+        [Summary of security findings]
+
+        ## 📊 Quality
+        [Summary of quality findings]
+
+        ## ✅ Approval Status
+        [APPROVED / NEEDS_CHANGES / BLOCKED]
+
+        ## Action Items
+        - [ ] [Item 1]
+        - [ ] [Item 2]
+
+  # Step 6: Output
+  - id: output
+    use:
+      summary: generate_summary
+    exec: |
+      echo "{{use.summary}}"
+      echo ""
+      echo "---"
+      echo "Review complete. Copy the above to your PR."
+
+flows:
+  - source: get_diff
+    target: review_security
+  - source: get_diff
+    target: review_quality
+  - source: get_files
+    target: generate_summary
+  - source: review_security
+    target: generate_summary
+  - source: review_quality
+    target: generate_summary
+  - source: generate_summary
+    target: output

@@ -1,0 +1,9 @@
+---
+source: tests/regression/workflow_snapshots.rs
+expression: verb_types
+---
+- "infer_task: infer"
+- "exec_task: exec"
+- "fetch_task: fetch"
+- "invoke_task: invoke"
+- "agent_task: agent"

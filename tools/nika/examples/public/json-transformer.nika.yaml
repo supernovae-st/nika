@@ -1,0 +1,102 @@
+# JSON Transformer
+# Transform JSON data using LLM understanding
+#
+# Usage:
+#   INPUT_FILE="data.json" TRANSFORM="Extract only user names and emails" nika examples/public/json-transformer.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY or OPENAI_API_KEY
+#   - INPUT_FILE environment variable (path to JSON)
+#   - TRANSFORM environment variable (transformation instruction)
+
+schema: "nika/workflow@0.5"
+workflow: json-transformer
+description: "Transform JSON data with natural language instructions"
+provider: claude
+
+tasks:
+  # Step 1: Read input
+  - id: read_input
+    exec: |
+      INPUT="${INPUT_FILE:-/dev/stdin}"
+      if [ -f "$INPUT" ]; then
+        cat "$INPUT"
+      else
+        echo '{"error": "No input file specified. Set INPUT_FILE env var."}'
+      fi
+
+  # Step 2: Get transformation
+  - id: get_transform
+    exec: "echo \"${TRANSFORM:-Convert to a simplified format}\""
+
+  # Step 3: Analyze structure
+  - id: analyze
+    use:
+      data: read_input
+    infer:
+      prompt: |
+        Analyze this JSON structure:
+
+        {{use.data}}
+
+        Output a brief description:
+        - Type (array/object)
+        - Key fields
+        - Nested structures
+        - Data patterns
+
+        Be concise (3-5 lines).
+
+  # Step 4: Transform
+  - id: transform
+    use:
+      data: read_input
+      instruction: get_transform
+      analysis: analyze
+    infer:
+      prompt: |
+        Transform this JSON data.
+
+        ORIGINAL DATA:
+        {{use.data}}
+
+        STRUCTURE ANALYSIS:
+        {{use.analysis}}
+
+        TRANSFORMATION INSTRUCTION:
+        {{use.instruction}}
+
+        Rules:
+        - Output ONLY valid JSON
+        - Preserve data integrity
+        - Follow the instruction precisely
+        - Handle edge cases gracefully
+    output:
+      format: json
+
+  # Step 5: Validate and output
+  - id: output
+    use:
+      result: transform
+      instruction: get_transform
+    exec: |
+      echo "=== Transformation Complete ==="
+      echo "Instruction: {{use.instruction}}"
+      echo ""
+      echo "=== Result ==="
+      echo '{{use.result}}' | jq . 2>/dev/null || echo '{{use.result}}'
+      echo ""
+      echo '{{use.result}}' > /tmp/transformed.json
+      echo "💾 Saved to /tmp/transformed.json"
+
+flows:
+  - source: read_input
+    target: analyze
+  - source: get_transform
+    target: transform
+  - source: analyze
+    target: transform
+  - source: read_input
+    target: transform
+  - source: transform
+    target: output

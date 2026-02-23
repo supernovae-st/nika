@@ -37,10 +37,11 @@ tasks:
       ]'
     output:
       format: json
-    use.keywords: keyword_list
 
   # Step 2: Generate blog posts in parallel
   - id: generate_posts
+    use:
+      keyword_list: define_keywords
     for_each: "{{use.keyword_list}}"
     as: kw
     concurrency: 3
@@ -73,7 +74,6 @@ tasks:
       max_turns: 3
     output:
       format: json
-    use.posts: blog_posts
 
   # Step 3: Validate SEO quality
   - id: validate_seo

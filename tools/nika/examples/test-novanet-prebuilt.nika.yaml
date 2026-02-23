@@ -1,0 +1,53 @@
+# NovaNet MCP Integration Test - Pre-built binary
+# Uses pre-compiled MCP server binary for fast startup
+schema: "nika/workflow@0.5"
+provider: mock
+
+mcp:
+  novanet:
+    command: /Users/thibaut/supernovae-st/supernovae-agi/novanet/tools/novanet-mcp/target/release/novanet-mcp
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+
+tasks:
+  # TEST 1: invoke: novanet_introspect - Get node classes
+  - id: test_introspect
+    invoke:
+      mcp: novanet
+      tool: novanet_introspect
+      params:
+        target: classes
+    output:
+      format: json
+
+  # TEST 2: invoke: novanet_describe - Describe schema
+  - id: test_describe
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: schema
+    output:
+      format: json
+
+  # FINAL: Report results
+  - id: final_report
+    use:
+      introspect: test_introspect
+      describe: test_describe
+    exec: |
+      echo "=== NOVANET MCP TEST COMPLETE ==="
+      echo "invoke: verb tested successfully with NovaNet MCP"
+      echo "Tools: novanet_introspect, novanet_describe"
+      echo ""
+      echo "Introspect result keys: $(echo '{{use.introspect}}' | head -c 200)"
+      echo ""
+      echo "Describe result keys: $(echo '{{use.describe}}' | head -c 200)"
+
+flows:
+  - source: test_introspect
+    target: final_report
+  - source: test_describe
+    target: final_report

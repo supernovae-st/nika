@@ -1,5 +1,5 @@
 # Quick binding syntax test
-# Tests: {{use.alias}}, $alias, lazy bindings, defaults
+# Tests: {{use.alias}} mustache syntax and lazy bindings with defaults
 
 schema: "nika/workflow@0.5"
 workflow: test-binding-quick
@@ -24,20 +24,13 @@ tasks:
     exec: |
       echo "MUSTACHE: {{use.data}}"
 
-  # Test 2: Dollar syntax $alias
-  - id: test_dollar
-    use:
-      data: produce_json
-    exec: |
-      echo "DOLLAR: $data"
-
-  # Test 3: Mixed in same task
-  - id: test_mixed
+  # Test 2: Multiple bindings in same task
+  - id: test_multi
     use:
       json_data: produce_json
       text_data: produce_text
     exec: |
-      echo "MIXED - Mustache: {{use.json_data}} | Dollar: $text_data"
+      echo "MULTI - JSON: {{use.json_data}} | Text: {{use.text_data}}"
 
   # Test 4: Lazy binding with default
   - id: test_lazy
@@ -50,25 +43,23 @@ tasks:
     exec: |
       echo "LAZY - Existing: {{use.existing}} | Lazy: {{use.lazy_data}}"
 
-  # Test 5: Aggregate all results
+  # Test 4: Aggregate all results
   - id: aggregate
     use:
       r1: test_mustache
-      r2: test_dollar
-      r3: test_mixed
-      r4: test_lazy
+      r2: test_multi
+      r3: test_lazy
     exec: |
       echo "=== BINDING TEST RESULTS ==="
-      echo "Test 1 (mustache): $r1"
-      echo "Test 2 (dollar): {{use.r2}}"
-      echo "Test 3 (mixed): $r3"
-      echo "Test 4 (lazy): {{use.r4}}"
+      echo "Test 1 (mustache): {{use.r1}}"
+      echo "Test 2 (multi): {{use.r2}}"
+      echo "Test 3 (lazy): {{use.r3}}"
       echo "=== ALL TESTS COMPLETE ==="
 
 flows:
   - source: produce_json
-    target: [test_mustache, test_dollar, test_mixed, test_lazy]
+    target: [test_mustache, test_multi, test_lazy]
   - source: produce_text
-    target: [test_mixed, test_lazy]
-  - source: [test_mustache, test_dollar, test_mixed, test_lazy]
+    target: [test_multi, test_lazy]
+  - source: [test_mustache, test_multi, test_lazy]
     target: aggregate

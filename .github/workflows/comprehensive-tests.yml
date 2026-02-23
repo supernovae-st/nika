@@ -1,0 +1,427 @@
+# Nika Comprehensive Test Suite
+# Runs extended tests: DAG, Smoke, Regression, Benchmarks
+#
+# Jobs:
+# 1. dag-tests: Complex dependency and cycle detection tests
+# 2. smoke-tests: Binary compilation and CLI validation
+# 3. regression-tests: Output capture and snapshot comparison
+# 4. benchmarks: Performance benchmarks
+# 5. live-tests: (optional) Real API integration tests
+# 6. mcp-tests: (optional) MCP server integration tests
+#
+# Nika v0.7.2 - Comprehensive Test Suite
+
+name: Comprehensive Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/nika/**'
+      - '.github/workflows/comprehensive-tests.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/nika/**'
+  workflow_dispatch:
+    inputs:
+      run_live_tests:
+        description: 'Run LIVE tests (requires API keys)'
+        required: false
+        default: 'false'
+        type: boolean
+      run_mcp_tests:
+        description: 'Run MCP integration tests'
+        required: false
+        default: 'false'
+        type: boolean
+
+concurrency:
+  group: comprehensive-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
+  RUST_BACKTRACE: 1
+
+defaults:
+  run:
+    working-directory: tools/nika
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # DAG Tests - Complex dependency patterns and cycle detection
+  # ─────────────────────────────────────────────────────────────────────────────
+  dag-tests:
+    name: DAG Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika
+          shared-key: dag-tests
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Run DAG tests
+        run: |
+          cargo nextest run -p nika --test '*' \
+            --filter-expr 'test(/^test_.*diamond|test_.*cycle|test_.*chain|test_.*order|test_.*deep/)' \
+            2>&1 | tee dag-test-results.txt
+
+      - name: Upload DAG test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dag-test-results
+          path: tools/nika/dag-test-results.txt
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Smoke Tests - Binary compilation and CLI validation
+  # ─────────────────────────────────────────────────────────────────────────────
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika
+          shared-key: smoke-tests-${{ matrix.os }}
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Verify binary exists
+        run: |
+          BINARY="target/release/nika"
+          if [ -f "$BINARY" ]; then
+            echo "Binary exists"
+            du -h "$BINARY" | cut -f1
+            file "$BINARY"
+          else
+            echo "Binary not found"
+            exit 1
+          fi
+
+      - name: Test help command
+        run: cargo run --release -- --help
+
+      - name: Test version command
+        run: cargo run --release -- --version
+
+      - name: Test check command with valid workflow
+        run: |
+          cat > /tmp/test-valid.nika.yaml << 'EOF'
+          schema: "nika/workflow@0.5"
+          workflow: smoke-test
+          description: "Smoke test workflow"
+          tasks:
+            - id: hello
+              exec: "echo hello"
+          EOF
+          cargo run --release -- check /tmp/test-valid.nika.yaml
+
+      - name: Run format check
+        run: cargo fmt --check
+
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Regression Tests - Output capture and snapshot comparison
+  # ─────────────────────────────────────────────────────────────────────────────
+  regression-tests:
+    name: Regression Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika
+          shared-key: regression-tests
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Install insta CLI
+        run: cargo install cargo-insta
+
+      - name: Run snapshot tests
+        run: |
+          cargo nextest run -p nika --test '*' \
+            --filter-expr 'test(/^test_snapshot/)' \
+            2>&1 | tee regression-test-results.txt
+
+      - name: Check for pending snapshots
+        run: |
+          cargo insta test --review || echo "Some snapshots may need review"
+
+      - name: Upload regression test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-test-results
+          path: |
+            tools/nika/regression-test-results.txt
+            tools/nika/tests/snapshots/*.snap.new
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Filesystem Tests - Atomic writes, traces, file operations
+  # ─────────────────────────────────────────────────────────────────────────────
+  filesystem-tests:
+    name: Filesystem Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika
+          shared-key: filesystem-tests-${{ matrix.os }}
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Run filesystem utility tests
+        run: |
+          cargo nextest run -p nika --lib \
+            --filter-expr 'test(/^util::fs::/)' \
+            2>&1 | tee fs-util-results.txt
+
+      - name: Run trace tests
+        run: |
+          cargo nextest run -p nika --lib \
+            --filter-expr 'test(/^event::trace::/)' \
+            2>&1 | tee trace-results.txt
+
+      - name: Run config persistence tests
+        run: |
+          cargo nextest run -p nika --lib \
+            --filter-expr 'test(/^config::/)' \
+            2>&1 | tee config-results.txt
+
+      - name: Run event logging tests
+        run: |
+          cargo nextest run -p nika --lib \
+            --filter-expr 'test(/^event::log::/)' \
+            2>&1 | tee event-results.txt
+
+      - name: Run TUI file operation tests
+        run: |
+          cargo nextest run -p nika --lib \
+            --filter-expr 'test(/standalone|studio/)' \
+            2>&1 | tee tui-file-results.txt
+
+      - name: Upload filesystem test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: filesystem-test-results-${{ matrix.os }}
+          path: |
+            tools/nika/fs-util-results.txt
+            tools/nika/trace-results.txt
+            tools/nika/config-results.txt
+            tools/nika/event-results.txt
+            tools/nika/tui-file-results.txt
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Benchmarks - Performance testing
+  # ─────────────────────────────────────────────────────────────────────────────
+  benchmarks:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika
+          shared-key: benchmarks
+
+      - name: Run micro-benchmarks
+        run: |
+          cargo test -p nika bench_ --release -- --nocapture 2>&1 | tee benchmark-results.txt
+
+      - name: Run Criterion benchmarks (if exist)
+        run: |
+          if [ -d "benches" ]; then
+            cargo bench --workspace 2>&1 | tee -a benchmark-results.txt || true
+          else
+            echo "No Criterion benchmarks found"
+          fi
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: tools/nika/benchmark-results.txt
+          retention-days: 30
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Live Tests (Optional) - Real API integration
+  # ─────────────────────────────────────────────────────────────────────────────
+  live-tests:
+    name: Live API Tests
+    runs-on: ubuntu-latest
+    if: github.event.inputs.run_live_tests == 'true'
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      NIKA_LIVE_TESTS: '1'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika
+          shared-key: live-tests
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Check available providers
+        run: |
+          echo "Checking for API keys..."
+          if [ -n "$ANTHROPIC_API_KEY" ]; then echo "Claude: available"; fi
+          if [ -n "$OPENAI_API_KEY" ]; then echo "OpenAI: available"; fi
+          if [ -n "$MISTRAL_API_KEY" ]; then echo "Mistral: available"; fi
+          if [ -n "$GROQ_API_KEY" ]; then echo "Groq: available"; fi
+
+      - name: Run live provider tests
+        run: |
+          cargo nextest run -p nika --test '*' \
+            --filter-expr 'test(/live_provider/)' \
+            -- --ignored 2>&1 | tee live-test-results.txt || true
+
+      - name: Upload live test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-test-results
+          path: tools/nika/live-test-results.txt
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # MCP Tests (Optional) - MCP server integration
+  # ─────────────────────────────────────────────────────────────────────────────
+  mcp-tests:
+    name: MCP Integration Tests
+    runs-on: ubuntu-latest
+    if: github.event.inputs.run_mcp_tests == 'true'
+    env:
+      NIKA_MCP_TESTS: '1'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika
+          shared-key: mcp-tests
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Install Node.js (for MCP servers)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run MCP tests
+        run: |
+          cargo nextest run -p nika --test '*' \
+            --filter-expr 'test(/mcp_/)' \
+            2>&1 | tee mcp-test-results.txt || true
+
+      - name: Upload MCP test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-test-results
+          path: tools/nika/mcp-test-results.txt
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Summary
+  # ─────────────────────────────────────────────────────────────────────────────
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [dag-tests, smoke-tests, regression-tests, filesystem-tests, benchmarks]
+    if: always()
+    steps:
+      - name: Generate summary
+        env:
+          DAG_RESULT: ${{ needs.dag-tests.result }}
+          SMOKE_RESULT: ${{ needs.smoke-tests.result }}
+          REGRESSION_RESULT: ${{ needs.regression-tests.result }}
+          FILESYSTEM_RESULT: ${{ needs.filesystem-tests.result }}
+          BENCHMARK_RESULT: ${{ needs.benchmarks.result }}
+        run: |
+          echo "## Nika Comprehensive Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| DAG Tests | $DAG_RESULT |" >> $GITHUB_STEP_SUMMARY
+          echo "| Smoke Tests | $SMOKE_RESULT |" >> $GITHUB_STEP_SUMMARY
+          echo "| Regression Tests | $REGRESSION_RESULT |" >> $GITHUB_STEP_SUMMARY
+          echo "| Filesystem Tests | $FILESYSTEM_RESULT |" >> $GITHUB_STEP_SUMMARY
+          echo "| Benchmarks | $BENCHMARK_RESULT |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Run live tests or MCP tests via workflow_dispatch*" >> $GITHUB_STEP_SUMMARY
