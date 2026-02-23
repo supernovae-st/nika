@@ -1056,6 +1056,8 @@ impl ChatView {
         if self.matrix_effect_enabled {
             self.streaming_decrypt.push_text(chunk);
         }
+        // v0.8.1: Auto-scroll to follow streaming content
+        self.auto_scroll_to_bottom();
     }
 
     /// Finish streaming and return the full response
@@ -1292,6 +1294,8 @@ impl ChatView {
         }
         // Also update the partial response for backwards compatibility
         self.partial_response.push_str(chunk);
+        // v0.8.1: Auto-scroll to follow streaming content
+        self.auto_scroll_to_bottom();
     }
 
     /// Complete current inference stream
