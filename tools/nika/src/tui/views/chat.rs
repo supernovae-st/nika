@@ -313,6 +313,12 @@ pub struct ChatView {
     pub scrollbar_activity: ScrollbarState,
     /// Cached panel rects for mouse click detection
     pub panel_rects: std::collections::HashMap<ChatPanel, Rect>,
+
+    // === v0.8 WOW Effects ===
+    /// Index of last copied message (for flash effect)
+    pub copy_flash_index: Option<usize>,
+    /// Frame when copy happened (for flash duration)
+    pub copy_flash_start: u8,
 }
 
 impl ChatView {
@@ -378,6 +384,10 @@ impl ChatView {
             scrollbar_conversation: ScrollbarState::default(),
             scrollbar_activity: ScrollbarState::default(),
             panel_rects: std::collections::HashMap::new(),
+
+            // v0.8 WOW Effects
+            copy_flash_index: None,
+            copy_flash_start: 0,
         }
     }
 
@@ -504,9 +514,26 @@ impl ChatView {
 
         // Copy to clipboard
         if let Some(ref mut clipboard) = self.clipboard {
-            clipboard.set_text(text).is_ok()
+            let success = clipboard.set_text(text).is_ok();
+            if success {
+                // v0.8 WOW: Trigger flash effect on copied message
+                self.copy_flash_index = Some(cursor);
+                self.copy_flash_start = self.frame;
+            }
+            success
         } else {
             false
+        }
+    }
+
+    /// Clear flash effect after duration (called each frame in tick)
+    pub fn tick_flash(&mut self) {
+        // Flash lasts about 16 frames (~250ms at 60fps)
+        if self.copy_flash_index.is_some() {
+            let elapsed = self.frame.wrapping_sub(self.copy_flash_start);
+            if elapsed > 16 {
+                self.copy_flash_index = None;
+            }
         }
     }
 
@@ -770,6 +797,8 @@ impl ChatView {
                 InlineContent::InferStream(data) => data.tick(),
             }
         }
+        // v0.8 WOW: Tick flash effects
+        self.tick_flash();
     }
 
     /// Add an MCP call to the inline content
@@ -1772,6 +1801,9 @@ impl ChatView {
         let cursor_char = input_value.chars().nth(cursor_pos).unwrap_or(' ');
         let after_cursor: String = input_value.chars().skip(cursor_pos + 1).collect();
 
+        // v0.8 UX: Check if input is focused for cursor animation
+        let is_focused = self.focused_panel == ChatPanel::Input;
+
         // Build mode indicators for Claude Code-like UX
         let mut spans = vec![Span::raw(" ")];
 
@@ -1807,32 +1839,62 @@ impl ChatView {
         spans.push(Span::styled(" │ ", Style::default().fg(theme.text_muted)));
         spans.push(Span::raw("> "));
 
+        // v0.8 WOW: Blinking cursor effect (blinks every ~8 frames = ~500ms at 60fps)
+        let cursor_visible = is_focused && (self.frame / 8) % 2 == 0;
+
         // Input text with cursor and placeholder
         if input_value.is_empty() {
-            // Show placeholder when input is empty
+            // v0.8 WOW: Animated placeholder with typing dots when idle
+            let dots = match (self.frame / 10) % 4 {
+                0 => "   ",
+                1 => ".  ",
+                2 => ".. ",
+                _ => "...",
+            };
+
+            // Show blinking cursor at start
+            if cursor_visible {
+                spans.push(Span::styled(
+                    "█",
+                    Style::default().fg(theme.highlight),
+                ));
+            } else {
+                spans.push(Span::raw(" "));
+            }
+
+            // Animated placeholder hint
             spans.push(Span::styled(
-                " ",
-                Style::default().bg(theme.highlight).fg(Color::Black),
-            ));
-            spans.push(Span::styled(
-                "Type a message, / for commands, @ to mention files...",
+                format!(" Type a message{}", if is_focused { dots } else { "..." }),
                 Style::default()
                     .fg(theme.text_muted)
                     .add_modifier(Modifier::ITALIC),
             ));
+            spans.push(Span::styled(
+                " / for commands, @ for files",
+                Style::default().fg(theme.text_muted),
+            ));
         } else {
             spans.push(Span::raw(before_cursor));
-            spans.push(Span::styled(
-                cursor_char.to_string(),
-                Style::default().bg(theme.highlight).fg(Color::Black),
-            ));
+            // v0.8 WOW: Blinking block cursor
+            if cursor_visible {
+                spans.push(Span::styled(
+                    cursor_char.to_string(),
+                    Style::default().bg(theme.highlight).fg(Color::Black),
+                ));
+            } else {
+                spans.push(Span::styled(
+                    cursor_char.to_string(),
+                    Style::default()
+                        .fg(theme.highlight)
+                        .add_modifier(Modifier::UNDERLINED),
+                ));
+            }
             spans.push(Span::raw(after_cursor));
         }
 
         let line = Line::from(spans);
 
-        // v0.8 UX: Focus indicators for Input panel
-        let is_focused = self.focused_panel == ChatPanel::Input;
+        // v0.8 UX: Focus indicators for Input panel (is_focused defined above)
         let border_color = if is_focused {
             theme.highlight
         } else {
@@ -1863,15 +1925,21 @@ impl ChatView {
         let mut items: Vec<ListItem> = self
             .messages
             .iter()
-            .flat_map(|msg| {
+            .enumerate()
+            .flat_map(|(idx, msg)| {
+                // v0.8 WOW: Check if this message has the flash effect
+                let is_flashing = self.copy_flash_index == Some(idx);
+
                 // Color-coded message bubbles based on role
-                let (_prefix, color) = match msg.role {
+                let (_prefix, base_color) = match msg.role {
                     MessageRole::User => ("👤 You", theme.trait_retrieved),
                     MessageRole::Nika => ("🤖 AI", theme.status_success),
                     MessageRole::System => ("💡 System", theme.status_running),
                     MessageRole::Tool => ("🔧 Tool", theme.mcp_traverse),
                 };
 
+                // v0.8 WOW: Flash effect - bright highlight when copied
+                let color = if is_flashing { theme.highlight } else { base_color };
                 let style = Style::default().fg(color);
 
                 // PERF: Use const prefix strings to avoid format! allocation
@@ -1882,10 +1950,21 @@ impl ChatView {
                     MessageRole::Tool => "🔧 Tool ",
                 };
 
-                let mut lines = vec![ListItem::new(Line::from(vec![
+                // v0.8 WOW: Add COPIED indicator when flashing
+                let mut header_spans = vec![
                     Span::styled(prefix_with_space, style.add_modifier(Modifier::BOLD)),
                     Span::styled(SEPARATOR_20, Style::default().fg(theme.text_muted)),
-                ]))];
+                ];
+                if is_flashing {
+                    header_spans.push(Span::styled(
+                        " ✓ COPIED ",
+                        Style::default()
+                            .fg(Color::Black)
+                            .bg(theme.highlight)
+                            .add_modifier(Modifier::BOLD),
+                    ));
+                }
+                let mut lines = vec![ListItem::new(Line::from(header_spans))];
 
                 // Wrap message content with colored prefix indicator
                 // PERF: Use Span::raw(line) directly - no allocation needed
@@ -2086,16 +2165,32 @@ impl ChatView {
                 }
             }
 
-            // Animated thinking indicator
+            // v0.8 WOW: Enhanced animated thinking indicator with typing wave
             let spinners = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
             let spinner = spinners[(self.frame as usize) % spinners.len()];
+
+            // Typing wave effect: ●○○ → ○●○ → ○○● → ○○○ → ...
+            let wave_pos = (self.frame as usize / 3) % 5;
+            let wave: String = (0..3)
+                .map(|i| if i == wave_pos % 3 { "●" } else { "○" })
+                .collect::<Vec<_>>()
+                .join("");
+
             items.push(ListItem::new(Line::from(vec![
                 Span::styled("│ ", Style::default().fg(theme.status_success)),
                 Span::styled(
-                    format!("{} Thinking...", spinner),
+                    format!("{} ", spinner),
+                    Style::default().fg(theme.status_running),
+                ),
+                Span::styled(
+                    "Generating",
                     Style::default()
                         .fg(theme.status_running)
                         .add_modifier(Modifier::ITALIC),
+                ),
+                Span::styled(
+                    format!(" {} ", wave),
+                    Style::default().fg(theme.highlight),
                 ),
             ])));
         }
