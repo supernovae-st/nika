@@ -12,6 +12,7 @@ use ratatui::{
 };
 
 use crate::tui::theme::VerbColor;
+use crate::tui::utils::truncate_str;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFAULT COLORS (fallbacks for theme-aware rendering)
@@ -273,11 +274,7 @@ impl Widget for ActivityStack<'_> {
                 let success_x = inner.x + prefix.chars().count() as u16 + 1;
                 if success_x < inner.x + inner.width {
                     let detail = item.detail.as_deref().unwrap_or("");
-                    let detail_short = if detail.len() > 20 {
-                        format!("{}...", &detail[..17])
-                    } else {
-                        detail.to_string()
-                    };
+                    let detail_short = truncate_str(detail, 20);
                     buf.set_string(
                         success_x,
                         y,

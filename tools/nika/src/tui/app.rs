@@ -50,6 +50,7 @@ use super::standalone::{HistoryEntry, StandaloneState};
 use super::state::{PanelId, SettingsField, TuiMode, TuiState};
 use super::theme::Theme;
 use super::views::{ChatView, HomeView, McpAction, StudioView, TuiView, View, ViewAction};
+use super::utils::truncate_str;
 use super::widgets::{ConnectionStatus, Header, StatusBar, StatusMetrics};
 use crate::config::mask_api_key;
 use crossterm::event::KeyEvent;
@@ -1706,11 +1707,7 @@ impl App {
                 match arboard::Clipboard::new() {
                     Ok(mut clipboard) => match clipboard.set_text(&content) {
                         Ok(_) => {
-                            let preview = if content.len() > 50 {
-                                format!("{}...", &content[..50])
-                            } else {
-                                content.clone()
-                            };
+                            let preview = truncate_str(&content, 50);
                             self.set_status(&format!("✓ Copied: {}", preview.replace('\n', " ")));
                         }
                         Err(e) => {
@@ -2005,12 +2002,13 @@ impl App {
                 Ok(agent) => {
                     match timeout(FETCH_TIMEOUT, agent.fetch(&url, &method)).await {
                         Ok(Ok(response)) => {
-                            // Truncate very long responses
-                            let truncated = if response.len() > 2000 {
+                            // Truncate very long responses (UTF-8 safe)
+                            let truncated = if response.chars().count() > 2000 {
+                                let prefix: String = response.chars().take(2000).collect();
                                 format!(
-                                    "{}...\n\n[Truncated, {} bytes total]",
-                                    &response[..2000],
-                                    response.len()
+                                    "{}...\n\n[Truncated, {} chars total]",
+                                    prefix,
+                                    response.chars().count()
                                 )
                             } else {
                                 response
@@ -2169,12 +2167,13 @@ impl App {
                     let status = if result.is_error { "❌" } else { "✅" };
                     let text = result.text();
 
-                    // Truncate very long responses
-                    let display = if text.len() > 3000 {
+                    // Truncate very long responses (UTF-8 safe)
+                    let display = if text.chars().count() > 3000 {
+                        let prefix: String = text.chars().take(3000).collect();
                         format!(
                             "{}...\n\n[Truncated, {} chars total]",
-                            &text[..3000],
-                            text.len()
+                            prefix,
+                            text.chars().count()
                         )
                     } else {
                         text
@@ -2727,10 +2726,12 @@ impl App {
         F: std::future::Future<Output = ()> + Send + 'static,
     {
         let handle = tokio::spawn(future);
-        self.background_handles
-            .lock()
-            .expect("background_handles mutex poisoned")
-            .push(handle.abort_handle());
+        // Use if let to handle potential mutex poisoning gracefully
+        if let Ok(mut handles) = self.background_handles.lock() {
+            handles.push(handle.abort_handle());
+        } else {
+            tracing::warn!("Failed to acquire lock for background_handles - mutex may be poisoned");
+        }
     }
 
     /// Cancel all background tasks
@@ -2738,15 +2739,28 @@ impl App {
     /// Should be called during cleanup to ensure graceful shutdown.
     /// Tasks are aborted immediately; no waiting for completion.
     fn cancel_background_tasks(&self) {
-        let handles = self
-            .background_handles
-            .lock()
-            .expect("background_handles mutex poisoned");
-        let count = handles.len();
-        for handle in handles.iter() {
-            handle.abort();
+        // Handle potential mutex poisoning gracefully during cleanup
+        match self.background_handles.lock() {
+            Ok(handles) => {
+                let count = handles.len();
+                for handle in handles.iter() {
+                    handle.abort();
+                }
+                tracing::debug!("Aborted {} background tasks", count);
+            }
+            Err(poisoned) => {
+                // Even with poisoned mutex, attempt to abort tasks
+                let handles = poisoned.into_inner();
+                let count = handles.len();
+                for handle in handles.iter() {
+                    handle.abort();
+                }
+                tracing::warn!(
+                    "Aborted {} background tasks (mutex was poisoned)",
+                    count
+                );
+            }
         }
-        tracing::debug!("Aborted {} background tasks", count);
     }
 
     /// Cleanup terminal state

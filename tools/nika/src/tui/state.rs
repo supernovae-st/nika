@@ -1083,19 +1083,28 @@ impl ChatOverlayState {
             _ => {}
         }
 
+        // Use safe indexing to avoid panics
         if let Some(i) = self.history_index {
-            self.input = self.history[i].clone();
-            self.cursor = self.input.len();
+            if let Some(entry) = self.history.get(i) {
+                self.input = entry.clone();
+                self.cursor = self.input.len();
+            }
         }
     }
 
     /// Navigate history down (next message)
     pub fn history_down(&mut self) {
+        let history_len = self.history.len();
+
         match self.history_index {
-            Some(i) if i < self.history.len() - 1 => {
+            // Safe check: only proceed if history is non-empty and index is valid
+            Some(i) if history_len > 0 && i + 1 < history_len => {
                 self.history_index = Some(i + 1);
-                self.input = self.history[i + 1].clone();
-                self.cursor = self.input.len();
+                // Use safe indexing
+                if let Some(entry) = self.history.get(i + 1) {
+                    self.input = entry.clone();
+                    self.cursor = self.input.len();
+                }
             }
             Some(_) => {
                 self.history_index = None;

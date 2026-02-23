@@ -48,6 +48,7 @@ fn is_cmd_pressed(modifiers: KeyModifiers) -> bool {
 use crate::tui::file_resolve::FileResolver;
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
+use crate::tui::utils::truncate_str;
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
     ActivityItem, ActivityStack, ActivityTemp, CommandPalette, CommandPaletteState,
@@ -1507,12 +1508,8 @@ impl ChatView {
                     // Truncate thinking to first 3 lines for inline display
                     let thinking_lines: Vec<&str> = thinking.lines().take(3).collect();
                     for think_line in &thinking_lines {
-                        // Truncate each line to 60 chars
-                        let display_line = if think_line.len() > 60 {
-                            format!("{}...", &think_line[..57])
-                        } else {
-                            think_line.to_string()
-                        };
+                        // Truncate each line to 60 chars (UTF-8 safe)
+                        let display_line = truncate_str(think_line, 60);
                         lines.push(ListItem::new(Line::from(vec![
                             Span::styled("│   ", Style::default().fg(color)),
                             Span::styled(
@@ -1584,11 +1581,8 @@ impl ChatView {
                     ])));
 
                     if !data.params.is_empty() {
-                        let params_display = if data.params.len() > 40 {
-                            format!("{}...", &data.params[..37])
-                        } else {
-                            data.params.clone()
-                        };
+                        // UTF-8 safe truncation
+                        let params_display = truncate_str(&data.params, 40);
                         items.push(ListItem::new(Line::from(vec![
                             Span::styled("│ ", Style::default().fg(mcp_box_color)),
                             Span::styled("📥 ", Style::default().fg(muted_color)),
@@ -1597,22 +1591,16 @@ impl ChatView {
                     }
 
                     if let Some(ref result) = data.result {
-                        let result_display = if result.len() > 40 {
-                            format!("{}...", &result[..37])
-                        } else {
-                            result.clone()
-                        };
+                        // UTF-8 safe truncation
+                        let result_display = truncate_str(result, 40);
                         items.push(ListItem::new(Line::from(vec![
                             Span::styled("│ ", Style::default().fg(mcp_box_color)),
                             Span::styled("📤 ", Style::default().fg(success_color)),
                             Span::raw(result_display),
                         ])));
                     } else if let Some(ref error) = data.error {
-                        let error_display = if error.len() > 40 {
-                            format!("{}...", &error[..37])
-                        } else {
-                            error.clone()
-                        };
+                        // UTF-8 safe truncation
+                        let error_display = truncate_str(error, 40);
                         items.push(ListItem::new(Line::from(vec![
                             Span::styled("│ ", Style::default().fg(mcp_box_color)),
                             Span::styled("❌ ", Style::default().fg(error_color)),
@@ -1655,11 +1643,8 @@ impl ChatView {
                     let content_lines: Vec<&str> = data.content.lines().collect();
                     let start = content_lines.len().saturating_sub(3);
                     for line in content_lines.iter().skip(start) {
-                        let display = if line.len() > 50 {
-                            format!("{}...", &line[..47])
-                        } else {
-                            line.to_string()
-                        };
+                        // UTF-8 safe truncation
+                        let display = truncate_str(line, 50);
                         items.push(ListItem::new(Line::from(vec![
                             Span::styled("│ ", Style::default().fg(infer_box_color)),
                             Span::raw(display),

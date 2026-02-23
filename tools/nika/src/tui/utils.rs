@@ -57,6 +57,39 @@ pub fn format_number_compact(n: u64) -> String {
     }
 }
 
+/// Safely truncate a string to a maximum number of characters
+///
+/// This function handles UTF-8 correctly by counting characters, not bytes.
+/// It adds "..." suffix when truncation occurs.
+///
+/// # Examples
+///
+/// ```ignore
+/// assert_eq!(truncate_str("hello world", 5), "he...");
+/// assert_eq!(truncate_str("hi", 10), "hi");
+/// assert_eq!(truncate_str("日本語テスト", 4), "日...");  // UTF-8 safe
+/// ```
+pub fn truncate_str(s: &str, max_chars: usize) -> String {
+    let char_count = s.chars().count();
+    if char_count <= max_chars {
+        s.to_string()
+    } else if max_chars <= 3 {
+        // Not enough room for any content + "..."
+        s.chars().take(max_chars).collect()
+    } else {
+        // Take max_chars - 3 characters and add "..."
+        let truncated: String = s.chars().take(max_chars - 3).collect();
+        format!("{}...", truncated)
+    }
+}
+
+/// Safely truncate a string to a maximum width, without adding suffix
+///
+/// Useful when you just want to cut content without indicating truncation.
+pub fn truncate_str_no_suffix(s: &str, max_chars: usize) -> String {
+    s.chars().take(max_chars).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,5 +118,47 @@ mod tests {
         assert_eq!(format_number_compact(1000000), "1.0M");
         assert_eq!(format_number_compact(1500000), "1.5M");
         assert_eq!(format_number_compact(1000000000), "1.0B");
+    }
+
+    #[test]
+    fn test_truncate_str_ascii() {
+        assert_eq!(truncate_str("hello world", 20), "hello world");
+        assert_eq!(truncate_str("hello world", 11), "hello world");
+        assert_eq!(truncate_str("hello world", 8), "hello...");
+        assert_eq!(truncate_str("hello world", 5), "he...");
+        assert_eq!(truncate_str("hi", 10), "hi");
+    }
+
+    #[test]
+    fn test_truncate_str_utf8() {
+        // Japanese characters (3 bytes each in UTF-8)
+        assert_eq!(truncate_str("日本語テスト", 10), "日本語テスト");
+        assert_eq!(truncate_str("日本語テスト", 6), "日本語テスト");
+        assert_eq!(truncate_str("日本語テスト", 5), "日本...");
+        assert_eq!(truncate_str("日本語テスト", 4), "日...");
+
+        // Emojis (4 bytes each in UTF-8)
+        assert_eq!(truncate_str("🎉🎊🎁🎂", 10), "🎉🎊🎁🎂");
+        assert_eq!(truncate_str("🎉🎊🎁🎂", 4), "🎉🎊🎁🎂");
+        assert_eq!(truncate_str("🎉🎊🎁🎂", 3), "🎉🎊🎁"); // Edge case: exactly 3 chars
+
+        // Mixed content
+        assert_eq!(truncate_str("Hello 世界!", 10), "Hello 世界!");
+        assert_eq!(truncate_str("Hello 世界!", 8), "Hello...");
+    }
+
+    #[test]
+    fn test_truncate_str_edge_cases() {
+        assert_eq!(truncate_str("", 10), "");
+        assert_eq!(truncate_str("abc", 3), "abc");
+        assert_eq!(truncate_str("abcd", 3), "abc"); // max_chars <= 3: no room for "..."
+        assert_eq!(truncate_str("abcde", 4), "a...");
+    }
+
+    #[test]
+    fn test_truncate_str_no_suffix() {
+        assert_eq!(truncate_str_no_suffix("hello world", 5), "hello");
+        assert_eq!(truncate_str_no_suffix("日本語", 2), "日本");
+        assert_eq!(truncate_str_no_suffix("🎉🎊🎁", 2), "🎉🎊");
     }
 }

@@ -887,20 +887,22 @@ impl YamlHighlight {
 
         // List item (- value)
         if trimmed.starts_with('-') {
-            let dash_pos = line.find('-').unwrap();
-            let before_dash = &line[..dash_pos];
-            let after_dash = &line[dash_pos + 1..];
+            // SAFETY: starts_with('-') guarantees find('-') will succeed
+            if let Some(dash_pos) = line.find('-') {
+                let before_dash = &line[..dash_pos];
+                let after_dash = &line[dash_pos + 1..];
 
-            let mut spans = vec![
-                Span::styled(before_dash.to_string(), base_style),
-                Span::styled("-".to_string(), base_style.fg(Self::KEY)),
-            ];
+                let mut spans = vec![
+                    Span::styled(before_dash.to_string(), base_style),
+                    Span::styled("-".to_string(), base_style.fg(Self::KEY)),
+                ];
 
-            if !after_dash.is_empty() {
-                spans.push(Self::highlight_value(after_dash, base_style));
+                if !after_dash.is_empty() {
+                    spans.push(Self::highlight_value(after_dash, base_style));
+                }
+
+                return spans;
             }
-
-            return spans;
         }
 
         // Default: return as-is
