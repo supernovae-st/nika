@@ -62,8 +62,9 @@ use crate::tui::views::TuiView;
 use crate::tui::widgets::{
     ActivityItem, ActivityTemp, ChatModeIndicator, CommandPalette, CommandPaletteState,
     ContextItem, CurrentVerb, InferStreamData, McpCallData, McpCallStatus, McpServerInfo,
-    McpStatus, MemoryFile, MissionControlPanel, ProStatusBar, Provider, ProviderSelector,
-    ProviderSelectorState, SessionContext, SessionMetrics, TurnMetrics,
+    McpStatus, MemoryFile, MissionControlPanel, ParsedInput, ProStatusBar, Provider,
+    ProviderSelector, ProviderSelectorState, SessionContext, SessionMetrics, SystemCommand,
+    TurnMetrics,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -332,6 +333,10 @@ pub struct ChatView {
     pub turn_metrics: TurnMetrics,
     /// Session metrics for ProStatusBar
     pub session_metrics: SessionMetrics,
+
+    // === v0.7.3 YAML View Toggle ===
+    /// Show messages as YAML tasks instead of chat bubbles
+    pub show_yaml: bool,
 }
 
 impl ChatView {
@@ -408,24 +413,66 @@ impl ChatView {
             current_verb: CurrentVerb::None,
             turn_metrics: TurnMetrics::default(),
             session_metrics: SessionMetrics::new(),
+            show_yaml: false,
         }
     }
 
     /// Detect available memory files (CLAUDE.md, etc.)
     fn detect_memory_files() -> Vec<MemoryFile> {
+        use crate::tui::widgets::MemoryKind;
         let mut files = vec![];
 
-        // Check for CLAUDE.md in current directory
+        // Check for CLAUDE.md in current directory (project root)
         if std::path::Path::new("CLAUDE.md").exists() {
             files.push(MemoryFile::project("CLAUDE.md"));
         }
 
-        // Check for .nika directory
+        // Check for .claude/CLAUDE.md (per-project Claude Code context)
+        if std::path::Path::new(".claude/CLAUDE.md").exists() {
+            files.push(MemoryFile::project(".claude/CLAUDE.md"));
+        }
+
+        // Check for global ~/.claude/CLAUDE.md (user global context)
+        if let Some(home) = dirs::home_dir() {
+            let global_claude = home.join(".claude/CLAUDE.md");
+            if global_claude.exists() {
+                files.push(MemoryFile {
+                    name: "~/.claude/CLAUDE.md".to_string(),
+                    kind: MemoryKind::System,
+                });
+            }
+        }
+
+        // Check for .nika/memory.json (session memory)
         if std::path::Path::new(".nika/memory.json").exists() {
             files.push(MemoryFile::session(".nika/memory.json"));
         }
 
+        // Check for .nika/context/ directory files
+        if let Ok(entries) = std::fs::read_dir(".nika/context") {
+            for entry in entries.flatten() {
+                if let Some(name) = entry.file_name().to_str() {
+                    if name.ends_with(".md") || name.ends_with(".yaml") {
+                        files.push(MemoryFile::session(format!(".nika/context/{}", name)));
+                    }
+                }
+            }
+        }
+
         files
+    }
+
+    /// Add a memory file from @ mention resolution
+    pub fn add_memory_file(&mut self, file: MemoryFile) {
+        // Avoid duplicates
+        if !self.memory_files.iter().any(|f| f.name == file.name) {
+            self.memory_files.push(file);
+        }
+    }
+
+    /// Refresh memory files (re-scan filesystem)
+    pub fn refresh_memory_files(&mut self) {
+        self.memory_files = Self::detect_memory_files();
     }
 
     /// Toggle between Infer and Agent modes
@@ -930,6 +977,50 @@ impl ChatView {
         self.session_context.total_cost = cost;
     }
 
+    // === v0.7.3 Real-time Streaming Updates ===
+
+    /// Update current verb during execution (for Mission Control display)
+    pub fn set_current_verb(&mut self, verb: CurrentVerb) {
+        self.current_verb = verb;
+    }
+
+    /// Update turn metrics during streaming (real-time token counts)
+    pub fn update_turn_metrics(&mut self, input_tokens: u64, output_tokens: u64, cost_usd: f64) {
+        // Compute deltas before updating turn metrics
+        let input_delta = input_tokens.saturating_sub(self.turn_metrics.input_tokens);
+        let output_delta = output_tokens.saturating_sub(self.turn_metrics.output_tokens);
+        let cost_delta = cost_usd.max(0.0) - self.turn_metrics.cost_usd.max(0.0);
+
+        // Update turn metrics
+        self.turn_metrics.input_tokens = input_tokens;
+        self.turn_metrics.output_tokens = output_tokens;
+        self.turn_metrics.cost_usd = cost_usd;
+
+        // Update session metrics with deltas
+        self.session_metrics.input_tokens += input_delta;
+        self.session_metrics.output_tokens += output_delta;
+        self.session_metrics.cost_usd += cost_delta;
+    }
+
+    /// Increment turn metrics during streaming (delta updates)
+    pub fn increment_output_tokens(&mut self, delta_tokens: u64) {
+        self.turn_metrics.output_tokens += delta_tokens;
+        self.session_metrics.output_tokens += delta_tokens;
+    }
+
+    /// Reset turn metrics for a new turn
+    pub fn reset_turn_metrics(&mut self) {
+        self.turn_metrics = TurnMetrics::default();
+        self.current_verb = CurrentVerb::None;
+    }
+
+    /// Complete a turn (session metrics already updated via update_turn_metrics)
+    pub fn complete_turn(&mut self) {
+        // Session metrics are already updated incrementally via update_turn_metrics()
+        // Just reset turn metrics for the next turn
+        self.reset_turn_metrics();
+    }
+
     /// Toggle command palette visibility
     pub fn toggle_command_palette(&mut self) {
         self.command_palette.toggle();
@@ -1105,14 +1196,79 @@ impl ChatView {
     }
 
     /// Submit current input
+    /// Returns Some(message) if it should be sent to the agent,
+    /// or None if it was a system command handled internally
     pub fn submit(&mut self) -> Option<String> {
         if self.input.value().trim().is_empty() {
             return None;
         }
         let message = self.input.value().to_string();
+
+        // Check for system commands (handled internally)
+        match ParsedInput::parse(&message) {
+            ParsedInput::System(cmd) => {
+                self.handle_system_command(cmd);
+                self.input.reset();
+                return None;
+            }
+            ParsedInput::PartialPrefix(_) => {
+                // User typing a command prefix, don't submit
+                return None;
+            }
+            _ => {
+                // Regular message or verb command - send to agent
+            }
+        }
+
         self.add_user_message(message.clone());
         self.input.reset();
         Some(message)
+    }
+
+    /// Handle system commands (internal, not sent to agent)
+    fn handle_system_command(&mut self, cmd: SystemCommand) {
+        match cmd {
+            SystemCommand::Clear => {
+                self.messages.clear();
+                self.add_system_message("Conversation cleared.".to_string());
+            }
+            SystemCommand::Help => {
+                self.add_system_message(
+                    "Commands:\n\
+                     /clear - Clear conversation\n\
+                     /help - Show this help\n\
+                     /yaml - Toggle YAML view\n\
+                     /thinking - Toggle deep thinking mode\n\
+                     /model <name> - Change model\n\
+                     /provider <name> - Change provider\n\n\
+                     Verbs:\n\
+                     /infer <prompt> - LLM generation (default)\n\
+                     /exec <cmd> - Shell command\n\
+                     /fetch <url> - HTTP request\n\
+                     /invoke <tool> - MCP tool call\n\
+                     /agent <prompt> - Agentic loop"
+                        .to_string(),
+                );
+            }
+            SystemCommand::Yaml => {
+                self.show_yaml = !self.show_yaml;
+                let status = if self.show_yaml { "ON" } else { "OFF" };
+                self.add_system_message(format!("YAML view: {}", status));
+            }
+            SystemCommand::Thinking => {
+                self.deep_thinking = !self.deep_thinking;
+                let status = if self.deep_thinking { "ON" } else { "OFF" };
+                self.add_system_message(format!("Deep thinking: {}", status));
+            }
+            SystemCommand::Model => {
+                // Model change would need argument parsing
+                self.add_system_message("Use ⌘P to select a model.".to_string());
+            }
+            SystemCommand::Provider => {
+                // Provider change would need argument parsing
+                self.add_system_message("Use ⌘P to select a provider.".to_string());
+            }
+        }
     }
 
     /// Navigate history up
@@ -3309,5 +3465,153 @@ mod tests {
         assert!(
             path.ends_with("nika-chat-session.json") || path.to_string_lossy().contains("nika")
         );
+    }
+
+    // === Phase 8: Real-time Streaming Updates Tests (v0.7.3) ===
+
+    #[test]
+    fn test_set_current_verb() {
+        let mut view = ChatView::new();
+        assert!(matches!(view.current_verb, CurrentVerb::None));
+
+        view.set_current_verb(CurrentVerb::Infer);
+        assert!(matches!(view.current_verb, CurrentVerb::Infer));
+
+        view.set_current_verb(CurrentVerb::Agent);
+        assert!(matches!(view.current_verb, CurrentVerb::Agent));
+
+        view.set_current_verb(CurrentVerb::Invoke);
+        assert!(matches!(view.current_verb, CurrentVerb::Invoke));
+
+        view.set_current_verb(CurrentVerb::Exec);
+        assert!(matches!(view.current_verb, CurrentVerb::Exec));
+
+        view.set_current_verb(CurrentVerb::Fetch);
+        assert!(matches!(view.current_verb, CurrentVerb::Fetch));
+    }
+
+    #[test]
+    fn test_update_turn_metrics_initial() {
+        let mut view = ChatView::new();
+
+        // Initial state
+        assert_eq!(view.turn_metrics.input_tokens, 0);
+        assert_eq!(view.turn_metrics.output_tokens, 0);
+        assert_eq!(view.session_metrics.input_tokens, 0);
+        assert_eq!(view.session_metrics.output_tokens, 0);
+
+        // First update
+        view.update_turn_metrics(100, 50, 0.001);
+
+        // Turn metrics should reflect absolute values
+        assert_eq!(view.turn_metrics.input_tokens, 100);
+        assert_eq!(view.turn_metrics.output_tokens, 50);
+        assert!((view.turn_metrics.cost_usd - 0.001).abs() < 0.0001);
+
+        // Session metrics should have deltas (same as absolute for first update)
+        assert_eq!(view.session_metrics.input_tokens, 100);
+        assert_eq!(view.session_metrics.output_tokens, 50);
+    }
+
+    #[test]
+    fn test_update_turn_metrics_incremental() {
+        let mut view = ChatView::new();
+
+        // First update: 100 input, 50 output
+        view.update_turn_metrics(100, 50, 0.001);
+
+        // Second update: 100 input (same), 80 output (30 more)
+        view.update_turn_metrics(100, 80, 0.002);
+
+        // Turn metrics should reflect new absolute values
+        assert_eq!(view.turn_metrics.input_tokens, 100);
+        assert_eq!(view.turn_metrics.output_tokens, 80);
+
+        // Session metrics should have accumulated deltas
+        // First: +100, +50. Second: +0, +30
+        assert_eq!(view.session_metrics.input_tokens, 100); // 100 + 0
+        assert_eq!(view.session_metrics.output_tokens, 80); // 50 + 30
+    }
+
+    #[test]
+    fn test_increment_output_tokens() {
+        let mut view = ChatView::new();
+
+        // Start with some baseline
+        view.update_turn_metrics(100, 50, 0.001);
+
+        // Increment output tokens directly
+        view.increment_output_tokens(25);
+
+        assert_eq!(view.turn_metrics.output_tokens, 75); // 50 + 25
+        assert_eq!(view.session_metrics.output_tokens, 75); // 50 + 25
+                                                            // Input tokens unchanged
+        assert_eq!(view.turn_metrics.input_tokens, 100);
+        assert_eq!(view.session_metrics.input_tokens, 100);
+    }
+
+    #[test]
+    fn test_reset_turn_metrics() {
+        let mut view = ChatView::new();
+        view.set_current_verb(CurrentVerb::Agent);
+        view.update_turn_metrics(100, 50, 0.001);
+
+        view.reset_turn_metrics();
+
+        // Turn metrics should be reset
+        assert_eq!(view.turn_metrics.input_tokens, 0);
+        assert_eq!(view.turn_metrics.output_tokens, 0);
+        assert_eq!(view.turn_metrics.cost_usd, 0.0);
+        assert!(matches!(view.current_verb, CurrentVerb::None));
+
+        // Session metrics should be unchanged
+        assert_eq!(view.session_metrics.input_tokens, 100);
+        assert_eq!(view.session_metrics.output_tokens, 50);
+    }
+
+    #[test]
+    fn test_complete_turn() {
+        let mut view = ChatView::new();
+
+        // Simulate a turn with streaming updates
+        view.set_current_verb(CurrentVerb::Infer);
+        view.update_turn_metrics(100, 50, 0.001);
+        view.update_turn_metrics(100, 100, 0.002); // More output tokens
+
+        // Session should already have accumulated values
+        assert_eq!(view.session_metrics.input_tokens, 100);
+        assert_eq!(view.session_metrics.output_tokens, 100);
+
+        // Complete the turn
+        view.complete_turn();
+
+        // Turn metrics should be reset
+        assert_eq!(view.turn_metrics.input_tokens, 0);
+        assert_eq!(view.turn_metrics.output_tokens, 0);
+        assert!(matches!(view.current_verb, CurrentVerb::None));
+
+        // Session metrics should be unchanged (already updated incrementally)
+        assert_eq!(view.session_metrics.input_tokens, 100);
+        assert_eq!(view.session_metrics.output_tokens, 100);
+    }
+
+    #[test]
+    fn test_multi_turn_session() {
+        let mut view = ChatView::new();
+
+        // Turn 1: infer with 100 input, 50 output
+        view.set_current_verb(CurrentVerb::Infer);
+        view.update_turn_metrics(100, 50, 0.001);
+        view.complete_turn();
+
+        // Turn 2: agent with 200 input, 100 output
+        view.set_current_verb(CurrentVerb::Agent);
+        view.update_turn_metrics(200, 100, 0.003);
+        view.complete_turn();
+
+        // Session should have accumulated both turns
+        assert_eq!(view.session_metrics.input_tokens, 300); // 100 + 200
+        assert_eq!(view.session_metrics.output_tokens, 150); // 50 + 100
+        assert!((view.session_metrics.cost_usd - 0.004).abs() < 0.0001);
     }
 }

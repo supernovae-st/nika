@@ -929,6 +929,17 @@ impl App {
                 .draw(|frame| {
                     let size = frame.area();
 
+                    // v0.8: Check terminal size for graceful degradation
+                    use super::widgets::{check_terminal_size, TerminalTooSmallOverlay};
+                    let layout_mode = check_terminal_size(size);
+
+                    // If terminal is too small, show overlay and return early
+                    if !layout_mode.is_usable() {
+                        let overlay = TerminalTooSmallOverlay::new(size.width, size.height);
+                        frame.render_widget(overlay, size);
+                        return;
+                    }
+
                     // Layout: Header (1) + Content (dynamic) + StatusBar (1)
                     let chunks = Layout::default()
                         .direction(Direction::Vertical)
@@ -2913,51 +2924,16 @@ fn render_panel(frame: &mut Frame, state: &TuiState, theme: &Theme, panel_id: Pa
     }
 }
 
-/// Render help overlay
-fn render_help_overlay(frame: &mut Frame, theme: &Theme, area: Rect) {
-    let help_text = r#"
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA TUI KEYBOARD SHORTCUTS (v0.5.2)                                         ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║                                                                               ║
-║  ═══ GLOBAL ═══════════════════════════════════════════════════════════════  ║
-║  1-4        Switch view (Browser/Home/Monitor/Chat)                          ║
-║  Tab        Next view (or next panel in Monitor)                             ║
-║  ?/F1       This help     m  Metrics       s  Settings     Esc  Close        ║
-║  Ctrl+C     Quit app      q  Quit (when not editing)                         ║
-║                                                                               ║
-║  ═══ MONITOR VIEW ═════════════════════════════════════════════════════════  ║
-║  1-4        Focus panel   h/l  Prev/Next panel    t/Tab  Cycle tabs          ║
-║  j/k ↑↓     Scroll        Space  Pause    Enter  Step (when paused)          ║
-║  y          Copy output   e  Export trace    r  Retry    /  Filter           ║
-║  b          Breakpoint    T  Theme toggle    n/N  Dismiss notifications      ║
-║                                                                               ║
-║  ═══ CHAT VIEW ════════════════════════════════════════════════════════════  ║
-║  i          Enter insert mode (start typing)                                 ║
-║  Esc        Exit insert mode to normal mode                                  ║
-║  Enter      Send message (in insert mode)                                    ║
-║  Ctrl+K     Command palette (/agent, /model, etc.)                           ║
-║  Ctrl+T     Toggle deep thinking mode                                        ║
-║  Ctrl+M     Toggle Infer ↔ Agent mode                                        ║
-║                                                                               ║
-║  ═══ BROWSER VIEW ═════════════════════════════════════════════════════════  ║
-║  j/k ↑↓     Navigate files    Enter  Open/Run workflow                       ║
-║  o          Open in editor    g  DAG view    e  Edit workflow                ║
-║                                                                               ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
-"#;
+/// Render help overlay (v0.8 - using HelpOverlay widget)
+fn render_help_overlay(frame: &mut Frame, _theme: &Theme, area: Rect) {
+    use super::widgets::{HelpOverlay, HelpOverlayState};
 
-    let overlay = centered_rect(80, 60, area);
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(" Help ")
-        .style(Style::default().add_modifier(Modifier::BOLD));
+    // Create a temporary state that's always visible
+    let mut state = HelpOverlayState::new();
+    state.show();
 
-    let paragraph = Paragraph::new(help_text)
-        .block(block)
-        .style(theme.text_style());
-
-    frame.render_widget(paragraph, overlay);
+    let overlay = HelpOverlay::new(&state);
+    frame.render_widget(overlay, area);
 }
 
 /// Render metrics overlay
