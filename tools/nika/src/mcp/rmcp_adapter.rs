@@ -198,8 +198,9 @@ impl RmcpClientAdapter {
         // Wrap with timeout to prevent hanging on unresponsive MCP servers
         let service = timeout(CONNECT_TIMEOUT, ().serve(transport))
             .await
-            .map_err(|_| NikaError::Timeout {
-                operation: format!("MCP connect to '{}'", self.name),
+            .map_err(|_| NikaError::McpTimeout {
+                name: self.name.clone(),
+                operation: "connect".to_string(),
                 timeout_secs: CONNECT_TIMEOUT.as_secs(),
             })?
             .map_err(|e| NikaError::McpStartError {

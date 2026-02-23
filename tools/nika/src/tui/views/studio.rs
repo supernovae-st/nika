@@ -705,7 +705,7 @@ impl StudioView {
                 }
 
                 // Build dependency map from Flow objects
-                let deps = self.extract_flow_dependencies(&wf);
+                let deps = self.extract_flow_dependencies(wf);
 
                 // Convert tasks to NodeBoxData
                 let nodes: Vec<NodeBoxData> = wf
