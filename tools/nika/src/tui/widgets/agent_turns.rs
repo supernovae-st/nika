@@ -161,10 +161,11 @@ impl Widget for AgentTurns<'_> {
             // Status icon
             buf.set_string(area.x + 3, y, icon, Style::default());
 
-            // Status text
+            // Status text (UTF-8 safe truncation)
             let max_status_len = (area.width as usize).saturating_sub(15);
-            let display_status = if entry.status.len() > max_status_len {
-                format!("{}…", &entry.status[..max_status_len.saturating_sub(1)])
+            let display_status = if entry.status.chars().count() > max_status_len {
+                let truncated: String = entry.status.chars().take(max_status_len.saturating_sub(1)).collect();
+                format!("{}…", truncated)
             } else {
                 entry.status.clone()
             };

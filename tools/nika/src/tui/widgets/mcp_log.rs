@@ -171,9 +171,11 @@ impl Widget for McpLog<'_> {
                 .or(entry.resource.as_deref())
                 .unwrap_or("unknown");
 
+            // UTF-8 safe truncation
             let max_name_len = (area.width as usize).saturating_sub(12);
-            let display_name = if name.len() > max_name_len {
-                format!("{}…", &name[..max_name_len.saturating_sub(1)])
+            let display_name = if name.chars().count() > max_name_len {
+                let truncated: String = name.chars().take(max_name_len.saturating_sub(1)).collect();
+                format!("{}…", truncated)
             } else {
                 name.to_string()
             };

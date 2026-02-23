@@ -177,10 +177,16 @@ impl<'a> McpCallBox<'a> {
         height
     }
 
-    /// Truncate string to fit width
+    /// Truncate string to fit width (UTF-8 safe)
     fn truncate(s: &str, max_len: usize) -> String {
-        if s.len() > max_len {
-            format!("{}...", &s[..max_len.saturating_sub(3)])
+        let char_count = s.chars().count();
+        if char_count > max_len {
+            if max_len <= 3 {
+                s.chars().take(max_len).collect()
+            } else {
+                let truncated: String = s.chars().take(max_len.saturating_sub(3)).collect();
+                format!("{}...", truncated)
+            }
         } else {
             s.to_string()
         }

@@ -254,11 +254,12 @@ impl Widget for InferStreamBox<'_> {
             buf.set_string(area.x, y, "│", border_style);
             buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
+            // UTF-8 safe truncation
             let max_line_len = (area.width.saturating_sub(4)) as usize;
-            let display_line = if line.len() > max_line_len {
-                &line[..max_line_len]
+            let display_line: String = if line.chars().count() > max_line_len {
+                line.chars().take(max_line_len).collect()
             } else {
-                line
+                line.to_string()
             };
             buf.set_string(
                 area.x + 2,
