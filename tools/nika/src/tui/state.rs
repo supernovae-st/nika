@@ -14,7 +14,7 @@ use crate::event::{ContextSource, EventKind, ExcludedItem};
 
 use super::theme::{MissionPhase, TaskStatus, ThemeMode};
 use super::views::{DagTab, MissionTab, NovanetTab, ReasoningTab};
-use super::widgets::TimelineEntry;
+use super::widgets::{StatusQueue, TimelineEntry};
 
 /// Panel identifier for focus management
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1401,6 +1401,12 @@ pub struct TuiState {
     pub max_notifications: usize,
 
     // ═══════════════════════════════════════════
+    // STATUS MESSAGES (v0.8 User Feedback)
+    // ═══════════════════════════════════════════
+    /// Status message queue for user feedback
+    pub status_messages: StatusQueue,
+
+    // ═══════════════════════════════════════════
     // LAZY RENDERING (TIER 4.1)
     // ═══════════════════════════════════════════
     /// Dirty flags for lazy rendering
@@ -1510,25 +1516,26 @@ impl JsonFormatCache {
     }
 
     /// Get cached JSON for a key, or format and cache it
-    pub fn get_or_format<T: serde::Serialize>(&mut self, key: &str, value: &T) -> String {
-        if let Some(cached) = self.cache.get(key) {
-            return cached.clone();
-        }
+    /// PERF: Returns &str to avoid clone on every cache hit (v0.8.1)
+    pub fn get_or_format<T: serde::Serialize>(&mut self, key: &str, value: &T) -> &str {
+        // PERF: Only format and insert if not already cached
+        if !self.cache.contains_key(key) {
+            let formatted = serde_json::to_string_pretty(value).unwrap_or_default();
 
-        let formatted = serde_json::to_string_pretty(value).unwrap_or_default();
-
-        // Simple LRU-style eviction: clear oldest entries if over limit
-        if self.cache.len() >= self.max_entries {
-            // Remove first 10% of entries, minimum 1 (oldest by insertion order)
-            let to_remove = (self.max_entries / 10).max(1);
-            let keys: Vec<String> = self.cache.keys().take(to_remove).cloned().collect();
-            for k in keys {
-                self.cache.remove(&k);
+            // Simple LRU-style eviction: clear oldest entries if over limit
+            if self.cache.len() >= self.max_entries {
+                // Remove first 10% of entries, minimum 1 (oldest by insertion order)
+                let to_remove = (self.max_entries / 10).max(1);
+                let keys: Vec<String> = self.cache.keys().take(to_remove).cloned().collect();
+                for k in keys {
+                    self.cache.remove(&k);
+                }
             }
+
+            self.cache.insert(key.to_string(), formatted);
         }
 
-        self.cache.insert(key.to_string(), formatted.clone());
-        formatted
+        self.cache.get(key).map(|s| s.as_str()).unwrap_or("")
     }
 
     /// Invalidate specific cache entries
@@ -1592,6 +1599,7 @@ impl TuiState {
             filter_cursor: 0,
             notifications: Vec::new(),
             max_notifications: 10,
+            status_messages: StatusQueue::new(),
             dirty: DirtyFlags::default(),
             json_cache: JsonFormatCache::new(),
             cached_timeline_entries: Vec::new(),
@@ -2196,6 +2204,9 @@ impl TuiState {
 
         // Advance animation frame (wraps at 60 for 1-second cycles)
         self.frame = self.frame.wrapping_add(1) % 60;
+
+        // Expire old status messages
+        self.status_messages.tick();
     }
 
     /// Get spinner character for current frame
@@ -2212,6 +2223,30 @@ impl TuiState {
         const ROCKET: &[char] = &['🚀', '🔥', '💨', '✨'];
         let idx = (self.frame / 15) as usize % ROCKET.len();
         ROCKET[idx]
+    }
+
+    // ═══════════════════════════════════════════
+    // STATUS MESSAGE HELPERS (v0.8 User Feedback)
+    // ═══════════════════════════════════════════
+
+    /// Show an info status message
+    pub fn status_info(&mut self, message: impl Into<String>) {
+        self.status_messages.info(message);
+    }
+
+    /// Show a success status message
+    pub fn status_success(&mut self, message: impl Into<String>) {
+        self.status_messages.success(message);
+    }
+
+    /// Show a warning status message
+    pub fn status_warning(&mut self, message: impl Into<String>) {
+        self.status_messages.warning(message);
+    }
+
+    /// Show an error status message
+    pub fn status_error(&mut self, message: impl Into<String>) {
+        self.status_messages.error(message);
     }
 
     /// Check if a task is a spawned subagent
@@ -2955,11 +2990,13 @@ mod tests {
         state.cycle_tab();
         assert_eq!(state.novanet_tab, NovanetTab::Summary);
 
-        // Test Reasoning tab cycling (Turns ↔ Thinking)
+        // Test Reasoning tab cycling (Turns → Thinking → Steps → Turns)
         state.focus = PanelId::Agent;
         assert_eq!(state.reasoning_tab, ReasoningTab::Turns);
         state.cycle_tab();
         assert_eq!(state.reasoning_tab, ReasoningTab::Thinking);
+        state.cycle_tab();
+        assert_eq!(state.reasoning_tab, ReasoningTab::Steps);
         state.cycle_tab();
         assert_eq!(state.reasoning_tab, ReasoningTab::Turns);
     }
@@ -4760,11 +4797,11 @@ mod tests {
 
         // First call should format and cache
         let value = serde_json::json!({"name": "test"});
-        let result1 = cache.get_or_format("key1", &value);
+        let result1 = cache.get_or_format("key1", &value).to_string();
         assert!(result1.contains("name"));
 
         // Second call should return cached
-        let result2 = cache.get_or_format("key1", &value);
+        let result2 = cache.get_or_format("key1", &value).to_string();
         assert_eq!(result1, result2);
         assert_eq!(cache.stats().0, 1); // 1 entry
     }

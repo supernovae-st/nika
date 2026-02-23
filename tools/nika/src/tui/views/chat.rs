@@ -61,10 +61,10 @@ use crate::tui::utils::truncate_str;
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
     ActivityItem, ActivityTemp, ChatModeIndicator, CommandPalette, CommandPaletteState,
-    ContextItem, CurrentVerb, InferStreamData, McpCallData, McpCallStatus, McpServerInfo,
-    McpStatus, MemoryFile, MissionControlPanel, ParsedInput, ProStatusBar, Provider,
-    ProviderSelector, ProviderSelectorState, SessionContext, SessionMetrics, SystemCommand,
-    TurnMetrics,
+    ContextItem, CurrentVerb, DecryptVerb, InferStreamData, McpCallData, McpCallStatus,
+    McpServerInfo, McpStatus, MemoryFile, MissionControlPanel, ParsedInput, ProStatusBar,
+    Provider, ProviderSelector, ProviderSelectorState, SessionContext, SessionMetrics,
+    StreamingDecrypt, SystemCommand, TurnMetrics,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -321,6 +321,10 @@ pub struct ChatView {
     pub copy_flash_index: Option<usize>,
     /// Frame when copy happened (for flash duration)
     pub copy_flash_start: u8,
+    /// Matrix decrypt effect for streaming text (v0.8 WOW)
+    pub streaming_decrypt: StreamingDecrypt,
+    /// Whether matrix decrypt effect is enabled
+    pub matrix_effect_enabled: bool,
 
     // === v0.7.3 Mission Control ===
     /// Context items loaded via @ mentions
@@ -406,6 +410,10 @@ impl ChatView {
             // v0.8 WOW Effects
             copy_flash_index: None,
             copy_flash_start: 0,
+            streaming_decrypt: StreamingDecrypt::new()
+                .with_verb(DecryptVerb::Infer)
+                .with_reveal_speed(0.08), // ~12 frames to reveal
+            matrix_effect_enabled: true, // Enable by default
 
             // v0.7.3 Mission Control
             context_items: vec![],
@@ -730,16 +738,34 @@ impl ChatView {
     pub fn start_streaming(&mut self) {
         self.is_streaming = true;
         self.partial_response.clear();
+        // v0.8 WOW: Reset and start matrix decrypt effect
+        self.streaming_decrypt.clear();
+    }
+
+    /// Start streaming with a specific verb for theming
+    pub fn start_streaming_with_verb(&mut self, verb: DecryptVerb) {
+        self.is_streaming = true;
+        self.partial_response.clear();
+        // v0.8 WOW: Reset and configure matrix decrypt for verb theme
+        self.streaming_decrypt = StreamingDecrypt::new()
+            .with_verb(verb)
+            .with_reveal_speed(0.08);
     }
 
     /// Append chunk to partial response during streaming
     pub fn append_streaming(&mut self, chunk: &str) {
         self.partial_response.push_str(chunk);
+        // v0.8 WOW: Push to matrix decrypt for reveal effect
+        if self.matrix_effect_enabled {
+            self.streaming_decrypt.push_text(chunk);
+        }
     }
 
     /// Finish streaming and return the full response
     pub fn finish_streaming(&mut self) -> String {
         self.is_streaming = false;
+        // v0.8 WOW: Reveal all remaining text instantly
+        self.streaming_decrypt.reveal_all();
         std::mem::take(&mut self.partial_response)
     }
 
@@ -895,6 +921,10 @@ impl ChatView {
         }
         // v0.8 WOW: Tick flash effects
         self.tick_flash();
+        // v0.8 WOW: Tick matrix decrypt animation (reveal progress)
+        if self.is_streaming && self.matrix_effect_enabled {
+            self.streaming_decrypt.tick();
+        }
     }
 
     /// Add an MCP call to the inline content
@@ -1550,24 +1580,25 @@ impl View for ChatView {
 
         // ═══════════════════════════════════════════════════════════════════════════════
         // Panel Navigation (v0.8 UX Enhancement)
+        // Tab/Shift+Tab ONLY switch panels when NOT in Input panel
+        // When Input is focused, keys go to the text input field
         // ═══════════════════════════════════════════════════════════════════════════════
 
-        // Tab = Focus next panel (Conversation → Activity → Input → Conversation)
-        if key.code == KeyCode::Tab && !key.modifiers.contains(KeyModifiers::SHIFT) {
-            self.focus_next_panel();
-            return ViewAction::None;
-        }
-
-        // Shift+Tab = Focus previous panel
-        if key.code == KeyCode::BackTab
-            || (key.code == KeyCode::Tab && key.modifiers.contains(KeyModifiers::SHIFT))
-        {
-            self.focus_prev_panel();
-            return ViewAction::None;
-        }
-
-        // Scroll keys when NOT in Input panel (vim-style navigation)
+        // Scroll keys and Tab navigation when NOT in Input panel (vim-style navigation)
         if self.focused_panel != ChatPanel::Input {
+            // Tab = Focus next panel (Conversation → Activity → Input → Conversation)
+            if key.code == KeyCode::Tab && !key.modifiers.contains(KeyModifiers::SHIFT) {
+                self.focus_next_panel();
+                return ViewAction::None;
+            }
+
+            // Shift+Tab = Focus previous panel
+            if key.code == KeyCode::BackTab
+                || (key.code == KeyCode::Tab && key.modifiers.contains(KeyModifiers::SHIFT))
+            {
+                self.focus_prev_panel();
+                return ViewAction::None;
+            }
             match key.code {
                 // j/Down = Scroll down
                 KeyCode::Char('j') | KeyCode::Down => {
@@ -1983,11 +2014,22 @@ impl ChatView {
 
             // Show partial response if any
             if !self.partial_response.is_empty() {
-                for line in self.partial_response.lines() {
-                    items.push(ListItem::new(Line::from(vec![
-                        Span::styled("  | ", Style::default().fg(theme.status_success)),
-                        Span::raw(line.to_string()),
-                    ])));
+                // v0.8 WOW: Use matrix decrypt effect if enabled
+                if self.matrix_effect_enabled {
+                    for decrypt_line in self.streaming_decrypt.build_lines() {
+                        let mut spans = vec![
+                            Span::styled("  | ", Style::default().fg(theme.status_success)),
+                        ];
+                        spans.extend(decrypt_line.spans);
+                        items.push(ListItem::new(Line::from(spans)));
+                    }
+                } else {
+                    for line in self.partial_response.lines() {
+                        items.push(ListItem::new(Line::from(vec![
+                            Span::styled("  | ", Style::default().fg(theme.status_success)),
+                            Span::raw(line.to_string()),
+                        ])));
+                    }
                 }
             }
 
@@ -2378,11 +2420,24 @@ impl ChatView {
             ])));
 
             if !self.partial_response.is_empty() {
-                for line in self.partial_response.lines() {
-                    items.push(ListItem::new(Line::from(vec![
-                        Span::styled("│ ", Style::default().fg(theme.status_success)),
-                        Span::raw(line.to_string()),
-                    ])));
+                // v0.8 WOW: Use matrix decrypt effect if enabled
+                if self.matrix_effect_enabled {
+                    for decrypt_line in self.streaming_decrypt.build_lines() {
+                        // Prepend the prefix to each line
+                        let mut spans = vec![
+                            Span::styled("│ ", Style::default().fg(theme.status_success)),
+                        ];
+                        spans.extend(decrypt_line.spans);
+                        items.push(ListItem::new(Line::from(spans)));
+                    }
+                } else {
+                    // Fallback: plain text rendering
+                    for line in self.partial_response.lines() {
+                        items.push(ListItem::new(Line::from(vec![
+                            Span::styled("│ ", Style::default().fg(theme.status_success)),
+                            Span::raw(line.to_string()),
+                        ])));
+                    }
                 }
             }
 

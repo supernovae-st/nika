@@ -20,6 +20,7 @@
 use std::sync::Arc;
 
 use futures::StreamExt;
+use tokio::time::timeout;
 use rig::agent::AgentBuilder;
 use rig::client::{CompletionClient, ProviderClient};
 use rig::completion::{Chat, CompletionModel as _, GetTokenUsage, Prompt};
@@ -35,6 +36,7 @@ use crate::error::NikaError;
 use crate::event::{AgentTurnMetadata, EventKind, EventLog};
 use crate::mcp::McpClient;
 use crate::provider::rig::{NikaMcpTool, NikaMcpToolDef};
+use crate::util::STREAM_CHUNK_TIMEOUT;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -782,12 +784,25 @@ impl RigAgentLoop {
                 })?;
 
         // Accumulate response and extract tokens
-        let mut response_parts: Vec<String> = Vec::new();
-        let mut thinking_parts: Vec<String> = Vec::new();
+        // PERF: Pre-allocate with expected capacity to avoid reallocation
+        let mut response_parts: Vec<String> = Vec::with_capacity(16);
+        let mut thinking_parts: Vec<String> = Vec::with_capacity(8);
         let mut input_tokens: u32 = 0;
         let mut output_tokens: u32 = 0;
 
-        while let Some(chunk_result) = stream.next().await {
+        // Stream chunks with timeout protection to prevent infinite hangs
+        loop {
+            let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                Ok(Some(result)) => result,
+                Ok(None) => break, // Stream ended normally
+                Err(_elapsed) => {
+                    return Err(NikaError::Timeout {
+                        operation: "streaming chunk".to_string(),
+                        duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                    });
+                }
+            };
+
             match chunk_result {
                 Ok(content) => match content {
                     StreamedAssistantContent::Text(text) => {

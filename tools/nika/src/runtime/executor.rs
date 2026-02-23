@@ -168,8 +168,8 @@ impl TaskExecutor {
                 reason: format!("failed to parse JSON response: {}", e),
             })?;
 
-        // Extract nodes from result
-        let mut items = self.extract_decompose_nodes(&result_json)?;
+        // Extract nodes from result (pass ownership to avoid clone)
+        let mut items = self.extract_decompose_nodes(result_json)?;
 
         // Apply max_items limit
         if let Some(max) = spec.max_items {
@@ -288,8 +288,8 @@ impl TaskExecutor {
                 }
             };
 
-            // Extract child nodes
-            let children = match self.extract_decompose_nodes(&result_json) {
+            // Extract child nodes (pass ownership to avoid clone)
+            let children = match self.extract_decompose_nodes(result_json) {
                 Ok(c) => c,
                 Err(_) => continue,
             };
@@ -379,21 +379,26 @@ impl TaskExecutor {
     }
 
     /// Extract nodes array from novanet_traverse result
+    /// Extract nodes from decompose result, taking ownership to avoid cloning
+    /// PERF: Takes ownership of Value to avoid cloning arrays (v0.8.1)
     fn extract_decompose_nodes(
         &self,
-        result: &serde_json::Value,
+        result: serde_json::Value,
     ) -> Result<Vec<serde_json::Value>, NikaError> {
-        if let Some(nodes) = result.get("nodes").and_then(|v| v.as_array()) {
-            return Ok(nodes.clone());
-        }
-        if let Some(items) = result.get("items").and_then(|v| v.as_array()) {
-            return Ok(items.clone());
-        }
-        if let Some(results) = result.get("results").and_then(|v| v.as_array()) {
-            return Ok(results.clone());
-        }
-        if let Some(arr) = result.as_array() {
-            return Ok(arr.clone());
+        // Try to extract from object fields first (no clone needed)
+        if let serde_json::Value::Object(mut map) = result {
+            if let Some(serde_json::Value::Array(nodes)) = map.remove("nodes") {
+                return Ok(nodes);
+            }
+            if let Some(serde_json::Value::Array(items)) = map.remove("items") {
+                return Ok(items);
+            }
+            if let Some(serde_json::Value::Array(results)) = map.remove("results") {
+                return Ok(results);
+            }
+        // Handle direct array case
+        } else if let serde_json::Value::Array(arr) = result {
+            return Ok(arr);
         }
         Err(NikaError::McpInvalidResponse {
             tool: "novanet_traverse".to_string(),
@@ -1658,7 +1663,7 @@ mod tests {
             ]
         });
 
-        let nodes = executor.extract_decompose_nodes(&result_json).unwrap();
+        let nodes = executor.extract_decompose_nodes(result_json).unwrap();
         assert_eq!(nodes.len(), 2);
     }
 
@@ -1669,7 +1674,7 @@ mod tests {
             "items": ["item1", "item2", "item3"]
         });
 
-        let nodes = executor.extract_decompose_nodes(&result_json).unwrap();
+        let nodes = executor.extract_decompose_nodes(result_json).unwrap();
         assert_eq!(nodes.len(), 3);
     }
 
@@ -1680,7 +1685,7 @@ mod tests {
             "results": ["result1", "result2"]
         });
 
-        let nodes = executor.extract_decompose_nodes(&result_json).unwrap();
+        let nodes = executor.extract_decompose_nodes(result_json).unwrap();
         assert_eq!(nodes.len(), 2);
     }
 
@@ -1689,7 +1694,7 @@ mod tests {
         let executor = TaskExecutor::new("mock", None, None, EventLog::new());
         let result_json = json!(["direct1", "direct2"]);
 
-        let nodes = executor.extract_decompose_nodes(&result_json).unwrap();
+        let nodes = executor.extract_decompose_nodes(result_json).unwrap();
         assert_eq!(nodes.len(), 2);
     }
 
@@ -1698,7 +1703,7 @@ mod tests {
         let executor = TaskExecutor::new("mock", None, None, EventLog::new());
         let result_json = json!({"nodes": []});
 
-        let nodes = executor.extract_decompose_nodes(&result_json).unwrap();
+        let nodes = executor.extract_decompose_nodes(result_json).unwrap();
         assert_eq!(nodes.len(), 0);
     }
 

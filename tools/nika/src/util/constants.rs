@@ -23,6 +23,10 @@ pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Timeout for MCP tool calls (invoke: verb)
 pub const MCP_CALL_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// Timeout for streaming chunk delivery (per-chunk, not total stream)
+/// If no chunk arrives within this time, the stream is considered stalled.
+pub const STREAM_CHUNK_TIMEOUT: Duration = Duration::from_secs(60);
+
 /// Timeout for entire workflow execution (TUI mode)
 pub const WORKFLOW_TIMEOUT: Duration = Duration::from_secs(300); // 5 minutes
 
@@ -48,6 +52,7 @@ mod tests {
         assert!(INFER_TIMEOUT.as_secs() > 0);
         assert!(CONNECT_TIMEOUT.as_secs() > 0);
         assert!(MCP_CALL_TIMEOUT.as_secs() > 0);
+        assert!(STREAM_CHUNK_TIMEOUT.as_secs() > 0);
         assert!(WORKFLOW_TIMEOUT.as_secs() > 0);
     }
 

@@ -138,6 +138,18 @@ impl ConnectionStatus {
             Self::Error => "⊗",
         }
     }
+
+    /// Get animated icon (for connecting status)
+    pub fn animated_icon(&self, frame: u8) -> &'static str {
+        match self {
+            Self::Connecting => {
+                // Spinning animation: ◐ ◓ ◑ ◒
+                const SPIN: [&str; 4] = ["◐", "◓", "◑", "◒"];
+                SPIN[(frame / 8) as usize % 4]
+            }
+            _ => self.icon(),
+        }
+    }
 }
 
 /// Metrics to display on the right side of status bar
@@ -209,6 +221,8 @@ pub struct StatusBar<'a> {
     pub input_mode: Option<InputMode>,
     /// Custom status text from the view's status_line() method
     pub custom_text: Option<String>,
+    /// Animation frame counter (0-255) for live indicators
+    pub frame: u8,
 }
 
 impl<'a> StatusBar<'a> {
@@ -220,7 +234,14 @@ impl<'a> StatusBar<'a> {
             metrics: None,
             input_mode: None,
             custom_text: None,
+            frame: 0,
         }
+    }
+
+    /// Set animation frame for live indicators
+    pub fn frame(mut self, frame: u8) -> Self {
+        self.frame = frame;
+        self
     }
 
     pub fn hints(mut self, hints: Vec<KeyHint>) -> Self {
@@ -421,16 +442,24 @@ impl Widget for StatusBar<'_> {
                     ));
                 }
 
-                // Connection status icon with color
+                // Connection status icon with color (animated for Connecting)
                 let conn_color = match metrics.connection {
                     ConnectionStatus::Connected => self.theme.status_success,
-                    ConnectionStatus::Connecting => self.theme.status_running,
+                    ConnectionStatus::Connecting => {
+                        // Animated pulse between yellow and orange
+                        use crate::tui::theme::solarized;
+                        if (self.frame / 8) % 2 == 0 {
+                            solarized::YELLOW
+                        } else {
+                            solarized::ORANGE
+                        }
+                    }
                     ConnectionStatus::Disconnected => self.theme.text_muted,
                     ConnectionStatus::Error => self.theme.status_failed,
                 };
 
                 right_spans.push(Span::styled(
-                    metrics.connection.icon(),
+                    metrics.connection.animated_icon(self.frame),
                     Style::default().fg(conn_color),
                 ));
                 right_spans.push(Span::raw(" "));

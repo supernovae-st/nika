@@ -120,13 +120,16 @@ pub enum ReasoningTab {
     #[default]
     Turns,
     Thinking,
+    /// Claude Code-like step-by-step view (v0.8)
+    Steps,
 }
 
 impl ReasoningTab {
     pub fn next(&self) -> Self {
         match self {
             ReasoningTab::Turns => ReasoningTab::Thinking,
-            ReasoningTab::Thinking => ReasoningTab::Turns,
+            ReasoningTab::Thinking => ReasoningTab::Steps,
+            ReasoningTab::Steps => ReasoningTab::Turns,
         }
     }
 
@@ -134,6 +137,7 @@ impl ReasoningTab {
         match self {
             ReasoningTab::Turns => "Turns",
             ReasoningTab::Thinking => "Thinking",
+            ReasoningTab::Steps => "Steps",
         }
     }
 }
@@ -383,7 +387,8 @@ mod tests {
     fn test_reasoning_tab_cycles() {
         let tab = ReasoningTab::Turns;
         assert_eq!(tab.next(), ReasoningTab::Thinking);
-        assert_eq!(tab.next().next(), ReasoningTab::Turns);
+        assert_eq!(tab.next().next(), ReasoningTab::Steps);
+        assert_eq!(tab.next().next().next(), ReasoningTab::Turns);
     }
 
     #[test]
@@ -397,6 +402,7 @@ mod tests {
         assert_eq!(NovanetTab::FullJson.title(), "Full JSON");
         assert_eq!(ReasoningTab::Turns.title(), "Turns");
         assert_eq!(ReasoningTab::Thinking.title(), "Thinking");
+        assert_eq!(ReasoningTab::Steps.title(), "Steps");
     }
 
     #[test]

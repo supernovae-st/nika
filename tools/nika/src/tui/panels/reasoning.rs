@@ -18,7 +18,9 @@ use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
 use crate::tui::utils::format_number;
 use crate::tui::views::ReasoningTab;
-use crate::tui::widgets::{AgentTurns, Gauge, TurnEntry};
+use crate::tui::widgets::{
+    AgentStep, AgentStepGroup, AgentStepsWidget, AgentTurns, Gauge, StepStatus, TurnEntry, VerbType,
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DEFAULT COLORS — Centralized for future theme integration
@@ -316,6 +318,155 @@ impl<'a> ReasoningPanel<'a> {
             );
         }
     }
+
+    /// Build AgentSteps from agent turns (Claude Code-like view)
+    fn build_agent_steps(&self) -> Vec<AgentStep> {
+        use crate::tui::widgets::{TokenUsage, ToolCallMetadata};
+
+        self.state
+            .agent_turns
+            .iter()
+            .enumerate()
+            .map(|(i, turn)| {
+                // Determine verb type from tool calls
+                let verb = if !turn.tool_calls.is_empty() {
+                    // Check if it's an MCP tool call
+                    let first_tool = &turn.tool_calls[0];
+                    if first_tool.starts_with("novanet_") || first_tool.contains("mcp") {
+                        VerbType::Invoke
+                    } else if first_tool == "spawn_agent" {
+                        VerbType::Agent
+                    } else {
+                        VerbType::Infer
+                    }
+                } else {
+                    VerbType::Infer
+                };
+
+                // Determine status
+                let is_last = i == self.state.agent_turns.len() - 1;
+                let status = if is_last && self.state.agent_max_turns.is_some() {
+                    StepStatus::Running
+                } else if turn.status == "completed" || turn.status == "done" {
+                    StepStatus::Completed
+                } else if turn.status.contains("error") || turn.status.contains("fail") {
+                    StepStatus::Failed
+                } else {
+                    StepStatus::Completed
+                };
+
+                let description = if !turn.tool_calls.is_empty() {
+                    format!("Turn {} — {} tools", turn.index, turn.tool_calls.len())
+                } else {
+                    format!("Turn {} — inference", turn.index)
+                };
+
+                let mut step = AgentStep::new(&description)
+                    .with_verb(verb)
+                    .with_turn(turn.index, self.state.agent_max_turns);
+                step.status = status;
+
+                // Add token usage if available
+                if let Some(tokens) = turn.tokens {
+                    step = step.with_tokens(TokenUsage::new(tokens, 0));
+                }
+
+                // Add first tool call metadata if available
+                if let Some(tool_name) = turn.tool_calls.first() {
+                    step = step.with_tool_call(ToolCallMetadata::new(tool_name));
+                }
+
+                // Add thinking as detail if available
+                if let Some(thinking) = &turn.thinking {
+                    let preview: String = thinking.chars().take(80).collect();
+                    step = step.with_detail(format!("🧠 {}", preview));
+                }
+
+                step
+            })
+            .collect()
+    }
+
+    /// Render Claude Code-like steps view (v0.8)
+    fn render_steps(&self, area: Rect, buf: &mut Buffer) {
+        let steps = self.build_agent_steps();
+
+        if steps.is_empty() {
+            buf.set_string(
+                area.x + 2,
+                area.y,
+                "(no agent steps)",
+                Style::default().fg(Color::DarkGray),
+            );
+            return;
+        }
+
+        // Build step group
+        let task_id = self
+            .state
+            .current_task
+            .clone()
+            .unwrap_or_else(|| "agent".to_string());
+        let mut group = AgentStepGroup::new(&task_id);
+        for step in steps {
+            group.add_step(step);
+        }
+
+        let steps_area = Rect {
+            x: area.x + 1,
+            y: area.y,
+            width: area.width.saturating_sub(2),
+            height: area.height,
+        };
+
+        let widget = AgentStepsWidget::new(&group);
+        widget.render(steps_area, buf);
+    }
+
+    /// Render spawned agents tree (v0.8)
+    fn render_spawned_agents(&self, area: Rect, buf: &mut Buffer) {
+        if self.state.spawned_agents.is_empty() {
+            return;
+        }
+
+        // Header
+        buf.set_string(
+            area.x + 2,
+            area.y,
+            "─── 🐤 Spawned Agents ───",
+            Style::default()
+                .fg(Color::Rgb(234, 179, 8)) // Gold
+                .add_modifier(Modifier::BOLD),
+        );
+
+        // List spawned agents with tree visualization
+        for (i, agent) in self.state.spawned_agents.iter().enumerate() {
+            let y = area.y + 1 + i as u16;
+            if y >= area.y + area.height {
+                break;
+            }
+
+            // Indent based on depth
+            let indent = "  ".repeat(agent.depth as usize);
+            let tree_char = if i == self.state.spawned_agents.len() - 1 {
+                "└─"
+            } else {
+                "├─"
+            };
+
+            let line = format!(
+                "{}{} 🐤 {} (from {})",
+                indent, tree_char, agent.child_task_id, agent.parent_task_id
+            );
+
+            buf.set_string(
+                area.x + 2,
+                y,
+                &line,
+                Style::default().fg(Color::Rgb(250, 204, 21)), // Yellow
+            );
+        }
+    }
 }
 
 impl Widget for ReasoningPanel<'_> {
@@ -324,8 +475,9 @@ impl Widget for ReasoningPanel<'_> {
         let border_style = self.theme.border_style(self.focused);
         let active_tab = self.state.reasoning_tab;
         let tab_indicator = match active_tab {
-            ReasoningTab::Turns => " [Turns] Thinking ",
-            ReasoningTab::Thinking => " Turns [Thinking] ",
+            ReasoningTab::Turns => " [Turns] Thinking Steps ",
+            ReasoningTab::Thinking => " Turns [Thinking] Steps ",
+            ReasoningTab::Steps => " Turns Thinking [Steps] ",
         };
         let title = format!(" ⊕ AGENT REASONING {} ", tab_indicator);
 
@@ -344,6 +496,7 @@ impl Widget for ReasoningPanel<'_> {
         // Check if agent is active
         let has_agent = self.state.agent_max_turns.is_some();
         let has_streaming = !self.state.streaming_buffer.is_empty();
+        let has_spawned = !self.state.spawned_agents.is_empty();
 
         // Tab-based rendering (v0.5.2+)
         match active_tab {
@@ -361,6 +514,39 @@ impl Widget for ReasoningPanel<'_> {
                 self.render_header(chunks[0], buf);
                 self.render_thinking(chunks[1], buf);
                 self.render_tokens(chunks[2], buf);
+            }
+            ReasoningTab::Steps => {
+                // Steps tab: Claude Code-like step-by-step view (v0.8)
+                if has_spawned {
+                    let spawned_height = (self.state.spawned_agents.len() + 2).min(6) as u16;
+                    let chunks = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints([
+                            Constraint::Length(1),              // Header
+                            Constraint::Min(4),                 // Steps
+                            Constraint::Length(spawned_height), // Spawned agents
+                            Constraint::Length(1),              // Tokens
+                        ])
+                        .split(inner);
+
+                    self.render_header(chunks[0], buf);
+                    self.render_steps(chunks[1], buf);
+                    self.render_spawned_agents(chunks[2], buf);
+                    self.render_tokens(chunks[3], buf);
+                } else {
+                    let chunks = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints([
+                            Constraint::Length(1), // Header
+                            Constraint::Min(4),    // Steps
+                            Constraint::Length(1), // Tokens
+                        ])
+                        .split(inner);
+
+                    self.render_header(chunks[0], buf);
+                    self.render_steps(chunks[1], buf);
+                    self.render_tokens(chunks[2], buf);
+                }
             }
             ReasoningTab::Turns => {
                 // Turns tab: show turn history (with streaming if active)
@@ -619,5 +805,137 @@ mod tests {
             content.contains("[Thinking]"),
             "Should show [Thinking] as active tab"
         );
+
+        // Check Steps tab indicator (v0.8)
+        state.reasoning_tab = ReasoningTab::Steps;
+        let panel = ReasoningPanel::new(&state, &theme);
+        let mut buf = Buffer::empty(area);
+        panel.render(area, &mut buf);
+        let content: String = buf.content.iter().map(|c| c.symbol()).collect();
+        assert!(
+            content.contains("[Steps]"),
+            "Should show [Steps] as active tab"
+        );
+    }
+
+    // === Steps Tab Tests (v0.8) ===
+
+    #[test]
+    fn test_steps_tab_renders_agent_steps() {
+        use crate::tui::views::ReasoningTab;
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        let mut state = TuiState::new("test.yaml");
+        state.reasoning_tab = ReasoningTab::Steps;
+        state.agent_max_turns = Some(5);
+        state.agent_turns.push(AgentTurnState {
+            index: 1,
+            status: "completed".to_string(),
+            tokens: Some(100),
+            tool_calls: vec!["novanet_describe".to_string()],
+            thinking: None,
+            response_text: Some("Result".to_string()),
+        });
+
+        let theme = Theme::novanet();
+        let panel = ReasoningPanel::new(&state, &theme);
+
+        // Render to buffer
+        let area = Rect::new(0, 0, 80, 20);
+        let mut buf = Buffer::empty(area);
+        panel.render(area, &mut buf);
+
+        // Buffer should contain steps indicator in title
+        let content: String = buf.content.iter().map(|c| c.symbol()).collect();
+        assert!(content.contains("[Steps]"));
+    }
+
+    #[test]
+    fn test_build_agent_steps_empty() {
+        let state = TuiState::new("test.yaml");
+        let theme = Theme::novanet();
+        let panel = ReasoningPanel::new(&state, &theme);
+        let steps = panel.build_agent_steps();
+        assert!(steps.is_empty());
+    }
+
+    #[test]
+    fn test_build_agent_steps_with_tool_calls() {
+        let mut state = TuiState::new("test.yaml");
+        state.agent_turns.push(AgentTurnState {
+            index: 1,
+            status: "completed".to_string(),
+            tokens: Some(150),
+            tool_calls: vec!["novanet_generate".to_string()],
+            thinking: None,
+            response_text: Some("Generated".to_string()),
+        });
+
+        let theme = Theme::novanet();
+        let panel = ReasoningPanel::new(&state, &theme);
+        let steps = panel.build_agent_steps();
+
+        assert_eq!(steps.len(), 1);
+    }
+
+    #[test]
+    fn test_build_agent_steps_with_spawn_agent() {
+        let mut state = TuiState::new("test.yaml");
+        state.agent_turns.push(AgentTurnState {
+            index: 1,
+            status: "completed".to_string(),
+            tokens: Some(200),
+            tool_calls: vec!["spawn_agent".to_string()],
+            thinking: Some("Spawning a child agent...".to_string()),
+            response_text: Some("Agent spawned".to_string()),
+        });
+
+        let theme = Theme::novanet();
+        let panel = ReasoningPanel::new(&state, &theme);
+        let steps = panel.build_agent_steps();
+
+        assert_eq!(steps.len(), 1);
+    }
+
+    // === Spawned Agents Tests (v0.8) ===
+
+    #[test]
+    fn test_spawned_agents_display() {
+        use crate::tui::state::SpawnedAgent;
+        use crate::tui::views::ReasoningTab;
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        let mut state = TuiState::new("test.yaml");
+        state.reasoning_tab = ReasoningTab::Steps;
+        state.agent_max_turns = Some(5);
+        state.spawned_agents.push(SpawnedAgent {
+            parent_task_id: "orchestrator".to_string(),
+            child_task_id: "subtask-1".to_string(),
+            depth: 1,
+        });
+
+        let theme = Theme::novanet();
+        let panel = ReasoningPanel::new(&state, &theme);
+
+        // Render to buffer
+        let area = Rect::new(0, 0, 80, 20);
+        let mut buf = Buffer::empty(area);
+        panel.render(area, &mut buf);
+
+        // Buffer should contain spawned agent info
+        let content: String = buf.content.iter().map(|c| c.symbol()).collect();
+        assert!(content.contains("Spawned"));
+    }
+
+    #[test]
+    fn test_reasoning_tab_next_cycles_through_all() {
+        use crate::tui::views::ReasoningTab;
+
+        let tab = ReasoningTab::Turns;
+        assert_eq!(tab.next(), ReasoningTab::Thinking);
+        assert_eq!(tab.next().next(), ReasoningTab::Steps);
+        assert_eq!(tab.next().next().next(), ReasoningTab::Turns);
     }
 }

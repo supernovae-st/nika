@@ -45,8 +45,8 @@ use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
-    AnimatedLatencySparkline, BigTextGradient, DagAscii, GradientType, NodeBoxData, NodeBoxMode,
-    SparklineAnimation,
+    AnimatedLatencySparkline, BigTextGradient, DagAscii, GradientType, MatrixRain, NodeBoxData,
+    NodeBoxMode, SparklineAnimation,
 };
 
 /// Home view state
@@ -688,6 +688,16 @@ impl HomeView {
 
     /// Render the welcome screen (v0.5.2+)
     fn render_welcome(&self, frame_ctx: &mut Frame, area: Rect, theme: &Theme) {
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 0. MATRIX RAIN BACKGROUND (WOW DITHER EFFECT)
+        // ═══════════════════════════════════════════════════════════════════════════
+        let matrix = MatrixRain::new()
+            .frame(self.frame)
+            .density(0.15) // Subtle background
+            .with_emojis(true)
+            .seed(42);
+        frame_ctx.render_widget(matrix, area);
+
         // ═══════════════════════════════════════════════════════════════════════════
         // LAYOUT: Logo (5) + Sparkline (3) + Content (rest)
         // ═══════════════════════════════════════════════════════════════════════════

@@ -13,6 +13,14 @@
 //! text.render(area, buf);
 //! ```
 //!
+//! ## Gradient Effect (v0.8 WOW)
+//!
+//! ```ignore
+//! let text = BigTextGradient::new("NIKA")
+//!     .gradient(GradientType::Rainbow)
+//!     .animation_frame(frame);
+//! ```
+//!
 //! ## Supported Characters
 //!
 //! - Uppercase letters: A-Z
@@ -25,7 +33,7 @@
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Rect},
-    style::Style,
+    style::{Color, Modifier, Style},
     widgets::Widget,
 };
 
@@ -183,6 +191,217 @@ impl Widget for BigText<'_> {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// GRADIENT BIGTEXT (v0.8 WOW EFFECT)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Gradient type for BigTextGradient
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum GradientType {
+    /// Rainbow gradient (R→O→Y→G→C→B→V)
+    #[default]
+    Rainbow,
+    /// Cyan to magenta (cool to warm)
+    CyanMagenta,
+    /// Solarized accent colors
+    Solarized,
+    /// Single color with brightness variation
+    Monochrome(Color),
+    /// Verb colors (infer→exec→fetch→invoke→agent)
+    Verbs,
+}
+
+impl GradientType {
+    /// Get color for character index with optional animation offset
+    pub fn color_at(&self, index: usize, total: usize, frame: u8) -> Color {
+        // Animation offset shifts colors over time
+        let offset = (frame as usize / 4) % total;
+        let pos = (index + offset) % total.max(1);
+        let ratio = pos as f32 / total.max(1) as f32;
+
+        match self {
+            Self::Rainbow => Self::rainbow_color(ratio),
+            Self::CyanMagenta => Self::lerp_color(
+                Color::Rgb(42, 161, 152), // Cyan #2aa198
+                Color::Rgb(211, 54, 130), // Magenta #d33682
+                ratio,
+            ),
+            Self::Solarized => {
+                // Cycle through Solarized accents
+                let colors = [
+                    Color::Rgb(181, 137, 0),   // yellow
+                    Color::Rgb(203, 75, 22),   // orange
+                    Color::Rgb(220, 50, 47),   // red
+                    Color::Rgb(211, 54, 130),  // magenta
+                    Color::Rgb(108, 113, 196), // violet
+                    Color::Rgb(38, 139, 210),  // blue
+                    Color::Rgb(42, 161, 152),  // cyan
+                    Color::Rgb(133, 153, 0),   // green
+                ];
+                colors[pos % colors.len()]
+            }
+            Self::Monochrome(base) => {
+                // Vary brightness
+                if let Color::Rgb(r, g, b) = base {
+                    let factor = 0.7 + 0.3 * (1.0 - ratio);
+                    Color::Rgb(
+                        ((*r as f32) * factor) as u8,
+                        ((*g as f32) * factor) as u8,
+                        ((*b as f32) * factor) as u8,
+                    )
+                } else {
+                    *base
+                }
+            }
+            Self::Verbs => {
+                // Verb colors: infer→exec→fetch→invoke→agent
+                let colors = [
+                    Color::Rgb(139, 92, 246), // Violet (infer)
+                    Color::Rgb(245, 158, 11), // Amber (exec)
+                    Color::Rgb(6, 182, 212),  // Cyan (fetch)
+                    Color::Rgb(16, 185, 129), // Emerald (invoke)
+                    Color::Rgb(244, 63, 94),  // Rose (agent)
+                ];
+                colors[pos % colors.len()]
+            }
+        }
+    }
+
+    /// Generate rainbow color from ratio (0.0 to 1.0)
+    fn rainbow_color(ratio: f32) -> Color {
+        let h = ratio * 360.0;
+        let s = 0.9;
+        let v = 1.0;
+
+        // HSV to RGB
+        let c = v * s;
+        let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
+        let m = v - c;
+
+        let (r, g, b) = match h as u16 {
+            0..=59 => (c, x, 0.0),
+            60..=119 => (x, c, 0.0),
+            120..=179 => (0.0, c, x),
+            180..=239 => (0.0, x, c),
+            240..=299 => (x, 0.0, c),
+            _ => (c, 0.0, x),
+        };
+
+        Color::Rgb(
+            ((r + m) * 255.0) as u8,
+            ((g + m) * 255.0) as u8,
+            ((b + m) * 255.0) as u8,
+        )
+    }
+
+    /// Linear interpolation between two colors
+    fn lerp_color(from: Color, to: Color, t: f32) -> Color {
+        if let (Color::Rgb(r1, g1, b1), Color::Rgb(r2, g2, b2)) = (from, to) {
+            Color::Rgb(
+                (r1 as f32 + (r2 as f32 - r1 as f32) * t) as u8,
+                (g1 as f32 + (g2 as f32 - g1 as f32) * t) as u8,
+                (b1 as f32 + (b2 as f32 - b1 as f32) * t) as u8,
+            )
+        } else {
+            from
+        }
+    }
+}
+
+/// BigText with animated gradient colors (WOW effect)
+pub struct BigTextGradient<'a> {
+    text: &'a str,
+    gradient: GradientType,
+    alignment: Alignment,
+    frame: u8,
+    bold: bool,
+}
+
+impl<'a> BigTextGradient<'a> {
+    /// Create a new gradient BigText
+    pub fn new(text: &'a str) -> Self {
+        Self {
+            text,
+            gradient: GradientType::Rainbow,
+            alignment: Alignment::Left,
+            frame: 0,
+            bold: true,
+        }
+    }
+
+    /// Set gradient type
+    pub fn gradient(mut self, gradient: GradientType) -> Self {
+        self.gradient = gradient;
+        self
+    }
+
+    /// Set alignment
+    pub fn alignment(mut self, alignment: Alignment) -> Self {
+        self.alignment = alignment;
+        self
+    }
+
+    /// Set animation frame (for color cycling)
+    pub fn frame(mut self, frame: u8) -> Self {
+        self.frame = frame;
+        self
+    }
+
+    /// Enable/disable bold modifier
+    pub fn bold(mut self, bold: bool) -> Self {
+        self.bold = bold;
+        self
+    }
+}
+
+impl Widget for BigTextGradient<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        if area.width < 3 || area.height < 3 {
+            return;
+        }
+
+        let total_width = BigText::text_width(self.text);
+        let char_count = self.text.chars().count();
+
+        let start_x = match self.alignment {
+            Alignment::Left => area.x,
+            Alignment::Center => area.x + area.width.saturating_sub(total_width) / 2,
+            Alignment::Right => area.x + area.width.saturating_sub(total_width),
+        };
+
+        // Render each line
+        for line_idx in 0..3 {
+            let y = area.y + line_idx;
+            if y >= area.y + area.height {
+                break;
+            }
+
+            let mut x = start_x;
+            for (char_idx, c) in self.text.chars().enumerate() {
+                // Get gradient color for this character
+                let color = self.gradient.color_at(char_idx, char_count, self.frame);
+                let style = if self.bold {
+                    Style::default().fg(color).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(color)
+                };
+
+                let lines = BigText::char_lines(c);
+                let line = lines[line_idx as usize];
+
+                for ch in line.chars() {
+                    if x < area.x + area.width {
+                        if let Some(cell) = buf.cell_mut((x, y)) {
+                            cell.set_char(ch).set_style(style);
+                        }
+                        x += 1;
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -246,7 +465,7 @@ mod tests {
         let content: String = (0..3)
             .map(|y| {
                 (0..20)
-                    .map(|x| buf.get(x, y).symbol().to_string())
+                    .filter_map(|x| buf.cell((x, y)).map(|c| c.symbol().to_string()))
                     .collect::<String>()
             })
             .collect::<Vec<_>>()
@@ -272,7 +491,7 @@ mod tests {
 
         // With centering, text shouldn't start at x=0
         let first_line: String = (0..40)
-            .map(|x| buf.get(x, 0).symbol().to_string())
+            .filter_map(|x| buf.cell((x, 0)).map(|c| c.symbol().to_string()))
             .collect();
 
         // Find first non-space character

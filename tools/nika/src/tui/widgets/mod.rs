@@ -31,6 +31,8 @@ mod help_overlay;
 mod infer_stream_box;
 mod mcp_call_box;
 mod mcp_log;
+mod matrix_decrypt;
+mod matrix_rain;
 mod mention_system;
 mod message_bubble;
 mod mission_control;
@@ -95,8 +97,10 @@ pub use mention_system::{
     highlight_mentions, Mention, MentionAutocomplete, MentionAutocompleteState, MentionSuggestion,
     MentionTrigger, MentionType,
 };
-// Agent steps for Claude Code-like feedback (v0.7.3)
-pub use agent_steps::{AgentStep, AgentStepGroup, AgentStepsWidget, StepStatus};
+// Agent steps for Claude Code-like feedback (v0.7.3, enhanced v0.8)
+pub use agent_steps::{
+    AgentStep, AgentStepGroup, AgentStepsWidget, StepStatus, TokenUsage, ToolCallMetadata,
+};
 // Terminal size handling (v0.8 - graceful degradation)
 pub use terminal_size::{
     check_terminal_size, LayoutMode, TerminalTooSmallOverlay, COMPACT_WIDTH, MIN_HEIGHT, MIN_WIDTH,
@@ -107,4 +111,10 @@ pub use help_overlay::{HelpOverlay, HelpOverlayState, HelpSection, HELP_SECTIONS
 // Status messages (v0.8 - user feedback)
 pub use status_message::{StatusLevel, StatusMessage, StatusMessageWidget, StatusQueue};
 // BigText widget for ASCII art titles (v0.8)
-pub use big_text::BigText;
+pub use big_text::{BigText, BigTextGradient, GradientType};
+// Matrix Rain effect (v0.8 - WOW dither effect)
+pub use matrix_rain::MatrixRain;
+// Matrix Decrypt effect (v0.8 - streaming text reveal with verb themes)
+pub use matrix_decrypt::{
+    DecryptVerb, MatrixDecrypt, MultiLineDecrypt, StreamingDecrypt,
+};

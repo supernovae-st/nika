@@ -148,7 +148,7 @@ impl StatusMessage {
 }
 
 /// Status message queue for managing multiple messages
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct StatusQueue {
     messages: Vec<StatusMessage>,
     max_messages: usize,
