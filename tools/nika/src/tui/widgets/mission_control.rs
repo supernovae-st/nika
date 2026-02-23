@@ -266,16 +266,18 @@ impl<'a> MissionControlPanel<'a> {
             )));
         } else {
             for server in self.mcp_servers {
+                // Map McpStatus to icon and color
                 let (icon, color) = match server.status {
-                    McpStatus::Connected => ("●", COLOR_SUCCESS),
-                    McpStatus::Connecting => ("◐", COLOR_WARNING),
-                    McpStatus::Disconnected => ("○", COLOR_MUTED),
-                    McpStatus::Error => ("✗", COLOR_ERROR),
+                    McpStatus::Hot => ("●", COLOR_SUCCESS),      // Active
+                    McpStatus::Warm => ("◐", COLOR_WARNING),     // Idle
+                    McpStatus::Connected => ("●", COLOR_SUCCESS), // Connected
+                    McpStatus::Cold => ("○", COLOR_MUTED),       // Not used recently
+                    McpStatus::Error => ("✗", COLOR_ERROR),      // Error
                 };
 
-                let tool_count = server.tools.len();
-                let tool_text = if tool_count > 0 {
-                    format!(" ({} tools)", tool_count)
+                // Show call count as activity indicator
+                let activity_text = if server.call_count > 0 {
+                    format!(" ({} calls)", server.call_count)
                 } else {
                     String::new()
                 };
@@ -285,7 +287,7 @@ impl<'a> MissionControlPanel<'a> {
                     Span::styled(icon, Style::default().fg(color)),
                     Span::raw(" "),
                     Span::styled(&server.name, Style::default().fg(Color::White)),
-                    Span::styled(tool_text, Style::default().fg(COLOR_MUTED)),
+                    Span::styled(activity_text, Style::default().fg(COLOR_MUTED)),
                 ]));
             }
         }
