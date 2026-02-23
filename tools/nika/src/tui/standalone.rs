@@ -31,6 +31,8 @@ use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 
+use crate::util::{atomic_write, check_preview_size, format_size};
+
 /// Panel in standalone mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StandalonePanel {
@@ -322,20 +324,15 @@ impl StandaloneState {
     }
 
     /// Save history to ~/.nika/history.json
+    /// Uses atomic write (temp+rename) for data integrity.
     pub fn save_history(&self) {
-        let history_dir = dirs::home_dir()
-            .map(|h| h.join(".nika"))
-            .unwrap_or_else(|| PathBuf::from(".nika"));
+        let history_path = dirs::home_dir()
+            .map(|h| h.join(".nika").join("history.json"))
+            .unwrap_or_else(|| PathBuf::from(".nika/history.json"));
 
-        if let Err(e) = std::fs::create_dir_all(&history_dir) {
-            tracing::warn!("Failed to create history directory: {}", e);
-            return;
-        }
-
-        let history_path = history_dir.join("history.json");
         if let Ok(content) = serde_json::to_string_pretty(&self.history) {
-            if let Err(e) = std::fs::write(&history_path, content) {
-                tracing::warn!("Failed to save history: {}", e);
+            if let Err(e) = atomic_write(&history_path, content.as_bytes()) {
+                tracing::warn!(path = %history_path.display(), "Failed to save history: {}", e);
             }
         }
     }
@@ -357,9 +354,20 @@ impl StandaloneState {
     }
 
     /// Update preview content based on selected file
+    /// Checks file size before reading to prevent memory issues.
     pub fn update_preview(&mut self) {
         if let Some(entry) = self.browser_entries.get(self.browser_index) {
             if !entry.is_dir {
+                // Check file size before reading
+                if let Err(size) = check_preview_size(&entry.path) {
+                    self.preview_content = format!(
+                        "File too large for preview ({})\n\nPress Enter to open in editor",
+                        format_size(size)
+                    );
+                    self.preview_scroll = 0;
+                    return;
+                }
+
                 match std::fs::read_to_string(&entry.path) {
                     Ok(content) => {
                         self.preview_content = content;

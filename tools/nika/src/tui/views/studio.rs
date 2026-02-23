@@ -39,6 +39,7 @@ use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{DagAscii, NodeBoxData, NodeBoxMode};
+use crate::util::atomic_write;
 
 /// Editor mode (vim-like)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -365,11 +366,11 @@ impl StudioView {
         Ok(())
     }
 
-    /// Save the file
+    /// Save the file using atomic write (temp+rename) for data integrity
     pub fn save_file(&mut self) -> Result<(), std::io::Error> {
         if let Some(path) = &self.path {
             let content = self.buffer.content();
-            std::fs::write(path, content)?;
+            atomic_write(path, content.as_bytes())?;
             self.modified = false;
         }
         Ok(())
