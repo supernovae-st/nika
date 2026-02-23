@@ -48,7 +48,7 @@ use crate::error::{NikaError, Result};
 use crate::mcp::types::{
     ContentBlock, McpConfig, McpErrorCode, ResourceContent, ToolCallResult, ToolDefinition,
 };
-use crate::util::MCP_CALL_TIMEOUT;
+use crate::util::{CONNECT_TIMEOUT, MCP_CALL_TIMEOUT};
 
 /// Extract JSON-RPC error code from error message if present.
 ///
@@ -195,13 +195,17 @@ impl RmcpClientAdapter {
 
         // Connect to server using rmcp's serve pattern
         // The () implements ClientHandler with default behavior
-        let service =
-            ().serve(transport)
-                .await
-                .map_err(|e| NikaError::McpStartError {
-                    name: self.name.clone(),
-                    reason: format!("Failed to connect: {}", e),
-                })?;
+        // Wrap with timeout to prevent hanging on unresponsive MCP servers
+        let service = timeout(CONNECT_TIMEOUT, ().serve(transport))
+            .await
+            .map_err(|_| NikaError::Timeout {
+                operation: format!("MCP connect to '{}'", self.name),
+                timeout_secs: CONNECT_TIMEOUT.as_secs(),
+            })?
+            .map_err(|e| NikaError::McpStartError {
+                name: self.name.clone(),
+                reason: format!("Failed to connect: {}", e),
+            })?;
 
         // Store server info
         if let Some(info) = service.peer_info() {
