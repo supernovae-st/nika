@@ -23,10 +23,11 @@
 <!-- Navigation -->
 <p>
 <a href="#-quick-start">Quick Start</a> •
-<a href="#-whats-new-in-v080">What's New</a> •
+<a href="#-how-nika-compares">Compare</a> •
 <a href="#-features">Features</a> •
-<a href="#-architecture">Architecture</a> •
+<a href="#-the-5-verbs">Verbs</a> •
 <a href="#-examples">Examples</a> •
+<a href="#-faq">FAQ</a> •
 <a href="#-documentation">Docs</a>
 </p>
 
@@ -123,6 +124,26 @@ Native MCP client for tool calling
 </td>
 </tr>
 </table>
+
+<br>
+
+### 🆚 How Nika Compares
+
+<div align="center">
+
+| | Nika | LangChain | Prefect | Temporal |
+|:---|:---:|:---:|:---:|:---:|
+| **Config Format** | YAML | Python | Python | Code |
+| **Learning Curve** | 🟢 5 min | 🟡 Hours | 🟡 Hours | 🔴 Days |
+| **LLM Native** | ✅ Built-in | ✅ Core | ❌ Add-on | ❌ Add-on |
+| **MCP Support** | ✅ Native | ❌ No | ❌ No | ❌ No |
+| **Observability** | ✅ NDJSON | 🟡 LangSmith | ✅ UI | ✅ UI |
+| **Self-hosted** | ✅ Binary | ✅ Yes | 🟡 Cloud | 🟡 Cloud |
+| **Dependencies** | 0 | Many | Many | Many |
+
+</div>
+
+> **TL;DR:** Nika = single binary, YAML config, LLM-first, zero dependencies.
 
 <br>
 
@@ -499,6 +520,71 @@ flows:
 
 <br>
 
+## 🎯 Use Cases
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### 🔄 CI/CD Integration
+
+```yaml
+# Automated PR review
+- exec: "git diff main"
+- infer: "Review for bugs"
+- exec: "gh pr comment"
+```
+
+**Teams using:** DevOps, Platform
+
+</td>
+<td width="33%" valign="top">
+
+### 🌍 Content Generation
+
+```yaml
+# Multi-locale marketing
+for_each: [en, fr, de, ja]
+- invoke: novanet_generate
+- infer: "Localize content"
+```
+
+**Teams using:** Marketing, SEO
+
+</td>
+<td width="33%" valign="top">
+
+### 🤖 AI Agents
+
+```yaml
+# Research assistant
+- agent:
+    mcp: [web, files]
+    prompt: "Research topic"
+```
+
+**Teams using:** Research, Analytics
+
+</td>
+</tr>
+</table>
+
+<details>
+<summary><b>📋 More Use Cases</b></summary>
+
+| Use Case | Verbs Used | Complexity |
+|:---------|:-----------|:-----------|
+| **Code Review Bot** | `exec` → `infer` | ⭐ Simple |
+| **Doc Generator** | `infer` → `exec` | ⭐ Simple |
+| **API Testing** | `fetch` → `infer` | ⭐⭐ Medium |
+| **Data Pipeline** | `fetch` → `infer` → `exec` | ⭐⭐ Medium |
+| **Multi-Agent Research** | `agent` + `invoke` | ⭐⭐⭐ Advanced |
+| **Knowledge Graph Sync** | `invoke` + `for_each` | ⭐⭐⭐ Advanced |
+
+</details>
+
+<br>
+
 ## 🔌 MCP Integration
 
 Connect Nika to any [Model Context Protocol](https://modelcontextprotocol.io/) server:
@@ -563,6 +649,54 @@ tasks:
 
 <br>
 
+## 💡 IDE Setup
+
+Get YAML autocompletion and validation in your editor:
+
+<details>
+<summary><b>VS Code</b></summary>
+
+Install [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml), then add to `.vscode/settings.json`:
+
+```json
+{
+  "yaml.schemas": {
+    "https://raw.githubusercontent.com/supernovae-st/nika/main/schemas/nika-workflow.schema.json": "*.nika.yaml"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>JetBrains (IntelliJ, WebStorm)</b></summary>
+
+1. Go to **Settings → Languages → Schemas and DTDs → JSON Schema Mappings**
+2. Add new mapping:
+   - Schema URL: `https://raw.githubusercontent.com/supernovae-st/nika/main/schemas/nika-workflow.schema.json`
+   - File pattern: `*.nika.yaml`
+
+</details>
+
+<details>
+<summary><b>Neovim (with nvim-lspconfig)</b></summary>
+
+```lua
+require('lspconfig').yamlls.setup {
+  settings = {
+    yaml = {
+      schemas = {
+        ["https://raw.githubusercontent.com/supernovae-st/nika/main/schemas/nika-workflow.schema.json"] = "*.nika.yaml"
+      }
+    }
+  }
+}
+```
+
+</details>
+
+<br>
+
 ## 📖 Documentation
 
 | Resource | Description |
@@ -572,6 +706,141 @@ tasks:
 | 🔄 [docs/MIGRATION-v0.8.0.md](docs/MIGRATION-v0.8.0.md) | Upgrade guide |
 | 🤖 [tools/nika/CLAUDE.md](tools/nika/CLAUDE.md) | AI context |
 | 📁 [examples/](tools/nika/examples/) | Sample workflows |
+| 📐 [schemas/](schemas/) | JSON Schema for IDE |
+
+<br>
+
+## ❓ FAQ
+
+<details>
+<summary><b>How do I switch LLM providers?</b></summary>
+
+Set the environment variable for your provider:
+
+```bash
+# Use Claude (default)
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Use OpenAI instead
+export OPENAI_API_KEY=sk-...
+
+# Or specify per-workflow
+provider: openai  # in your YAML
+```
+
+Nika auto-detects in order: Claude → OpenAI → Mistral → Groq → DeepSeek → Ollama
+
+</details>
+
+<details>
+<summary><b>Can I use local models with Ollama?</b></summary>
+
+Yes! Start Ollama and set the base URL:
+
+```bash
+export OLLAMA_API_BASE_URL=http://localhost:11434
+nika workflow.yaml  # Will use Ollama
+```
+
+</details>
+
+<details>
+<summary><b>How do I debug a failing workflow?</b></summary>
+
+1. **Check traces:** `nika trace list` then `nika trace show <id>`
+2. **Validate first:** `nika check workflow.yaml --strict`
+3. **Use verbose mode:** `RUST_LOG=debug nika run workflow.yaml`
+
+</details>
+
+<details>
+<summary><b>What's the difference between `infer` and `agent`?</b></summary>
+
+| | `infer` | `agent` |
+|---|---|---|
+| Turns | Single | Multi-turn loop |
+| Tools | ❌ No | ✅ MCP tools |
+| Use for | Simple prompts | Complex reasoning |
+
+</details>
+
+<details>
+<summary><b>How do I pass data between tasks?</b></summary>
+
+Use the `use:` block with bindings:
+
+```yaml
+tasks:
+  - id: step1
+    infer: "Generate a title"
+
+  - id: step2
+    use:
+      title: step1  # Reference previous task
+    infer: "Write article about: {{use.title}}"
+```
+
+</details>
+
+<br>
+
+## 🔧 Troubleshooting
+
+<details>
+<summary><b>🔴 NIKA-001: No API key found</b></summary>
+
+```
+Error: NIKA-001 - No LLM provider configured
+```
+
+**Fix:** Set at least one API key:
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+# or
+export OPENAI_API_KEY=sk-...
+```
+
+</details>
+
+<details>
+<summary><b>🔴 NIKA-010: MCP server failed to start</b></summary>
+
+```
+Error: NIKA-010 - MCP server 'novanet' failed to connect
+```
+
+**Fix:**
+1. Check the command path exists
+2. Verify the server binary is executable
+3. Check server logs: `nika trace show <id> | grep mcp`
+
+</details>
+
+<details>
+<summary><b>🔴 NIKA-020: Cycle detected in DAG</b></summary>
+
+```
+Error: NIKA-020 - Cycle detected: task_a → task_b → task_a
+```
+
+**Fix:** Remove circular dependency. Use `flows:` to visualize:
+```yaml
+flows:
+  - source: task_a
+    target: task_b  # task_b cannot reference task_a
+```
+
+</details>
+
+<details>
+<summary><b>🟡 Workflow runs slowly</b></summary>
+
+**Tips:**
+1. Use `for_each` with `concurrency: 5` for parallel tasks
+2. Use `lazy: true` bindings to defer expensive lookups
+3. Check if MCP servers are reconnecting (add `timeout: 30`)
+
+</details>
 
 <br>
 
