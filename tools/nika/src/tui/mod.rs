@@ -93,7 +93,7 @@ pub use standalone::{BrowserEntry, HistoryEntry, StandalonePanel, StandaloneStat
 #[cfg(feature = "tui")]
 pub use state::{AgentTurnState, PanelId, PanelScrollState, TuiMode, TuiState};
 #[cfg(feature = "tui")]
-pub use theme::{ColorMode, MissionPhase, TaskStatus, Theme};
+pub use theme::{ColorMode, MissionPhase, TaskStatus, Theme, VerbColor};
 #[cfg(feature = "tui")]
 pub use unicode::{display_width, truncate_to_width};
 #[cfg(feature = "tui")]
