@@ -21,7 +21,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use nucleo::{Config, Matcher, Utf32Str};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Widget},
     Frame,
@@ -189,12 +189,14 @@ impl HomeView {
     }
 
     /// Toggle folder open/closed (for directory entries)
+    ///
+    /// BUG FIX: Use filtered_indices to map list selection to actual entry index
     pub fn toggle_folder(&mut self) {
-        if let Some(entry) = self.selected_entry() {
-            if entry.is_dir {
-                // Toggle expanded state
-                if let Some(selected) = self.list_state.selected() {
-                    if let Some(entry) = self.standalone.browser_entries.get_mut(selected) {
+        if let Some(selected) = self.list_state.selected() {
+            // Map list selection index to actual browser_entries index via filtered_indices
+            if let Some(&idx) = self.filtered_indices.get(selected) {
+                if let Some(entry) = self.standalone.browser_entries.get_mut(idx) {
+                    if entry.is_dir {
                         entry.expanded = !entry.expanded;
                     }
                 }
@@ -340,17 +342,45 @@ impl HomeView {
     }
 
     /// Render the preview panel (right 60%) with DAG visualization or YAML
+    ///
+    /// WOW UX: Enhanced with styled mode badge and keyboard hints footer
     fn render_preview(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        // Build title showing mode toggle key [D]
-        let title = match self.preview_mode {
+        // WOW UX: Build styled title with mode badge
+        let title: Line = match self.preview_mode {
             PreviewMode::Dag => {
-                if self.dag_expanded {
-                    " [D]AG Preview [E]xpanded "
-                } else {
-                    " [D]AG Preview [E]→expand "
-                }
+                let expand_hint = if self.dag_expanded { "━" } else { "+" };
+                Line::from(vec![
+                    Span::raw(" "),
+                    Span::styled(
+                        " DAG ",
+                        Style::default()
+                            .fg(Color::White)
+                            .bg(Color::Indexed(99)) // Violet background
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::raw(" "),
+                    Span::styled(
+                        format!("[E]{}", expand_hint),
+                        Style::default().fg(theme.text_muted),
+                    ),
+                    Span::raw(" "),
+                    Span::styled("[D]→YAML", Style::default().fg(theme.text_muted)),
+                    Span::raw(" "),
+                ])
             }
-            PreviewMode::Yaml => " YAML (verb-colored) [D]→DAG ",
+            PreviewMode::Yaml => Line::from(vec![
+                Span::raw(" "),
+                Span::styled(
+                    " YAML ",
+                    Style::default()
+                        .fg(Color::White)
+                        .bg(Color::Indexed(36)) // Cyan background
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" verb-colored "),
+                Span::styled("[D]→DAG", Style::default().fg(theme.text_muted)),
+                Span::raw(" "),
+            ]),
         };
 
         let block = Block::default()
@@ -364,17 +394,50 @@ impl HomeView {
         // Check if we have a valid file selected
         let content: &str = if let Some(entry) = self.selected_entry() {
             if entry.is_dir {
-                // Directory selected - show hint
-                let paragraph = Paragraph::new("Select a .nika.yaml file to preview task graph")
-                    .style(Style::default().fg(theme.text_muted));
+                // WOW UX: Enhanced directory selected hint with icon
+                let hint_lines = vec![
+                    Line::from(""),
+                    Line::from(Span::styled(
+                        "📁",
+                        Style::default().add_modifier(Modifier::DIM),
+                    )),
+                    Line::from(""),
+                    Line::from(Span::styled(
+                        "Select a .nika.yaml file",
+                        Style::default().fg(theme.text_muted),
+                    )),
+                    Line::from(Span::styled(
+                        "to preview task graph",
+                        Style::default().fg(theme.text_muted),
+                    )),
+                ];
+                let paragraph = Paragraph::new(hint_lines)
+                    .alignment(ratatui::layout::Alignment::Center);
                 frame.render_widget(paragraph, inner);
                 return;
             }
             &self.standalone.preview_content
         } else {
-            // No file selected
-            let paragraph = Paragraph::new("No file selected")
-                .style(Style::default().fg(theme.text_muted));
+            // WOW UX: Enhanced no file selected state
+            let hint_lines = vec![
+                Line::from(""),
+                Line::from(Span::styled(
+                    "📄",
+                    Style::default().add_modifier(Modifier::DIM),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "No file selected",
+                    Style::default().fg(theme.text_muted),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Use ↑↓ or j/k to navigate",
+                    Style::default().fg(theme.text_muted).add_modifier(Modifier::DIM),
+                )),
+            ];
+            let paragraph = Paragraph::new(hint_lines)
+                .alignment(ratatui::layout::Alignment::Center);
             frame.render_widget(paragraph, inner);
             return;
         };
