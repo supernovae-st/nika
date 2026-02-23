@@ -1,0 +1,36 @@
+# Test agent: verb with real LLM provider
+# Run with: cargo run -- examples/test-agent-simple.nika.yaml
+
+schema: "nika/workflow@0.5"
+provider: openai
+model: gpt-4o-mini
+
+tasks:
+  - id: analyze
+    agent:
+      prompt: |
+        You are analyzing a simple task.
+
+        List 3 programming languages and one advantage of each.
+        Format as JSON: {"languages": [{"name": "...", "advantage": "..."}]}
+
+        End your response with "ANALYSIS_DONE".
+      max_turns: 2
+      stop_conditions:
+        - "ANALYSIS_DONE"
+    output:
+      format: json
+
+  - id: process_result
+    use:
+      analysis: analyze
+    exec: |
+      echo "=== AGENT TEST RESULT ==="
+      echo "Agent output received:"
+      echo '{{use.analysis}}' | head -c 300
+      echo ""
+      echo "=== DONE ==="
+
+flows:
+  - source: analyze
+    target: process_result
