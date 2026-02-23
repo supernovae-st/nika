@@ -85,7 +85,7 @@ tasks:
         When complete, output "RESEARCH_COMPLETE".
 
       provider: claude
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       mcp:
         - perplexity
         - firecrawl

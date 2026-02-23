@@ -124,7 +124,7 @@ tasks:
           "issues": ["issue1", "issue2"]
         }
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
     output:
       format: json
@@ -167,7 +167,7 @@ tasks:
 
         Output only valid JSON.
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
     output:
       format: json

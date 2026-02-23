@@ -56,7 +56,7 @@ tasks:
 
         Explain what this test verifies and why it will fail.
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   - id: red_verify
     description: "Verify test fails correctly"
@@ -80,7 +80,7 @@ tasks:
         - If FAIL: What's wrong and how to fix
         - If PASS: Ready for GREEN phase
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # ========================================================================
   # PHASE 2: GREEN - Write Minimal Code
@@ -111,7 +111,7 @@ tasks:
 
         Explain why this is minimal (no YAGNI violations).
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   - id: green_verify
     description: "Verify test passes"
@@ -132,7 +132,7 @@ tasks:
         - If NO: What's failing and why
         - If YES: Ready for REFACTOR phase
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # ========================================================================
   # PHASE 3: REFACTOR - Clean Up
@@ -160,7 +160,7 @@ tasks:
         - Verification that tests still pass
         - Summary of TDD cycle completed
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
 flows:
   - source: input

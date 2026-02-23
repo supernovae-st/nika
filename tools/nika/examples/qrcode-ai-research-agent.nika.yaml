@@ -1,0 +1,106 @@
+# QR Code AI: Research Agent with spawn_agent
+# Real-world use case: AI-driven competitive research and content strategy
+#
+# This workflow demonstrates:
+# - agent: with spawn_agent for nested agents
+# - depth_limit: for recursion control
+# - novanet_introspect: for schema-aware research
+# - Complex multi-turn reasoning
+
+schema: nika/workflow@0.5
+workflow: qrcode-ai-research-agent
+description: "AI-driven research agent for QR Code AI content strategy"
+
+provider: claude
+model: claude-sonnet-4-6
+
+mcp:
+  novanet:
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../../novanet/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+
+tasks:
+  # Step 1: Orchestrator agent with spawn capability
+  - id: research_orchestrator
+    agent:
+      prompt: |
+        You are a Content Strategy Researcher for QR Code AI.
+
+        Your mission is to analyze our knowledge graph and provide strategic recommendations.
+
+        Available tools:
+        - novanet_introspect: Query the schema structure
+        - novanet_search: Find entities by criteria
+        - novanet_describe: Get entity details
+        - spawn_agent: Delegate sub-research to specialized agents
+
+        Research plan:
+        1. First, use novanet_introspect to understand available node classes
+        2. Then, search for entities related to "qr-code"
+        3. Spawn sub-agents for:
+           a) Competitor analysis (what entities have competitive positioning?)
+           b) Content gap analysis (what entities lack content?)
+        4. Synthesize findings into recommendations
+
+        Important: You have a depth_limit of 2, so spawned agents cannot spawn further.
+
+        Return your final analysis as structured JSON:
+        {
+          "schema_insights": [...],
+          "entity_analysis": [...],
+          "recommendations": [...]
+        }
+
+      mcp: [novanet]
+      depth_limit: 2
+      max_turns: 15
+    output:
+      format: json
+    use.research: research_findings
+
+  # Step 2: Generate strategic brief from research
+  - id: generate_brief
+    use:
+      research: research_orchestrator
+    infer: |
+      Based on this research analysis:
+
+      {{use.research | to_yaml}}
+
+      Generate a 1-page Content Strategy Brief for QR Code AI with:
+
+      ## Executive Summary
+      (2-3 sentences on key findings)
+
+      ## Top 5 Content Opportunities
+      (Prioritized list with rationale)
+
+      ## Recommended Actions
+      (Specific next steps for the content team)
+
+      ## Metrics to Track
+      (KPIs to measure success)
+
+      Write in a professional consulting style.
+
+  # Step 3: Save output
+  - id: save_brief
+    use:
+      brief: generate_brief
+    exec: |
+      echo "{{use.brief}}" > content-strategy-brief.md
+      echo "=== Content Strategy Brief Generated ==="
+      echo "Output: content-strategy-brief.md"
+
+flows:
+  - source: research_orchestrator
+    target: generate_brief
+  - source: generate_brief
+    target: save_brief

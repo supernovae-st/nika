@@ -609,7 +609,7 @@ schema: "nika/workflow@0.4"
 provider: claude  # "claude" | "openai" | "mock"
 
 # Default model (optional)
-model: claude-sonnet-4-20250514
+model: claude-sonnet-4-6
 
 # MCP server configurations (optional, v0.2+)
 mcp:
@@ -679,7 +679,7 @@ tasks:
       prompt: "Your agent goal"
       system: "System prompt (optional)"
       provider: claude
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       mcp:
         - novanet  # MCP servers for tools
       max_turns: 10
@@ -812,7 +812,7 @@ One-shot LLM call for text generation.
 
       Provide a 3-sentence summary.
     provider: claude  # Optional override
-    model: claude-sonnet-4-20250514  # Optional override
+    model: claude-sonnet-4-6  # Optional override
 ```
 
 **InferParams Structure:**
@@ -958,7 +958,7 @@ Multi-turn agentic execution with tool calling.
     system: "You are a market research analyst."
 
     provider: claude
-    model: claude-sonnet-4-20250514
+    model: claude-sonnet-4-6
 
     mcp:
       - novanet
@@ -1118,7 +1118,7 @@ impl RigProvider {
 
 ```yaml
 provider: claude          # Workflow default
-model: claude-sonnet-4-20250514
+model: claude-sonnet-4-6
 
 tasks:
   - id: premium_task
@@ -2578,7 +2578,7 @@ tasks:
         Think through this step by step before answering.
       extended_thinking: true
       thinking_budget: 8192  # v0.4: configurable (default: 4096)
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       max_turns: 1
     output:
       format: text
@@ -2629,7 +2629,7 @@ pub struct AgentTurnMetadata {
 schema: "nika/workflow@0.4"  # Required: Schema version
 
 provider: claude             # Optional: Default provider (claude|openai|mock)
-model: claude-sonnet-4-20250514  # Optional: Default model
+model: claude-sonnet-4-6  # Optional: Default model
 
 # ============================================================================
 # MCP SERVER CONFIGURATION

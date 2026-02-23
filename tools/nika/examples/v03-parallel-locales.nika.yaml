@@ -59,7 +59,7 @@ tasks:
         - locales: array of {locale, status, word_count}
 
         Output only valid JSON.
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
     output:
       format: json
 

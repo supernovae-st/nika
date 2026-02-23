@@ -103,7 +103,7 @@ tasks:
   - id: claude_test
     infer:
       prompt: "What is 7 * 8? Reply with just the number."
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 "#,
     );
 
@@ -142,7 +142,7 @@ tasks:
 
         Output JSON like: {"sum": X, "div": Y, "pow": Z}
         Then say COMPLETE.
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       max_turns: 3
       stop_conditions:
         - "COMPLETE"
@@ -195,7 +195,7 @@ tasks:
         Think carefully about this logic puzzle:
         If all cats are animals, and some animals are pets, can we conclude all cats are pets?
         Explain your reasoning, then say DONE.
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       max_turns: 2
       extended_thinking: true
       thinking_budget: 4096
@@ -244,14 +244,14 @@ tasks:
   - id: step1
     infer:
       prompt: "Generate a creative name for a tech startup. Just the name, nothing else."
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   - id: step2
     use:
       name: step1
     infer:
       prompt: "Write a one-sentence tagline for a company called '{{use.name}}'"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   - id: step3
     use:
@@ -434,7 +434,7 @@ tasks:
   - id: test
     infer:
       prompt: "{}"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 "#,
         prompt
     ));
@@ -579,7 +579,7 @@ tasks:
         Based on this entity data: {{use.ctx}}
 
         Write a one-sentence description for a landing page.
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
 flows:
   - source: get_context
@@ -621,7 +621,7 @@ tasks:
   - id: should_fail
     infer:
       prompt: "This should fail"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 "#,
     );
 
@@ -688,7 +688,7 @@ tasks:
   - id: token_test
     infer:
       prompt: "Count from 1 to 10, one number per line."
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 "#,
     );
 
@@ -749,7 +749,7 @@ tasks:
         Turn 1: Say "One"
         Turn 2: Say "Two"
         Turn 3: Say "Three DONE"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       max_turns: 4
       stop_conditions:
         - "DONE"
@@ -825,7 +825,7 @@ tasks:
         {{use.content}}
 
         Keep it to 3 bullet points.
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
 flows:
   - source: scrape

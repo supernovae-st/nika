@@ -116,7 +116,7 @@ Add caching layer in `McpClient` with:
 Add CLI arguments and propagate to ChatAgent:
 
 ```bash
-nika chat --provider claude --model claude-sonnet-4-20250514
+nika chat --provider claude --model claude-sonnet-4-6
 nika chat --provider openai --model gpt-4o
 ```
 

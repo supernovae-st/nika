@@ -435,6 +435,13 @@ impl ChatAgent {
         self.provider.name()
     }
 
+    /// Get the current model name (override or provider default)
+    pub fn model_name(&self) -> &str {
+        self.model_override
+            .as_deref()
+            .unwrap_or_else(|| self.provider.default_model())
+    }
+
     /// Get total tokens used (input + output) for status bar display
     pub fn total_tokens(&self) -> u64 {
         self.total_input_tokens + self.total_output_tokens

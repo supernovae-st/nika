@@ -49,7 +49,7 @@ fn test_rig_provider_claude_creation() {
     // Actual API key validation happens on first call
     let provider = RigProvider::claude();
     assert_eq!(provider.name(), "claude");
-    assert_eq!(provider.default_model(), "claude-sonnet-4-20250514");
+    assert_eq!(provider.default_model(), "claude-sonnet-4-6");
 }
 
 #[test]
@@ -420,7 +420,7 @@ tasks:
   - id: test-claude
     infer:
       prompt: "Test Claude provider"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   - id: test-openai
     infer:

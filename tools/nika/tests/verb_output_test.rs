@@ -400,7 +400,7 @@ tasks:
   - id: mock_infer
     infer:
       prompt: "What is 2+2?"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 "#,
     );
 
@@ -444,7 +444,7 @@ tasks:
       ctx: context_producer
     infer:
       prompt: "Explain {{use.ctx.topic}} briefly"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
 flows:
   - source: context_producer
@@ -476,7 +476,7 @@ tasks:
   - id: real_claude
     infer:
       prompt: "What is 2+2? Answer with just the number."
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 "#,
     );
 
@@ -541,7 +541,7 @@ tasks:
   - id: provider_test
     infer:
       prompt: "Say hello"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 "#,
     );
 
@@ -626,7 +626,7 @@ tasks:
   - id: real_agent
     agent:
       prompt: "Calculate 15 * 7 and say DONE when finished"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       max_turns: 3
       stop_conditions:
         - "DONE"
@@ -659,7 +659,7 @@ tasks:
   - id: turn_agent
     agent:
       prompt: "Say hello and then DONE"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       max_turns: 2
       stop_conditions:
         - "DONE"
@@ -716,7 +716,7 @@ tasks:
   - id: thinking_agent
     agent:
       prompt: "Think carefully about what 17 * 23 equals. Show your reasoning."
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       max_turns: 2
       extended_thinking: true
       thinking_budget: 4096

@@ -226,7 +226,7 @@ tasks:
         - fallback_used: boolean (true if fallback was needed)
         - resilience_summary: "Retry X times, circuit breaker Y times, rate limited Z times"
         - recommendation: "Service health assessment and next steps"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
     output:
       format: json
 

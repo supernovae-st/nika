@@ -166,7 +166,7 @@ tasks:
           "main_entity_strengths": [...],
           "main_entity_gaps": [...]
         }
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # ─────────────────────────────────────────────────────────────────
   # PHASE 4: Competitive Positioning
@@ -234,7 +234,7 @@ tasks:
             {"area": "...", "risk": "high|medium|low", "mitigation": "..."}
           ]
         }
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # ─────────────────────────────────────────────────────────────────
   # PHASE 5: Differentiation Strategy

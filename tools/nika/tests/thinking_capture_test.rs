@@ -1,7 +1,11 @@
-//! Integration tests for reasoning capture (v0.4.1)
+//! Integration tests for reasoning capture and token tracking (v0.4.1 → v0.7.2)
 //!
-//! These tests verify that extended thinking and token tracking work correctly
-//! with the real Claude API. They require ANTHROPIC_API_KEY to be set.
+//! These tests verify that extended thinking and token tracking work correctly.
+//!
+//! **v0.7.2 Updates:**
+//! - Standard mode (no tools) now uses streaming for token tracking
+//! - Token tracking works for Claude, OpenAI, and all 6 providers when no tools
+//! - When tools are used, tokens are still 0 (rig-core agent.prompt() limitation)
 //!
 //! Run with: cargo test --test thinking_capture_test -- --ignored
 
@@ -31,7 +35,7 @@ async fn test_extended_thinking_captures_tokens() {
         extended_thinking: Some(true),
         thinking_budget: Some(1024), // Small budget for fast test
         provider: Some("claude".to_string()),
-        model: Some("claude-sonnet-4-20250514".to_string()),
+        model: Some("claude-sonnet-4-6".to_string()),
         max_turns: Some(1),
         ..Default::default()
     };
@@ -115,9 +119,10 @@ async fn test_extended_thinking_captures_tokens() {
     }
 }
 
-/// Test that tokens are also captured in non-thinking mode.
+/// Test that tokens are captured in standard mode (v0.7.2 streaming migration).
 ///
-/// Even without extended thinking, we should track token usage.
+/// With v0.7.2, standard mode (no tools) uses streaming, which enables token tracking.
+/// This test verifies that tokens ARE captured when not using tools.
 #[tokio::test]
 #[ignore = "requires ANTHROPIC_API_KEY - run with: cargo test --test thinking_capture_test -- --ignored"]
 async fn test_standard_mode_captures_tokens() {
@@ -132,7 +137,7 @@ async fn test_standard_mode_captures_tokens() {
         prompt: "Say hello in exactly one word.".to_string(),
         extended_thinking: Some(false), // Explicitly disabled
         provider: Some("claude".to_string()),
-        model: Some("claude-sonnet-4-20250514".to_string()),
+        model: Some("claude-sonnet-4-6".to_string()),
         max_turns: Some(1),
         ..Default::default()
     };
@@ -176,14 +181,25 @@ async fn test_standard_mode_captures_tokens() {
         ..
     } = &completion_event.unwrap().kind
     {
-        // Note: In standard mode (non-streaming via prompt()), tokens may be 0
-        // because rig's Prompt trait doesn't expose usage. This is expected.
-        // The fix is specifically for extended_thinking mode which uses streaming.
+        // v0.7.2: Standard mode now uses streaming when no tools are present,
+        // which enables token tracking. Tokens should be non-zero.
         println!(
             "Standard mode tokens: in={}, out={}",
             metadata.input_tokens, metadata.output_tokens
         );
         println!("Response: {}", metadata.response_text);
+
+        // CRITICAL: Tokens should now be tracked in standard mode (v0.7.2 streaming migration)
+        assert!(
+            metadata.input_tokens > 0,
+            "input_tokens should be non-zero in standard mode, got {}",
+            metadata.input_tokens
+        );
+        assert!(
+            metadata.output_tokens > 0,
+            "output_tokens should be non-zero in standard mode, got {}",
+            metadata.output_tokens
+        );
 
         // Response should exist
         assert!(!metadata.response_text.is_empty());
@@ -252,5 +268,89 @@ async fn test_mock_mode_has_tokens() {
             "Mock should have output_tokens=50"
         );
         assert_eq!(metadata.response_text, "Mock response from rig agent");
+    }
+}
+
+/// Test that OpenAI also captures tokens in standard mode (v0.7.2).
+///
+/// Verifies that the streaming migration works across providers.
+#[tokio::test]
+#[ignore = "requires OPENAI_API_KEY - run with: cargo test --test thinking_capture_test -- --ignored"]
+async fn test_openai_standard_mode_captures_tokens() {
+    // Skip if no API key
+    if std::env::var("OPENAI_API_KEY").is_err() {
+        eprintln!("Skipping: OPENAI_API_KEY not set");
+        return;
+    }
+
+    // Arrange
+    let params = AgentParams {
+        prompt: "Say hello in exactly one word.".to_string(),
+        provider: Some("openai".to_string()),
+        model: Some("gpt-4o-mini".to_string()), // Use cheaper model for tests
+        max_turns: Some(1),
+        ..Default::default()
+    };
+
+    let event_log = EventLog::new();
+    let mcp_clients = FxHashMap::default();
+
+    let mut agent = RigAgentLoop::new(
+        "test-openai".to_string(),
+        params,
+        event_log.clone(),
+        mcp_clients,
+    )
+    .expect("Agent creation should succeed");
+
+    // Act
+    let result = agent.run_openai().await;
+
+    // Assert
+    assert!(result.is_ok(), "Agent execution should succeed");
+
+    let events = event_log.events();
+    let completion_event = events.iter().find(|e| {
+        matches!(
+            &e.kind,
+            EventKind::AgentTurn {
+                kind,
+                metadata: Some(_),
+                ..
+            } if kind != "started"
+        )
+    });
+
+    assert!(
+        completion_event.is_some(),
+        "Should have AgentTurn completion event"
+    );
+
+    if let EventKind::AgentTurn {
+        metadata: Some(metadata),
+        ..
+    } = &completion_event.unwrap().kind
+    {
+        // v0.7.2: OpenAI should also have token tracking via streaming
+        println!(
+            "OpenAI tokens: in={}, out={}",
+            metadata.input_tokens, metadata.output_tokens
+        );
+        println!("Response: {}", metadata.response_text);
+
+        // CRITICAL: Tokens should be tracked for OpenAI too
+        assert!(
+            metadata.input_tokens > 0,
+            "input_tokens should be non-zero for OpenAI, got {}",
+            metadata.input_tokens
+        );
+        assert!(
+            metadata.output_tokens > 0,
+            "output_tokens should be non-zero for OpenAI, got {}",
+            metadata.output_tokens
+        );
+
+        // Response should exist
+        assert!(!metadata.response_text.is_empty());
     }
 }

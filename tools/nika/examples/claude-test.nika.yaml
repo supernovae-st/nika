@@ -10,6 +10,6 @@ tasks:
   - id: hello_claude
     infer:
       prompt: "Say hello and tell me one fun fact about croissants. Keep it under 50 words."
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
     output:
       format: text

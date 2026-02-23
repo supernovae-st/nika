@@ -9,7 +9,7 @@ tasks:
   - id: infer_full
     infer:
       prompt: "What is the capital of France? Answer in one word."
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   - id: agent_thinking
     agent:
@@ -17,7 +17,7 @@ tasks:
       extended_thinking: true
       thinking_budget: 2048
       max_turns: 1
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   - id: combine
     use:

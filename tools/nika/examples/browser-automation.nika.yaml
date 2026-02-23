@@ -68,7 +68,7 @@ tasks:
 
         Say "BROWSE_COMPLETE" when done.
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       mcp:
         - playwright
       max_turns: 10

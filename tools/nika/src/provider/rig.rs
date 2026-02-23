@@ -184,7 +184,7 @@ impl RigProvider {
     ///
     /// | Provider | Model | Notes |
     /// |----------|-------|-------|
-    /// | Claude | claude-sonnet-4-20250514 | Latest stable |
+    /// | Claude | claude-sonnet-4-6 | Latest stable (Feb 2026) |
     /// | OpenAI | gpt-4o | Latest stable |
     /// | Mistral | mistral-large-latest | Best for complex tasks |
     /// | Ollama | llama3.2 | Good balance of quality/speed |
@@ -194,7 +194,7 @@ impl RigProvider {
         match self {
             // Note: rig-core's CLAUDE_3_5_SONNET constant is outdated
             // Using explicit model name for stability
-            RigProvider::Claude(_) => "claude-sonnet-4-20250514",
+            RigProvider::Claude(_) => "claude-sonnet-4-6",
             RigProvider::OpenAI(_) => openai::GPT_4O,
             RigProvider::Mistral(_) => mistral::MISTRAL_LARGE,
             RigProvider::Ollama(_) => "llama3.2",
@@ -216,42 +216,43 @@ impl RigProvider {
 
         match self {
             RigProvider::Claude(client) => {
-                let agent = client.agent(model_id).build();
+                // Anthropic requires max_tokens to be set explicitly
+                let agent = client.agent(model_id).max_tokens(8192).build();
                 agent
                     .prompt(prompt)
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::OpenAI(client) => {
-                let agent = client.agent(model_id).build();
+                let agent = client.agent(model_id).max_tokens(8192).build();
                 agent
                     .prompt(prompt)
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::Mistral(client) => {
-                let agent = client.agent(model_id).build();
+                let agent = client.agent(model_id).max_tokens(8192).build();
                 agent
                     .prompt(prompt)
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::Ollama(client) => {
-                let agent = client.agent(model_id).build();
+                let agent = client.agent(model_id).max_tokens(8192).build();
                 agent
                     .prompt(prompt)
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::Groq(client) => {
-                let agent = client.agent(model_id).build();
+                let agent = client.agent(model_id).max_tokens(8192).build();
                 agent
                     .prompt(prompt)
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::DeepSeek(client) => {
-                let agent = client.agent(model_id).build();
+                let agent = client.agent(model_id).max_tokens(8192).build();
                 agent
                     .prompt(prompt)
                     .await
@@ -386,7 +387,8 @@ impl RigProvider {
         match self {
             RigProvider::Claude(client) => {
                 let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).build();
+                // Anthropic requires max_tokens to be set explicitly
+                let request = model.completion_request(prompt).max_tokens(8192).build();
 
                 let mut stream = model
                     .stream(request)
@@ -425,7 +427,7 @@ impl RigProvider {
             }
             RigProvider::OpenAI(client) => {
                 let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).build();
+                let request = model.completion_request(prompt).max_tokens(8192).build();
 
                 let mut stream = model
                     .stream(request)
@@ -460,7 +462,7 @@ impl RigProvider {
             // v0.7: Full streaming support for all providers
             RigProvider::Mistral(client) => {
                 let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).build();
+                let request = model.completion_request(prompt).max_tokens(8192).build();
 
                 let mut stream = model
                     .stream(request)
@@ -493,7 +495,7 @@ impl RigProvider {
             }
             RigProvider::Groq(client) => {
                 let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).build();
+                let request = model.completion_request(prompt).max_tokens(8192).build();
 
                 let mut stream = model
                     .stream(request)
@@ -526,7 +528,7 @@ impl RigProvider {
             }
             RigProvider::DeepSeek(client) => {
                 let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).build();
+                let request = model.completion_request(prompt).max_tokens(8192).build();
 
                 let mut stream = model
                     .stream(request)
@@ -559,7 +561,7 @@ impl RigProvider {
             }
             RigProvider::Ollama(client) => {
                 let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).build();
+                let request = model.completion_request(prompt).max_tokens(8192).build();
 
                 let mut stream = model
                     .stream(request)
@@ -798,7 +800,7 @@ mod tests {
 
         // Using explicit model name instead of rig-core constant
         // rig-core's CLAUDE_3_5_SONNET is outdated
-        assert_eq!(provider.default_model(), "claude-sonnet-4-20250514");
+        assert_eq!(provider.default_model(), "claude-sonnet-4-6");
     }
 
     #[test]

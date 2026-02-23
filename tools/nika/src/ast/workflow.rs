@@ -930,7 +930,7 @@ target: [step3, step4]
         let yaml = r#"
 schema: nika/workflow@0.5
 provider: claude
-model: claude-sonnet-4-20250514
+model: claude-sonnet-4-6
 tasks:
   - id: task1
     infer: "Test"
@@ -1012,7 +1012,7 @@ tasks:
     fn test_workflow_compute_hash_differs_with_model() {
         let yaml_claude = r#"
 schema: nika/workflow@0.5
-model: claude-sonnet-4-20250514
+model: claude-sonnet-4-6
 tasks:
   - id: task1
     infer: "Test"

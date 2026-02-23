@@ -335,15 +335,15 @@ fn test_default_commands() {
 
 #[test]
 fn test_infer_stream_data_new() {
-    let data = InferStreamData::new("claude-sonnet-4-20250514");
-    assert_eq!(data.model, "claude-sonnet-4-20250514");
+    let data = InferStreamData::new("claude-sonnet-4-6");
+    assert_eq!(data.model, "claude-sonnet-4-6");
     assert!(data.content.is_empty());
     assert_eq!(data.status, InferStatus::Running);
 }
 
 #[test]
 fn test_infer_stream_data_append() {
-    let mut data = InferStreamData::new("claude-sonnet-4-20250514");
+    let mut data = InferStreamData::new("claude-sonnet-4-6");
     data.append_content("Hello ");
     data.append_content("World!");
     assert_eq!(data.content, "Hello World!");
@@ -351,7 +351,7 @@ fn test_infer_stream_data_append() {
 
 #[test]
 fn test_infer_stream_data_status_transitions() {
-    let mut data = InferStreamData::new("claude-sonnet-4-20250514");
+    let mut data = InferStreamData::new("claude-sonnet-4-6");
     assert_eq!(data.status, InferStatus::Running);
 
     data.complete();
@@ -360,7 +360,7 @@ fn test_infer_stream_data_status_transitions() {
 
 #[test]
 fn test_infer_stream_data_with_tokens() {
-    let data = InferStreamData::new("claude-sonnet-4-20250514").with_tokens(100, 50);
+    let data = InferStreamData::new("claude-sonnet-4-6").with_tokens(100, 50);
     assert_eq!(data.tokens_in, 100);
     assert_eq!(data.tokens_out, 50);
 }
@@ -375,7 +375,7 @@ fn test_infer_stream_progress() {
 
 #[test]
 fn test_infer_stream_box_rendering() {
-    let data = InferStreamData::new("claude-sonnet-4-20250514")
+    let data = InferStreamData::new("claude-sonnet-4-6")
         .with_content("This is a streaming response...");
 
     let stream_box = InferStreamBox::new(&data);

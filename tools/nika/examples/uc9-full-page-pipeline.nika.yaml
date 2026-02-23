@@ -260,7 +260,7 @@ tasks:
           "seo_score": 0-100,
           "recommendations": []
         }
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # ─────────────────────────────────────────────────────────────────
   # PHASE 5: Page Assembly

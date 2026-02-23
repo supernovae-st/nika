@@ -34,7 +34,7 @@ tasks:
       max_turns: 5
       stop_conditions:
         - "RESEARCH_COMPLETE"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # Second task uses the research result
   - id: generate_summary

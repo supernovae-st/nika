@@ -391,7 +391,7 @@ pub struct TaskState {
     pub tokens: Option<u32>,
     /// Provider name (e.g., "claude", "openai")
     pub provider: Option<String>,
-    /// Model name (e.g., "claude-sonnet-4-20250514")
+    /// Model name (e.g., "claude-sonnet-4-6")
     pub model: Option<String>,
     /// Prompt length in chars
     pub prompt_len: Option<usize>,

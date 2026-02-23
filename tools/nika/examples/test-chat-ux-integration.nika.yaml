@@ -16,7 +16,7 @@ tasks:
       prompt: |
         Generate a short poem about coding.
         Keep it under 50 words.
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
     use.poem: generated_poem
 
   # ============================================================================

@@ -741,7 +741,7 @@ default = "claude"
 
 # Default model (provider-specific)
 # Can be overridden with NIKA_MODEL env var or --model flag
-# model = "claude-sonnet-4-20250514"
+# model = "claude-sonnet-4-6"
 "#,
         permission_mode
             .display_name()
@@ -764,7 +764,7 @@ description: "Simple hello world workflow demonstrating basic features"
 
 # Default provider and model
 provider: claude
-# model: claude-sonnet-4-20250514
+# model: claude-sonnet-4-6
 
 tasks:
   - id: greet

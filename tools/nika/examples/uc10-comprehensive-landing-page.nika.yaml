@@ -120,7 +120,7 @@ tasks:
 
         Say "COMPETITIVE_ANALYSIS_COMPLETE" when done.
       provider: claude
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       mcp:
         - novanet
       max_turns: 8
@@ -152,6 +152,7 @@ tasks:
 
   - id: seo_strategy
     use:
+      entity: entity_key
       entity_ctx: entity_context
       seo_ctx: seo_context
       competitive: competitive_intel
@@ -210,7 +211,7 @@ tasks:
 
         Say "STRATEGY_COMPLETE" when done.
       provider: claude
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       mcp:
         - novanet
       max_turns: 10
@@ -379,6 +380,7 @@ tasks:
       guidelines: block_guidelines
       competitive: competitive_intel
       locale: locale_key
+      target_audience: target_audience
     infer:
       prompt: |
         Generate BENEFITS block for {{use.locale}}.
@@ -573,7 +575,7 @@ tasks:
           "blockers": [],
           "recommendations": []
         }
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
     output:
       format: json
 
@@ -641,7 +643,7 @@ tasks:
 
         Say "SEO_OPTIMIZATION_COMPLETE" when done.
       provider: claude
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       mcp:
         - novanet
       max_turns: 8

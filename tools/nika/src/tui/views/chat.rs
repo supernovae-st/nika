@@ -1023,6 +1023,8 @@ impl View for ChatView {
 
         match key.code {
             KeyCode::Char('q') if self.input.value().is_empty() => ViewAction::Quit,
+            // 's' when empty opens Settings view (consistent with other views)
+            KeyCode::Char('s') if self.input.value().is_empty() => ViewAction::OpenSettings,
             // "/" at start of empty input triggers command palette with verbs
             KeyCode::Char('/') if self.input.value().is_empty() => {
                 self.toggle_command_palette();
@@ -1074,22 +1076,30 @@ impl View for ChatView {
                         Command::Model { provider } => {
                             // Handle /model list inline
                             if provider == ModelProvider::List {
-                                let list_text = format!(
-                                    "Available providers:\n  - openai: {} {}\n  - claude: {} {}",
-                                    ModelProvider::OpenAI.name(),
-                                    if ModelProvider::OpenAI.is_available() {
-                                        "(available)"
+                                let providers = [
+                                    ModelProvider::Claude,
+                                    ModelProvider::OpenAI,
+                                    ModelProvider::Mistral,
+                                    ModelProvider::Groq,
+                                    ModelProvider::DeepSeek,
+                                    ModelProvider::Ollama,
+                                ];
+                                let mut list_text =
+                                    String::from("Available providers (use /model <name>):\n");
+                                for p in providers {
+                                    let status = if p.is_available() {
+                                        "available"
                                     } else {
-                                        "(missing API key)"
-                                    },
-                                    ModelProvider::Claude.name(),
-                                    if ModelProvider::Claude.is_available() {
-                                        "(available)"
-                                    } else {
-                                        "(missing API key)"
-                                    },
-                                );
-                                self.add_nika_message(list_text, None);
+                                        "missing API key"
+                                    };
+                                    list_text.push_str(&format!(
+                                        "  - {}: {} ({})\n",
+                                        p.command_name(),
+                                        p.name(),
+                                        status
+                                    ));
+                                }
+                                self.add_nika_message(list_text.trim_end().to_string(), None);
                                 ViewAction::None
                             } else {
                                 ViewAction::ChatModelSwitch(provider)
@@ -1161,9 +1171,9 @@ impl View for ChatView {
             ""
         };
         format!(
-            "{} messages | {} in history | Model: {}{}",
+            "{} msgs | {} | {}{}",
             self.messages.len(),
-            self.history.len(),
+            self.provider_name,
             self.current_model,
             streaming_status
         )
@@ -1385,13 +1395,27 @@ impl ChatView {
         spans.push(Span::styled(" │ ", Style::default().fg(theme.text_muted)));
         spans.push(Span::raw("> "));
 
-        // Input text with cursor
-        spans.push(Span::raw(before_cursor));
-        spans.push(Span::styled(
-            cursor_char.to_string(),
-            Style::default().bg(theme.highlight).fg(Color::Black),
-        ));
-        spans.push(Span::raw(after_cursor));
+        // Input text with cursor and placeholder
+        if input_value.is_empty() {
+            // Show placeholder when input is empty
+            spans.push(Span::styled(
+                " ",
+                Style::default().bg(theme.highlight).fg(Color::Black),
+            ));
+            spans.push(Span::styled(
+                "Type a message, / for commands, @ to mention files...",
+                Style::default()
+                    .fg(theme.text_muted)
+                    .add_modifier(Modifier::ITALIC),
+            ));
+        } else {
+            spans.push(Span::raw(before_cursor));
+            spans.push(Span::styled(
+                cursor_char.to_string(),
+                Style::default().bg(theme.highlight).fg(Color::Black),
+            ));
+            spans.push(Span::raw(after_cursor));
+        }
 
         let line = Line::from(spans);
 
@@ -1869,8 +1893,9 @@ mod tests {
         let view = ChatView::new();
         let state = TuiState::new("test.nika.yaml");
         let status = view.status_line(&state);
-        assert!(status.contains("1 messages"));
-        assert!(status.contains("0 in history"));
+        // New format: "{msgs} msgs | {provider} | {model}"
+        assert!(status.contains("1 msgs"));
+        assert!(status.contains(" | ")); // Contains provider | model separator
     }
 
     #[test]
@@ -2003,13 +2028,15 @@ mod tests {
 
     #[test]
     fn test_chat_view_status_line_with_model() {
-        let view = ChatView::new();
+        let mut view = ChatView::new();
+        view.set_model("gpt-4o-test");
+        view.set_provider("OpenAI");
         let state = TuiState::new("test.nika.yaml");
         let status = view.status_line(&state);
-        assert!(status.contains("Model:"));
-        // Model name depends on env vars, so just check format
-        assert!(status.contains("1 messages"));
-        assert!(status.contains("0 in history"));
+        // New format: "{msgs} msgs | {provider} | {model}"
+        assert!(status.contains("OpenAI"));
+        assert!(status.contains("gpt-4o-test"));
+        assert!(status.contains("1 msgs"));
     }
 
     #[test]

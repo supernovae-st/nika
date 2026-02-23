@@ -14,7 +14,7 @@ tasks:
       max_turns: 10
       stop_conditions:
         - "COUNTING_COMPLETE"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # Verify the agent stopped correctly
   - id: verify_stop

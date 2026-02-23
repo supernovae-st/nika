@@ -747,7 +747,7 @@ tasks:
   research:
     agent: "Research the QR code entity and describe its properties"
     provider: claude
-    model: claude-sonnet-4-20250514
+    model: claude-sonnet-4-6
     tools:
       - novanet_describe
       - novanet_traverse

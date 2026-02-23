@@ -19,7 +19,7 @@ tasks:
       mcp:
         - perplexity
       max_turns: 3
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # Step 2: Format the result
   - id: format

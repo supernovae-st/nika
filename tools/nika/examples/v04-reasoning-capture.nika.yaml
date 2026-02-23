@@ -16,7 +16,7 @@ tasks:
         Think through this step by step before answering.
       extended_thinking: true
       thinking_budget: 8192  # v0.4: configurable thinking budget (default: 4096)
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       max_turns: 1
     output:
       format: text
