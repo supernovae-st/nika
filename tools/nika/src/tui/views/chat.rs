@@ -356,6 +356,12 @@ pub struct ChatView {
     // === v0.8.1 Help Overlay ===
     /// Help overlay state (toggle with ? or F1)
     pub help_overlay: HelpOverlayState,
+
+    // === v0.8.1 Smart Auto-Scroll ===
+    /// Whether user is "at the bottom" of conversation
+    /// When true, new messages auto-scroll. When false (user scrolled up), they don't.
+    /// Reset to true when user sends a message or manually scrolls to bottom.
+    pub user_at_bottom: bool,
 }
 
 /// Position of a rendered line for hit testing
@@ -521,6 +527,9 @@ impl ChatView {
 
             // v0.8.1 Help Overlay
             help_overlay: HelpOverlayState::new(),
+
+            // v0.8.1 Smart Auto-Scroll
+            user_at_bottom: true, // Start at bottom
         }
     }
 
@@ -640,6 +649,8 @@ impl ChatView {
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
                 self.conversation_scroll.scroll_down();
+                // v0.8.1: Check if we reached the bottom
+                self.user_at_bottom = self.is_at_bottom();
             }
             ChatPanel::Activity => {
                 self.activity_scroll.scroll_down();
@@ -653,6 +664,8 @@ impl ChatView {
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
                 self.conversation_scroll.scroll_up();
+                // v0.8.1: User scrolled up = stop auto-following
+                self.user_at_bottom = false;
             }
             ChatPanel::Activity => {
                 self.activity_scroll.scroll_up();
@@ -665,6 +678,8 @@ impl ChatView {
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
                 self.conversation_scroll.scroll_to_top();
+                // v0.8.1: Went to top = stop auto-following
+                self.user_at_bottom = false;
             }
             ChatPanel::Activity => {
                 self.activity_scroll.scroll_to_top();
@@ -677,6 +692,8 @@ impl ChatView {
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
                 self.conversation_scroll.scroll_to_bottom();
+                // v0.8.1: Went to bottom = resume auto-following
+                self.user_at_bottom = true;
             }
             ChatPanel::Activity => {
                 self.activity_scroll.scroll_to_bottom();
@@ -689,6 +706,8 @@ impl ChatView {
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
                 self.conversation_scroll.page_down();
+                // v0.8.1: Check if we reached the bottom
+                self.user_at_bottom = self.is_at_bottom();
             }
             ChatPanel::Activity => {
                 self.activity_scroll.page_down();
@@ -701,11 +720,23 @@ impl ChatView {
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
                 self.conversation_scroll.page_up();
+                // v0.8.1: User scrolled up = stop auto-following
+                self.user_at_bottom = false;
             }
             ChatPanel::Activity => {
                 self.activity_scroll.page_up();
             }
         }
+    }
+
+    /// Check if conversation is scrolled to the bottom
+    fn is_at_bottom(&self) -> bool {
+        let scroll = &self.conversation_scroll;
+        if scroll.total == 0 || scroll.visible == 0 {
+            return true; // Empty or not rendered yet = consider at bottom
+        }
+        // At bottom when offset + visible >= total
+        scroll.offset + scroll.visible >= scroll.total
     }
 
     /// Copy the currently selected message to clipboard
@@ -1009,10 +1040,13 @@ impl ChatView {
     pub fn start_streaming_with_verb(&mut self, verb: DecryptVerb) {
         self.is_streaming = true;
         self.partial_response.clear();
-        // v0.8 WOW: Reset and configure matrix decrypt for verb theme
+        // v0.8.1 WOW: Reset and configure matrix decrypt for verb theme
+        // Parameters tuned for visible chaos + cascade reveal effect
         self.streaming_decrypt = StreamingDecrypt::new()
             .with_verb(verb)
-            .with_reveal_speed(0.08);
+            .with_reveal_speed(0.025) // Slow reveal (~40 frames = 667ms at 60fps)
+            .with_wave_factor(0.15) // Cascade: later chars reveal slower
+            .with_initial_chaos(8); // ~130ms of visible chaos before reveal
     }
 
     /// Append chunk to partial response during streaming
@@ -1410,7 +1444,9 @@ impl ChatView {
         });
         self.history.push(content);
         self.history_index = None;
-        self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
+        // v0.8.1: When user sends a message, they want to see the response
+        self.user_at_bottom = true;
+        self.auto_scroll_to_bottom();
     }
 
     /// Add a Nika response
@@ -1456,7 +1492,15 @@ impl ChatView {
 
     /// v0.8.1 FIX: Auto-scroll to bottom of conversation (NovaNet pattern)
     /// Called when new messages are added to keep latest content visible
+    /// v0.8.1: Smart auto-scroll - only scrolls if user was at bottom
+    /// This prevents jumping when user is reading history and new content arrives
     fn auto_scroll_to_bottom(&mut self) {
+        // v0.8.1: Only auto-scroll if user was at the bottom
+        // If they scrolled up to read history, don't interrupt them
+        if !self.user_at_bottom {
+            return;
+        }
+
         // Update total immediately (don't wait for render)
         // Use estimated lines per message until render computes exact count
         let estimated_lines_per_message = 4; // header + content + spacing
