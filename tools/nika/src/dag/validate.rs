@@ -15,7 +15,9 @@
 use rustc_hash::FxHashSet;
 
 use crate::ast::{TaskAction, Workflow};
-use crate::binding::{validate_refs, validate_task_id, WiringSpec};
+use crate::binding::{
+    detect_deprecated_dollar_syntax, validate_refs, validate_task_id, WiringSpec,
+};
 use crate::error::NikaError;
 
 use super::flow::FlowGraph;
@@ -62,6 +64,8 @@ fn validate_template_refs(task: &crate::ast::Task) -> Result<(), NikaError> {
 
     for template in templates {
         validate_refs(&template, &declared_aliases, &task.id)?;
+        // Check for deprecated $alias syntax (should use {{use.alias}} instead)
+        detect_deprecated_dollar_syntax(&template, &task.id)?;
     }
 
     Ok(())
