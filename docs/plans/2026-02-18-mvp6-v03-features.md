@@ -672,7 +672,7 @@ tasks:
   greet:
     infer: "Write a friendly greeting"
     provider: claude
-    model: claude-sonnet-4-20250514
+    model: claude-sonnet-4-6
 ```
 
 ```bash
@@ -688,7 +688,7 @@ tasks:
   my_task:
     infer: "Your prompt here"
     provider: claude
-    model: claude-sonnet-4-20250514
+    model: claude-sonnet-4-6
 ```
 
 ### Dependencies
@@ -836,7 +836,7 @@ tasks:
       Write a friendly greeting for someone
       learning to use Nika for the first time.
     provider: claude
-    model: claude-sonnet-4-20250514
+    model: claude-sonnet-4-6
 ```
 
 Run it:
@@ -961,7 +961,7 @@ tasks:
   greet:
     infer: Write a haiku about coding
     provider: claude
-    model: claude-sonnet-4-20250514
+    model: claude-sonnet-4-6
 ```
 
 ```yaml
@@ -1038,7 +1038,7 @@ tasks:
 
       Use the available tools to explore the graph.
     provider: claude
-    model: claude-sonnet-4-20250514
+    model: claude-sonnet-4-6
     tools:
       - novanet_describe
       - novanet_traverse

@@ -73,7 +73,7 @@ tasks:
 
         DO NOT PROPOSE FIXES. Only investigate.
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # ========================================================================
   # PHASE 2: Pattern Analysis
@@ -113,7 +113,7 @@ tasks:
         }
         ```
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # ========================================================================
   # PHASE 3: Hypothesis Testing
@@ -161,7 +161,7 @@ tasks:
         }
         ```
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # ========================================================================
   # PHASE 4: Fix Implementation
@@ -226,7 +226,7 @@ tasks:
         [How to prevent this bug pattern in future]
         ```
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # ========================================================================
   # PHASE 5: Verification Plan
@@ -273,7 +273,7 @@ tasks:
         [What must pass before merging]
         ```
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
 flows:
   - source: input

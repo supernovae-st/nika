@@ -32,7 +32,7 @@ tasks:
       prompt: |
         You are being tested. Respond with EXACTLY this JSON and nothing else:
         {"status": "success", "verb": "infer", "model": "claude", "math": 42}
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TEST 4: for_each with real parallel execution
@@ -58,7 +58,7 @@ tasks:
         1. Say "STARTING TEST"
         2. Calculate: 17 * 23 = ?
         3. Say "TEST COMPLETE" and then "DONE"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       max_turns: 3
       stop_conditions:
         - "DONE"

@@ -283,7 +283,7 @@ pub async fn run_tui_standalone() -> crate::error::Result<()> {
 /// # Arguments
 ///
 /// * `provider` - Optional provider override ("claude" or "openai")
-/// * `model` - Optional model override (e.g., "claude-sonnet-4-20250514")
+/// * `model` - Optional model override (e.g., "claude-sonnet-4-6")
 #[cfg(feature = "tui")]
 pub async fn run_tui_chat(
     provider: Option<String>,

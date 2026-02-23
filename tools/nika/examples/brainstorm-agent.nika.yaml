@@ -72,7 +72,7 @@ tasks:
         When complete, output the JSON and say "RESEARCH_COMPLETE".
 
       provider: claude
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       mcp:
         - perplexity
         - firecrawl
@@ -123,7 +123,7 @@ tasks:
           "recommended_next_steps": ["...", "..."]
         }
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # ========================================================================
   # PHASE 3: Refinement
@@ -162,7 +162,7 @@ tasks:
           "required_resources": ["...", "..."]
         }
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
 flows:
   - source: input

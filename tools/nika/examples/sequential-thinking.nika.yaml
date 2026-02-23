@@ -70,7 +70,7 @@ tasks:
 
         Say "ANALYSIS_COMPLETE" when done.
 
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       mcp:
         - sequential-thinking
       max_turns: 15

@@ -9,8 +9,8 @@
 //! - Added `AgentTurnMetadata` for reasoning capture (thinking, tokens, stop_reason)
 //! - Updated `AgentTurn` variant to include optional metadata
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use parking_lot::RwLock; // 2-3x faster than std::sync::RwLock
@@ -294,6 +294,21 @@ pub enum EventKind {
         /// Error description
         error: String,
     },
+    /// P2: MCP operation retry attempt (v0.7.3)
+    McpRetry {
+        /// Task ID initiating the retry
+        task_id: Arc<str>,
+        /// Name of the MCP server
+        server_name: String,
+        /// Tool or resource being retried
+        operation: String,
+        /// Current attempt number (1-based)
+        attempt: u32,
+        /// Max attempts configured
+        max_attempts: u32,
+        /// Error that triggered the retry
+        error: String,
+    },
 
     // ═══════════════════════════════════════════
     // AGENT EVENTS (v0.4)
@@ -356,6 +371,7 @@ impl EventKind {
             | Self::ContextAssembled { task_id, .. }
             | Self::McpInvoke { task_id, .. }
             | Self::McpResponse { task_id, .. }
+            | Self::McpRetry { task_id, .. }  // P2 Fix: Added McpRetry
             | Self::AgentStart { task_id, .. }
             | Self::AgentTurn { task_id, .. }
             | Self::AgentComplete { task_id, .. } => Some(task_id),
@@ -415,9 +431,9 @@ impl EventLog {
     /// Create a new event log with broadcast channel for TUI (v0.4.1)
     ///
     /// Returns (EventLog, Receiver) tuple. Pass the receiver to TUI App.
-    /// Channel capacity is 256 events (buffer for TUI lag).
+    /// P1 Fix: Increase channel capacity from 256 to 512 events (buffer for TUI lag + fast providers).
     pub fn new_with_broadcast() -> (Self, broadcast::Receiver<Event>) {
-        let (tx, rx) = broadcast::channel(256);
+        let (tx, rx) = broadcast::channel(512);
         let event_log = Self {
             events: Arc::new(RwLock::new(Vec::new())),
             start_time: Instant::now(),
@@ -595,17 +611,21 @@ mod tests {
     #[test]
     fn eventkind_is_workflow_event() {
         assert!(workflow_started(3).is_workflow_event());
-        assert!(EventKind::WorkflowCompleted {
-            final_output: Arc::new(json!("done")),
-            total_duration_ms: 1000,
-        }
-        .is_workflow_event());
-        assert!(!EventKind::TaskStarted {
-            verb: "infer".into(),
-            task_id: "t1".into(),
-            inputs: json!({}),
-        }
-        .is_workflow_event());
+        assert!(
+            EventKind::WorkflowCompleted {
+                final_output: Arc::new(json!("done")),
+                total_duration_ms: 1000,
+            }
+            .is_workflow_event()
+        );
+        assert!(
+            !EventKind::TaskStarted {
+                verb: "infer".into(),
+                task_id: "t1".into(),
+                inputs: json!({}),
+            }
+            .is_workflow_event()
+        );
     }
 
     #[test]
@@ -713,9 +733,11 @@ mod tests {
 
         let alpha_events = log.filter_task("alpha");
         assert_eq!(alpha_events.len(), 2); // Started + Completed
-        assert!(alpha_events
-            .iter()
-            .all(|e| e.kind.task_id() == Some("alpha")));
+        assert!(
+            alpha_events
+                .iter()
+                .all(|e| e.kind.task_id() == Some("alpha"))
+        );
 
         let beta_events = log.filter_task("beta");
         assert_eq!(beta_events.len(), 1);

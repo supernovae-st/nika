@@ -180,14 +180,14 @@ infer: "Generate a headline for QR Code AI"
 infer:
   prompt: "Generate a headline"
   provider: claude
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-6
 "#;
         let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
         match action {
             TaskAction::Infer { infer } => {
                 assert_eq!(infer.prompt, "Generate a headline");
                 assert_eq!(infer.provider, Some("claude".to_string()));
-                assert_eq!(infer.model, Some("claude-sonnet-4-20250514".to_string()));
+                assert_eq!(infer.model, Some("claude-sonnet-4-6".to_string()));
             }
             _ => panic!("Expected TaskAction::Infer"),
         }
@@ -614,13 +614,13 @@ agent:
 agent:
   prompt: "Test prompt"
   provider: claude
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-6
 "#;
         let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
         match action {
             TaskAction::Agent { agent } => {
                 assert_eq!(agent.provider, Some("claude".to_string()));
-                assert_eq!(agent.model, Some("claude-sonnet-4-20250514".to_string()));
+                assert_eq!(agent.model, Some("claude-sonnet-4-6".to_string()));
             }
             _ => panic!("Expected TaskAction::Agent"),
         }
@@ -633,7 +633,7 @@ agent:
   prompt: "Generate landing page content"
   system: "You are a web content expert"
   provider: claude
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-6
   mcp:
     - novanet
   max_turns: 10
@@ -653,7 +653,7 @@ agent:
                     Some("You are a web content expert".to_string())
                 );
                 assert_eq!(agent.provider, Some("claude".to_string()));
-                assert_eq!(agent.model, Some("claude-sonnet-4-20250514".to_string()));
+                assert_eq!(agent.model, Some("claude-sonnet-4-6".to_string()));
                 assert_eq!(agent.mcp.len(), 1);
                 assert_eq!(agent.max_turns, Some(10));
                 assert_eq!(agent.token_budget, Some(10000));
@@ -887,7 +887,7 @@ fetch:
             infer: InferParams {
                 prompt: "test".to_string(),
                 provider: Some("claude".to_string()),
-                model: Some("claude-sonnet-4-20250514".to_string()),
+                model: Some("claude-sonnet-4-6".to_string()),
             },
         };
         let cloned = action.clone();

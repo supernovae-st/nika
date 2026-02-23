@@ -400,6 +400,10 @@ impl App {
     /// - `nika` (default) → Home view
     pub fn with_initial_view(mut self, view: TuiView) -> Self {
         self.current_view = view;
+        // Auto-enter Insert mode for Chat view so users can type immediately
+        if view == TuiView::Chat {
+            self.input_mode = InputMode::Insert;
+        }
         self
     }
 
@@ -413,7 +417,7 @@ impl App {
 
     /// Set provider and model overrides for ChatAgent
     ///
-    /// Used by `nika chat --provider claude --model claude-sonnet-4-20250514`.
+    /// Used by `nika chat --provider claude --model claude-sonnet-4-6`.
     ///
     /// # Arguments
     ///
@@ -537,8 +541,10 @@ impl App {
             // 1. Poll runtime events (same as run())
             self.poll_runtime_events();
 
-            // 2. Update elapsed time
+            // 2. Update elapsed time and animations
             self.state.tick();
+            self.chat_view.tick(); // FIX: was missing - enables inline MCP/Infer animations
+            self.studio_view.maybe_validate(); // Debounced validation (300ms after last edit)
 
             // 3. Render frame based on current view
             self.render_unified_frame()?;
@@ -838,21 +844,12 @@ impl App {
         let current_view = self.current_view;
 
         if let Some(ref mut terminal) = self.terminal {
-            // For Monitor view, use the existing full-screen render (backward compatible)
+            // Ensure timeline cache is up-to-date before rendering Monitor view
             if current_view == TuiView::Monitor {
-                // Ensure timeline cache is up-to-date before rendering (immutable borrow)
                 self.state.ensure_timeline_cache();
-                let state = &self.state;
-                let theme = &self.theme;
-                terminal
-                    .draw(|frame| render_frame(frame, state, theme))
-                    .map_err(|e| NikaError::TuiError {
-                        reason: format!("Failed to draw frame: {}", e),
-                    })?;
-                return Ok(());
             }
 
-            // For other views, use unified layout with Header + Content + StatusBar
+            // All views use unified layout with Header + Content + StatusBar
             // Extract references to avoid borrow issues with the closure
             let theme = &self.theme;
             let state = &self.state;
@@ -900,7 +897,11 @@ impl App {
                     .map(|hv| hv.status_line(state))
                     .unwrap_or_default(),
                 TuiView::Studio => studio_view.status_line(state),
-                TuiView::Monitor => String::new(),
+                TuiView::Monitor => {
+                    let task_count = state.tasks.len();
+                    let completed = state.tasks.values().filter(|t| t.status == super::theme::TaskStatus::Success).count();
+                    format!("Tasks: {}/{}", completed, task_count)
+                }
             };
 
             terminal
@@ -946,11 +947,8 @@ impl App {
                             studio_view.render(frame, chunks[1], state, theme);
                         }
                         TuiView::Monitor => {
-                            // Monitor view returns early above (line 794-803) using render_frame()
-                            // If we reach here, something is wrong - render placeholder safely
-                            let placeholder = Paragraph::new("Monitor view - use render_frame()")
-                                .block(Block::default().borders(Borders::ALL).title(" MONITOR "));
-                            frame.render_widget(placeholder, chunks[1]);
+                            // Render Monitor's 4-panel layout within the content area
+                            render_monitor_content(frame, state, theme, chunks[1]);
                         }
                     }
 
@@ -1021,18 +1019,15 @@ impl App {
                 return Action::SwitchView(TuiView::Monitor);
             }
 
-            // Tab cycles views (when not in Monitor, which uses Tab for panel cycling)
-            // Also skip when capturing input (Studio Insert mode, Chat with text)
+            // Tab cycles views (all views including Monitor - use h/l for Monitor panel focus)
+            // Skip when capturing input (Studio Insert mode, Chat with text)
             KeyCode::Tab
                 if !modifiers.contains(KeyModifiers::SHIFT)
-                    && self.current_view != TuiView::Monitor
                     && !self.is_view_capturing_input() =>
             {
                 return Action::NextView;
             }
-            KeyCode::BackTab
-                if self.current_view != TuiView::Monitor && !self.is_view_capturing_input() =>
-            {
+            KeyCode::BackTab if !self.is_view_capturing_input() => {
                 return Action::PrevView;
             }
 
@@ -1228,6 +1223,7 @@ impl App {
                 self.handle_chat_clear();
                 Action::Continue
             }
+            ViewAction::OpenSettings => Action::SetMode(TuiMode::Settings),
         }
     }
 
@@ -1621,17 +1617,32 @@ impl App {
             Action::SwitchView(view) => {
                 self.current_view = view;
                 self.focus_state.reset_to_view(view);
-                self.input_mode = InputMode::Normal;
+                // Auto-enter Insert mode for Chat view so users can type immediately
+                self.input_mode = if view == TuiView::Chat {
+                    InputMode::Insert
+                } else {
+                    InputMode::Normal
+                };
             }
             Action::NextView => {
                 self.current_view = self.current_view.next();
                 self.focus_state.reset_to_view(self.current_view);
-                self.input_mode = InputMode::Normal;
+                // Auto-enter Insert mode for Chat view
+                self.input_mode = if self.current_view == TuiView::Chat {
+                    InputMode::Insert
+                } else {
+                    InputMode::Normal
+                };
             }
             Action::PrevView => {
                 self.current_view = self.current_view.prev();
                 self.focus_state.reset_to_view(self.current_view);
-                self.input_mode = InputMode::Normal;
+                // Auto-enter Insert mode for Chat view
+                self.input_mode = if self.current_view == TuiView::Chat {
+                    InputMode::Insert
+                } else {
+                    InputMode::Normal
+                };
             }
             // Chat overlay actions
             Action::ChatOverlayInput(c) => {
@@ -2389,12 +2400,50 @@ impl App {
         });
     }
 
-    /// Handle /model command - switch LLM provider
+    /// Handle /model command - switch LLM provider or list available providers
     fn handle_chat_model_switch(&mut self, provider: ModelProvider) {
+        // Handle /model list - show available providers
+        if provider == ModelProvider::List {
+            let providers = [
+                ModelProvider::Claude,
+                ModelProvider::OpenAI,
+                ModelProvider::Mistral,
+                ModelProvider::Groq,
+                ModelProvider::DeepSeek,
+                ModelProvider::Ollama,
+            ];
+            let mut list_text = String::from("Available providers (use /model <name>):\n");
+            for p in providers {
+                let status = if p.is_available() {
+                    "✓ available".to_string()
+                } else {
+                    format!("✗ missing {}", p.env_var())
+                };
+                list_text.push_str(&format!(
+                    "  {} - {} ({})\n",
+                    p.command_name(),
+                    p.name(),
+                    status
+                ));
+            }
+            self.chat_view
+                .add_nika_message(list_text.trim_end().to_string(), None);
+            self.set_status("Use /model <provider> to switch");
+            return;
+        }
+
+        // Handle actual provider switch
         if let Some(ref mut agent) = self.chat_agent {
             match agent.set_provider(provider.clone()) {
                 Ok(()) => {
-                    let msg = format!("Switched to {} provider", provider.name());
+                    // Sync both provider and model names
+                    self.chat_view.set_provider(provider.name());
+                    self.chat_view.set_model(agent.model_name());
+                    let msg = format!(
+                        "Switched to {} ({})",
+                        provider.name(),
+                        agent.model_name()
+                    );
                     self.chat_view.add_nika_message(msg.clone(), None);
                     self.set_status(&msg);
                 }
@@ -2412,8 +2461,12 @@ impl App {
                         self.chat_view
                             .add_nika_message(format!("Failed to switch provider: {}", e), None);
                     } else {
+                        // Sync both provider and model names
+                        let model_name = agent.model_name().to_string();
                         self.chat_agent = Some(agent);
-                        let msg = format!("Switched to {} provider", provider.name());
+                        self.chat_view.set_provider(provider.name());
+                        self.chat_view.set_model(&model_name);
+                        let msg = format!("Switched to {} ({})", provider.name(), model_name);
                         self.chat_view.add_nika_message(msg.clone(), None);
                         self.set_status(&msg);
                     }
@@ -2753,15 +2806,14 @@ impl Drop for App {
 // RENDER FUNCTIONS (standalone to avoid borrow checker issues)
 // ═══════════════════════════════════════════════════════════════════
 
-/// Render a frame
-fn render_frame(frame: &mut Frame, state: &TuiState, theme: &Theme) {
-    let size = frame.area();
-
-    // Create 2x2 layout
+/// Render Monitor view content within a given area (used in unified layout)
+/// This renders the 4-panel layout within the content area, preserving Header/StatusBar
+fn render_monitor_content(frame: &mut Frame, state: &TuiState, theme: &Theme, area: Rect) {
+    // Create 2x2 layout within the given content area
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(size);
+        .split(area);
 
     let top_chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -2779,17 +2831,17 @@ fn render_frame(frame: &mut Frame, state: &TuiState, theme: &Theme) {
     render_panel(frame, state, theme, PanelId::NovaNet, bottom_chunks[0]);
     render_panel(frame, state, theme, PanelId::Agent, bottom_chunks[1]);
 
-    // Render overlay if active
+    // Render overlays on top of the content area (not full screen)
     match &state.mode {
-        TuiMode::Help => render_help_overlay(frame, theme, size),
-        TuiMode::Metrics => render_metrics_overlay(frame, state, theme, size),
-        TuiMode::Settings => render_settings_overlay(frame, state, theme, size),
-        TuiMode::Search => render_search_bar(frame, state, theme, size),
-        TuiMode::ChatOverlay => render_chat_overlay(frame, state, theme, size),
+        TuiMode::Help => render_help_overlay(frame, theme, area),
+        TuiMode::Metrics => render_metrics_overlay(frame, state, theme, area),
+        TuiMode::Settings => render_settings_overlay(frame, state, theme, area),
+        TuiMode::Search => render_search_bar(frame, state, theme, area),
+        TuiMode::ChatOverlay => render_chat_overlay(frame, state, theme, area),
         _ => {
             // Show filter indicator if filter is active (not in Search mode)
             if state.has_filter() {
-                render_filter_indicator(frame, state, theme, size);
+                render_filter_indicator(frame, state, theme, area);
             }
         }
     }

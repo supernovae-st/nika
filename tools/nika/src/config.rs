@@ -44,7 +44,7 @@ pub struct Defaults {
     /// Default provider (claude, openai)
     pub provider: Option<String>,
 
-    /// Default model (claude-sonnet-4-20250514, gpt-4o, etc.)
+    /// Default model (claude-sonnet-4-6, gpt-4o, etc.)
     pub model: Option<String>,
 }
 
@@ -223,7 +223,7 @@ mod tests {
             },
             defaults: Defaults {
                 provider: Some("claude".into()),
-                model: Some("claude-sonnet-4-20250514".into()),
+                model: Some("claude-sonnet-4-6".into()),
             },
         };
 

@@ -50,7 +50,7 @@ description: "Generate SEO-optimized content leveraging entity context and keywo
 # ─────────────────────────────────────────────────────────────────────────────
 
 provider: claude
-model: claude-sonnet-4-20250514
+model: claude-sonnet-4-6
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MCP Server Configuration (NovaNet Integration)

@@ -1,5 +1,5 @@
 # Claude Provider Test - Real API Tests
-# Tests all verbs using Claude (claude-sonnet-4-20250514) as the provider
+# Tests all verbs using Claude (claude-sonnet-4-6) as the provider
 schema: "nika/workflow@0.5"
 provider: claude
 
@@ -23,7 +23,7 @@ tasks:
       prompt: |
         You are being tested. Respond with EXACTLY this JSON and nothing else:
         {"status": "success", "verb": "infer", "model": "claude-sonnet", "math": 42}
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TEST 3: agent: verb - Multi-turn with Claude
@@ -37,7 +37,7 @@ tasks:
         1. Say "STARTING CLAUDE TEST"
         2. Calculate: 23 * 17 = ?
         3. Say "CLAUDE TEST COMPLETE" and then "DONE"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       max_turns: 3
       stop_conditions:
         - "DONE"

@@ -654,7 +654,7 @@ tasks:
       prompt: |
         Use the novanet_describe tool to get information about the entity "qr-code".
         Then say DONE.
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       mcp:
         - novanet
       max_turns: 5
@@ -701,7 +701,7 @@ tasks:
       prompt: |
         Search for "Rust async programming best practices" using perplexity_search_web.
         Summarize the key points and say DONE.
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       mcp:
         - perplexity
       max_turns: 5

@@ -7,16 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.7.2] - 2026-02-22
+## [0.7.2] - 2026-02-23
 
 ### Added
 - **GitHub Actions CI/CD** - Complete workflow automation
   - `ci.yml`: Format, clippy, test, coverage, security audit, build
   - `release.yml`: Cross-platform release binaries (Linux, macOS, Windows)
   - `dependabot.yml`: Automated dependency updates
+- **Token Tracking for Standard Mode** - Streaming migration for accurate token counts
+  - `StreamingResult` struct captures response, input_tokens, output_tokens, thinking
+  - `stream_completion_with_tokens()` helper uses `model.stream()` for pure streaming
+  - `stream_with_tools()` routes: streaming when no tools (full tokens), agent.prompt() when tools (0 tokens)
+  - Token tracking works for Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama when no tools
+
+### Fixed
+- **Token tracking returned 0 for non-thinking mode** - All `run_*()` methods now
+  return accurate token counts via streaming API when no tools are used
+  - Uses rig-core's `GetTokenUsage` trait on `StreamedAssistantContent::Final`
+  - Chat methods (`chat_continue_*`) still return 0 tokens (rig-core `Chat` trait limitation)
 
 ### Statistics
 - **2,323 tests passing**
+- **6 LLM providers** with full token tracking (when no tools)
 
 ## [0.7.1] - 2026-02-21
 
@@ -57,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Provider priority order: Anthropic → OpenAI → Mistral → Groq → DeepSeek → Ollama
-- Default model updated to `claude-sonnet-4-20250514`
+- Default model updated to `claude-sonnet-4-6`
 
 ## [0.5.2] - 2026-02-20
 

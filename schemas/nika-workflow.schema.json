@@ -31,8 +31,8 @@
     },
     "model": {
       "type": "string",
-      "description": "Default model override (e.g., claude-sonnet-4-20250514, gpt-4o)",
-      "examples": ["claude-sonnet-4-20250514", "gpt-4o-mini"]
+      "description": "Default model override (e.g., claude-sonnet-4-6, gpt-4o)",
+      "examples": ["claude-sonnet-4-6", "gpt-4o-mini"]
     },
     "mcp": {
       "type": "object",

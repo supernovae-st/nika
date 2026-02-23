@@ -134,7 +134,7 @@ tasks:
             "language": "fr-FR"
           }
         }
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
     output:
       format: json
 
@@ -175,7 +175,7 @@ tasks:
            - ready_for_publication: boolean
 
         Output only valid JSON. Be pedantic about structure.
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
     output:
       format: json
 

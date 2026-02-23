@@ -178,7 +178,7 @@ LLM provider identity for `infer:` and `agent:` tasks.
 
 | Provider | Icon | Color Name | RGB | Hex | Env Var | Default Model |
 |----------|------|------------|-----|-----|---------|---------------|
-| **Claude** | 🧠 | Orange-400 | (251, 146, 60) | #FB923C | ANTHROPIC_API_KEY | claude-sonnet-4-20250514 |
+| **Claude** | 🧠 | Orange-400 | (251, 146, 60) | #FB923C | ANTHROPIC_API_KEY | claude-sonnet-4-6 |
 | **OpenAI** | 🤖 | Green-500 | (34, 197, 94) | #22C55E | OPENAI_API_KEY | gpt-4o |
 | **Mistral** | 🌬️ | Blue-500 | (59, 130, 246) | #3B82F6 | MISTRAL_API_KEY | mistral-large-latest |
 | **Ollama** | 🦙 | Amber-700 | (161, 98, 7) | #A16207 | OLLAMA_API_BASE_URL | llama3.2 |
@@ -335,7 +335,7 @@ pub struct StreamResult {
 │  ┌───────────────────────────────────────────────────────────────┐              │
 │  │ ⚡ infer: generate-headline                           ◐ 1.2s │              │
 │  ├───────────────────────────────────────────────────────────────┤              │
-│  │ 🧠 claude-sonnet-4-20250514                                   │              │
+│  │ 🧠 claude-sonnet-4-6                                   │              │
 │  ├───────────────────────────────────────────────────────────────┤              │
 │  │ The quick brown fox jumps over the lazy dog. This is         │              │
 │  │ a headline that captures the essence of your product_        │ ← cursor     │

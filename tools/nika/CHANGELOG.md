@@ -7,6 +7,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-02-23
+
+### Fixed
+- **Claude API 400 Bad Request** - Updated default model from deprecated
+  `claude-sonnet-4-20250514` (May 2025) to `claude-sonnet-4-6` (February 2026)
+  - 71 files updated with new model identifier
+  - Affects all workflows, tests, examples, and documentation
+  - Root cause: Model naming convention changed to simplified format
+
+### Changed
+- Default Claude model: `claude-sonnet-4-6` (latest Sonnet 4.6)
+- Updated documentation to reflect February 2026 model names
+
 ## [0.7.0] - 2026-02-21
 
 ### Added
@@ -55,7 +68,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 - **6 LLM Providers via rig-core v0.31** - Multi-provider LLM support
-  - Claude: `ANTHROPIC_API_KEY` (claude-sonnet-4-20250514)
+  - Claude: `ANTHROPIC_API_KEY` (claude-sonnet-4-6)
   - OpenAI: `OPENAI_API_KEY` (gpt-4o)
   - Mistral: `MISTRAL_API_KEY` (mistral-large-latest)
   - Groq: `GROQ_API_KEY` (llama-3.3-70b-versatile)
@@ -131,7 +144,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **DAG Visualization** - Verb-specific icons for each task type
 
 ### Changed
-- Default model updated from `claude-3-5-sonnet-latest` to `claude-sonnet-4-20250514`
+- Default model updated from `claude-3-5-sonnet-latest` to `claude-sonnet-4-6`
 
 ### Fixed
 - Validation preview now shows actual validation results

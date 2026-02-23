@@ -25,7 +25,7 @@ tasks:
       mcp:
         - perplexity
       max_turns: 3
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   # Step 2: Synthesize findings
   - id: synthesize

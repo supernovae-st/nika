@@ -81,7 +81,7 @@ tasks:
         }
 
         Output only valid JSON.
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
     output:
       format: json
 
@@ -111,7 +111,7 @@ tasks:
         ## <heading using title form>
 
         <paragraph using correct forms>
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
     output:
       format: text
 

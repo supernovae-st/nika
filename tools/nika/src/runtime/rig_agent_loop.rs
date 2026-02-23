@@ -81,6 +81,22 @@ pub struct RigAgentLoopResult {
     pub total_tokens: u64,
 }
 
+/// Result from streaming execution with token tracking.
+///
+/// Used internally by streaming helpers to capture both the response
+/// content and token usage from `StreamedAssistantContent::Final`.
+#[derive(Debug, Clone)]
+struct StreamingResult {
+    /// The accumulated response text
+    response: String,
+    /// Input tokens used (from token_usage())
+    input_tokens: u32,
+    /// Output tokens used (from token_usage())
+    output_tokens: u32,
+    /// Optional thinking/reasoning content (Claude extended thinking)
+    thinking: Option<String>,
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // RigAgentLoop
 // ═══════════════════════════════════════════════════════════════════════════
@@ -276,6 +292,10 @@ impl RigAgentLoop {
     }
 
     /// Continue conversation with Claude (v0.6)
+    ///
+    /// **Note:** Token tracking is not available for chat methods.
+    /// The rig-core `Chat` trait returns only `String`, not token metadata.
+    /// Use `run_claude()` for single-turn requests with full token tracking.
     async fn chat_continue_claude(
         &mut self,
         prompt: &str,
@@ -285,7 +305,7 @@ impl RigAgentLoop {
             .params
             .model
             .as_deref()
-            .unwrap_or("claude-sonnet-4-20250514");
+            .unwrap_or("claude-sonnet-4-6");
         let model = client.completion_model(model_name);
 
         let turn_index = (self.history.len() / 2 + 1) as u32;
@@ -299,8 +319,10 @@ impl RigAgentLoop {
         });
 
         // Build agent and chat with history
+        // Anthropic requires max_tokens to be set explicitly
         let agent = AgentBuilder::new(model)
             .preamble(self.params.system.as_deref().unwrap_or(""))
+            .max_tokens(8192)
             .build();
 
         let response = agent
@@ -342,6 +364,10 @@ impl RigAgentLoop {
     }
 
     /// Continue conversation with OpenAI (v0.6)
+    ///
+    /// **Note:** Token tracking is not available for chat methods.
+    /// The rig-core `Chat` trait returns only `String`, not token metadata.
+    /// Use `run_openai()` for single-turn requests with full token tracking.
     async fn chat_continue_openai(
         &mut self,
         prompt: &str,
@@ -363,6 +389,7 @@ impl RigAgentLoop {
         // Build agent and chat with history
         let agent = AgentBuilder::new(model)
             .preamble(self.params.system.as_deref().unwrap_or(""))
+            .max_tokens(8192)
             .build();
 
         let response = agent
@@ -404,6 +431,9 @@ impl RigAgentLoop {
     }
 
     /// Continue conversation with Mistral (v0.6)
+    ///
+    /// **Note:** Token tracking is not available for chat methods.
+    /// Use `run_mistral()` for single-turn requests with full token tracking.
     async fn chat_continue_mistral(
         &mut self,
         prompt: &str,
@@ -416,7 +446,7 @@ impl RigAgentLoop {
             .model
             .as_deref()
             .unwrap_or(rig::providers::mistral::MISTRAL_LARGE);
-        let agent = client.agent(model_name).build();
+        let agent = client.agent(model_name).max_tokens(8192).build();
 
         let turn_index = (self.history.len() / 2 + 1) as u32;
 
@@ -457,6 +487,9 @@ impl RigAgentLoop {
     }
 
     /// Continue conversation with Groq (v0.6)
+    ///
+    /// **Note:** Token tracking is not available for chat methods.
+    /// Use `run_groq()` for single-turn requests with full token tracking.
     async fn chat_continue_groq(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
         use rig::completion::Chat;
 
@@ -466,7 +499,7 @@ impl RigAgentLoop {
             .model
             .as_deref()
             .unwrap_or("llama-3.3-70b-versatile");
-        let agent = client.agent(model_name).build();
+        let agent = client.agent(model_name).max_tokens(8192).build();
 
         let turn_index = (self.history.len() / 2 + 1) as u32;
 
@@ -507,6 +540,9 @@ impl RigAgentLoop {
     }
 
     /// Continue conversation with DeepSeek (v0.6)
+    ///
+    /// **Note:** Token tracking is not available for chat methods.
+    /// Use `run_deepseek()` for single-turn requests with full token tracking.
     async fn chat_continue_deepseek(
         &mut self,
         prompt: &str,
@@ -519,7 +555,7 @@ impl RigAgentLoop {
             .model
             .as_deref()
             .unwrap_or(rig::providers::deepseek::DEEPSEEK_CHAT);
-        let agent = client.agent(model_name).build();
+        let agent = client.agent(model_name).max_tokens(8192).build();
 
         let turn_index = (self.history.len() / 2 + 1) as u32;
 
@@ -560,6 +596,9 @@ impl RigAgentLoop {
     }
 
     /// Continue conversation with Ollama (v0.6)
+    ///
+    /// **Note:** Token tracking is not available for chat methods.
+    /// Use `run_ollama()` for single-turn requests with full token tracking.
     async fn chat_continue_ollama(
         &mut self,
         prompt: &str,
@@ -568,7 +607,7 @@ impl RigAgentLoop {
 
         let client = rig::providers::ollama::Client::from_env();
         let model_name = self.params.model.as_deref().unwrap_or("llama3.2");
-        let agent = client.agent(model_name).build();
+        let agent = client.agent(model_name).max_tokens(8192).build();
 
         let turn_index = (self.history.len() / 2 + 1) as u32;
 
@@ -650,6 +689,160 @@ impl RigAgentLoop {
         self.tools.len()
     }
 
+    // =========================================================================
+    // Streaming Helpers (v0.7.2 - Token Tracking Migration)
+    // =========================================================================
+
+    /// Execute a completion request with streaming, capturing tokens.
+    ///
+    /// This is the core streaming helper used for simple completions (no tools).
+    /// It handles the stream processing loop and extracts token usage from
+    /// `StreamedAssistantContent::Final`.
+    ///
+    /// # Type Parameters
+    /// - `M`: A rig completion model that supports streaming
+    ///
+    /// # Returns
+    /// A `StreamingResult` containing the response text and token counts.
+    async fn stream_completion_with_tokens<M>(
+        &self,
+        model: &M,
+        prompt: &str,
+        system: Option<&str>,
+    ) -> Result<StreamingResult, NikaError>
+    where
+        M: rig::completion::CompletionModel,
+        <M as rig::completion::CompletionModel>::Response: Send,
+    {
+        // Build completion request
+        let mut request_builder = model.completion_request(prompt);
+        if let Some(sys) = system {
+            request_builder = request_builder.preamble(sys.to_string());
+        }
+        let request = request_builder.max_tokens(8192).build();
+
+        // Execute streaming request
+        let mut stream =
+            model
+                .stream(request)
+                .await
+                .map_err(|e| NikaError::AgentExecutionError {
+                    task_id: self.task_id.clone(),
+                    reason: format!("Streaming request failed: {}", e),
+                })?;
+
+        // Accumulate response and extract tokens
+        let mut response_parts: Vec<String> = Vec::new();
+        let mut thinking_parts: Vec<String> = Vec::new();
+        let mut input_tokens: u32 = 0;
+        let mut output_tokens: u32 = 0;
+
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(content) => match content {
+                    StreamedAssistantContent::Text(text) => {
+                        response_parts.push(text.text);
+                    }
+                    StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
+                        thinking_parts.push(reasoning);
+                    }
+                    StreamedAssistantContent::Reasoning(reasoning) => {
+                        // Final reasoning block - extract text from content blocks
+                        for block in reasoning.content {
+                            if let ReasoningContent::Text { text, .. } = block {
+                                thinking_parts.push(text);
+                            }
+                        }
+                    }
+                    StreamedAssistantContent::Final(final_resp) => {
+                        // Extract token usage from final response
+                        if let Some(usage) = final_resp.token_usage() {
+                            input_tokens = usage.input_tokens as u32;
+                            output_tokens = usage.output_tokens as u32;
+                        }
+                    }
+                    _ => {
+                        // Tool calls and other events - handled elsewhere
+                    }
+                },
+                Err(e) => {
+                    return Err(NikaError::AgentExecutionError {
+                        task_id: self.task_id.clone(),
+                        reason: format!("Stream chunk failed: {}", e),
+                    });
+                }
+            }
+        }
+
+        Ok(StreamingResult {
+            response: response_parts.concat(),
+            input_tokens,
+            output_tokens,
+            thinking: if thinking_parts.is_empty() {
+                None
+            } else {
+                Some(thinking_parts.concat())
+            },
+        })
+    }
+
+    /// Execute agent with tools using streaming for token tracking (when possible).
+    ///
+    /// This handles the case where we need both tool calling AND token tracking.
+    ///
+    /// **Strategy:**
+    /// - No tools: Use `model.stream()` for pure streaming with full token tracking
+    /// - With tools: Fall back to `agent.prompt()` (tokens will be 0)
+    ///
+    /// **TODO:** When rig-core adds a streaming agent API, migrate to full streaming.
+    ///
+    /// # Type Parameters
+    /// - `M`: A rig completion model that supports streaming
+    ///
+    /// # Returns
+    /// A `StreamingResult` - with accurate tokens when no tools, 0 tokens otherwise.
+    async fn stream_with_tools<M>(
+        &mut self,
+        model: M,
+        prompt: &str,
+        tools: Vec<Box<dyn rig::tool::ToolDyn>>,
+        max_turns: usize,
+    ) -> Result<StreamingResult, NikaError>
+    where
+        M: rig::completion::CompletionModel + Clone + 'static,
+        <M as rig::completion::CompletionModel>::Response: Send,
+    {
+        if tools.is_empty() {
+            // No tools - use pure streaming (full token tracking)
+            self.stream_completion_with_tokens(&model, prompt, self.params.system.as_deref())
+                .await
+        } else {
+            // With tools - use agent.prompt() for now (0 tokens)
+            // This is the current behavior, preserved for tool support
+            let agent = AgentBuilder::new(model)
+                .preamble(prompt)
+                .tools(tools)
+                .max_tokens(8192)
+                .build();
+
+            let response = agent
+                .prompt(prompt)
+                .max_turns(max_turns)
+                .await
+                .map_err(|e| NikaError::AgentExecutionError {
+                    task_id: self.task_id.clone(),
+                    reason: e.to_string(),
+                })?;
+
+            Ok(StreamingResult {
+                response,
+                input_tokens: 0, // Not available with agent.prompt()
+                output_tokens: 0,
+                thinking: None,
+            })
+        }
+    }
+
     /// Run the agent loop with a mock provider (for testing)
     ///
     /// This method simulates agent execution without making real API calls.
@@ -717,9 +910,10 @@ impl RigAgentLoop {
     /// the streaming API to capture Claude's reasoning process. The thinking
     /// is stored in `AgentTurnMetadata.thinking` for observability.
     ///
-    /// ## Metadata Capture
-    /// - With extended_thinking: Uses streaming API, captures thinking blocks
-    /// - Without extended_thinking: Uses prompt() API, no thinking captured
+    /// ## Token Tracking (v0.7.2)
+    /// - Without tools: Uses streaming API for accurate token tracking
+    /// - With tools: Falls back to agent.prompt() (tokens will be 0)
+    /// - With extended_thinking: Uses dedicated streaming path
     pub async fn run_claude(&mut self) -> Result<RigAgentLoopResult, NikaError> {
         // Check if extended thinking is enabled
         if self.params.extended_thinking == Some(true) {
@@ -729,12 +923,12 @@ impl RigAgentLoop {
         // Create Anthropic client from environment
         let client = anthropic::Client::from_env();
 
-        // Get model name (default to claude-sonnet-4-20250514)
+        // Get model name (default to claude-sonnet-4-6)
         let model_name = self
             .params
             .model
             .as_deref()
-            .unwrap_or("claude-sonnet-4-20250514");
+            .unwrap_or("claude-sonnet-4-6");
         let model = client.completion_model(model_name);
 
         // Take ownership of tools (they'll be consumed by the builder)
@@ -751,54 +945,33 @@ impl RigAgentLoop {
             metadata: None,
         });
 
-        // Build and run agent
-        // AgentBuilder type changes when tools are added, so we branch here
-        let response = if tools.is_empty() {
-            // No tools - simple completion
-            let agent = AgentBuilder::new(model)
-                .preamble(&self.params.prompt)
-                .build();
-
-            agent
-                .prompt(&self.params.prompt)
-                .max_turns(max_turns)
-                .await
-                .map_err(|e| NikaError::AgentExecutionError {
-                    task_id: self.task_id.clone(),
-                    reason: e.to_string(),
-                })?
-        } else {
-            // With tools - agentic execution
-            let agent = AgentBuilder::new(model)
-                .preamble(&self.params.prompt)
-                .tools(tools)
-                .build();
-
-            agent
-                .prompt(&self.params.prompt)
-                .max_turns(max_turns)
-                .await
-                .map_err(|e| NikaError::AgentExecutionError {
-                    task_id: self.task_id.clone(),
-                    reason: e.to_string(),
-                })?
-        };
+        // Execute with streaming helper (v0.7.2 - token tracking)
+        // - No tools: Pure streaming with token tracking
+        // - With tools: Falls back to agent.prompt() (0 tokens)
+        let prompt = self.params.prompt.clone();
+        let result = self
+            .stream_with_tools(model, &prompt, tools, max_turns)
+            .await?;
 
         // Determine status from response
-        let response_str = response.clone();
-        let status = if self.check_stop_conditions(&response_str) {
+        let status = if self.check_stop_conditions(&result.response) {
             RigAgentStatus::StopConditionMet
         } else {
             RigAgentStatus::NaturalCompletion
         };
 
-        // Emit completion event (v0.4.1)
-        // Note: Token usage and thinking are not available from rig's Prompt trait.
-        // We emit text_only metadata - tokens show as 0 indicating "unavailable".
-        // Full metadata capture requires streaming API or direct completion requests.
+        // Build metadata WITH token tracking (v0.7.2)
         let stop_reason = status.as_canonical_str();
-        let metadata = AgentTurnMetadata::text_only(&response, stop_reason);
+        let metadata = AgentTurnMetadata {
+            thinking: result.thinking,
+            response_text: result.response.clone(),
+            input_tokens: result.input_tokens,
+            output_tokens: result.output_tokens,
+            cache_read_tokens: 0,
+            stop_reason: stop_reason.to_string(),
+        };
 
+        // Emit completion event
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index: 1,
@@ -809,8 +982,8 @@ impl RigAgentLoop {
         Ok(RigAgentLoopResult {
             status,
             turns: 1, // rig handles turns internally, we report completion as 1
-            final_output: serde_json::json!({ "response": response }),
-            total_tokens: 0, // Token tracking requires response metadata
+            final_output: serde_json::json!({ "response": result.response }),
+            total_tokens: (result.input_tokens + result.output_tokens) as u64,
         })
     }
 
@@ -835,12 +1008,12 @@ impl RigAgentLoop {
         // Create Anthropic client from environment
         let client = anthropic::Client::from_env();
 
-        // Get model name (default to claude-sonnet-4-20250514)
+        // Get model name (default to claude-sonnet-4-6)
         let model_name = self
             .params
             .model
             .as_deref()
-            .unwrap_or("claude-sonnet-4-20250514");
+            .unwrap_or("claude-sonnet-4-6");
         let model = client.completion_model(model_name);
 
         // Build completion request with thinking enabled
@@ -849,6 +1022,7 @@ impl RigAgentLoop {
         let request = model
             .completion_request(&self.params.prompt)
             .preamble(self.params.system.clone().unwrap_or_default())
+            .max_tokens(8192)
             .additional_params(serde_json::json!({
                 "thinking": {
                     "type": "enabled",
@@ -994,49 +1168,31 @@ impl RigAgentLoop {
             metadata: None,
         });
 
-        // Build and run agent
-        let response = if tools.is_empty() {
-            // No tools - simple completion
-            let agent = AgentBuilder::new(model)
-                .preamble(&self.params.prompt)
-                .build();
-
-            agent
-                .prompt(&self.params.prompt)
-                .max_turns(max_turns)
-                .await
-                .map_err(|e| NikaError::AgentExecutionError {
-                    task_id: self.task_id.clone(),
-                    reason: e.to_string(),
-                })?
-        } else {
-            // With tools - agentic execution
-            let agent = AgentBuilder::new(model)
-                .preamble(&self.params.prompt)
-                .tools(tools)
-                .build();
-
-            agent
-                .prompt(&self.params.prompt)
-                .max_turns(max_turns)
-                .await
-                .map_err(|e| NikaError::AgentExecutionError {
-                    task_id: self.task_id.clone(),
-                    reason: e.to_string(),
-                })?
-        };
+        // Execute with streaming helper (v0.7.2 - token tracking)
+        // - No tools: Pure streaming with token tracking
+        // - With tools: Falls back to agent.prompt() (0 tokens)
+        let prompt = self.params.prompt.clone();
+        let result = self
+            .stream_with_tools(model, &prompt, tools, max_turns)
+            .await?;
 
         // Determine status from response
-        let response_str = response.clone();
-        let status = if self.check_stop_conditions(&response_str) {
+        let status = if self.check_stop_conditions(&result.response) {
             RigAgentStatus::StopConditionMet
         } else {
             RigAgentStatus::NaturalCompletion
         };
 
-        // Emit completion event
+        // Build metadata WITH token tracking (v0.7.2)
         let stop_reason = status.as_canonical_str();
-        let metadata = AgentTurnMetadata::text_only(&response, stop_reason);
+        let metadata = AgentTurnMetadata {
+            thinking: result.thinking,
+            response_text: result.response.clone(),
+            input_tokens: result.input_tokens,
+            output_tokens: result.output_tokens,
+            cache_read_tokens: 0,
+            stop_reason: stop_reason.to_string(),
+        };
 
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
@@ -1048,8 +1204,8 @@ impl RigAgentLoop {
         Ok(RigAgentLoopResult {
             status,
             turns: 1,
-            final_output: serde_json::json!({ "response": response }),
-            total_tokens: 0, // Token tracking requires response metadata
+            final_output: serde_json::json!({ "response": result.response }),
+            total_tokens: (result.input_tokens + result.output_tokens) as u64,
         })
     }
 
@@ -1180,6 +1336,8 @@ impl RigAgentLoop {
     ) -> Result<RigAgentLoopResult, NikaError>
     where
         C: CompletionClient,
+        C::CompletionModel: Clone + 'static,
+        <C::CompletionModel as rig::completion::CompletionModel>::Response: Send,
     {
         let model = client.completion_model(model_name);
 
@@ -1196,44 +1354,30 @@ impl RigAgentLoop {
             metadata: None,
         });
 
-        // Build and run agent
-        let response: String = if tools.is_empty() {
-            let agent = AgentBuilder::new(model).preamble(&prompt).build();
-
-            agent
-                .prompt(&prompt)
-                .max_turns(max_turns)
-                .await
-                .map_err(|e| NikaError::AgentExecutionError {
-                    task_id: self.task_id.clone(),
-                    reason: e.to_string(),
-                })?
-        } else {
-            let agent = AgentBuilder::new(model)
-                .preamble(&prompt)
-                .tools(tools)
-                .build();
-
-            agent
-                .prompt(&prompt)
-                .max_turns(max_turns)
-                .await
-                .map_err(|e| NikaError::AgentExecutionError {
-                    task_id: self.task_id.clone(),
-                    reason: e.to_string(),
-                })?
-        };
+        // Execute with streaming helper (v0.7.2 - token tracking)
+        // - No tools: Pure streaming with token tracking
+        // - With tools: Falls back to agent.prompt() (0 tokens)
+        let result = self
+            .stream_with_tools(model, &prompt, tools, max_turns)
+            .await?;
 
         // Determine status
-        let status = if self.check_stop_conditions(&response) {
+        let status = if self.check_stop_conditions(&result.response) {
             RigAgentStatus::StopConditionMet
         } else {
             RigAgentStatus::NaturalCompletion
         };
 
-        // Emit completion event
+        // Build metadata WITH token tracking (v0.7.2)
         let stop_reason = status.as_canonical_str();
-        let metadata = AgentTurnMetadata::text_only(&response, stop_reason);
+        let metadata = AgentTurnMetadata {
+            thinking: result.thinking,
+            response_text: result.response.clone(),
+            input_tokens: result.input_tokens,
+            output_tokens: result.output_tokens,
+            cache_read_tokens: 0,
+            stop_reason: stop_reason.to_string(),
+        };
 
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
@@ -1245,8 +1389,8 @@ impl RigAgentLoop {
         Ok(RigAgentLoopResult {
             status,
             turns: 1,
-            final_output: serde_json::json!({ "response": response }),
-            total_tokens: 0,
+            final_output: serde_json::json!({ "response": result.response }),
+            total_tokens: (result.input_tokens + result.output_tokens) as u64,
         })
     }
 }

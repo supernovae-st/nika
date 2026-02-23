@@ -374,6 +374,19 @@ impl ModelProvider {
         }
     }
 
+    /// Get the short command name for the provider (used with /model <name>)
+    pub fn command_name(&self) -> &'static str {
+        match self {
+            ModelProvider::OpenAI => "openai",
+            ModelProvider::Claude => "claude",
+            ModelProvider::Mistral => "mistral",
+            ModelProvider::Groq => "groq",
+            ModelProvider::DeepSeek => "deepseek",
+            ModelProvider::Ollama => "ollama",
+            ModelProvider::List => "list",
+        }
+    }
+
     /// Get the environment variable name required for this provider
     pub fn env_var(&self) -> &'static str {
         match self {

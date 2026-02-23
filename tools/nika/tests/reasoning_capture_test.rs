@@ -165,7 +165,7 @@ tasks:
         Analyze why QR codes are effective for marketing.
         Think through this step by step before answering.
       extended_thinking: true
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
       max_turns: 3
     output:
       format: text
@@ -328,7 +328,7 @@ Consider:
 "#
         .to_string(),
         extended_thinking: Some(true),
-        model: Some("claude-sonnet-4-20250514".to_string()),
+        model: Some("claude-sonnet-4-6".to_string()),
         max_turns: Some(1),
         ..Default::default()
     };

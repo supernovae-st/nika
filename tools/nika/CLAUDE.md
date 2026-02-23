@@ -124,7 +124,7 @@ Nika now supports 6 providers natively via rig-core:
 
 | Provider | Constructor | Env Var | Default Model |
 |----------|-------------|---------|---------------|
-| Claude | `RigProvider::claude()` | `ANTHROPIC_API_KEY` | claude-sonnet-4-20250514 |
+| Claude | `RigProvider::claude()` | `ANTHROPIC_API_KEY` | claude-sonnet-4-6 |
 | OpenAI | `RigProvider::openai()` | `OPENAI_API_KEY` | gpt-4o |
 | Mistral | `RigProvider::mistral()` | `MISTRAL_API_KEY` | mistral-large-latest |
 | Ollama | `RigProvider::ollama()` | `OLLAMA_API_BASE_URL` | llama3.2 |
@@ -266,7 +266,7 @@ tasks:
   - id: generate
     infer:
       prompt: "Generate a headline for QR Code AI"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 
   - id: build
     exec:

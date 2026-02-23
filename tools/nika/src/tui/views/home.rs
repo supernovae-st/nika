@@ -49,11 +49,15 @@ pub struct HomeView {
     filtered_indices: Vec<usize>,
     /// Fuzzy matcher instance
     matcher: Matcher,
+    /// Cached: whether .nika directory exists (avoid syscall per frame)
+    has_nika_dir: bool,
 }
 
 impl HomeView {
     /// Create a new HomeView for the given root directory
     pub fn new(root: PathBuf) -> Self {
+        // Cache filesystem check ONCE at creation time (not per frame!)
+        let has_nika_dir = root.join(".nika").exists();
         let standalone = StandaloneState::new(root);
         let mut list_state = ListState::default();
         let show_welcome = standalone.browser_entries.is_empty();
@@ -70,6 +74,7 @@ impl HomeView {
             search_active: false,
             filtered_indices: (0..entry_count).collect(),
             matcher: Matcher::new(Config::DEFAULT),
+            has_nika_dir,
         }
     }
 
@@ -222,14 +227,14 @@ impl HomeView {
             .collect();
 
         // Build title with project root and .nika indicator
+        // NOTE: has_nika_dir is cached at HomeView creation to avoid syscall per frame
         let project_name = self
             .standalone
             .root
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| "~".to_string());
-        let has_nika_dir = self.standalone.root.join(".nika").exists();
-        let nika_marker = if has_nika_dir { " ◆" } else { "" };
+        let nika_marker = if self.has_nika_dir { " ◆" } else { "" };
 
         let title = if self.search_active && !self.search_query.is_empty() {
             format!(
@@ -565,6 +570,8 @@ impl View for HomeView {
         match key.code {
             // Quit
             KeyCode::Char('q') => ViewAction::Quit,
+            // 's' opens Settings view
+            KeyCode::Char('s') => ViewAction::OpenSettings,
 
             // Start search with / or Ctrl+P
             KeyCode::Char('/') => {

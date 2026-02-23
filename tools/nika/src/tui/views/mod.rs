@@ -260,6 +260,8 @@ pub enum ViewAction {
     ChatMcp(McpAction),
     /// Execute /clear command - clear chat history
     ChatClear,
+    /// Open Settings view
+    OpenSettings,
 }
 
 #[cfg(test)]

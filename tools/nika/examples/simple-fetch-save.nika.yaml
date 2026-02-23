@@ -1,0 +1,24 @@
+# Simple workflow: Fetch from API and save to JSON file
+# Run with: nika examples/simple-fetch-save.nika.yaml
+# Output: /tmp/nika-api-result.json
+
+schema: "nika/workflow@0.3"
+workflow: simple-fetch-save
+description: Fetch data from an API and save to filesystem
+
+tasks:
+  - id: fetch_data
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+    output:
+      format: json
+
+  - id: save_json
+    use:
+      data: fetch_data
+    exec: "echo '{{use.data}}' > /tmp/nika-api-result.json && echo 'Saved to /tmp/nika-api-result.json'"
+
+flows:
+  - source: fetch_data
+    target: save_json

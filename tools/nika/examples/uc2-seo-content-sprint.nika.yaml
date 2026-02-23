@@ -53,7 +53,7 @@ tasks:
         Define priority order for SEO page generation.
         For each entity: entity_key, primary_keyword, page_intent.
         Output as JSON array.
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
     output:
       format: json
 

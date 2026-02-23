@@ -361,7 +361,7 @@ schema: nika/workflow@0.4
 workflow: multi-locale-content
 description: "Generate native content for multiple locales"
 provider: claude
-model: claude-sonnet-4-20250514
+model: claude-sonnet-4-6
 
 mcp:
   novanet:

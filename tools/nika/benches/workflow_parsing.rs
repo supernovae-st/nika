@@ -21,7 +21,7 @@ tasks:
             r#"  - id: task_{i}
     infer:
       prompt: "Generate content for task {i}"
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
 "#
         ));
     }

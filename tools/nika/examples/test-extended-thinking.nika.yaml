@@ -9,4 +9,4 @@ tasks:
       extended_thinking: true
       thinking_budget: 2048
       max_turns: 1
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6

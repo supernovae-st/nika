@@ -1,0 +1,20 @@
+# Simple workflow: Execute command and save output to file
+# Run with: nika examples/simple-exec-write.nika.yaml
+# Output: /tmp/nika-output.txt
+
+schema: "nika/workflow@0.3"
+workflow: simple-exec-write
+description: Execute a command and save output to filesystem
+
+tasks:
+  - id: get_date
+    exec: "date '+%Y-%m-%d %H:%M:%S'"
+
+  - id: save_to_file
+    use:
+      timestamp: get_date
+    exec: "echo 'Workflow executed at: {{use.timestamp}}' > /tmp/nika-output.txt && echo 'Saved to /tmp/nika-output.txt'"
+
+flows:
+  - source: get_date
+    target: save_to_file

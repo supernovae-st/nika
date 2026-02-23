@@ -60,7 +60,7 @@ Same terms everywhere: Code, Spec, Docs, CLI.
 ```yaml
 schema: "nika/workflow@0.1"    # Required - must match exactly
 provider: claude               # Default: "claude"
-model: claude-sonnet-4-20250514  # Optional override
+model: claude-sonnet-4-6  # Optional override
 tasks: [...]                   # Required
 flows: [...]                   # Optional (default: [])
 ```

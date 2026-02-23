@@ -19,6 +19,7 @@
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
@@ -276,6 +277,9 @@ impl TextBuffer {
 }
 
 /// Studio view state
+/// Debounce delay for validation (ms)
+const VALIDATION_DEBOUNCE_MS: u64 = 300;
+
 pub struct StudioView {
     /// File path being edited
     pub path: Option<PathBuf>,
@@ -291,6 +295,14 @@ pub struct StudioView {
     pub dag_expanded: bool,
     /// DAG scroll offset for vertical scrolling
     pub dag_scroll: u16,
+    /// Whether validation is pending (debounced)
+    validation_pending: bool,
+    /// Time of last edit (for debouncing)
+    last_edit_time: Option<Instant>,
+    /// Cached parsed workflow (avoid re-parsing in render)
+    cached_workflow: Option<crate::ast::Workflow>,
+    /// Whether DAG cache is dirty
+    dag_dirty: bool,
 }
 
 impl StudioView {
@@ -303,6 +315,31 @@ impl StudioView {
             modified: false,
             dag_expanded: false,
             dag_scroll: 0,
+            validation_pending: false,
+            last_edit_time: None,
+            cached_workflow: None,
+            dag_dirty: true,
+        }
+    }
+
+    /// Mark content as edited - validation will run after debounce delay
+    fn mark_edited(&mut self) {
+        self.modified = true;
+        self.validation_pending = true;
+        self.last_edit_time = Some(Instant::now());
+        self.dag_dirty = true;
+    }
+
+    /// Check if debounced validation should run (call in render/tick)
+    pub fn maybe_validate(&mut self) {
+        if !self.validation_pending {
+            return;
+        }
+        if let Some(last_edit) = self.last_edit_time {
+            if last_edit.elapsed() >= Duration::from_millis(VALIDATION_DEBOUNCE_MS) {
+                self.validate();
+                self.validation_pending = false;
+            }
         }
     }
 
@@ -446,6 +483,16 @@ impl StudioView {
     fn handle_normal_mode(&mut self, key: KeyEvent) -> ViewAction {
         match key.code {
             KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Home),
+            // Ctrl+S to save file (must be before plain 's')
+            KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if let Err(e) = self.save_file() {
+                    ViewAction::Error(format!("Save failed: {}", e))
+                } else {
+                    ViewAction::None
+                }
+            }
+            // 's' opens Settings view
+            KeyCode::Char('s') => ViewAction::OpenSettings,
             KeyCode::Char('i') => {
                 self.mode = EditorMode::Insert;
                 ViewAction::None
@@ -461,13 +508,6 @@ impl StudioView {
                     ViewAction::RunWorkflow(path.clone())
                 } else {
                     ViewAction::Error("No file loaded".to_string())
-                }
-            }
-            KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                if let Err(e) = self.save_file() {
-                    ViewAction::Error(format!("Save failed: {}", e))
-                } else {
-                    ViewAction::None
                 }
             }
             // View switching: number keys only (v0.7.1 - Option B navigation)
@@ -518,34 +558,29 @@ impl StudioView {
             }
             KeyCode::Enter => {
                 self.buffer.insert_newline();
-                self.modified = true;
-                self.validate();
+                self.mark_edited(); // Debounced validation
                 ViewAction::None
             }
             KeyCode::Backspace => {
                 self.buffer.backspace();
-                self.modified = true;
-                self.validate();
+                self.mark_edited(); // Debounced validation
                 ViewAction::None
             }
             KeyCode::Delete => {
                 self.buffer.delete();
-                self.modified = true;
-                self.validate();
+                self.mark_edited(); // Debounced validation
                 ViewAction::None
             }
             KeyCode::Char(c) => {
                 self.buffer.insert_char(c);
-                self.modified = true;
-                self.validate();
+                self.mark_edited(); // Debounced validation
                 ViewAction::None
             }
             KeyCode::Tab => {
                 // Insert 2 spaces for tab
                 self.buffer.insert_char(' ');
                 self.buffer.insert_char(' ');
-                self.modified = true;
-                self.validate();
+                self.mark_edited(); // Debounced validation
                 ViewAction::None
             }
             _ => ViewAction::None,
