@@ -13,6 +13,19 @@ use ratatui::{
 
 use crate::tui::theme::VerbColor;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks for theme-aware rendering)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_HOT_COLOR: Color = Color::Rgb(251, 146, 60); // orange
+const DEFAULT_WARM_COLOR: Color = Color::Rgb(250, 204, 21); // yellow
+const DEFAULT_QUEUED_COLOR: Color = Color::Rgb(156, 163, 175); // gray
+const DEFAULT_BORDER_COLOR: Color = Color::Rgb(75, 85, 99); // gray
+const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
+const DEFAULT_MUTED_COLOR: Color = Color::Rgb(107, 114, 128); // gray
+const DEFAULT_VIOLET_COLOR: Color = Color::Rgb(139, 92, 246); // violet
+const DEFAULT_AMBER_COLOR: Color = Color::Rgb(245, 158, 11); // amber
+
 /// Activity temperature
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ActivityTemp {
@@ -28,9 +41,9 @@ pub enum ActivityTemp {
 impl ActivityTemp {
     pub fn header(&self) -> (&'static str, Color) {
         match self {
-            Self::Hot => ("🔥 HOT (executing now)", Color::Rgb(251, 146, 60)), // Orange
-            Self::Warm => ("🟡 WARM (recently completed)", Color::Rgb(250, 204, 21)), // Yellow
-            Self::Queued => ("⚪ QUEUED (waiting)", Color::Rgb(156, 163, 175)), // Gray
+            Self::Hot => ("🔥 HOT (executing now)", DEFAULT_HOT_COLOR),
+            Self::Warm => ("🟡 WARM (recently completed)", DEFAULT_WARM_COLOR),
+            Self::Queued => ("⚪ QUEUED (waiting)", DEFAULT_QUEUED_COLOR),
         }
     }
 }
@@ -159,7 +172,7 @@ impl Widget for ActivityStack<'_> {
         let block = Block::default()
             .title(" 🎯 ACTIVITY STACK ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Rgb(75, 85, 99)));
+            .border_style(Style::default().fg(DEFAULT_BORDER_COLOR));
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -269,7 +282,7 @@ impl Widget for ActivityStack<'_> {
                         success_x,
                         y,
                         format!("✅ {} {}", dur, detail_short),
-                        Style::default().fg(Color::Rgb(34, 197, 94)),
+                        Style::default().fg(DEFAULT_SUCCESS_COLOR),
                     );
                 }
                 y += 1;
@@ -304,7 +317,7 @@ impl Widget for ActivityStack<'_> {
                         item.id,
                         waiting
                     ),
-                    Style::default().fg(Color::Rgb(107, 114, 128)),
+                    Style::default().fg(DEFAULT_MUTED_COLOR),
                 );
                 y += 1;
             }
@@ -316,7 +329,7 @@ impl Widget for ActivityStack<'_> {
                 inner.x,
                 y,
                 "(no activity)",
-                Style::default().fg(Color::Rgb(107, 114, 128)),
+                Style::default().fg(DEFAULT_MUTED_COLOR),
             );
         }
     }
@@ -365,10 +378,10 @@ mod tests {
     #[test]
     fn test_verb_color() {
         let item = ActivityItem::hot("t", "infer");
-        assert_eq!(item.verb_color(), Color::Rgb(139, 92, 246)); // Violet
+        assert_eq!(item.verb_color(), DEFAULT_VIOLET_COLOR);
 
         let item = ActivityItem::hot("t", "exec");
-        assert_eq!(item.verb_color(), Color::Rgb(245, 158, 11)); // Amber
+        assert_eq!(item.verb_color(), DEFAULT_AMBER_COLOR);
     }
 
     #[test]

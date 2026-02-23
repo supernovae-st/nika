@@ -19,6 +19,16 @@ use crate::tui::theme::Theme;
 use crate::tui::utils::format_number;
 use crate::tui::widgets::{Gauge, LatencySparkline, McpEntry, McpLog};
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks for theme-aware rendering)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_PENDING_COLOR: Color = Color::Rgb(245, 158, 11); // amber
+const DEFAULT_IDLE_COLOR: Color = Color::Rgb(139, 92, 246); // violet
+const DEFAULT_ERROR_COLOR: Color = Color::Rgb(239, 68, 68); // red
+const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
+const DEFAULT_MUTED_COLOR: Color = Color::Rgb(107, 114, 128); // gray
+
 /// NovaNet Station panel (Panel 3)
 pub struct ContextPanel<'a> {
     state: &'a TuiState,
@@ -81,9 +91,9 @@ impl<'a> ContextPanel<'a> {
             // Animated connection icon
             let frames = &["⊛", "⊕", "⊗", "⊙"];
             let idx = (self.state.frame / 8) as usize % frames.len();
-            (frames[idx], Color::Rgb(245, 158, 11)) // amber for pending
+            (frames[idx], DEFAULT_PENDING_COLOR) // amber for pending
         } else {
-            ("⊛", Color::Rgb(139, 92, 246)) // violet when idle
+            ("⊛", DEFAULT_IDLE_COLOR) // violet when idle
         };
 
         let header = Line::from(vec![
@@ -102,7 +112,7 @@ impl<'a> ContextPanel<'a> {
             if pending > 0 {
                 Span::styled(
                     format!(" {} ({} pending)", self.spinner(), pending),
-                    Style::default().fg(Color::Rgb(245, 158, 11)),
+                    Style::default().fg(DEFAULT_PENDING_COLOR),
                 )
             } else {
                 Span::styled("", Style::default())
@@ -157,10 +167,10 @@ impl<'a> ContextPanel<'a> {
             ),
             Span::styled(
                 format!("{} tokens", format_number(ctx.total_tokens)),
-                Style::default().fg(Color::Rgb(139, 92, 246)),
+                Style::default().fg(DEFAULT_IDLE_COLOR),
             ),
             if ctx.truncated {
-                Span::styled(" (truncated)", Style::default().fg(Color::Rgb(239, 68, 68)))
+                Span::styled(" (truncated)", Style::default().fg(DEFAULT_ERROR_COLOR))
             } else {
                 Span::styled("", Style::default())
             },
@@ -180,11 +190,11 @@ impl<'a> ContextPanel<'a> {
 
             let ratio = (ctx.budget_used_pct / 100.0) as f64;
             let gauge_color = if ratio >= 0.9 {
-                Color::Rgb(239, 68, 68) // red - near limit
+                DEFAULT_ERROR_COLOR // red - near limit
             } else if ratio >= 0.7 {
-                Color::Rgb(245, 158, 11) // amber - warning
+                DEFAULT_PENDING_COLOR // amber - warning
             } else {
-                Color::Rgb(34, 197, 94) // green - ok
+                DEFAULT_SUCCESS_COLOR // green - ok
             };
 
             let gauge = Gauge::new(ratio)
@@ -205,13 +215,13 @@ impl<'a> ContextPanel<'a> {
                 Span::styled("Sources: ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
                     format!("{}", sources_count),
-                    Style::default().fg(Color::Rgb(34, 197, 94)),
+                    Style::default().fg(DEFAULT_SUCCESS_COLOR),
                 ),
                 Span::styled(" included", Style::default().fg(Color::DarkGray)),
                 if excluded_count > 0 {
                     Span::styled(
                         format!(", {} excluded", excluded_count),
-                        Style::default().fg(Color::Rgb(107, 114, 128)),
+                        Style::default().fg(DEFAULT_MUTED_COLOR),
                     )
                 } else {
                     Span::styled("", Style::default())
@@ -260,7 +270,7 @@ impl<'a> ContextPanel<'a> {
             spans.push(Span::styled(
                 format!("[{}]", server),
                 Style::default()
-                    .fg(Color::Rgb(139, 92, 246))
+                    .fg(DEFAULT_IDLE_COLOR)
                     .add_modifier(Modifier::BOLD),
             ));
         }

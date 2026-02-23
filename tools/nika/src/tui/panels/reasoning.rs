@@ -20,6 +20,23 @@ use crate::tui::utils::format_number;
 use crate::tui::views::ReasoningTab;
 use crate::tui::widgets::{AgentTurns, Gauge, TurnEntry};
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS — Centralized for future theme integration
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Amber for running/active/warning states
+const DEFAULT_RUNNING_COLOR: Color = Color::Rgb(245, 158, 11);
+/// Red for near-limit/error states
+const DEFAULT_ERROR_COLOR: Color = Color::Rgb(239, 68, 68);
+/// Blue for normal progress states
+const DEFAULT_PROGRESS_COLOR: Color = Color::Rgb(59, 130, 246);
+/// Gray-400 for streaming/dimmed text
+const DEFAULT_STREAMING_COLOR: Color = Color::Rgb(156, 163, 175);
+/// Violet for thinking header and tokens
+const DEFAULT_THINKING_COLOR: Color = Color::Rgb(139, 92, 246);
+/// Violet-400 for thinking content (lighter)
+const DEFAULT_THINKING_CONTENT_COLOR: Color = Color::Rgb(167, 139, 250);
+
 /// Agent Reasoning panel (Panel 4)
 pub struct ReasoningPanel<'a> {
     state: &'a TuiState,
@@ -100,7 +117,7 @@ impl<'a> ReasoningPanel<'a> {
                 ),
                 Span::styled(
                     format!("{} Turn {}/{}", spinner, current_turn, max_turns),
-                    Style::default().fg(Color::Rgb(245, 158, 11)), // amber
+                    Style::default().fg(DEFAULT_RUNNING_COLOR),
                 ),
             ])
         } else {
@@ -129,11 +146,11 @@ impl<'a> ReasoningPanel<'a> {
             let ratio = (current / max).min(1.0);
 
             let color = if ratio >= 0.9 {
-                Color::Rgb(239, 68, 68) // red - near limit
+                DEFAULT_ERROR_COLOR
             } else if ratio >= 0.7 {
-                Color::Rgb(245, 158, 11) // amber - warning
+                DEFAULT_RUNNING_COLOR
             } else {
-                Color::Rgb(59, 130, 246) // blue - ok
+                DEFAULT_PROGRESS_COLOR
             };
 
             let gauge_area = Rect {
@@ -202,7 +219,7 @@ impl<'a> ReasoningPanel<'a> {
                 .join("\n");
 
             let paragraph = Paragraph::new(visible_lines)
-                .style(Style::default().fg(Color::Rgb(156, 163, 175))) // gray-400
+                .style(Style::default().fg(DEFAULT_STREAMING_COLOR))
                 .wrap(Wrap { trim: true });
 
             paragraph.render(content_area, buf);
@@ -232,7 +249,7 @@ impl<'a> ReasoningPanel<'a> {
                 area.y,
                 "─── 🧠 Thinking ───",
                 Style::default()
-                    .fg(Color::Rgb(139, 92, 246)) // violet
+                    .fg(DEFAULT_THINKING_COLOR)
                     .add_modifier(Modifier::BOLD),
             );
 
@@ -258,7 +275,7 @@ impl<'a> ReasoningPanel<'a> {
                 };
 
                 let paragraph = Paragraph::new(visible_lines)
-                    .style(Style::default().fg(Color::Rgb(167, 139, 250))) // violet-400
+                    .style(Style::default().fg(DEFAULT_THINKING_CONTENT_COLOR))
                     .wrap(Wrap { trim: true });
 
                 paragraph.render(content_area, buf);
@@ -284,7 +301,7 @@ impl<'a> ReasoningPanel<'a> {
                 Span::styled("Tokens: ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
                     format_number(total_tokens),
-                    Style::default().fg(Color::Rgb(139, 92, 246)), // violet
+                    Style::default().fg(DEFAULT_THINKING_COLOR),
                 ),
             ]);
 

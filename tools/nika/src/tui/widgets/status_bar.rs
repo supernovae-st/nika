@@ -91,6 +91,31 @@ impl Provider {
             Self::Mock => "Mock",
         }
     }
+
+    /// PERF: Detect provider from model name (called once when model changes, not every frame)
+    ///
+    /// This method converts the model name to lowercase once and checks provider patterns.
+    /// Previously this logic was inline in app.rs render loop, causing allocations per frame.
+    pub fn from_model_name(model: &str) -> Self {
+        let model_lower = model.to_lowercase();
+        if model_lower.contains("claude") {
+            Self::Claude
+        } else if model_lower.contains("gpt") || model_lower.contains("openai") {
+            Self::OpenAI
+        } else if model_lower.contains("mistral") || model_lower.contains("mixtral") {
+            Self::Mistral
+        } else if model_lower.contains("llama") || model_lower.contains("ollama") {
+            Self::Ollama
+        } else if model_lower.contains("groq") {
+            Self::Groq
+        } else if model_lower.contains("deepseek") {
+            Self::DeepSeek
+        } else if model_lower.contains("mock") {
+            Self::Mock
+        } else {
+            Self::None
+        }
+    }
 }
 
 /// MCP Connection status

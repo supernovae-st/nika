@@ -9,6 +9,16 @@ use ratatui::{
     widgets::Widget,
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks for theme-aware rendering)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_THINKING_COLOR: Color = Color::Rgb(245, 158, 11); // amber
+const DEFAULT_TOOL_USE_COLOR: Color = Color::Rgb(59, 130, 246); // blue
+const DEFAULT_TOOL_RESULT_COLOR: Color = Color::Rgb(139, 92, 246); // violet
+const DEFAULT_RESPONSE_COLOR: Color = Color::Rgb(34, 197, 94); // green
+const DEFAULT_ERROR_COLOR: Color = Color::Rgb(239, 68, 68); // red
+
 /// Agent turn entry for display
 #[derive(Debug, Clone)]
 pub struct TurnEntry {
@@ -94,12 +104,12 @@ impl<'a> AgentTurns<'a> {
     /// Get status color
     fn status_color(status: &str) -> Color {
         match status {
-            "thinking" => Color::Rgb(245, 158, 11),    // amber
-            "tool_use" => Color::Rgb(59, 130, 246),    // blue
-            "tool_result" => Color::Rgb(139, 92, 246), // violet
-            "response" => Color::Rgb(34, 197, 94),     // green
-            "complete" => Color::Rgb(34, 197, 94),     // green
-            "error" => Color::Rgb(239, 68, 68),        // red
+            "thinking" => DEFAULT_THINKING_COLOR,
+            "tool_use" => DEFAULT_TOOL_USE_COLOR,
+            "tool_result" => DEFAULT_TOOL_RESULT_COLOR,
+            "response" => DEFAULT_RESPONSE_COLOR,
+            "complete" => DEFAULT_RESPONSE_COLOR,
+            "error" => DEFAULT_ERROR_COLOR,
             _ => Color::White,
         }
     }
@@ -175,7 +185,7 @@ impl Widget for AgentTurns<'_> {
                         token_x,
                         y,
                         &token_str,
-                        Style::default().fg(Color::Rgb(139, 92, 246)), // violet
+                        Style::default().fg(DEFAULT_TOOL_RESULT_COLOR),
                     );
                 }
             }

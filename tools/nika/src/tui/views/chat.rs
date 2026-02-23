@@ -51,9 +51,22 @@ use crate::tui::theme::Theme;
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
     ActivityItem, ActivityStack, ActivityTemp, CommandPalette, CommandPaletteState,
-    InferStreamData, McpCallData, McpCallStatus, McpServerInfo, McpStatus, SessionContext,
-    SessionContextBar,
+    InferStreamData, McpCallData, McpCallStatus, McpServerInfo, McpStatus, Provider,
+    SessionContext, SessionContextBar,
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks when theme doesn't have specific fields)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_THINKING_HEADER_COLOR: Color = Color::Rgb(245, 158, 11); // amber
+const DEFAULT_THINKING_CONTENT_COLOR: Color = Color::Rgb(156, 163, 175); // gray-400
+const DEFAULT_MUTED_COLOR: Color = Color::Rgb(107, 114, 128); // gray-500
+const DEFAULT_MCP_BOX_COLOR: Color = Color::Rgb(16, 185, 129); // Emerald
+const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
+const DEFAULT_ERROR_COLOR: Color = Color::Rgb(239, 68, 68); // red
+const DEFAULT_INFER_BOX_COLOR: Color = Color::Rgb(139, 92, 246); // Violet
+const DEFAULT_STATUS_RUNNING_COLOR: Color = Color::Rgb(250, 204, 21); // Yellow
 
 /// Message role in conversation
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -243,6 +256,8 @@ pub struct ChatView {
     pub partial_response: String,
     /// Current model name for display
     pub current_model: String,
+    /// PERF: Cached provider detection (updated when model changes, not every frame)
+    pub cached_provider: Provider,
 
     // === Chat UX Enrichment (v2) ===
     /// Session context with tokens, cost, MCP status
@@ -308,7 +323,8 @@ impl ChatView {
             history_index: None,
             is_streaming: false,
             partial_response: String::new(),
-            current_model: initial_model,
+            current_model: initial_model.clone(),
+            cached_provider: Provider::from_model_name(&initial_model),
 
             // Chat UX Enrichment (v2)
             session_context,
@@ -434,7 +450,8 @@ impl ChatView {
 
         // Update model if specified in session
         if !session.model.is_empty() {
-            self.current_model = session.model;
+            self.current_model = session.model.clone();
+            self.cached_provider = Provider::from_model_name(&session.model);
         }
 
         Ok(())
@@ -450,7 +467,14 @@ impl ChatView {
 
     /// Set the current model name
     pub fn set_model(&mut self, model: impl Into<String>) {
-        self.current_model = model.into();
+        let model_str = model.into();
+        self.cached_provider = Provider::from_model_name(&model_str);
+        self.current_model = model_str;
+    }
+
+    /// Get the cached provider (PERF: computed once when model changes, not every frame)
+    pub fn provider(&self) -> Provider {
+        self.cached_provider
     }
 
     /// Set MCP servers from workflow configuration
@@ -1430,6 +1454,16 @@ impl ChatView {
 
     /// Render messages v2 with inline MCP/Infer boxes
     fn render_messages_v2(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        // Extract theme colors with fallbacks
+        let thinking_header_color = theme.status_running; // Use running (amber-ish) for thinking
+        let thinking_content_color = theme.text_muted;
+        let muted_color = theme.text_muted;
+        let mcp_box_color = theme.status_success; // Emerald-like
+        let success_color = theme.status_success;
+        let error_color = theme.status_failed;
+        let infer_box_color = theme.highlight; // Violet-like
+        let status_running_color = theme.status_running;
+
         let mut items: Vec<ListItem> = self
             .messages
             .iter()
@@ -1465,7 +1499,7 @@ impl ChatView {
                         Span::styled(
                             "🧠 Thinking:",
                             Style::default()
-                                .fg(Color::Rgb(245, 158, 11)) // amber
+                                .fg(thinking_header_color)
                                 .add_modifier(Modifier::ITALIC),
                         ),
                     ])));
@@ -1484,7 +1518,7 @@ impl ChatView {
                             Span::styled(
                                 display_line,
                                 Style::default()
-                                    .fg(Color::Rgb(156, 163, 175)) // gray-400
+                                    .fg(thinking_content_color)
                                     .add_modifier(Modifier::ITALIC),
                             ),
                         ])));
@@ -1497,7 +1531,7 @@ impl ChatView {
                             Span::styled("│   ", Style::default().fg(color)),
                             Span::styled(
                                 format!("... ({} more lines)", total_lines - 3),
-                                Style::default().fg(Color::Rgb(107, 114, 128)), // gray-500
+                                Style::default().fg(muted_color),
                             ),
                         ])));
                     }
@@ -1541,7 +1575,7 @@ impl ChatView {
                     items.push(ListItem::new(Line::from(vec![
                         Span::styled(
                             format!("╭─ 🔧 MCP: {} ", data.tool),
-                            Style::default().fg(Color::Rgb(16, 185, 129)), // Emerald
+                            Style::default().fg(mcp_box_color),
                         ),
                         Span::styled(
                             format!("{} {} ─╮", status_char, duration_str),
@@ -1556,8 +1590,8 @@ impl ChatView {
                             data.params.clone()
                         };
                         items.push(ListItem::new(Line::from(vec![
-                            Span::styled("│ ", Style::default().fg(Color::Rgb(16, 185, 129))),
-                            Span::styled("📥 ", Style::default().fg(Color::Rgb(107, 114, 128))),
+                            Span::styled("│ ", Style::default().fg(mcp_box_color)),
+                            Span::styled("📥 ", Style::default().fg(muted_color)),
                             Span::raw(params_display),
                         ])));
                     }
@@ -1569,8 +1603,8 @@ impl ChatView {
                             result.clone()
                         };
                         items.push(ListItem::new(Line::from(vec![
-                            Span::styled("│ ", Style::default().fg(Color::Rgb(16, 185, 129))),
-                            Span::styled("📤 ", Style::default().fg(Color::Rgb(34, 197, 94))),
+                            Span::styled("│ ", Style::default().fg(mcp_box_color)),
+                            Span::styled("📤 ", Style::default().fg(success_color)),
                             Span::raw(result_display),
                         ])));
                     } else if let Some(ref error) = data.error {
@@ -1580,15 +1614,15 @@ impl ChatView {
                             error.clone()
                         };
                         items.push(ListItem::new(Line::from(vec![
-                            Span::styled("│ ", Style::default().fg(Color::Rgb(16, 185, 129))),
-                            Span::styled("❌ ", Style::default().fg(Color::Rgb(239, 68, 68))),
+                            Span::styled("│ ", Style::default().fg(mcp_box_color)),
+                            Span::styled("❌ ", Style::default().fg(error_color)),
                             Span::raw(error_display),
                         ])));
                     }
 
                     items.push(ListItem::new(Line::from(vec![Span::styled(
                         "╰───────────────────────────────────────────────────╯",
-                        Style::default().fg(Color::Rgb(16, 185, 129)),
+                        Style::default().fg(mcp_box_color),
                     )])));
                     items.push(ListItem::new("")); // spacing
                 }
@@ -1600,20 +1634,20 @@ impl ChatView {
                     items.push(ListItem::new(Line::from(vec![
                         Span::styled(
                             format!("╭─ 🧠 INFER: {} ", data.model),
-                            Style::default().fg(Color::Rgb(139, 92, 246)), // Violet
+                            Style::default().fg(infer_box_color),
                         ),
                         Span::styled(
                             format!("{} {} ─╮", status_char, duration_str),
-                            Style::default().fg(Color::Rgb(250, 204, 21)), // Yellow
+                            Style::default().fg(status_running_color),
                         ),
                     ])));
 
                     // Token info
                     items.push(ListItem::new(Line::from(vec![
-                        Span::styled("│ ", Style::default().fg(Color::Rgb(139, 92, 246))),
+                        Span::styled("│ ", Style::default().fg(infer_box_color)),
                         Span::styled(
                             format!("📊 {} in → {} out", data.tokens_in, data.tokens_out),
-                            Style::default().fg(Color::Rgb(107, 114, 128)),
+                            Style::default().fg(muted_color),
                         ),
                     ])));
 
@@ -1627,14 +1661,14 @@ impl ChatView {
                             line.to_string()
                         };
                         items.push(ListItem::new(Line::from(vec![
-                            Span::styled("│ ", Style::default().fg(Color::Rgb(139, 92, 246))),
+                            Span::styled("│ ", Style::default().fg(infer_box_color)),
                             Span::raw(display),
                         ])));
                     }
 
                     items.push(ListItem::new(Line::from(vec![Span::styled(
                         "╰───────────────────────────────────────────────────╯",
-                        Style::default().fg(Color::Rgb(139, 92, 246)),
+                        Style::default().fg(infer_box_color),
                     )])));
                     items.push(ListItem::new("")); // spacing
                 }

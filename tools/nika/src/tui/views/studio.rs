@@ -16,7 +16,7 @@
 //!
 //! See: https://github.com/ratatui/ratatui-textarea (replaces rhysd/tui-textarea)
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -299,10 +299,10 @@ pub struct StudioView {
     validation_pending: bool,
     /// Time of last edit (for debouncing)
     last_edit_time: Option<Instant>,
-    /// Cached parsed workflow (avoid re-parsing in render)
-    cached_workflow: Option<crate::ast::Workflow>,
-    /// Whether DAG cache is dirty
-    dag_dirty: bool,
+    /// Cached parsed workflow (RefCell for interior mutability in render)
+    cached_workflow: RefCell<Option<crate::ast::Workflow>>,
+    /// Content hash when workflow was cached (invalidation)
+    cached_content_hash: Cell<u64>,
 }
 
 impl StudioView {
@@ -317,8 +317,8 @@ impl StudioView {
             dag_scroll: 0,
             validation_pending: false,
             last_edit_time: None,
-            cached_workflow: None,
-            dag_dirty: true,
+            cached_workflow: RefCell::new(None),
+            cached_content_hash: Cell::new(0),
         }
     }
 
@@ -327,7 +327,14 @@ impl StudioView {
         self.modified = true;
         self.validation_pending = true;
         self.last_edit_time = Some(Instant::now());
-        self.dag_dirty = true;
+    }
+
+    /// Simple hash for cache invalidation
+    fn content_hash(content: &str) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        content.hash(&mut hasher);
+        hasher.finish()
     }
 
     /// Check if debounced validation should run (call in render/tick)
@@ -671,12 +678,25 @@ impl StudioView {
     }
 
     /// Render DAG structure using DagAscii widget
+    ///
+    /// PERF: Uses cached_workflow to avoid re-parsing YAML every frame (60 FPS).
+    /// Only parses when content hash changes.
     fn render_dag_structure(&self, frame: &mut Frame, area: Rect, yaml: &str, theme: &Theme) {
-        // Try to parse as workflow YAML
-        let workflow: Result<Workflow, _> = serde_yaml::from_str(yaml);
+        // PERF: Compute content hash to check if we need to re-parse
+        let current_hash = Self::content_hash(yaml);
+        let cached_hash = self.cached_content_hash.get();
 
-        match workflow {
-            Ok(wf) => {
+        // Update cache if content changed
+        if current_hash != cached_hash {
+            let workflow: Result<Workflow, _> = serde_yaml::from_str(yaml);
+            *self.cached_workflow.borrow_mut() = workflow.ok();
+            self.cached_content_hash.set(current_hash);
+        }
+
+        // Use cached workflow (avoids parsing every frame)
+        let cached = self.cached_workflow.borrow();
+        match cached.as_ref() {
+            Some(wf) => {
                 if wf.tasks.is_empty() {
                     let paragraph =
                         Paragraph::new("(no tasks)").style(Style::default().fg(theme.text_muted));
@@ -713,7 +733,7 @@ impl StudioView {
                 let buf = frame.buffer_mut();
                 widget.render(area, buf);
             }
-            Err(_) => {
+            None => {
                 // YAML doesn't parse as workflow - show parse error state
                 let paragraph =
                     Paragraph::new("⚠ Invalid workflow\n\nFix YAML errors to\nsee task structure")
@@ -1255,10 +1275,7 @@ unknown_field: "should fail""#;
         let spans = YamlHighlight::highlight_line("# This is a comment", base);
         assert_eq!(spans.len(), 1);
         // Should have comment color (gray)
-        assert_eq!(
-            spans[0].style.fg,
-            Some(ratatui::style::Color::Rgb(107, 114, 128))
-        );
+        assert_eq!(spans[0].style.fg, Some(YamlHighlight::COMMENT));
     }
 
     #[test]
@@ -1276,10 +1293,7 @@ unknown_field: "should fail""#;
         let spans = YamlHighlight::highlight_line("    infer: \"prompt\"", base);
         // Should highlight 'infer' as a Nika verb (cyan)
         assert!(spans[0].content.contains("infer:"));
-        assert_eq!(
-            spans[0].style.fg,
-            Some(ratatui::style::Color::Rgb(6, 182, 212))
-        );
+        assert_eq!(spans[0].style.fg, Some(YamlHighlight::VERB));
     }
 
     #[test]
@@ -1289,10 +1303,7 @@ unknown_field: "should fail""#;
         assert!(spans.len() >= 2);
         // Value should have boolean color (purple)
         let value_span = &spans[1];
-        assert_eq!(
-            value_span.style.fg,
-            Some(ratatui::style::Color::Rgb(168, 85, 247))
-        );
+        assert_eq!(value_span.style.fg, Some(YamlHighlight::BOOL));
     }
 
     #[test]
@@ -1302,10 +1313,7 @@ unknown_field: "should fail""#;
         assert!(spans.len() >= 2);
         // Value should have number color (orange)
         let value_span = &spans[1];
-        assert_eq!(
-            value_span.style.fg,
-            Some(ratatui::style::Color::Rgb(251, 146, 60))
-        );
+        assert_eq!(value_span.style.fg, Some(YamlHighlight::NUMBER));
     }
 
     #[test]
@@ -1315,10 +1323,7 @@ unknown_field: "should fail""#;
         assert!(spans.len() >= 2);
         // Value should have string color (green)
         let value_span = &spans[1];
-        assert_eq!(
-            value_span.style.fg,
-            Some(ratatui::style::Color::Rgb(34, 197, 94))
-        );
+        assert_eq!(value_span.style.fg, Some(YamlHighlight::STRING));
     }
 
     #[test]

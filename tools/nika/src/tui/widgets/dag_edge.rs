@@ -9,24 +9,26 @@ use ratatui::{
     style::{Color, Modifier, Style},
 };
 
+use crate::tui::theme::Theme;
+
 // ===============================================================================
-// CONSTANTS
+// CONSTANTS (fallback defaults when theme is not provided)
 // ===============================================================================
 
-/// Active edge color (Amber)
-const ACTIVE_COLOR: Color = Color::Rgb(245, 158, 11);
+/// Active edge color (Amber) - fallback
+const DEFAULT_ACTIVE_COLOR: Color = Color::Rgb(245, 158, 11);
 
-/// Active edge glow color (Brighter amber)
-const ACTIVE_GLOW_COLOR: Color = Color::Rgb(251, 191, 36);
+/// Active edge glow color (Brighter amber) - fallback
+const DEFAULT_ACTIVE_GLOW_COLOR: Color = Color::Rgb(251, 191, 36);
 
-/// Inactive edge color
-const INACTIVE_COLOR: Color = Color::DarkGray;
+/// Inactive edge color - fallback
+const DEFAULT_INACTIVE_COLOR: Color = Color::DarkGray;
 
-/// Preview text color (muted gray)
-const PREVIEW_COLOR: Color = Color::Rgb(107, 114, 128);
+/// Preview text color (muted gray) - fallback
+const DEFAULT_PREVIEW_COLOR: Color = Color::Rgb(107, 114, 128);
 
-/// Binding label color (violet)
-const BINDING_COLOR: Color = Color::Rgb(139, 92, 246);
+/// Binding label color (violet) - fallback
+const DEFAULT_BINDING_COLOR: Color = Color::Rgb(139, 92, 246);
 
 // ===============================================================================
 // ANIMATED FLOW CHARACTERS
@@ -66,7 +68,7 @@ pub enum EdgeStyle {
 
 /// Edge between two DAG nodes
 #[derive(Debug, Clone)]
-pub struct DagEdge {
+pub struct DagEdge<'a> {
     /// Source node position (x, y of bottom center)
     pub from: (u16, u16),
     /// Target node position (x, y of top center)
@@ -81,9 +83,11 @@ pub struct DagEdge {
     pub frame: u8,
     /// Edge style (sharp or smooth corners)
     pub style: EdgeStyle,
+    /// Optional theme for colors
+    theme: Option<&'a Theme>,
 }
 
-impl DagEdge {
+impl<'a> DagEdge<'a> {
     /// Create a new edge between two positions
     pub fn new(from: (u16, u16), to: (u16, u16)) -> Self {
         Self {
@@ -94,7 +98,14 @@ impl DagEdge {
             active: false,
             frame: 0,
             style: EdgeStyle::default(),
+            theme: None,
         }
+    }
+
+    /// Set the theme for theming colors
+    pub fn with_theme(mut self, theme: &'a Theme) -> Self {
+        self.theme = Some(theme);
+        self
     }
 
     /// Add a binding label to the edge
@@ -155,17 +166,31 @@ impl DagEdge {
 
     /// Get edge style with optional glow for active edges
     fn edge_style(&self) -> Style {
+        // Theme-aware colors with fallbacks
+        let active_color = self
+            .theme
+            .map(|t| t.status_running)
+            .unwrap_or(DEFAULT_ACTIVE_COLOR);
+        let active_glow_color = self
+            .theme
+            .map(|t| t.highlight)
+            .unwrap_or(DEFAULT_ACTIVE_GLOW_COLOR);
+        let inactive_color = self
+            .theme
+            .map(|t| t.text_muted)
+            .unwrap_or(DEFAULT_INACTIVE_COLOR);
+
         if self.active {
             if self.frame > 0 && (self.frame / 8) % 2 == 0 {
                 // Pulsing glow effect
                 Style::default()
-                    .fg(ACTIVE_GLOW_COLOR)
+                    .fg(active_glow_color)
                     .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(ACTIVE_COLOR)
+                Style::default().fg(active_color)
             }
         } else {
-            Style::default().fg(INACTIVE_COLOR)
+            Style::default().fg(inactive_color)
         }
     }
 
@@ -353,6 +378,16 @@ impl DagEdge {
 
     /// Render binding and preview labels at a position
     fn render_labels(&self, buf: &mut Buffer, area: Rect, x: u16, y: u16) {
+        // Theme-aware colors with fallbacks
+        let binding_color = self
+            .theme
+            .map(|t| t.trait_authored)
+            .unwrap_or(DEFAULT_BINDING_COLOR);
+        let preview_color = self
+            .theme
+            .map(|t| t.text_muted)
+            .unwrap_or(DEFAULT_PREVIEW_COLOR);
+
         // Render binding label
         if let Some(binding) = &self.binding {
             let label = binding.as_str();
@@ -381,7 +416,7 @@ impl DagEdge {
                         label_x,
                         label_y,
                         &display_label,
-                        Style::default().fg(BINDING_COLOR),
+                        Style::default().fg(binding_color),
                     );
                 }
             }
@@ -413,7 +448,7 @@ impl DagEdge {
                         preview_x,
                         preview_y,
                         &display_preview,
-                        Style::default().fg(PREVIEW_COLOR),
+                        Style::default().fg(preview_color),
                     );
                 }
             }
@@ -437,12 +472,21 @@ pub fn render_merge(
     buf: &mut Buffer,
     area: Rect,
     active: bool,
+    theme: Option<&Theme>,
 ) {
     if sources.is_empty() {
         return;
     }
 
-    let edge_color = if active { ACTIVE_COLOR } else { INACTIVE_COLOR };
+    // Theme-aware colors with fallbacks
+    let active_color = theme
+        .map(|t| t.status_running)
+        .unwrap_or(DEFAULT_ACTIVE_COLOR);
+    let inactive_color = theme
+        .map(|t| t.text_muted)
+        .unwrap_or(DEFAULT_INACTIVE_COLOR);
+
+    let edge_color = if active { active_color } else { inactive_color };
     let style = Style::default().fg(edge_color);
 
     let line_h = if active { "━" } else { "─" };
@@ -642,6 +686,7 @@ mod tests {
             &mut buffer,
             Rect::new(0, 0, 25, 15),
             false,
+            None,
         );
 
         // Should have rendered the merge point
@@ -661,6 +706,7 @@ mod tests {
             &mut buffer,
             Rect::new(0, 0, 25, 15),
             false,
+            None,
         );
 
         // Single source should use vertical line, not merge point
@@ -680,6 +726,7 @@ mod tests {
             &mut buffer,
             Rect::new(0, 0, 25, 15),
             false,
+            None,
         );
 
         // Nothing should be rendered
@@ -693,7 +740,14 @@ mod tests {
         let target = (10, 10);
 
         let mut buffer = Buffer::empty(Rect::new(0, 0, 25, 15));
-        render_merge(&sources, target, &mut buffer, Rect::new(0, 0, 25, 15), true);
+        render_merge(
+            &sources,
+            target,
+            &mut buffer,
+            Rect::new(0, 0, 25, 15),
+            true,
+            None,
+        );
 
         // Active merge uses bold characters
         let cell = buffer.cell((10, 9)).unwrap();

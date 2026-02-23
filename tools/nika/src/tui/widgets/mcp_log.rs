@@ -9,6 +9,15 @@ use ratatui::{
     widgets::Widget,
 };
 
+use crate::tui::theme::Theme;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks when no theme)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
+const DEFAULT_RUNNING_COLOR: Color = Color::Rgb(245, 158, 11); // amber
+
 /// MCP call entry for display
 #[derive(Debug, Clone)]
 pub struct McpEntry {
@@ -62,6 +71,8 @@ pub struct McpLog<'a> {
     reverse: bool,
     /// Max entries to show
     max_entries: usize,
+    /// Optional theme for colors
+    theme: Option<&'a Theme>,
 }
 
 impl<'a> McpLog<'a> {
@@ -70,7 +81,14 @@ impl<'a> McpLog<'a> {
             entries,
             reverse: true,
             max_entries: 10,
+            theme: None,
         }
+    }
+
+    /// Set the theme for colors
+    pub fn with_theme(mut self, theme: &'a Theme) -> Self {
+        self.theme = Some(theme);
+        self
     }
 
     pub fn reverse(mut self, reverse: bool) -> Self {
@@ -90,12 +108,27 @@ impl Widget for McpLog<'_> {
             return;
         }
 
+        // Extract theme colors with fallbacks
+        let success_color = self
+            .theme
+            .map(|t| t.status_success)
+            .unwrap_or(DEFAULT_SUCCESS_COLOR);
+        let running_color = self
+            .theme
+            .map(|t| t.status_running)
+            .unwrap_or(DEFAULT_RUNNING_COLOR);
+        let muted_color = self
+            .theme
+            .map(|t| t.text_muted)
+            .unwrap_or(Color::DarkGray);
+        let text_color = self.theme.map(|t| t.text_primary).unwrap_or(Color::White);
+
         if self.entries.is_empty() {
             buf.set_string(
                 area.x,
                 area.y,
                 "(no MCP calls)",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(muted_color),
             );
             return;
         }
@@ -116,9 +149,9 @@ impl Widget for McpLog<'_> {
 
             // Status icon
             let (icon, icon_color) = if entry.completed {
-                ("✓", Color::Rgb(34, 197, 94)) // green
+                ("✓", success_color)
             } else {
-                ("⋯", Color::Rgb(245, 158, 11)) // amber
+                ("⋯", running_color)
             };
 
             buf.set_string(area.x, y, icon, Style::default().fg(icon_color));
@@ -146,10 +179,10 @@ impl Widget for McpLog<'_> {
             };
 
             let name_style = if entry.completed {
-                Style::default().fg(Color::White)
+                Style::default().fg(text_color)
             } else {
                 Style::default()
-                    .fg(Color::Rgb(245, 158, 11))
+                    .fg(running_color)
                     .add_modifier(Modifier::BOLD)
             };
 
@@ -160,7 +193,7 @@ impl Widget for McpLog<'_> {
                 let size_str = format_size(len);
                 let size_x = area.x + area.width - size_str.len() as u16;
                 if size_x > area.x + 5 + display_name.len() as u16 {
-                    buf.set_string(size_x, y, &size_str, Style::default().fg(Color::DarkGray));
+                    buf.set_string(size_x, y, &size_str, Style::default().fg(muted_color));
                 }
             }
         }

@@ -20,6 +20,23 @@ use crate::tui::theme::{MissionPhase, TaskStatus, Theme};
 use crate::tui::utils::format_number;
 use crate::tui::widgets::{Gauge, LatencySparkline, Timeline};
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS — Centralized for future theme integration
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Green for completed/success states (gauge complete, task success)
+const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94);
+/// Blue for in-progress states (gauge active, MCP calls)
+const DEFAULT_PROGRESS_COLOR: Color = Color::Rgb(59, 130, 246);
+/// Gray for pending/empty states (gauge empty)
+const DEFAULT_PENDING_COLOR: Color = Color::Rgb(107, 114, 128);
+/// Amber for running/active states
+const DEFAULT_RUNNING_COLOR: Color = Color::Rgb(245, 158, 11);
+/// Red for failed/error states
+const DEFAULT_ERROR_COLOR: Color = Color::Rgb(239, 68, 68);
+/// Violet for token/metrics display
+const DEFAULT_TOKENS_COLOR: Color = Color::Rgb(139, 92, 246);
+
 /// Progress panel (Panel 1: Mission Control)
 pub struct ProgressPanel<'a> {
     state: &'a TuiState,
@@ -39,20 +56,6 @@ impl<'a> ProgressPanel<'a> {
     pub fn focused(mut self, focused: bool) -> Self {
         self.focused = focused;
         self
-    }
-
-    /// Get phase color
-    fn phase_color(phase: MissionPhase) -> Color {
-        match phase {
-            MissionPhase::Preflight => Color::Rgb(107, 114, 128), // gray
-            MissionPhase::Countdown => Color::Rgb(245, 158, 11),  // amber
-            MissionPhase::Launch => Color::Rgb(236, 72, 153),     // pink
-            MissionPhase::Orbital => Color::Rgb(59, 130, 246),    // blue
-            MissionPhase::Rendezvous => Color::Rgb(139, 92, 246), // violet
-            MissionPhase::MissionSuccess => Color::Rgb(34, 197, 94), // green
-            MissionPhase::Abort => Color::Rgb(239, 68, 68),       // red
-            MissionPhase::Pause => Color::Rgb(245, 158, 11),      // amber (paused)
-        }
     }
 
     /// Get animated phase icon
@@ -101,7 +104,7 @@ impl<'a> ProgressPanel<'a> {
     /// Render mission header
     fn render_header(&self, area: Rect, buf: &mut Buffer) {
         let phase = self.state.workflow.phase;
-        let phase_color = Self::phase_color(phase);
+        let phase_color = phase.color(self.theme);
 
         // Phase indicator with animated icon
         let phase_icon = self.phase_icon_animated(phase);
@@ -184,11 +187,11 @@ impl<'a> ProgressPanel<'a> {
         let ratio = self.state.workflow.progress_pct() / 100.0;
         let gauge = Gauge::new(ratio as f64)
             .fill_color(if ratio >= 1.0 {
-                Color::Rgb(34, 197, 94) // green
+                DEFAULT_SUCCESS_COLOR
             } else if ratio > 0.0 {
-                Color::Rgb(59, 130, 246) // blue
+                DEFAULT_PROGRESS_COLOR
             } else {
-                Color::Rgb(107, 114, 128) // gray
+                DEFAULT_PENDING_COLOR
             })
             .show_percent(true)
             .label("");
@@ -244,9 +247,9 @@ impl<'a> ProgressPanel<'a> {
         // Task ID with status icon (animated for running)
         let status_color = match task.status {
             TaskStatus::Pending => Color::Gray,
-            TaskStatus::Running => Color::Rgb(245, 158, 11),
-            TaskStatus::Success => Color::Rgb(34, 197, 94),
-            TaskStatus::Failed => Color::Rgb(239, 68, 68),
+            TaskStatus::Running => DEFAULT_RUNNING_COLOR,
+            TaskStatus::Success => DEFAULT_SUCCESS_COLOR,
+            TaskStatus::Failed => DEFAULT_ERROR_COLOR,
             TaskStatus::Paused => Color::Cyan,
         };
 
@@ -291,7 +294,7 @@ impl<'a> ProgressPanel<'a> {
                 Span::styled("    Tokens: ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
                     format!("{}", tokens),
-                    Style::default().fg(Color::Rgb(139, 92, 246)),
+                    Style::default().fg(DEFAULT_TOKENS_COLOR),
                 ),
             ])
         } else {
@@ -317,7 +320,7 @@ impl<'a> ProgressPanel<'a> {
             area.x + 2,
             area.y,
             &tokens_str,
-            Style::default().fg(Color::Rgb(139, 92, 246)), // violet
+            Style::default().fg(DEFAULT_TOKENS_COLOR),
         );
 
         // Cost
@@ -333,7 +336,7 @@ impl<'a> ProgressPanel<'a> {
                 area.x + 2,
                 area.y + 1,
                 &mcp_str,
-                Style::default().fg(Color::Rgb(59, 130, 246)), // blue
+                Style::default().fg(DEFAULT_PROGRESS_COLOR),
             );
 
             // Latency sparkline if we have data
@@ -425,13 +428,14 @@ mod tests {
 
     #[test]
     fn test_phase_colors_distinct() {
+        let theme = Theme::dark();
         let colors: Vec<Color> = vec![
-            ProgressPanel::phase_color(MissionPhase::Preflight),
-            ProgressPanel::phase_color(MissionPhase::Countdown),
-            ProgressPanel::phase_color(MissionPhase::Launch),
-            ProgressPanel::phase_color(MissionPhase::Orbital),
-            ProgressPanel::phase_color(MissionPhase::MissionSuccess),
-            ProgressPanel::phase_color(MissionPhase::Abort),
+            MissionPhase::Preflight.color(&theme),
+            MissionPhase::Countdown.color(&theme),
+            MissionPhase::Launch.color(&theme),
+            MissionPhase::Orbital.color(&theme),
+            MissionPhase::MissionSuccess.color(&theme),
+            MissionPhase::Abort.color(&theme),
         ];
 
         // Verify most colors are distinct (some might overlap intentionally)

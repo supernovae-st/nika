@@ -18,13 +18,14 @@ use super::{
     dag_layout::{DagLayout, LayoutConfig, LayoutNode},
     dag_node_box::{NodeBox, NodeBoxData, NodeBoxMode},
 };
+use crate::tui::theme::Theme;
 
 // ===============================================================================
 // CONSTANTS
 // ===============================================================================
 
-/// Footer text color
-const FOOTER_COLOR: Color = Color::Rgb(107, 114, 128); // gray-500
+/// Footer text color (fallback when no theme)
+const DEFAULT_FOOTER_COLOR: Color = Color::Rgb(107, 114, 128); // gray-500
 
 // ===============================================================================
 // DAG ASCII WIDGET
@@ -49,6 +50,8 @@ pub struct DagAscii<'a> {
     frame: u8,
     /// Scroll offset (x, y)
     scroll: (u16, u16),
+    /// Optional theme for colors
+    theme: Option<&'a Theme>,
 }
 
 impl<'a> DagAscii<'a> {
@@ -62,7 +65,14 @@ impl<'a> DagAscii<'a> {
             mode: NodeBoxMode::default(),
             frame: 0,
             scroll: (0, 0),
+            theme: None,
         }
+    }
+
+    /// Set the theme for colors
+    pub fn with_theme(mut self, theme: &'a Theme) -> Self {
+        self.theme = Some(theme);
+        self
     }
 
     /// Set dependencies map (node_id -> [dep_ids])
@@ -194,7 +204,14 @@ impl<'a> DagAscii<'a> {
                 // Determine if any source is active (for animation)
                 let active = self.frame > 0;
 
-                render_merge(&source_positions, (target_x, target_y), buf, area, active);
+                render_merge(
+                    &source_positions,
+                    (target_x, target_y),
+                    buf,
+                    area,
+                    active,
+                    self.theme,
+                );
             } else if let Some(source_id) = sources.first() {
                 // Single dependency: simple edge
                 if let Some(source_pos) = layout.get(source_id) {
@@ -248,12 +265,18 @@ impl<'a> DagAscii<'a> {
         let footer_y = area.y + area.height.saturating_sub(1);
         let footer_x = area.x;
 
+        // Use theme color with fallback
+        let footer_color = self
+            .theme
+            .map(|t| t.text_muted)
+            .unwrap_or(DEFAULT_FOOTER_COLOR);
+
         if footer_y >= area.y && footer_x + footer_text.len() as u16 <= area.x + area.width {
             buf.set_string(
                 footer_x,
                 footer_y,
                 &footer_text,
-                Style::default().fg(FOOTER_COLOR),
+                Style::default().fg(footer_color),
             );
         }
     }
@@ -261,11 +284,17 @@ impl<'a> DagAscii<'a> {
 
 impl Widget for DagAscii<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        // Use theme color with fallback for messages
+        let muted_color = self
+            .theme
+            .map(|t| t.text_muted)
+            .unwrap_or(DEFAULT_FOOTER_COLOR);
+
         // Handle empty/small area
         if area.height < 3 || area.width < 10 {
             let msg = "(no tasks)";
             if area.width >= msg.len() as u16 {
-                buf.set_string(area.x, area.y, msg, Style::default().fg(FOOTER_COLOR));
+                buf.set_string(area.x, area.y, msg, Style::default().fg(muted_color));
             }
             return;
         }
@@ -275,7 +304,7 @@ impl Widget for DagAscii<'_> {
             let msg = "(no tasks)";
             let x = area.x + (area.width.saturating_sub(msg.len() as u16)) / 2;
             let y = area.y + area.height / 2;
-            buf.set_string(x, y, msg, Style::default().fg(FOOTER_COLOR));
+            buf.set_string(x, y, msg, Style::default().fg(muted_color));
             return;
         }
 

@@ -11,6 +11,16 @@ use ratatui::{
     widgets::Widget,
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks for theme-aware rendering)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_FILL_COLOR: Color = Color::Rgb(99, 102, 241); // indigo
+const DEFAULT_BG_COLOR: Color = Color::Rgb(55, 65, 81); // gray-700
+const DEFAULT_COMPLETE_COLOR: Color = Color::Rgb(34, 197, 94); // green
+const DEFAULT_PROGRESS_COLOR: Color = Color::Rgb(245, 158, 11); // amber
+const DEFAULT_NOT_STARTED_COLOR: Color = Color::Rgb(107, 114, 128); // gray
+
 /// Progress gauge widget
 pub struct Gauge<'a> {
     /// Progress ratio (0.0 to 1.0)
@@ -33,8 +43,8 @@ impl<'a> Gauge<'a> {
             ratio: ratio.clamp(0.0, 1.0),
             label: Cow::Borrowed(""),
             style: Style::default(),
-            fill_color: Color::Rgb(99, 102, 241), // indigo
-            bg_color: Color::Rgb(55, 65, 81),     // gray-700
+            fill_color: DEFAULT_FILL_COLOR,
+            bg_color: DEFAULT_BG_COLOR,
             show_percent: true,
         }
     }
@@ -78,11 +88,11 @@ impl<'a> Gauge<'a> {
         };
 
         let color = if ratio >= 1.0 {
-            Color::Rgb(34, 197, 94) // green - complete
+            DEFAULT_COMPLETE_COLOR
         } else if ratio > 0.0 {
-            Color::Rgb(245, 158, 11) // amber - in progress
+            DEFAULT_PROGRESS_COLOR
         } else {
-            Color::Rgb(107, 114, 128) // gray - not started
+            DEFAULT_NOT_STARTED_COLOR
         };
 
         Self::new(ratio)

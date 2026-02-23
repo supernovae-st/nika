@@ -10,7 +10,35 @@ use ratatui::{
     widgets::Widget,
 };
 
-use crate::tui::theme::{TaskStatus, VerbColor};
+use crate::tui::theme::{TaskStatus, Theme, VerbColor};
+use ratatui::style::Color;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks for theme-aware rendering)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Progress bar color (green)
+const DEFAULT_PROGRESS_COLOR: Color = Color::Rgb(34, 197, 94);
+/// Failed status color (red)
+const DEFAULT_FAILED_COLOR: Color = Color::Rgb(239, 68, 68);
+/// Pending/muted content (gray-400)
+const DEFAULT_MUTED_CONTENT_COLOR: Color = Color::Rgb(156, 163, 175);
+/// Active content (gray-100)
+const DEFAULT_ACTIVE_CONTENT_COLOR: Color = Color::Rgb(243, 244, 246);
+/// Pending badge (gray-500)
+const DEFAULT_PENDING_BADGE_COLOR: Color = Color::Rgb(107, 114, 128);
+/// Running badge (amber)
+const DEFAULT_RUNNING_BADGE_COLOR: Color = Color::Rgb(245, 158, 11);
+/// Success badge (green)
+const DEFAULT_SUCCESS_BADGE_COLOR: Color = Color::Rgb(34, 197, 94);
+/// Paused badge (cyan)
+const DEFAULT_PAUSED_BADGE_COLOR: Color = Color::Rgb(6, 182, 212);
+/// For_each indicator (violet)
+const DEFAULT_FOR_EACH_COLOR: Color = Color::Rgb(139, 92, 246);
+/// Estimate text (gray-500)
+const DEFAULT_ESTIMATE_COLOR: Color = Color::Rgb(107, 114, 128);
+/// Secondary text (gray-400)
+const DEFAULT_SECONDARY_TEXT_COLOR: Color = Color::Rgb(156, 163, 175);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ANIMATION CONSTANTS
@@ -269,6 +297,8 @@ pub struct NodeBox<'a> {
     border_style: BorderStyle,
     /// Progress percentage (0-100) for running tasks
     progress: Option<u8>,
+    /// Theme for colors (optional for backward compatibility)
+    theme: Option<&'a Theme>,
 }
 
 impl<'a> NodeBox<'a> {
@@ -281,7 +311,14 @@ impl<'a> NodeBox<'a> {
             frame: 0,
             border_style: BorderStyle::Rounded, // Default to rounded for modern look
             progress: None,
+            theme: None,
         }
+    }
+
+    /// Set the theme for rendering
+    pub fn with_theme(mut self, theme: &'a Theme) -> Self {
+        self.theme = Some(theme);
+        self
     }
 
     /// Set the display mode
@@ -378,7 +415,11 @@ impl<'a> NodeBox<'a> {
     fn render_progress_bar(&self, buf: &mut Buffer, x: u16, y: u16, width: u16) {
         if let Some(progress) = self.progress {
             let filled = ((progress as u16) * width) / 100;
-            let style = Style::default().fg(ratatui::style::Color::Rgb(34, 197, 94)); // green
+            let progress_color = self
+                .theme
+                .map(|t| t.status_success)
+                .unwrap_or(DEFAULT_PROGRESS_COLOR);
+            let style = Style::default().fg(progress_color);
 
             for i in 0..width {
                 let ch = if i < filled {
@@ -395,11 +436,16 @@ impl<'a> NodeBox<'a> {
 
     /// Get border render style based on status
     fn border_render_style(&self) -> Style {
+        let failed_color = self
+            .theme
+            .map(|t| t.status_failed)
+            .unwrap_or(DEFAULT_FAILED_COLOR);
+
         let color = match self.data.status {
             TaskStatus::Pending => self.data.verb.muted(),
             TaskStatus::Running => self.data.verb.rgb(),
             TaskStatus::Success => self.data.verb.rgb(),
-            TaskStatus::Failed => ratatui::style::Color::Rgb(239, 68, 68), // red
+            TaskStatus::Failed => failed_color,
             TaskStatus::Paused => self.data.verb.muted(),
         };
 
@@ -418,12 +464,25 @@ impl<'a> NodeBox<'a> {
 
     /// Get content style
     fn content_style(&self) -> Style {
+        let muted_color = self
+            .theme
+            .map(|t| t.text_muted)
+            .unwrap_or(DEFAULT_MUTED_CONTENT_COLOR);
+        let active_color = self
+            .theme
+            .map(|t| t.text_primary)
+            .unwrap_or(DEFAULT_ACTIVE_CONTENT_COLOR);
+        let failed_color = self
+            .theme
+            .map(|t| t.status_failed)
+            .unwrap_or(DEFAULT_FAILED_COLOR);
+
         let color = match self.data.status {
-            TaskStatus::Pending => ratatui::style::Color::Rgb(156, 163, 175), // gray-400
-            TaskStatus::Running => ratatui::style::Color::Rgb(243, 244, 246), // gray-100
-            TaskStatus::Success => ratatui::style::Color::Rgb(243, 244, 246), // gray-100
-            TaskStatus::Failed => ratatui::style::Color::Rgb(239, 68, 68),    // red
-            TaskStatus::Paused => ratatui::style::Color::Rgb(156, 163, 175),  // gray-400
+            TaskStatus::Pending => muted_color,
+            TaskStatus::Running => active_color,
+            TaskStatus::Success => active_color,
+            TaskStatus::Failed => failed_color,
+            TaskStatus::Paused => muted_color,
         };
 
         Style::default().fg(color)
@@ -431,15 +490,53 @@ impl<'a> NodeBox<'a> {
 
     /// Get badge style
     fn badge_style(&self) -> Style {
+        let pending_color = self
+            .theme
+            .map(|t| t.status_pending)
+            .unwrap_or(DEFAULT_PENDING_BADGE_COLOR);
+        let running_color = self
+            .theme
+            .map(|t| t.status_running)
+            .unwrap_or(DEFAULT_RUNNING_BADGE_COLOR);
+        let success_color = self
+            .theme
+            .map(|t| t.status_success)
+            .unwrap_or(DEFAULT_SUCCESS_BADGE_COLOR);
+        let failed_color = self
+            .theme
+            .map(|t| t.status_failed)
+            .unwrap_or(DEFAULT_FAILED_COLOR);
+        let paused_color = self
+            .theme
+            .map(|t| t.status_paused)
+            .unwrap_or(DEFAULT_PAUSED_BADGE_COLOR);
+
         let color = match self.data.status {
-            TaskStatus::Pending => ratatui::style::Color::Rgb(107, 114, 128), // gray-500
-            TaskStatus::Running => ratatui::style::Color::Rgb(245, 158, 11),  // amber
-            TaskStatus::Success => ratatui::style::Color::Rgb(34, 197, 94),   // green
-            TaskStatus::Failed => ratatui::style::Color::Rgb(239, 68, 68),    // red
-            TaskStatus::Paused => ratatui::style::Color::Rgb(6, 182, 212),    // cyan
+            TaskStatus::Pending => pending_color,
+            TaskStatus::Running => running_color,
+            TaskStatus::Success => success_color,
+            TaskStatus::Failed => failed_color,
+            TaskStatus::Paused => paused_color,
         };
 
         Style::default().fg(color)
+    }
+
+    /// Get theme-aware colors for render method
+    fn get_render_colors(&self) -> (Color, Color, Color) {
+        let for_each_color = self
+            .theme
+            .map(|t| t.highlight)
+            .unwrap_or(DEFAULT_FOR_EACH_COLOR);
+        let estimate_color = self
+            .theme
+            .map(|t| t.text_muted)
+            .unwrap_or(DEFAULT_ESTIMATE_COLOR);
+        let secondary_color = self
+            .theme
+            .map(|t| t.text_secondary)
+            .unwrap_or(DEFAULT_SECONDARY_TEXT_COLOR);
+        (for_each_color, estimate_color, secondary_color)
     }
 }
 
@@ -448,6 +545,9 @@ impl Widget for NodeBox<'_> {
         if area.height < 3 || area.width < 5 {
             return;
         }
+
+        // Extract theme colors
+        let (for_each_color, estimate_color, secondary_color) = self.get_render_colors();
 
         let border_chars = BorderChars::for_status(self.data.status, self.border_style);
         let border_render_style = self.border_render_style();
@@ -527,7 +627,7 @@ impl Widget for NodeBox<'_> {
                     x,
                     content_y,
                     &indicator,
-                    Style::default().fg(ratatui::style::Color::Rgb(139, 92, 246)), // violet
+                    Style::default().fg(for_each_color),
                 );
                 x += indicator.len() as u16;
             }
@@ -544,7 +644,7 @@ impl Widget for NodeBox<'_> {
                 x,
                 content_y,
                 &self.data.estimate,
-                Style::default().fg(ratatui::style::Color::Rgb(107, 114, 128)), // gray-500
+                Style::default().fg(estimate_color),
             );
             x += self.data.estimate.len() as u16;
         }
@@ -588,7 +688,7 @@ impl Widget for NodeBox<'_> {
                         area.x + 1,
                         extra_y,
                         &truncated,
-                        Style::default().fg(ratatui::style::Color::Rgb(156, 163, 175)),
+                        Style::default().fg(secondary_color),
                     );
                     buf.set_string(
                         area.x + area.width - 1,
@@ -623,7 +723,7 @@ impl Widget for NodeBox<'_> {
                         extra_y,
                         &truncated,
                         Style::default()
-                            .fg(ratatui::style::Color::Rgb(156, 163, 175))
+                            .fg(secondary_color)
                             .add_modifier(Modifier::ITALIC),
                     );
                     buf.set_string(
