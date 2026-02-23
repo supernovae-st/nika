@@ -212,6 +212,26 @@ impl AgentParams {
         self.tool_choice.clone().unwrap_or_default()
     }
 
+    /// Check if tool_choice was explicitly set by the user (v0.8.0).
+    ///
+    /// Returns `true` only if the user explicitly specified `tool_choice` in YAML.
+    /// Used to avoid redundant `.tool_choice(Auto)` calls when the default is sufficient.
+    ///
+    /// # Why This Matters
+    ///
+    /// Some providers handle `tool_choice` differently:
+    /// - **Perplexity**: Logs warning, ignores tool_choice
+    /// - **Cohere**: Rejects `Auto` explicitly (rig-core skips if Auto)
+    /// - **Claude/OpenAI**: Full support
+    ///
+    /// By only setting tool_choice when explicit, we avoid:
+    /// 1. Unnecessary API calls with default values
+    /// 2. Provider-specific edge cases with Auto
+    #[inline]
+    pub fn has_explicit_tool_choice(&self) -> bool {
+        self.tool_choice.is_some()
+    }
+
     /// Get effective temperature (v0.8.0).
     ///
     /// Returns the configured `temperature` if set, otherwise returns `None`
@@ -690,5 +710,74 @@ temperature: 1.5
         assert_eq!(params.tool_choice, Some(ToolChoice::Required));
         assert_eq!(params.temperature, Some(1.5));
         assert!(params.validate().is_ok());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // has_explicit_tool_choice Tests (v0.8.0 optimization)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_has_explicit_tool_choice_when_not_set() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            ..Default::default()
+        };
+        assert!(!params.has_explicit_tool_choice());
+        // effective_tool_choice still returns Auto (default)
+        assert_eq!(params.effective_tool_choice(), ToolChoice::Auto);
+    }
+
+    #[test]
+    fn test_has_explicit_tool_choice_when_auto() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            tool_choice: Some(ToolChoice::Auto),
+            ..Default::default()
+        };
+        // User explicitly set Auto, so has_explicit returns true
+        assert!(params.has_explicit_tool_choice());
+        assert_eq!(params.effective_tool_choice(), ToolChoice::Auto);
+    }
+
+    #[test]
+    fn test_has_explicit_tool_choice_when_required() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            tool_choice: Some(ToolChoice::Required),
+            ..Default::default()
+        };
+        assert!(params.has_explicit_tool_choice());
+        assert_eq!(params.effective_tool_choice(), ToolChoice::Required);
+    }
+
+    #[test]
+    fn test_has_explicit_tool_choice_when_none() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            tool_choice: Some(ToolChoice::None),
+            ..Default::default()
+        };
+        assert!(params.has_explicit_tool_choice());
+        assert_eq!(params.effective_tool_choice(), ToolChoice::None);
+    }
+
+    #[test]
+    fn test_has_explicit_tool_choice_from_yaml_absent() {
+        let yaml = r#"
+prompt: "Test prompt"
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert!(!params.has_explicit_tool_choice());
+    }
+
+    #[test]
+    fn test_has_explicit_tool_choice_from_yaml_present() {
+        let yaml = r#"
+prompt: "Test prompt"
+tool_choice: none
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert!(params.has_explicit_tool_choice());
+        assert_eq!(params.effective_tool_choice(), ToolChoice::None);
     }
 }

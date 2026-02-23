@@ -346,9 +346,13 @@ impl RigAgentLoop {
             builder = builder.temperature(f64::from(temp));
         }
 
-        // Apply tool_choice using native rig-core method (v0.8.0)
-        let tool_choice = self.params.effective_tool_choice();
-        builder = builder.tool_choice(tool_choice.into());
+        // Apply tool_choice only if explicitly set (v0.8.0 optimization)
+        // Skipping redundant .tool_choice(Auto) - rig-core uses Auto by default
+        // See AgentParams::has_explicit_tool_choice() for provider compatibility notes
+        if self.params.has_explicit_tool_choice() {
+            let tool_choice = self.params.effective_tool_choice();
+            builder = builder.tool_choice(tool_choice.into());
+        }
 
         let agent = builder.build();
 
@@ -423,9 +427,12 @@ impl RigAgentLoop {
             builder = builder.temperature(f64::from(temp));
         }
 
-        // Apply tool_choice using native rig-core method (v0.8.0)
-        let tool_choice = self.params.effective_tool_choice();
-        builder = builder.tool_choice(tool_choice.into());
+        // Apply tool_choice only if explicitly set (v0.8.0 optimization)
+        // Skipping redundant .tool_choice(Auto) - rig-core uses Auto by default
+        if self.params.has_explicit_tool_choice() {
+            let tool_choice = self.params.effective_tool_choice();
+            builder = builder.tool_choice(tool_choice.into());
+        }
 
         let agent = builder.build();
 
@@ -872,9 +879,12 @@ impl RigAgentLoop {
                 builder = builder.temperature(f64::from(temp));
             }
 
-            // Apply tool_choice using native rig-core method (v0.8.0)
-            let tool_choice = self.params.effective_tool_choice();
-            builder = builder.tool_choice(tool_choice.into());
+            // Apply tool_choice only if explicitly set (v0.8.0 optimization)
+            // Skipping redundant .tool_choice(Auto) - rig-core uses Auto by default
+            if self.params.has_explicit_tool_choice() {
+                let tool_choice = self.params.effective_tool_choice();
+                builder = builder.tool_choice(tool_choice.into());
+            }
 
             let agent = builder.build();
 
