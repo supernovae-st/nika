@@ -23,13 +23,14 @@ use futures::StreamExt;
 use rig::agent::AgentBuilder;
 use rig::client::{CompletionClient, ProviderClient};
 use rig::completion::{Chat, CompletionModel as _, GetTokenUsage, Prompt};
-use rig::message::{Message, ReasoningContent};
+use rig::message::{Message, ReasoningContent, ToolChoice as RigToolChoice};
 use rig::providers::{anthropic, openai};
 use rig::streaming::StreamedAssistantContent;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
 
 use crate::ast::AgentParams;
+use crate::ast::ToolChoice as NikaToolChoice;
 use crate::error::NikaError;
 use crate::event::{AgentTurnMetadata, EventKind, EventLog};
 use crate::mcp::McpClient;
@@ -95,6 +96,26 @@ struct StreamingResult {
     output_tokens: u32,
     /// Optional thinking/reasoning content (Claude extended thinking)
     thinking: Option<String>,
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ToolChoice Conversion (v0.8.0)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Convert Nika's ToolChoice to rig-core's ToolChoice.
+///
+/// Nika's ToolChoice maps directly to rig-core's ToolChoice variants:
+/// - `Auto` → LLM decides when to use tools (default)
+/// - `Required` → Must use at least one tool per turn
+/// - `None` → Never use tools (text-only response)
+impl From<NikaToolChoice> for RigToolChoice {
+    fn from(choice: NikaToolChoice) -> Self {
+        match choice {
+            NikaToolChoice::Auto => RigToolChoice::Auto,
+            NikaToolChoice::Required => RigToolChoice::Required,
+            NikaToolChoice::None => RigToolChoice::None,
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -316,10 +337,20 @@ impl RigAgentLoop {
 
         // Build agent and chat with history
         // Anthropic requires max_tokens to be set explicitly
-        let agent = AgentBuilder::new(model)
+        let mut builder = AgentBuilder::new(model)
             .preamble(self.params.system.as_deref().unwrap_or(""))
-            .max_tokens(8192)
-            .build();
+            .max_tokens(8192);
+
+        // Apply temperature using native rig-core method (v0.8.0)
+        if let Some(temp) = self.params.effective_temperature() {
+            builder = builder.temperature(f64::from(temp));
+        }
+
+        // Apply tool_choice using native rig-core method (v0.8.0)
+        let tool_choice = self.params.effective_tool_choice();
+        builder = builder.tool_choice(tool_choice.into());
+
+        let agent = builder.build();
 
         let response = agent
             .chat(prompt, self.history.clone())
@@ -383,10 +414,20 @@ impl RigAgentLoop {
         });
 
         // Build agent and chat with history
-        let agent = AgentBuilder::new(model)
+        let mut builder = AgentBuilder::new(model)
             .preamble(self.params.system.as_deref().unwrap_or(""))
-            .max_tokens(8192)
-            .build();
+            .max_tokens(8192);
+
+        // Apply temperature using native rig-core method (v0.8.0)
+        if let Some(temp) = self.params.effective_temperature() {
+            builder = builder.temperature(f64::from(temp));
+        }
+
+        // Apply tool_choice using native rig-core method (v0.8.0)
+        let tool_choice = self.params.effective_tool_choice();
+        builder = builder.tool_choice(tool_choice.into());
+
+        let agent = builder.build();
 
         let response = agent
             .chat(prompt, self.history.clone())
@@ -716,11 +757,9 @@ impl RigAgentLoop {
             request_builder = request_builder.preamble(sys.to_string());
         }
 
-        // Apply temperature if specified (v0.8.0)
+        // Apply temperature if specified using native rig-core method (v0.8.0)
         if let Some(temp) = self.params.effective_temperature() {
-            request_builder = request_builder.additional_params(serde_json::json!({
-                "temperature": temp
-            }));
+            request_builder = request_builder.temperature(f64::from(temp));
         }
 
         let request = request_builder.max_tokens(8192).build();
@@ -823,11 +862,21 @@ impl RigAgentLoop {
         } else {
             // With tools - use agent.prompt() for now (0 tokens)
             // This is the current behavior, preserved for tool support
-            let agent = AgentBuilder::new(model)
+            let mut builder = AgentBuilder::new(model)
                 .preamble(prompt)
                 .tools(tools)
-                .max_tokens(8192)
-                .build();
+                .max_tokens(8192);
+
+            // Apply temperature using native rig-core method (v0.8.0)
+            if let Some(temp) = self.params.effective_temperature() {
+                builder = builder.temperature(f64::from(temp));
+            }
+
+            // Apply tool_choice using native rig-core method (v0.8.0)
+            let tool_choice = self.params.effective_tool_choice();
+            builder = builder.tool_choice(tool_choice.into());
+
+            let agent = builder.build();
 
             let response = agent
                 .prompt(prompt)
@@ -1016,23 +1065,27 @@ impl RigAgentLoop {
         // Use configurable thinking_budget from AgentParams (default: 4096)
         let thinking_budget = self.params.effective_thinking_budget();
 
-        // Build additional params with thinking + optional temperature (v0.8.0)
-        let mut additional = serde_json::json!({
+        // Extended thinking requires additional_params (Claude-specific API feature)
+        let thinking_config = serde_json::json!({
             "thinking": {
                 "type": "enabled",
                 "budget_tokens": thinking_budget
             }
         });
-        if let Some(temp) = self.params.effective_temperature() {
-            additional["temperature"] = serde_json::json!(temp);
-        }
 
-        let request = model
+        // Build request with native temperature method (v0.8.0)
+        let mut request_builder = model
             .completion_request(&self.params.prompt)
             .preamble(self.params.system.clone().unwrap_or_default())
             .max_tokens(8192)
-            .additional_params(additional)
-            .build();
+            .additional_params(thinking_config);
+
+        // Apply temperature using native rig-core method (v0.8.0)
+        if let Some(temp) = self.params.effective_temperature() {
+            request_builder = request_builder.temperature(f64::from(temp));
+        }
+
+        let request = request_builder.build();
 
         // Emit start event
         self.event_log.emit(EventKind::AgentTurn {
