@@ -85,16 +85,14 @@ impl WriteTool {
             });
         }
 
-        // Create parent directories if needed
+        // Create parent directories if needed (idempotent, no TOCTOU race)
         if let Some(parent) = path.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent)
-                    .await
-                    .map_err(|e| NikaError::ToolError {
-                        code: ToolErrorCode::WriteFailed.code(),
-                        message: format!("Failed to create parent directories: {}", e),
-                    })?;
-            }
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| NikaError::ToolError {
+                    code: ToolErrorCode::WriteFailed.code(),
+                    message: format!("Failed to create parent directories: {}", e),
+                })?;
         }
 
         // Atomic write: temp file + rename
@@ -120,15 +118,24 @@ impl WriteTool {
             message: format!("Failed to flush file: {}", e),
         })?;
 
-        // Atomic rename
-        fs::rename(&temp_path, &path).await.map_err(|e| {
-            // Clean up temp file on error
-            let _ = std::fs::remove_file(&temp_path);
-            NikaError::ToolError {
+        // Ensure data hits disk before rename (durability)
+        file.sync_all().await.map_err(|e| NikaError::ToolError {
+            code: ToolErrorCode::WriteFailed.code(),
+            message: format!("Failed to sync file: {}", e),
+        })?;
+
+        // Atomic rename with async cleanup on error
+        if let Err(e) = fs::rename(&temp_path, &path).await {
+            // Async cleanup to avoid blocking the executor
+            let temp_clone = temp_path.clone();
+            tokio::spawn(async move {
+                let _ = fs::remove_file(temp_clone).await;
+            });
+            return Err(NikaError::ToolError {
                 code: ToolErrorCode::WriteFailed.code(),
                 message: format!("Failed to finalize file: {}", e),
-            }
-        })?;
+            });
+        }
 
         let bytes_written = params.content.len();
         let lines_written = params.content.lines().count();
