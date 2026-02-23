@@ -3,6 +3,7 @@
 //! Extracted from runner.rs for cleaner separation:
 //! - `make_task_result`: Convert raw output to TaskResult with format handling
 //! - `validate_schema`: Validate JSON output against JSON Schema (with caching)
+//! - `extract_json_from_output`: Extract JSON from markdown code blocks (v0.7.2)
 
 use std::sync::{Arc, LazyLock};
 
@@ -17,6 +18,91 @@ use crate::store::TaskResult;
 /// Avoids re-reading and re-parsing schema files on repeated validations.
 static SCHEMA_CACHE: LazyLock<DashMap<Arc<str>, Arc<Value>>> = LazyLock::new(DashMap::new);
 
+/// Extract JSON from LLM output, handling markdown code blocks.
+///
+/// LLMs often wrap JSON in markdown code blocks like:
+/// ```json
+/// {"key": "value"}
+/// ```
+///
+/// This function tries multiple strategies:
+/// 1. Direct JSON parsing (fast path)
+/// 2. Extract from ```json ... ``` blocks
+/// 3. Extract from ``` ... ``` blocks (no language)
+/// 4. Find outermost { } or [ ] brackets
+fn extract_json_from_output(output: &str) -> Result<Value, String> {
+    let trimmed = output.trim();
+
+    // Strategy 1: Direct parse (fast path for well-behaved LLMs)
+    if let Ok(v) = serde_json::from_str::<Value>(trimmed) {
+        return Ok(v);
+    }
+
+    // Strategy 2: Extract from ```json ... ``` blocks
+    if let Some(start) = trimmed.find("```json") {
+        let after_marker = &trimmed[start + 7..];
+        if let Some(end) = after_marker.find("```") {
+            let json_str = after_marker[..end].trim();
+            if let Ok(v) = serde_json::from_str::<Value>(json_str) {
+                return Ok(v);
+            }
+        }
+    }
+
+    // Strategy 3: Extract from ``` ... ``` blocks (no language specifier)
+    if let Some(start) = trimmed.find("```\n") {
+        let after_marker = &trimmed[start + 4..];
+        if let Some(end) = after_marker.find("```") {
+            let json_str = after_marker[..end].trim();
+            if let Ok(v) = serde_json::from_str::<Value>(json_str) {
+                return Ok(v);
+            }
+        }
+    }
+
+    // Strategy 4: Find outermost { } or [ ] brackets
+    let first_brace = trimmed.find('{');
+    let first_bracket = trimmed.find('[');
+
+    let (start_char, end_char, start_pos) = match (first_brace, first_bracket) {
+        (Some(b), Some(k)) if b < k => ('{', '}', b),
+        (Some(_), Some(k)) => ('[', ']', k),
+        (Some(b), None) => ('{', '}', b),
+        (None, Some(k)) => ('[', ']', k),
+        (None, None) => return Err("No JSON object or array found in output".to_string()),
+    };
+
+    // Find matching closing bracket (handle nesting)
+    let substr = &trimmed[start_pos..];
+    let mut depth = 0;
+    let mut end_pos = None;
+
+    for (i, c) in substr.char_indices() {
+        if c == start_char {
+            depth += 1;
+        } else if c == end_char {
+            depth -= 1;
+            if depth == 0 {
+                end_pos = Some(i + 1);
+                break;
+            }
+        }
+    }
+
+    if let Some(end) = end_pos {
+        let json_str = &substr[..end];
+        if let Ok(v) = serde_json::from_str::<Value>(json_str) {
+            return Ok(v);
+        }
+    }
+
+    // All strategies failed - return original error
+    Err(format!(
+        "Failed to extract JSON from output. First 200 chars: {}",
+        &trimmed[..trimmed.len().min(200)]
+    ))
+}
+
 /// Convert execution output to TaskResult, parsing as JSON if output format is json.
 /// Also validates against schema if declared.
 pub async fn make_task_result(
@@ -26,8 +112,8 @@ pub async fn make_task_result(
 ) -> TaskResult {
     if let Some(policy) = policy {
         if policy.format == OutputFormat::Json {
-            // Parse as JSON
-            let json_value = match serde_json::from_str::<Value>(&output) {
+            // Parse as JSON, handling markdown code blocks
+            let json_value = match extract_json_from_output(&output) {
                 Ok(v) => v,
                 Err(e) => {
                     return TaskResult::failed(
@@ -459,5 +545,129 @@ mod tests {
         let arr = result.output.as_array().unwrap();
         assert_eq!(arr.len(), 4);
         assert_eq!(arr[3], "four");
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // EXTRACT_JSON_FROM_OUTPUT TESTS (v0.7.2)
+    // ══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn extract_json_direct_parse() {
+        let input = r#"{"key": "value"}"#;
+        let result = extract_json_from_output(input).unwrap();
+        assert_eq!(result["key"], "value");
+    }
+
+    #[test]
+    fn extract_json_with_whitespace() {
+        let input = r#"
+            {"key": "value"}
+        "#;
+        let result = extract_json_from_output(input).unwrap();
+        assert_eq!(result["key"], "value");
+    }
+
+    #[test]
+    fn extract_json_from_markdown_json_block() {
+        let input = r#"Here's the JSON:
+
+```json
+{"name": "Thibaut", "score": 42}
+```
+
+Hope this helps!"#;
+        let result = extract_json_from_output(input).unwrap();
+        assert_eq!(result["name"], "Thibaut");
+        assert_eq!(result["score"], 42);
+    }
+
+    #[test]
+    fn extract_json_from_markdown_plain_block() {
+        let input = r#"The result:
+
+```
+{"items": [1, 2, 3]}
+```
+"#;
+        let result = extract_json_from_output(input).unwrap();
+        assert!(result["items"].is_array());
+    }
+
+    #[test]
+    fn extract_json_from_prose_with_braces() {
+        let input = r#"I'll generate the fortune for you:
+
+The cosmic reading reveals: {"sign": "scorpio", "lucky_number": 7, "message": "Great things await"}
+
+This is based on ancient wisdom."#;
+        let result = extract_json_from_output(input).unwrap();
+        assert_eq!(result["sign"], "scorpio");
+        assert_eq!(result["lucky_number"], 7);
+    }
+
+    #[test]
+    fn extract_json_array_from_markdown() {
+        let input = r#"```json
+[{"id": 1}, {"id": 2}, {"id": 3}]
+```"#;
+        let result = extract_json_from_output(input).unwrap();
+        assert!(result.is_array());
+        assert_eq!(result.as_array().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn extract_json_nested_objects() {
+        let input = r#"Result: {"outer": {"inner": {"deep": "value"}}}"#;
+        let result = extract_json_from_output(input).unwrap();
+        assert_eq!(result["outer"]["inner"]["deep"], "value");
+    }
+
+    #[test]
+    fn extract_json_with_escaped_braces_in_strings() {
+        let input = r#"{"template": "Use {{variable}} syntax", "count": 1}"#;
+        let result = extract_json_from_output(input).unwrap();
+        assert_eq!(result["template"], "Use {{variable}} syntax");
+    }
+
+    #[test]
+    fn extract_json_no_json_found() {
+        let input = "This is just plain text without any JSON.";
+        let result = extract_json_from_output(input);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("No JSON object or array found"));
+    }
+
+    #[tokio::test]
+    async fn make_task_result_handles_markdown_wrapped_json() {
+        use crate::ast::OutputPolicy;
+
+        let policy = OutputPolicy {
+            format: OutputFormat::Json,
+            schema: None,
+        };
+
+        // Simulate LLM output with markdown code block
+        let llm_output = r#"Here's your fortune:
+
+```json
+{
+  "sign": "scorpio",
+  "lucky_number": 7,
+  "message": "The stars align in your favor"
+}
+```
+
+Enjoy your reading!"#;
+
+        let result = make_task_result(
+            llm_output.to_string(),
+            Some(&policy),
+            Duration::from_millis(100),
+        )
+        .await;
+
+        assert!(result.is_success(), "Should parse JSON from markdown block");
+        assert_eq!(result.output["sign"], "scorpio");
+        assert_eq!(result.output["lucky_number"], 7);
     }
 }
