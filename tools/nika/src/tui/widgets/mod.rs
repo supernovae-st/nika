@@ -16,6 +16,7 @@
 #![allow(dead_code)]
 
 mod activity_stack;
+mod agent_steps;
 mod agent_turns;
 mod command_palette;
 mod dag;
@@ -25,6 +26,7 @@ mod dag_layout;
 mod dag_node_box;
 mod gauge;
 mod header;
+mod help_overlay;
 mod infer_stream_box;
 mod mcp_call_box;
 mod mcp_log;
@@ -37,6 +39,7 @@ mod scroll_indicator;
 mod session_context;
 mod sparkline;
 mod status_bar;
+mod terminal_size;
 mod timeline;
 mod verb_input;
 
@@ -88,3 +91,12 @@ pub use mention_system::{
     highlight_mentions, Mention, MentionAutocomplete, MentionAutocompleteState, MentionSuggestion,
     MentionTrigger, MentionType,
 };
+// Agent steps for Claude Code-like feedback (v0.7.3)
+pub use agent_steps::{AgentStep, AgentStepGroup, AgentStepsWidget, StepStatus};
+// Terminal size handling (v0.8 - graceful degradation)
+pub use terminal_size::{
+    check_terminal_size, LayoutMode, TerminalTooSmallOverlay, COMPACT_WIDTH, MIN_HEIGHT, MIN_WIDTH,
+    WIDE_WIDTH,
+};
+// Help overlay (v0.8 - ? or F1)
+pub use help_overlay::{HelpOverlay, HelpOverlayState, HelpSection, HELP_SECTIONS};

@@ -17,18 +17,18 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Widget},
+    widgets::{Block, Borders, Clear, List, ListItem, Widget},
 };
 
 // Solarized-inspired colors
-const COLOR_FILE: Color = Color::Rgb(38, 139, 210);      // Blue
-const COLOR_ENTITY: Color = Color::Rgb(108, 113, 196);   // Violet
-const COLOR_LOCALE: Color = Color::Rgb(42, 161, 152);    // Cyan
-const COLOR_PROJECT: Color = Color::Rgb(133, 153, 0);    // Green
-const COLOR_TERM: Color = Color::Rgb(181, 137, 0);       // Yellow
-const COLOR_MUTED: Color = Color::Rgb(88, 110, 117);     // Gray
-const COLOR_SELECTED: Color = Color::Rgb(250, 204, 21);  // Gold
-const COLOR_BORDER: Color = Color::Rgb(147, 161, 161);   // Gray border
+const COLOR_FILE: Color = Color::Rgb(38, 139, 210); // Blue
+const COLOR_ENTITY: Color = Color::Rgb(108, 113, 196); // Violet
+const COLOR_LOCALE: Color = Color::Rgb(42, 161, 152); // Cyan
+const COLOR_PROJECT: Color = Color::Rgb(133, 153, 0); // Green
+const COLOR_TERM: Color = Color::Rgb(181, 137, 0); // Yellow
+const COLOR_MUTED: Color = Color::Rgb(88, 110, 117); // Gray
+const COLOR_SELECTED: Color = Color::Rgb(250, 204, 21); // Gold
+const COLOR_BORDER: Color = Color::Rgb(147, 161, 161); // Gray border
 
 /// Mention type categories
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -179,23 +179,35 @@ impl Mention {
 
         // Determine what type we're completing
         let (trigger_type, query) = if partial.starts_with("@entity:") {
-            (Some(MentionType::Entity), partial.strip_prefix("@entity:").unwrap_or(""))
+            (
+                Some(MentionType::Entity),
+                partial.strip_prefix("@entity:").unwrap_or("").to_string(),
+            )
         } else if partial.starts_with("@locale:") {
-            (Some(MentionType::Locale), partial.strip_prefix("@locale:").unwrap_or(""))
+            (
+                Some(MentionType::Locale),
+                partial.strip_prefix("@locale:").unwrap_or("").to_string(),
+            )
         } else if partial.starts_with("@project:") {
-            (Some(MentionType::Project), partial.strip_prefix("@project:").unwrap_or(""))
+            (
+                Some(MentionType::Project),
+                partial.strip_prefix("@project:").unwrap_or("").to_string(),
+            )
         } else if partial.starts_with("@term:") {
-            (Some(MentionType::Term), partial.strip_prefix("@term:").unwrap_or(""))
+            (
+                Some(MentionType::Term),
+                partial.strip_prefix("@term:").unwrap_or("").to_string(),
+            )
         } else {
             // Could be file or type selection
-            (None, partial.strip_prefix('@').unwrap_or(""))
+            (None, partial.strip_prefix('@').unwrap_or("").to_string())
         };
 
         Some(MentionTrigger {
             start: last_at,
             partial,
             trigger_type,
-            query: query.to_string(),
+            query,
         })
     }
 }
@@ -317,7 +329,10 @@ impl MentionAutocompleteState {
     /// Select previous suggestion
     pub fn prev(&mut self) {
         if !self.suggestions.is_empty() {
-            self.selected = self.selected.checked_sub(1).unwrap_or(self.suggestions.len() - 1);
+            self.selected = self
+                .selected
+                .checked_sub(1)
+                .unwrap_or(self.suggestions.len() - 1);
         }
     }
 
@@ -384,9 +399,7 @@ impl Widget for MentionAutocomplete<'_> {
             .map(|(i, suggestion)| {
                 let is_selected = i == self.state.selected;
                 let style = if is_selected {
-                    Style::default()
-                        .fg(Color::Black)
-                        .bg(COLOR_SELECTED)
+                    Style::default().fg(Color::Black).bg(COLOR_SELECTED)
                 } else {
                     Style::default().fg(Color::White)
                 };
