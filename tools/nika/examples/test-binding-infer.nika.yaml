@@ -1,0 +1,47 @@
+# Test binding syntaxes in infer: specifically
+# Tests if $alias works in prompts (not affected by bash)
+
+schema: "nika/workflow@0.5"
+provider: openai
+model: gpt-4o-mini
+workflow: test-binding-infer
+
+tasks:
+  - id: produce_data
+    exec: |
+      echo '{"app": "Nika", "version": "0.7.2"}'
+    output:
+      format: json
+
+  # Test {{use.alias}} in infer
+  - id: test_mustache_infer
+    use:
+      info: produce_data
+    infer: |
+      Data with mustache syntax: {{use.info}}
+      Reply with just: MUSTACHE_OK
+
+  # Test $alias in infer
+  - id: test_dollar_infer
+    use:
+      info: produce_data
+    infer: |
+      Data with dollar syntax: $info
+      Reply with just: DOLLAR_OK or DOLLAR_FAIL if you see "$info" literally
+
+  # Aggregate
+  - id: verify
+    use:
+      m: test_mustache_infer
+      d: test_dollar_infer
+    exec: |
+      echo "=== INFER BINDING RESULTS ==="
+      echo "Mustache in infer: {{use.m}}"
+      echo "Dollar in infer: {{use.d}}"
+      echo "=== DONE ==="
+
+flows:
+  - source: produce_data
+    target: [test_mustache_infer, test_dollar_infer]
+  - source: [test_mustache_infer, test_dollar_infer]
+    target: verify
