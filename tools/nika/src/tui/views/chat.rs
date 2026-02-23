@@ -1238,36 +1238,46 @@ impl Default for ChatView {
 
 impl View for ChatView {
     fn render(&self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
-        // Layout v2: Session Context Bar | Messages + Activity Stack | Input + Hints
+        // Layout v3: ProStatusBar (2 lines) | Messages + Mission Control | Input + Hints
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3), // Session context bar (compact)
+                Constraint::Length(2), // ProStatusBar (2 lines - Claude Code inspired)
                 Constraint::Min(10),   // Main content area
                 Constraint::Length(3), // Input field
                 Constraint::Length(1), // Command hints
             ])
             .split(area);
 
-        // 1. Session Context Bar (compact mode at top)
-        SessionContextBar::new(&self.session_context)
-            .compact()
+        // 1. Pro Status Bar (Claude Code-inspired 2-line display)
+        let chat_mode_indicator = match self.chat_mode {
+            ChatMode::Infer => ChatModeIndicator::Infer,
+            ChatMode::Agent => ChatModeIndicator::Agent,
+        };
+
+        ProStatusBar::new(&self.current_model, &self.session_metrics)
+            .mode(chat_mode_indicator)
+            .thinking(self.deep_thinking)
+            .streaming(self.is_streaming)
             .render(chunks[0], frame.buffer_mut());
 
-        // 2. Main content: Messages (70%) | Activity Stack (30%)
+        // 2. Main content: Messages (65%) | Mission Control (35%)
         let main_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+            .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
             .split(chunks[1]);
 
         // Messages panel with inline MCP/Infer boxes
         self.render_messages_v2(frame, main_chunks[0], theme);
 
-        // Activity Stack panel (v0.8 UX: pass focus state)
-        ActivityStack::new(&self.activity_items)
-            .frame(self.frame)
+        // Mission Control panel (v0.7.3 - replaces Activity Stack)
+        MissionControlPanel::new(&self.session_context.mcp_servers)
+            .context(&self.context_items)
+            .memory(&self.memory_files)
+            .turns(self.messages.iter().filter(|m| m.role == MessageRole::User).count())
+            .verb(self.current_verb)
+            .metrics(self.turn_metrics.clone())
             .focused(self.focused_panel == ChatPanel::Activity)
-            .highlight_color(theme.highlight)
             .render(main_chunks[1], frame.buffer_mut());
 
         // 3. Input panel
