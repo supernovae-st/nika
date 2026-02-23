@@ -74,7 +74,9 @@ pub use gauge::Gauge;
 pub use header::Header;
 pub use mcp_log::{McpEntry, McpLog};
 pub use scroll_indicator::{ScrollHint, ScrollIndicator};
-pub use sparkline::{AnimatedLatencySparkline, LatencyHistory, LatencySparkline, SparklineAnimation};
+pub use sparkline::{
+    AnimatedLatencySparkline, LatencyHistory, LatencySparkline, SparklineAnimation,
+};
 pub use status_bar::{ConnectionStatus, Provider, StatusBar, StatusMetrics};
 pub use timeline::{Timeline, TimelineEntry};
 // Pro status bar for Chat view (Claude Code-inspired)

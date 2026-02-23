@@ -28,8 +28,8 @@ Cargo workspace for Nika — semantic YAML workflow engine for AI tasks.
 
 Nika is the "body" of the SuperNovae AGI architecture, executing workflows that leverage NovaNet's "brain".
 
-**Current Version**: v0.8.0 — Studio DX (Edit History, Session Persistence, Solarized Theme, Config System) + Full Streaming (6 providers) + RLM Enhancements
-**Tests**: 1,879 passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
+**Current Version**: v0.8.0 — Studio DX (Edit History + Undo/Redo, Session Persistence, Solarized Theme, Config System) + Full Streaming (6 providers) + RLM Enhancements
+**Tests**: 1,902 passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
 **Target Application**: QR Code AI (https://qrcode-ai.com)
 
 ```
@@ -130,16 +130,20 @@ tasks:
       locale: "fr-FR"
 ```
 
-**v0.8.0** - Studio DX improvements, 8 production-ready TUI features
+**v0.8.0** - Studio DX improvements with Edit History, Session Persistence, Solarized Theme, Config System
 
-### v0.8.0 TUI Features
-1. **File browser** - Navigate workflows in project
-2. **YAML syntax highlighting** - Real-time editor feedback
-3. **Schema validation** - Inline error diagnostics via miette
-4. **Tab management** - Alt+← /→ navigation, Ctrl+W close
-5. **Fuzzy file search** - Ctrl+P / `/` quick open
-6. **Background task tracking** - MCP server status indicators
-7. **Real-time trace streaming** - Live event visualization
-8. **Command palette** - Quick commands and workflows
+### v0.8.0 Studio DX Features
+1. **Edit History (Undo/Redo)** - Ctrl+Z/Ctrl+Y with intelligent 500ms coalescing
+2. **Session Persistence** - Auto-save editor state to `.nika/sessions/` with auto-cleanup (max 50 sessions)
+3. **Solarized Theme** - Light/Dark unified color palette based on Ethan Schoonover
+4. **Config System** - `.nika/config.toml` for editor preferences, session settings, provider defaults
+5. **File browser** - Navigate workflows in project
+6. **YAML syntax highlighting** - Real-time editor feedback
+7. **Schema validation** - Inline error diagnostics via miette
+8. **Tab management** - Alt+← /→ navigation, Ctrl+W close
+9. **Fuzzy file search** - Ctrl+P / `/` quick open
+10. **Background task tracking** - MCP server status indicators
+11. **Real-time trace streaming** - Live event visualization
+12. **Command palette** - Quick commands and workflows
 
 **v0.7.2** - Full streaming, VS Code-like TUI, spawn_agent, decompose:, lazy: bindings

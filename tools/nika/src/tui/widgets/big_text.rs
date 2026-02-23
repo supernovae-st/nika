@@ -71,10 +71,10 @@ impl<'a> BigText<'a> {
     /// Get width of a single character (includes 1 char spacing)
     fn char_width(c: char) -> u16 {
         match c.to_ascii_uppercase() {
-            ' ' => 3,       // Space is narrower
+            ' ' => 3,             // Space is narrower
             '!' | ':' | '.' => 3, // Punctuation is narrow
-            '-' => 4,       // Dash
-            _ => 5,         // Most characters are 4 wide + 1 space
+            '-' => 4,             // Dash
+            _ => 5,               // Most characters are 4 wide + 1 space
         }
     }
 
@@ -154,12 +154,8 @@ impl Widget for BigText<'_> {
         // Calculate starting X based on alignment
         let start_x = match self.alignment {
             Alignment::Left => area.x,
-            Alignment::Center => {
-                area.x + area.width.saturating_sub(total_width) / 2
-            }
-            Alignment::Right => {
-                area.x + area.width.saturating_sub(total_width)
-            }
+            Alignment::Center => area.x + area.width.saturating_sub(total_width) / 2,
+            Alignment::Right => area.x + area.width.saturating_sub(total_width),
         };
 
         // Render each line (3 lines total)
@@ -256,8 +252,11 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
 
-        assert!(content.contains('█') || content.contains('▀') || content.contains('▄'),
-            "Buffer should contain block characters: {}", content);
+        assert!(
+            content.contains('█') || content.contains('▀') || content.contains('▄'),
+            "Buffer should contain block characters: {}",
+            content
+        );
     }
 
     #[test]
@@ -279,7 +278,10 @@ mod tests {
         // Find first non-space character
         let first_char_pos = first_line.find(|c: char| c != ' ');
         assert!(first_char_pos.is_some(), "Should have non-space content");
-        assert!(first_char_pos.unwrap() > 0, "Centered text should not start at x=0");
+        assert!(
+            first_char_pos.unwrap() > 0,
+            "Centered text should not start at x=0"
+        );
     }
 
     #[test]

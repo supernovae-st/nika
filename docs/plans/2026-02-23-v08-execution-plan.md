@@ -1,7 +1,7 @@
 # Plan d'Exécution v0.8.0 - Détaillé
 
 **Date:** 2026-02-23
-**Status:** En cours d'exécution
+**Status:** ✅ COMPLETE - v0.8.0 Released
 
 ---
 
@@ -143,19 +143,38 @@ Documenter clairement la limitation du token tracking avec tools.
 ## Ordre d'Exécution
 
 1. ✅ Créer ce plan
-2. ⏳ Phase 2: ToolChoice (plus simple, bon warmup)
-3. ⏳ Phase 3: Temperature
-4. ⏳ Phase 1: Monitor View (plus complexe)
-5. ⏳ Phase 4: Documentation
-6. ⏳ Run tests finaux
+2. ✅ Phase 2: ToolChoice (plus simple, bon warmup)
+3. ✅ Phase 3: Temperature
+4. ✅ Phase 1: Monitor View (plus complexe)
+5. ✅ Phase 4: Documentation
+6. ✅ Run tests finaux
 
 ---
 
 ## Critères de Succès
 
-- [ ] `cargo test` passe (1,850+ tests)
-- [ ] `cargo clippy -- -D warnings` = 0 warnings
-- [ ] ToolChoice parsé et wirée
-- [ ] Temperature parsée et wirée
-- [ ] MonitorView implémente View trait
-- [ ] Documentation mise à jour
+- [x] `cargo test` passe (1,879 tests) ✅ DONE
+- [x] `cargo clippy -- -D warnings` = 0 warnings ✅ DONE
+- [x] ToolChoice parsé et wirée ✅ DONE
+- [x] Temperature parsée et wirée ✅ DONE
+- [x] MonitorView implémente View trait ✅ DONE
+- [x] Documentation mise à jour ✅ DONE
+
+## Summary
+
+**v0.8.0 completed successfully on 2026-02-23.**
+
+All four phases delivered:
+- **Phase 1:** Monitor View unified in `src/tui/views/monitor.rs` with orchestration of 4 panels
+- **Phase 2:** ToolChoice support added to AgentParams with auto/required/none options
+- **Phase 3:** Temperature control wired in RigAgentLoop with 0.0-2.0 range
+- **Phase 4:** Token tracking limitation documented with clear mitigation path
+
+**Key Deliverables:**
+- 1,879 tests passing (up from 1,747)
+- Zero clippy warnings with strict `-D warnings` flag
+- Full support for agent parameter control (tool_choice, temperature)
+- Unified Monitor view for observability
+- Updated CHANGELOG and CLAUDE.md for v0.8.0
+
+**Release Status:** v0.8.0 tagged and released with Studio DX enhancements

@@ -195,9 +195,8 @@ impl TuiConfig {
     pub fn save(&self) -> Result<(), ConfigError> {
         let path = Self::config_path()?;
         let content = toml::to_string_pretty(self)?;
-        atomic_write(&path, content.as_bytes()).map_err(|e| {
-            ConfigError::ReadError(std::io::Error::other(e))
-        })?;
+        atomic_write(&path, content.as_bytes())
+            .map_err(|e| ConfigError::ReadError(std::io::Error::other(e)))?;
         Ok(())
     }
 

@@ -62,7 +62,13 @@ Production-ready workflow patterns for real-world scenarios.
 
 ## Workflow Schema
 
-All workflows use schema `nika/workflow@0.8` (or earlier versions for compatibility):
+All workflows use schema `nika/workflow@0.8` (or earlier versions for compatibility).
+
+**v0.8.0 Features:**
+- Edit History (Undo/Redo with Ctrl+Z/Ctrl+Y)
+- Session Persistence (auto-save to `.nika/sessions/`)
+- Solarized Theme (Light/Dark/Solarized)
+- Config System (`.nika/config.toml`)
 
 ```yaml
 schema: "nika/workflow@0.8"

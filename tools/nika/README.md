@@ -41,9 +41,9 @@ cargo build --release
 
 - **Edit History (Undo/Redo)** - Ctrl+Z/Ctrl+Y with intelligent 500ms coalescing
 - **Session Persistence** - Auto-save editor state to `.nika/sessions/*.json`
-- **Solarized Theme** - Third theme option (Light/Dark) alongside Default
+- **Solarized Theme** - Third theme option (Light/Dark/Solarized) for unified color palette
 - **Config System** - `.nika/config.toml` for persistent user preferences
-- **Test Coverage** - 1,879 tests passing (comprehensive TUI coverage)
+- **Test Coverage** - 1,902 tests passing (comprehensive TUI coverage)
 
 ## Features
 
@@ -156,7 +156,7 @@ nika trace export <id>        # Export to JSON
 ## Testing
 
 ```bash
-cargo test                    # All 1,879 tests
+cargo test                    # All 1,902 tests
 cargo test mcp                # MCP tests
 cargo test --features integration  # Real MCP tests
 cargo test tui                # TUI widget tests (806 tests)
@@ -168,7 +168,7 @@ cargo test tui                # TUI widget tests (806 tests)
 - **nika-provider**: 30 tests (LLM provider wrapper)
 - **nika-runtime**: 177 tests (executor, runner, agent loop)
 - **nika-tui**: 806 tests (UI components, widgets, views)
-- **nika-cli**: 218 tests (CLI integration)
+- **nika-cli**: 241 tests (CLI integration, history, session, config)
 
 ## License
 

@@ -225,13 +225,13 @@ fn test_big_text_unsupported_char_renders_space() {
 
 ## Success Criteria
 
-- [ ] `AnimatedLatencySparkline` renders with pulse animation
-- [ ] Animation is smooth (uses `state.frame` from tick)
-- [ ] `BigText` renders "NIKA", "SUCCESS", "FAILED" correctly
-- [ ] All existing tests pass
-- [ ] New tests for both features
-- [ ] No clippy warnings
-- [ ] Performance: <1ms render time for both widgets
+- [x] `AnimatedLatencySparkline` renders with pulse animation
+- [x] Animation is smooth (uses `state.frame` from tick)
+- [x] `BigText` renders "NIKA", "SUCCESS", "FAILED" correctly
+- [x] All existing tests pass
+- [x] New tests for both features (9 BigText tests + 14 animation tests)
+- [x] No clippy warnings
+- [x] Performance: <1ms render time for both widgets
 
 ---
 

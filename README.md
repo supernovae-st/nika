@@ -55,7 +55,7 @@ nika run hello.nika.yaml
 | **TUI** | Real-time workflow visualization with Studio DX (v0.8) |
 | **Edit History** | Undo/Redo with Ctrl+Z/Ctrl+Y (v0.8) |
 | **Session Persistence** | Auto-save editor state to `.nika/sessions/` (v0.8) |
-| **Solarized Theme** | Light/Dark unified color palette (v0.8) |
+| **Solarized Theme** | Light/Dark/Solarized unified color palette (v0.8) |
 | **Config System** | `.nika/config.toml` for user preferences (v0.8) |
 
 ## Example

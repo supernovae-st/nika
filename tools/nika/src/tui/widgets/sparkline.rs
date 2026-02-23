@@ -505,7 +505,12 @@ impl Widget for AnimatedLatencySparkline<'_> {
             if self.show_avg && label_y < area.y + area.height {
                 let avg_str = format_ms(self.average());
                 let avg_label = format!("~{}", avg_str);
-                buf.set_string(label_x, label_y, &avg_label, Style::default().fg(Color::Gray));
+                buf.set_string(
+                    label_x,
+                    label_y,
+                    &avg_label,
+                    Style::default().fg(Color::Gray),
+                );
             }
         }
     }

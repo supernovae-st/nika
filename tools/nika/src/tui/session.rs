@@ -274,7 +274,10 @@ fn format_system_time(time: &SystemTime) -> String {
     let month = (day_of_year / 30) + 1;
     let day = (day_of_year % 30) + 1;
 
-    format!("{:04}-{:02}-{:02} {:02}:{:02}", year, month, day, hours, mins)
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}",
+        year, month, day, hours, mins
+    )
 }
 
 /// Remove old sessions when we exceed MAX_SESSIONS

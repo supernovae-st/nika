@@ -60,11 +60,11 @@ mod mode;
 #[cfg(feature = "tui")]
 mod panels;
 #[cfg(feature = "tui")]
+pub mod session;
+#[cfg(feature = "tui")]
 mod standalone;
 #[cfg(feature = "tui")]
 mod state;
-#[cfg(feature = "tui")]
-pub mod session;
 #[cfg(feature = "tui")]
 mod theme;
 #[cfg(feature = "tui")]
