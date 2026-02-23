@@ -204,6 +204,8 @@ pub struct App {
     broadcast_rx: Option<broadcast::Receiver<NikaEvent>>,
     /// Should quit flag
     should_quit: bool,
+    /// Last Ctrl+C press time (for double-tap quit like Claude Code)
+    last_ctrl_c: Option<std::time::Instant>,
     /// Workflow completed flag
     workflow_done: bool,
     /// Status message for feedback (clipboard copy, export, etc.)
@@ -291,6 +293,7 @@ impl App {
             event_rx: None,
             broadcast_rx: None,
             should_quit: false,
+            last_ctrl_c: None,
             workflow_done: false,
             status_message: None,
             retry_requested: false,
@@ -342,6 +345,7 @@ impl App {
             event_rx: None,
             broadcast_rx: None,
             should_quit: false,
+            last_ctrl_c: None,
             workflow_done: false,
             status_message: None,
             retry_requested: false,
@@ -1159,8 +1163,10 @@ impl App {
         // Global view-switching keys (work in all views, including during Chat input)
         // We check these first so users can always navigate views
         match code {
-            // Ctrl+C always quits
-            KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => return Action::Quit,
+            // Ctrl+C double-tap to quit (Claude Code pattern)
+            KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
+                return self.handle_ctrl_c();
+            }
 
             // View navigation by number (when not capturing input)
             KeyCode::Char('1') if !self.is_view_capturing_input() => {
@@ -1395,7 +1401,7 @@ impl App {
     }
 
     /// Handle keyboard input
-    fn handle_key(&self, code: KeyCode, modifiers: KeyModifiers) -> Action {
+    fn handle_key(&mut self, code: KeyCode, modifiers: KeyModifiers) -> Action {
         // Handle mode-specific keys first
         match &self.state.mode {
             TuiMode::Help | TuiMode::Metrics | TuiMode::Inspect(_) | TuiMode::Edit(_) => {
@@ -1419,7 +1425,9 @@ impl App {
         match code {
             // Quit
             KeyCode::Char('q') => Action::Quit,
-            KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => Action::Quit,
+            KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
+                return self.handle_ctrl_c();
+            }
 
             // Panel navigation (direct panel access)
             KeyCode::Char('1') => Action::FocusPanel(1),
@@ -1971,6 +1979,26 @@ impl App {
         } else {
             self.set_status("No tasks to set breakpoint on");
         }
+    }
+
+    /// Handle Ctrl+C with double-tap to quit (Claude Code pattern)
+    /// First press shows warning, second press within 2 seconds quits
+    fn handle_ctrl_c(&mut self) -> Action {
+        use std::time::{Duration, Instant};
+        const QUIT_TIMEOUT: Duration = Duration::from_secs(2);
+
+        let now = Instant::now();
+        if let Some(last) = self.last_ctrl_c {
+            if now.duration_since(last) < QUIT_TIMEOUT {
+                // Second Ctrl+C within timeout - quit
+                return Action::Quit;
+            }
+        }
+
+        // First Ctrl+C or timeout expired - show warning
+        self.last_ctrl_c = Some(now);
+        self.set_status("⚠️ Press Ctrl+C again to quit");
+        Action::Continue
     }
 
     /// Toggle theme between dark, light, and solarized (TIER 2.4)
