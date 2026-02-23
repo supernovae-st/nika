@@ -54,6 +54,30 @@ impl VerbType {
         "🐤" // Spawned subagent
     }
 
+    /// Get the color for this verb type (Tailwind-inspired, PLUQQY-style)
+    pub fn color(&self) -> Color {
+        match self {
+            Self::Unknown => Color::Rgb(107, 114, 128), // Gray - #6b7280
+            Self::Infer => Color::Rgb(99, 102, 241),    // Violet - #6366f1
+            Self::Exec => Color::Rgb(34, 197, 94),      // Green - #22c55e
+            Self::Fetch => Color::Rgb(6, 182, 212),     // Cyan - #06b6d4
+            Self::Invoke => Color::Rgb(59, 130, 246),   // Blue - #3b82f6
+            Self::Agent => Color::Rgb(234, 179, 8),     // Gold - #eab308
+        }
+    }
+
+    /// Get the label for this verb type
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::Infer => "infer",
+            Self::Exec => "exec",
+            Self::Fetch => "fetch",
+            Self::Invoke => "invoke",
+            Self::Agent => "agent",
+        }
+    }
+
     /// Parse verb type from string
     pub fn parse(s: &str) -> Self {
         match s.to_lowercase().as_str() {
@@ -63,6 +87,18 @@ impl VerbType {
             "invoke" => Self::Invoke,
             "agent" => Self::Agent,
             _ => Self::Unknown,
+        }
+    }
+
+    /// Parse verb type from string, returning None for unknown
+    pub fn try_parse(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "infer" => Some(Self::Infer),
+            "exec" => Some(Self::Exec),
+            "fetch" => Some(Self::Fetch),
+            "invoke" => Some(Self::Invoke),
+            "agent" => Some(Self::Agent),
+            _ => None,
         }
     }
 }

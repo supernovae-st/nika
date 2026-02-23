@@ -967,7 +967,7 @@ impl SettingsState {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Message role in chat overlay conversation
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ChatOverlayMessageRole {
     /// User input
     User,
@@ -980,7 +980,7 @@ pub enum ChatOverlayMessageRole {
 }
 
 /// A message in the chat overlay
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ChatOverlayMessage {
     /// Who sent the message
     pub role: ChatOverlayMessageRole,
@@ -1019,6 +1019,8 @@ pub struct ChatOverlayState {
     pub partial_response: String,
     /// Current model name for display
     pub current_model: String,
+    /// Edit history for undo/redo (v0.8)
+    pub edit_history: super::edit_history::EditHistory,
 }
 
 impl Default for ChatOverlayState {
@@ -1039,6 +1041,9 @@ impl ChatOverlayState {
             "No API Key".to_string()
         };
 
+        let mut edit_history = super::edit_history::EditHistory::default();
+        edit_history.init("", 0);
+
         Self {
             messages: vec![ChatOverlayMessage::new(
                 ChatOverlayMessageRole::System,
@@ -1052,6 +1057,7 @@ impl ChatOverlayState {
             is_streaming: false,
             partial_response: String::new(),
             current_model: initial_model,
+            edit_history,
         }
     }
 
@@ -1089,6 +1095,8 @@ impl ChatOverlayState {
     pub fn insert_char(&mut self, c: char) {
         self.input.insert(self.cursor, c);
         self.cursor += 1;
+        // Track for undo (coalesces rapid keystrokes)
+        self.edit_history.push(&self.input, self.cursor);
     }
 
     /// Delete character before cursor (backspace)
@@ -1096,6 +1104,8 @@ impl ChatOverlayState {
         if self.cursor > 0 {
             self.cursor -= 1;
             self.input.remove(self.cursor);
+            // Track for undo (coalesces rapid deletes)
+            self.edit_history.push(&self.input, self.cursor);
         }
     }
 
@@ -1103,7 +1113,45 @@ impl ChatOverlayState {
     pub fn delete(&mut self) {
         if self.cursor < self.input.len() {
             self.input.remove(self.cursor);
+            // Track for undo
+            self.edit_history.push(&self.input, self.cursor);
         }
+    }
+
+    /// Undo last edit (Ctrl+Z)
+    ///
+    /// Returns true if undo was performed.
+    pub fn undo(&mut self) -> bool {
+        if let Some((text, cursor)) = self.edit_history.undo() {
+            self.input = text;
+            self.cursor = cursor;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Redo last undone edit (Ctrl+Shift+Z or Ctrl+Y)
+    ///
+    /// Returns true if redo was performed.
+    pub fn redo(&mut self) -> bool {
+        if let Some((text, cursor)) = self.edit_history.redo() {
+            self.input = text;
+            self.cursor = cursor;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Check if undo is available
+    pub fn can_undo(&self) -> bool {
+        self.edit_history.can_undo()
+    }
+
+    /// Check if redo is available
+    pub fn can_redo(&self) -> bool {
+        self.edit_history.can_redo()
     }
 
     /// Move cursor left
@@ -1150,8 +1198,9 @@ impl ChatOverlayState {
             &message,
         ));
 
-        // Reset cursor
+        // Reset cursor and edit history for fresh input
         self.cursor = 0;
+        self.edit_history.init("", 0);
 
         Some(message)
     }
@@ -4990,6 +5039,60 @@ mod tests {
         state.cursor_end();
         state.cursor_right();
         assert_eq!(state.cursor, 5);
+    }
+
+    #[test]
+    fn test_chat_overlay_undo_after_typing() {
+        let mut state = ChatOverlayState::new();
+
+        // Type some text with checkpoints
+        state.edit_history.checkpoint("a", 1);
+        state.input = "a".to_string();
+        state.cursor = 1;
+
+        state.edit_history.checkpoint("ab", 2);
+        state.input = "ab".to_string();
+        state.cursor = 2;
+
+        // Undo should restore previous state
+        assert!(state.can_undo());
+        assert!(state.undo());
+        assert_eq!(state.input, "a");
+        assert_eq!(state.cursor, 1);
+    }
+
+    #[test]
+    fn test_chat_overlay_redo_after_undo() {
+        let mut state = ChatOverlayState::new();
+
+        state.edit_history.checkpoint("hello", 5);
+        state.input = "hello".to_string();
+        state.cursor = 5;
+
+        state.edit_history.checkpoint("hello world", 11);
+        state.input = "hello world".to_string();
+        state.cursor = 11;
+
+        // Undo
+        state.undo();
+        assert_eq!(state.input, "hello");
+
+        // Redo should restore
+        assert!(state.can_redo());
+        assert!(state.redo());
+        assert_eq!(state.input, "hello world");
+    }
+
+    #[test]
+    fn test_chat_overlay_undo_empty_returns_false() {
+        let state = ChatOverlayState::new();
+        assert!(!state.can_undo());
+    }
+
+    #[test]
+    fn test_chat_overlay_redo_empty_returns_false() {
+        let state = ChatOverlayState::new();
+        assert!(!state.can_redo());
     }
 
     #[test]

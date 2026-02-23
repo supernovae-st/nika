@@ -9,7 +9,7 @@
 # 5. build: Release build verification
 # 6. summary: PR comment with results
 #
-# Nika v0.7.1 - DAG Workflow Runner for AI Tasks
+# Nika v0.8.0 — Studio DX + Full Streaming + RLM Enhancements | 1,879 tests
 
 name: CI
 
@@ -34,7 +34,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
-  NIKA_VERSION: v0.7.2
+  NIKA_VERSION: v0.8.0
   # Minimum Rust version (matches Cargo.toml rust-version)
   RUST_VERSION: '1.85'
   # Minimum coverage threshold (%)

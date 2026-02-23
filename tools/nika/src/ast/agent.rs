@@ -22,6 +22,47 @@
 
 use serde::Deserialize;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Tool Choice (v0.8.0)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Tool choice behavior for agent execution (v0.8.0)
+///
+/// Controls when the agent uses tools during execution.
+///
+/// # YAML Syntax
+/// ```yaml
+/// agent:
+///   prompt: "..."
+///   tool_choice: auto    # auto | required | none
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolChoice {
+    /// LLM decides when to use tools (default behavior)
+    #[default]
+    Auto,
+    /// Must use at least one tool per turn
+    Required,
+    /// Never use tools (text-only response)
+    None,
+}
+
+impl ToolChoice {
+    /// Convert to rig-core compatible string representation
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Required => "required",
+            Self::None => "none",
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Constants
+// ═══════════════════════════════════════════════════════════════════════════
+
 /// Default maximum turns for agent loop
 const DEFAULT_MAX_TURNS: u32 = 10;
 
@@ -103,6 +144,26 @@ pub struct AgentParams {
     /// Used by `spawn_agent` internal tool to prevent infinite recursion.
     #[serde(default)]
     pub depth_limit: Option<u32>,
+
+    /// Tool choice behavior (v0.8.0)
+    ///
+    /// Controls when the agent uses tools:
+    /// - `auto` (default): LLM decides when to use tools
+    /// - `required`: Must use at least one tool per turn
+    /// - `none`: Never use tools (text-only response)
+    #[serde(default)]
+    pub tool_choice: Option<ToolChoice>,
+
+    /// Model temperature for response randomness (v0.8.0)
+    ///
+    /// Controls the randomness/creativity of responses:
+    /// - 0.0: Deterministic, most focused
+    /// - 1.0: Balanced creativity (typical default)
+    /// - 2.0: Maximum creativity/randomness
+    ///
+    /// If not set, uses the provider's default.
+    #[serde(default)]
+    pub temperature: Option<f32>,
 }
 
 impl AgentParams {
@@ -140,6 +201,24 @@ impl AgentParams {
     #[inline]
     pub fn effective_depth_limit(&self) -> u32 {
         self.depth_limit.unwrap_or(DEFAULT_DEPTH_LIMIT)
+    }
+
+    /// Get effective tool choice behavior (v0.8.0).
+    ///
+    /// Returns the configured `tool_choice` if set, otherwise returns
+    /// `ToolChoice::Auto` (LLM decides when to use tools).
+    #[inline]
+    pub fn effective_tool_choice(&self) -> ToolChoice {
+        self.tool_choice.clone().unwrap_or_default()
+    }
+
+    /// Get effective temperature (v0.8.0).
+    ///
+    /// Returns the configured `temperature` if set, otherwise returns `None`
+    /// to use the provider's default.
+    #[inline]
+    pub fn effective_temperature(&self) -> Option<f32> {
+        self.temperature
     }
 
     /// Check if a response triggers a stop condition.
@@ -199,6 +278,16 @@ impl AgentParams {
             }
             if depth > MAX_DEPTH_LIMIT {
                 return Err(format!("depth_limit cannot exceed {}", MAX_DEPTH_LIMIT));
+            }
+        }
+
+        // Validate temperature (v0.8.0)
+        if let Some(temp) = self.temperature {
+            if !(0.0..=2.0).contains(&temp) {
+                return Err(format!(
+                    "temperature must be between 0.0 and 2.0, got {}",
+                    temp
+                ));
             }
         }
 
@@ -470,5 +559,136 @@ thinking_budget: 8192
     fn thinking_budget_defaults_to_none() {
         let params = AgentParams::default();
         assert!(params.thinking_budget.is_none());
+    }
+
+    // ========================================================================
+    // ToolChoice Tests (v0.8.0)
+    // ========================================================================
+
+    #[test]
+    fn test_parse_tool_choice_auto() {
+        let yaml = r#"
+prompt: "Test"
+tool_choice: auto
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(params.tool_choice, Some(ToolChoice::Auto));
+    }
+
+    #[test]
+    fn test_parse_tool_choice_required() {
+        let yaml = r#"
+prompt: "Test"
+tool_choice: required
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(params.tool_choice, Some(ToolChoice::Required));
+    }
+
+    #[test]
+    fn test_parse_tool_choice_none() {
+        let yaml = r#"
+prompt: "Test"
+tool_choice: none
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(params.tool_choice, Some(ToolChoice::None));
+    }
+
+    #[test]
+    fn test_tool_choice_default() {
+        let params = AgentParams::default();
+        assert!(params.tool_choice.is_none());
+        assert_eq!(params.effective_tool_choice(), ToolChoice::Auto);
+    }
+
+    #[test]
+    fn test_tool_choice_as_str() {
+        assert_eq!(ToolChoice::Auto.as_str(), "auto");
+        assert_eq!(ToolChoice::Required.as_str(), "required");
+        assert_eq!(ToolChoice::None.as_str(), "none");
+    }
+
+    // ========================================================================
+    // Temperature Tests (v0.8.0)
+    // ========================================================================
+
+    #[test]
+    fn test_parse_temperature() {
+        let yaml = r#"
+prompt: "Test"
+temperature: 0.7
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(params.temperature, Some(0.7));
+    }
+
+    #[test]
+    fn test_temperature_default() {
+        let params = AgentParams::default();
+        assert!(params.temperature.is_none());
+        assert_eq!(params.effective_temperature(), None);
+    }
+
+    #[test]
+    fn test_temperature_validation_valid_range() {
+        // Valid range: 0.0 to 2.0
+        for temp in [0.0, 0.5, 1.0, 1.5, 2.0] {
+            let params = AgentParams {
+                prompt: "test".to_string(),
+                temperature: Some(temp),
+                ..Default::default()
+            };
+            assert!(
+                params.validate().is_ok(),
+                "temperature {} should be valid",
+                temp
+            );
+        }
+    }
+
+    #[test]
+    fn test_temperature_validation_too_low() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            temperature: Some(-0.1),
+            ..Default::default()
+        };
+        let err = params.validate().unwrap_err();
+        assert!(err.contains("temperature must be between 0.0 and 2.0"));
+    }
+
+    #[test]
+    fn test_temperature_validation_too_high() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            temperature: Some(2.1),
+            ..Default::default()
+        };
+        let err = params.validate().unwrap_err();
+        assert!(err.contains("temperature must be between 0.0 and 2.0"));
+    }
+
+    #[test]
+    fn test_effective_temperature_custom() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            temperature: Some(0.3),
+            ..Default::default()
+        };
+        assert_eq!(params.effective_temperature(), Some(0.3));
+    }
+
+    #[test]
+    fn test_combined_tool_choice_and_temperature() {
+        let yaml = r#"
+prompt: "Generate creative content"
+tool_choice: required
+temperature: 1.5
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(params.tool_choice, Some(ToolChoice::Required));
+        assert_eq!(params.temperature, Some(1.5));
+        assert!(params.validate().is_ok());
     }
 }

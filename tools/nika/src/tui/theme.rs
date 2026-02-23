@@ -298,6 +298,7 @@ pub enum ThemeMode {
     #[default]
     Dark,
     Light,
+    Solarized,
 }
 
 impl ThemeMode {
@@ -306,6 +307,16 @@ impl ThemeMode {
         match self {
             Self::Dark => Self::Light,
             Self::Light => Self::Dark,
+            Self::Solarized => Self::Dark,
+        }
+    }
+
+    /// Cycle through all themes
+    pub fn cycle(&self) -> Self {
+        match self {
+            Self::Dark => Self::Light,
+            Self::Light => Self::Solarized,
+            Self::Solarized => Self::Dark,
         }
     }
 
@@ -314,6 +325,16 @@ impl ThemeMode {
         match self {
             Self::Dark => Theme::dark(),
             Self::Light => Theme::light(),
+            Self::Solarized => Theme::solarized(),
+        }
+    }
+
+    /// Get display label
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Dark => "Dark",
+            Self::Light => "Light",
+            Self::Solarized => "Solarized",
         }
     }
 }
@@ -429,6 +450,17 @@ impl Theme {
         Self::default()
     }
 
+    /// Create theme from config theme name (v0.8)
+    ///
+    /// Bridges config::ThemeName to Theme struct.
+    pub fn from_name(name: &super::config::ThemeName) -> Self {
+        match name {
+            super::config::ThemeName::Dark => Self::dark(),
+            super::config::ThemeName::Light => Self::light(),
+            super::config::ThemeName::Solarized => Self::solarized(),
+        }
+    }
+
     /// Create light theme (TIER 2.4)
     pub fn light() -> Self {
         Self {
@@ -470,6 +502,73 @@ impl Theme {
             text_muted: Color::Rgb(156, 163, 175),    // #9CA3AF gray-400
             background: Color::Rgb(249, 250, 251),    // #F9FAFB gray-50
             highlight: Color::Rgb(79, 70, 229),       // #4F46E5 indigo-600
+        }
+    }
+
+    /// Create Solarized theme (v0.8)
+    ///
+    /// Based on Ethan Schoonover's Solarized palette.
+    /// Uses Solarized Dark as base with accent colors.
+    pub fn solarized() -> Self {
+        // Solarized base colors
+        // base03  #002b36  (dark bg)
+        // base02  #073642  (dark bg highlight)
+        // base01  #586e75  (comments)
+        // base00  #657b83  (body text)
+        // base0   #839496  (primary content)
+        // base1   #93a1a1  (optional emphasized content)
+        // base2   #eee8d5  (light bg highlight)
+        // base3   #fdf6e3  (light bg)
+        //
+        // Accent colors:
+        // yellow  #b58900
+        // orange  #cb4b16
+        // red     #dc322f
+        // magenta #d33682
+        // violet  #6c71c4
+        // blue    #268bd2
+        // cyan    #2aa198
+        // green   #859900
+
+        Self {
+            // Realms
+            realm_shared: Color::Rgb(38, 139, 210), // blue
+            realm_org: Color::Rgb(133, 153, 0),     // green
+
+            // Traits
+            trait_defined: Color::Rgb(88, 110, 117), // base01 (comments)
+            trait_authored: Color::Rgb(108, 113, 196), // violet
+            trait_imported: Color::Rgb(181, 137, 0), // yellow
+            trait_generated: Color::Rgb(133, 153, 0), // green
+            trait_retrieved: Color::Rgb(42, 161, 152), // cyan
+
+            // Status
+            status_pending: Color::Rgb(88, 110, 117), // base01
+            status_running: Color::Rgb(181, 137, 0),  // yellow
+            status_success: Color::Rgb(133, 153, 0),  // green
+            status_failed: Color::Rgb(220, 50, 47),   // red
+            status_paused: Color::Rgb(42, 161, 152),  // cyan
+
+            // Mission Phases (Space Theme) - solarized
+            phase_launch: Color::Rgb(211, 54, 130),  // magenta
+            phase_orbital: Color::Rgb(38, 139, 210), // blue
+            phase_rendezvous: Color::Rgb(108, 113, 196), // violet
+
+            // MCP tools
+            mcp_describe: Color::Rgb(38, 139, 210), // blue
+            mcp_traverse: Color::Rgb(211, 54, 130), // magenta
+            mcp_search: Color::Rgb(181, 137, 0),    // yellow
+            mcp_atoms: Color::Rgb(108, 113, 196),   // violet
+            mcp_generate: Color::Rgb(133, 153, 0),  // green
+
+            // UI elements - solarized dark
+            border_normal: Color::Rgb(7, 54, 66),      // base02
+            border_focused: Color::Rgb(38, 139, 210),  // blue
+            text_primary: Color::Rgb(131, 148, 150),   // base0
+            text_secondary: Color::Rgb(101, 123, 131), // base00
+            text_muted: Color::Rgb(88, 110, 117),      // base01
+            background: Color::Rgb(0, 43, 54),         // base03
+            highlight: Color::Rgb(38, 139, 210),       // blue
         }
     }
 
@@ -1031,6 +1130,74 @@ mod tests {
         assert_eq!(light.text_primary, Color::Rgb(17, 24, 39));
     }
 
+    // ═══ SOLARIZED THEME TESTS (v0.8) ═══
+
+    #[test]
+    fn test_theme_solarized_creates_valid_theme() {
+        let theme = Theme::solarized();
+
+        // Verify Solarized specific colors
+        assert_eq!(theme.background, Color::Rgb(0, 43, 54)); // base03
+        assert_eq!(theme.text_primary, Color::Rgb(131, 148, 150)); // base0
+        assert_eq!(theme.highlight, Color::Rgb(38, 139, 210)); // blue
+    }
+
+    #[test]
+    fn test_theme_solarized_accent_colors() {
+        let theme = Theme::solarized();
+
+        // Verify accent colors
+        assert_eq!(theme.status_running, Color::Rgb(181, 137, 0)); // yellow
+        assert_eq!(theme.status_success, Color::Rgb(133, 153, 0)); // green
+        assert_eq!(theme.status_failed, Color::Rgb(220, 50, 47)); // red
+    }
+
+    #[test]
+    fn test_theme_solarized_differs_from_dark() {
+        let dark = Theme::dark();
+        let solarized = Theme::solarized();
+
+        // Backgrounds should differ
+        assert_ne!(dark.background, solarized.background);
+        // Text primary should differ
+        assert_ne!(dark.text_primary, solarized.text_primary);
+    }
+
+    #[test]
+    fn test_theme_solarized_differs_from_light() {
+        let light = Theme::light();
+        let solarized = Theme::solarized();
+
+        // Backgrounds should differ
+        assert_ne!(light.background, solarized.background);
+        // Text primary should differ
+        assert_ne!(light.text_primary, solarized.text_primary);
+    }
+
+    #[test]
+    fn test_theme_from_name_dark() {
+        use super::super::config::ThemeName;
+        let theme = Theme::from_name(&ThemeName::Dark);
+        let dark = Theme::dark();
+        assert_eq!(theme.background, dark.background);
+    }
+
+    #[test]
+    fn test_theme_from_name_light() {
+        use super::super::config::ThemeName;
+        let theme = Theme::from_name(&ThemeName::Light);
+        let light = Theme::light();
+        assert_eq!(theme.background, light.background);
+    }
+
+    #[test]
+    fn test_theme_from_name_solarized() {
+        use super::super::config::ThemeName;
+        let theme = Theme::from_name(&ThemeName::Solarized);
+        let solarized = Theme::solarized();
+        assert_eq!(theme.background, solarized.background);
+    }
+
     #[test]
     fn test_theme_mcp_tool_color_describe() {
         let theme = Theme::default();
@@ -1304,6 +1471,45 @@ mod tests {
 
         let light = ThemeMode::Light;
         assert_eq!(light.toggle().toggle(), light);
+    }
+
+    #[test]
+    fn test_theme_mode_cycle() {
+        let dark = ThemeMode::Dark;
+        assert_eq!(dark.cycle(), ThemeMode::Light);
+
+        let light = ThemeMode::Light;
+        assert_eq!(light.cycle(), ThemeMode::Solarized);
+
+        let solarized = ThemeMode::Solarized;
+        assert_eq!(solarized.cycle(), ThemeMode::Dark);
+    }
+
+    #[test]
+    fn test_theme_mode_cycle_full_loop() {
+        let start = ThemeMode::Dark;
+        let after_3_cycles = start.cycle().cycle().cycle();
+        assert_eq!(start, after_3_cycles);
+    }
+
+    #[test]
+    fn test_theme_mode_label() {
+        assert_eq!(ThemeMode::Dark.label(), "Dark");
+        assert_eq!(ThemeMode::Light.label(), "Light");
+        assert_eq!(ThemeMode::Solarized.label(), "Solarized");
+    }
+
+    #[test]
+    fn test_theme_mode_solarized_toggle_goes_to_dark() {
+        let solarized = ThemeMode::Solarized;
+        assert_eq!(solarized.toggle(), ThemeMode::Dark);
+    }
+
+    #[test]
+    fn test_theme_mode_solarized_theme_returns_solarized() {
+        let solarized_theme = ThemeMode::Solarized.theme();
+        // Solarized background is #002b36
+        assert_eq!(solarized_theme.background, Color::Rgb(0, 43, 54));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

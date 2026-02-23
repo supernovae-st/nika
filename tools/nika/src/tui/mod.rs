@@ -44,6 +44,10 @@ pub mod chat_agent;
 #[cfg(feature = "tui")]
 pub mod command;
 #[cfg(feature = "tui")]
+pub mod config;
+#[cfg(feature = "tui")]
+mod edit_history;
+#[cfg(feature = "tui")]
 pub mod file_resolve;
 #[cfg(feature = "tui")]
 mod focus;
@@ -59,6 +63,8 @@ mod panels;
 mod standalone;
 #[cfg(feature = "tui")]
 mod state;
+#[cfg(feature = "tui")]
+pub mod session;
 #[cfg(feature = "tui")]
 mod theme;
 #[cfg(feature = "tui")]
@@ -79,6 +85,12 @@ pub use chat_agent::{ChatAgent, ChatMessage, ChatRole, StreamingState};
 #[cfg(feature = "tui")]
 pub use command::{Command, HELP_TEXT};
 #[cfg(feature = "tui")]
+pub use config::{
+    ChatSettings, ConfigError, PathSettings, StudioSettings, ThemeName, TuiConfig, TuiSettings,
+};
+#[cfg(feature = "tui")]
+pub use edit_history::EditHistory;
+#[cfg(feature = "tui")]
 pub use file_resolve::FileResolver;
 #[cfg(feature = "tui")]
 pub use focus::{FocusState, PanelId as NavPanelId};
@@ -88,6 +100,11 @@ pub use keybindings::{format_key, keybindings_for_context, KeyCategory, Keybindi
 pub use layout::{LayoutMode, ResponsiveLayout};
 #[cfg(feature = "tui")]
 pub use mode::InputMode;
+#[cfg(feature = "tui")]
+pub use session::{
+    delete_session, get_latest_session, list_sessions, load_session, save_session, ChatSession,
+    SessionMeta,
+};
 #[cfg(feature = "tui")]
 pub use standalone::{BrowserEntry, HistoryEntry, StandalonePanel, StandaloneState};
 #[cfg(feature = "tui")]

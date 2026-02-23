@@ -1,4 +1,4 @@
-# Nika v0.2 Architecture
+# Nika v0.8.0 Architecture
 
 **Native Intelligence Kernel Agent**
 
@@ -10,7 +10,7 @@ Nika is a DAG workflow runner for AI tasks that connects to knowledge graphs via
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         NIKA v0.2                               │
+│                         NIKA v0.8.0                              │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  YAML Workflow                                                  │
@@ -22,19 +22,22 @@ Nika is a DAG workflow runner for AI tasks that connects to knowledge graphs via
 │       │                                                         │
 │       ▼                                                         │
 │  ┌─────────────────┐                                            │
-│  │    Executor     │  ← Parallel task execution                 │
+│  │    Executor     │  ← Parallel task execution (for_each)      │
 │  └─────────────────┘                                            │
 │       │                                                         │
-│       ├── infer  → LLM Provider (Claude/OpenAI)                 │
+│       ├── infer  → LLM (6 providers: Claude, OpenAI, etc)       │
 │       ├── exec   → Shell                                        │
 │       ├── fetch  → HTTP Client                                  │
-│       ├── invoke → MCP Client (NEW v0.2)                        │
-│       └── agent  → Agent Loop + MCP (NEW v0.2)                  │
+│       ├── invoke → MCP Client (tools + resources)               │
+│       └── agent  → Agentic Loop + Full Streaming                │
 │       │                                                         │
 │       ▼                                                         │
 │  ┌─────────────────┐                                            │
 │  │   DataStore     │  ← Task results for downstream             │
 │  └─────────────────┘                                            │
+│                                                                 │
+│  TUI: 4 Views (Chat, Home, Studio, Monitor)                    │
+│       Full Streaming + Real-time Trace Visualization           │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -164,19 +167,20 @@ impl McpClient {
 
 ---
 
-## Workflow Schema v0.2
+## Workflow Schema v0.8.0
 
 ```yaml
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.8"
 provider: claude
 
-# MCP server configurations (NEW in v0.2)
+# MCP server configurations
 mcp:
-  novanet:
-    command: "cargo"
-    args: ["run", "-p", "novanet-mcp"]
-    env:
-      NEO4J_URI: "bolt://localhost:7687"
+  servers:
+    novanet:
+      command: "cargo"
+      args: ["run", "-p", "novanet-mcp"]
+      env:
+        NEO4J_URI: "bolt://localhost:7687"
 
 tasks:
   - id: context
@@ -184,22 +188,35 @@ tasks:
       mcp: novanet
       tool: novanet_generate
       params:
-        mode: block
-        page_key: homepage
-        block_key: hero
-        locale: fr-FR
+        entity: "qr-code"
+        locale: "fr-FR"
+        forms: ["text", "title"]
 
-  - id: generate
+  - id: generate_locales
+    for_each: ["en-US", "fr-FR", "de-DE"]
+    as: locale
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        entity: "qr-code"
+        locale: "{{use.locale}}"
+
+  - id: synthesize
     use:
       ctx: context
+      results: generate_locales
     agent:
-      prompt: "Generate content using {{use.ctx}}"
+      prompt: "Synthesize {{use.results}} using context {{use.ctx}}"
       mcp: [novanet]
       max_turns: 10
+      tool_choice: auto
 
 flows:
   - source: context
-    target: generate
+    target: generate_locales
+  - source: [context, generate_locales]
+    target: synthesize
 ```
 
 ---
@@ -291,10 +308,24 @@ NEO4J (61 nodes, 182 arcs)
 
 ---
 
-## Future (v0.3+)
+## v0.8.0 Features (Complete)
 
-- `for_each:` - Parallel iteration
+- `for_each:` - Parallel iteration with concurrency control ✅
+- `spawn_agent` - Nested agents with depth limits ✅
+- `decompose:` - Runtime DAG expansion ✅
+- `lazy:` bindings - Deferred context loading ✅
+- Full streaming - All 6 providers with real-time token delivery ✅
+- TUI 4-view architecture - Chat, Home, Studio, Monitor ✅
+- Edit history - Undo/Redo in Studio with intelligent coalescing ✅
+- Session persistence - Auto-save chat conversations ✅
+- Config system - `.nika/config.toml` for user preferences ✅
+- Solarized theme - Third theme option alongside Default and Custom ✅
+
+## Future (v0.9+)
+
 - `guard:` - Conditional execution
-- `output.schema:` - JSON Schema validation
+- `output.schema:` - JSON Schema validation with runtime checks
 - `invoke.prompt:` - MCP prompt templates
 - Manifest file (`nika.yaml`) for multi-workflow projects
+- Native `.rmcp_tools()` via rmcp version upgrade
+- Mouse selection and clipboard integration in TUI

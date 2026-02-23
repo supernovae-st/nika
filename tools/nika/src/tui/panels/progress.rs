@@ -18,7 +18,7 @@ use ratatui::{
 use crate::tui::state::TuiState;
 use crate::tui::theme::{MissionPhase, TaskStatus, Theme};
 use crate::tui::utils::format_number;
-use crate::tui::widgets::{Gauge, LatencySparkline, Timeline};
+use crate::tui::widgets::{AnimatedLatencySparkline, Gauge, SparklineAnimation, Timeline};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DEFAULT COLORS — Centralized for future theme integration
@@ -347,7 +347,9 @@ impl<'a> ProgressPanel<'a> {
                     width: area.width.saturating_sub(22),
                     height: 1,
                 };
-                let sparkline = LatencySparkline::new(&metrics.latency_history)
+                let sparkline = AnimatedLatencySparkline::new(&metrics.latency_history)
+                    .frame(self.state.frame)
+                    .animation(SparklineAnimation::Pulse)
                     .warn_threshold(500)
                     .error_threshold(2000);
                 sparkline.render(sparkline_area, buf);

@@ -6,7 +6,7 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg?logo=rust)](https://www.rust-lang.org/)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.7.2-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.8.0-green.svg)](CHANGELOG.md)
 
 *DAG workflow runner for AI tasks*
 
@@ -28,7 +28,7 @@ cargo install --path .
 
 ```yaml
 # hello.nika.yaml
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.8"
 provider: claude
 
 tasks:
@@ -52,12 +52,16 @@ nika run hello.nika.yaml
 | **for_each** | Parallel iteration over arrays (v0.3) |
 | **MCP Integration** | Connect to MCP servers for tool calling (v0.2) |
 | **Providers** | rig-core (Claude, OpenAI, 20+) via `RigProvider` (v0.4) |
-| **TUI** | Real-time workflow visualization (v0.3) |
+| **TUI** | Real-time workflow visualization with Studio DX (v0.8) |
+| **Edit History** | Undo/Redo with Ctrl+Z/Ctrl+Y (v0.8) |
+| **Session Persistence** | Auto-save editor state to `.nika/sessions/` (v0.8) |
+| **Solarized Theme** | Light/Dark unified color palette (v0.8) |
+| **Config System** | `.nika/config.toml` for user preferences (v0.8) |
 
 ## Example
 
 ```yaml
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.8"
 provider: claude
 
 tasks:
@@ -141,7 +145,7 @@ agent:
 Define MCP servers inline in your workflow:
 
 ```yaml
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.8"
 
 # Run from nika-dev/tools/nika/ directory
 mcp:
@@ -172,7 +176,7 @@ tasks:
 Execute a task once per item in an array, all in parallel:
 
 ```yaml
-schema: "nika/workflow@0.3"
+schema: "nika/workflow@0.8"
 
 tasks:
   - id: process_locales
@@ -264,7 +268,7 @@ Analyze git changes and generate a code review with AI.
 
 ```yaml
 # code-review.nika.yaml
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.8"
 provider: claude
 
 tasks:
@@ -301,7 +305,7 @@ Fetch data from an API, process it with AI, and save results.
 
 ```yaml
 # api-pipeline.nika.yaml
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.8"
 provider: claude
 
 tasks:
@@ -342,7 +346,7 @@ Run multiple checks in parallel, then aggregate results.
 
 ```yaml
 # devops-check.nika.yaml
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.8"
 
 tasks:
   - id: check_disk
@@ -380,7 +384,7 @@ Generate content with multiple AI steps.
 
 ```yaml
 # content-gen.nika.yaml
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.8"
 provider: claude
 
 tasks:
@@ -434,7 +438,7 @@ Generate content for multiple locales in parallel using `for_each`.
 
 ```yaml
 # multi-locale.nika.yaml
-schema: "nika/workflow@0.3"
+schema: "nika/workflow@0.8"
 provider: claude
 
 # Run from nika-dev/tools/nika/ directory
