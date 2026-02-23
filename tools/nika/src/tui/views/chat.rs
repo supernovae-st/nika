@@ -27,18 +27,21 @@ use std::time::Instant;
 use arboard::Clipboard;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Widget},
-    Frame,
+    widgets::{
+        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+        Widget,
+    },
 };
 use serde::{Deserialize, Serialize};
 use tui_input::{Input, InputRequest};
 
-use super::trait_view::View;
 use super::ViewAction;
-use crate::tui::command::{Command, ModelProvider, HELP_TEXT};
+use super::trait_view::View;
+use crate::tui::command::{Command, HELP_TEXT, ModelProvider};
 
 /// Check if the "command" modifier is pressed (Ctrl on Linux/Windows, Cmd on macOS)
 /// On macOS, Cmd key maps to SUPER modifier in crossterm
@@ -46,8 +49,9 @@ fn is_cmd_pressed(modifiers: KeyModifiers) -> bool {
     modifiers.contains(KeyModifiers::CONTROL) || modifiers.contains(KeyModifiers::SUPER)
 }
 use crate::tui::file_resolve::FileResolver;
-use crate::tui::state::TuiState;
+use crate::tui::state::{ChatPanel, PanelScrollState, TuiState};
 use crate::tui::theme::Theme;
+use crate::util::atomic_write;
 
 // PERF: Pre-computed constants to avoid allocations in render loop
 const SEPARATOR_20: &str = "────────────────────"; // 20 Unicode box chars (─), compile-time
@@ -190,11 +194,11 @@ impl ChatSession {
         }
     }
 
-    /// Save session to file
+    /// Save session to file using atomic write (temp+rename) for data integrity
     pub fn save(&self, path: impl AsRef<Path>) -> std::io::Result<()> {
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        fs::write(path, json)
+        atomic_write(path, json.as_bytes())
     }
 
     /// Load session from file
@@ -295,6 +299,20 @@ pub struct ChatView {
     // === UX Hints (v0.7.1) ===
     /// Whether the @mention hint has been shown (show once per session)
     pub shown_file_hint: bool,
+
+    // === Panel Navigation & Scroll (v0.8 UX Enhancement) ===
+    /// Currently focused panel for Tab navigation
+    pub focused_panel: ChatPanel,
+    /// Conversation panel scroll state (messages)
+    pub conversation_scroll: PanelScrollState,
+    /// Activity panel scroll state (activity items)
+    pub activity_scroll: PanelScrollState,
+    /// Scrollbar state for conversation panel
+    pub scrollbar_conversation: ScrollbarState,
+    /// Scrollbar state for activity panel
+    pub scrollbar_activity: ScrollbarState,
+    /// Cached panel rects for mouse click detection
+    pub panel_rects: std::collections::HashMap<ChatPanel, Rect>,
 }
 
 impl ChatView {
@@ -352,6 +370,14 @@ impl ChatView {
 
             // UX Hints (v0.7.1)
             shown_file_hint: false,
+
+            // Panel Navigation & Scroll (v0.8 UX Enhancement)
+            focused_panel: ChatPanel::Input, // Start with input focused (typing)
+            conversation_scroll: PanelScrollState::new(),
+            activity_scroll: PanelScrollState::new(),
+            scrollbar_conversation: ScrollbarState::default(),
+            scrollbar_activity: ScrollbarState::default(),
+            panel_rects: std::collections::HashMap::new(),
         }
     }
 
@@ -376,6 +402,205 @@ impl ChatView {
     /// Set provider name for display
     pub fn set_provider(&mut self, name: impl Into<String>) {
         self.provider_name = name.into();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Panel Navigation (v0.8 UX Enhancement)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// Focus next panel (Tab key)
+    pub fn focus_next_panel(&mut self) {
+        self.focused_panel = self.focused_panel.next();
+    }
+
+    /// Focus previous panel (Shift+Tab)
+    pub fn focus_prev_panel(&mut self) {
+        self.focused_panel = self.focused_panel.prev();
+    }
+
+    /// Focus a specific panel (for mouse clicks)
+    pub fn focus_panel(&mut self, panel: ChatPanel) {
+        self.focused_panel = panel;
+    }
+
+    /// Get the scroll state for the currently focused panel (mutable)
+    pub fn focused_scroll_mut(&mut self) -> Option<&mut PanelScrollState> {
+        match self.focused_panel {
+            ChatPanel::Conversation => Some(&mut self.conversation_scroll),
+            ChatPanel::Activity => Some(&mut self.activity_scroll),
+            ChatPanel::Input => None, // Input panel doesn't scroll
+        }
+    }
+
+    /// Scroll focused panel down by one item
+    pub fn scroll_down(&mut self) {
+        if let Some(scroll) = self.focused_scroll_mut() {
+            scroll.cursor_down();
+        }
+    }
+
+    /// Scroll focused panel up by one item
+    pub fn scroll_up(&mut self) {
+        if let Some(scroll) = self.focused_scroll_mut() {
+            scroll.cursor_up();
+        }
+    }
+
+    /// Scroll focused panel to top
+    pub fn scroll_to_top(&mut self) {
+        if let Some(scroll) = self.focused_scroll_mut() {
+            scroll.cursor_first();
+        }
+    }
+
+    /// Scroll focused panel to bottom
+    pub fn scroll_to_bottom(&mut self) {
+        if let Some(scroll) = self.focused_scroll_mut() {
+            scroll.cursor_last();
+        }
+    }
+
+    /// Page down on focused panel
+    pub fn page_down(&mut self) {
+        if let Some(scroll) = self.focused_scroll_mut() {
+            scroll.page_down();
+        }
+    }
+
+    /// Page up on focused panel
+    pub fn page_up(&mut self) {
+        if let Some(scroll) = self.focused_scroll_mut() {
+            scroll.page_up();
+        }
+    }
+
+    /// Copy the currently selected message to clipboard
+    /// Returns true if copy succeeded
+    pub fn copy_selected_message(&mut self, text_only: bool) -> bool {
+        // Only works when conversation panel is focused
+        if self.focused_panel != ChatPanel::Conversation {
+            return false;
+        }
+
+        let cursor = self.conversation_scroll.cursor;
+        if cursor >= self.messages.len() {
+            return false;
+        }
+
+        let msg = &self.messages[cursor];
+        let text = if text_only {
+            // Just the content
+            msg.content.clone()
+        } else {
+            // Full message with role and timestamp
+            let role = match msg.role {
+                MessageRole::User => "User",
+                MessageRole::Nika => "Nika",
+                MessageRole::System => "System",
+                MessageRole::Tool => "Tool",
+            };
+            format!("[{}] {}", role, msg.content)
+        };
+
+        // Copy to clipboard
+        if let Some(ref mut clipboard) = self.clipboard {
+            clipboard.set_text(text).is_ok()
+        } else {
+            false
+        }
+    }
+
+    /// Update scroll state totals from current data
+    pub fn update_scroll_totals(&mut self) {
+        self.conversation_scroll.set_total(self.messages.len());
+        self.activity_scroll.set_total(self.activity_items.len());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Mouse Support (v0.8 UX Enhancement)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// Compute panel areas from total area (same layout as render)
+    /// Returns (session_bar, conversation, activity, input, hints) areas
+    fn compute_panel_areas(area: Rect) -> (Rect, Rect, Rect, Rect, Rect) {
+        use ratatui::layout::{Constraint, Direction, Layout};
+
+        // Vertical layout: session bar, main content, input, hints
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Session context bar
+                Constraint::Min(10),   // Main content area
+                Constraint::Length(3), // Input field
+                Constraint::Length(1), // Command hints
+            ])
+            .split(area);
+
+        // Horizontal split for main content: messages (70%) | activity (30%)
+        let main_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+            .split(chunks[1]);
+
+        (chunks[0], main_chunks[0], main_chunks[1], chunks[2], chunks[3])
+    }
+
+    /// Determine which panel is at the given screen position
+    pub fn panel_at_position(&self, x: u16, y: u16, area: Rect) -> Option<ChatPanel> {
+        let (_, conversation, activity, input, _) = Self::compute_panel_areas(area);
+
+        // Check each panel (order matters for overlapping edges)
+        if Self::point_in_rect(x, y, conversation) {
+            Some(ChatPanel::Conversation)
+        } else if Self::point_in_rect(x, y, activity) {
+            Some(ChatPanel::Activity)
+        } else if Self::point_in_rect(x, y, input) {
+            Some(ChatPanel::Input)
+        } else {
+            None
+        }
+    }
+
+    /// Check if a point is inside a rect
+    fn point_in_rect(x: u16, y: u16, rect: Rect) -> bool {
+        x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height
+    }
+
+    /// Handle mouse event for Chat view
+    /// Returns true if the event was handled
+    pub fn handle_mouse(&mut self, kind: crossterm::event::MouseEventKind, x: u16, y: u16, area: Rect) -> bool {
+        use crossterm::event::{MouseButton, MouseEventKind};
+
+        match kind {
+            // Left click - focus panel at click position
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some(panel) = self.panel_at_position(x, y, area) {
+                    self.focus_panel(panel);
+                    true
+                } else {
+                    false
+                }
+            }
+            // Scroll wheel up
+            MouseEventKind::ScrollUp => {
+                // Scroll the panel under cursor, or focused panel if none
+                if let Some(panel) = self.panel_at_position(x, y, area) {
+                    self.focus_panel(panel);
+                }
+                self.scroll_up();
+                true
+            }
+            // Scroll wheel down
+            MouseEventKind::ScrollDown => {
+                // Scroll the panel under cursor, or focused panel if none
+                if let Some(panel) = self.panel_at_position(x, y, area) {
+                    self.focus_panel(panel);
+                }
+                self.scroll_down();
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Start streaming mode
@@ -924,25 +1149,6 @@ impl ChatView {
             }
         }
     }
-
-    /// Scroll up in the message list
-    pub fn scroll_up(&mut self) {
-        self.scroll = self.scroll.saturating_sub(1);
-    }
-
-    /// Scroll down in the message list (bounded by message count)
-    pub fn scroll_down(&mut self) {
-        // Cap scroll at message count - 1 (so at least one message is visible)
-        let max_scroll = self.messages.len().saturating_sub(1);
-        if self.scroll < max_scroll {
-            self.scroll += 1;
-        }
-    }
-
-    /// Scroll to bottom (most recent messages)
-    pub fn scroll_to_bottom(&mut self) {
-        self.scroll = 0; // Scroll 0 = show most recent (bottom)
-    }
 }
 
 impl Default for ChatView {
@@ -978,9 +1184,11 @@ impl View for ChatView {
         // Messages panel with inline MCP/Infer boxes
         self.render_messages_v2(frame, main_chunks[0], theme);
 
-        // Activity Stack panel
+        // Activity Stack panel (v0.8 UX: pass focus state)
         ActivityStack::new(&self.activity_items)
             .frame(self.frame)
+            .focused(self.focused_panel == ChatPanel::Activity)
+            .highlight_color(theme.highlight)
             .render(main_chunks[1], frame.buffer_mut());
 
         // 3. Input panel
@@ -1089,6 +1297,84 @@ impl View for ChatView {
         if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('e') {
             self.cursor_end();
             return ViewAction::None;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // Panel Navigation (v0.8 UX Enhancement)
+        // ═══════════════════════════════════════════════════════════════════════════════
+
+        // Tab = Focus next panel (Conversation → Activity → Input → Conversation)
+        if key.code == KeyCode::Tab && !key.modifiers.contains(KeyModifiers::SHIFT) {
+            self.focus_next_panel();
+            return ViewAction::None;
+        }
+
+        // Shift+Tab = Focus previous panel
+        if key.code == KeyCode::BackTab
+            || (key.code == KeyCode::Tab && key.modifiers.contains(KeyModifiers::SHIFT))
+        {
+            self.focus_prev_panel();
+            return ViewAction::None;
+        }
+
+        // Scroll keys when NOT in Input panel (vim-style navigation)
+        if self.focused_panel != ChatPanel::Input {
+            match key.code {
+                // j/Down = Scroll down
+                KeyCode::Char('j') | KeyCode::Down => {
+                    self.scroll_down();
+                    return ViewAction::None;
+                }
+                // k/Up = Scroll up
+                KeyCode::Char('k') | KeyCode::Up => {
+                    self.scroll_up();
+                    return ViewAction::None;
+                }
+                // g = Go to top
+                KeyCode::Char('g') => {
+                    self.scroll_to_top();
+                    return ViewAction::None;
+                }
+                // G = Go to bottom
+                KeyCode::Char('G') => {
+                    self.scroll_to_bottom();
+                    return ViewAction::None;
+                }
+                // PageUp/PageDown for page scroll
+                KeyCode::PageUp => {
+                    self.page_up();
+                    return ViewAction::None;
+                }
+                KeyCode::PageDown => {
+                    self.page_down();
+                    return ViewAction::None;
+                }
+                // y = Copy full message (including metadata)
+                KeyCode::Char('y') => {
+                    if self.copy_selected_message(false) {
+                        self.add_system_message("📋 Message copied to clipboard".to_string());
+                    }
+                    return ViewAction::None;
+                }
+                // Y = Copy text only (no metadata)
+                KeyCode::Char('Y') => {
+                    if self.copy_selected_message(true) {
+                        self.add_system_message("📋 Text copied to clipboard".to_string());
+                    }
+                    return ViewAction::None;
+                }
+                // Enter in Conversation/Activity = Return focus to Input
+                KeyCode::Enter => {
+                    self.focus_panel(ChatPanel::Input);
+                    return ViewAction::None;
+                }
+                // Escape in non-Input panel = Return to Input
+                KeyCode::Esc => {
+                    self.focus_panel(ChatPanel::Input);
+                    return ViewAction::None;
+                }
+                _ => {} // Fall through to existing match
+            }
         }
 
         match key.code {
@@ -1226,9 +1512,8 @@ impl View for ChatView {
                 self.scroll_to_bottom();
                 ViewAction::None
             }
-            // Tab is handled at app level for view switching
-            // In Insert mode, Tab is ignored (no autocomplete yet)
-            KeyCode::Tab => ViewAction::None,
+            // Tab/Shift+Tab handled above for panel navigation
+            // Esc switches to Home view (when in Input panel)
             KeyCode::Esc => ViewAction::SwitchView(TuiView::Home),
             _ => ViewAction::None,
         }
@@ -1546,10 +1831,18 @@ impl ChatView {
 
         let line = Line::from(spans);
 
+        // v0.8 UX: Focus indicators for Input panel
+        let is_focused = self.focused_panel == ChatPanel::Input;
+        let border_color = if is_focused {
+            theme.highlight
+        } else {
+            theme.border_normal
+        };
+
         let paragraph = Paragraph::new(line).block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border_normal)),
+                .border_style(Style::default().fg(border_color)),
         );
 
         frame.render_widget(paragraph, area);
@@ -1807,14 +2100,62 @@ impl ChatView {
             ])));
         }
 
-        let list = List::new(items).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" 💬 CONVERSATION ")
-                .border_style(Style::default().fg(theme.border_normal)),
-        );
+        // v0.8 UX: Focus indicators for Conversation panel
+        let is_focused = self.focused_panel == ChatPanel::Conversation;
+        let border_color = if is_focused {
+            theme.highlight
+        } else {
+            theme.border_normal
+        };
+        let title = if is_focused {
+            " ▸ 💬 CONVERSATION "
+        } else {
+            " 💬 CONVERSATION "
+        };
+        let mut title_style = Style::default().fg(border_color);
+        if is_focused {
+            title_style = title_style.add_modifier(Modifier::BOLD);
+        }
 
+        // Add scroll indicator to title if scrollable
+        let title_with_indicator = if let Some(indicator) = self.conversation_scroll.indicator() {
+            format!("{}{}", title, indicator)
+        } else {
+            title.to_string()
+        };
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(title_with_indicator)
+            .title_style(title_style)
+            .border_style(Style::default().fg(border_color));
+
+        let list = List::new(items).block(block);
         frame.render_widget(list, area);
+
+        // v0.8 UX: Render scrollbar if content exceeds viewport
+        if self.conversation_scroll.total > self.conversation_scroll.visible {
+            let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                .begin_symbol(Some("↑"))
+                .end_symbol(Some("↓"))
+                .track_symbol(Some("│"))
+                .thumb_symbol("█");
+
+            // Compute scrollbar state from PanelScrollState
+            let mut scrollbar_state = ScrollbarState::default()
+                .content_length(self.conversation_scroll.total)
+                .viewport_content_length(self.conversation_scroll.visible)
+                .position(self.conversation_scroll.offset);
+
+            // Render inside the block area (excluding borders)
+            let scrollbar_area = Rect {
+                x: area.x + area.width.saturating_sub(1),
+                y: area.y + 1,
+                width: 1,
+                height: area.height.saturating_sub(2),
+            };
+            frame.render_stateful_widget(scrollbar, scrollbar_area, &mut scrollbar_state);
+        }
     }
 
     /// Render command hints bar
@@ -2362,63 +2703,61 @@ mod tests {
         }
     }
 
-    // === Scroll Tests ===
+    // === Scroll Tests (Panel-based scroll system) ===
 
     #[test]
     fn test_chat_view_scroll_up() {
         let mut view = ChatView::new();
-        view.scroll = 5;
+        // Focus conversation panel and set cursor position
+        view.focus_panel(ChatPanel::Conversation);
+        view.conversation_scroll.cursor = 5;
+        view.conversation_scroll.total = 10;
 
         view.scroll_up();
-        assert_eq!(view.scroll, 4);
+        assert_eq!(view.conversation_scroll.cursor, 4);
 
         view.scroll_up();
         view.scroll_up();
         view.scroll_up();
         view.scroll_up();
-        assert_eq!(view.scroll, 0);
+        assert_eq!(view.conversation_scroll.cursor, 0);
 
         // Should not go negative
         view.scroll_up();
-        assert_eq!(view.scroll, 0);
+        assert_eq!(view.conversation_scroll.cursor, 0);
     }
 
     #[test]
     fn test_chat_view_scroll_down() {
         let mut view = ChatView::new();
-        // ChatView starts with 1 welcome message
-        assert_eq!(view.messages.len(), 1);
+        // Focus conversation panel and set up scrollable content
+        view.focus_panel(ChatPanel::Conversation);
+        view.conversation_scroll.total = 4;
+        view.conversation_scroll.cursor = 0;
 
-        // With only 1 message, can't scroll down
+        // Can scroll down when there's content
         view.scroll_down();
-        assert_eq!(view.scroll, 0);
-
-        // Add more messages
-        view.add_user_message("Message 1".to_string());
-        view.add_user_message("Message 2".to_string());
-        view.add_user_message("Message 3".to_string());
-        assert_eq!(view.messages.len(), 4);
-
-        // Now can scroll down
-        view.scroll_down();
-        assert_eq!(view.scroll, 1);
+        assert_eq!(view.conversation_scroll.cursor, 1);
 
         view.scroll_down();
         view.scroll_down();
-        assert_eq!(view.scroll, 3);
+        assert_eq!(view.conversation_scroll.cursor, 3);
 
-        // Should cap at messages.len() - 1
+        // Should cap at total - 1
         view.scroll_down();
-        assert_eq!(view.scroll, 3);
+        assert_eq!(view.conversation_scroll.cursor, 3);
     }
 
     #[test]
     fn test_chat_view_scroll_to_bottom() {
         let mut view = ChatView::new();
-        view.scroll = 10;
+        view.focus_panel(ChatPanel::Conversation);
+        view.conversation_scroll.total = 10;
+        view.conversation_scroll.cursor = 3;
 
         view.scroll_to_bottom();
-        assert_eq!(view.scroll, 0);
+        // cursor_last() sets cursor to total - 1
+        assert_eq!(view.conversation_scroll.cursor, 9);
     }
 
     // === Thinking Display Tests (CRITICAL 3) ===

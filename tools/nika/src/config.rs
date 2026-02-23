@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{NikaError, Result};
+use crate::util::atomic_write;
 
 /// Main configuration structure
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -88,24 +89,17 @@ impl NikaConfig {
     /// Save configuration to file
     ///
     /// Creates the config directory if it doesn't exist.
+    /// Uses atomic write (temp+rename) for data integrity.
     pub fn save(&self) -> Result<()> {
-        let dir = Self::config_dir();
         let path = Self::config_path();
-
-        // Create directory if needed
-        if !dir.exists() {
-            fs::create_dir_all(&dir).map_err(|e| NikaError::ConfigError {
-                reason: format!("Failed to create config directory: {}", e),
-            })?;
-        }
 
         // Serialize to TOML
         let content = toml::to_string_pretty(self).map_err(|e| NikaError::ConfigError {
             reason: format!("Failed to serialize config: {}", e),
         })?;
 
-        // Write file
-        fs::write(&path, content).map_err(|e| NikaError::ConfigError {
+        // Atomic write (creates parent dirs, uses temp+rename)
+        atomic_write(&path, content.as_bytes()).map_err(|e| NikaError::ConfigError {
             reason: format!("Failed to write config file: {}", e),
         })?;
 
