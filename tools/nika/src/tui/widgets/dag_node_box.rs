@@ -374,7 +374,9 @@ impl<'a> NodeBox<'a> {
         });
 
         // SAFETY: Saturating cast to prevent overflow on very large content
-        (content_width + for_each_width + borders).max(12).min(u16::MAX as usize) as u16
+        (content_width + for_each_width + borders)
+            .max(12)
+            .min(u16::MAX as usize) as u16
     }
 
     /// Calculate required height for this node
@@ -676,7 +678,8 @@ impl Widget for NodeBox<'_> {
                     }
                     let model_text = format!(" {}", model);
                     // UTF-8 safe truncation
-                    let truncated = truncate_str(&model_text, (area.width as usize).saturating_sub(3));
+                    let truncated =
+                        truncate_str(&model_text, (area.width as usize).saturating_sub(3));
                     buf.set_string(
                         area.x + 1,
                         extra_y,
@@ -710,7 +713,10 @@ impl Widget for NodeBox<'_> {
                     let max_chars = (area.width as usize).saturating_sub(3);
                     let truncated = if preview_text.chars().count() > max_chars {
                         // Truncate content and preserve closing quote
-                        let content: String = preview_text.chars().take(max_chars.saturating_sub(4)).collect();
+                        let content: String = preview_text
+                            .chars()
+                            .take(max_chars.saturating_sub(4))
+                            .collect();
                         format!("{}...\"", content)
                     } else {
                         preview_text

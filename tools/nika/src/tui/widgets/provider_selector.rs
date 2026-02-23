@@ -376,7 +376,11 @@ impl ProviderSelectorState {
         if provider.models.is_empty() {
             None
         } else {
-            Some(&provider.models[self.selected_model.min(provider.models.len().saturating_sub(1))])
+            Some(
+                &provider.models[self
+                    .selected_model
+                    .min(provider.models.len().saturating_sub(1))],
+            )
         }
     }
 
@@ -474,12 +478,7 @@ impl<'a> ProviderSelector<'a> {
             // Status indicator
             let status_x = area.x + area.width.saturating_sub(12);
             if provider.available {
-                buf.set_string(
-                    status_x,
-                    y,
-                    "✓ Ready",
-                    Style::default().fg(AVAILABLE_COLOR),
-                );
+                buf.set_string(status_x, y, "✓ Ready", Style::default().fg(AVAILABLE_COLOR));
             } else {
                 buf.set_string(
                     status_x,
@@ -514,12 +513,7 @@ impl<'a> ProviderSelector<'a> {
             }
 
             // Model name
-            buf.set_string(
-                area.x + 2,
-                y,
-                &model.name,
-                Style::default().fg(TEXT_COLOR),
-            );
+            buf.set_string(area.x + 2, y, &model.name, Style::default().fg(TEXT_COLOR));
 
             // Features
             let mut features = Vec::new();
@@ -532,7 +526,12 @@ impl<'a> ProviderSelector<'a> {
 
             let features_str = features.join(" ");
             let features_x = area.x + area.width.saturating_sub(10);
-            buf.set_string(features_x, y, &features_str, Style::default().fg(STREAMING_COLOR));
+            buf.set_string(
+                features_x,
+                y,
+                &features_str,
+                Style::default().fg(STREAMING_COLOR),
+            );
 
             // Context window
             let ctx_str = format!("{}K", model.context_window / 1000);

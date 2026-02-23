@@ -19,17 +19,17 @@ use crossterm::{
         MouseEvent, MouseEventKind,
     },
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use dashmap::DashMap;
 use ratatui::{
-    Frame, Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     widgets::{Block, Borders, Paragraph, Widget},
+    Frame, Terminal,
 };
-use tokio::sync::{OnceCell, broadcast, mpsc};
+use tokio::sync::{broadcast, mpsc, OnceCell};
 use tokio::task::AbortHandle;
 use tokio::time::timeout;
 
@@ -54,8 +54,8 @@ use super::panels::{ContextPanel, GraphPanel, ProgressPanel, ReasoningPanel};
 use super::standalone::{HistoryEntry, StandaloneState};
 use super::state::{PanelId, SettingsField, TuiMode, TuiState};
 use super::theme::Theme;
-use super::views::{ChatView, HomeView, McpAction, StudioView, TuiView, View, ViewAction};
 use super::utils::truncate_str;
+use super::views::{ChatView, HomeView, McpAction, StudioView, TuiView, View, ViewAction};
 use super::widgets::{ConnectionStatus, Header, StatusBar, StatusMetrics};
 use crate::config::mask_api_key;
 use crossterm::event::KeyEvent;
@@ -895,7 +895,11 @@ impl App {
                 TuiView::Studio => studio_view.status_line(state),
                 TuiView::Monitor => {
                     let task_count = state.tasks.len();
-                    let completed = state.tasks.values().filter(|t| t.status == super::theme::TaskStatus::Success).count();
+                    let completed = state
+                        .tasks
+                        .values()
+                        .filter(|t| t.status == super::theme::TaskStatus::Success)
+                        .count();
                     format!("Tasks: {}/{}", completed, task_count)
                 }
             };
@@ -1018,8 +1022,7 @@ impl App {
             // Tab cycles views (all views including Monitor - use h/l for Monitor panel focus)
             // Skip when capturing input (Studio Insert mode, Chat with text)
             KeyCode::Tab
-                if !modifiers.contains(KeyModifiers::SHIFT)
-                    && !self.is_view_capturing_input() =>
+                if !modifiers.contains(KeyModifiers::SHIFT) && !self.is_view_capturing_input() =>
             {
                 return Action::NextView;
             }
@@ -1162,7 +1165,9 @@ impl App {
                     } else {
                         // No API key available
                         // SAFETY: Only pop if last message is "Thinking..."
-                        if self.chat_view.messages.last().map(|m| m.content.as_str()) == Some("Thinking...") {
+                        if self.chat_view.messages.last().map(|m| m.content.as_str())
+                            == Some("Thinking...")
+                        {
                             self.chat_view.messages.pop();
                         }
                         self.chat_view.add_nika_message(
@@ -2441,11 +2446,7 @@ impl App {
                     // Sync both provider and model names
                     self.chat_view.set_provider(provider.name());
                     self.chat_view.set_model(agent.model_name());
-                    let msg = format!(
-                        "Switched to {} ({})",
-                        provider.name(),
-                        agent.model_name()
-                    );
+                    let msg = format!("Switched to {} ({})", provider.name(), agent.model_name());
                     self.chat_view.add_nika_message(msg.clone(), None);
                     self.set_status(&msg);
                 }

@@ -173,10 +173,7 @@ impl Widget for Timeline<'_> {
         }
 
         // Extract theme colors with fallbacks
-        let muted_color = self
-            .theme
-            .map(|t| t.text_muted)
-            .unwrap_or(Color::DarkGray);
+        let muted_color = self.theme.map(|t| t.text_muted).unwrap_or(Color::DarkGray);
         let highlight_color = self.theme.map(|t| t.highlight).unwrap_or(Color::Cyan);
 
         // Calculate layout

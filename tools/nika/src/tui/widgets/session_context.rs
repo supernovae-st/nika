@@ -66,10 +66,16 @@ impl McpStatus {
     pub fn indicator_color_with_theme(&self, theme: Option<&Theme>) -> Color {
         match self {
             Self::Hot => theme.map(|t| t.status_success).unwrap_or(DEFAULT_HOT_COLOR),
-            Self::Warm => theme.map(|t| t.status_running).unwrap_or(DEFAULT_WARM_COLOR),
-            Self::Connected => theme.map(|t| t.highlight).unwrap_or(DEFAULT_CONNECTED_COLOR),
+            Self::Warm => theme
+                .map(|t| t.status_running)
+                .unwrap_or(DEFAULT_WARM_COLOR),
+            Self::Connected => theme
+                .map(|t| t.highlight)
+                .unwrap_or(DEFAULT_CONNECTED_COLOR),
             Self::Cold => theme.map(|t| t.text_muted).unwrap_or(DEFAULT_COLD_COLOR),
-            Self::Error => theme.map(|t| t.status_failed).unwrap_or(DEFAULT_ERROR_COLOR),
+            Self::Error => theme
+                .map(|t| t.status_failed)
+                .unwrap_or(DEFAULT_ERROR_COLOR),
         }
     }
 
@@ -383,7 +389,10 @@ impl SessionContextBar<'_> {
         let time = format!("⏱ {}", self.context.format_duration());
 
         let line = format!("{} │ {} │ {} │ {}", cost, tokens, mcp, time);
-        let muted_color = self.theme.map(|t| t.text_muted).unwrap_or(DEFAULT_COLD_COLOR);
+        let muted_color = self
+            .theme
+            .map(|t| t.text_muted)
+            .unwrap_or(DEFAULT_COLD_COLOR);
         buf.set_string(area.x, area.y, &line, Style::default().fg(muted_color));
     }
 
@@ -405,7 +414,10 @@ impl SessionContextBar<'_> {
             .theme
             .map(|t| t.status_success)
             .unwrap_or(DEFAULT_SUCCESS_COLOR);
-        let info_color = self.theme.map(|t| t.highlight).unwrap_or(DEFAULT_INFO_COLOR);
+        let info_color = self
+            .theme
+            .map(|t| t.highlight)
+            .unwrap_or(DEFAULT_INFO_COLOR);
         let highlight_color = self
             .theme
             .map(|t| t.highlight)
@@ -414,10 +426,7 @@ impl SessionContextBar<'_> {
             .theme
             .map(|t| t.status_running)
             .unwrap_or(DEFAULT_WARNING_COLOR);
-        let text_color = self
-            .theme
-            .map(|t| t.text_primary)
-            .unwrap_or(Color::White);
+        let text_color = self.theme.map(|t| t.text_primary).unwrap_or(Color::White);
         let files_color = self
             .theme
             .map(|t| t.status_success)

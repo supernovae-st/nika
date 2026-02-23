@@ -383,7 +383,8 @@ impl DagLayout {
                     },
                 );
 
-                x += width + config.h_spacing;
+                // SAFETY: Use saturating_add to prevent overflow on large DAGs
+                x = x.saturating_add(width).saturating_add(config.h_spacing);
             }
         }
 

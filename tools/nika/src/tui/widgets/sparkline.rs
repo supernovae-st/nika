@@ -181,7 +181,8 @@ impl Widget for MiniSparkline<'_> {
         }
 
         // Render label first
-        let label_len = self.label.len() as u16;
+        // SAFETY: Clamp label length to u16::MAX before cast
+        let label_len = self.label.len().min(u16::MAX as usize) as u16;
         buf.set_string(
             area.x,
             area.y,
