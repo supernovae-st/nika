@@ -1,0 +1,224 @@
+# Complex Workflow Testing ALL 5 Verbs Simultaneously
+# This is a challenging integration test with:
+# - All 5 verbs: infer, exec, fetch, invoke, agent
+# - Complex DAG with diamond, fan-out, fan-in patterns
+# - Multiple MCP servers
+# - for_each parallelism
+# - Lazy bindings
+# - Context propagation across 6+ levels
+
+schema: "nika/workflow@0.5"
+provider: claude
+
+mcp:
+  novanet:
+    command: cargo
+    args: ["run", "--manifest-path", "../../novanet/tools/novanet-mcp/Cargo.toml"]
+  perplexity:
+    command: npx
+    args: ["-y", "perplexity-mcp"]
+    env:
+      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAYER 0: Foundation Tasks (No Dependencies)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: system_check
+    exec: |
+      echo '{"timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'", "platform": "'$(uname -s)'", "arch": "'$(uname -m)'"}'
+    output:
+      format: json
+
+  - id: fetch_api_status
+    fetch:
+      url: "https://httpbin.org/status/200"
+      method: GET
+
+  - id: fetch_json_data
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+    output:
+      format: json
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAYER 1: Parallel MCP Invocations (Fan-Out Pattern)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: invoke_novanet_describe
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        entity: "qr-code"
+
+  - id: invoke_novanet_traverse
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "entity:qr-code"
+        arc: "HAS_NATIVE"
+        depth: 1
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAYER 2: LLM Inference with Context (Diamond Join)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: analyze_system
+    use:
+      sys: system_check
+      api: fetch_api_status
+    infer:
+      prompt: |
+        Analyze this system context and API status.
+        System: {{use.sys}}
+        API: {{use.api}}
+        Respond with a brief health assessment in JSON format.
+      model: claude-sonnet-4-6
+    output:
+      format: json
+
+  - id: synthesize_novanet
+    use:
+      description: invoke_novanet_describe
+      traversal: invoke_novanet_traverse
+    infer: |
+      Combine these NovaNet results into a summary:
+      Description: {{use.description}}
+      Traversal: {{use.traversal}}
+      Output a structured summary.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAYER 3: for_each Parallelism with MCP
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: generate_multilang
+    for_each: ["fr-FR", "en-US", "de-DE"]
+    as: locale
+    concurrency: 3
+    fail_fast: true
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        focus_key: "entity:qr-code"
+        locale: "{{use.locale}}"
+        mode: block
+
+  - id: parallel_exec_test
+    for_each: ["alpha", "beta", "gamma", "delta"]
+    as: item
+    concurrency: 4
+    exec: |
+      echo '{"item": "{{use.item}}", "pid": "'$$'", "time": "'$(date +%s)'"}'
+    output:
+      format: json
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAYER 4: Agent with MCP Tools (Multi-Turn)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: research_agent
+    use:
+      system_health: analyze_system
+      entity_summary: synthesize_novanet
+    agent:
+      prompt: |
+        You have access to NovaNet tools. Your task:
+
+        Context:
+        - System Health: {{use.system_health}}
+        - Entity Summary: {{use.entity_summary}}
+
+        Steps:
+        1. Use novanet_introspect to query available node classes
+        2. Analyze the schema structure
+        3. Report your findings
+        4. Say "ANALYSIS_COMPLETE" when done
+      mcp: ["novanet"]
+      model: claude-sonnet-4-6
+      max_turns: 5
+      depth_limit: 2
+      stop_conditions:
+        - "ANALYSIS_COMPLETE"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAYER 5: Complex Aggregation (Fan-In)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: aggregate_multilang
+    use:
+      locales: generate_multilang
+    infer: |
+      Aggregate these multilingual results:
+      {{use.locales}}
+      Summarize the content variations across locales.
+
+  - id: aggregate_parallel
+    use:
+      parallel_results: parallel_exec_test
+    exec: |
+      echo "Parallel execution completed: {{use.parallel_results}}"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAYER 6: Final Orchestration (All Results)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: final_report
+    use:
+      health: analyze_system
+      research: research_agent
+      multilang: aggregate_multilang
+      parallel: aggregate_parallel
+      original_json: fetch_json_data
+    agent:
+      prompt: |
+        Generate a comprehensive test report combining all results:
+
+        1. Health Check: {{use.health}}
+        2. Research Agent Output: {{use.research}}
+        3. Multilingual Content: {{use.multilang}}
+        4. Parallel Execution: {{use.parallel}}
+        5. Original JSON Data: {{use.original_json}}
+
+        Create a summary report and say "REPORT_COMPLETE" when done.
+      model: claude-sonnet-4-6
+      max_turns: 3
+      stop_conditions:
+        - "REPORT_COMPLETE"
+
+flows:
+  # Layer 0 → Layer 2 (Diamond)
+  - source: system_check
+    target: analyze_system
+  - source: fetch_api_status
+    target: analyze_system
+  - source: invoke_novanet_describe
+    target: synthesize_novanet
+  - source: invoke_novanet_traverse
+    target: synthesize_novanet
+
+  # Layer 2 → Layer 4
+  - source: analyze_system
+    target: research_agent
+  - source: synthesize_novanet
+    target: research_agent
+
+  # Layer 3 → Layer 5
+  - source: generate_multilang
+    target: aggregate_multilang
+  - source: parallel_exec_test
+    target: aggregate_parallel
+
+  # Layer 4,5 → Layer 6
+  - source: research_agent
+    target: final_report
+  - source: aggregate_multilang
+    target: final_report
+  - source: aggregate_parallel
+    target: final_report
+  - source: fetch_json_data
+    target: final_report

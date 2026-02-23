@@ -27,9 +27,9 @@ tasks:
       mcp: novanet
       tool: novanet_generate
       params:
-        entity: "qr-code"
+        focus_key: "entity:qr-code"
         locale: "fr-FR"
-        forms: ["title", "description"]
+        mode: block
 
   # Use the generated content
   - id: display

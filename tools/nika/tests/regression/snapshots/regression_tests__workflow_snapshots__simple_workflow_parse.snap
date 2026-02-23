@@ -1,0 +1,8 @@
+---
+source: tests/regression/workflow_snapshots.rs
+expression: "json!({\n    \"schema\": workflow.schema, \"task_count\": workflow.tasks.len(), \"task_ids\":\n    workflow.tasks.iter().map(|t| t.id.as_str()).collect::<Vec<_>>()\n})"
+---
+schema: nika/workflow@0.5
+task_count: 1
+task_ids:
+  - task1

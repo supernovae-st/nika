@@ -17,7 +17,6 @@ tasks:
         Generate a short poem about coding.
         Keep it under 50 words.
       model: claude-sonnet-4-6
-    use.poem: generated_poem
 
   # ============================================================================
   # TEST: Activity Stack - Hot/Warm/Queued States
@@ -26,28 +25,24 @@ tasks:
   - id: activity_hot
     description: "First task - will be HOT then WARM"
     exec: "echo 'Task 1 executing - should show as HOT'"
-    use.output: task1_output
 
   - id: activity_queued
     description: "Queued task - waiting on activity_hot"
     depends_on:
       - activity_hot
     exec: "echo 'Task 2 executing - was QUEUED, now HOT'"
-    use.output: task2_output
 
   - id: activity_parallel_1
     description: "Parallel task 1 - multiple HOT"
     depends_on:
       - activity_queued
     exec: "sleep 1 && echo 'Parallel 1 done'"
-    use.output: parallel1
 
   - id: activity_parallel_2
     description: "Parallel task 2 - multiple HOT"
     depends_on:
       - activity_queued
     exec: "sleep 1 && echo 'Parallel 2 done'"
-    use.output: parallel2
 
   # ============================================================================
   # TEST: Inline MCP Call Display (McpCallBox)
@@ -89,7 +84,6 @@ tasks:
         Parallel 2: {{use.parallel2}}
 
         Keep it to 2-3 sentences.
-    use.summary: workflow_summary
 
 # Explicit DAG flows for use: binding validation
 flows:

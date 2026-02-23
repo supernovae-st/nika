@@ -63,7 +63,6 @@ tasks:
       max_turns: 15
     output:
       format: json
-    use.research: research_findings
 
   # Step 2: Generate strategic brief from research
   - id: generate_brief

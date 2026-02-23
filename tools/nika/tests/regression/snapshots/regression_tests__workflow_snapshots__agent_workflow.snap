@@ -1,0 +1,6 @@
+---
+source: tests/regression/workflow_snapshots.rs
+expression: "json!({ \"task_id\": workflow.tasks[0].id, \"is_agent\": is_agent })"
+---
+is_agent: true
+task_id: research_agent

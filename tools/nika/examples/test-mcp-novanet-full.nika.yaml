@@ -1,0 +1,181 @@
+# NovaNet MCP Full Integration Test
+# Tests all 8 MCP tools with real NovaNet server
+# Requires: NovaNet MCP server running
+
+schema: "nika/workflow@0.5"
+provider: claude
+model: claude-sonnet-4-6
+
+mcp:
+  novanet:
+    command: "cargo"
+    args: ["run", "--manifest-path", "../novanet/tools/novanet-mcp/Cargo.toml"]
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TOOL 1: novanet_describe - Get entity details
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: describe_entity
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        entity: "qr-code"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TOOL 2: novanet_search - Search entities
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: search_entities
+    invoke:
+      mcp: novanet
+      tool: novanet_search
+      params:
+        query: "QR code generation"
+        limit: 5
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TOOL 3: novanet_traverse - Graph traversal
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: traverse_graph
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start: "entity:qr-code"
+        arc: "HAS_NATIVE"
+        direction: "outgoing"
+        depth: 2
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TOOL 4: novanet_generate - Content generation
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: generate_content
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        focus_key: "entity:qr-code"
+        locale: "fr-FR"
+        mode: block
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TOOL 5: novanet_atoms - Knowledge atoms
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: get_atoms
+    invoke:
+      mcp: novanet
+      tool: novanet_atoms
+      params:
+        entity: "qr-code"
+        types: ["definition", "fact", "example"]
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TOOL 6: novanet_assemble - Context assembly
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: assemble_context
+    use:
+      entity_info: describe_entity
+      search_results: search_entities
+    invoke:
+      mcp: novanet
+      tool: novanet_assemble
+      params:
+        entities: ["qr-code"]
+        locale: "fr-FR"
+        include_atoms: true
+        include_related: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TOOL 7: novanet_query - Advanced queries
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: query_advanced
+    invoke:
+      mcp: novanet
+      tool: novanet_query
+      params:
+        type: "entity_list"
+        filters:
+          layer: "semantic"
+          realm: "org"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TOOL 8: novanet_introspect - Schema introspection
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: introspect_schema
+    invoke:
+      mcp: novanet
+      tool: novanet_introspect
+      params:
+        target: "node_classes"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # AGGREGATION: Combine all tool results
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: aggregate_all
+    use:
+      desc: describe_entity
+      search: search_entities
+      traverse: traverse_graph
+      generate: generate_content
+      atoms: get_atoms
+      context: assemble_context
+      query: query_advanced
+      schema: introspect_schema
+    infer: |
+      Summarize the results from all 8 NovaNet MCP tools:
+
+      1. Describe: {{use.desc}}
+      2. Search: {{use.search}}
+      3. Traverse: {{use.traverse}}
+      4. Generate: {{use.generate}}
+      5. Atoms: {{use.atoms}}
+      6. Context: {{use.context}}
+      7. Query: {{use.query}}
+      8. Schema: {{use.schema}}
+
+      Provide a coherent summary of the QR code entity.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # AGENT WITH MCP: Full agentic loop using NovaNet
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: agent_with_novanet
+    use:
+      context: aggregate_all
+    agent:
+      prompt: |
+        You have access to NovaNet tools.
+        Using the context: {{use.context}}
+
+        1. Use novanet_describe to get more details about related entities
+        2. Use novanet_traverse to explore the graph
+        3. Generate a comprehensive report about QR codes
+
+        Say REPORT_COMPLETE when done.
+      mcp: ["novanet"]
+      max_turns: 5
+      stop_conditions: ["REPORT_COMPLETE"]
+
+flows:
+  # Parallel tool execution
+  - source: describe_entity
+    target: assemble_context
+  - source: search_entities
+    target: assemble_context
+
+  # Aggregation dependencies
+  - source: [describe_entity, search_entities, traverse_graph, generate_content, get_atoms, assemble_context, query_advanced, introspect_schema]
+    target: aggregate_all
+
+  # Agent depends on aggregation
+  - source: aggregate_all
+    target: agent_with_novanet

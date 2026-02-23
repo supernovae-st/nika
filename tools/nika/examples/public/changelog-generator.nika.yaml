@@ -1,0 +1,127 @@
+# Changelog Generator
+# Generate changelog entries from git commits
+#
+# Usage:
+#   VERSION="1.2.0" nika examples/public/changelog-generator.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY or OPENAI_API_KEY
+#   - Git repository with conventional commits
+
+schema: "nika/workflow@0.5"
+workflow: changelog-generator
+description: "Generate CHANGELOG.md entries from git history"
+provider: claude
+
+tasks:
+  # Step 1: Get version
+  - id: get_version
+    exec: "echo \"${VERSION:-$(git describe --tags --abbrev=0 2>/dev/null || echo 'Unreleased')}\""
+
+  # Step 2: Get commits since last tag
+  - id: get_commits
+    exec: |
+      LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+      if [ -n "$LAST_TAG" ]; then
+        git log "$LAST_TAG"..HEAD --pretty=format:"%h %s" --no-merges
+      else
+        git log --pretty=format:"%h %s" --no-merges -50
+      fi
+
+  # Step 3: Get PR numbers if available
+  - id: get_prs
+    exec: |
+      git log --oneline -50 | grep -oE '#[0-9]+' | sort -u || echo "No PRs found"
+
+  # Step 4: Categorize commits
+  - id: categorize
+    use:
+      commits: get_commits
+    infer:
+      prompt: |
+        Categorize these git commits following Keep a Changelog format.
+
+        COMMITS:
+        {{use.commits}}
+
+        Categories:
+        - Added: new features
+        - Changed: changes in existing functionality
+        - Deprecated: soon-to-be removed features
+        - Removed: removed features
+        - Fixed: bug fixes
+        - Security: security fixes
+
+        Output JSON:
+        {
+          "added": ["feature 1", "feature 2"],
+          "changed": ["change 1"],
+          "deprecated": [],
+          "removed": [],
+          "fixed": ["bug 1", "bug 2"],
+          "security": []
+        }
+
+        Rules:
+        - Parse conventional commits (feat:, fix:, etc.)
+        - Group related commits
+        - Write user-friendly descriptions
+        - Include commit hashes in parentheses
+    output:
+      format: json
+
+  # Step 5: Generate changelog entry
+  - id: generate_entry
+    use:
+      version: get_version
+      categories: categorize
+    infer:
+      prompt: |
+        Generate a CHANGELOG.md entry.
+
+        VERSION: {{use.version}}
+        DATE: today
+
+        CATEGORIZED CHANGES:
+        {{use.categories}}
+
+        Format following Keep a Changelog:
+
+        ## [{{use.version}}] - YYYY-MM-DD
+
+        ### Added
+        - Item 1
+        - Item 2
+
+        ### Changed
+        - Item 1
+
+        ### Fixed
+        - Item 1
+
+        (Only include non-empty categories)
+
+        Output markdown only, no code fences.
+
+  # Step 6: Save or display
+  - id: output
+    use:
+      entry: generate_entry
+      version: get_version
+    exec: |
+      echo "=== CHANGELOG ENTRY FOR {{use.version}} ==="
+      echo ""
+      echo "{{use.entry}}"
+      echo ""
+      echo "---"
+      echo "To add to CHANGELOG.md, insert after the '## [Unreleased]' section"
+
+flows:
+  - source: get_version
+    target: generate_entry
+  - source: get_commits
+    target: categorize
+  - source: categorize
+    target: generate_entry
+  - source: generate_entry
+    target: output

@@ -1,0 +1,71 @@
+# Simple Pipeline Test: NovaNet MCP + LLM Generation
+# Tests invoke: and infer: verbs without fulltext search
+schema: "nika/workflow@0.5"
+provider: claude
+
+mcp:
+  novanet:
+    command: /Users/thibaut/supernovae-st/supernovae-agi/novanet/tools/novanet-mcp/target/release/novanet-mcp
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+
+tasks:
+  # Step 1: Get schema overview
+  - id: schema
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: schema
+    output:
+      format: json
+
+  # Step 2: Get introspection data for node classes
+  - id: introspect
+    invoke:
+      mcp: novanet
+      tool: novanet_introspect
+      params:
+        target: classes
+        realm: shared
+    output:
+      format: json
+
+  # Step 3: Generate a summary using the context
+  - id: generate_summary
+    use:
+      schema_data: schema
+      classes: introspect
+    infer:
+      prompt: |
+        You are analyzing a NovaNet knowledge graph schema. Generate a brief 2-sentence summary.
+
+        SCHEMA OVERVIEW (arc families count):
+        {{use.schema_data}}
+
+        NODE CLASSES (shared realm):
+        {{use.classes}}
+
+        Summarize what this schema represents and its main components.
+    output:
+      format: text
+
+  # Final report
+  - id: report
+    use:
+      summary: generate_summary
+    exec: |
+      echo "=== PIPELINE TEST COMPLETE ==="
+      echo ""
+      echo "LLM Summary:"
+      echo "{{use.summary}}"
+
+flows:
+  - source: schema
+    target: generate_summary
+  - source: introspect
+    target: generate_summary
+  - source: generate_summary
+    target: report

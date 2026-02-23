@@ -16,7 +16,7 @@
 # Run with:
 #   cargo run -- run examples/uc2-multi-locale-generation.yaml
 
-schema: "nika/workflow@0.3"
+schema: "nika/workflow@0.5"
 provider: claude
 
 description: |
@@ -74,10 +74,9 @@ tasks:
       mcp: novanet
       tool: novanet_generate
       params:
-        entity: "qr-code"
+        focus_key: "entity:qr-code"
         locale: "{{use.locale}}"
-        forms: ["text", "title", "abbrev"]    # Denomination forms per ADR-033
-        token_budget: 3000
+        mode: block
 
     output:
       format: json

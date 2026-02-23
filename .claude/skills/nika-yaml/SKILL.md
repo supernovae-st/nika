@@ -110,8 +110,9 @@ Every task MUST have exactly ONE verb. Never mix verbs.
     mcp: novanet           # Server name from workflow mcp config
     tool: novanet_generate
     params:
-      entity: "qr-code"
+      focus_key: "entity:qr-code"
       locale: "{{use.locale}}"
+      mode: block
 
 # Resource read
 - id: read_schema
@@ -383,8 +384,9 @@ tasks:
       mcp: novanet
       tool: novanet_generate
       params:
-        entity: "qr-code"
-        forms: ["text", "title", "abbrev"]
+        focus_key: "entity:qr-code"
+        locale: "en-US"
+        mode: block
 
   # 3. Generate content for each locale (parallel)
   - id: generate_content

@@ -1,0 +1,82 @@
+# PR Description Generator
+# Generate a pull request description from git diff
+#
+# Usage:
+#   nika examples/public/pr-description.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY or OPENAI_API_KEY
+#   - Git repository with staged changes
+
+schema: "nika/workflow@0.5"
+workflow: pr-description
+description: "Generate PR description from git diff and commit history"
+provider: claude
+
+tasks:
+  # Step 1: Get git diff
+  - id: get_diff
+    exec: "git diff --cached --stat && echo '---DIFF---' && git diff --cached"
+
+  # Step 2: Get recent commits on branch
+  - id: get_commits
+    exec: "git log --oneline -10 --no-merges"
+
+  # Step 3: Get branch name
+  - id: get_branch
+    exec: "git branch --show-current"
+
+  # Step 4: Generate PR description
+  - id: generate_pr
+    use:
+      diff: get_diff
+      commits: get_commits
+      branch: get_branch
+    infer:
+      prompt: |
+        Generate a professional Pull Request description.
+
+        BRANCH: {{use.branch}}
+
+        RECENT COMMITS:
+        {{use.commits}}
+
+        DIFF SUMMARY:
+        {{use.diff}}
+
+        Generate a PR description with:
+
+        ## Summary
+        [2-3 sentences explaining what this PR does]
+
+        ## Changes
+        - [Bullet points of key changes]
+
+        ## Testing
+        - [ ] [Checklist items for testing]
+
+        ## Notes
+        [Any additional context for reviewers]
+
+        Output ONLY the markdown, no code fences.
+    output:
+      format: text
+
+  # Step 5: Save to clipboard (macOS) or file
+  - id: save_output
+    use:
+      pr: generate_pr
+    exec: |
+      echo "{{use.pr}}" | pbcopy 2>/dev/null || echo "{{use.pr}}" > /tmp/pr-description.md
+      echo "✅ PR description generated!"
+      echo "📋 Copied to clipboard (or saved to /tmp/pr-description.md)"
+
+flows:
+  - source: get_diff
+    target: generate_pr
+  - source: get_commits
+    target: generate_pr
+  - source: get_branch
+    target: generate_pr
+  - source: generate_pr
+    target: save_output

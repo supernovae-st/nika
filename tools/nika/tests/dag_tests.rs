@@ -1,0 +1,19 @@
+//! DAG test harness for Nika
+//!
+//! Tests complex dependency patterns, cycle detection, and execution ordering.
+//!
+//! ## Running Tests
+//!
+//! ```bash
+//! cargo test --test dag_tests
+//! cargo nextest run --test dag_tests
+//! ```
+
+#[path = "dag/complex_deps.rs"]
+mod complex_deps;
+
+#[path = "dag/cycle_detection.rs"]
+mod cycle_detection;
+
+#[path = "dag/execution_order.rs"]
+mod execution_order;

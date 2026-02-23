@@ -1,0 +1,167 @@
+# Movie Night Picker 🎬🍿
+# Get personalized movie recommendations based on mood
+#
+# Usage:
+#   MOOD="cozy" nika examples/public/movie-night.nika.yaml
+#   MOOD="thrilling" VIEWERS="2" nika examples/public/movie-night.nika.yaml
+#   MOOD="nostalgic" DECADE="90s" nika examples/public/movie-night.nika.yaml
+#
+# Pattern: Conditional branching (mood → genre mapping → recommendations)
+# Showcases: Context assembly, creative generation, personalization
+
+schema: "nika/workflow@0.5"
+workflow: movie-night
+description: "AI-powered movie recommendations for the perfect night in"
+provider: claude
+
+tasks:
+  # Step 1: Get preferences
+  - id: get_mood
+    exec: "echo \"${MOOD:-random}\""
+
+  - id: get_viewers
+    exec: "echo \"${VIEWERS:-1}\""
+
+  - id: get_decade
+    exec: "echo \"${DECADE:-any}\""
+
+  - id: get_avoid
+    exec: "echo \"${AVOID:-none}\""
+
+  # Step 2: Map mood to genres
+  - id: map_mood
+    use:
+      mood: get_mood
+      viewers: get_viewers
+    infer:
+      prompt: |
+        You're a movie expert mapping moods to film genres.
+
+        MOOD: {{use.mood}}
+        NUMBER OF VIEWERS: {{use.viewers}}
+
+        Mood → Genre mapping examples:
+        - cozy → comfort films, feel-good, light drama
+        - thrilling → thriller, action, mystery
+        - romantic → romance, rom-com, drama
+        - nostalgic → classics, 80s/90s hits
+        - mind-bending → sci-fi, psychological thriller
+        - laugh-out-loud → comedy, parody
+        - artsy → indie, foreign, art house
+        - epic → adventure, fantasy, historical
+
+        Output JSON:
+        {
+          "mood": "{{use.mood}}",
+          "primary_genres": ["genre1", "genre2"],
+          "secondary_genres": ["genre3"],
+          "avoid_genres": ["horror if cozy, etc"],
+          "vibe_keywords": ["atmospheric", "uplifting", etc],
+          "ideal_runtime": "short/medium/long",
+          "group_friendly": true/false
+        }
+    output:
+      format: json
+
+  # Step 3: Generate recommendations (3 picks)
+  - id: generate_picks
+    for_each: ["perfect_match", "hidden_gem", "classic_choice"]
+    as: pick_type
+    concurrency: 3
+    use:
+      mood_map: map_mood
+      decade: get_decade
+      avoid: get_avoid
+    infer:
+      prompt: |
+        Recommend a movie as "{{use.pick_type}}".
+
+        CRITERIA:
+        {{use.mood_map}}
+
+        DECADE PREFERENCE: {{use.decade}}
+        AVOID: {{use.avoid}}
+
+        Pick types:
+        - perfect_match: Exactly fits the mood, popular and well-loved
+        - hidden_gem: Lesser-known but brilliant fit
+        - classic_choice: Timeless film in this vibe
+
+        Output JSON:
+        {
+          "pick_type": "{{use.pick_type}}",
+          "title": "Movie Title",
+          "year": 2020,
+          "director": "Director Name",
+          "runtime_minutes": 120,
+          "rating": 8.5,
+          "genres": ["genre1", "genre2"],
+          "why_this": "2-3 sentences on why it's perfect for tonight",
+          "mood_match_score": 9,
+          "snack_pairing": "Popcorn with...",
+          "emoji": "🎬"
+        }
+    output:
+      format: json
+
+  # Step 4: Rank and present
+  - id: present
+    use:
+      picks: generate_picks
+      mood: get_mood
+      viewers: get_viewers
+    infer:
+      prompt: |
+        Create an engaging movie night recommendation card.
+
+        MOOD: {{use.mood}}
+        VIEWERS: {{use.viewers}}
+        MOVIE OPTIONS:
+        {{use.picks}}
+
+        Format as a fun, readable recommendation:
+
+        # 🎬 Movie Night Picks
+
+        > Perfect for a {{mood}} night with {{viewers}} viewer(s)
+
+        ## 🎯 Top Pick: [Title] ([Year])
+        [Why it's perfect]
+        ⏱️ Runtime | ⭐ Rating | 🍿 Snack: [suggestion]
+
+        ## 💎 Hidden Gem: [Title] ([Year])
+        [Why you'll love it]
+        ⏱️ Runtime | ⭐ Rating | 🍿 Snack: [suggestion]
+
+        ## 🏆 Classic Choice: [Title] ([Year])
+        [Timeless appeal]
+        ⏱️ Runtime | ⭐ Rating | 🍿 Snack: [suggestion]
+
+        ---
+        🛋️ *Enjoy your movie night!*
+
+  # Step 5: Display
+  - id: display
+    use:
+      recommendation: present
+    exec: |
+      echo "{{use.recommendation}}"
+      echo ""
+      echo "---"
+      echo "🎬 Run again with different mood: MOOD=\"thrilling\" nika movie-night.nika.yaml"
+
+flows:
+  - source: get_mood
+    target: map_mood
+  - source: get_viewers
+    target: map_mood
+  - source: map_mood
+    target: generate_picks
+  - source: get_decade
+    target: generate_picks
+  - source: get_avoid
+    target: generate_picks
+  - source: generate_picks
+    target: present
+  - source: present
+    target: display

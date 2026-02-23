@@ -144,7 +144,7 @@ tasks:
       tool: novanet_traverse
       params:
         start_key: "{{use.entity}}"
-        arc_kinds: ["{{as.arc_type}}"]
+        arc_kinds: ["{{use.arc_type}}"]
         direction: "outgoing"
         max_depth: 1
         limit: 25
@@ -176,7 +176,7 @@ tasks:
       tool: novanet_generate
       params:
         focus_key: "{{use.entity}}"
-        locale: "{{as.locale}}"
+        locale: "{{use.locale}}"
         mode: "entity"
         token_budget: 5000
         include_examples: false

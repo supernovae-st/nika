@@ -29,6 +29,6 @@ tasks:
       mcp: novanet
       tool: novanet_generate
       params:
-        entity: "landing-page"
+        focus_key: "page:landing-page"
         locale: "{{use.locale}}"
-        forms: ["title", "description", "cta"]
+        mode: page

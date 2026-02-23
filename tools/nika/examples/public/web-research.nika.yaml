@@ -1,0 +1,124 @@
+# Web Research Agent
+# Research a topic using Perplexity MCP and generate a report
+#
+# Usage:
+#   QUERY="Latest trends in AI agents 2024" nika examples/public/web-research.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY or OPENAI_API_KEY
+#   - PERPLEXITY_API_KEY (for MCP)
+#   - QUERY environment variable
+
+schema: "nika/workflow@0.5"
+workflow: web-research
+description: "Research a topic with AI and generate structured report"
+provider: claude
+
+mcp:
+  perplexity:
+    command: npx
+    args: ["-y", "perplexity-mcp"]
+    env:
+      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
+
+tasks:
+  # Step 1: Get research query
+  - id: get_query
+    exec: "echo \"${QUERY:-What are the best practices for building AI agents in 2024?}\""
+
+  # Step 2: Initial research with Perplexity
+  - id: research_main
+    use:
+      query: get_query
+    invoke:
+      mcp: perplexity
+      tool: perplexity_search
+      params:
+        query: "{{use.query}}"
+        recency: "week"
+
+  # Step 3: Deep dive on key aspects (parallel)
+  - id: research_deep
+    for_each: ["technical implementation", "best practices", "common pitfalls"]
+    as: aspect
+    concurrency: 3
+    use:
+      query: get_query
+    invoke:
+      mcp: perplexity
+      tool: perplexity_search
+      params:
+        query: "{{use.query}} - {{use.aspect}}"
+        recency: "month"
+
+  # Step 4: Synthesize findings
+  - id: synthesize
+    use:
+      query: get_query
+      main: research_main
+      deep: research_deep
+    infer:
+      prompt: |
+        You are a research analyst. Synthesize these findings into a comprehensive report.
+
+        RESEARCH QUERY: {{use.query}}
+
+        MAIN FINDINGS:
+        {{use.main}}
+
+        DEEP DIVE FINDINGS:
+        {{use.deep}}
+
+        Generate a structured report with:
+
+        # Research Report: [Topic]
+
+        ## Executive Summary
+        [3-4 sentences]
+
+        ## Key Findings
+        1. [Finding with source]
+        2. [Finding with source]
+        3. [Finding with source]
+
+        ## Technical Details
+        [In-depth analysis]
+
+        ## Best Practices
+        - [Practice 1]
+        - [Practice 2]
+
+        ## Pitfalls to Avoid
+        - [Pitfall 1]
+        - [Pitfall 2]
+
+        ## Recommendations
+        [Actionable next steps]
+
+        ## Sources
+        [List sources from research]
+
+        Output markdown only.
+
+  # Step 5: Save report
+  - id: save_report
+    use:
+      report: synthesize
+      query: get_query
+    exec: |
+      FILENAME="/tmp/research-$(date +%Y%m%d-%H%M%S).md"
+      echo "{{use.report}}" > "$FILENAME"
+      echo "✅ Research report saved to $FILENAME"
+      echo "📊 Query: {{use.query}}"
+
+flows:
+  - source: get_query
+    target: research_main
+  - source: get_query
+    target: research_deep
+  - source: research_main
+    target: synthesize
+  - source: research_deep
+    target: synthesize
+  - source: synthesize
+    target: save_report

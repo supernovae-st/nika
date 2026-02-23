@@ -1,0 +1,175 @@
+# Trivia Quiz Generator 🧠❓
+# Generate custom trivia quizzes on any topic
+#
+# Usage:
+#   TOPIC="space" nika examples/public/trivia-quiz.nika.yaml
+#   TOPIC="movies" DIFFICULTY="hard" QUESTIONS="10" nika examples/public/trivia-quiz.nika.yaml
+#
+# Pattern: Generation → Validation → Formatting
+# Showcases: Structured JSON output, quiz format, parallel generation
+
+schema: "nika/workflow@0.5"
+workflow: trivia-quiz
+description: "Generate custom trivia quizzes"
+provider: claude
+
+tasks:
+  # Step 1: Get parameters
+  - id: get_topic
+    exec: "echo \"${TOPIC:-general knowledge}\""
+
+  - id: get_difficulty
+    exec: "echo \"${DIFFICULTY:-medium}\""
+
+  - id: get_count
+    exec: "echo \"${QUESTIONS:-5}\""
+
+  # Step 2: Generate questions in parallel batches
+  - id: generate_questions
+    for_each: ["batch1", "batch2", "batch3"]
+    as: batch
+    concurrency: 3
+    use:
+      topic: get_topic
+      difficulty: get_difficulty
+      count: get_count
+    infer:
+      prompt: |
+        Generate trivia questions about: {{use.topic}}
+        Difficulty: {{use.difficulty}} (easy/medium/hard)
+
+        This is {{use.batch}} - generate unique questions!
+
+        Difficulty guide:
+        - easy: Common knowledge, obvious answers
+        - medium: Requires some expertise
+        - hard: Expert level, tricky questions
+
+        Generate 2-3 questions. Output JSON array:
+        [
+          {
+            "question": "The question text?",
+            "options": ["A) Option", "B) Option", "C) Option", "D) Option"],
+            "correct_answer": "A",
+            "explanation": "Brief explanation of the answer",
+            "fun_fact": "An interesting related fact",
+            "difficulty": "{{use.difficulty}}"
+          }
+        ]
+
+        Make questions engaging and educational!
+    output:
+      format: json
+
+  # Step 3: Deduplicate and select best questions
+  - id: select_questions
+    use:
+      all_questions: generate_questions
+      count: get_count
+      topic: get_topic
+    infer:
+      prompt: |
+        Select the best {{use.count}} trivia questions from these:
+
+        {{use.all_questions}}
+
+        Selection criteria:
+        1. No duplicate or similar questions
+        2. Variety of sub-topics within {{use.topic}}
+        3. Clear, unambiguous wording
+        4. Interesting and educational
+
+        Output exactly {{use.count}} questions as JSON array:
+        [
+          {
+            "number": 1,
+            "question": "...",
+            "options": [...],
+            "correct_answer": "A/B/C/D",
+            "explanation": "...",
+            "fun_fact": "..."
+          }
+        ]
+    output:
+      format: json
+
+  # Step 4: Format as interactive quiz
+  - id: format_quiz
+    use:
+      questions: select_questions
+      topic: get_topic
+      difficulty: get_difficulty
+    infer:
+      prompt: |
+        Format this trivia quiz for display:
+
+        TOPIC: {{use.topic}}
+        DIFFICULTY: {{use.difficulty}}
+        QUESTIONS: {{use.questions}}
+
+        Create an engaging quiz format:
+
+        ```
+        ╔═══════════════════════════════════════════════════════════════╗
+        ║  🧠 TRIVIA QUIZ: [TOPIC]                                      ║
+        ║  Difficulty: ⭐⭐⭐ [difficulty]                              ║
+        ╚═══════════════════════════════════════════════════════════════╝
+
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        Q1: [Question text]
+
+            A) Option 1
+            B) Option 2
+            C) Option 3
+            D) Option 4
+
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        [... more questions ...]
+
+        ═══════════════════════════════════════════════════════════════
+        📝 ANSWER KEY (scroll down)
+        ═══════════════════════════════════════════════════════════════
+
+        Q1: [A/B/C/D] - [Explanation]
+            💡 Fun fact: [fact]
+
+        [... more answers ...]
+
+        ═══════════════════════════════════════════════════════════════
+        🏆 Score yourself: X/5 = [rating]
+        - 5/5: Genius! 🧠
+        - 4/5: Expert! 🎓
+        - 3/5: Good job! 👍
+        - 2/5: Keep learning! 📚
+        - 0-1/5: Try again! 🔄
+        ═══════════════════════════════════════════════════════════════
+        ```
+
+        Make it visually appealing and fun to play!
+
+  # Step 5: Display
+  - id: display
+    use:
+      quiz: format_quiz
+      topic: get_topic
+    exec: |
+      echo "{{use.quiz}}"
+      echo ""
+      echo "---"
+      echo "🎯 Generate another: TOPIC=\"history\" DIFFICULTY=\"hard\" nika trivia-quiz.nika.yaml"
+
+flows:
+  - source: get_topic
+    target: generate_questions
+  - source: get_difficulty
+    target: generate_questions
+  - source: get_count
+    target: generate_questions
+  - source: generate_questions
+    target: select_questions
+  - source: select_questions
+    target: format_quiz
+  - source: format_quiz
+    target: display

@@ -77,8 +77,9 @@ tasks:
       tool: novanet_generate
       server: novanet
       params:
-        entity: "qr-code"
+        focus_key: "entity:qr-code"
         locale: "fr-FR"
+        mode: block
     flow:
       - step1
     output:

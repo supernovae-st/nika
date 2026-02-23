@@ -1,0 +1,109 @@
+# Meme Generator 🎭😂
+# Generate meme-style captions for any topic
+#
+# Usage:
+#   TOPIC="programming" nika examples/public/meme-generator.nika.yaml
+#   TOPIC="cats" STYLE="sarcastic" nika examples/public/meme-generator.nika.yaml
+#
+# Pattern: Parallel fan-out (3 variations) → selection
+# Showcases: for_each parallelism, creative generation, humor
+
+schema: "nika/workflow@0.5"
+workflow: meme-generator
+description: "Generate hilarious meme captions"
+provider: claude
+
+tasks:
+  # Step 1: Get topic
+  - id: get_topic
+    exec: "echo \"${TOPIC:-Monday mornings}\""
+
+  # Step 2: Get style preference
+  - id: get_style
+    exec: "echo \"${STYLE:-absurdist}\""
+
+  # Step 3: Generate 3 meme variations in parallel
+  - id: generate_memes
+    for_each: ["top-text-bottom-text", "observational", "relatable"]
+    as: format
+    concurrency: 3
+    use:
+      topic: get_topic
+      style: get_style
+    infer:
+      prompt: |
+        You are a viral meme writer with {{use.style}} humor.
+
+        TOPIC: {{use.topic}}
+        FORMAT: {{use.format}}
+
+        Generate a hilarious meme caption.
+
+        Format guidelines:
+        - top-text-bottom-text: Classic format with setup on top, punchline below
+        - observational: "Nobody: ... / Me: ..." style
+        - relatable: "When you [situation]..." style
+
+        Output JSON:
+        {
+          "format": "{{use.format}}",
+          "top_text": "TOP TEXT (if applicable)",
+          "bottom_text": "BOTTOM TEXT (if applicable)",
+          "full_caption": "The complete meme text",
+          "emoji": "🎭",
+          "virality_score": 8
+        }
+
+        Be actually funny, not cringe! Think Reddit front page material.
+    output:
+      format: json
+
+  # Step 4: Pick the best one
+  - id: pick_best
+    use:
+      memes: generate_memes
+      topic: get_topic
+    infer:
+      prompt: |
+        You're a meme connoisseur. Pick the funniest meme from these options:
+
+        {{use.memes}}
+
+        Consider:
+        - Actual humor (not forced)
+        - Shareability
+        - Originality
+
+        Output the winning meme JSON with added field:
+        {
+          ...winning_meme,
+          "why_its_funny": "Brief explanation"
+        }
+    output:
+      format: json
+
+  # Step 5: Display
+  - id: display
+    use:
+      meme: pick_best
+      topic: get_topic
+    exec: |
+      echo "🎭 MEME GENERATED 🎭"
+      echo ""
+      echo "Topic: {{use.topic}}"
+      echo ""
+      echo '{{use.meme}}' | jq -r '"📝 " + .full_caption'
+      echo ""
+      echo '{{use.meme}}' | jq -r '"😂 Why it slaps: " + .why_its_funny'
+      echo ""
+      echo '{{use.meme}}' | jq -r '"🔥 Virality score: " + (.virality_score|tostring) + "/10"'
+
+flows:
+  - source: get_topic
+    target: generate_memes
+  - source: get_style
+    target: generate_memes
+  - source: generate_memes
+    target: pick_best
+  - source: pick_best
+    target: display

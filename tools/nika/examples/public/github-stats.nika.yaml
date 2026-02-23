@@ -1,0 +1,145 @@
+# GitHub Stats Generator 📊🐙
+# Generate a stats card for any GitHub user
+#
+# Usage:
+#   USERNAME="torvalds" nika examples/public/github-stats.nika.yaml
+#   USERNAME="octocat" nika examples/public/github-stats.nika.yaml
+#
+# Pattern: API aggregation (multiple fetch → merge)
+# Showcases: fetch: verb, parallel data fetching, stats visualization
+# Note: Uses GitHub public API (no auth needed for public profiles)
+
+schema: "nika/workflow@0.5"
+workflow: github-stats
+description: "Generate GitHub profile stats card"
+provider: claude
+
+tasks:
+  # Step 1: Get username
+  - id: get_username
+    exec: "echo \"${USERNAME:-octocat}\""
+
+  # Step 2: Fetch user profile
+  - id: fetch_profile
+    use:
+      username: get_username
+    fetch:
+      url: "https://api.github.com/users/{{use.username}}"
+      method: GET
+      headers:
+        Accept: "application/vnd.github.v3+json"
+        User-Agent: "nika-workflow"
+    output:
+      format: json
+
+  # Step 3: Fetch repos (for language stats)
+  - id: fetch_repos
+    use:
+      username: get_username
+    fetch:
+      url: "https://api.github.com/users/{{use.username}}/repos?per_page=100&sort=pushed"
+      method: GET
+      headers:
+        Accept: "application/vnd.github.v3+json"
+        User-Agent: "nika-workflow"
+    output:
+      format: json
+
+  # Step 4: Analyze stats with LLM
+  - id: analyze_stats
+    use:
+      profile: fetch_profile
+      repos: fetch_repos
+      username: get_username
+    infer:
+      prompt: |
+        Analyze this GitHub profile and create a fun stats card.
+
+        PROFILE DATA:
+        {{use.profile}}
+
+        RECENT REPOS (up to 100):
+        {{use.repos}}
+
+        Calculate and present:
+        1. Total stars across all repos
+        2. Top 5 languages used (by repo count)
+        3. Most starred repo
+        4. Account age
+        5. Fun stats (like "commits probably made at 3am")
+
+        Output as JSON:
+        {
+          "username": "{{use.username}}",
+          "name": "<real name or username>",
+          "avatar_url": "<url>",
+          "bio": "<bio or 'No bio'>",
+          "followers": <number>,
+          "following": <number>,
+          "public_repos": <number>,
+          "total_stars": <sum of all repo stars>,
+          "top_languages": ["lang1", "lang2", "lang3", "lang4", "lang5"],
+          "most_starred_repo": {"name": "<repo>", "stars": <count>},
+          "account_age_years": <number>,
+          "fun_title": "<creative title like 'Code Wizard' or 'Open Source Champion'>",
+          "fun_fact": "<amusing observation about their profile>"
+        }
+    output:
+      format: json
+
+  # Step 5: Generate ASCII card
+  - id: generate_card
+    use:
+      stats: analyze_stats
+    infer:
+      prompt: |
+        Create a beautiful ASCII art stats card for this GitHub user:
+
+        {{use.stats}}
+
+        Design a card like this (but make it look good!):
+
+        ```
+        ╔═══════════════════════════════════════════════════════╗
+        ║  🐙 GITHUB STATS CARD                                 ║
+        ╠═══════════════════════════════════════════════════════╣
+        ║                                                       ║
+        ║   @username  ·  "Fun Title"                          ║
+        ║                                                       ║
+        ║   ★ Stars: XXX    👥 Followers: XXX                  ║
+        ║   📦 Repos: XXX    📅 Since: YYYY                    ║
+        ║                                                       ║
+        ║   🏆 Top Repo: repo-name (★ XXX)                     ║
+        ║                                                       ║
+        ║   💻 Languages: Lang1 · Lang2 · Lang3               ║
+        ║                                                       ║
+        ║   💡 "Fun fact about their profile"                  ║
+        ║                                                       ║
+        ╚═══════════════════════════════════════════════════════╝
+        ```
+
+        Make it visually appealing with proper alignment!
+
+  # Step 6: Display
+  - id: display
+    use:
+      card: generate_card
+      stats: analyze_stats
+    exec: |
+      echo "{{use.card}}"
+      echo ""
+      echo '{{use.stats}}' | jq -r '"🔗 Profile: https://github.com/" + .username'
+
+flows:
+  - source: get_username
+    target: fetch_profile
+  - source: get_username
+    target: fetch_repos
+  - source: fetch_profile
+    target: analyze_stats
+  - source: fetch_repos
+    target: analyze_stats
+  - source: analyze_stats
+    target: generate_card
+  - source: generate_card
+    target: display

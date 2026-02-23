@@ -1,0 +1,197 @@
+# Multi-MCP Server Integration Test
+# Tests multiple MCP servers working together
+# Requires: NovaNet, Perplexity, and Firecrawl MCP servers
+
+schema: "nika/workflow@0.5"
+provider: claude
+model: claude-sonnet-4-6
+
+mcp:
+  novanet:
+    command: "cargo"
+    args: ["run", "--manifest-path", "../novanet/tools/novanet-mcp/Cargo.toml"]
+  perplexity:
+    command: "npx"
+    args: ["-y", "@anthropics/perplexity-mcp-server"]
+    env:
+      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
+  firecrawl:
+    command: "npx"
+    args: ["-y", "@anthropics/firecrawl-mcp-server"]
+    env:
+      FIRECRAWL_API_KEY: "${FIRECRAWL_API_KEY}"
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PHASE 1: Gather internal knowledge (NovaNet)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: internal_knowledge
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        entity: "qr-code"
+
+  - id: internal_context
+    invoke:
+      mcp: novanet
+      tool: novanet_assemble
+      params:
+        entities: ["qr-code"]
+        locale: "en-US"
+        include_atoms: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PHASE 2: Research external knowledge (Perplexity)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: web_research_trends
+    invoke:
+      mcp: perplexity
+      tool: perplexity_search
+      params:
+        query: "QR code trends 2024 2025"
+
+  - id: web_research_best_practices
+    invoke:
+      mcp: perplexity
+      tool: perplexity_search
+      params:
+        query: "QR code design best practices"
+
+  - id: web_research_statistics
+    invoke:
+      mcp: perplexity
+      tool: perplexity_search
+      params:
+        query: "QR code usage statistics"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PHASE 3: Scrape competitor sites (Firecrawl)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: scrape_competitor_1
+    invoke:
+      mcp: firecrawl
+      tool: firecrawl_scrape
+      params:
+        url: "https://www.qr-code-generator.com/"
+        format: "markdown"
+
+  - id: scrape_competitor_2
+    invoke:
+      mcp: firecrawl
+      tool: firecrawl_scrape
+      params:
+        url: "https://www.qrcode-monkey.com/"
+        format: "markdown"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PHASE 4: Synthesize all sources
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: synthesize_internal
+    use:
+      knowledge: internal_knowledge
+      context: internal_context
+    infer: |
+      Summarize our internal knowledge about QR codes:
+      Knowledge: {{use.knowledge}}
+      Context: {{use.context}}
+
+  - id: synthesize_research
+    use:
+      trends: web_research_trends
+      practices: web_research_best_practices
+      stats: web_research_statistics
+    infer: |
+      Synthesize web research findings:
+      Trends: {{use.trends}}
+      Best practices: {{use.practices}}
+      Statistics: {{use.stats}}
+
+  - id: synthesize_competitors
+    use:
+      comp1: scrape_competitor_1
+      comp2: scrape_competitor_2
+    infer: |
+      Analyze competitor approaches:
+      Competitor 1: {{use.comp1}}
+      Competitor 2: {{use.comp2}}
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PHASE 5: Final aggregation
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: final_synthesis
+    use:
+      internal: synthesize_internal
+      research: synthesize_research
+      competitors: synthesize_competitors
+    infer: |
+      Create a comprehensive strategic report combining:
+
+      INTERNAL KNOWLEDGE:
+      {{use.internal}}
+
+      WEB RESEARCH:
+      {{use.research}}
+
+      COMPETITOR ANALYSIS:
+      {{use.competitors}}
+
+      Output a structured JSON report with:
+      1. Market position
+      2. Key differentiators
+      3. Content strategy recommendations
+    output:
+      format: json
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PHASE 6: Agent with all MCP servers
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: multi_mcp_agent
+    use:
+      report: final_synthesis
+    agent:
+      prompt: |
+        You have access to 3 MCP servers: novanet, perplexity, firecrawl.
+
+        Starting with this report: {{use.report}}
+
+        1. Use novanet_traverse to explore related entities
+        2. Use perplexity_search to validate findings
+        3. Use firecrawl_scrape if you need more competitor data
+
+        Create a final executive summary.
+        Say EXECUTIVE_SUMMARY_COMPLETE when done.
+      mcp: ["novanet", "perplexity", "firecrawl"]
+      max_turns: 8
+      stop_conditions: ["EXECUTIVE_SUMMARY_COMPLETE"]
+      extended_thinking: true
+      thinking_budget: 5000
+
+flows:
+  # Phase 1 parallel
+  - source: internal_knowledge
+    target: synthesize_internal
+  - source: internal_context
+    target: synthesize_internal
+
+  # Phase 2 parallel -> synthesis
+  - source: [web_research_trends, web_research_best_practices, web_research_statistics]
+    target: synthesize_research
+
+  # Phase 3 parallel -> synthesis
+  - source: [scrape_competitor_1, scrape_competitor_2]
+    target: synthesize_competitors
+
+  # Synthesis -> final
+  - source: [synthesize_internal, synthesize_research, synthesize_competitors]
+    target: final_synthesis
+
+  # Final -> agent
+  - source: final_synthesis
+    target: multi_mcp_agent

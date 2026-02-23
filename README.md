@@ -118,8 +118,9 @@ invoke:
   mcp: novanet
   tool: novanet_generate
   params:
-    entity: "qr-code"
+    focus_key: "entity:qr-code"
     locale: "fr-FR"
+    mode: block
 ```
 
 ### agent (Agentic Loop) — v0.2
@@ -161,7 +162,9 @@ tasks:
       mcp: novanet
       tool: novanet_generate
       params:
-        entity: "landing-page"
+        focus_key: "page:landing-page"
+        locale: "fr-FR"
+        mode: page
 ```
 
 ## for_each Parallelism — v0.3
@@ -194,8 +197,9 @@ tasks:
       mcp: novanet
       tool: novanet_generate
       params:
-        entity: "qr-code"
+        focus_key: "entity:qr-code"
         locale: "{{use.locale}}"
+        mode: block
 ```
 
 ## Providers (v0.4 — rig-core)
@@ -452,9 +456,9 @@ tasks:
       mcp: novanet
       tool: novanet_generate
       params:
-        entity: "landing-page"
+        focus_key: "page:landing-page"
         locale: "{{use.locale}}"
-        forms: ["title", "description", "cta"]
+        mode: page
 ```
 
 All 5 locales process in parallel, each calling NovaNet's MCP server.
