@@ -5,6 +5,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::state::{ProviderModalState, ProviderModalTab};
+use super::tabs::ProviderInfo;
 
 /// Result of event handling
 #[derive(Debug, Clone, PartialEq)]
@@ -87,6 +88,11 @@ impl ModalEventHandler {
             return Self::handle_input_mode(state, key);
         }
 
+        // v0.8.95: In expanded provider mode, handle model selection
+        if state.is_provider_expanded() {
+            return Self::handle_expanded_mode(state, key);
+        }
+
         match key.code {
             // Close modal
             KeyCode::Esc | KeyCode::Char('q') => {
@@ -139,6 +145,12 @@ impl ModalEventHandler {
             // Enter - context-sensitive action
             KeyCode::Enter => Self::handle_enter(state),
 
+            // Space - expand provider to show models (Cloud tab)
+            KeyCode::Char(' ') if state.active_tab == ProviderModalTab::Cloud => {
+                state.expand_selected_provider();
+                HandleResult::consumed()
+            }
+
             // Tab-specific actions
             KeyCode::Char('p') if state.active_tab == ProviderModalTab::Ollama => {
                 // Would get actual model from selection
@@ -167,6 +179,73 @@ impl ModalEventHandler {
             },
 
             _ => HandleResult::ignored(),
+        }
+    }
+
+    /// v0.8.95: Handle expanded provider mode (model selection)
+    fn handle_expanded_mode(state: &mut ProviderModalState, key: KeyEvent) -> HandleResult {
+        let providers = ProviderInfo::all_providers();
+        let provider_idx = state.expanded_provider_idx.unwrap_or(0);
+        let model_count = providers
+            .get(provider_idx)
+            .map(|p| p.models.len())
+            .unwrap_or(0);
+
+        match key.code {
+            // Collapse (close model list, stay in modal)
+            KeyCode::Esc => {
+                state.collapse_provider();
+                HandleResult::consumed()
+            }
+
+            // Navigate model list
+            KeyCode::Up | KeyCode::Char('k') => {
+                state.model_navigate_up(model_count);
+                HandleResult::consumed()
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                state.model_navigate_down(model_count);
+                HandleResult::consumed()
+            }
+
+            // Collapse and go left/right in grid
+            KeyCode::Left | KeyCode::Char('h') => {
+                state.collapse_provider();
+                state.navigate_left();
+                HandleResult::consumed()
+            }
+            KeyCode::Right | KeyCode::Char('l') => {
+                state.collapse_provider();
+                state.navigate_right();
+                HandleResult::consumed()
+            }
+
+            // Select model and close modal
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                let provider = Self::selected_cloud_provider_by_idx(provider_idx);
+                let model = providers
+                    .get(provider_idx)
+                    .and_then(|p| p.models.get(state.model_selection_idx))
+                    .map(|m| m.id.to_string())
+                    .unwrap_or_else(|| Self::default_model_for_provider(provider_idx).to_string());
+
+                // Update state
+                state.active_provider_idx = Some(provider_idx);
+                state.active_model = Some(model.clone());
+                state.collapse_provider();
+                state.visible = false;
+
+                HandleResult::consumed_with_action(ModalAction::SelectProvider { provider, model })
+            }
+
+            // Close modal entirely
+            KeyCode::Char('q') => {
+                state.collapse_provider();
+                state.close();
+                HandleResult::consumed_with_action(ModalAction::Close)
+            }
+
+            _ => HandleResult::consumed(),
         }
     }
 
@@ -234,19 +313,10 @@ impl ModalEventHandler {
                 HandleResult::consumed()
             }
             ProviderModalTab::Cloud => {
-                // Select provider as active and close modal
-                let provider = Self::selected_cloud_provider(state);
-                let model = Self::default_model_for_provider(state.selected_idx);
-
-                // Update state immediately
-                state.active_provider_idx = Some(state.selected_idx);
-                state.active_model = Some(model.to_string());
-                state.visible = false; // Close modal
-
-                HandleResult::consumed_with_action(ModalAction::SelectProvider {
-                    provider,
-                    model: model.to_string(),
-                })
+                // v0.8.95: Enter now expands the provider to show model list
+                // (Space also expands, Enter then selects from the expanded list)
+                state.expand_selected_provider();
+                HandleResult::consumed()
             }
             ProviderModalTab::Ollama => {
                 // Would show model details or pull dialog
@@ -273,8 +343,14 @@ impl ModalEventHandler {
     }
 
     /// Get currently selected cloud provider name
+    #[allow(dead_code)]
     fn selected_cloud_provider(state: &ProviderModalState) -> &'static str {
-        match state.selected_idx {
+        Self::selected_cloud_provider_by_idx(state.selected_idx)
+    }
+
+    /// Get cloud provider name by index
+    fn selected_cloud_provider_by_idx(idx: usize) -> &'static str {
+        match idx {
             0 => "anthropic",
             1 => "openai",
             2 => "mistral",
@@ -544,7 +620,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_enter_in_cloud_tab_selects_provider() {
+    fn test_handle_enter_in_cloud_tab_expands_provider() {
         let mut state = ProviderModalState::default();
         state.visible = true;
         state.active_tab = ProviderModalTab::Cloud;
@@ -553,17 +629,102 @@ mod tests {
         let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Enter));
 
         assert!(result.consumed);
+        // v0.8.95: Enter now expands the provider to show model list
+        assert!(result.action.is_none());
+        assert!(state.is_provider_expanded());
+        assert_eq!(state.expanded_provider_idx, Some(1));
+        assert!(state.visible); // Modal stays open
+    }
+
+    #[test]
+    fn test_handle_space_in_cloud_tab_expands_provider() {
+        let mut state = ProviderModalState::default();
+        state.visible = true;
+        state.active_tab = ProviderModalTab::Cloud;
+        state.selected_idx = 2; // Mistral
+
+        let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Char(' ')));
+
+        assert!(result.consumed);
+        assert!(state.is_provider_expanded());
+        assert_eq!(state.expanded_provider_idx, Some(2));
+    }
+
+    #[test]
+    fn test_expanded_mode_enter_selects_model() {
+        let mut state = ProviderModalState::default();
+        state.visible = true;
+        state.active_tab = ProviderModalTab::Cloud;
+        state.selected_idx = 1; // OpenAI
+        state.expand_selected_provider();
+        state.model_selection_idx = 1; // Select second model (gpt-4o-mini)
+
+        let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Enter));
+
+        assert!(result.consumed);
         assert_eq!(
             result.action,
             Some(ModalAction::SelectProvider {
                 provider: "openai",
-                model: "gpt-4o".to_string(),
+                model: "gpt-4o-mini".to_string(),
             })
         );
-        // Verify modal closes and provider is selected
         assert!(!state.visible);
         assert_eq!(state.active_provider_idx, Some(1));
-        assert_eq!(state.active_model, Some("gpt-4o".to_string()));
+        assert_eq!(state.active_model, Some("gpt-4o-mini".to_string()));
+    }
+
+    #[test]
+    fn test_expanded_mode_esc_collapses() {
+        let mut state = ProviderModalState::default();
+        state.visible = true;
+        state.active_tab = ProviderModalTab::Cloud;
+        state.expand_selected_provider();
+
+        let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Esc));
+
+        assert!(result.consumed);
+        assert!(!state.is_provider_expanded());
+        assert!(state.visible); // Modal stays open
+    }
+
+    #[test]
+    fn test_expanded_mode_up_down_navigates_models() {
+        let mut state = ProviderModalState::default();
+        state.visible = true;
+        state.active_tab = ProviderModalTab::Cloud;
+        state.selected_idx = 0; // Claude (has 3 models)
+        state.expand_selected_provider();
+
+        // Down
+        ModalEventHandler::handle(&mut state, key_event(KeyCode::Down));
+        assert_eq!(state.model_selection_idx, 1);
+
+        // Down again
+        ModalEventHandler::handle(&mut state, key_event(KeyCode::Down));
+        assert_eq!(state.model_selection_idx, 2);
+
+        // Down wraps to first
+        ModalEventHandler::handle(&mut state, key_event(KeyCode::Down));
+        assert_eq!(state.model_selection_idx, 0);
+
+        // Up wraps to last
+        ModalEventHandler::handle(&mut state, key_event(KeyCode::Up));
+        assert_eq!(state.model_selection_idx, 2);
+    }
+
+    #[test]
+    fn test_expanded_mode_left_right_collapses_and_navigates() {
+        let mut state = ProviderModalState::default();
+        state.visible = true;
+        state.active_tab = ProviderModalTab::Cloud;
+        state.selected_idx = 1; // OpenAI (middle of row)
+        state.expand_selected_provider();
+
+        // Left collapses and navigates left
+        ModalEventHandler::handle(&mut state, key_event(KeyCode::Left));
+        assert!(!state.is_provider_expanded());
+        assert_eq!(state.selected_idx, 0); // Claude
     }
 
     #[test]

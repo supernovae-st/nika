@@ -223,6 +223,10 @@ pub struct ProviderModalState {
     pub verification_state: super::components::VerificationState,
     /// v0.8.9: Whether verification animation is active
     pub verification_active: bool,
+    /// v0.8.95: Expanded provider index (for model selection)
+    pub expanded_provider_idx: Option<usize>,
+    /// v0.8.95: Selected model index within expanded provider
+    pub model_selection_idx: usize,
 }
 
 impl Default for ProviderModalState {
@@ -245,6 +249,8 @@ impl Default for ProviderModalState {
             latency_history: vec![Vec::new(); 6], // Pre-allocate for 6 providers
             verification_state: super::components::VerificationState::new_providers(),
             verification_active: false,
+            expanded_provider_idx: None,
+            model_selection_idx: 0,
         }
     }
 }
@@ -273,10 +279,15 @@ impl std::fmt::Debug for ProviderModalState {
                 "latency_history",
                 &format!(
                     "[{} providers]",
-                    self.latency_history.iter().filter(|h| !h.is_empty()).count()
+                    self.latency_history
+                        .iter()
+                        .filter(|h| !h.is_empty())
+                        .count()
                 ),
             )
             .field("verification_active", &self.verification_active)
+            .field("expanded_provider_idx", &self.expanded_provider_idx)
+            .field("model_selection_idx", &self.model_selection_idx)
             .finish()
     }
 }
@@ -521,7 +532,12 @@ impl ProviderModalState {
         let configured: usize = self
             .provider_statuses
             .iter()
-            .filter(|s| matches!(s, ConnectionStatus::Connected { .. } | ConnectionStatus::NotConfigured))
+            .filter(|s| {
+                matches!(
+                    s,
+                    ConnectionStatus::Connected { .. } | ConnectionStatus::NotConfigured
+                )
+            })
             .count();
 
         // Simple indicator: show count of verified
@@ -674,8 +690,8 @@ impl ProviderModalState {
         SessionStats {
             connected_providers,
             total_providers: 6,
-            tokens_used: 0,       // TODO: Wire to actual session token tracking
-            mcp_connections: 0,   // TODO: Wire to MCP client status
+            tokens_used: 0,     // TODO: Wire to actual session token tracking
+            mcp_connections: 0, // TODO: Wire to MCP client status
             avg_latency_ms,
         }
     }
@@ -683,6 +699,65 @@ impl ProviderModalState {
     /// Set Ollama models
     pub fn set_ollama_models(&mut self, models: Vec<super::ollama_client::OllamaModelInfo>) {
         self.ollama_models = models;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.8.95: Model Expand/Collapse Methods
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Check if a provider is currently expanded
+    pub fn is_provider_expanded(&self) -> bool {
+        self.expanded_provider_idx.is_some()
+    }
+
+    /// Check if a specific provider is expanded
+    pub fn is_provider_idx_expanded(&self, idx: usize) -> bool {
+        self.expanded_provider_idx == Some(idx)
+    }
+
+    /// Expand the currently selected provider (show model list)
+    pub fn expand_selected_provider(&mut self) {
+        if self.active_tab == ProviderModalTab::Cloud {
+            self.expanded_provider_idx = Some(self.selected_idx);
+            self.model_selection_idx = 0;
+        }
+    }
+
+    /// Collapse the expanded provider
+    pub fn collapse_provider(&mut self) {
+        self.expanded_provider_idx = None;
+        self.model_selection_idx = 0;
+    }
+
+    /// Toggle expand/collapse for selected provider
+    pub fn toggle_provider_expand(&mut self) {
+        if self.is_provider_idx_expanded(self.selected_idx) {
+            self.collapse_provider();
+        } else {
+            self.expand_selected_provider();
+        }
+    }
+
+    /// Navigate up in model list (when expanded)
+    pub fn model_navigate_up(&mut self, model_count: usize) {
+        if self.expanded_provider_idx.is_some() && model_count > 0 {
+            if self.model_selection_idx == 0 {
+                self.model_selection_idx = model_count - 1;
+            } else {
+                self.model_selection_idx -= 1;
+            }
+        }
+    }
+
+    /// Navigate down in model list (when expanded)
+    pub fn model_navigate_down(&mut self, model_count: usize) {
+        if self.expanded_provider_idx.is_some() && model_count > 0 {
+            if self.model_selection_idx >= model_count - 1 {
+                self.model_selection_idx = 0;
+            } else {
+                self.model_selection_idx += 1;
+            }
+        }
     }
 
     /// Process a loader event and update state accordingly
@@ -1368,7 +1443,8 @@ mod tests {
     #[test]
     fn test_set_provider_status_by_name_pushes_latency() {
         let mut state = ProviderModalState::default();
-        state.set_provider_status_by_name("openai", ConnectionStatus::Connected { latency_ms: 200 });
+        state
+            .set_provider_status_by_name("openai", ConnectionStatus::Connected { latency_ms: 200 });
 
         let history = state.get_latency_history(1);
         assert_eq!(history, &[200]);
@@ -1378,7 +1454,12 @@ mod tests {
     fn test_latency_history_not_pushed_for_non_connected() {
         let mut state = ProviderModalState::default();
         state.set_provider_status(0, ConnectionStatus::Checking);
-        state.set_provider_status(0, ConnectionStatus::Failed { error: "timeout".into() });
+        state.set_provider_status(
+            0,
+            ConnectionStatus::Failed {
+                error: "timeout".into(),
+            },
+        );
         state.set_provider_status(0, ConnectionStatus::NotConfigured);
 
         let history = state.get_latency_history(0);
@@ -1427,7 +1508,10 @@ mod tests {
         assert!(state.verification_active);
         // All entries should be reset to Checking
         for entry in &state.verification_state.entries {
-            assert_eq!(entry.status, super::super::components::VerifyStatus::Checking);
+            assert_eq!(
+                entry.status,
+                super::super::components::VerifyStatus::Checking
+            );
             assert_eq!(entry.progress, 0.0);
         }
     }
@@ -1438,13 +1522,27 @@ mod tests {
 
         let mut state = ProviderModalState::default();
         state.set_provider_status(0, ConnectionStatus::Connected { latency_ms: 100 });
-        state.set_provider_status(1, ConnectionStatus::Failed { error: "Timeout".into() });
+        state.set_provider_status(
+            1,
+            ConnectionStatus::Failed {
+                error: "Timeout".into(),
+            },
+        );
         state.set_provider_status(2, ConnectionStatus::NotConfigured);
 
         // Verification status should be synced
-        assert_eq!(state.verification_state.entries[0].status, VerifyStatus::Connected);
-        assert_eq!(state.verification_state.entries[1].status, VerifyStatus::Failed);
-        assert_eq!(state.verification_state.entries[2].status, VerifyStatus::NotConfigured);
+        assert_eq!(
+            state.verification_state.entries[0].status,
+            VerifyStatus::Connected
+        );
+        assert_eq!(
+            state.verification_state.entries[1].status,
+            VerifyStatus::Failed
+        );
+        assert_eq!(
+            state.verification_state.entries[2].status,
+            VerifyStatus::NotConfigured
+        );
     }
 
     #[test]
@@ -1468,7 +1566,9 @@ mod tests {
 
         // Set all to connected
         for i in 0..6 {
-            state.verification_state.set_status(i, VerifyStatus::Connected);
+            state
+                .verification_state
+                .set_status(i, VerifyStatus::Connected);
         }
 
         // Tick until complete
@@ -1490,7 +1590,9 @@ mod tests {
         state.provider_statuses = vec![
             ConnectionStatus::Connected { latency_ms: 100 },
             ConnectionStatus::Checking,
-            ConnectionStatus::Failed { error: "err".into() },
+            ConnectionStatus::Failed {
+                error: "err".into(),
+            },
             ConnectionStatus::NotConfigured,
             ConnectionStatus::Unknown,
             ConnectionStatus::Connected { latency_ms: 200 },
@@ -1498,11 +1600,29 @@ mod tests {
 
         state.sync_all_verification_statuses();
 
-        assert_eq!(state.verification_state.entries[0].status, VerifyStatus::Connected);
-        assert_eq!(state.verification_state.entries[1].status, VerifyStatus::Checking);
-        assert_eq!(state.verification_state.entries[2].status, VerifyStatus::Failed);
-        assert_eq!(state.verification_state.entries[3].status, VerifyStatus::NotConfigured);
-        assert_eq!(state.verification_state.entries[4].status, VerifyStatus::Checking);
-        assert_eq!(state.verification_state.entries[5].status, VerifyStatus::Connected);
+        assert_eq!(
+            state.verification_state.entries[0].status,
+            VerifyStatus::Connected
+        );
+        assert_eq!(
+            state.verification_state.entries[1].status,
+            VerifyStatus::Checking
+        );
+        assert_eq!(
+            state.verification_state.entries[2].status,
+            VerifyStatus::Failed
+        );
+        assert_eq!(
+            state.verification_state.entries[3].status,
+            VerifyStatus::NotConfigured
+        );
+        assert_eq!(
+            state.verification_state.entries[4].status,
+            VerifyStatus::Checking
+        );
+        assert_eq!(
+            state.verification_state.entries[5].status,
+            VerifyStatus::Connected
+        );
     }
 }

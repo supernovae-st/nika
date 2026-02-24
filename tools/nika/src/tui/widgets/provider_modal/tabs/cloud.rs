@@ -19,6 +19,16 @@ pub struct ProviderInfo {
     pub features: Vec<&'static str>,
     pub context_window: u32,
     pub status: ConnectionStatus,
+    /// Available models for this provider (v0.8.95: expandable list)
+    pub models: Vec<ModelInfo>,
+}
+
+/// Model information for provider model list
+#[derive(Debug, Clone)]
+pub struct ModelInfo {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub context_k: u32, // Context window in thousands
 }
 
 impl ProviderInfo {
@@ -33,6 +43,23 @@ impl ProviderInfo {
                 features: vec!["🧠", "👁️", "🔧"],
                 context_window: 200_000,
                 status: ConnectionStatus::Unknown,
+                models: vec![
+                    ModelInfo {
+                        id: "claude-opus-4",
+                        name: "Opus 4",
+                        context_k: 200,
+                    },
+                    ModelInfo {
+                        id: "claude-sonnet-4",
+                        name: "Sonnet 4",
+                        context_k: 200,
+                    },
+                    ModelInfo {
+                        id: "claude-haiku-3.5",
+                        name: "Haiku 3.5",
+                        context_k: 200,
+                    },
+                ],
             },
             ProviderInfo {
                 name: "OpenAI",
@@ -42,6 +69,33 @@ impl ProviderInfo {
                 features: vec!["🧠", "👁️", "🔧"],
                 context_window: 128_000,
                 status: ConnectionStatus::Unknown,
+                models: vec![
+                    ModelInfo {
+                        id: "gpt-4o",
+                        name: "GPT-4o",
+                        context_k: 128,
+                    },
+                    ModelInfo {
+                        id: "gpt-4o-mini",
+                        name: "GPT-4o Mini",
+                        context_k: 128,
+                    },
+                    ModelInfo {
+                        id: "gpt-4-turbo",
+                        name: "GPT-4 Turbo",
+                        context_k: 128,
+                    },
+                    ModelInfo {
+                        id: "o1",
+                        name: "o1",
+                        context_k: 200,
+                    },
+                    ModelInfo {
+                        id: "o1-mini",
+                        name: "o1 Mini",
+                        context_k: 128,
+                    },
+                ],
             },
             ProviderInfo {
                 name: "Mistral",
@@ -51,6 +105,28 @@ impl ProviderInfo {
                 features: vec!["🧠", "🔧"],
                 context_window: 128_000,
                 status: ConnectionStatus::Unknown,
+                models: vec![
+                    ModelInfo {
+                        id: "mistral-large-latest",
+                        name: "Large",
+                        context_k: 128,
+                    },
+                    ModelInfo {
+                        id: "mistral-medium-latest",
+                        name: "Medium",
+                        context_k: 32,
+                    },
+                    ModelInfo {
+                        id: "mistral-small-latest",
+                        name: "Small",
+                        context_k: 32,
+                    },
+                    ModelInfo {
+                        id: "codestral-latest",
+                        name: "Codestral",
+                        context_k: 32,
+                    },
+                ],
             },
             ProviderInfo {
                 name: "Groq",
@@ -60,6 +136,28 @@ impl ProviderInfo {
                 features: vec!["🧠", "⚡"],
                 context_window: 128_000,
                 status: ConnectionStatus::Unknown,
+                models: vec![
+                    ModelInfo {
+                        id: "llama-3.3-70b-versatile",
+                        name: "Llama 3.3 70B",
+                        context_k: 128,
+                    },
+                    ModelInfo {
+                        id: "llama-3.1-8b-instant",
+                        name: "Llama 3.1 8B",
+                        context_k: 128,
+                    },
+                    ModelInfo {
+                        id: "mixtral-8x7b-32768",
+                        name: "Mixtral 8x7B",
+                        context_k: 32,
+                    },
+                    ModelInfo {
+                        id: "gemma2-9b-it",
+                        name: "Gemma 2 9B",
+                        context_k: 8,
+                    },
+                ],
             },
             ProviderInfo {
                 name: "DeepSeek",
@@ -69,6 +167,23 @@ impl ProviderInfo {
                 features: vec!["🧠", "💰"],
                 context_window: 64_000,
                 status: ConnectionStatus::Unknown,
+                models: vec![
+                    ModelInfo {
+                        id: "deepseek-chat",
+                        name: "Chat",
+                        context_k: 64,
+                    },
+                    ModelInfo {
+                        id: "deepseek-coder",
+                        name: "Coder",
+                        context_k: 64,
+                    },
+                    ModelInfo {
+                        id: "deepseek-reasoner",
+                        name: "Reasoner (R1)",
+                        context_k: 64,
+                    },
+                ],
             },
             ProviderInfo {
                 name: "Ollama",
@@ -78,8 +193,35 @@ impl ProviderInfo {
                 features: vec!["🏠", "🔒"],
                 context_window: 128_000,
                 status: ConnectionStatus::Unknown,
+                models: vec![
+                    ModelInfo {
+                        id: "llama3.2",
+                        name: "Llama 3.2",
+                        context_k: 128,
+                    },
+                    ModelInfo {
+                        id: "llama3.1",
+                        name: "Llama 3.1",
+                        context_k: 128,
+                    },
+                    ModelInfo {
+                        id: "codellama",
+                        name: "Code Llama",
+                        context_k: 16,
+                    },
+                    ModelInfo {
+                        id: "mistral",
+                        name: "Mistral",
+                        context_k: 32,
+                    },
+                ],
             },
         ]
+    }
+
+    /// Get model by index
+    pub fn get_model(&self, idx: usize) -> Option<&ModelInfo> {
+        self.models.get(idx)
     }
 }
 
@@ -141,6 +283,9 @@ impl Widget for CloudTab<'_> {
                 if provider_idx < self.providers.len() {
                     let p = &self.providers[provider_idx];
 
+                    // v0.8.95: Check if this provider is expanded (showing model list)
+                    let is_expanded = self.state.is_provider_idx_expanded(provider_idx);
+
                     // Determine card style based on selection AND active status
                     let is_selected = provider_idx == self.state.selected_idx;
                     let is_active = self.state.active_provider_idx == Some(provider_idx);
@@ -176,8 +321,110 @@ impl Widget for CloudTab<'_> {
                     }
 
                     card.render(*col_area, buf);
+
+                    // v0.8.95: Render model list overlay if expanded
+                    if is_expanded {
+                        Self::render_model_list(
+                            buf,
+                            *col_area,
+                            &p.models,
+                            self.state.model_selection_idx,
+                        );
+                    }
                 }
             }
+        }
+    }
+}
+
+impl CloudTab<'_> {
+    /// v0.8.95: Render model list overlay on top of provider card
+    fn render_model_list(buf: &mut Buffer, area: Rect, models: &[ModelInfo], selected_idx: usize) {
+        use ratatui::style::{Color, Modifier, Style};
+
+        // Calculate overlay area (inside the card, below header)
+        let overlay_y = area.y + 1;
+        let overlay_height = area.height.saturating_sub(2);
+        let overlay_width = area.width.saturating_sub(2);
+        let overlay_x = area.x + 1;
+
+        // Semi-transparent background
+        let bg_color = Color::Rgb(17, 24, 39); // Dark slate
+        for y in overlay_y..overlay_y + overlay_height {
+            for x in overlay_x..overlay_x + overlay_width {
+                if y < buf.area.height && x < buf.area.width {
+                    buf[(x, y)].set_bg(bg_color);
+                    buf[(x, y)].set_symbol(" ");
+                }
+            }
+        }
+
+        // Header
+        let header = "▾ Models";
+        if overlay_y < buf.area.height {
+            buf.set_string(
+                overlay_x,
+                overlay_y,
+                header,
+                Style::default()
+                    .fg(Color::Rgb(147, 197, 253)) // Light blue
+                    .add_modifier(Modifier::BOLD),
+            );
+        }
+
+        // Model list
+        for (i, model) in models.iter().enumerate() {
+            let y = overlay_y + 1 + i as u16;
+            if y >= overlay_y + overlay_height || y >= buf.area.height {
+                break;
+            }
+
+            let is_selected = i == selected_idx;
+            let prefix = if is_selected { "▸ " } else { "  " };
+            let context_str = format!(" ({}K)", model.context_k);
+
+            let style = if is_selected {
+                Style::default()
+                    .fg(Color::Rgb(251, 191, 36)) // Amber
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::Rgb(209, 213, 219)) // Gray-300
+            };
+
+            // Render prefix and model name
+            let max_name_width = (overlay_width as usize).saturating_sub(context_str.len() + 3);
+            let display_name = if model.name.len() > max_name_width {
+                format!("{}…", &model.name[..max_name_width.saturating_sub(1)])
+            } else {
+                model.name.to_string()
+            };
+
+            buf.set_string(overlay_x, y, prefix, style);
+            buf.set_string(overlay_x + 2, y, &display_name, style);
+
+            // Context window on the right
+            let context_x = overlay_x + overlay_width - context_str.len() as u16;
+            if context_x > overlay_x + 2 {
+                buf.set_string(
+                    context_x,
+                    y,
+                    &context_str,
+                    Style::default().fg(Color::Rgb(107, 114, 128)), // Gray-500
+                );
+            }
+        }
+
+        // Hint at bottom
+        let hint = "↑↓ sel  ⏎ pick  ⎋ back";
+        let hint_y = overlay_y + overlay_height.saturating_sub(1);
+        if hint_y < buf.area.height && hint_y > overlay_y + 1 {
+            let hint_x = overlay_x + (overlay_width.saturating_sub(hint.len() as u16)) / 2;
+            buf.set_string(
+                hint_x,
+                hint_y,
+                hint,
+                Style::default().fg(Color::Rgb(75, 85, 99)), // Gray-600
+            );
         }
     }
 }

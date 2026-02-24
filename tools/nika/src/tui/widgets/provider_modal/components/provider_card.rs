@@ -265,15 +265,18 @@ impl Widget for ProviderCard<'_> {
                 ConnectionStatus::Connected { latency_ms } => {
                     (format!("● {}ms", latency_ms), Color::Rgb(34, 197, 94))
                 }
-                ConnectionStatus::Failed { .. } => {
-                    (short_status_text(self.status).to_string(), Color::Rgb(239, 68, 68))
-                }
-                ConnectionStatus::Checking => {
-                    (short_status_text(self.status).to_string(), Color::Rgb(59, 130, 246))
-                }
-                _ => {
-                    (short_status_text(self.status).to_string(), Color::Rgb(107, 114, 128))
-                }
+                ConnectionStatus::Failed { .. } => (
+                    short_status_text(self.status).to_string(),
+                    Color::Rgb(239, 68, 68),
+                ),
+                ConnectionStatus::Checking => (
+                    short_status_text(self.status).to_string(),
+                    Color::Rgb(59, 130, 246),
+                ),
+                _ => (
+                    short_status_text(self.status).to_string(),
+                    Color::Rgb(107, 114, 128),
+                ),
             };
             let status_x = inner.right().saturating_sub(status_text.len() as u16 + 1);
             buf.set_string(
@@ -287,8 +290,6 @@ impl Widget for ProviderCard<'_> {
         // Row 2: Features + Sparkline + Context window (or error message if Failed)
         if inner.height >= 2 {
             // v0.8.92: Show error message on line 2 if Failed
-            let is_error = get_error_message(self.status).is_some();
-
             if let Some(error_msg) = get_error_message(self.status) {
                 // Calculate available width for error (leave space for context window)
                 let ctx_width = if self.context_window > 0 {
@@ -449,8 +450,8 @@ mod tests {
     fn test_card_with_latency_history() {
         let status = ConnectionStatus::Connected { latency_ms: 150 };
         let history = [100, 120, 150, 130, 140];
-        let card = ProviderCard::new("🍊", "Claude", "claude-sonnet-4", &status)
-            .latency_history(&history);
+        let card =
+            ProviderCard::new("🍊", "Claude", "claude-sonnet-4", &status).latency_history(&history);
 
         let mut buf = Buffer::empty(Rect::new(0, 0, 60, 5));
         card.render(Rect::new(0, 0, 60, 5), &mut buf);
@@ -506,7 +507,8 @@ mod tests {
     #[test]
     fn test_card_with_long_error_no_overflow() {
         let status = ConnectionStatus::Failed {
-            error: "Connection refused: HTTP 500 Internal Server Error with very long message".into(),
+            error: "Connection refused: HTTP 500 Internal Server Error with very long message"
+                .into(),
         };
         let card = ProviderCard::new("🍊", "Claude", "claude-sonnet-4", &status);
 

@@ -33,30 +33,47 @@ const KATAKANA_HALF: &[char] = &[
 
 /// Full-width Katakana (more variety)
 const KATAKANA_FULL: &[char] = &[
-    'ア', 'イ', 'ウ', 'エ', 'オ', 'カ', 'キ', 'ク', 'ケ', 'コ', 'サ', 'シ', 'ス', 'セ', 'ソ',
-    'タ', 'チ', 'ツ', 'テ', 'ト', 'ナ', 'ニ', 'ヌ', 'ネ', 'ノ', 'ハ', 'ヒ', 'フ', 'ヘ', 'ホ',
-    'マ', 'ミ', 'ム', 'メ', 'モ', 'ヤ', 'ユ', 'ヨ', 'ラ', 'リ', 'ル', 'レ', 'ロ', 'ワ', 'ヲ', 'ン',
+    'ア', 'イ', 'ウ', 'エ', 'オ', 'カ', 'キ', 'ク', 'ケ', 'コ', 'サ', 'シ', 'ス', 'セ', 'ソ', 'タ',
+    'チ', 'ツ', 'テ', 'ト', 'ナ', 'ニ', 'ヌ', 'ネ', 'ノ', 'ハ', 'ヒ', 'フ', 'ヘ', 'ホ', 'マ', 'ミ',
+    'ム', 'メ', 'モ', 'ヤ', 'ユ', 'ヨ', 'ラ', 'リ', 'ル', 'レ', 'ロ', 'ワ', 'ヲ', 'ン',
 ];
 
 /// Hiragana (softer Japanese aesthetic)
 const HIRAGANA: &[char] = &[
-    'あ', 'い', 'う', 'え', 'お', 'か', 'き', 'く', 'け', 'こ', 'さ', 'し', 'す', 'せ', 'そ',
-    'た', 'ち', 'つ', 'て', 'と', 'な', 'に', 'ぬ', 'ね', 'の', 'は', 'ひ', 'ふ', 'へ', 'ほ',
+    'あ', 'い', 'う', 'え', 'お', 'か', 'き', 'く', 'け', 'こ', 'さ', 'し', 'す', 'せ', 'そ', 'た',
+    'ち', 'つ', 'て', 'と', 'な', 'に', 'ぬ', 'ね', 'の', 'は', 'ひ', 'ふ', 'へ', 'ほ',
 ];
 
 /// Hacker ASCII (code-like, terminal aesthetic)
 const ASCII_HACKER: &[char] = &[
-    '0', '1', '.', ':', '_', '-', '>', '<', '/', '\\', '|', '+', '*',
-    '{', '}', '[', ']', '(', ')', '=', '#', '@', '$', '%', '^', '&',
-    '~', '`', ';', '"', '\'', '!', '?',
+    '0', '1', '.', ':', '_', '-', '>', '<', '/', '\\', '|', '+', '*', '{', '}', '[', ']', '(', ')',
+    '=', '#', '@', '$', '%', '^', '&', '~', '`', ';', '"', '\'', '!', '?',
 ];
 
 /// Nika mascot emojis (6% of drops, brand identity)
 /// 🦋 is 40% of emoji picks (dominant brand symbol)
 const NIKA_MASCOTS: &[&str] = &[
     // === Nika Brand (40% = 20 entries out of ~50) ===
-    "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋",
-    "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
+    "🦋",
     // === Tech/Rust ===
     "🦀", // Rust crab
     "⚡", // Energy/async
@@ -124,15 +141,15 @@ const RAIN_COLORS: &[Color] = &[
 /// X = butterfly, . = empty space
 const NIKA_PATTERN: &[&str] = &[
     // N          I      K          A
-    "X X . . X X  X X  X X . . X X  . X X X X .",  // 1
-    "X X . . X X  X X  X X . . X X  . X X X X .",  // 2
-    "X X X . X X  X X  X X . X X .  X X . . X X",  // 3
-    "X X X . X X  X X  X X X X . .  X X . . X X",  // 4
-    "X X X X X X  X X  X X X X . .  X X X X X X",  // 5 (middle)
-    "X X . X X X  X X  X X X X . .  X X X X X X",  // 6
-    "X X . . X X  X X  X X . X X .  X X . . X X",  // 7
-    "X X . . X X  X X  X X . . X X  X X . . X X",  // 8
-    "X X . . X X  X X  X X . . X X  X X . . X X",  // 9
+    "X X . . X X  X X  X X . . X X  . X X X X .", // 1
+    "X X . . X X  X X  X X . . X X  . X X X X .", // 2
+    "X X X . X X  X X  X X . X X .  X X . . X X", // 3
+    "X X X . X X  X X  X X X X . .  X X . . X X", // 4
+    "X X X X X X  X X  X X X X . .  X X X X X X", // 5 (middle)
+    "X X . X X X  X X  X X X X . .  X X X X X X", // 6
+    "X X . . X X  X X  X X . X X .  X X . . X X", // 7
+    "X X . . X X  X X  X X . . X X  X X . . X X", // 8
+    "X X . . X X  X X  X X . . X X  X X . . X X", // 9
 ];
 
 /// Width of NIKA_PATTERN in characters
@@ -384,10 +401,14 @@ impl MatrixRain {
         if progress < 0.7 {
             let sparkle_fade = (1.0 - progress / 0.7) * fade_in;
             let deco_positions: [(i16, i16); 8] = [
-                (-3, -1), (48, -1),   // Top corners
-                (-4, 4), (49, 4),     // Middle
-                (-3, 9), (48, 9),     // Bottom corners
-                (22, -2), (22, 10),   // Top/bottom center
+                (-3, -1),
+                (48, -1), // Top corners
+                (-4, 4),
+                (49, 4), // Middle
+                (-3, 9),
+                (48, 9), // Bottom corners
+                (22, -2),
+                (22, 10), // Top/bottom center
             ];
             for (i, (dx, dy)) in deco_positions.iter().enumerate() {
                 let x = (pattern_start_x as i16 + dx).max(area.x as i16) as u16;
@@ -397,7 +418,12 @@ impl MatrixRain {
                     let emoji_idx = (i + (self.frame as usize / 2)) % DECO_EMOJIS.len();
                     let emoji = DECO_EMOJIS[emoji_idx];
                     let color = RAIN_COLORS[i % RAIN_COLORS.len()];
-                    buf.set_string(x, y, emoji, Style::default().fg(self.apply_opacity(color, sparkle_fade)));
+                    buf.set_string(
+                        x,
+                        y,
+                        emoji,
+                        Style::default().fg(self.apply_opacity(color, sparkle_fade)),
+                    );
                 }
             }
         }
@@ -420,7 +446,7 @@ impl MatrixRain {
                         / 50.0;
 
                     // Each butterfly has its own delayed start based on distance
-                    let local_progress = (progress - dist_from_center * 0.15).max(0.0).min(1.0);
+                    let local_progress = (progress - dist_from_center * 0.15).clamp(0.0, 1.0);
                     let local_eased = Self::ease_out(local_progress);
 
                     // Calculate smooth explosion offset
@@ -432,7 +458,8 @@ impl MatrixRain {
                             * std::f32::consts::TAU;
 
                         // Distance increases smoothly with easing
-                        let max_dist = ((seed_offset.wrapping_mul(6991) % 500) as f32 / 500.0 + 0.5) * 20.0;
+                        let max_dist =
+                            ((seed_offset.wrapping_mul(6991) % 500) as f32 / 500.0 + 0.5) * 20.0;
                         let dist = local_eased * max_dist;
 
                         let offset_x = (angle.cos() * dist) as i16;
@@ -440,10 +467,12 @@ impl MatrixRain {
 
                         let new_x = (base_x as i16 + offset_x)
                             .max(area.x as i16)
-                            .min((area.x + area.width - 2) as i16) as u16;
+                            .min((area.x + area.width - 2) as i16)
+                            as u16;
                         let new_y = (base_y as i16 + offset_y)
                             .max(area.y as i16)
-                            .min((area.y + area.height - 1) as i16) as u16;
+                            .min((area.y + area.height - 1) as i16)
+                            as u16;
 
                         // Smooth fade out during explosion
                         let fade = (1.0 - local_eased.powf(1.5)).max(0.0);
@@ -465,7 +494,8 @@ impl MatrixRain {
                         && final_y < area.y + area.height
                     {
                         // Rainbow colors cycling through butterflies
-                        let color_idx = (row_idx + butterfly_idx + self.frame as usize / 4) % RAIN_COLORS.len();
+                        let color_idx =
+                            (row_idx + butterfly_idx + self.frame as usize / 4) % RAIN_COLORS.len();
                         let base_color = RAIN_COLORS[color_idx];
                         let color = self.apply_opacity(base_color, local_fade);
 
@@ -666,9 +696,7 @@ mod tests {
 
     #[test]
     fn test_render_with_nika_pattern() {
-        let rain = MatrixRain::new()
-            .with_nika_pattern(true)
-            .opacity(1.0);
+        let rain = MatrixRain::new().with_nika_pattern(true).opacity(1.0);
         let area = Rect::new(0, 0, 80, 24);
         let mut buf = Buffer::empty(area);
         rain.render(area, &mut buf);
