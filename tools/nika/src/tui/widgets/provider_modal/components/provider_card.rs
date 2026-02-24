@@ -61,6 +61,8 @@ pub struct ProviderCard<'a> {
     features: Vec<&'a str>,
     context_window: u32,
     style: CardStyle,
+    /// Animated indicator for active state (cycling ASCII chars)
+    active_indicator: &'a str,
 }
 
 impl<'a> ProviderCard<'a> {
@@ -73,6 +75,7 @@ impl<'a> ProviderCard<'a> {
             features: vec![],
             context_window: 0,
             style: CardStyle::Normal,
+            active_indicator: "★",
         }
     }
 
@@ -90,6 +93,12 @@ impl<'a> ProviderCard<'a> {
         self.style = style;
         self
     }
+
+    /// Set animated active indicator (cycling ASCII chars)
+    pub fn active_indicator(mut self, indicator: &'a str) -> Self {
+        self.active_indicator = indicator;
+        self
+    }
 }
 
 impl Widget for ProviderCard<'_> {
@@ -98,9 +107,12 @@ impl Widget for ProviderCard<'_> {
             return;
         }
 
-        // Build title with optional "IN USE" badge
+        // Build title with optional animated "IN USE" badge
         let title = if self.style.is_active() {
-            format!(" {} {} ★ IN USE ", self.icon, self.name)
+            format!(
+                " {} {} {} IN USE ",
+                self.icon, self.name, self.active_indicator
+            )
         } else {
             format!(" {} {} ", self.icon, self.name)
         };

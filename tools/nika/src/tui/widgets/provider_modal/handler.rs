@@ -462,29 +462,29 @@ mod tests {
     }
 
     #[test]
-    fn test_grid_navigation_respects_boundaries() {
+    fn test_grid_navigation_wraps() {
         let mut state = ProviderModalState::default();
         state.visible = true;
 
-        // At left edge, can't go left
+        // At left edge, wraps to right of same row
         state.selected_idx = 0;
         ModalEventHandler::handle(&mut state, key_event(KeyCode::Left));
-        assert_eq!(state.selected_idx, 0); // Stays at 0
+        assert_eq!(state.selected_idx, 2); // Wraps to end of row 0
 
-        // At right edge (col 2), can't go right
+        // At right edge (col 2), wraps to left of same row
         state.selected_idx = 2;
         ModalEventHandler::handle(&mut state, key_event(KeyCode::Right));
-        assert_eq!(state.selected_idx, 2); // Stays at 2
+        assert_eq!(state.selected_idx, 0); // Wraps to start of row 0
 
-        // At top row, can't go up
+        // At top row, wraps to bottom (same column)
         state.selected_idx = 1;
         ModalEventHandler::handle(&mut state, key_event(KeyCode::Up));
-        assert_eq!(state.selected_idx, 1); // Stays at 1
+        assert_eq!(state.selected_idx, 4); // Wraps to row 1, col 1
 
-        // At bottom row, can't go down
+        // At bottom row, wraps to top (same column)
         state.selected_idx = 4;
         ModalEventHandler::handle(&mut state, key_event(KeyCode::Down));
-        assert_eq!(state.selected_idx, 4); // Stays at 4
+        assert_eq!(state.selected_idx, 1); // Wraps to row 0, col 1
     }
 
     #[test]

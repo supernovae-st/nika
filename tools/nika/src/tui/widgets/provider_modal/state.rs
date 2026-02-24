@@ -202,6 +202,10 @@ pub struct ProviderModalState {
     pub ollama_models: Vec<super::ollama_client::OllamaModelInfo>,
     /// Currently active provider index (the one being used for inference)
     pub active_provider_idx: Option<usize>,
+    /// Currently active model name for display
+    pub active_model: Option<String>,
+    /// Animation frame counter for active provider cycling effect
+    pub animation_frame: u8,
 }
 
 impl Default for ProviderModalState {
@@ -218,6 +222,8 @@ impl Default for ProviderModalState {
             provider_statuses: Vec::new(),
             ollama_models: Vec::new(),
             active_provider_idx: None,
+            active_model: None,
+            animation_frame: 0,
         }
     }
 }
@@ -240,6 +246,8 @@ impl std::fmt::Debug for ProviderModalState {
                 &format!("[{} models]", self.ollama_models.len()),
             )
             .field("active_provider_idx", &self.active_provider_idx)
+            .field("active_model", &self.active_model)
+            .field("animation_frame", &self.animation_frame)
             .finish()
     }
 }
@@ -271,57 +279,82 @@ impl ProviderModalState {
             ProviderModalTab::Cloud => 6, // 6 cloud providers
             ProviderModalTab::Ollama => self.ollama_models.len().max(1), // Dynamic
             ProviderModalTab::Keys => 6,  // 6 API key entries
-            ProviderModalTab::Config => 4, // Config options
+            ProviderModalTab::Config => 6, // 6 config entries (matches ConfigTab::new())
         };
     }
 
-    /// Navigate up in current list/grid
-    /// For Cloud tab (2x3 grid): moves up one row (idx - 3)
-    /// For other tabs: moves up one item (idx - 1)
+    /// Navigate up in current list/grid (wraps around)
+    /// For Cloud tab (2x3 grid): moves up one row (idx - 3), wraps to bottom
+    /// For other tabs: moves up one item (idx - 1), wraps to last
     pub fn navigate_up(&mut self) {
-        if self.active_tab == ProviderModalTab::Cloud {
-            // 2x3 grid: move up one row
-            if self.selected_idx >= 3 {
-                self.selected_idx -= 3;
-            }
-        } else {
-            self.selected_idx = self.selected_idx.saturating_sub(1);
-        }
-    }
-
-    /// Navigate down in current list/grid
-    /// For Cloud tab (2x3 grid): moves down one row (idx + 3)
-    /// For other tabs: moves down one item (idx + 1)
-    pub fn navigate_down(&mut self) {
         if self.item_count == 0 {
             return;
         }
         if self.active_tab == ProviderModalTab::Cloud {
-            // 2x3 grid: move down one row
-            if self.selected_idx + 3 < self.item_count {
+            // 2x3 grid: move up one row, wrap to bottom
+            if self.selected_idx >= 3 {
+                self.selected_idx -= 3;
+            } else {
+                // Wrap to bottom row, same column
                 self.selected_idx += 3;
             }
-        } else if self.selected_idx < self.item_count - 1 {
-            self.selected_idx += 1;
-        }
-    }
-
-    /// Navigate left in grid (Cloud tab only)
-    pub fn navigate_left(&mut self) {
-        if self.active_tab == ProviderModalTab::Cloud {
-            // Don't wrap to previous row
-            if self.selected_idx % 3 != 0 {
+        } else {
+            // List navigation: wrap to last
+            if self.selected_idx == 0 {
+                self.selected_idx = self.item_count - 1;
+            } else {
                 self.selected_idx -= 1;
             }
         }
     }
 
-    /// Navigate right in grid (Cloud tab only)
+    /// Navigate down in current list/grid (wraps around)
+    /// For Cloud tab (2x3 grid): moves down one row (idx + 3), wraps to top
+    /// For other tabs: moves down one item (idx + 1), wraps to first
+    pub fn navigate_down(&mut self) {
+        if self.item_count == 0 {
+            return;
+        }
+        if self.active_tab == ProviderModalTab::Cloud {
+            // 2x3 grid: move down one row, wrap to top
+            if self.selected_idx + 3 < self.item_count {
+                self.selected_idx += 3;
+            } else {
+                // Wrap to top row, same column
+                self.selected_idx -= 3;
+            }
+        } else {
+            // List navigation: wrap to first
+            if self.selected_idx >= self.item_count - 1 {
+                self.selected_idx = 0;
+            } else {
+                self.selected_idx += 1;
+            }
+        }
+    }
+
+    /// Navigate left in grid (Cloud tab only, wraps within row)
+    pub fn navigate_left(&mut self) {
+        if self.active_tab == ProviderModalTab::Cloud {
+            if self.selected_idx % 3 != 0 {
+                self.selected_idx -= 1;
+            } else {
+                // Wrap to end of row
+                let row_end = (self.selected_idx + 2).min(self.item_count - 1);
+                self.selected_idx = row_end;
+            }
+        }
+    }
+
+    /// Navigate right in grid (Cloud tab only, wraps within row)
     pub fn navigate_right(&mut self) {
         if self.active_tab == ProviderModalTab::Cloud && self.item_count > 0 {
-            // Don't wrap to next row
             if self.selected_idx % 3 != 2 && self.selected_idx < self.item_count - 1 {
                 self.selected_idx += 1;
+            } else {
+                // Wrap to start of row
+                let row_start = (self.selected_idx / 3) * 3;
+                self.selected_idx = row_start;
             }
         }
     }
@@ -359,6 +392,38 @@ impl ProviderModalState {
             Some(4) => Some("DeepSeek"),
             Some(5) => Some("Ollama"),
             _ => None,
+        }
+    }
+
+    /// Set the active model name
+    pub fn set_active_model(&mut self, model: impl Into<String>) {
+        self.active_model = Some(model.into());
+    }
+
+    /// Tick animation frame (call on each frame update)
+    pub fn tick_animation(&mut self) {
+        self.animation_frame = self.animation_frame.wrapping_add(1);
+    }
+
+    /// Get animated indicator for active provider
+    /// Returns cycling ASCII characters: ★ ✦ ● ◆ ✧
+    pub fn active_indicator(&self) -> &'static str {
+        const FRAMES: &[&str] = &["★", "✦", "●", "◆", "✧", "◉", "✴", "❋"];
+        FRAMES[(self.animation_frame as usize / 4) % FRAMES.len()]
+    }
+
+    /// Get Cloud tab label with active model if set
+    pub fn cloud_tab_label(&self) -> String {
+        if let Some(ref model) = self.active_model {
+            // Shorten model name for display (keep up to 20 chars)
+            let short = if model.len() > 20 {
+                format!("{}...", &model[..17])
+            } else {
+                model.clone()
+            };
+            format!("☁️  CLOUD [{}]", short)
+        } else {
+            "☁️  CLOUD".to_string()
         }
     }
 
@@ -619,7 +684,7 @@ mod tests {
     }
 
     #[test]
-    fn test_modal_navigate_list_mode() {
+    fn test_modal_navigate_list_mode_wrapping() {
         // Use Keys tab for list navigation test (not grid)
         let mut state = ProviderModalState::default();
         state.switch_tab(ProviderModalTab::Keys); // Keys tab uses list navigation
@@ -635,27 +700,21 @@ mod tests {
         state.navigate_down();
         assert_eq!(state.selected_idx, 4);
 
-        // Should not go past end
+        // Wraps to first
         state.navigate_down();
+        assert_eq!(state.selected_idx, 0);
+
+        // Wraps to last when at first and going up
+        state.navigate_up();
         assert_eq!(state.selected_idx, 4);
 
         state.navigate_up();
         assert_eq!(state.selected_idx, 3);
-
-        // Go to top
-        state.navigate_up();
-        state.navigate_up();
-        state.navigate_up();
-        assert_eq!(state.selected_idx, 0);
-
-        // Should not go below 0
-        state.navigate_up();
-        assert_eq!(state.selected_idx, 0);
     }
 
     #[test]
-    fn test_modal_navigate_grid_mode() {
-        // Cloud tab (default) uses 2x3 grid navigation
+    fn test_modal_navigate_grid_mode_wrapping() {
+        // Cloud tab (default) uses 2x3 grid navigation with wrapping
         let mut state = ProviderModalState::default();
         // Default is Cloud tab with item_count = 6
 
@@ -666,41 +725,37 @@ mod tests {
         assert_eq!(state.selected_idx, 0);
         assert_eq!(state.active_tab, ProviderModalTab::Cloud);
 
-        // Navigate right: 0 -> 1 -> 2
+        // Navigate right: 0 -> 1 -> 2 -> wraps to 0
         state.navigate_right();
         assert_eq!(state.selected_idx, 1);
         state.navigate_right();
         assert_eq!(state.selected_idx, 2);
-
-        // At right edge, can't go further
         state.navigate_right();
-        assert_eq!(state.selected_idx, 2);
+        assert_eq!(state.selected_idx, 0); // Wraps to start of row
 
-        // Navigate down: 2 -> 5
+        // Navigate down: 0 -> 3 -> wraps to 0
+        state.navigate_down();
+        assert_eq!(state.selected_idx, 3);
+        state.navigate_down();
+        assert_eq!(state.selected_idx, 0); // Wraps to top
+
+        // Navigate to position 5, then down wraps
+        state.navigate_right();
+        state.navigate_right();
         state.navigate_down();
         assert_eq!(state.selected_idx, 5);
-
-        // At bottom, can't go further
         state.navigate_down();
-        assert_eq!(state.selected_idx, 5);
+        assert_eq!(state.selected_idx, 2); // Wraps to top, same column
 
-        // Navigate left: 5 -> 4 -> 3
+        // Navigate left wrapping: 5 -> 4 -> 3 -> wraps to 5
+        state.selected_idx = 3;
         state.navigate_left();
-        assert_eq!(state.selected_idx, 4);
-        state.navigate_left();
-        assert_eq!(state.selected_idx, 3);
+        assert_eq!(state.selected_idx, 5); // Wraps to end of row
 
-        // At left edge, can't go further
-        state.navigate_left();
-        assert_eq!(state.selected_idx, 3);
-
-        // Navigate up: 3 -> 0
+        // Navigate up wrapping: 0 -> wraps to 3
+        state.selected_idx = 0;
         state.navigate_up();
-        assert_eq!(state.selected_idx, 0);
-
-        // At top, can't go further
-        state.navigate_up();
-        assert_eq!(state.selected_idx, 0);
+        assert_eq!(state.selected_idx, 3); // Wraps to bottom, same column
     }
 
     // SEC-004: Debug redacts key_input_buffer
@@ -917,5 +972,55 @@ mod tests {
             source: "ollama".to_string(),
             message: "Connection refused".to_string(),
         });
+    }
+
+    #[test]
+    fn test_active_model_and_tab_label() {
+        let mut state = ProviderModalState::default();
+        assert!(state.active_model.is_none());
+        assert_eq!(state.cloud_tab_label(), "☁️  CLOUD");
+
+        state.set_active_model("claude-sonnet-4-6");
+        assert_eq!(state.active_model, Some("claude-sonnet-4-6".to_string()));
+        assert_eq!(state.cloud_tab_label(), "☁️  CLOUD [claude-sonnet-4-6]");
+    }
+
+    #[test]
+    fn test_active_model_long_name_truncated() {
+        let mut state = ProviderModalState::default();
+        state.set_active_model("claude-3-5-sonnet-latest-version-2025");
+        // Should truncate to 17 chars + "..." (threshold is >20)
+        let label = state.cloud_tab_label();
+        assert!(label.contains("..."));
+        assert!(label.len() < 50);
+    }
+
+    #[test]
+    fn test_animation_frame_cycles() {
+        let mut state = ProviderModalState::default();
+        assert_eq!(state.animation_frame, 0);
+
+        state.tick_animation();
+        assert_eq!(state.animation_frame, 1);
+
+        // Should cycle through indicators
+        for _ in 0..100 {
+            state.tick_animation();
+        }
+        // Should not panic and indicator should be valid
+        let indicator = state.active_indicator();
+        assert!(!indicator.is_empty());
+    }
+
+    #[test]
+    fn test_active_indicator_returns_valid_chars() {
+        let mut state = ProviderModalState::default();
+        let valid_chars = ["★", "✦", "●", "◆", "✧", "◉", "✴", "❋"];
+
+        for _ in 0..32 {
+            let indicator = state.active_indicator();
+            assert!(valid_chars.contains(&indicator));
+            state.tick_animation();
+        }
     }
 }

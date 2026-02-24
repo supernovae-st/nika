@@ -152,11 +152,12 @@ impl Widget for CloudTab<'_> {
                         (false, false) => CardStyle::Normal,
                     };
 
-                    // Render provider card
+                    // Render provider card with animated indicator for active
                     ProviderCard::new(p.icon, p.name, p.model, &p.status)
                         .style(style)
                         .features(p.features.clone())
                         .context_window(p.context_window)
+                        .active_indicator(self.state.active_indicator())
                         .render(*col_area, buf);
                 }
             }
