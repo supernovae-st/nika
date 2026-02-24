@@ -1,3 +1,9 @@
 //! Tab implementations
 
-// TODO: Implement in Task 6
+mod cloud;
+mod keys;
+mod ollama;
+
+pub use cloud::*;
+pub use keys::*;
+pub use ollama::*;
