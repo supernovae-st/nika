@@ -143,12 +143,7 @@ impl Widget for ProviderModal<'_> {
                 .render(chunks[1], buf);
             }
             ProviderModalTab::Config => {
-                buf.set_string(
-                    chunks[1].x + 2,
-                    chunks[1].y + 1,
-                    "Configuration coming soon...",
-                    Style::default().fg(Color::Rgb(156, 163, 175)),
-                );
+                ConfigTab::new(self.state.selected_idx).render(chunks[1], buf);
             }
         }
 
