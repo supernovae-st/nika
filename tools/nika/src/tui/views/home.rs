@@ -46,7 +46,7 @@ use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
     AnimatedLatencySparkline, BigTextGradient, DagAscii, GradientType, MatrixRain, NodeBoxData,
-    NodeBoxMode, SparklineAnimation,
+    NodeBoxMode, SparklineAnimation, Timeline, TimelineEntry,
 };
 
 /// Home view state
@@ -859,53 +859,71 @@ impl HomeView {
     }
 
     /// Render the history bar (bottom, toggleable)
+    /// v0.8.2: Uses Timeline widget for visual history display
     fn render_history(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let toggle_hint = if self.history_expanded { "^" } else { "v" };
+        let title = format!(" HISTORY [h] {} ", toggle_hint);
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .border_style(Style::default().fg(theme.border_normal));
+
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        if self.standalone.history.is_empty() {
+            let empty_msg = Paragraph::new(" No history yet ")
+                .style(Style::default().fg(theme.text_muted));
+            frame.render_widget(empty_msg, inner);
+            return;
+        }
+
+        // Convert HistoryEntry to TimelineEntry for visual display
         let max_items = if self.history_expanded { 10 } else { 5 };
-        let items: Vec<Span> = self
+        let entries: Vec<TimelineEntry> = self
             .standalone
             .history
             .iter()
             .rev() // Most recent first
             .take(max_items)
-            .map(|h| {
-                let status = if h.success { "+" } else { "x" };
-                let color = if h.success {
-                    theme.status_success
-                } else {
-                    theme.status_failed
-                };
+            .enumerate()
+            .map(|(i, h)| {
                 let name = h
                     .workflow_path
                     .file_name()
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_else(|| "unknown".to_string());
-                Span::styled(
-                    format!(" {} {} ({}) ", status, name, h.duration_display()),
-                    Style::default().fg(color),
-                )
+
+                let status = if h.success {
+                    TaskStatus::Success
+                } else {
+                    TaskStatus::Failed
+                };
+
+                let mut entry = TimelineEntry::new(name, status).with_duration(h.duration_ms);
+                if i == 0 {
+                    entry = entry.current(); // Mark most recent
+                }
+                entry
             })
             .collect();
 
-        let toggle_hint = if self.history_expanded { "^" } else { "v" };
-        let title = format!(" HISTORY [h] {} ", toggle_hint);
+        // Calculate total elapsed time from all runs
+        let total_ms: u64 = self
+            .standalone
+            .history
+            .iter()
+            .take(max_items)
+            .map(|h| h.duration_ms)
+            .sum();
 
-        let content = if items.is_empty() {
-            Line::from(Span::styled(
-                " No history yet ",
-                Style::default().fg(theme.text_muted),
-            ))
-        } else {
-            Line::from(items)
-        };
+        let timeline = Timeline::new(&entries)
+            .elapsed(total_ms)
+            .with_theme(theme)
+            .with_frame(self.frame);
 
-        let paragraph = Paragraph::new(content).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(title)
-                .border_style(Style::default().fg(theme.border_normal)),
-        );
-
-        frame.render_widget(paragraph, area);
+        frame.render_widget(timeline, inner);
     }
 }
 
@@ -1003,8 +1021,7 @@ impl View for HomeView {
 
         // Normal mode key handling
         match key.code {
-            // Quit
-            KeyCode::Char('q') => ViewAction::Quit,
+            // v0.8.1: Removed 'q' to quit - use Ctrl+C (double-tap) instead
             // 's' opens Settings view
             KeyCode::Char('s') => ViewAction::OpenSettings,
             // Shift+T toggles theme (v0.8.1 - consistent across all views)

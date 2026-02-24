@@ -61,16 +61,11 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
     let mut bindings = Vec::new();
 
     // Global bindings (always available)
-    bindings.push(Keybinding {
-        code: KeyCode::Char('q'),
-        modifiers: KeyModifiers::NONE,
-        description: "Quit",
-        category: KeyCategory::Global,
-    });
+    // v0.8.1: Removed 'q' to quit - too easy to accidentally quit
     bindings.push(Keybinding {
         code: KeyCode::Char('c'),
         modifiers: KeyModifiers::CONTROL,
-        description: "Force quit",
+        description: "Quit (double-tap)",
         category: KeyCategory::Global,
     });
     bindings.push(Keybinding {
@@ -368,7 +363,10 @@ mod tests {
     fn test_keybindings_for_chat_normal() {
         let bindings = keybindings_for_context(TuiView::Chat, InputMode::Normal);
         assert!(bindings.iter().any(|b| b.code == KeyCode::Char('i')));
-        assert!(bindings.iter().any(|b| b.code == KeyCode::Char('q')));
+        // v0.8.1: Removed 'q' to quit - use Ctrl+C (double-tap) instead
+        assert!(bindings
+            .iter()
+            .any(|b| b.code == KeyCode::Char('c') && b.modifiers == KeyModifiers::CONTROL));
         // Ctrl+K/T/M available in Chat (v0.7.0)
         assert!(bindings
             .iter()

@@ -30,10 +30,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{
-        Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation,
-        ScrollbarState, Widget,
-    },
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Widget},
     Frame,
 };
 use serde::{Deserialize, Serialize};
@@ -63,8 +60,8 @@ use crate::tui::widgets::{
     ActivityItem, ActivityTemp, ChatModeIndicator, CommandPalette, CommandPaletteState,
     ContextItem, CurrentVerb, DecryptVerb, HelpOverlay, HelpOverlayState, InferStreamData,
     McpCallData, McpCallStatus, McpServerInfo, McpStatus, MemoryFile, MissionControlPanel,
-    ParsedInput, ProStatusBar, Provider, ProviderSelector, ProviderSelectorState, SessionContext,
-    SessionMetrics, StreamingDecrypt, SystemCommand, TurnMetrics,
+    ParsedInput, ProStatusBar, Provider, ProviderSelector, ProviderSelectorState, ScrollIndicator,
+    SessionContext, SessionMetrics, StreamingDecrypt, SystemCommand, TurnMetrics,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -309,10 +306,6 @@ pub struct ChatView {
     pub conversation_scroll: PanelScrollState,
     /// Activity panel scroll state (activity items)
     pub activity_scroll: PanelScrollState,
-    /// Scrollbar state for conversation panel
-    pub scrollbar_conversation: ScrollbarState,
-    /// Scrollbar state for activity panel
-    pub scrollbar_activity: ScrollbarState,
     /// Cached panel rects for mouse click detection
     pub panel_rects: std::collections::HashMap<ChatPanel, Rect>,
     /// List state for conversation (ratatui StatefulWidget)
@@ -499,8 +492,6 @@ impl ChatView {
             focused_panel: ChatPanel::Input, // Start with input focused (typing)
             conversation_scroll: PanelScrollState::new(),
             activity_scroll: PanelScrollState::new(),
-            scrollbar_conversation: ScrollbarState::default(),
-            scrollbar_activity: ScrollbarState::default(),
             panel_rects: std::collections::HashMap::new(),
             conversation_list_state: ListState::default(),
 
@@ -1056,8 +1047,6 @@ impl ChatView {
         if self.matrix_effect_enabled {
             self.streaming_decrypt.push_text(chunk);
         }
-        // v0.8.1: Auto-scroll to follow streaming content
-        self.auto_scroll_to_bottom();
     }
 
     /// Finish streaming and return the full response
@@ -1294,8 +1283,6 @@ impl ChatView {
         }
         // Also update the partial response for backwards compatibility
         self.partial_response.push_str(chunk);
-        // v0.8.1: Auto-scroll to follow streaming content
-        self.auto_scroll_to_bottom();
     }
 
     /// Complete current inference stream
@@ -2081,7 +2068,8 @@ impl View for ChatView {
                 self.scroll_down();
                 ViewAction::None
             }
-            KeyCode::Char('q') if self.input.value().is_empty() => ViewAction::Quit,
+            // v0.8.1: Removed 'q' to quit - too easy to accidentally quit when trying to chat
+            // Use Ctrl+C (double-tap) instead
             // 's' when empty opens Settings view (consistent with other views)
             KeyCode::Char('s') if self.input.value().is_empty() => ViewAction::OpenSettings,
             // Shift+T toggles theme (v0.8.1 - consistent with app.rs)
@@ -3127,31 +3115,23 @@ impl ChatView {
         let list = List::new(visible_items).block(block);
         frame.render_widget(list, area);
 
-        // v0.8.1 UX: Render styled scrollbar if content exceeds viewport
-        // Uses Solarized-inspired colors from theme for consistent look
+        // v0.8.2 UX: Render custom ScrollIndicator with dynamic arrows
+        // Shows △/▲ based on can_scroll state for better visual feedback
         if total_items > visible_count {
-            let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                .begin_symbol(Some("▲")) // Nicer Unicode arrow
-                .end_symbol(Some("▼")) // Nicer Unicode arrow
-                .track_symbol(Some("┃")) // Bold vertical line
-                .thumb_symbol("█")
-                // v0.8.1: Solarized styled colors
-                .style(Style::default().fg(theme.scrollbar_thumb))
-                .track_style(Style::default().fg(theme.scrollbar_track));
-
-            // Compute scrollbar state (NovaNet pattern: content_length is total - visible)
-            let mut scrollbar_state = ScrollbarState::default()
-                .content_length(total_items.saturating_sub(visible_count))
-                .position(clamped_offset);
-
-            // Render inside the block area (excluding borders)
             let scrollbar_area = Rect {
                 x: area.x + area.width.saturating_sub(1),
                 y: area.y + 1,
                 width: 1,
                 height: area.height.saturating_sub(2),
             };
-            frame.render_stateful_widget(scrollbar, scrollbar_area, &mut scrollbar_state);
+
+            let scroll_indicator = ScrollIndicator::new()
+                .position(clamped_offset, total_items, visible_count)
+                .thumb_style(Style::default().fg(theme.scrollbar_thumb))
+                .track_style(Style::default().fg(theme.scrollbar_track))
+                .show_arrows(true);
+
+            frame.render_widget(scroll_indicator, scrollbar_area);
         }
     }
 

@@ -1229,11 +1229,8 @@ impl App {
                     let view_action = home_view.handle_key(key_event, &mut self.state);
                     self.convert_view_action(view_action)
                 } else {
-                    // No home view, handle basic navigation
-                    match code {
-                        KeyCode::Char('q') => Action::Quit,
-                        _ => Action::Continue,
-                    }
+                    // No home view - use Ctrl+C (double-tap) to quit
+                    Action::Continue
                 }
             }
             TuiView::Studio => {
@@ -1423,11 +1420,8 @@ impl App {
 
         // Global keys
         match code {
-            // Quit
-            KeyCode::Char('q') => Action::Quit,
-            KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
-                return self.handle_ctrl_c();
-            }
+            // v0.8.1: Removed 'q' to quit - use Ctrl+C (double-tap) instead
+            KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => self.handle_ctrl_c(),
 
             // Panel navigation (direct panel access)
             KeyCode::Char('1') => Action::FocusPanel(1),
@@ -4216,7 +4210,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let workflow_path = temp_dir.path().join("test.yaml");
         std::fs::write(&workflow_path, "schema: test").unwrap();
-        let app = App::new(&workflow_path).unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
 
         // In Monitor mode, 'c' should open chat overlay
         let action = app.handle_key(KeyCode::Char('c'), KeyModifiers::empty());
@@ -4228,7 +4222,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let workflow_path = temp_dir.path().join("test.yaml");
         std::fs::write(&workflow_path, "schema: test").unwrap();
-        let app = App::new(&workflow_path).unwrap();
+        let mut app = App::new(&workflow_path).unwrap();
 
         // In Monitor mode, 'y' (vim yank) should copy to clipboard
         let action = app.handle_key(KeyCode::Char('y'), KeyModifiers::empty());
