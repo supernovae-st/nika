@@ -7,6 +7,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.8.93] - 2026-02-24
+
+### Changed
+- **Stylish System Message** - Enhanced welcome banner with decorations
+  - Decorative borders with ✨ sparkles
+  - 🦋 butterflies around ASCII NIKA art
+  - 🦀 Workflow Engine · 💫 Semantic AI tagline
+  - 5 verb icons: ⚡ infer · 📟 exec · 🛰️ fetch · 🔌 invoke · 🐔 agent
+- **Faster Animation** - Reduced intro duration from 2.5s to 1.5s
+  - 15 frames instead of 25 frames
+  - Quicker fade-in (2 frames instead of 3)
+  - Lower density (0.015) for cleaner visuals
+  - More subtle rain opacity (0.2) after explosion
+
 ## [0.8.92] - 2026-02-24
 
 ### Changed

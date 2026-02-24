@@ -596,17 +596,23 @@ impl ChatView {
             .mcp_servers
             .push(McpServerInfo::new("novanet"));
 
-        // v0.9.1: ASCII art welcome banner
+        // v0.9.2: Stylish ASCII art welcome banner with decorations
         let welcome_banner = r#"
-    ███╗   ██╗██╗██╗  ██╗ █████╗
-    ████╗  ██║██║██║ ██╔╝██╔══██╗
-    ██╔██╗ ██║██║█████╔╝ ███████║
-    ██║╚██╗██║██║██╔═██╗ ██╔══██║
-    ██║ ╚████║██║██║  ██╗██║  ██║
-    ╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
-            🦋 Workflow Engine
+  ✨ ─────────────────────────────────── ✨
 
-Type a message to chat, or use /help for commands."#;
+       ███╗   ██╗██╗██╗  ██╗ █████╗
+       ████╗  ██║██║██║ ██╔╝██╔══██╗
+    🦋 ██╔██╗ ██║██║█████╔╝ ███████║ 🦋
+       ██║╚██╗██║██║██╔═██╗ ██╔══██║
+       ██║ ╚████║██║██║  ██╗██║  ██║
+       ╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
+
+    🦀 Workflow Engine  ·  💫 Semantic AI
+
+  ✨ ─────────────────────────────────── ✨
+
+  Type a message to chat, or use /help for commands.
+  ⚡ infer · 📟 exec · 🛰️ fetch · 🔌 invoke · 🐔 agent"#;
 
         Self {
             messages: vec![ChatMessage {
@@ -1626,13 +1632,13 @@ Type a message to chat, or use /help for commands."#;
             self.rain_opacity = (self.rain_opacity - 0.04).max(0.0);
         }
 
-        // v0.9.1: Tick NIKA butterfly explosion animation (SMOOTH: 25 frames = ~2.5s)
+        // v0.9.2: Tick NIKA butterfly explosion animation (FAST: 15 frames = ~1.5s)
         if self.nika_pattern_visible {
             self.explosion_frame = self.explosion_frame.saturating_add(1);
-            // After explosion completes, smooth transition to regular rain
-            if self.explosion_frame >= 25 {
+            // After explosion completes, quick transition to clean UI
+            if self.explosion_frame >= 15 {
                 self.nika_pattern_visible = false;
-                self.rain_opacity = 0.3; // Start regular rain (more subtle)
+                self.rain_opacity = 0.2; // Very subtle rain, then fade
                 self.rain_fading = true;
             }
         }
@@ -2941,20 +2947,20 @@ impl View for ChatView {
         };
 
         if self.matrix_effect_enabled {
-            // v0.9.1: NIKA butterfly pattern + smooth explosion (~2.5s total)
-            // Phase 1: Show NIKA with butterflies (frames 0-3) with fade-in
-            // Phase 2: Wave explosion from center (frames 3-25)
-            // Phase 3: Regular matrix rain fading out
+            // v0.9.2: NIKA butterfly pattern + fast explosion (~1.5s total)
+            // Phase 1: Show NIKA with butterflies (frames 0-2) with quick fade-in
+            // Phase 2: Fast wave explosion from center (frames 2-15)
+            // Phase 3: Quick fade to clean UI
 
             // Determine pattern visibility and explosion state
-            let show_pattern = self.nika_pattern_visible && self.explosion_frame < 25;
-            let explosion = if self.explosion_frame > 3 {
-                self.explosion_frame.saturating_sub(3) // Start explosion after brief display
+            let show_pattern = self.nika_pattern_visible && self.explosion_frame < 15;
+            let explosion = if self.explosion_frame > 2 {
+                self.explosion_frame.saturating_sub(2) // Start explosion quickly
             } else {
                 0
             };
 
-            // Calculate opacity: smooth transition throughout
+            // Calculate opacity: fast transition
             let effective_opacity = if show_pattern {
                 1.0 // Widget handles its own fading via easing
             } else {
@@ -2964,7 +2970,7 @@ impl View for ChatView {
             if effective_opacity > 0.05 {
                 MatrixRain::new()
                     .frame(self.frame)
-                    .density(if show_pattern { 0.02 } else { 0.05 }) // Very sparse, cleaner
+                    .density(if show_pattern { 0.015 } else { 0.04 }) // Very sparse, cleaner
                     .opacity(effective_opacity)
                     .with_mascots(true)
                     .with_nika_pattern(show_pattern)

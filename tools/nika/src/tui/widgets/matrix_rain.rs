@@ -368,14 +368,14 @@ impl MatrixRain {
         let pattern_center_x = pattern_start_x + (NIKA_PATTERN_WIDTH as u16);
         let pattern_center_y = pattern_start_y + (NIKA_PATTERN_HEIGHT as u16 / 2);
 
-        // Animation progress (0.0 to 1.0) with smooth easing
-        let raw_progress = (self.explosion_frame as f32 / 25.0).min(1.0);
+        // Animation progress (0.0 to 1.0) with smooth easing - FAST: 15 frames
+        let raw_progress = (self.explosion_frame as f32 / 13.0).min(1.0);
         let progress = Self::ease_out(raw_progress);
         let exploding = self.explosion_frame > 0;
 
-        // Soft fade-in at start (first 3 frames)
+        // Quick fade-in at start (first 2 frames)
         let fade_in = if self.explosion_frame == 0 {
-            ((self.frame % 10) as f32 / 3.0).min(1.0)
+            ((self.frame % 10) as f32 / 2.0).min(1.0)
         } else {
             1.0
         };
