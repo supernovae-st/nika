@@ -1,3 +1,5 @@
 //! UI components for provider modal
 
-// TODO: Implement in Task 5
+mod provider_card;
+
+pub use provider_card::*;
