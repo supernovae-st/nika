@@ -20,15 +20,16 @@
 use std::sync::Arc;
 
 use futures::StreamExt;
-use tokio::time::timeout;
 use rig::agent::AgentBuilder;
+use rig::agent::{MultiTurnStreamItem, StreamingResult as RigStreamingResult};
 use rig::client::{CompletionClient, ProviderClient};
 use rig::completion::{Chat, CompletionModel as _, GetTokenUsage, Prompt};
 use rig::message::{Message, ReasoningContent, ToolChoice as RigToolChoice};
 use rig::providers::{anthropic, openai};
-use rig::streaming::StreamedAssistantContent;
+use rig::streaming::{StreamedAssistantContent, StreamingPrompt};
 use rustc_hash::FxHashMap;
 use serde_json::Value;
+use tokio::time::timeout;
 
 use crate::ast::AgentParams;
 use crate::ast::ToolChoice as NikaToolChoice;
@@ -156,6 +157,8 @@ pub struct RigAgentLoop {
     tools: Vec<Box<dyn rig::tool::ToolDyn>>,
     /// Conversation history for multi-turn chat (v0.6)
     history: Vec<Message>,
+    /// Optional streaming channel for real-time token display (v0.8.1 TUI integration)
+    stream_tx: Option<tokio::sync::mpsc::Sender<crate::provider::rig::StreamChunk>>,
 }
 
 impl std::fmt::Debug for RigAgentLoop {
@@ -227,7 +230,20 @@ impl RigAgentLoop {
             mcp_clients,
             tools,
             history: Vec::new(),
+            stream_tx: None,
         })
+    }
+
+    /// Set streaming channel for real-time token display (v0.8.1 TUI integration)
+    ///
+    /// When set, tokens will be sent to this channel as they arrive during streaming.
+    /// This enables Claude Code-like real-time text display in the TUI.
+    pub fn with_stream_tx(
+        mut self,
+        tx: tokio::sync::mpsc::Sender<crate::provider::rig::StreamChunk>,
+    ) -> Self {
+        self.stream_tx = Some(tx);
+        self
     }
 
     // =========================================================================
@@ -806,15 +822,33 @@ impl RigAgentLoop {
             match chunk_result {
                 Ok(content) => match content {
                     StreamedAssistantContent::Text(text) => {
+                        // v0.8.1: Send token to TUI for real-time display
+                        if let Some(ref tx) = self.stream_tx {
+                            let _ = tx.try_send(crate::provider::rig::StreamChunk::Token(
+                                text.text.clone(),
+                            ));
+                        }
                         response_parts.push(text.text);
                     }
                     StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
+                        // v0.8.1: Send thinking content to TUI
+                        if let Some(ref tx) = self.stream_tx {
+                            let _ = tx.try_send(crate::provider::rig::StreamChunk::Thinking(
+                                reasoning.clone(),
+                            ));
+                        }
                         thinking_parts.push(reasoning);
                     }
                     StreamedAssistantContent::Reasoning(reasoning) => {
                         // Final reasoning block - extract text from content blocks
                         for block in reasoning.content {
                             if let ReasoningContent::Text { text, .. } = block {
+                                // v0.8.1: Send thinking to TUI
+                                if let Some(ref tx) = self.stream_tx {
+                                    let _ = tx.try_send(
+                                        crate::provider::rig::StreamChunk::Thinking(text.clone()),
+                                    );
+                                }
                                 thinking_parts.push(text);
                             }
                         }
@@ -824,6 +858,13 @@ impl RigAgentLoop {
                         if let Some(usage) = final_resp.token_usage() {
                             input_tokens = usage.input_tokens as u32;
                             output_tokens = usage.output_tokens as u32;
+                            // v0.8.1: Send final metrics to TUI
+                            if let Some(ref tx) = self.stream_tx {
+                                let _ = tx.try_send(crate::provider::rig::StreamChunk::Metrics {
+                                    input_tokens: usage.input_tokens,
+                                    output_tokens: usage.output_tokens,
+                                });
+                            }
                         }
                     }
                     _ => {
@@ -882,8 +923,14 @@ impl RigAgentLoop {
             self.stream_completion_with_tokens(&model, prompt, self.params.system.as_deref())
                 .await
         } else {
-            // With tools - use agent.prompt() for now (0 tokens)
-            // This is the current behavior, preserved for tool support
+            // v0.8.1: With tools - use REAL streaming if TUI mode (stream_tx set)
+            if self.stream_tx.is_some() {
+                return self
+                    .stream_with_tools_streaming(model, prompt, tools, max_turns)
+                    .await;
+            }
+
+            // Fallback: No TUI (CLI mode) - use blocking agent.prompt()
             let mut builder = AgentBuilder::new(model)
                 .preamble(prompt)
                 .tools(tools)
@@ -919,6 +966,178 @@ impl RigAgentLoop {
                 thinking: None,
             })
         }
+    }
+
+    /// Stream agent execution with REAL-TIME token delivery (v0.8.1)
+    ///
+    /// Uses rig-core's `stream_prompt()` API which supports streaming
+    /// even when tools are present. Sends tokens and tool calls to TUI
+    /// via the `stream_tx` channel.
+    ///
+    /// # Key differences from stream_with_tools():
+    /// - Uses `stream_prompt()` instead of `prompt()` - true streaming
+    /// - Sends `StreamChunk::Token` for each text chunk
+    /// - Sends `StreamChunk::McpCallStart` for each tool call
+    /// - Sends `StreamChunk::Metrics` with final token counts
+    async fn stream_with_tools_streaming<M>(
+        &mut self,
+        model: M,
+        prompt: &str,
+        tools: Vec<Box<dyn rig::tool::ToolDyn>>,
+        max_turns: usize,
+    ) -> Result<StreamingResult, NikaError>
+    where
+        M: rig::completion::CompletionModel + Clone + 'static,
+        <M as rig::completion::CompletionModel>::Response: Send,
+    {
+        // Build agent with tools
+        let preamble = self.params.system.clone().unwrap_or_default();
+        let mut builder = AgentBuilder::new(model)
+            .preamble(&preamble)
+            .tools(tools)
+            .max_tokens(8192);
+
+        if let Some(temp) = self.params.effective_temperature() {
+            builder = builder.temperature(f64::from(temp));
+        }
+
+        if self.params.has_explicit_tool_choice() {
+            let tool_choice = self.params.effective_tool_choice();
+            builder = builder.tool_choice(tool_choice.into());
+        }
+
+        let agent = builder.build();
+
+        // v0.8.1: STREAMING with stream_prompt()
+        // Note: multi_turn() sets max tool call rounds (0 = single turn, >0 = multi-turn)
+        // The stream is created directly, errors come from individual items
+        let mut stream: RigStreamingResult<_> = agent
+            .stream_prompt(prompt)
+            .multi_turn(max_turns.saturating_sub(1))
+            .await;
+
+        let mut response_text = String::new();
+        let mut thinking_text: Option<String> = None;
+        let mut input_tokens = 0u32;
+        let mut output_tokens = 0u32;
+        let mut tool_count = 0u32;
+
+        while let Some(chunk) = stream.next().await {
+            match chunk {
+                Ok(item) => match item {
+                    // Streaming text - send to TUI for Matrix decrypt effect
+                    MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(
+                        text,
+                    )) => {
+                        if let Some(ref tx) = self.stream_tx {
+                            let _ = tx.try_send(crate::provider::rig::StreamChunk::Token(
+                                text.text.clone(),
+                            ));
+                        }
+                        response_text.push_str(&text.text);
+                    }
+
+                    // Tool call - notify TUI (shows in Mission Control)
+                    MultiTurnStreamItem::StreamAssistantItem(
+                        StreamedAssistantContent::ToolCall { tool_call, .. },
+                    ) => {
+                        tool_count += 1;
+                        let call_id = format!("agent-{}-{}", self.task_id, tool_count);
+                        let tool_name = tool_call.function.name.clone();
+
+                        // v0.8.1: Serialize args once, reuse for TUI and event log
+                        let args_string = serde_json::to_string(&tool_call.function.arguments)
+                            .unwrap_or_default();
+                        let args_value: Option<Value> = serde_json::from_str(&args_string).ok();
+
+                        // Send McpCallStart to TUI
+                        if let Some(ref tx) = self.stream_tx {
+                            let _ = tx.try_send(crate::provider::rig::StreamChunk::McpCallStart {
+                                tool: tool_name.clone(),
+                                server: "agent".to_string(),
+                                params: args_string,
+                            });
+                        }
+
+                        // Log event for observability
+                        self.event_log.emit(EventKind::McpInvoke {
+                            task_id: Arc::from(self.task_id.as_str()),
+                            call_id,
+                            mcp_server: "agent".to_string(),
+                            tool: Some(tool_name),
+                            resource: None,
+                            params: args_value,
+                        });
+                    }
+
+                    // Reasoning/thinking content (Claude extended thinking)
+                    MultiTurnStreamItem::StreamAssistantItem(
+                        StreamedAssistantContent::Reasoning(reasoning),
+                    ) => {
+                        // Reasoning.content is a Vec<ReasoningContent>
+                        let reasoning_str = reasoning
+                            .content
+                            .iter()
+                            .filter_map(|c| match c {
+                                ReasoningContent::Text { text, .. } => Some(text.as_str()),
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>()
+                            .join("");
+                        if let Some(ref tx) = self.stream_tx {
+                            let _ = tx.try_send(crate::provider::rig::StreamChunk::Thinking(
+                                reasoning_str.clone(),
+                            ));
+                        }
+                        match &mut thinking_text {
+                            Some(t) => t.push_str(&reasoning_str),
+                            None => thinking_text = Some(reasoning_str),
+                        }
+                    }
+
+                    // Final response with token usage
+                    MultiTurnStreamItem::FinalResponse(resp) => {
+                        response_text = resp.response().to_string();
+                        let usage = resp.usage();
+                        input_tokens = usage.input_tokens as u32;
+                        output_tokens = usage.output_tokens as u32;
+
+                        // Send metrics to TUI
+                        if let Some(ref tx) = self.stream_tx {
+                            let _ = tx.try_send(crate::provider::rig::StreamChunk::Metrics {
+                                input_tokens: usage.input_tokens,
+                                output_tokens: usage.output_tokens,
+                            });
+                        }
+                    }
+
+                    // Tool results (from rig executing tools)
+                    MultiTurnStreamItem::StreamUserItem(_) => {
+                        // Tool results are handled internally by rig
+                        // We just track completion for TUI
+                        if let Some(ref tx) = self.stream_tx {
+                            let _ =
+                                tx.try_send(crate::provider::rig::StreamChunk::McpCallComplete {
+                                    result: "Tool completed".to_string(),
+                                });
+                        }
+                    }
+
+                    // Other variants (ignore)
+                    _ => {}
+                },
+                Err(e) => {
+                    tracing::warn!(error = %e, "Stream chunk error");
+                }
+            }
+        }
+
+        Ok(StreamingResult {
+            response: response_text,
+            input_tokens,
+            output_tokens,
+            thinking: thinking_text,
+        })
     }
 
     /// Run the agent loop with a mock provider (for testing)

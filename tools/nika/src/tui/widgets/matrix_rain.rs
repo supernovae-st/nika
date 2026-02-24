@@ -9,8 +9,8 @@
 //! ⚡ e c j _ _ o 2 h q m 🔥 _ p [ _
 //! ```
 
-use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -23,26 +23,20 @@ use crate::tui::theme::solarized;
 /// Characters to use in the matrix effect (ASCII + special)
 const MATRIX_CHARS: &[char] = &[
     // ASCII lowercase
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-    // Numbers
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-    // Special ASCII
-    '_', '<', '>', '[', ']', '{', '}', '/', '\\', '*', '#', '@', '^',
-    '-', '+', '=', '~', '|', '.', ',', ':', ';',
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
+    't', 'u', 'v', 'w', 'x', 'y', 'z', // Numbers
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', // Special ASCII
+    '_', '<', '>', '[', ']', '{', '}', '/', '\\', '*', '#', '@', '^', '-', '+', '=', '~', '|', '.',
+    ',', ':', ';',
 ];
 
 /// Emojis to sprinkle in the matrix (high impact visual)
 const MATRIX_EMOJIS: &[&str] = &[
     // Tech/AI
-    "🧠", "🤖", "⚡", "💫", "✨", "🔥", "⭐", "★",
-    // Animals (Nika mascots)
-    "🐔", "🐤", "🦙", "🐭",
-    // Food (fun)
-    "🧀", "🍕", "🌶️",
-    // Symbols
-    "❤️", "💜", "💛", "🔮", "💎", "🎯", "🚀",
-    // Nature
+    "🧠", "🤖", "⚡", "💫", "✨", "🔥", "⭐", "★", // Animals (Nika mascots)
+    "🐔", "🐤", "🦙", "🐭", // Food (fun)
+    "🧀", "🍕", "🌶️", // Symbols
+    "❤️", "💜", "💛", "🔮", "💎", "🎯", "🚀", // Nature
     "🌸", "🌟", "✦", "✧",
 ];
 
@@ -168,7 +162,8 @@ impl MatrixRain {
 
         for i in 0..num_drops.max(1) {
             // Stagger drops based on column and index
-            let base_y = (col as i16 * 7 + i as i16 * 13 + self.frame as i16 * 2) % (height as i16 * 2);
+            let base_y =
+                (col as i16 * 7 + i as i16 * 13 + self.frame as i16 * 2) % (height as i16 * 2);
             let y = base_y - height as i16; // Start above visible area
 
             let speed = rng.gen_range(1..=3);
@@ -278,10 +273,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let rain = MatrixRain::new()
-                    .frame(0)
-                    .density(0.5)
-                    .with_emojis(true);
+                let rain = MatrixRain::new().frame(0).density(0.5).with_emojis(true);
                 frame.render_widget(rain, frame.area());
             })
             .unwrap();

@@ -62,16 +62,17 @@ Production-ready workflow patterns for real-world scenarios.
 
 ## Workflow Schema
 
-All workflows use schema `nika/workflow@0.8` (or earlier versions for compatibility).
+All workflows use schema `nika/workflow@0.5` (or earlier versions for compatibility).
 
-**v0.8.0 Features:**
-- Edit History (Undo/Redo with Ctrl+Z/Ctrl+Y)
-- Session Persistence (auto-save to `.nika/sessions/`)
-- Solarized Theme (Light/Dark/Solarized)
-- Config System (`.nika/config.toml`)
+**v0.5 Schema Features:**
+- `decompose:` — Dynamic DAG expansion (MVP 8)
+- `lazy:` bindings — Deferred binding resolution
+- `spawn_agent` — Nested agent spawning with depth protection
+
+**Release v0.8.0** adds TUI DX improvements (Edit History, Session Persistence, Solarized Theme, Config System) but these don't change the workflow schema.
 
 ```yaml
-schema: "nika/workflow@0.8"
+schema: "nika/workflow@0.5"
 provider: claude  # or openai (via rig-core)
 
 mcp:

@@ -16,7 +16,8 @@ use crate::tui::theme::Theme;
 /// for consistent rendering and input handling.
 pub trait View {
     /// Render the view to the frame
-    fn render(&self, frame: &mut Frame, area: Rect, state: &TuiState, theme: &Theme);
+    /// v0.8 FIX: Changed to &mut self to support scroll state updates during render
+    fn render(&mut self, frame: &mut Frame, area: Rect, state: &TuiState, theme: &Theme);
 
     /// Handle a key event, returning an action
     fn handle_key(&mut self, key: KeyEvent, state: &mut TuiState) -> ViewAction;
@@ -39,7 +40,7 @@ mod tests {
     }
 
     impl View for MockView {
-        fn render(&self, _frame: &mut Frame, _area: Rect, _state: &TuiState, _theme: &Theme) {
+        fn render(&mut self, _frame: &mut Frame, _area: Rect, _state: &TuiState, _theme: &Theme) {
             // No-op for tests
         }
 

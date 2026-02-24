@@ -298,7 +298,12 @@ impl PanelScrollState {
     /// Compact scroll indicator for panel titles
     ///
     /// Returns `None` if content fits in viewport (no scroll needed).
-    /// Format: `" ↕ [3/15] "` with directional arrow:
+    /// Format: `" ↕ 45% "` or `" ↑ Bot "` with percentage/position:
+    /// - `Top` when at top
+    /// - `Bot` when at bottom
+    /// - `XX%` in middle (scroll percentage)
+    ///
+    /// Directional arrow:
     /// - `↓` at top (can scroll down)
     /// - `↑` at bottom (can scroll up)
     /// - `↕` in middle (can scroll both ways)
@@ -315,12 +320,18 @@ impl PanelScrollState {
             "↕"
         };
 
-        // Current page (1-indexed) and total pages
-        let max_scroll = self.total.saturating_sub(self.visible);
-        let current = self.offset + 1;
-        let total = max_scroll + 1;
+        // Show position: Top, Bot, or percentage
+        let position = if self.at_top() {
+            "Top".to_string()
+        } else if self.at_bottom() {
+            "Bot".to_string()
+        } else {
+            // Calculate percentage (0-100)
+            let pct = (self.percentage() * 100.0).round() as u8;
+            format!("{}%", pct)
+        };
 
-        Some(format!(" {} [{}/{}]", arrow, current, total))
+        Some(format!(" {} {} ", arrow, position))
     }
 }
 

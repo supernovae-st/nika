@@ -299,11 +299,7 @@ impl Widget for InferBox {
             self.tokens_in,
             self.tokens_out,
             Self::provider_icon(&self.model),
-            if self.model.len() > 10 {
-                &self.model[..10]
-            } else {
-                &self.model
-            },
+            Self::truncate(&self.model, 10),
             self.thinking_tokens
                 .map(|t| format!(" │ 💭 thinking: {} ", t))
                 .unwrap_or_default()

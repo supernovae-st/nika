@@ -316,6 +316,39 @@ impl VerbColor {
         "🐤" // Spawned subagent
     }
 
+    /// Get RGB tuple for gradient interpolation
+    pub fn rgb_tuple(&self) -> (u8, u8, u8) {
+        match self {
+            Self::Infer => (139, 92, 246),  // Violet
+            Self::Exec => (245, 158, 11),   // Amber
+            Self::Fetch => (6, 182, 212),   // Cyan
+            Self::Invoke => (16, 185, 129), // Emerald
+            Self::Agent => (244, 63, 94),   // Rose
+        }
+    }
+
+    /// Get glow RGB tuple for gradient interpolation
+    pub fn glow_tuple(&self) -> (u8, u8, u8) {
+        match self {
+            Self::Infer => (167, 139, 250), // Violet-400
+            Self::Exec => (251, 191, 36),   // Amber-400
+            Self::Fetch => (34, 211, 238),  // Cyan-400
+            Self::Invoke => (52, 211, 153), // Emerald-400
+            Self::Agent => (251, 113, 133), // Rose-400
+        }
+    }
+
+    /// Get muted RGB tuple for gradient interpolation (v0.8.2)
+    pub fn muted_tuple(&self) -> (u8, u8, u8) {
+        match self {
+            Self::Infer => (97, 64, 171),  // Muted violet
+            Self::Exec => (171, 110, 8),   // Muted amber
+            Self::Fetch => (4, 127, 148),  // Muted cyan
+            Self::Invoke => (11, 129, 90), // Muted emerald
+            Self::Agent => (170, 44, 66),  // Muted rose
+        }
+    }
+
     /// Get ASCII-safe icon for terminals without emoji support
     pub fn icon_ascii(&self) -> &'static str {
         match self {
@@ -502,8 +535,8 @@ impl Default for Theme {
             highlight: Color::Rgb(99, 102, 241),   // #6366F1 indigo
 
             // Scrollbar (v0.8.1 - Solarized-inspired for dark theme)
-            scrollbar_thumb: Color::Rgb(38, 139, 210),  // #268BD2 Solarized blue
-            scrollbar_track: Color::Rgb(55, 65, 81),    // #374151 gray-700 (subtle)
+            scrollbar_thumb: Color::Rgb(38, 139, 210), // #268BD2 Solarized blue
+            scrollbar_track: Color::Rgb(55, 65, 81),   // #374151 gray-700 (subtle)
             scrollbar_arrows: Color::Rgb(147, 161, 161), // #93A1A1 Solarized base1
         }
     }
@@ -574,7 +607,7 @@ impl Theme {
             highlight: Color::Rgb(79, 70, 229),       // #4F46E5 indigo-600
 
             // Scrollbar (v0.8.1 - Solarized-inspired for light theme)
-            scrollbar_thumb: Color::Rgb(38, 139, 210),  // #268BD2 Solarized blue
+            scrollbar_thumb: Color::Rgb(38, 139, 210), // #268BD2 Solarized blue
             scrollbar_track: Color::Rgb(229, 231, 235), // #E5E7EB gray-200 (subtle)
             scrollbar_arrows: Color::Rgb(88, 110, 117), // #586E75 Solarized base01
         }
@@ -646,8 +679,8 @@ impl Theme {
             highlight: Color::Rgb(38, 139, 210),       // blue
 
             // Scrollbar (v0.8.1 - True Solarized)
-            scrollbar_thumb: Color::Rgb(42, 161, 152),  // #2AA198 Solarized cyan
-            scrollbar_track: Color::Rgb(7, 54, 66),     // #073642 base02 (subtle)
+            scrollbar_thumb: Color::Rgb(42, 161, 152), // #2AA198 Solarized cyan
+            scrollbar_track: Color::Rgb(7, 54, 66),    // #073642 base02 (subtle)
             scrollbar_arrows: Color::Rgb(147, 161, 161), // #93A1A1 base1
         }
     }

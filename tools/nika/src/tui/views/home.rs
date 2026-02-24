@@ -873,8 +873,8 @@ impl HomeView {
         frame.render_widget(block, area);
 
         if self.standalone.history.is_empty() {
-            let empty_msg = Paragraph::new(" No history yet ")
-                .style(Style::default().fg(theme.text_muted));
+            let empty_msg =
+                Paragraph::new(" No history yet ").style(Style::default().fg(theme.text_muted));
             frame.render_widget(empty_msg, inner);
             return;
         }

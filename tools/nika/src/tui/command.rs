@@ -37,6 +37,13 @@ pub enum Command {
     /// /fetch <url> [method] - HTTP request
     Fetch { url: String, method: String },
 
+    /// /fetch error - user made a common mistake (v0.8.2)
+    FetchError {
+        error: String,
+        hint: String,
+        example: String,
+    },
+
     /// /invoke [server:]tool [json_params] - MCP tool call
     Invoke {
         tool: String,
@@ -66,6 +73,9 @@ pub enum Command {
 
     /// /mcp [list|select|toggle] - MCP server management (v0.5.2)
     Mcp { action: McpAction },
+
+    /// /export [path] - Export chat session to JSON file (v0.9)
+    Export { path: Option<String> },
 }
 
 /// Available LLM providers via rig-core (v0.6: expanded to 6 providers)
@@ -131,6 +141,13 @@ impl Command {
                 "/model" => Self::parse_model_args(args),
                 "/mcp" => Self::parse_mcp_args(args),
                 "/clear" => Command::Clear,
+                "/export" => Command::Export {
+                    path: if args.is_empty() {
+                        None
+                    } else {
+                        Some(args.to_string())
+                    },
+                },
                 _ => {
                     // Unknown command, treat as chat message
                     Command::Chat {
@@ -146,13 +163,90 @@ impl Command {
     }
 
     /// Parse /fetch arguments: /fetch <url> [method]
+    /// v0.8.2: Smart error detection with helpful hints
     fn parse_fetch_args(args: &str) -> Command {
+        let args = args.trim();
+
+        // Empty args
+        if args.is_empty() {
+            return Command::FetchError {
+                error: "❌ URL manquante".to_string(),
+                hint: "Syntaxe: /fetch <url> [method]".to_string(),
+                example: "💡 /fetch https://catfact.ninja/fact".to_string(),
+            };
+        }
+
         let parts: Vec<&str> = args.splitn(2, ' ').collect();
+        let first = parts.first().unwrap_or(&"").to_lowercase();
+
+        // Common mistake: user typed "curl" first
+        if first == "curl" || first == "wget" || first == "http" || first == "https" {
+            // Check if they typed "curl https://..."
+            if first == "curl" || first == "wget" {
+                let rest = parts.get(1).map(|s| s.trim()).unwrap_or("");
+                if rest.starts_with("http://") || rest.starts_with("https://") {
+                    return Command::FetchError {
+                        error: format!("❌ '{}' n'est pas nécessaire!", first),
+                        hint: "Nika fait le HTTP pour toi. Syntaxe: /fetch <url>".to_string(),
+                        example: format!("💡 /fetch {}", rest),
+                    };
+                }
+            }
+            // "http" or "https" without "://"
+            if (first == "http" || first == "https") && !args.contains("://") {
+                return Command::FetchError {
+                    error: "❌ URL malformée (manque ://)".to_string(),
+                    hint: "L'URL doit inclure le protocole complet".to_string(),
+                    example: "💡 /fetch https://api.github.com/zen".to_string(),
+                };
+            }
+        }
+
         let url = parts.first().unwrap_or(&"").to_string();
-        let method = parts
-            .get(1)
-            .map(|s| s.trim().to_uppercase())
-            .unwrap_or_else(|| "GET".to_string());
+        let method_str = parts.get(1).map(|s| s.trim().to_uppercase());
+
+        // Check URL has scheme
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            // Maybe they put method first? e.g., "GET https://..."
+            if ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]
+                .contains(&url.to_uppercase().as_str())
+            {
+                if let Some(actual_url) = method_str.as_ref() {
+                    if actual_url.starts_with("HTTP://") || actual_url.starts_with("HTTPS://") {
+                        // Swap: method was first, URL second
+                        return Command::Fetch {
+                            url: actual_url.to_string(),
+                            method: url.to_uppercase(),
+                        };
+                    }
+                }
+                return Command::FetchError {
+                    error: format!("❌ Méthode '{}' mais pas d'URL", url.to_uppercase()),
+                    hint: "Mets l'URL avant la méthode, ou juste l'URL (GET par défaut)"
+                        .to_string(),
+                    example: "💡 /fetch https://httpbin.org/get".to_string(),
+                };
+            }
+
+            return Command::FetchError {
+                error: "❌ URL invalide (pas de http:// ou https://)".to_string(),
+                hint: format!("Tu as tapé: '{}'", url),
+                example: "💡 /fetch https://catfact.ninja/fact".to_string(),
+            };
+        }
+
+        // Validate method if provided
+        let method = method_str.unwrap_or_else(|| "GET".to_string());
+        const VALID_METHODS: &[&str] =
+            &["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"];
+
+        if !VALID_METHODS.contains(&method.as_str()) {
+            return Command::FetchError {
+                error: format!("❌ Méthode HTTP '{}' inconnue", method),
+                hint: format!("Méthodes valides: {}", VALID_METHODS.join(", ")),
+                example: format!("💡 /fetch {} GET", url),
+            };
+        }
 
         Command::Fetch { url, method }
     }
@@ -338,7 +432,7 @@ impl Command {
         match self {
             Command::Infer { .. } => "infer",
             Command::Exec { .. } => "exec",
-            Command::Fetch { .. } => "fetch",
+            Command::Fetch { .. } | Command::FetchError { .. } => "fetch",
             Command::Invoke { .. } => "invoke",
             Command::Agent { .. } => "agent",
             Command::Chat { .. } => "chat",
@@ -346,7 +440,13 @@ impl Command {
             Command::Model { .. } => "model",
             Command::Clear => "clear",
             Command::Mcp { .. } => "mcp",
+            Command::Export { .. } => "export",
         }
+    }
+
+    /// Check if this command is an error (v0.8.2)
+    pub fn is_error(&self) -> bool {
+        matches!(self, Command::FetchError { .. })
     }
 
     /// Check if this is an empty command (empty input)
@@ -356,12 +456,14 @@ impl Command {
             Command::Infer { prompt } => prompt.is_empty(),
             Command::Exec { command } => command.is_empty(),
             Command::Fetch { url, .. } => url.is_empty(),
+            Command::FetchError { .. } => false, // Errors are not "empty"
             Command::Invoke { tool, .. } => tool.is_empty(),
             Command::Agent { goal, .. } => goal.is_empty(),
             Command::Help => false,
             Command::Model { .. } => false,
             Command::Clear => false,
             Command::Mcp { .. } => false,
+            Command::Export { .. } => false, // Export is never "empty"
         }
     }
 }
@@ -427,6 +529,7 @@ Nika Chat Commands:
   /agent <goal>             Multi-turn agent (--max-turns N) (--mcp servers)
   /mcp [list|select|toggle] MCP server management (v0.5.2)
   /model <provider>         Switch LLM (openai, claude, mistral, groq, deepseek, ollama)
+  /export [path]            Export chat to JSON file (v0.9)
   /clear                    Clear chat history
   /help or /?               Show this help
 
@@ -548,6 +651,47 @@ mod tests {
             cmd,
             Command::Fetch { url, method }
             if url == "https://api.example.com" && method == "POST"
+        ));
+    }
+
+    // v0.8.2: FetchError tests for smart error detection
+    #[test]
+    fn test_parse_fetch_error_curl() {
+        let input = "/fetch curl https://api.example.com";
+        let cmd = Command::parse(input);
+        assert!(matches!(cmd, Command::FetchError { error, .. } if error.contains("curl")));
+    }
+
+    #[test]
+    fn test_parse_fetch_error_no_scheme() {
+        let input = "/fetch api.example.com";
+        let cmd = Command::parse(input);
+        assert!(matches!(cmd, Command::FetchError { error, .. } if error.contains("http")));
+    }
+
+    #[test]
+    fn test_parse_fetch_error_empty() {
+        let input = "/fetch";
+        let cmd = Command::parse(input);
+        assert!(matches!(cmd, Command::FetchError { error, .. } if error.contains("manquante")));
+    }
+
+    #[test]
+    fn test_parse_fetch_error_invalid_method() {
+        let input = "/fetch https://api.example.com POAST";
+        let cmd = Command::parse(input);
+        assert!(matches!(cmd, Command::FetchError { error, .. } if error.contains("POAST")));
+    }
+
+    #[test]
+    fn test_parse_fetch_method_first_swaps() {
+        // User typed method before URL - we handle it!
+        let input = "/fetch GET https://api.example.com";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Fetch { url, method }
+            if url == "HTTPS://API.EXAMPLE.COM" && method == "GET"
         ));
     }
 

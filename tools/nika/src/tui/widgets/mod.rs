@@ -50,8 +50,11 @@ mod timeline;
 mod verb_input;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
-// Provider selector popup (v0.7.2)
-pub use provider_selector::{ProviderSelector, ProviderSelectorState};
+// Provider selector popup (v0.7.2) + Ollama health check (v0.8.2) + Verification status + MCP display
+pub use provider_selector::{
+    check_ollama_available, check_ollama_available_async, McpServerDisplay, ModelInfo,
+    ProviderInfo, ProviderSelector, ProviderSelectorState, SelectorSection, VerifyStatus,
+};
 
 // === Chat UX Enrichment Widgets ===
 // Session context bar for tokens, cost, MCP status

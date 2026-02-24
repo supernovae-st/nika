@@ -5,7 +5,7 @@ Reference guide for building effective workflows with Nika's DAG execution engin
 ## Schema Version
 
 ```yaml
-schema: "nika/workflow@0.8"
+schema: "nika/workflow@0.5"
 ```
 
 v0.8.0 adds `for_each` parallelism, `spawn_agent` nesting, `decompose:` dynamic DAG expansion, and `lazy:` binding modifiers.

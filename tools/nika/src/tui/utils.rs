@@ -91,6 +91,80 @@ pub fn truncate_str_no_suffix(s: &str, max_chars: usize) -> String {
     s.chars().take(max_chars).collect()
 }
 
+/// Wrap text to fit within a given width (character count)
+///
+/// Performs simple word wrapping, trying to break at spaces when possible.
+/// If a single word exceeds the width, it will be split.
+///
+/// # Examples
+///
+/// ```ignore
+/// let lines = wrap_text("Hello world, this is a test", 10);
+/// assert_eq!(lines, vec!["Hello", "world,", "this is a", "test"]);
+/// ```
+pub fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
+    if max_width == 0 {
+        return vec![text.to_string()];
+    }
+
+    let mut result = Vec::new();
+
+    for line in text.lines() {
+        if line.is_empty() {
+            result.push(String::new());
+            continue;
+        }
+
+        let mut current_line = String::new();
+        let mut current_width = 0;
+
+        for word in line.split_whitespace() {
+            let word_width = word.chars().count();
+
+            if word_width > max_width {
+                // Word is too long, need to split it
+                if !current_line.is_empty() {
+                    result.push(current_line);
+                    current_line = String::new();
+                    current_width = 0;
+                }
+                // Split long word
+                let mut chars = word.chars().peekable();
+                while chars.peek().is_some() {
+                    let chunk: String = chars.by_ref().take(max_width).collect();
+                    if !chunk.is_empty() {
+                        result.push(chunk);
+                    }
+                }
+            } else if current_width == 0 {
+                // First word on line
+                current_line = word.to_string();
+                current_width = word_width;
+            } else if current_width + 1 + word_width <= max_width {
+                // Word fits with space
+                current_line.push(' ');
+                current_line.push_str(word);
+                current_width += 1 + word_width;
+            } else {
+                // Word doesn't fit, start new line
+                result.push(current_line);
+                current_line = word.to_string();
+                current_width = word_width;
+            }
+        }
+
+        if !current_line.is_empty() {
+            result.push(current_line);
+        }
+    }
+
+    if result.is_empty() {
+        result.push(String::new());
+    }
+
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

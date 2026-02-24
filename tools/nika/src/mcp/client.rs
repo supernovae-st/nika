@@ -86,27 +86,16 @@ pub struct McpPingResult {
 #[derive(Debug, Clone)]
 pub enum McpPingError {
     /// Server process failed to start
-    StartFailed {
-        server: String,
-        details: String,
-    },
+    StartFailed { server: String, details: String },
 
     /// Server timed out responding
-    Timeout {
-        server: String,
-        timeout: Duration,
-    },
+    Timeout { server: String, timeout: Duration },
 
     /// Connection was refused
-    ConnectionRefused {
-        server: String,
-    },
+    ConnectionRefused { server: String },
 
     /// Server responded with error
-    ServerError {
-        server: String,
-        details: String,
-    },
+    ServerError { server: String, details: String },
 }
 
 impl std::fmt::Display for McpPingError {
@@ -116,11 +105,7 @@ impl std::fmt::Display for McpPingError {
                 write!(f, "MCP server '{}' failed to start: {}", server, details)
             }
             McpPingError::Timeout { server, timeout } => {
-                write!(
-                    f,
-                    "MCP server '{}' timed out after {:?}",
-                    server, timeout
-                )
+                write!(f, "MCP server '{}' timed out after {:?}", server, timeout)
             }
             McpPingError::ConnectionRefused { server } => {
                 write!(f, "MCP server '{}' connection refused", server)
@@ -145,9 +130,7 @@ impl McpPingError {
             McpPingError::ConnectionRefused { .. } => {
                 "Ensure the MCP server is running and accessible"
             }
-            McpPingError::ServerError { .. } => {
-                "Check the MCP server logs for more details"
-            }
+            McpPingError::ServerError { .. } => "Check the MCP server logs for more details",
         }
     }
 }

@@ -170,7 +170,7 @@ impl McpClient {
 ## Workflow Schema v0.8.0
 
 ```yaml
-schema: "nika/workflow@0.8"
+schema: "nika/workflow@0.5"
 provider: claude
 
 # MCP server configurations

@@ -10,6 +10,8 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Widget},
 };
 
+use crate::tui::theme::VerbColor;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFAULT COLORS (fallbacks for theme-aware rendering)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -201,6 +203,10 @@ pub struct CommandPaletteState {
     pub recent: Vec<String>,
     /// Is palette visible
     pub visible: bool,
+    /// v0.8.2: Parsed argument when command is detected (e.g., "novanet_describe" from "/invoke novanet_describe")
+    pub argument: Option<String>,
+    /// v0.8.2: Whether a command was auto-detected from input
+    pub command_locked: bool,
 }
 
 impl Default for CommandPaletteState {
@@ -220,6 +226,8 @@ impl CommandPaletteState {
             filtered,
             recent: Vec::new(),
             visible: false,
+            argument: None,
+            command_locked: false,
         }
     }
 
@@ -227,6 +235,8 @@ impl CommandPaletteState {
     pub fn open(&mut self) {
         self.visible = true;
         self.query.clear();
+        self.argument = None;
+        self.command_locked = false;
         self.update_filter();
     }
 
@@ -234,6 +244,8 @@ impl CommandPaletteState {
     pub fn close(&mut self) {
         self.visible = false;
         self.query.clear();
+        self.argument = None;
+        self.command_locked = false;
     }
 
     /// Toggle visibility
@@ -246,7 +258,41 @@ impl CommandPaletteState {
     }
 
     /// Update filtered results based on query
+    /// v0.8.2: Also detects complete commands with arguments (e.g., "/invoke novanet_describe")
     pub fn update_filter(&mut self) {
+        // v0.8.2: Check if query contains a complete slash command with argument
+        // e.g., "/invoke novanet_describe" -> command="invoke", argument="novanet_describe"
+        if !self.command_locked && self.query.starts_with('/') {
+            if let Some(space_pos) = self.query.find(' ') {
+                let cmd_part = &self.query[1..space_pos]; // "invoke" from "/invoke "
+                let arg_part = self.query[space_pos + 1..].trim(); // "novanet_describe"
+
+                // Find matching command by ID
+                if let Some((idx, _)) = self
+                    .commands
+                    .iter()
+                    .enumerate()
+                    .find(|(_, c)| c.id == cmd_part)
+                {
+                    // Auto-select this command and store argument
+                    self.filtered = vec![idx];
+                    self.selected = 0;
+                    self.command_locked = true;
+                    self.argument = if arg_part.is_empty() {
+                        None
+                    } else {
+                        Some(arg_part.to_string())
+                    };
+                    return;
+                }
+            }
+        }
+
+        // If command is locked, keep the single filtered result
+        if self.command_locked {
+            return;
+        }
+
         if self.query.is_empty() {
             // Show recent first, then all
             let mut indices: Vec<(usize, u32)> = self
@@ -278,6 +324,20 @@ impl CommandPaletteState {
             self.filtered = matches.into_iter().map(|(i, _)| i).collect();
         }
         self.selected = 0;
+    }
+
+    /// v0.8.2: Set full query (for paste operations)
+    /// Parses "/command argument" syntax and auto-selects the command
+    pub fn set_query(&mut self, query: &str) {
+        self.query = query.to_string();
+        self.argument = None;
+        self.command_locked = false;
+        self.update_filter();
+    }
+
+    /// v0.8.2: Get the parsed argument (if any)
+    pub fn get_argument(&self) -> Option<&str> {
+        self.argument.as_deref()
     }
 
     /// Select next command
@@ -322,26 +382,75 @@ impl CommandPaletteState {
     }
 
     /// Input a character
+    /// v0.8.2: When command is locked, characters are added to the argument
     pub fn input_char(&mut self, c: char) {
-        self.query.push(c);
-        self.update_filter();
+        if self.command_locked {
+            // When command is locked, add to argument instead of query
+            if let Some(ref mut arg) = self.argument {
+                arg.push(c);
+            } else {
+                self.argument = Some(c.to_string());
+            }
+        } else {
+            self.query.push(c);
+            self.update_filter();
+        }
     }
 
     /// Delete last character
+    /// v0.8.2: When command is locked, delete from argument; if argument empty, unlock
     pub fn backspace(&mut self) {
-        self.query.pop();
-        self.update_filter();
+        if self.command_locked {
+            // When command is locked, delete from argument
+            if let Some(ref mut arg) = self.argument {
+                arg.pop();
+                if arg.is_empty() {
+                    self.argument = None;
+                }
+            } else {
+                // No argument left, unlock the command and go back to normal filtering
+                self.command_locked = false;
+                // Reconstruct query without the trailing space
+                if let Some(space_pos) = self.query.rfind(' ') {
+                    self.query.truncate(space_pos);
+                }
+                self.update_filter();
+            }
+        } else {
+            self.query.pop();
+            self.update_filter();
+        }
+    }
+}
+
+/// Map command ID to VerbColor (returns None for non-verb commands)
+fn verb_color_for_command(id: &str) -> Option<VerbColor> {
+    match id {
+        "infer" => Some(VerbColor::Infer),
+        "exec" => Some(VerbColor::Exec),
+        "fetch" => Some(VerbColor::Fetch),
+        "invoke" => Some(VerbColor::Invoke),
+        "agent" => Some(VerbColor::Agent),
+        _ => None,
     }
 }
 
 /// Command palette widget
 pub struct CommandPalette<'a> {
     state: &'a CommandPaletteState,
+    /// Animation frame counter (for verb color animation)
+    frame: u8,
 }
 
 impl<'a> CommandPalette<'a> {
     pub fn new(state: &'a CommandPaletteState) -> Self {
-        Self { state }
+        Self { state, frame: 0 }
+    }
+
+    /// Set animation frame for verb color gradient effect
+    pub fn with_frame(mut self, frame: u8) -> Self {
+        self.frame = frame;
+        self
     }
 }
 
@@ -377,17 +486,52 @@ impl Widget for CommandPalette<'_> {
         block.render(palette_area, buf);
 
         // Search input
+        // v0.8.2: Show command + argument when command is locked
         let cursor = if self.state.visible { "_" } else { "" };
-        let input_line = Line::from(vec![
-            Span::styled("🔍 > ", Style::default().fg(DEFAULT_PLACEHOLDER_COLOR)),
-            Span::styled(&self.state.query, Style::default().fg(Color::White)),
-            Span::styled(
-                cursor,
+        let input_line = if self.state.command_locked {
+            // Show locked command + argument
+            let selected_cmd = self.state.selected_command();
+            let cmd_name = selected_cmd
+                .map(|c| c.label.as_str())
+                .unwrap_or(&self.state.query);
+            let cmd_id = selected_cmd.map(|c| c.id.as_str()).unwrap_or("");
+            let arg = self.state.argument.as_deref().unwrap_or("");
+
+            // v0.8.2: Use verb color for verb commands (animated + bold)
+            let cmd_style = if let Some(verb_color) = verb_color_for_command(cmd_id) {
                 Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::SLOW_BLINK),
-            ),
-        ]);
+                    .fg(verb_color.animated(self.frame))
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            };
+
+            Line::from(vec![
+                Span::styled("🔍 > ", Style::default().fg(DEFAULT_PLACEHOLDER_COLOR)),
+                Span::styled(cmd_name, cmd_style),
+                Span::styled(" ", Style::default()),
+                Span::styled(arg, Style::default().fg(Color::White)),
+                Span::styled(
+                    cursor,
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::SLOW_BLINK),
+                ),
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled("🔍 > ", Style::default().fg(DEFAULT_PLACEHOLDER_COLOR)),
+                Span::styled(&self.state.query, Style::default().fg(Color::White)),
+                Span::styled(
+                    cursor,
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::SLOW_BLINK),
+                ),
+            ])
+        };
         buf.set_line(inner.x + 1, inner.y, &input_line, inner.width - 2);
 
         // Separator
@@ -426,15 +570,41 @@ impl Widget for CommandPalette<'_> {
             }
 
             // Icon and label
-            let label_style = if is_selected {
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(DEFAULT_TEXT_COLOR)
-            };
+            // v0.8.2: Verb commands get animated colors
+            let (label_style, icon_style) =
+                if let Some(verb_color) = verb_color_for_command(&cmd.id) {
+                    let animated_color = verb_color.animated(self.frame);
+                    if is_selected {
+                        // Selected verb: bright animated color + bold
+                        (
+                            Style::default()
+                                .fg(animated_color)
+                                .add_modifier(Modifier::BOLD),
+                            Style::default().fg(animated_color),
+                        )
+                    } else {
+                        // Unselected verb: animated color + bold (still stands out)
+                        (
+                            Style::default()
+                                .fg(animated_color)
+                                .add_modifier(Modifier::BOLD),
+                            Style::default().fg(animated_color),
+                        )
+                    }
+                } else if is_selected {
+                    // Selected non-verb: white + bold
+                    (
+                        Style::default()
+                            .fg(Color::White)
+                            .add_modifier(Modifier::BOLD),
+                        Style::default(),
+                    )
+                } else {
+                    // Unselected non-verb: default text
+                    (Style::default().fg(DEFAULT_TEXT_COLOR), Style::default())
+                };
 
-            buf.set_string(inner.x + 2, row_y, cmd.icon, Style::default());
+            buf.set_string(inner.x + 2, row_y, cmd.icon, icon_style);
             buf.set_string(inner.x + 5, row_y, &cmd.label, label_style);
 
             // Shortcut on the right

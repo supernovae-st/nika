@@ -2,6 +2,7 @@
 //!
 //! Defines the lifecycle states for task boxes: Queued, Running, Success, Failed, Skipped.
 
+use std::borrow::Cow;
 use std::time::Instant;
 
 use ratatui::style::Color;
@@ -75,8 +76,9 @@ impl BoxState {
         match self {
             Self::Queued => "⚪",
             Self::Running { frame, .. } => {
-                let chars = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
-                chars[*frame % chars.len()]
+                // Static str array for icon display (BRAILLE_SPINNER is char array)
+                const SPINNER_STR: &[&str] = &["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
+                SPINNER_STR[*frame % SPINNER_STR.len()]
             }
             Self::Success { .. } => "✅",
             Self::Failed { .. } => "❌",
@@ -94,18 +96,24 @@ impl BoxState {
     }
 
     /// Get the status suffix text (duration or message)
-    pub fn suffix(&self) -> String {
+    ///
+    /// Returns `Cow<'_, str>` to avoid allocation when possible:
+    /// - `Queued` → borrows static string (zero allocation)
+    /// - `Failed/Skipped` → borrows owned error/reason string (zero allocation)
+    /// - `Running/Success` → allocates formatted duration string
+    pub fn suffix(&self) -> Cow<'_, str> {
         match self {
-            Self::Queued => "Waiting...".to_string(),
+            Self::Queued => Cow::Borrowed("Waiting..."),
             Self::Running { start, .. } => {
                 let elapsed = start.elapsed().as_secs_f64();
-                format!("{:.1}s", elapsed)
+                Cow::Owned(format!("{:.1}s", elapsed))
             }
             Self::Success { duration_ms } => {
-                format!("{:.1}s", *duration_ms as f64 / 1000.0)
+                Cow::Owned(format!("{:.1}s", *duration_ms as f64 / 1000.0))
             }
-            Self::Failed { error, .. } => error.clone(),
-            Self::Skipped { reason } => reason.clone(),
+            // PERF: Borrow owned strings instead of cloning
+            Self::Failed { error, .. } => Cow::Borrowed(error.as_str()),
+            Self::Skipped { reason } => Cow::Borrowed(reason.as_str()),
         }
     }
 

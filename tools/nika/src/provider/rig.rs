@@ -385,8 +385,9 @@ impl RigProvider {
             RigProvider::Groq(_) => has_key("GROQ_API_KEY"),
             RigProvider::DeepSeek(_) => has_key("DEEPSEEK_API_KEY"),
             RigProvider::Ollama(_) => {
-                // Ollama doesn't need API key, just check if server is running
-                crate::tui::widgets::check_ollama_available()
+                // Ollama doesn't need API key, so is always "configured"
+                // Actual server availability checked separately via check_ollama_available()
+                true
             }
         }
     }
@@ -436,9 +437,7 @@ impl ProviderVerifyError {
             ProviderVerifyError::RateLimited { .. } => {
                 "Wait a moment and try again, or check your plan limits"
             }
-            ProviderVerifyError::Timeout { .. } => {
-                "Check your network connection or try again"
-            }
+            ProviderVerifyError::Timeout { .. } => "Check your network connection or try again",
             ProviderVerifyError::NetworkError { .. } => {
                 "Check your internet connection and firewall settings"
             }

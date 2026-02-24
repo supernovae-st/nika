@@ -1,0 +1,13 @@
+{
+  "exported_at": "2026-02-24T13:05:45.944617+01:00",
+  "model": "claude-sonnet-4-6",
+  "message_count": 1,
+  "messages": [
+    {
+      "role": "System",
+      "content": "Welcome to Nika Agent. Type a message to chat, or use /help for commands.",
+      "timestamp": "2026-02-24T13:05:45.872535+01:00",
+      "thinking": null
+    }
+  ]
+}

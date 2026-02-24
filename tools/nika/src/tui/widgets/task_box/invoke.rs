@@ -222,10 +222,7 @@ impl Widget for InvokeBox {
             if !self.params.is_null() {
                 if self.expanded_params {
                     // Use cached pretty JSON if available
-                    let params_str = self
-                        .params_pretty_cached
-                        .as_deref()
-                        .unwrap_or("null");
+                    let params_str = self.params_pretty_cached.as_deref().unwrap_or("null");
                     for line in params_str.lines().take(5) {
                         if y >= area.y + area.height - 3 {
                             break;
@@ -488,8 +485,7 @@ mod tests {
 
     #[test]
     fn test_null_params_no_cache() {
-        let box_ = InvokeBox::new("tool", "server")
-            .with_params(serde_json::Value::Null);
+        let box_ = InvokeBox::new("tool", "server").with_params(serde_json::Value::Null);
 
         // Null params = no cache (is_null() check in with_params)
         assert!(box_.params_oneline_cached.is_none());
@@ -498,8 +494,7 @@ mod tests {
 
     #[test]
     fn test_params_str_uses_with_params() {
-        let box_ = InvokeBox::new("tool", "server")
-            .with_params_str(r#"{"from": "string"}"#);
+        let box_ = InvokeBox::new("tool", "server").with_params_str(r#"{"from": "string"}"#);
 
         // Should populate cache via with_params delegation
         assert!(box_.params_oneline_cached.is_some());
@@ -510,12 +505,11 @@ mod tests {
 
     #[test]
     fn test_required_height_uses_cached_lines() {
-        let mut box_ = InvokeBox::new("tool", "server")
-            .with_params(serde_json::json!({
-                "line1": "value1",
-                "line2": "value2",
-                "line3": "value3"
-            }));
+        let mut box_ = InvokeBox::new("tool", "server").with_params(serde_json::json!({
+            "line1": "value1",
+            "line2": "value2",
+            "line3": "value3"
+        }));
 
         // Collapsed: base height
         let collapsed_height = box_.required_height();

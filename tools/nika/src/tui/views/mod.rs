@@ -274,10 +274,7 @@ pub enum ViewAction {
     RefreshVerification,
     /// Provider selector confirmed a change (v0.8.3 - BUG #2 fix)
     /// Signals app.rs to invalidate/recreate chat_agent with new provider
-    ProviderSelectorConfirm {
-        provider_id: String,
-        model: String,
-    },
+    ProviderSelectorConfirm { provider_id: String, model: String },
 }
 
 #[cfg(test)]

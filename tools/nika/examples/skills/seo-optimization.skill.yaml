@@ -1,0 +1,58 @@
+# SEO Optimization Skill
+# File: ./skills/seo-optimization.skill.yaml
+#
+# This is the PROPOSED format for skill files (v0.6).
+# Skills augment agent system prompts with methodology/constraints.
+
+name: seo_optimization
+version: 1.0.0
+description: "SEO best practices for content generation"
+
+# System prompt augmentation (appended to agent's system prompt)
+system_augment: |
+  ## SEO Optimization Requirements
+
+  You MUST follow these SEO guidelines:
+
+  ### Keyword Integration
+  - Include primary keyword in title (H1)
+  - Use primary keyword in first 100 words
+  - Include 2-3 secondary keywords naturally
+  - Keyword density: 1-2% (don't overstuff)
+
+  ### Content Structure
+  - Use H2/H3 headings with keywords
+  - Keep paragraphs under 150 words
+  - Include bullet points and lists
+  - Add internal linking opportunities
+
+  ### Meta Elements
+  - Title tag: 50-60 characters
+  - Meta description: 150-160 characters
+  - URL slug: short, keyword-rich, hyphens
+
+  ### Readability
+  - Flesch-Kincaid score: 60+ (easy to read)
+  - Short sentences (under 20 words)
+  - Active voice preferred
+  - Avoid jargon unless necessary
+
+  ### Output Requirements
+  Always include in your response:
+  1. SEO_TITLE: Optimized title tag
+  2. SEO_DESCRIPTION: Meta description
+  3. SEO_KEYWORDS: Primary and secondary keywords used
+
+# Optional: Required MCP servers for this skill
+requires_mcp: []
+
+# Optional: Suggested stop conditions when using this skill
+stop_conditions:
+  - "SEO_OPTIMIZED"
+
+# Optional: Validation rules (future feature)
+validation:
+  - rule: "title_length <= 60"
+    message: "Title exceeds 60 characters"
+  - rule: "description_length <= 160"
+    message: "Meta description exceeds 160 characters"

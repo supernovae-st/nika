@@ -109,8 +109,15 @@ async fn test_claude_streaming() {
                 StreamChunk::ProviderVerifying { provider, model } => {
                     eprintln!("PROVIDER VERIFYING: {} ({})", provider, model);
                 }
-                StreamChunk::ProviderVerified { provider, model, latency_ms } => {
-                    eprintln!("PROVIDER VERIFIED: {} ({}) in {}ms", provider, model, latency_ms);
+                StreamChunk::ProviderVerified {
+                    provider,
+                    model,
+                    latency_ms,
+                } => {
+                    eprintln!(
+                        "PROVIDER VERIFIED: {} ({}) in {}ms",
+                        provider, model, latency_ms
+                    );
                 }
                 StreamChunk::ProviderVerifyFailed { provider, error } => {
                     eprintln!("PROVIDER VERIFY FAILED: {} - {}", provider, error);
@@ -118,8 +125,15 @@ async fn test_claude_streaming() {
                 StreamChunk::McpPinging { server } => {
                     eprintln!("MCP PINGING: {}", server);
                 }
-                StreamChunk::McpPinged { server, latency_ms, tool_count } => {
-                    eprintln!("MCP PINGED: {} in {}ms ({} tools)", server, latency_ms, tool_count);
+                StreamChunk::McpPinged {
+                    server,
+                    latency_ms,
+                    tool_count,
+                } => {
+                    eprintln!(
+                        "MCP PINGED: {} in {}ms ({} tools)",
+                        server, latency_ms, tool_count
+                    );
                 }
             }
         }

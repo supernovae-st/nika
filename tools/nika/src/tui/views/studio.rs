@@ -26,7 +26,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Widget},
+    widgets::{Block, Borders, Paragraph, Widget},
     Frame,
 };
 
@@ -38,7 +38,7 @@ use crate::error::NikaError;
 use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
-use crate::tui::widgets::{DagAscii, NodeBoxData, NodeBoxMode};
+use crate::tui::widgets::{DagAscii, NodeBoxData, NodeBoxMode, ScrollIndicator};
 use crate::util::atomic_write;
 
 /// Editor mode (vim-like)
@@ -650,12 +650,23 @@ impl StudioView {
         let paragraph = Paragraph::new(lines);
         frame.render_widget(paragraph, inner);
 
-        // Render scrollbar if content exceeds viewport
-        if self.buffer.lines().len() > visible_height {
-            let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
-            let mut scrollbar_state = ScrollbarState::new(self.buffer.lines().len())
-                .position(self.buffer.scroll_offset());
-            frame.render_stateful_widget(scrollbar, inner, &mut scrollbar_state);
+        // v0.8.2: Render ScrollIndicator with dynamic arrows
+        let total_lines = self.buffer.lines().len();
+        if total_lines > visible_height {
+            let scrollbar_area = Rect {
+                x: inner.x + inner.width.saturating_sub(1),
+                y: inner.y,
+                width: 1,
+                height: inner.height,
+            };
+
+            let scroll_indicator = ScrollIndicator::new()
+                .position(self.buffer.scroll_offset(), total_lines, visible_height)
+                .thumb_style(Style::default().fg(theme.scrollbar_thumb))
+                .track_style(Style::default().fg(theme.scrollbar_track))
+                .show_arrows(true);
+
+            frame.render_widget(scroll_indicator, scrollbar_area);
         }
     }
 
