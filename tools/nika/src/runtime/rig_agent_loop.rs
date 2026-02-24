@@ -1022,7 +1022,31 @@ impl RigAgentLoop {
         let mut output_tokens = 0u32;
         let mut tool_count = 0u32;
 
-        while let Some(chunk) = stream.next().await {
+        // v0.8.5: Per-chunk timeout to prevent hanging streams
+        loop {
+            let chunk = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                Ok(Some(chunk)) => chunk,
+                Ok(None) => break, // Stream ended normally
+                Err(_elapsed) => {
+                    // Timeout - stream stalled
+                    tracing::warn!(
+                        task_id = %self.task_id,
+                        timeout_secs = STREAM_CHUNK_TIMEOUT.as_secs(),
+                        "Agent stream timed out waiting for chunk"
+                    );
+                    if let Some(ref tx) = self.stream_tx {
+                        let _ = tx.try_send(crate::provider::rig::StreamChunk::Error(format!(
+                            "Stream timeout: no chunk received for {}s",
+                            STREAM_CHUNK_TIMEOUT.as_secs()
+                        )));
+                    }
+                    return Err(NikaError::Timeout {
+                        operation: format!("agent streaming (task: {})", self.task_id),
+                        duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                    });
+                }
+            };
+
             match chunk {
                 Ok(item) => match item {
                     // Streaming text - send to TUI for Matrix decrypt effect
@@ -1355,7 +1379,25 @@ impl RigAgentLoop {
         let mut input_tokens: u32 = 0;
         let mut output_tokens: u32 = 0;
 
-        while let Some(chunk_result) = stream.next().await {
+        // v0.8.5: Per-chunk timeout to prevent hanging streams
+        loop {
+            let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                Ok(Some(chunk)) => chunk,
+                Ok(None) => break, // Stream ended normally
+                Err(_elapsed) => {
+                    // Timeout - stream stalled
+                    tracing::warn!(
+                        task_id = %self.task_id,
+                        timeout_secs = STREAM_CHUNK_TIMEOUT.as_secs(),
+                        "Thinking stream timed out waiting for chunk"
+                    );
+                    return Err(NikaError::Timeout {
+                        operation: format!("thinking capture (task: {})", self.task_id),
+                        duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                    });
+                }
+            };
+
             match chunk_result {
                 Ok(content) => match content {
                     StreamedAssistantContent::Text(text) => {
