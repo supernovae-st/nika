@@ -1295,16 +1295,24 @@ impl App {
                     }
 
                     // Render status message if active (just above status bar)
-                    if let Some(msg) = state.status_messages.current() {
-                        // Position status message at bottom of content area
-                        let msg_area = Rect {
-                            x: chunks[1].x,
-                            y: chunks[1].bottom().saturating_sub(1),
-                            width: chunks[1].width,
-                            height: 1,
-                        };
-                        let status_widget = StatusMessageWidget::new(Some(msg));
-                        frame.render_widget(status_widget, msg_area);
+                    // v0.8.8: Skip when overlays are visible to prevent overlap
+                    let overlay_visible = matches!(current_view, TuiView::Chat)
+                        && (chat_view.provider_modal.visible
+                            || chat_view.command_palette.visible
+                            || chat_view.help_overlay.visible);
+
+                    if !overlay_visible {
+                        if let Some(msg) = state.status_messages.current() {
+                            // Position status message at bottom of content area
+                            let msg_area = Rect {
+                                x: chunks[1].x,
+                                y: chunks[1].bottom().saturating_sub(1),
+                                width: chunks[1].width,
+                                height: 1,
+                            };
+                            let status_widget = StatusMessageWidget::new(Some(msg));
+                            frame.render_widget(status_widget, msg_area);
+                        }
                     }
 
                     // Render status bar with metrics and custom status text
