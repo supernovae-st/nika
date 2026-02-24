@@ -6,6 +6,71 @@
 
 ---
 
+## Architecture Decision: 5 Verbs + Builtin Tools (2026-02-24)
+
+**Decision:** Preserve 5 semantic verbs, extend via `nika:*` builtin tools.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  VERBS (ADR-001, inchangés)          BUILTIN TOOLS (nouveau, via invoke:)       │
+│  ───────────────────────────          ─────────────────────────────────────     │
+│  infer:  → LLM generation             nika:prompt  → User input (HITL)          │
+│  exec:   → Shell command              nika:run     → Sub-workflow               │
+│  fetch:  → HTTP request               nika:sleep   → Delay/wait                 │
+│  invoke: → MCP + nika:*               nika:log     → Debug output               │
+│  agent:  → Multi-turn loop            nika:assert  → Validation gate            │
+│                                       nika:emit    → Custom event               │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Rationale
+
+1. **Préserve ADR-001** — 5 verbs only, chaque verb est irréductible
+2. **Extensible** — Nouveaux builtin tools sans modifier le core
+3. **Pattern clair** — `mcp_server:tool` = external, `nika:*` = builtin
+4. **Industrie standard** — Temporal (activities), Prefect (tasks), GitHub Actions (actions)
+
+### User Input in Chat-as-DAG
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  Chat Message Nodes (pas un verb, mais NodeType::UserInput)                     │
+│                                                                                 │
+│  [msg-001]                      [msg-002]                                       │
+│  type: UserInput                type: Task                                      │
+│  content: "Décris QR Code"      verb: infer                                     │
+│  output: "Décris QR Code"       use: { prev: msg-001 }                          │
+│      │                              │                                           │
+│      └──────────────────────────────┘                                           │
+│      {{use.msg-001.output}} = "Décris QR Code"                                  │
+│                                                                                 │
+│  • UserInput nodes ont .output pour bindings uniformes                          │
+│  • Pas besoin de 6ème verb "input:"                                             │
+│  • Distinction claire user vs agent dans le DAG                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Workflow Composition
+
+```yaml
+# Composition via nika:run
+tasks:
+  - id: test
+    invoke:
+      tool: nika:run
+      params:
+        path: ./workflows/test-suite.nika.yaml
+
+  - id: confirm
+    invoke:
+      tool: nika:prompt
+      params:
+        type: confirm
+        message: "Deploy to production?"
+```
+
+---
+
 ## Version Breakdown
 
 ```
@@ -282,6 +347,8 @@ tasks:
 | **B4.4** Unified Executor | Workflow + Chat → same FlowGraph | 35 | 5-6 |
 | **B4.5** YAML Export | Export chat session as workflow YAML | 20 | 3-4 |
 | **B4.6** DAG Panel Widget | TUI visualization of chat DAG | 20 | 4-5 |
+| **B4.7** Builtin Tools | nika:* tool infrastructure (prompt, run, sleep, etc.) | 30 | 5-6 |
+| **B4.8** UserInput Node | NodeType::UserInput for chat messages | 15 | 2-3 |
 
 ### B4.1 ChatDAG Structure — Detailed Tasks
 
@@ -317,6 +384,104 @@ tasks:
     depends_on: [chatdag-add-message]
 ```
 
+### B4.7 Builtin Tools — Detailed Tasks
+
+```yaml
+tasks:
+  - id: builtin-tool-trait
+    description: Create BuiltinTool trait for nika:* tools
+    file: src/runtime/builtin/mod.rs (new)
+    effort: 1hr
+
+  - id: builtin-registry
+    description: BuiltinRegistry to resolve nika:* tool names
+    file: src/runtime/builtin/registry.rs (new)
+    effort: 1.5hr
+    depends_on: [builtin-tool-trait]
+
+  - id: nika-prompt
+    description: nika:prompt tool (confirm, text, select, multiselect)
+    file: src/runtime/builtin/prompt.rs (new)
+    effort: 2hr
+    depends_on: [builtin-tool-trait]
+
+  - id: nika-run
+    description: nika:run tool (workflow composition)
+    file: src/runtime/builtin/run.rs (new)
+    effort: 2hr
+    depends_on: [builtin-tool-trait]
+
+  - id: nika-sleep
+    description: nika:sleep tool (delay/wait)
+    file: src/runtime/builtin/sleep.rs (new)
+    effort: 30min
+    depends_on: [builtin-tool-trait]
+
+  - id: nika-log
+    description: nika:log tool (debug output)
+    file: src/runtime/builtin/log.rs (new)
+    effort: 30min
+    depends_on: [builtin-tool-trait]
+
+  - id: nika-assert
+    description: nika:assert tool (validation gate)
+    file: src/runtime/builtin/assert.rs (new)
+    effort: 1hr
+    depends_on: [builtin-tool-trait]
+
+  - id: nika-emit
+    description: nika:emit tool (custom event)
+    file: src/runtime/builtin/emit.rs (new)
+    effort: 30min
+    depends_on: [builtin-tool-trait]
+
+  - id: executor-builtin-dispatch
+    description: Wire invoke: to check nika:* prefix before MCP
+    file: src/runtime/executor.rs
+    effort: 1hr
+    depends_on: [builtin-registry]
+
+  - id: builtin-tests
+    description: Unit + integration tests for all builtin tools
+    file: src/runtime/builtin/mod.rs
+    effort: 2hr
+    depends_on: [nika-prompt, nika-run, nika-sleep, nika-log, nika-assert, nika-emit]
+```
+
+### B4.8 UserInput Node — Detailed Tasks
+
+```yaml
+tasks:
+  - id: node-type-enum
+    description: Create NodeType enum (Task, UserInput, SystemMessage)
+    file: src/chat/node.rs (new)
+    effort: 30min
+
+  - id: user-input-node
+    description: UserInputNode struct with content and .output binding
+    file: src/chat/node.rs
+    effort: 1hr
+    depends_on: [node-type-enum]
+
+  - id: chatdag-node-type
+    description: Update ChatDAG to use NodeType discriminant
+    file: src/chat/dag.rs
+    effort: 1hr
+    depends_on: [user-input-node]
+
+  - id: user-input-binding
+    description: UserInput nodes expose .output for {{use.msg-N.output}}
+    file: src/chat/dag.rs
+    effort: 1hr
+    depends_on: [chatdag-node-type]
+
+  - id: user-input-tests
+    description: Tests for UserInput node bindings
+    file: src/chat/node.rs
+    effort: 1hr
+    depends_on: [user-input-binding]
+```
+
 ### Deliverables
 
 - [ ] `ChatDAG` using `StableGraph`
@@ -325,7 +490,9 @@ tasks:
 - [ ] Unified executor for workflow + chat
 - [ ] YAML export from chat session
 - [ ] DAG panel in TUI
-- [ ] 150 new tests passing
+- [ ] **Builtin tools (nika:*) infrastructure**
+- [ ] **NodeType::UserInput for chat messages**
+- [ ] 150 new tests passing (→ 195 with new batches)
 
 ---
 
@@ -359,7 +526,7 @@ tasks:
 |------|-------------|--------|
 | `v091-consolidated-design.md` | Full specification (Schema v0.6, Context, Agents, Skills, Boot) | Draft |
 | `v091-implementation-plan.md` | 9-sprint breakdown with dependencies | Approved |
-| `chat-as-workflow-dag.md` | Chat-as-DAG design (@mentions, //, bindings) | Draft |
+| `2026-02-24-chat-as-workflow-dag.md` | Chat-as-DAG design (NodeType, @mentions, //, bindings, **builtin tools**) | **Updated** |
 | `chat-dag-implementation-plan.md` | Implementation details for Chat-as-DAG | Draft |
 
 ## Supporting Plans
@@ -504,7 +671,10 @@ From rust-pro, rust-async-expert, rust-architect agents:
 | B4.4 | **Unified Executor** | Same runtime for workflow + chat | E2E |
 | B4.4 | **Race Condition Audit** | No locks across `.await` | rust-async-expert |
 | B4.6 | **DAG Panel Perf** | 60fps with 100+ nodes | rust-perf |
-| B4.6 | **Ralph Wiggum** | Full Chat-as-DAG audit | nika-deep-verify |
+| B4.7 | **Builtin Tools** | All 6 nika:* tools work via invoke: | E2E |
+| B4.7 | **nika:prompt HITL** | Pause/resume workflow on user input | E2E |
+| B4.8 | **UserInput Bindings** | {{use.msg-N.output}} resolves correctly | rust-pro |
+| B4.8 | **Ralph Wiggum** | Full Chat-as-DAG + Builtin audit | nika-deep-verify |
 
 #### v0.9.5 Gates
 
@@ -553,10 +723,10 @@ Minimum E2E coverage per version:
 | v0.9.1 | 10 | Context loading, StableGraph mutations |
 | v0.9.2 | 15 | Agent 3-modes, Skill 3-modes |
 | v0.9.3 | 12 | Boot sequence, YAML file loading |
-| v0.9.4 | 25 | Chat-as-DAG, @mentions, unified executor |
+| v0.9.4 | 35 | Chat-as-DAG, @mentions, unified executor, **builtin tools**, **UserInput nodes** |
 | v0.9.5 | 10 | Full integration workflows |
 
-**Total: 72 new E2E tests for v0.9.x**
+**Total: 82 new E2E tests for v0.9.x**
 
 ### Agent Review Documents (Generated 2026-02-24)
 

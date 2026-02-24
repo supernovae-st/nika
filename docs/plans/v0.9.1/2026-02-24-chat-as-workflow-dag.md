@@ -182,36 +182,80 @@ DAG: msg-001 ─────┐
 
 | Composant | Description |
 |-----------|-------------|
-| `ChatWorkflow` | Workflow incrémental (ajoute tasks à la volée) |
-| `ChatTask` | Task créée depuis un message chat |
+| `ChatWorkflow` | Workflow incrémental (ajoute nodes à la volée) |
+| `ChatNode` | Enum wrapper pour UserInput ou Task |
+| `NodeType` | `enum { Task, UserInput, SystemMessage }` |
 | `ChatDagBuilder` | Construit le DAG message par message |
 | `MentionToBinding` | Convertit @1 en `use: { m1: "msg-001" }` |
 | `ChatDagPanel` | Widget sidebar avec DAG live |
+| `BuiltinRegistry` | Registre des nika:* builtin tools |
+
+### NodeType Architecture (2026-02-24 Decision)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  NodeType enum — Distingue les types de nodes dans le DAG                       │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  pub enum NodeType {                                                            │
+│      Task {                          // Réponse agent (5 verbs)                 │
+│          verb: TaskVerb,             // infer, exec, fetch, invoke, agent       │
+│          output: Value,              // Résultat de l'exécution                 │
+│      },                                                                         │
+│      UserInput {                     // Message utilisateur                     │
+│          content: String,            // Texte brut                              │
+│          output: String,             // = content (pour bindings uniformes)     │
+│      },                                                                         │
+│      SystemMessage {                 // Instructions système                    │
+│          content: String,                                                       │
+│      },                                                                         │
+│  }                                                                              │
+│                                                                                 │
+│  BINDING UNIFORME:                                                              │
+│  {{use.msg-001.output}} fonctionne pour Task ET UserInput                       │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Pourquoi pas un 6ème verb `input:`?**
+- Un verb = action exécutée par l'agent
+- Un message user = donnée entrante, pas une action
+- NodeType::UserInput garde la distinction sémantique claire
 
 ### Data Flow
 
 ```
-User Input
+User Input (text)
     ↓
 Parse: detect //, @mentions, /verb
     ↓
-Create ChatTask {
-    id: "msg-XXX",
-    action: TaskAction (infer/exec/fetch/invoke/agent),
-    use_wiring: resolved from @mentions or prev,
-}
-    ↓
-ChatDagBuilder.add_task(task)
-    ↓
-Executor.execute_task(task)
-    ↓
-DataStore.insert(task.id, result)
-    ↓
-EventLog.emit(TaskCompleted)
-    ↓
-ChatDagPanel.refresh()
-    ↓
-UI: Message + DAG updated
+┌────────────────────────────────────┬────────────────────────────────────────┐
+│  Is user message (no /verb)?       │  Is agent action (/verb prefix)?       │
+├────────────────────────────────────┼────────────────────────────────────────┤
+│                                    │                                        │
+│  Create UserInput node {           │  Create Task node {                    │
+│      id: "msg-XXX",                │      id: "msg-XXX",                    │
+│      content: text,                │      verb: TaskAction,                 │
+│      output: text,  ← same         │      use_wiring: from @mentions,       │
+│  }                                 │  }                                     │
+│          ↓                         │          ↓                             │
+│  ChatDagBuilder.add_user_input()   │  ChatDagBuilder.add_task()             │
+│          ↓                         │          ↓                             │
+│  DataStore.insert(id, content)     │  Executor.execute_task()               │
+│          ↓                         │          ↓                             │
+│  EventLog.emit(UserInput)          │  DataStore.insert(id, result)          │
+│                                    │          ↓                             │
+│                                    │  EventLog.emit(TaskCompleted)          │
+│                                    │                                        │
+└────────────────────────────────────┴────────────────────────────────────────┘
+    ↓                                        ↓
+    └────────────────────┬───────────────────┘
+                         ↓
+              ChatDagPanel.refresh()
+                         ↓
+              UI: Message + DAG updated
+
+BINDING UNIFORM: {{use.msg-001.output}} works for BOTH node types
 ```
 
 ### Syntaxe @mentions
@@ -302,8 +346,8 @@ Fan-in (@mentions):
 ## Migration Path
 
 ### Phase 1: Infrastructure (no UI changes)
-- [ ] Create `ChatWorkflow` struct
-- [ ] Create `ChatTask` with auto-generated IDs
+- [ ] Create `ChatWorkflow` struct with StableGraph
+- [ ] Create `NodeType` enum (Task, UserInput, SystemMessage)
 - [ ] Wire `DataStore` into chat execution
 - [ ] Wire `EventLog` into chat execution
 
@@ -312,20 +356,30 @@ Fan-in (@mentions):
 - [ ] Implement `MentionToBinding` converter
 - [ ] Implement `//` prefix detection
 - [ ] Wire bindings resolution
+- [ ] **UserInput nodes expose .output for uniform bindings**
 
-### Phase 3: DAG Panel
+### Phase 3: Builtin Tools (NEW - 2026-02-24)
+- [ ] Create `BuiltinTool` trait
+- [ ] Create `BuiltinRegistry` for nika:* tools
+- [ ] Implement `nika:prompt` (confirm, text, select, multiselect)
+- [ ] Implement `nika:run` (workflow composition)
+- [ ] Implement `nika:sleep`, `nika:log`, `nika:assert`, `nika:emit`
+- [ ] Wire invoke: to check nika:* prefix before MCP dispatch
+
+### Phase 4: DAG Panel
 - [ ] Create `ChatDagPanel` widget
 - [ ] Add sidebar layout to chat view
 - [ ] Wire live DAG updates
 - [ ] Implement node click → scroll to message
+- [ ] **Different visual for UserInput vs Task nodes**
 
-### Phase 4: Enhanced NodeBox
+### Phase 5: Enhanced NodeBox
 - [ ] Add tokens display
 - [ ] Add output preview
 - [ ] Add bindings display
 - [ ] Remove Minimal mode
 
-### Phase 5: Polish
+### Phase 6: Polish
 - [ ] Animations (pulse, glow, shake)
 - [ ] Keyboard shortcuts
 - [ ] Resize handle for sidebar

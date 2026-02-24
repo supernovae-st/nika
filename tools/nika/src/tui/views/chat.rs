@@ -89,6 +89,9 @@ use crate::tui::widgets::{
     ParsedInput,
     ProStatusBar,
     Provider,
+    ProviderModal,
+    ProviderModalState,
+    ModalEventHandler,
     ProviderSelector,
     ProviderSelectorState,
     ScrollIndicator,
@@ -319,6 +322,8 @@ pub struct ChatView {
     pub command_palette: CommandPaletteState,
     /// Provider selector state (⌘P - v0.7.2)
     pub provider_selector: ProviderSelectorState,
+    /// Provider modal state (Shift+P - v0.8.7 full management)
+    pub provider_modal: ProviderModalState,
     /// Inline content for current streaming (MCP calls, infer boxes)
     pub inline_content: Vec<InlineContent>,
     /// Animation frame counter (for spinners)
@@ -609,6 +614,7 @@ impl ChatView {
             activity_items: vec![],
             command_palette: CommandPaletteState::new(),
             provider_selector: ProviderSelectorState::new(),
+            provider_modal: ProviderModalState::default(),
             inline_content: vec![],
             frame: 0,
 
@@ -1921,6 +1927,11 @@ impl ChatView {
         !was_visible && self.provider_selector.visible
     }
 
+    /// Toggle Provider Modal v2 (full management) - Shift+P
+    pub fn toggle_provider_modal(&mut self) {
+        self.provider_modal.visible = !self.provider_modal.visible;
+    }
+
     /// Transition activity from hot to warm
     /// v0.8.5 FIX: Use .rev() to find the LAST hot activity (most recent)
     /// Before: Only first concurrent op transitioned, others stuck forever
@@ -2867,6 +2878,11 @@ impl View for ChatView {
                 .render(selector_area, frame.buffer_mut());
         }
 
+        // 6b. Provider Modal v2 overlay (if visible) - Shift+P
+        if self.provider_modal.visible {
+            ProviderModal::new(&self.provider_modal).render(area, frame.buffer_mut());
+        }
+
         // 7. Help overlay (if visible) - ? or F1
         if self.help_overlay.visible {
             let help_area = centered_rect(70, 80, area);
@@ -2903,6 +2919,11 @@ impl View for ChatView {
         // Handle provider selector when visible
         if self.provider_selector.visible {
             return self.handle_provider_selector_key(key);
+        }
+
+        // Handle Provider Modal v2 when visible (Shift+P)
+        if self.provider_modal.visible {
+            return self.handle_provider_modal_key(key);
         }
 
         // v0.9 Phase 3: Handle search mode when active
@@ -2969,6 +2990,12 @@ impl View for ChatView {
             if opened {
                 return ViewAction::VerifyProviders;
             }
+            return ViewAction::None;
+        }
+
+        // Check for Shift+P (Provider Modal v2 toggle - full management)
+        if key.modifiers.contains(KeyModifiers::SHIFT) && key.code == KeyCode::Char('P') {
+            self.toggle_provider_modal();
             return ViewAction::None;
         }
 
@@ -3611,6 +3638,39 @@ impl ChatView {
             KeyCode::Char('r') | KeyCode::Char('R') => ViewAction::RefreshVerification,
             _ => ViewAction::None,
         }
+    }
+
+    /// Handle key events for Provider Modal v2 (full management)
+    fn handle_provider_modal_key(&mut self, key: KeyEvent) -> ViewAction {
+        let result = ModalEventHandler::handle(&mut self.provider_modal, key);
+
+        // If the modal requested to close
+        if let Some(action) = &result.action {
+            use crate::tui::widgets::ModalAction;
+            match action {
+                ModalAction::Close => {
+                    self.provider_modal.visible = false;
+                }
+                ModalAction::RefreshProviders => {
+                    return ViewAction::VerifyProviders;
+                }
+                ModalAction::RefreshOllamaModels => {
+                    // TODO: Trigger Ollama model refresh
+                }
+                ModalAction::TestApiKey { provider } => {
+                    self.add_system_message(format!("🔑 Testing {} API key...", provider));
+                }
+                ModalAction::PullModel { model } => {
+                    self.add_system_message(format!("📥 Pulling model: {}", model));
+                }
+                ModalAction::DeleteModel { model } => {
+                    self.add_system_message(format!("🗑️ Deleting model: {}", model));
+                }
+                _ => {}
+            }
+        }
+
+        ViewAction::None
     }
 
     fn render_messages(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
