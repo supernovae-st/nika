@@ -314,7 +314,12 @@ impl ChatAgent {
                     agent.provider = RigProvider::deepseek();
                 }
                 "ollama" => {
-                    // Ollama doesn't require API key, but needs OLLAMA_API_BASE_URL or localhost
+                    // v0.8.2: Verify Ollama is running before allowing selection
+                    if !crate::tui::widgets::check_ollama_available() {
+                        return Err(NikaError::InvalidConfig {
+                            message: "Ollama server is not running. Start with 'ollama serve' or set OLLAMA_API_BASE_URL".to_string(),
+                        });
+                    }
                     agent.provider = RigProvider::ollama();
                 }
                 _ => {
@@ -420,7 +425,13 @@ impl ChatAgent {
                 self.provider = RigProvider::deepseek();
             }
             ModelProvider::Ollama => {
-                // Ollama doesn't require API key - falls back to localhost
+                // v0.8.3: Verify Ollama is running before allowing switch (FIX BUG #1)
+                // Previously succeeded even when Ollama server wasn't running
+                if !crate::tui::widgets::check_ollama_available() {
+                    return Err(NikaError::InvalidConfig {
+                        message: "Ollama server is not running. Start with 'ollama serve' or set OLLAMA_API_BASE_URL".to_string(),
+                    });
+                }
                 self.provider = RigProvider::ollama();
             }
             ModelProvider::List => {
@@ -959,11 +970,22 @@ mod tests {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
         let mut agent = ChatAgent::new().expect("Should create agent");
-        // Ollama should always succeed (no API key required)
+        // v0.8.3: Ollama now requires server to be running (BUG #1 fix)
         let result = agent.set_provider(ModelProvider::Ollama);
 
-        assert!(result.is_ok());
-        assert_eq!(agent.provider_name(), "ollama");
+        if crate::tui::widgets::check_ollama_available() {
+            // If Ollama IS running, switch should succeed
+            assert!(result.is_ok());
+            assert_eq!(agent.provider_name(), "ollama");
+        } else {
+            // If Ollama is NOT running, switch should fail with InvalidConfig
+            assert!(result.is_err());
+            if let Err(NikaError::InvalidConfig { message }) = result {
+                assert!(message.contains("Ollama server is not running"));
+            } else {
+                panic!("Expected InvalidConfig error");
+            }
+        }
     }
 
     #[test]
@@ -979,10 +1001,19 @@ mod tests {
 
     #[test]
     fn test_with_overrides_ollama() {
-        // Ollama doesn't require API key
+        // v0.8.2: Ollama now requires server to be running
         let agent = ChatAgent::with_overrides(Some("ollama"), None);
-        assert!(agent.is_ok());
-        assert_eq!(agent.unwrap().provider_name(), "ollama");
+        // In CI/test environment, Ollama is typically not running
+        // If Ollama IS running, agent should be Ok; otherwise InvalidConfig
+        if crate::tui::widgets::check_ollama_available() {
+            assert!(agent.is_ok());
+            assert_eq!(agent.unwrap().provider_name(), "ollama");
+        } else {
+            assert!(agent.is_err());
+            if let Err(NikaError::InvalidConfig { message }) = agent {
+                assert!(message.contains("Ollama server is not running"));
+            }
+        }
     }
 
     #[test]

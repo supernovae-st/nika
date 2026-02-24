@@ -38,8 +38,32 @@ const STREAMING_COLOR: Color = Color::Rgb(59, 130, 246); // blue
 /// Check if Ollama server is running by pinging localhost:11434
 ///
 /// Returns true if the server responds within 500ms, false otherwise.
-/// This is a blocking call - use sparingly (e.g., on provider list init).
+///
+/// # Safety
+///
+/// This function spawns a separate thread to perform the HTTP request,
+/// avoiding the "Cannot drop a runtime in a context where blocking is not allowed"
+/// panic that occurs when `reqwest::blocking::Client` is used inside an async context.
 pub fn check_ollama_available() -> bool {
+    use std::sync::mpsc;
+
+    // Spawn a separate thread to avoid nested tokio runtime issues
+    // reqwest::blocking::Client creates its own runtime internally,
+    // which panics if dropped inside an existing tokio runtime
+    let (tx, rx) = mpsc::channel();
+
+    std::thread::spawn(move || {
+        let result = check_ollama_in_thread();
+        let _ = tx.send(result);
+    });
+
+    // Wait for result with timeout (600ms = 500ms request + 100ms overhead)
+    rx.recv_timeout(Duration::from_millis(600)).unwrap_or(false)
+}
+
+/// Internal helper that performs the actual Ollama health check
+/// Must be called from a non-tokio thread
+fn check_ollama_in_thread() -> bool {
     // Use a short timeout to avoid blocking the UI
     let client = match reqwest::blocking::Client::builder()
         .timeout(Duration::from_millis(500))
@@ -90,6 +114,68 @@ pub enum VerifyStatus {
     Verified,
     /// Verification failed
     Failed,
+}
+
+/// Selector section for navigation (v0.8.2)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SelectorSection {
+    /// LLM providers section
+    #[default]
+    Providers,
+    /// MCP servers section
+    McpServers,
+}
+
+/// MCP server display information (v0.8.2)
+#[derive(Debug, Clone)]
+pub struct McpServerDisplay {
+    /// Server name
+    pub name: String,
+    /// Verification status
+    pub status: VerifyStatus,
+    /// Response latency (if verified)
+    pub latency: Option<Duration>,
+    /// Number of available tools (if verified)
+    pub tool_count: Option<usize>,
+    /// Error message (if failed)
+    pub error: Option<String>,
+}
+
+impl McpServerDisplay {
+    /// Create a new MCP server display entry
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            status: VerifyStatus::Unknown,
+            latency: None,
+            tool_count: None,
+            error: None,
+        }
+    }
+
+    /// Set status to verifying (pinging)
+    pub fn set_verifying(&mut self) {
+        self.status = VerifyStatus::Verifying;
+        self.latency = None;
+        self.tool_count = None;
+        self.error = None;
+    }
+
+    /// Set status to verified with latency and tool count
+    pub fn set_verified(&mut self, latency: Duration, tool_count: usize) {
+        self.status = VerifyStatus::Verified;
+        self.latency = Some(latency);
+        self.tool_count = Some(tool_count);
+        self.error = None;
+    }
+
+    /// Set status to failed with error message
+    pub fn set_failed(&mut self, error: impl Into<String>) {
+        self.status = VerifyStatus::Failed;
+        self.latency = None;
+        self.tool_count = None;
+        self.error = Some(error.into());
+    }
 }
 
 /// Provider information for display
@@ -371,6 +457,13 @@ pub struct ProviderSelectorState {
     pub model_mode: bool,
     /// Whether the selector is visible
     pub visible: bool,
+    // ═══ MCP Section (v0.8.2) ═══
+    /// MCP servers display information
+    pub mcp_servers: Vec<McpServerDisplay>,
+    /// Current section (Providers or McpServers)
+    pub selected_section: SelectorSection,
+    /// Currently selected MCP server index
+    pub selected_mcp: usize,
 }
 
 impl Default for ProviderSelectorState {
@@ -381,6 +474,9 @@ impl Default for ProviderSelectorState {
             selected_model: 0,
             model_mode: false,
             visible: false,
+            mcp_servers: Vec::new(),
+            selected_section: SelectorSection::Providers,
+            selected_mcp: 0,
         }
     }
 }
@@ -558,6 +654,101 @@ impl ProviderSelectorState {
     pub fn get_provider_mut(&mut self, id: &str) -> Option<&mut ProviderInfo> {
         self.providers.iter_mut().find(|p| p.id == id)
     }
+
+    // ═══ MCP Section Methods (v0.8.2) ═══
+
+    /// Toggle between sections (Providers <-> McpServers)
+    pub fn toggle_section(&mut self) {
+        match self.selected_section {
+            SelectorSection::Providers => {
+                if !self.mcp_servers.is_empty() {
+                    self.selected_section = SelectorSection::McpServers;
+                    self.selected_mcp = 0;
+                }
+            }
+            SelectorSection::McpServers => {
+                self.selected_section = SelectorSection::Providers;
+                self.model_mode = false;
+            }
+        }
+    }
+
+    /// Move up in current section
+    pub fn move_up_in_section(&mut self) {
+        match self.selected_section {
+            SelectorSection::Providers => self.up(),
+            SelectorSection::McpServers => {
+                if self.selected_mcp > 0 {
+                    self.selected_mcp -= 1;
+                }
+            }
+        }
+    }
+
+    /// Move down in current section
+    pub fn move_down_in_section(&mut self) {
+        match self.selected_section {
+            SelectorSection::Providers => self.down(),
+            SelectorSection::McpServers => {
+                if self.selected_mcp < self.mcp_servers.len().saturating_sub(1) {
+                    self.selected_mcp += 1;
+                }
+            }
+        }
+    }
+
+    /// Add or update MCP server display entry
+    pub fn set_mcp_server(&mut self, name: impl Into<String>, entry: McpServerDisplay) {
+        let name = name.into();
+        if let Some(server) = self.mcp_servers.iter_mut().find(|s| s.name == name) {
+            *server = entry;
+        } else {
+            self.mcp_servers.push(entry);
+        }
+    }
+
+    /// Mark MCP server as pinging
+    pub fn set_mcp_pinging(&mut self, name: &str) {
+        if let Some(server) = self.mcp_servers.iter_mut().find(|s| s.name == name) {
+            server.set_verifying();
+        } else {
+            let mut server = McpServerDisplay::new(name);
+            server.set_verifying();
+            self.mcp_servers.push(server);
+        }
+    }
+
+    /// Mark MCP server as verified
+    pub fn set_mcp_verified(&mut self, name: &str, latency: Duration, tool_count: usize) {
+        if let Some(server) = self.mcp_servers.iter_mut().find(|s| s.name == name) {
+            server.set_verified(latency, tool_count);
+        }
+    }
+
+    /// Mark MCP server as failed
+    pub fn set_mcp_failed(&mut self, name: &str, error: impl Into<String>) {
+        if let Some(server) = self.mcp_servers.iter_mut().find(|s| s.name == name) {
+            server.set_failed(error);
+        }
+    }
+
+    /// Get MCP server by name
+    pub fn get_mcp_server(&self, name: &str) -> Option<&McpServerDisplay> {
+        self.mcp_servers.iter().find(|s| s.name == name)
+    }
+
+    /// Check if currently in MCP section
+    pub fn is_mcp_section(&self) -> bool {
+        self.selected_section == SelectorSection::McpServers
+    }
+
+    /// Get count of verified MCP servers
+    pub fn verified_mcp_count(&self) -> usize {
+        self.mcp_servers
+            .iter()
+            .filter(|s| s.status == VerifyStatus::Verified)
+            .count()
+    }
 }
 
 /// Provider Selector widget
@@ -653,13 +844,28 @@ impl<'a> ProviderSelector<'a> {
                         .latency
                         .map(|d| format!("✓ {}ms", d.as_millis()))
                         .unwrap_or_else(|| "✓ OK".to_string());
-                    buf.set_string(status_x, y, &latency_str, Style::default().fg(AVAILABLE_COLOR));
+                    buf.set_string(
+                        status_x,
+                        y,
+                        &latency_str,
+                        Style::default().fg(AVAILABLE_COLOR),
+                    );
                 }
                 (VerifyStatus::Verifying, _) => {
-                    buf.set_string(status_x, y, "⟳ Checking...", Style::default().fg(STREAMING_COLOR));
+                    buf.set_string(
+                        status_x,
+                        y,
+                        "⟳ Checking...",
+                        Style::default().fg(STREAMING_COLOR),
+                    );
                 }
                 (VerifyStatus::Failed, _) => {
-                    buf.set_string(status_x, y, "✗ Failed", Style::default().fg(UNAVAILABLE_COLOR));
+                    buf.set_string(
+                        status_x,
+                        y,
+                        "✗ Failed",
+                        Style::default().fg(UNAVAILABLE_COLOR),
+                    );
                 }
                 (VerifyStatus::Unknown, true) => {
                     buf.set_string(status_x, y, "○ Ready", Style::default().fg(AVAILABLE_COLOR));
@@ -671,7 +877,12 @@ impl<'a> ProviderSelector<'a> {
                     } else {
                         "✗ No Key"
                     };
-                    buf.set_string(status_x, y, status_text, Style::default().fg(UNAVAILABLE_COLOR));
+                    buf.set_string(
+                        status_x,
+                        y,
+                        status_text,
+                        Style::default().fg(UNAVAILABLE_COLOR),
+                    );
                 }
             }
 

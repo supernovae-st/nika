@@ -59,16 +59,44 @@ const SEPARATOR_52: &str = "╰────────────────�
 use crate::tui::utils::{truncate_str, wrap_text};
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
-    ActivityItem, ActivityTemp, AgentPhase, AgentPhaseIndicator, ChatModeIndicator, CommandPalette,
-    CommandPaletteState, ContextItem, CurrentVerb, DecryptVerb, HelpOverlay, HelpOverlayState,
-    InferStreamData, McpCallData, McpCallStatus, McpServerInfo, McpStatus, MemoryFile,
-    // v0.9 Phase 2: @ mention autocomplete
-    Mention, MentionAutocomplete, MentionAutocompleteState, MentionSuggestion, MentionType,
-    MissionControlPanel, ParsedInput, ProStatusBar, Provider, ProviderSelector,
-    ProviderSelectorState, ScrollIndicator, SessionContext, SessionMetrics, StreamingDecrypt,
-    SystemCommand, TurnMetrics,
     // Task Box widgets (v0.8.1 - visual verb containers)
     task_box::{BoxState, TaskBox},
+    ActivityItem,
+    ActivityTemp,
+    AgentPhase,
+    AgentPhaseIndicator,
+    ChatModeIndicator,
+    CommandPalette,
+    CommandPaletteState,
+    ContextItem,
+    CurrentVerb,
+    DecryptVerb,
+    HelpOverlay,
+    HelpOverlayState,
+    InferStreamData,
+    McpCallData,
+    McpCallStatus,
+    McpServerInfo,
+    McpStatus,
+    MemoryFile,
+    // v0.9 Phase 2: @ mention autocomplete
+    Mention,
+    MentionAutocomplete,
+    MentionAutocompleteState,
+    MentionSuggestion,
+    MentionType,
+    MissionControlPanel,
+    ParsedInput,
+    ProStatusBar,
+    Provider,
+    ProviderSelector,
+    ProviderSelectorState,
+    ScrollIndicator,
+    SessionContext,
+    SessionMetrics,
+    StreamingDecrypt,
+    SystemCommand,
+    TurnMetrics,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -516,7 +544,11 @@ impl ChatView {
                     "claude".to_string(),
                 )
             } else if std::env::var("OPENAI_API_KEY").is_ok_and(|v| !v.is_empty()) {
-                ("gpt-4o".to_string(), "OpenAI".to_string(), "openai".to_string())
+                (
+                    "gpt-4o".to_string(),
+                    "OpenAI".to_string(),
+                    "openai".to_string(),
+                )
             } else if std::env::var("MISTRAL_API_KEY").is_ok_and(|v| !v.is_empty()) {
                 (
                     "mistral-large-latest".to_string(),
@@ -635,7 +667,7 @@ impl ChatView {
             // v0.9 Thinking Toggle
             thinking_collapsed: std::collections::HashSet::new(),
             thinking_expanded_default: true, // Expanded by default
-            message_id_counter: 1, // Start at 1 (initial message has ID 1)
+            message_id_counter: 1,           // Start at 1 (initial message has ID 1)
 
             // v0.9 Phase 2: @ Mention Autocomplete
             mention_autocomplete: MentionAutocompleteState::new(),
@@ -1474,7 +1506,12 @@ impl ChatView {
     /// Update MCP server status with ping result (v0.8.2)
     ///
     /// Updates the server's connection status and recorded latency.
-    pub fn update_mcp_server_status(&mut self, server_name: &str, connected: bool, latency_ms: u64) {
+    pub fn update_mcp_server_status(
+        &mut self,
+        server_name: &str,
+        connected: bool,
+        latency_ms: u64,
+    ) {
         if let Some(server) = self
             .session_context
             .mcp_servers
@@ -2155,7 +2192,10 @@ impl ChatView {
     }
 
     /// Generate suggestions for a mention trigger
-    fn generate_mention_suggestions(&self, trigger: &crate::tui::widgets::MentionTrigger) -> Vec<MentionSuggestion> {
+    fn generate_mention_suggestions(
+        &self,
+        trigger: &crate::tui::widgets::MentionTrigger,
+    ) -> Vec<MentionSuggestion> {
         let mut suggestions = Vec::new();
         let query = trigger.query.to_lowercase();
 
@@ -2198,13 +2238,19 @@ impl ChatView {
                 // For now, use context_items as source
                 for item in &self.context_items {
                     if item.mention.to_lowercase().contains(&query) {
-                        suggestions.push(MentionSuggestion::entity(&item.mention, Some(&item.mention)));
+                        suggestions.push(MentionSuggestion::entity(
+                            &item.mention,
+                            Some(&item.mention),
+                        ));
                     }
                 }
                 // Add some example entities if empty
                 if suggestions.is_empty() && query.is_empty() {
                     suggestions.push(MentionSuggestion::entity("qr-code", Some("QR Code")));
-                    suggestions.push(MentionSuggestion::entity("url-shortener", Some("URL Shortener")));
+                    suggestions.push(MentionSuggestion::entity(
+                        "url-shortener",
+                        Some("URL Shortener"),
+                    ));
                 }
             }
             Some(MentionType::Locale) => {
@@ -2220,7 +2266,8 @@ impl ChatView {
                     ("pt-BR", "Portuguese (Brazil)"),
                 ];
                 for (code, name) in locales {
-                    if code.to_lowercase().contains(&query) || name.to_lowercase().contains(&query) {
+                    if code.to_lowercase().contains(&query) || name.to_lowercase().contains(&query)
+                    {
                         suggestions.push(MentionSuggestion::locale(code, Some(name)));
                     }
                 }
@@ -2988,9 +3035,7 @@ impl View for ChatView {
                 // t = Toggle thinking for selected message (v0.9)
                 KeyCode::Char('t') => {
                     let cursor = self.conversation_scroll.cursor;
-                    if cursor < self.messages.len()
-                        && self.messages[cursor].thinking.is_some()
-                    {
+                    if cursor < self.messages.len() && self.messages[cursor].thinking.is_some() {
                         self.toggle_thinking(cursor);
                         let state = if self.is_thinking_visible(cursor) {
                             "expanded"
@@ -3135,10 +3180,7 @@ impl View for ChatView {
                                     ));
                                 }
                                 Err(e) => {
-                                    self.add_system_message(format!(
-                                        "❌ Export failed: {}",
-                                        e
-                                    ));
+                                    self.add_system_message(format!("❌ Export failed: {}", e));
                                 }
                             }
                             ViewAction::None
@@ -3333,10 +3375,7 @@ impl ChatView {
                                         ));
                                     }
                                     Err(e) => {
-                                        self.add_system_message(format!(
-                                            "❌ Export failed: {}",
-                                            e
-                                        ));
+                                        self.add_system_message(format!("❌ Export failed: {}", e));
                                     }
                                 }
                                 ViewAction::None
@@ -3396,11 +3435,14 @@ impl ChatView {
                 }
 
                 if let Some(model_info) = model {
-                    // v0.8.2: Store provider ID for actual inference (CRITICAL FIX!)
-                    self.current_provider_id = provider.id.clone();
+                    // v0.8.3: Store provider ID for actual inference (BUG #2 fix)
+                    let provider_id = provider.id.clone();
+                    let model_id = model_info.id.clone();
+
+                    self.current_provider_id = provider_id.clone();
 
                     // Update current model
-                    self.current_model = model_info.id.clone();
+                    self.current_model = model_id.clone();
                     self.cached_provider = Provider::from_model_name(&self.current_model);
                     self.provider_name = provider.name.clone();
 
@@ -3415,6 +3457,14 @@ impl ChatView {
                         model_info.name,
                         thinking_indicator
                     ));
+
+                    self.provider_selector.close();
+
+                    // v0.8.3: Notify app.rs to invalidate/recreate chat_agent (BUG #2 fix)
+                    return ViewAction::ProviderSelectorConfirm {
+                        provider_id,
+                        model: model_id,
+                    };
                 }
 
                 self.provider_selector.close();
@@ -3439,6 +3489,8 @@ impl ChatView {
                 self.provider_selector.enter_model_mode();
                 ViewAction::None
             }
+            // R = Refresh verification (invalidate cache + re-verify) (v0.8.2)
+            KeyCode::Char('r') | KeyCode::Char('R') => ViewAction::RefreshVerification,
             _ => ViewAction::None,
         }
     }
@@ -4671,7 +4723,11 @@ impl ChatView {
                             // Top border: ╭─ 🛰️ FETCH ─── status ─╮
                             items.push(ListItem::new(Line::from(vec![
                                 Span::styled(
-                                    format!("╭─ 🛰️ FETCH: {} {} ", fetch.method, truncate_str(&fetch.url, 25)),
+                                    format!(
+                                        "╭─ 🛰️ FETCH: {} {} ",
+                                        fetch.method,
+                                        truncate_str(&fetch.url, 25)
+                                    ),
                                     Style::default().fg(border_color),
                                 ),
                                 Span::styled(
@@ -4999,7 +5055,11 @@ impl ChatView {
 
         let block = Block::default()
             .title(" Search (Esc to close) ")
-            .title_style(Style::default().fg(theme.highlight).add_modifier(Modifier::BOLD))
+            .title_style(
+                Style::default()
+                    .fg(theme.highlight)
+                    .add_modifier(Modifier::BOLD),
+            )
             .borders(Borders::ALL)
             .border_style(Style::default().fg(theme.highlight));
 
@@ -6531,7 +6591,9 @@ mod tests {
             "claude" => assert!(view.current_model.starts_with("claude")),
             "openai" => assert!(view.current_model.starts_with("gpt")),
             "mistral" => assert!(view.current_model.starts_with("mistral")),
-            "groq" => assert!(view.current_model.contains("llama") || view.current_model.contains("mixtral")),
+            "groq" => assert!(
+                view.current_model.contains("llama") || view.current_model.contains("mixtral")
+            ),
             "deepseek" => assert!(view.current_model.starts_with("deepseek")),
             "ollama" => assert!(view.current_model.contains("llama")),
             _ => panic!("Unknown provider: {}", view.current_provider_id),
@@ -6939,7 +7001,11 @@ mod tests {
 
         // Input should be "Load @file.rs  and process" (with space after mention)
         let value = view.input.value();
-        assert!(value.contains("@file.rs"), "Should contain @file.rs: {}", value);
+        assert!(
+            value.contains("@file.rs"),
+            "Should contain @file.rs: {}",
+            value
+        );
 
         // Cursor should be after "@file.rs " (position 15), NOT at end
         // "Load " (5) + "@file.rs" (8) + " " (1) = 14 chars
@@ -7390,6 +7456,9 @@ mod tests {
 
         // Animation should eventually stop
         assert!(!view.scroll_animating);
-        assert!(iterations < 100, "Animation should converge within 100 iterations");
+        assert!(
+            iterations < 100,
+            "Animation should converge within 100 iterations"
+        );
     }
 }

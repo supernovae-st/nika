@@ -270,6 +270,14 @@ pub enum ViewAction {
     ToggleTheme,
     /// Verify all configured providers (v0.8.2)
     VerifyProviders,
+    /// Refresh verification (invalidate cache + re-verify) (v0.8.2)
+    RefreshVerification,
+    /// Provider selector confirmed a change (v0.8.3 - BUG #2 fix)
+    /// Signals app.rs to invalidate/recreate chat_agent with new provider
+    ProviderSelectorConfirm {
+        provider_id: String,
+        model: String,
+    },
 }
 
 #[cfg(test)]

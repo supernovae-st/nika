@@ -55,7 +55,9 @@ use super::standalone::{HistoryEntry, StandaloneState};
 use super::state::{PanelId, SettingsField, TuiMode, TuiState};
 use super::theme::Theme;
 use super::utils::truncate_str;
+use super::verification::{VerificationCache, VerificationEntry};
 use super::views::{ChatView, HomeView, McpAction, StudioView, TuiView, View, ViewAction};
+use super::widgets::task_box::{AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox};
 use super::widgets::{ConnectionStatus, Header, StatusBar, StatusMessageWidget, StatusMetrics};
 use crate::config::mask_api_key;
 use crossterm::event::KeyEvent;
@@ -254,6 +256,10 @@ pub struct App {
     /// PERF: Pre-allocated buffer for poll_runtime_events to avoid
     /// allocating a new Vec on every frame (60 FPS = 60 allocations/sec saved)
     event_buffer: Vec<NikaEvent>,
+    // ═══ Connection Verification Cache (v0.8.2) ═══
+    /// TTL-based cache for provider and MCP server verification results.
+    /// Prevents redundant API calls when opening/refreshing the provider selector.
+    verification_cache: Arc<Mutex<VerificationCache>>,
 }
 
 impl App {
@@ -314,6 +320,7 @@ impl App {
             cached_mcp_connected: 0,
             background_handles: Arc::new(Mutex::new(Vec::new())),
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
+            verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
         })
     }
 
@@ -366,6 +373,7 @@ impl App {
             cached_mcp_connected: 0,
             background_handles: Arc::new(Mutex::new(Vec::new())),
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
+            verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
         })
     }
 
@@ -548,6 +556,11 @@ impl App {
 
         // Initialize MCP clients from workflow config
         self.init_mcp_clients();
+
+        // v0.8.2: Startup verification - verify all providers and MCP servers
+        // Results are cached for 30s to avoid redundant API calls
+        self.spawn_provider_verification();
+        self.spawn_mcp_verification();
 
         // Initialize terminal
         self.init_terminal()?;
@@ -828,9 +841,13 @@ impl App {
                     server,
                     params,
                 } => {
-                    // Start inline MCP call visualization in ChatView
-                    self.chat_view.add_mcp_call(&tool, &server, &params);
-                    tracing::debug!(tool = %tool, server = %server, "MCP call started");
+                    // v0.8.4: Create TaskBox::Invoke for inline rendering
+                    let params_json = serde_json::from_str(&params).unwrap_or(serde_json::Value::Null);
+                    let invoke_box = InvokeBox::new(&tool, &server)
+                        .with_params(params_json)
+                        .with_state(BoxState::running());
+                    self.chat_view.add_task_box(TaskBox::Invoke(invoke_box));
+                    tracing::debug!(tool = %tool, server = %server, "MCP call started with TaskBox");
                 }
                 StreamChunk::McpCallComplete { result } => {
                     // Complete inline MCP call visualization
@@ -847,13 +864,20 @@ impl App {
                     prompt_tokens,
                     max_tokens,
                 } => {
-                    // Start inline inference visualization
+                    // v0.8.4: Create TaskBox::Infer for inline rendering
+                    let infer_box = InferBox::new(&model, "(streaming...)")
+                        .with_state(BoxState::running())
+                        .with_tokens(prompt_tokens, 0)
+                        .with_streaming_cursor(true);
+                    self.chat_view.add_task_box(TaskBox::Infer(infer_box));
+
+                    // Keep existing streaming state for compatibility
                     self.chat_view
                         .start_infer_stream(&model, prompt_tokens, max_tokens);
-                    // v0.8.1 FIX: Also start streaming for Matrix Decrypt effect
+                    // Also start streaming for Matrix Decrypt effect
                     use crate::tui::widgets::DecryptVerb;
                     self.chat_view.start_streaming_with_verb(DecryptVerb::Infer);
-                    tracing::debug!(model = %model, prompt_tokens, max_tokens, "Infer started");
+                    tracing::debug!(model = %model, prompt_tokens, max_tokens, "Infer started with TaskBox");
                 }
                 StreamChunk::InferTokens { output_tokens } => {
                     // Update inline inference token count (using append with empty chunk)
@@ -876,24 +900,31 @@ impl App {
                 // Activity Events for /exec, /fetch, /agent (v0.8.0)
                 // ═══════════════════════════════════════════════════════════════════════
                 StreamChunk::ExecStart { command } => {
-                    self.chat_view.add_exec_activity(&command);
-                    tracing::debug!(command = %command, "Exec started");
+                    // v0.8.4: Create TaskBox::Exec for inline rendering
+                    let exec_box = ExecBox::new(&command).with_state(BoxState::running());
+                    self.chat_view.add_task_box(TaskBox::Exec(exec_box));
+                    tracing::debug!(command = %command, "Exec started with TaskBox");
                 }
                 StreamChunk::ExecComplete => {
                     self.chat_view.complete_exec_activity();
                     tracing::debug!("Exec completed");
                 }
                 StreamChunk::FetchStart { url, method } => {
-                    self.chat_view.add_fetch_activity(&url, &method);
-                    tracing::debug!(url = %url, method = %method, "Fetch started");
+                    // v0.8.4: Create TaskBox::Fetch for inline rendering
+                    let fetch_box = FetchBox::new(&method, &url).with_state(BoxState::running());
+                    self.chat_view.add_task_box(TaskBox::Fetch(fetch_box));
+                    tracing::debug!(url = %url, method = %method, "Fetch started with TaskBox");
                 }
                 StreamChunk::FetchComplete => {
                     self.chat_view.complete_fetch_activity();
                     tracing::debug!("Fetch completed");
                 }
                 StreamChunk::AgentStart { goal } => {
-                    self.chat_view.add_agent_activity(&goal);
-                    tracing::debug!(goal = %goal, "Agent started");
+                    // v0.8.4: Create TaskBox::Agent for inline rendering
+                    let agent_id = format!("agent-{}", self.chat_view.messages.len());
+                    let agent_box = AgentBox::new(&agent_id, &goal).with_state(BoxState::running());
+                    self.chat_view.add_task_box(TaskBox::Agent(agent_box));
+                    tracing::debug!(goal = %goal, "Agent started with TaskBox");
                 }
                 StreamChunk::AgentComplete => {
                     self.chat_view.complete_agent_activity();
@@ -918,12 +949,28 @@ impl App {
                         latency_ms = %latency_ms,
                         "Provider verified"
                     );
-                    self.chat_view.provider_selector
+                    self.chat_view
+                        .provider_selector
                         .set_verified(&provider, std::time::Duration::from_millis(latency_ms));
                 }
                 StreamChunk::ProviderVerifyFailed { provider, error } => {
                     tracing::warn!(provider = %provider, error = %error, "Provider verification failed");
-                    self.chat_view.provider_selector.set_verify_failed(&provider, error);
+                    self.chat_view
+                        .provider_selector
+                        .set_verify_failed(&provider, error.clone());
+
+                    // v0.8.3: BUG #3 fix - If the CURRENT provider failed, warn user and invalidate
+                    if self.chat_view.current_provider_id == provider {
+                        tracing::warn!(
+                            provider = %provider,
+                            "Current provider failed verification - invalidating chat_agent"
+                        );
+                        self.chat_agent = None;
+                        self.chat_view.add_system_message(format!(
+                            "⚠️ {} is unavailable: {}. Next message will use fallback provider.",
+                            provider, error
+                        ));
+                    }
                 }
                 StreamChunk::McpPinging { server } => {
                     tracing::debug!(server = %server, "MCP ping started");
@@ -941,7 +988,8 @@ impl App {
                         "MCP server pinged"
                     );
                     // Update MCP server status in session context
-                    self.chat_view.update_mcp_server_status(&server, true, latency_ms);
+                    self.chat_view
+                        .update_mcp_server_status(&server, true, latency_ms);
                 }
             }
         }
@@ -1378,7 +1426,10 @@ impl App {
                     if self.ensure_chat_agent().is_some() {
                         self.spawn_tracked(async move {
                             // v0.8.2: Use selected provider/model (CRITICAL FIX!)
-                            match crate::tui::ChatAgent::with_overrides(Some(&provider_id), Some(&model_name)) {
+                            match crate::tui::ChatAgent::with_overrides(
+                                Some(&provider_id),
+                                Some(&model_name),
+                            ) {
                                 Ok(mut agent) => {
                                     match timeout(INFER_TIMEOUT, agent.infer(&prompt_with_context))
                                         .await
@@ -1478,6 +1529,32 @@ impl App {
                 // Spawn async verification for providers and MCP servers (v0.8.2)
                 self.spawn_provider_verification();
                 self.spawn_mcp_verification();
+                Action::Continue
+            }
+            ViewAction::RefreshVerification => {
+                // Invalidate cache and re-verify all providers and MCP servers (v0.8.2)
+                {
+                    let mut cache = self.verification_cache.lock();
+                    cache.invalidate_all();
+                }
+                self.spawn_provider_verification();
+                self.spawn_mcp_verification();
+                self.set_status("🔄 Refreshing connections...");
+                Action::Continue
+            }
+            ViewAction::ProviderSelectorConfirm { provider_id, model } => {
+                // v0.8.3: Invalidate cached chat_agent when provider changes (BUG #2 fix)
+                // This ensures the next infer call creates a fresh ChatAgent with correct provider
+                tracing::info!(
+                    provider = %provider_id,
+                    model = %model,
+                    "Provider selector confirmed - invalidating cached chat_agent"
+                );
+
+                // Drop the old chat_agent so next infer call creates fresh one with new provider
+                self.chat_agent = None;
+
+                self.set_status(&format!("✓ Switched to {} ({})", provider_id, model));
                 Action::Continue
             }
         }
@@ -3164,49 +3241,124 @@ impl App {
     ///
     /// Verifies all configured providers in parallel, sending StreamChunk events
     /// to update the provider selector display in real-time.
+    ///
+    /// Uses TTL-based caching to avoid redundant API calls (30s default).
     fn spawn_provider_verification(&self) {
         let tx = self.stream_chunk_tx.clone();
         let providers = self.chat_view.provider_selector.providers.clone();
+        let cache = Arc::clone(&self.verification_cache);
 
-        // Mark all providers as verifying
+        // Check cache and send events for cached providers, mark uncached as verifying
         for provider in &providers {
-            let _ = tx.try_send(StreamChunk::ProviderVerifying {
-                provider: provider.id.clone(),
-                model: provider
-                    .models
-                    .first()
-                    .map(|m| m.name.clone())
-                    .unwrap_or_default(),
-            });
+            let provider_id = &provider.id;
+            let model = provider
+                .models
+                .first()
+                .map(|m| m.name.clone())
+                .unwrap_or_default();
+
+            // Check if we have a valid cached result
+            let cached = {
+                let cache_guard = cache.lock();
+                cache_guard.get_provider(provider_id).and_then(|entry| {
+                    if cache_guard.is_valid(entry) {
+                        Some(entry.clone())
+                    } else {
+                        None
+                    }
+                })
+            };
+
+            if let Some(entry) = cached {
+                // Send cached result directly
+                match entry.status {
+                    super::widgets::VerifyStatus::Verified => {
+                        let _ = tx.try_send(StreamChunk::ProviderVerified {
+                            provider: provider_id.clone(),
+                            model: entry.model.unwrap_or(model),
+                            latency_ms: entry.latency.map(|d| d.as_millis() as u64).unwrap_or(0),
+                        });
+                    }
+                    super::widgets::VerifyStatus::Failed => {
+                        let _ = tx.try_send(StreamChunk::ProviderVerifyFailed {
+                            provider: provider_id.clone(),
+                            error: entry.error.unwrap_or_else(|| "Unknown error".to_string()),
+                        });
+                    }
+                    _ => {
+                        // Verifying or Unknown - re-verify
+                        let _ = tx.try_send(StreamChunk::ProviderVerifying {
+                            provider: provider_id.clone(),
+                            model,
+                        });
+                    }
+                }
+            } else {
+                // Mark as verifying - will spawn task below
+                let _ = tx.try_send(StreamChunk::ProviderVerifying {
+                    provider: provider_id.clone(),
+                    model,
+                });
+            }
         }
 
-        // Spawn verification tasks for each provider
+        // Spawn verification tasks only for providers NOT in valid cache
         for provider_info in providers {
-            let tx = tx.clone();
             let provider_id = provider_info.id.clone();
+
+            // Skip if cached
+            {
+                let cache_guard = cache.lock();
+                if cache_guard.has_valid_provider(&provider_id) {
+                    continue;
+                }
+            }
+
+            let tx = tx.clone();
+            let cache = Arc::clone(&cache);
 
             self.spawn_tracked(async move {
                 // Create provider and check if configured
                 let provider_opt: Option<RigProvider> = match provider_id.as_str() {
                     "claude" => {
                         let p = RigProvider::claude();
-                        if p.is_configured() { Some(p) } else { None }
+                        if p.is_configured() {
+                            Some(p)
+                        } else {
+                            None
+                        }
                     }
                     "openai" => {
                         let p = RigProvider::openai();
-                        if p.is_configured() { Some(p) } else { None }
+                        if p.is_configured() {
+                            Some(p)
+                        } else {
+                            None
+                        }
                     }
                     "mistral" => {
                         let p = RigProvider::mistral();
-                        if p.is_configured() { Some(p) } else { None }
+                        if p.is_configured() {
+                            Some(p)
+                        } else {
+                            None
+                        }
                     }
                     "groq" => {
                         let p = RigProvider::groq();
-                        if p.is_configured() { Some(p) } else { None }
+                        if p.is_configured() {
+                            Some(p)
+                        } else {
+                            None
+                        }
                     }
                     "deepseek" => {
                         let p = RigProvider::deepseek();
-                        if p.is_configured() { Some(p) } else { None }
+                        if p.is_configured() {
+                            Some(p)
+                        } else {
+                            None
+                        }
                     }
                     "ollama" => {
                         // Ollama is always available (local, no API key needed)
@@ -3216,29 +3368,46 @@ impl App {
                 };
 
                 match provider_opt {
-                    Some(provider) => {
-                        match provider.verify().await {
-                            Ok(result) => {
-                                let _ = tx
-                                    .send(StreamChunk::ProviderVerified {
-                                        provider: provider_id,
-                                        model: result.model,
-                                        latency_ms: result.latency.as_millis() as u64,
-                                    })
-                                    .await;
+                    Some(provider) => match provider.verify().await {
+                        Ok(result) => {
+                            // Cache the successful result
+                            {
+                                let mut cache_guard = cache.lock();
+                                cache_guard.set_provider(
+                                    provider_id.clone(),
+                                    VerificationEntry::verified(
+                                        result.latency,
+                                        Some(result.model.clone()),
+                                    ),
+                                );
                             }
-                            Err(e) => {
-                                let _ = tx
-                                    .send(StreamChunk::ProviderVerifyFailed {
-                                        provider: provider_id,
-                                        error: e.to_string(),
-                                    })
-                                    .await;
-                            }
+                            let _ = tx
+                                .send(StreamChunk::ProviderVerified {
+                                    provider: provider_id,
+                                    model: result.model,
+                                    latency_ms: result.latency.as_millis() as u64,
+                                })
+                                .await;
                         }
-                    }
+                        Err(e) => {
+                            // Cache the failure
+                            {
+                                let mut cache_guard = cache.lock();
+                                cache_guard.set_provider(
+                                    provider_id.clone(),
+                                    VerificationEntry::failed(e.to_string()),
+                                );
+                            }
+                            let _ = tx
+                                .send(StreamChunk::ProviderVerifyFailed {
+                                    provider: provider_id,
+                                    error: e.to_string(),
+                                })
+                                .await;
+                        }
+                    },
                     None => {
-                        // Not configured - leave as Unknown status
+                        // Not configured - leave as Unknown status (don't cache)
                         tracing::debug!(provider = %provider_id, "Provider not configured");
                     }
                 }
@@ -3250,6 +3419,8 @@ impl App {
     ///
     /// Pings all configured MCP servers in parallel, sending StreamChunk events
     /// to update the session context display in real-time.
+    ///
+    /// Uses TTL-based caching to avoid redundant MCP pings (30s default).
     fn spawn_mcp_verification(&self) {
         let Some(mcp_configs) = &self.mcp_configs else {
             tracing::debug!("No MCP servers configured, skipping verification");
@@ -3257,20 +3428,71 @@ impl App {
         };
 
         let tx = self.stream_chunk_tx.clone();
+        let cache = Arc::clone(&self.verification_cache);
         let configs: Vec<_> = mcp_configs
             .iter()
             .map(|(name, config)| (name.clone(), config.clone()))
             .collect();
 
+        // Check cache and send events for cached servers, mark uncached as pinging
+        for (server_name, _config) in &configs {
+            // Check if we have a valid cached result
+            let cached = {
+                let cache_guard = cache.lock();
+                cache_guard.get_mcp(server_name).and_then(|entry| {
+                    if cache_guard.is_valid(entry) {
+                        Some(entry.clone())
+                    } else {
+                        None
+                    }
+                })
+            };
+
+            if let Some(entry) = cached {
+                // Send cached result directly
+                match entry.status {
+                    super::widgets::VerifyStatus::Verified => {
+                        let _ = tx.try_send(StreamChunk::McpPinged {
+                            server: server_name.clone(),
+                            latency_ms: entry.latency.map(|d| d.as_millis() as u64).unwrap_or(0),
+                            tool_count: entry.tool_count.unwrap_or(0),
+                        });
+                    }
+                    super::widgets::VerifyStatus::Failed => {
+                        let _ = tx.try_send(StreamChunk::McpError {
+                            server_name: server_name.clone(),
+                            error: entry.error.unwrap_or_else(|| "Unknown error".to_string()),
+                        });
+                    }
+                    _ => {
+                        // Verifying or Unknown - re-ping
+                        let _ = tx.try_send(StreamChunk::McpPinging {
+                            server: server_name.clone(),
+                        });
+                    }
+                }
+            } else {
+                // Mark as pinging - will spawn task below
+                let _ = tx.try_send(StreamChunk::McpPinging {
+                    server: server_name.clone(),
+                });
+            }
+        }
+
+        // Spawn ping tasks only for servers NOT in valid cache
         for (server_name, config) in configs {
+            // Skip if cached
+            {
+                let cache_guard = cache.lock();
+                if cache_guard.has_valid_mcp(&server_name) {
+                    continue;
+                }
+            }
+
             let tx = tx.clone();
-
-            // Send pinging event
-            let _ = tx.try_send(StreamChunk::McpPinging {
-                server: server_name.clone(),
-            });
-
+            let cache = Arc::clone(&cache);
             let server_name_for_config = server_name.clone();
+
             self.spawn_tracked(async move {
                 use crate::mcp::{McpClient, McpConfig};
 
@@ -3290,6 +3512,17 @@ impl App {
                 match McpClient::new(mcp_config) {
                     Ok(client) => match client.ping().await {
                         Ok(result) => {
+                            // Cache the successful result
+                            {
+                                let mut cache_guard = cache.lock();
+                                cache_guard.set_mcp(
+                                    server_name.clone(),
+                                    VerificationEntry::verified_mcp(
+                                        result.latency,
+                                        result.tool_count,
+                                    ),
+                                );
+                            }
                             let _ = tx
                                 .send(StreamChunk::McpPinged {
                                     server: server_name,
@@ -3299,6 +3532,14 @@ impl App {
                                 .await;
                         }
                         Err(e) => {
+                            // Cache the failure
+                            {
+                                let mut cache_guard = cache.lock();
+                                cache_guard.set_mcp(
+                                    server_name.clone(),
+                                    VerificationEntry::failed(e.to_string()),
+                                );
+                            }
                             let _ = tx
                                 .send(StreamChunk::McpError {
                                     server_name,
@@ -3308,6 +3549,14 @@ impl App {
                         }
                     },
                     Err(e) => {
+                        // Cache the failure
+                        {
+                            let mut cache_guard = cache.lock();
+                            cache_guard.set_mcp(
+                                server_name.clone(),
+                                VerificationEntry::failed(e.to_string()),
+                            );
+                        }
                         let _ = tx
                             .send(StreamChunk::McpError {
                                 server_name,
