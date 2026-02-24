@@ -298,6 +298,155 @@ impl RigProvider {
         }
         None
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.8.2: Provider Health Check & Verification
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Verify the provider connection is working (v0.8.2)
+    ///
+    /// Makes a minimal API call to check:
+    /// - API key is valid
+    /// - Network connectivity works
+    /// - Provider service is responding
+    ///
+    /// Returns Ok(VerifyResult) with latency on success,
+    /// or Err with specific reason on failure.
+    pub async fn verify(&self) -> Result<ProviderVerifyResult, ProviderVerifyError> {
+        use std::time::Instant;
+
+        let start = Instant::now();
+
+        // Use a minimal prompt to test connectivity
+        let test_prompt = "Hi";
+
+        match self.infer(test_prompt, None).await {
+            Ok(_) => Ok(ProviderVerifyResult {
+                provider: self.name().to_string(),
+                latency: start.elapsed(),
+                model: self.default_model().to_string(),
+            }),
+            Err(e) => {
+                let error_msg = e.to_string().to_lowercase();
+
+                // Categorize the error
+                if error_msg.contains("401")
+                    || error_msg.contains("unauthorized")
+                    || error_msg.contains("invalid api key")
+                    || error_msg.contains("authentication")
+                {
+                    Err(ProviderVerifyError::InvalidApiKey {
+                        provider: self.name().to_string(),
+                    })
+                } else if error_msg.contains("rate limit")
+                    || error_msg.contains("429")
+                    || error_msg.contains("too many requests")
+                {
+                    Err(ProviderVerifyError::RateLimited {
+                        provider: self.name().to_string(),
+                    })
+                } else if error_msg.contains("timeout")
+                    || error_msg.contains("timed out")
+                    || error_msg.contains("deadline")
+                {
+                    Err(ProviderVerifyError::Timeout {
+                        provider: self.name().to_string(),
+                    })
+                } else if error_msg.contains("connection")
+                    || error_msg.contains("network")
+                    || error_msg.contains("dns")
+                    || error_msg.contains("refused")
+                {
+                    Err(ProviderVerifyError::NetworkError {
+                        provider: self.name().to_string(),
+                        details: e.to_string(),
+                    })
+                } else {
+                    Err(ProviderVerifyError::ProviderError {
+                        provider: self.name().to_string(),
+                        details: e.to_string(),
+                    })
+                }
+            }
+        }
+    }
+
+    /// Quick check if provider credentials are configured (v0.8.2)
+    ///
+    /// This is a fast, synchronous check that doesn't make network calls.
+    /// Use `verify()` for actual connection testing.
+    pub fn is_configured(&self) -> bool {
+        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
+
+        match self {
+            RigProvider::Claude(_) => has_key("ANTHROPIC_API_KEY"),
+            RigProvider::OpenAI(_) => has_key("OPENAI_API_KEY"),
+            RigProvider::Mistral(_) => has_key("MISTRAL_API_KEY"),
+            RigProvider::Groq(_) => has_key("GROQ_API_KEY"),
+            RigProvider::DeepSeek(_) => has_key("DEEPSEEK_API_KEY"),
+            RigProvider::Ollama(_) => {
+                // Ollama doesn't need API key, just check if server is running
+                crate::tui::widgets::check_ollama_available()
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.8.2: Provider Verification Types
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Result of a successful provider verification (v0.8.2)
+#[derive(Debug, Clone)]
+pub struct ProviderVerifyResult {
+    /// Provider name (claude, openai, etc.)
+    pub provider: String,
+    /// Round-trip latency for the test call
+    pub latency: std::time::Duration,
+    /// Model used for verification
+    pub model: String,
+}
+
+/// Error during provider verification (v0.8.2)
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum ProviderVerifyError {
+    #[error("Invalid API key for {provider}")]
+    InvalidApiKey { provider: String },
+
+    #[error("Rate limited by {provider}")]
+    RateLimited { provider: String },
+
+    #[error("Connection timeout to {provider}")]
+    Timeout { provider: String },
+
+    #[error("Network error connecting to {provider}: {details}")]
+    NetworkError { provider: String, details: String },
+
+    #[error("Provider error from {provider}: {details}")]
+    ProviderError { provider: String, details: String },
+}
+
+impl ProviderVerifyError {
+    /// Get a user-friendly suggestion for fixing the error
+    pub fn suggestion(&self) -> &'static str {
+        match self {
+            ProviderVerifyError::InvalidApiKey { .. } => {
+                "Check your API key in environment variables"
+            }
+            ProviderVerifyError::RateLimited { .. } => {
+                "Wait a moment and try again, or check your plan limits"
+            }
+            ProviderVerifyError::Timeout { .. } => {
+                "Check your network connection or try again"
+            }
+            ProviderVerifyError::NetworkError { .. } => {
+                "Check your internet connection and firewall settings"
+            }
+            ProviderVerifyError::ProviderError { .. } => {
+                "The provider service may be experiencing issues"
+            }
+        }
+    }
 }
 
 /// Error type for RigProvider infer operations
@@ -331,6 +480,65 @@ pub enum StreamChunk {
     McpConnected(String),
     /// MCP server connection failed (v0.7.0)
     McpError { server_name: String, error: String },
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Chat Inline Box Events (v0.8.0 - wire widgets to chat commands)
+    // ═══════════════════════════════════════════════════════════════════════════
+    /// MCP tool call started (for inline visualization)
+    McpCallStart {
+        tool: String,
+        server: String,
+        params: String,
+    },
+    /// MCP tool call completed successfully
+    McpCallComplete { result: String },
+    /// MCP tool call failed
+    McpCallFailed { error: String },
+    /// Infer stream started (for inline visualization)
+    InferStart {
+        model: String,
+        prompt_tokens: u32,
+        max_tokens: u32,
+    },
+    /// Infer stream token count update
+    InferTokens { output_tokens: u32 },
+    /// Infer stream completed
+    InferComplete,
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Activity Events for /exec, /fetch, /agent (v0.8.0)
+    // ═══════════════════════════════════════════════════════════════════════════
+    /// Shell command started (for activity stack)
+    ExecStart { command: String },
+    /// Shell command completed
+    ExecComplete,
+    /// HTTP fetch started (for activity stack)
+    FetchStart { url: String, method: String },
+    /// HTTP fetch completed
+    FetchComplete,
+    /// Agent loop started (for activity stack)
+    AgentStart { goal: String },
+    /// Agent loop completed
+    AgentComplete,
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Connection Verification Events (v0.8.2)
+    // ═══════════════════════════════════════════════════════════════════════════
+    /// Provider verification started
+    ProviderVerifying { provider: String, model: String },
+    /// Provider verification succeeded
+    ProviderVerified {
+        provider: String,
+        model: String,
+        latency_ms: u64,
+    },
+    /// Provider verification failed
+    ProviderVerifyFailed { provider: String, error: String },
+    /// MCP server ping started
+    McpPinging { server: String },
+    /// MCP server ping succeeded
+    McpPinged {
+        server: String,
+        latency_ms: u64,
+        tool_count: usize,
+    },
 }
 
 // =============================================================================
@@ -1476,5 +1684,87 @@ mod tests {
             assert!(success, "Generation for {} should succeed", locale);
         }
         assert_eq!(results.len(), 5, "Should process all 5 locales");
+    }
+
+    // =========================================================================
+    // v0.8.2: Provider Verification Tests
+    // =========================================================================
+
+    #[test]
+    fn test_provider_verify_error_types() {
+        // Test all error variants
+        let invalid_key = ProviderVerifyError::InvalidApiKey {
+            provider: "claude".to_string(),
+        };
+        assert!(invalid_key.to_string().contains("Invalid API key"));
+        assert!(invalid_key.suggestion().contains("API key"));
+
+        let rate_limited = ProviderVerifyError::RateLimited {
+            provider: "openai".to_string(),
+        };
+        assert!(rate_limited.to_string().contains("Rate limited"));
+
+        let timeout = ProviderVerifyError::Timeout {
+            provider: "mistral".to_string(),
+        };
+        assert!(timeout.to_string().contains("timeout"));
+
+        let network = ProviderVerifyError::NetworkError {
+            provider: "groq".to_string(),
+            details: "connection refused".to_string(),
+        };
+        assert!(network.to_string().contains("Network error"));
+
+        let provider_err = ProviderVerifyError::ProviderError {
+            provider: "ollama".to_string(),
+            details: "server down".to_string(),
+        };
+        assert!(provider_err.to_string().contains("server down"));
+    }
+
+    #[test]
+    fn test_provider_verify_result_fields() {
+        let result = ProviderVerifyResult {
+            provider: "claude".to_string(),
+            latency: std::time::Duration::from_millis(150),
+            model: "claude-sonnet-4-6".to_string(),
+        };
+
+        assert_eq!(result.provider, "claude");
+        assert_eq!(result.latency.as_millis(), 150);
+        assert_eq!(result.model, "claude-sonnet-4-6");
+    }
+
+    #[test]
+    #[serial]
+    fn test_is_configured_with_api_key() {
+        std::env::set_var("ANTHROPIC_API_KEY", "test-key");
+        let provider = RigProvider::claude();
+        assert!(provider.is_configured());
+    }
+
+    #[test]
+    fn test_is_configured_ollama_always_true() {
+        // Ollama doesn't need API key, so is_configured should always be true
+        let provider = RigProvider::ollama();
+        assert!(provider.is_configured());
+    }
+
+    #[test]
+    #[serial]
+    fn test_is_configured_returns_true_for_all_providers_with_keys() {
+        // Set up all API keys
+        std::env::set_var("ANTHROPIC_API_KEY", "test");
+        std::env::set_var("OPENAI_API_KEY", "test");
+        std::env::set_var("MISTRAL_API_KEY", "test");
+        std::env::set_var("GROQ_API_KEY", "test");
+        std::env::set_var("DEEPSEEK_API_KEY", "test");
+
+        assert!(RigProvider::claude().is_configured());
+        assert!(RigProvider::openai().is_configured());
+        assert!(RigProvider::mistral().is_configured());
+        assert!(RigProvider::groq().is_configured());
+        assert!(RigProvider::deepseek().is_configured());
+        assert!(RigProvider::ollama().is_configured());
     }
 }

@@ -125,6 +125,8 @@ pub struct McpServerInfo {
     pub status: McpStatus,
     pub last_call: Option<Instant>,
     pub call_count: u32,
+    /// Last measured latency in milliseconds (v0.8.2)
+    pub latency_ms: Option<u64>,
 }
 
 impl McpServerInfo {
@@ -134,6 +136,7 @@ impl McpServerInfo {
             status: McpStatus::Cold,
             last_call: None,
             call_count: 0,
+            latency_ms: None,
         }
     }
 
@@ -154,6 +157,16 @@ impl McpServerInfo {
         // Only upgrade from Cold to Connected, don't downgrade Hot/Warm
         if self.status == McpStatus::Cold {
             self.status = McpStatus::Connected;
+        }
+    }
+
+    /// Update server with ping result (v0.8.2)
+    pub fn update_from_ping(&mut self, connected: bool, latency_ms: u64) {
+        self.latency_ms = Some(latency_ms);
+        if connected {
+            self.status = McpStatus::Connected;
+        } else {
+            self.status = McpStatus::Error;
         }
     }
 

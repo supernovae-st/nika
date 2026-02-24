@@ -63,6 +63,96 @@ use crate::mcp::types::{ContentBlock, McpConfig, ResourceContent, ToolCallResult
 use crate::mcp::validation::{ErrorEnhancer, McpValidator, ValidationConfig, ValidationErrorKind};
 
 // ═══════════════════════════════════════════════════════════════════════════
+// HEALTH CHECK TYPES (v0.8.2)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Result of a successful MCP server ping (v0.8.2).
+#[derive(Debug, Clone)]
+pub struct McpPingResult {
+    /// Server name
+    pub server: String,
+
+    /// Round-trip latency
+    pub latency: Duration,
+
+    /// Number of tools available on the server
+    pub tool_count: usize,
+
+    /// Whether the connection was already established
+    pub was_connected: bool,
+}
+
+/// Error when pinging an MCP server (v0.8.2).
+#[derive(Debug, Clone)]
+pub enum McpPingError {
+    /// Server process failed to start
+    StartFailed {
+        server: String,
+        details: String,
+    },
+
+    /// Server timed out responding
+    Timeout {
+        server: String,
+        timeout: Duration,
+    },
+
+    /// Connection was refused
+    ConnectionRefused {
+        server: String,
+    },
+
+    /// Server responded with error
+    ServerError {
+        server: String,
+        details: String,
+    },
+}
+
+impl std::fmt::Display for McpPingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            McpPingError::StartFailed { server, details } => {
+                write!(f, "MCP server '{}' failed to start: {}", server, details)
+            }
+            McpPingError::Timeout { server, timeout } => {
+                write!(
+                    f,
+                    "MCP server '{}' timed out after {:?}",
+                    server, timeout
+                )
+            }
+            McpPingError::ConnectionRefused { server } => {
+                write!(f, "MCP server '{}' connection refused", server)
+            }
+            McpPingError::ServerError { server, details } => {
+                write!(f, "MCP server '{}' error: {}", server, details)
+            }
+        }
+    }
+}
+
+impl McpPingError {
+    /// Get a user-friendly suggestion for fixing this error.
+    pub fn suggestion(&self) -> &'static str {
+        match self {
+            McpPingError::StartFailed { .. } => {
+                "Check the MCP server command is correct and the executable exists"
+            }
+            McpPingError::Timeout { .. } => {
+                "The MCP server may be slow to start. Try increasing the timeout"
+            }
+            McpPingError::ConnectionRefused { .. } => {
+                "Ensure the MCP server is running and accessible"
+            }
+            McpPingError::ServerError { .. } => {
+                "Check the MCP server logs for more details"
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // CACHE TYPES (v0.5.2)
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -478,6 +568,81 @@ impl McpClient {
         } else {
             false
         }
+    }
+
+    /// Ping the MCP server to verify it's responsive (v0.8.2).
+    ///
+    /// This method:
+    /// 1. Connects to the server if not already connected
+    /// 2. Calls `list_tools()` to verify the server responds
+    /// 3. Returns latency and tool count
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let result = client.ping().await?;
+    /// println!("Server {} responded in {:?} with {} tools",
+    ///     result.server, result.latency, result.tool_count);
+    /// ```
+    pub async fn ping(&self) -> std::result::Result<McpPingResult, McpPingError> {
+        let start = Instant::now();
+        let was_connected = self.is_connected_async().await;
+
+        // For mock clients, always succeed quickly
+        if self.is_mock {
+            return Ok(McpPingResult {
+                server: self.name.clone(),
+                latency: start.elapsed(),
+                tool_count: self.mock_list_tools().len(),
+                was_connected: true,
+            });
+        }
+
+        // Connect if needed
+        if !was_connected {
+            if let Err(e) = self.connect().await {
+                let error_msg = e.to_string().to_lowercase();
+                if error_msg.contains("refused") || error_msg.contains("connection") {
+                    return Err(McpPingError::ConnectionRefused {
+                        server: self.name.clone(),
+                    });
+                }
+                return Err(McpPingError::StartFailed {
+                    server: self.name.clone(),
+                    details: e.to_string(),
+                });
+            }
+        }
+
+        // Call list_tools with timeout to verify server responds
+        match tokio::time::timeout(Duration::from_secs(10), self.list_tools()).await {
+            Ok(Ok(tools)) => Ok(McpPingResult {
+                server: self.name.clone(),
+                latency: start.elapsed(),
+                tool_count: tools.len(),
+                was_connected,
+            }),
+            Ok(Err(e)) => Err(McpPingError::ServerError {
+                server: self.name.clone(),
+                details: e.to_string(),
+            }),
+            Err(_) => Err(McpPingError::Timeout {
+                server: self.name.clone(),
+                timeout: Duration::from_secs(10),
+            }),
+        }
+    }
+
+    /// Quick check if MCP server is likely to be reachable (v0.8.2).
+    ///
+    /// Returns true if:
+    /// - Mock client: always true
+    /// - Real client: adapter exists and is configured
+    ///
+    /// This is a synchronous check that doesn't actually connect.
+    /// Use `ping()` for a full health check.
+    pub fn is_configured(&self) -> bool {
+        self.is_mock || self.adapter.is_some()
     }
 
     /// Connect to the MCP server.
@@ -1503,5 +1668,76 @@ mod tests {
         let key2 = super::ResponseCache::cache_key("tool_b", &params);
 
         assert_ne!(key1, key2);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MCP PING HEALTH CHECK TESTS (v0.8.2)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_ping_mock_client_succeeds() {
+        let client = McpClient::mock("test");
+
+        let result = client.ping().await;
+        assert!(result.is_ok());
+
+        let ping = result.unwrap();
+        assert_eq!(ping.server, "test");
+        assert!(ping.was_connected);
+        assert!(ping.tool_count > 0);
+        // Latency should be very small for mock
+        assert!(ping.latency.as_millis() < 100);
+    }
+
+    #[test]
+    fn test_mcp_ping_error_types() {
+        let start_failed = super::McpPingError::StartFailed {
+            server: "novanet".to_string(),
+            details: "command not found".to_string(),
+        };
+        assert!(start_failed.to_string().contains("failed to start"));
+        assert!(!start_failed.suggestion().is_empty());
+
+        let timeout = super::McpPingError::Timeout {
+            server: "slow-server".to_string(),
+            timeout: std::time::Duration::from_secs(10),
+        };
+        assert!(timeout.to_string().contains("timed out"));
+
+        let refused = super::McpPingError::ConnectionRefused {
+            server: "offline".to_string(),
+        };
+        assert!(refused.to_string().contains("refused"));
+
+        let server_err = super::McpPingError::ServerError {
+            server: "broken".to_string(),
+            details: "internal error".to_string(),
+        };
+        assert!(server_err.to_string().contains("error"));
+    }
+
+    #[tokio::test]
+    async fn test_ping_result_has_valid_fields() {
+        let client = McpClient::mock("novanet");
+
+        let result = client.ping().await.unwrap();
+
+        // Check all fields are populated
+        assert_eq!(result.server, "novanet");
+        assert!(result.tool_count >= 3); // Mock has at least 3 tools
+        assert!(result.was_connected); // Mock is pre-connected
+    }
+
+    #[test]
+    fn test_is_configured_returns_true_for_mock() {
+        let client = McpClient::mock("test");
+        assert!(client.is_configured());
+    }
+
+    #[test]
+    fn test_is_configured_returns_true_for_real_client() {
+        let config = McpConfig::new("test", "echo");
+        let client = McpClient::new(config).unwrap();
+        assert!(client.is_configured());
     }
 }

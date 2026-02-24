@@ -395,6 +395,39 @@ pub struct ChatView {
     // === v0.9 Phase 2: @ Mention Autocomplete ===
     /// State for the @ mention autocomplete popup
     pub mention_autocomplete: MentionAutocompleteState,
+
+    // === v0.9 Phase 2: MCP Retry ===
+    /// Last failed MCP call for retry with Ctrl+R
+    pub last_failed_mcp: Option<FailedMcpCall>,
+
+    // === v0.9 Phase 3: Conversation Search (Ctrl+F) ===
+    /// Whether search mode is active
+    pub search_mode: bool,
+    /// Current search query
+    pub search_query: String,
+    /// Indices of messages matching the search
+    pub search_results: Vec<usize>,
+    /// Current search result index (for navigation)
+    pub search_current: usize,
+
+    // === v0.9 Phase 3: Smooth Scrolling ===
+    /// Current scroll velocity (lines per tick, can be fractional)
+    pub scroll_velocity: f32,
+    /// Accumulated fractional scroll offset (for sub-line precision)
+    pub scroll_accumulator: f32,
+    /// Whether smooth scrolling animation is active
+    pub scroll_animating: bool,
+}
+
+/// Stores info about a failed MCP call for retry (v0.9 Phase 2)
+#[derive(Debug, Clone)]
+pub struct FailedMcpCall {
+    /// Tool name that was called
+    pub tool: String,
+    /// MCP server name
+    pub server: String,
+    /// Parameters passed to the call
+    pub params: serde_json::Value,
 }
 
 /// Position of a rendered line for hit testing
@@ -606,6 +639,18 @@ impl ChatView {
 
             // v0.9 Phase 2: @ Mention Autocomplete
             mention_autocomplete: MentionAutocompleteState::new(),
+            last_failed_mcp: None,
+
+            // v0.9 Phase 3: Conversation Search (Ctrl+F)
+            search_mode: false,
+            search_query: String::new(),
+            search_results: vec![],
+            search_current: 0,
+
+            // v0.9 Phase 3: Smooth Scrolling
+            scroll_velocity: 0.0,
+            scroll_accumulator: 0.0,
+            scroll_animating: false,
         }
     }
 
@@ -815,6 +860,87 @@ impl ChatView {
         scroll.offset + scroll.visible >= scroll.total
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // v0.9 Phase 3: Smooth Scrolling
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// Friction coefficient for scroll deceleration (0.0 = instant stop, 1.0 = no friction)
+    const SCROLL_FRICTION: f32 = 0.85;
+
+    /// Minimum velocity before stopping animation (lines per tick)
+    const SCROLL_MIN_VELOCITY: f32 = 0.1;
+
+    /// Initial velocity multiplier for mouse wheel (lines per scroll event)
+    const SCROLL_WHEEL_VELOCITY: f32 = 3.0;
+
+    /// Apply smooth scroll with initial velocity (for mouse wheel)
+    pub fn smooth_scroll(&mut self, direction: i8) {
+        // Add velocity in the scroll direction (positive = down, negative = up)
+        self.scroll_velocity += direction as f32 * Self::SCROLL_WHEEL_VELOCITY;
+        self.scroll_animating = true;
+
+        // v0.8.1: Update user_at_bottom state based on scroll direction
+        if direction < 0 {
+            self.user_at_bottom = false; // Scrolling up = stop auto-following
+        }
+    }
+
+    /// Update scroll animation (call this every frame/tick)
+    /// Returns true if animation is still active
+    pub fn update_scroll_animation(&mut self) -> bool {
+        if !self.scroll_animating {
+            return false;
+        }
+
+        // Apply velocity to accumulator (sub-line precision)
+        self.scroll_accumulator += self.scroll_velocity;
+
+        // Convert accumulated scroll to whole lines
+        let lines_to_scroll = self.scroll_accumulator.trunc() as i32;
+        if lines_to_scroll != 0 {
+            self.scroll_accumulator -= lines_to_scroll as f32;
+
+            // Apply scroll based on direction
+            if lines_to_scroll > 0 {
+                for _ in 0..lines_to_scroll {
+                    self.conversation_scroll.scroll_down();
+                }
+            } else {
+                for _ in 0..(-lines_to_scroll) {
+                    self.conversation_scroll.scroll_up();
+                }
+            }
+        }
+
+        // Apply friction
+        self.scroll_velocity *= Self::SCROLL_FRICTION;
+
+        // Stop animation if velocity is negligible
+        if self.scroll_velocity.abs() < Self::SCROLL_MIN_VELOCITY {
+            self.scroll_velocity = 0.0;
+            self.scroll_accumulator = 0.0;
+            self.scroll_animating = false;
+
+            // Check if we ended up at the bottom
+            self.user_at_bottom = self.is_at_bottom();
+            return false;
+        }
+
+        true
+    }
+
+    /// Stop any ongoing smooth scroll animation
+    pub fn stop_smooth_scroll(&mut self) {
+        self.scroll_velocity = 0.0;
+        self.scroll_accumulator = 0.0;
+        self.scroll_animating = false;
+    }
+
+    /// Check if smooth scroll animation is active
+    pub fn is_scroll_animating(&self) -> bool {
+        self.scroll_animating
+    }
+
     /// Copy the currently selected message to clipboard
     /// Returns true if copy succeeded
     pub fn copy_selected_message(&mut self, text_only: bool) -> bool {
@@ -987,14 +1113,15 @@ impl ChatView {
                     false
                 }
             }
-            // Scroll wheel up - scroll focused panel (no panel switch)
+            // Scroll wheel up - smooth scroll focused panel (no panel switch)
+            // v0.9 Phase 3: Use smooth scrolling with momentum for mouse wheel
             MouseEventKind::ScrollUp => {
-                self.scroll_up();
+                self.smooth_scroll(-1); // Negative = scroll up (content moves down)
                 true
             }
-            // Scroll wheel down - scroll focused panel (no panel switch)
+            // Scroll wheel down - smooth scroll focused panel (no panel switch)
             MouseEventKind::ScrollDown => {
-                self.scroll_down();
+                self.smooth_scroll(1); // Positive = scroll down (content moves up)
                 true
             }
             _ => false,
@@ -1344,6 +1471,20 @@ impl ChatView {
         }
     }
 
+    /// Update MCP server status with ping result (v0.8.2)
+    ///
+    /// Updates the server's connection status and recorded latency.
+    pub fn update_mcp_server_status(&mut self, server_name: &str, connected: bool, latency_ms: u64) {
+        if let Some(server) = self
+            .session_context
+            .mcp_servers
+            .iter_mut()
+            .find(|s| s.name == server_name)
+        {
+            server.update_from_ping(connected, latency_ms);
+        }
+    }
+
     /// Add a tool message
     pub fn add_tool_message(&mut self, content: String) {
         let id = self.next_message_id();
@@ -1379,6 +1520,8 @@ impl ChatView {
         }
         // v0.8.1: Tick phase indicator animation (icon swap + chaos decay)
         self.tick_phase_indicator();
+        // v0.9 Phase 3: Update smooth scroll animation
+        self.update_scroll_animation();
     }
 
     /// Add an MCP call to the inline content
@@ -1420,8 +1563,17 @@ impl ChatView {
     }
 
     /// Fail an MCP call with error
+    ///
+    /// v0.9 Phase 2: Also saves the failed call for retry with Ctrl+R
     pub fn fail_mcp_call(&mut self, error: &str) {
         if let Some(InlineContent::McpCall(data)) = self.inline_content.last_mut() {
+            // v0.9 Phase 2: Save failed MCP call for retry with Ctrl+R
+            self.last_failed_mcp = Some(FailedMcpCall {
+                tool: data.tool.clone(),
+                server: data.server.clone(),
+                params: serde_json::from_str(&data.params).unwrap_or(serde_json::Value::Null),
+            });
+
             data.error = Some(error.to_string());
             data.status = McpCallStatus::Failed;
         }
@@ -1619,8 +1771,13 @@ impl ChatView {
     }
 
     /// Toggle provider selector visibility (⌘P)
-    pub fn toggle_provider_selector(&mut self) {
+    ///
+    /// Returns true if the selector was opened (verification needed).
+    pub fn toggle_provider_selector(&mut self) -> bool {
+        let was_visible = self.provider_selector.visible;
         self.provider_selector.toggle();
+        // Return true if we just opened the selector (trigger verification)
+        !was_visible && self.provider_selector.visible
     }
 
     /// Transition activity from hot to warm
@@ -1645,6 +1802,101 @@ impl ChatView {
                     .map(|d| d < Duration::from_secs(max_age_secs))
                     .unwrap_or(true)
         });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // v0.9 Phase 3: Conversation Search (Ctrl+F)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// Enter search mode (Ctrl+F)
+    pub fn start_search(&mut self) {
+        self.search_mode = true;
+        self.search_query.clear();
+        self.search_results.clear();
+        self.search_current = 0;
+    }
+
+    /// Exit search mode (Esc)
+    pub fn exit_search(&mut self) {
+        self.search_mode = false;
+        self.search_query.clear();
+        self.search_results.clear();
+        self.search_current = 0;
+    }
+
+    /// Update search results when query changes
+    pub fn update_search(&mut self) {
+        self.search_results.clear();
+        self.search_current = 0;
+
+        if self.search_query.is_empty() {
+            return;
+        }
+
+        let query_lower = self.search_query.to_lowercase();
+
+        // Search through all messages
+        // v0.9 FIX: Avoid O(n²) Vec::contains() by checking content OR thinking
+        for (idx, msg) in self.messages.iter().enumerate() {
+            let content_matches = msg.content.to_lowercase().contains(&query_lower);
+            let thinking_matches = msg
+                .thinking
+                .as_ref()
+                .is_some_and(|t| t.to_lowercase().contains(&query_lower));
+
+            // Add index if either content or thinking matches (no duplicates possible)
+            if content_matches || thinking_matches {
+                self.search_results.push(idx);
+            }
+        }
+
+        // Scroll to first result if any
+        if !self.search_results.is_empty() {
+            self.scroll_to_search_result();
+        }
+    }
+
+    /// Navigate to next search result (Enter or Down)
+    pub fn next_search_result(&mut self) {
+        if self.search_results.is_empty() {
+            return;
+        }
+        self.search_current = (self.search_current + 1) % self.search_results.len();
+        self.scroll_to_search_result();
+    }
+
+    /// Navigate to previous search result (Up)
+    pub fn prev_search_result(&mut self) {
+        if self.search_results.is_empty() {
+            return;
+        }
+        if self.search_current == 0 {
+            self.search_current = self.search_results.len() - 1;
+        } else {
+            self.search_current -= 1;
+        }
+        self.scroll_to_search_result();
+    }
+
+    /// Scroll to the current search result
+    fn scroll_to_search_result(&mut self) {
+        if let Some(&msg_idx) = self.search_results.get(self.search_current) {
+            // Set scroll to show the matching message
+            self.conversation_scroll.offset = msg_idx.saturating_sub(2);
+            self.user_at_bottom = false;
+        }
+    }
+
+    /// Handle character input in search mode
+    pub fn search_input_char(&mut self, c: char) {
+        self.search_query.push(c);
+        self.update_search();
+    }
+
+    /// Handle backspace in search mode
+    pub fn search_input_backspace(&mut self) {
+        self.search_query.pop();
+        self.update_search();
     }
 
     /// Add a user message
@@ -2006,15 +2258,14 @@ impl ChatView {
             let new_input = format!("{}{} {}", before, suggestion.insert, after);
 
             // Update input (using tui-input API)
-            // Move cursor to start if not already there
-            if self.input.cursor() > 0 {
-                self.input.handle(InputRequest::GoToStart);
-            }
+            // Input::new() places cursor at end, so we need to reposition
             self.input = Input::new(new_input.clone());
-            // Move cursor to after the inserted mention + space
+            // v0.9 Phase 2 FIX: First go to start, then move to target position
+            // This ensures cursor ends up after the inserted mention + space
+            self.input.handle(InputRequest::GoToStart);
             let new_cursor = trigger.start + suggestion.insert.len() + 1;
             for _ in 0..new_cursor.min(new_input.len()) {
-                self.input.handle(InputRequest::GoToEnd);
+                self.input.handle(InputRequest::GoToNextChar);
             }
         }
 
@@ -2489,6 +2740,33 @@ impl View for ChatView {
             return self.handle_provider_selector_key(key);
         }
 
+        // v0.9 Phase 3: Handle search mode when active
+        if self.search_mode {
+            match key.code {
+                KeyCode::Esc => {
+                    self.exit_search();
+                    return ViewAction::None;
+                }
+                KeyCode::Enter | KeyCode::Down => {
+                    self.next_search_result();
+                    return ViewAction::None;
+                }
+                KeyCode::Up => {
+                    self.prev_search_result();
+                    return ViewAction::None;
+                }
+                KeyCode::Backspace => {
+                    self.search_input_backspace();
+                    return ViewAction::None;
+                }
+                KeyCode::Char(c) => {
+                    self.search_input_char(c);
+                    return ViewAction::None;
+                }
+                _ => {}
+            }
+        }
+
         // v0.9 Phase 2: Handle mention autocomplete when visible
         if self.mention_autocomplete.visible {
             match key.code {
@@ -2521,7 +2799,17 @@ impl View for ChatView {
 
         // Check for Cmd/Ctrl+P (provider selector toggle)
         if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('p') {
-            self.toggle_provider_selector();
+            let opened = self.toggle_provider_selector();
+            // Trigger provider verification when selector opens (v0.8.2)
+            if opened {
+                return ViewAction::VerifyProviders;
+            }
+            return ViewAction::None;
+        }
+
+        // v0.9 Phase 3: Cmd/Ctrl+F = Start conversation search
+        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('f') {
+            self.start_search();
             return ViewAction::None;
         }
 
@@ -2572,6 +2860,17 @@ impl View for ChatView {
         // Cmd/Ctrl+V = Paste from system clipboard
         if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('v') {
             self.paste_from_clipboard();
+            return ViewAction::None;
+        }
+
+        // v0.9 Phase 2: Ctrl+R = Retry last failed MCP call
+        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('r') {
+            if let Some(failed) = self.last_failed_mcp.take() {
+                self.add_system_message("🔄 Retrying MCP call...".to_string());
+                return ViewAction::ChatInvoke(failed.tool, Some(failed.server), failed.params);
+            } else {
+                self.add_system_message("⚠️ No failed MCP call to retry".to_string());
+            }
             return ViewAction::None;
         }
 
@@ -2747,6 +3046,11 @@ impl View for ChatView {
                     );
                     self.shown_file_hint = true;
                 }
+                ViewAction::None
+            }
+            // v0.9 Phase 2: Shift+Enter inserts newline for multi-line input
+            KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                self.input.handle(InputRequest::InsertChar('\n'));
                 ViewAction::None
             }
             KeyCode::Enter => {
@@ -3828,6 +4132,26 @@ impl ChatView {
 
     /// Render messages v2 with inline MCP/Infer boxes
     fn render_messages_v2(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        // v0.9 Phase 3: Search bar at top when in search mode
+        let (search_area, messages_area) = if self.search_mode {
+            use ratatui::layout::{Constraint, Direction, Layout};
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(3), Constraint::Min(1)])
+                .split(area);
+            (Some(chunks[0]), chunks[1])
+        } else {
+            (None, area)
+        };
+
+        // Render search bar if active
+        if let Some(search_rect) = search_area {
+            self.render_search_bar(frame, search_rect, theme);
+        }
+
+        // Use messages_area for rest of rendering
+        let area = messages_area;
+
         // Extract theme colors with fallbacks
         let thinking_header_color = theme.status_running; // Use running (amber-ish) for thinking
         let thinking_content_color = theme.text_muted;
@@ -4650,6 +4974,46 @@ impl ChatView {
 
             frame.render_widget(scroll_indicator, scrollbar_area);
         }
+    }
+
+    /// v0.9 Phase 3: Render search bar when in search mode
+    fn render_search_bar(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        use ratatui::widgets::{Block, Borders, Paragraph};
+
+        // Build search content with match count
+        let match_info = if self.search_results.is_empty() {
+            if self.search_query.is_empty() {
+                String::new()
+            } else {
+                " (no matches)".to_string()
+            }
+        } else {
+            format!(
+                " ({}/{})",
+                self.search_current + 1,
+                self.search_results.len()
+            )
+        };
+
+        let search_text = format!("🔍 {}{}", self.search_query, match_info);
+
+        let block = Block::default()
+            .title(" Search (Esc to close) ")
+            .title_style(Style::default().fg(theme.highlight).add_modifier(Modifier::BOLD))
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.highlight));
+
+        let search_color = if self.search_results.is_empty() && !self.search_query.is_empty() {
+            theme.status_failed // Red for no matches
+        } else {
+            theme.text_primary
+        };
+
+        let paragraph = Paragraph::new(search_text)
+            .style(Style::default().fg(search_color))
+            .block(block);
+
+        frame.render_widget(paragraph, area);
     }
 
     /// Render command hints bar
@@ -6540,5 +6904,442 @@ mod tests {
         // Should have replaced @fi with @file.txt
         assert!(view.input.value().contains("file.txt"));
         assert!(!view.mention_autocomplete.visible);
+    }
+
+    #[test]
+    fn test_accept_mention_cursor_position_mid_sentence() {
+        let mut view = ChatView::new();
+
+        // Set up input with mention in middle: "Load @fi and process"
+        view.input = Input::new("Load @fi and process".to_string());
+        // Position cursor after @fi (at position 8)
+        view.input.handle(InputRequest::GoToStart);
+        for _ in 0..8 {
+            view.input.handle(InputRequest::GoToNextChar);
+        }
+
+        // Show autocomplete with a suggestion
+        view.mention_autocomplete.show(
+            crate::tui::widgets::MentionTrigger {
+                start: 5,
+                partial: "@fi".to_string(),
+                trigger_type: None,
+                query: "fi".to_string(),
+            },
+            vec![MentionSuggestion {
+                mention_type: MentionType::File,
+                display: "file.rs".to_string(),
+                insert: "@file.rs".to_string(),
+                description: None,
+            }],
+        );
+
+        // Accept the suggestion
+        view.accept_mention_suggestion();
+
+        // Input should be "Load @file.rs  and process" (with space after mention)
+        let value = view.input.value();
+        assert!(value.contains("@file.rs"), "Should contain @file.rs: {}", value);
+
+        // Cursor should be after "@file.rs " (position 15), NOT at end
+        // "Load " (5) + "@file.rs" (8) + " " (1) = 14 chars
+        let cursor = view.input.cursor();
+        let expected_cursor = 5 + 8 + 1; // start + mention length + space
+        assert_eq!(
+            cursor, expected_cursor,
+            "Cursor should be at {} after mention, not at {} (value: '{}')",
+            expected_cursor, cursor, value
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // v0.9 Phase 2: Multi-line Input Tests
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_multiline_input_newline_insertion() {
+        let mut view = ChatView::new();
+
+        // Type some text
+        view.insert_char('h');
+        view.insert_char('e');
+        view.insert_char('l');
+        view.insert_char('l');
+        view.insert_char('o');
+
+        // Insert newline (simulating Shift+Enter)
+        view.input.handle(InputRequest::InsertChar('\n'));
+
+        // Type more text
+        view.insert_char('w');
+        view.insert_char('o');
+        view.insert_char('r');
+        view.insert_char('l');
+        view.insert_char('d');
+
+        // Should have multi-line content
+        let value = view.input.value();
+        assert!(value.contains('\n'));
+        assert!(value.contains("hello"));
+        assert!(value.contains("world"));
+    }
+
+    #[test]
+    fn test_multiline_input_submit_preserves_newlines() {
+        let mut view = ChatView::new();
+
+        // Set multi-line input directly
+        view.input = Input::new("line1\nline2\nline3".to_string());
+        view.input.handle(InputRequest::GoToEnd);
+
+        // Submit
+        let message = view.submit();
+        assert!(message.is_some());
+        let msg = message.unwrap();
+
+        // Should preserve newlines
+        assert!(msg.contains('\n'));
+        assert_eq!(msg.lines().count(), 3);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // v0.9 Phase 2: MCP Retry Tests
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_mcp_retry_no_failed_call() {
+        let view = ChatView::new();
+
+        // By default, no failed MCP call
+        assert!(view.last_failed_mcp.is_none());
+    }
+
+    #[test]
+    fn test_mcp_retry_saves_failed_call() {
+        let mut view = ChatView::new();
+
+        // Add an MCP call
+        view.add_mcp_call("test_tool", "test_server", r#"{"key": "value"}"#);
+
+        // Fail the call
+        view.fail_mcp_call("Connection timeout");
+
+        // Should have saved the failed call
+        assert!(view.last_failed_mcp.is_some());
+        let failed = view.last_failed_mcp.as_ref().unwrap();
+        assert_eq!(failed.tool, "test_tool");
+        assert_eq!(failed.server, "test_server");
+        assert_eq!(failed.params["key"], "value");
+    }
+
+    #[test]
+    fn test_mcp_retry_clears_on_take() {
+        let mut view = ChatView::new();
+
+        // Set up a failed MCP call
+        view.last_failed_mcp = Some(FailedMcpCall {
+            tool: "my_tool".to_string(),
+            server: "my_server".to_string(),
+            params: serde_json::json!({"test": 123}),
+        });
+
+        // Take the failed call (simulating Ctrl+R)
+        let taken = view.last_failed_mcp.take();
+        assert!(taken.is_some());
+
+        // Should be cleared now
+        assert!(view.last_failed_mcp.is_none());
+    }
+
+    #[test]
+    fn test_mcp_retry_overwrites_previous_failure() {
+        let mut view = ChatView::new();
+
+        // First MCP call fails
+        view.add_mcp_call("tool_1", "server_1", r#"{"call": 1}"#);
+        view.fail_mcp_call("Error 1");
+
+        // Second MCP call fails
+        view.add_mcp_call("tool_2", "server_2", r#"{"call": 2}"#);
+        view.fail_mcp_call("Error 2");
+
+        // Should have the second failed call
+        let failed = view.last_failed_mcp.as_ref().unwrap();
+        assert_eq!(failed.tool, "tool_2");
+        assert_eq!(failed.server, "server_2");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // v0.9 Phase 3: Conversation Search Tests
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_search_mode_starts_inactive() {
+        let view = ChatView::new();
+        assert!(!view.search_mode);
+        assert!(view.search_query.is_empty());
+        assert!(view.search_results.is_empty());
+    }
+
+    #[test]
+    fn test_start_search_activates_mode() {
+        let mut view = ChatView::new();
+        view.start_search();
+
+        assert!(view.search_mode);
+        assert!(view.search_query.is_empty());
+    }
+
+    #[test]
+    fn test_exit_search_deactivates_mode() {
+        let mut view = ChatView::new();
+        view.start_search();
+        view.search_input_char('t');
+        view.search_input_char('e');
+        view.search_input_char('s');
+        view.search_input_char('t');
+
+        view.exit_search();
+
+        assert!(!view.search_mode);
+        assert!(view.search_query.is_empty());
+        assert!(view.search_results.is_empty());
+    }
+
+    #[test]
+    fn test_search_finds_matching_messages() {
+        let mut view = ChatView::new();
+
+        // Add some messages
+        view.add_user_message("Hello world".to_string());
+        view.add_nika_message("Hi there!".to_string(), None);
+        view.add_user_message("world of rust".to_string());
+
+        // Start search
+        view.start_search();
+        view.search_input_char('w');
+        view.search_input_char('o');
+        view.search_input_char('r');
+        view.search_input_char('l');
+        view.search_input_char('d');
+
+        // Should find 2 messages (indices 1 and 3 - 0 is the initial system message)
+        assert_eq!(view.search_results.len(), 2);
+    }
+
+    #[test]
+    fn test_search_case_insensitive() {
+        let mut view = ChatView::new();
+        view.add_user_message("HELLO WORLD".to_string());
+
+        view.start_search();
+        view.search_input_char('h');
+        view.search_input_char('e');
+        view.search_input_char('l');
+        view.search_input_char('l');
+        view.search_input_char('o');
+
+        // Should find the message even with different case
+        assert!(!view.search_results.is_empty());
+    }
+
+    #[test]
+    fn test_search_navigate_results() {
+        let mut view = ChatView::new();
+
+        // Add messages
+        view.add_user_message("test one".to_string());
+        view.add_user_message("test two".to_string());
+        view.add_user_message("test three".to_string());
+
+        view.start_search();
+        view.search_input_char('t');
+        view.search_input_char('e');
+        view.search_input_char('s');
+        view.search_input_char('t');
+
+        assert_eq!(view.search_current, 0);
+
+        view.next_search_result();
+        assert_eq!(view.search_current, 1);
+
+        view.next_search_result();
+        assert_eq!(view.search_current, 2);
+
+        // Should wrap around
+        view.next_search_result();
+        assert_eq!(view.search_current, 0);
+    }
+
+    #[test]
+    fn test_search_prev_result() {
+        let mut view = ChatView::new();
+        view.add_user_message("test one".to_string());
+        view.add_user_message("test two".to_string());
+
+        view.start_search();
+        view.search_input_char('t');
+        view.search_input_char('e');
+        view.search_input_char('s');
+        view.search_input_char('t');
+
+        // Start at 0, go prev should wrap to end
+        view.prev_search_result();
+        assert_eq!(view.search_current, view.search_results.len() - 1);
+    }
+
+    #[test]
+    fn test_search_backspace() {
+        let mut view = ChatView::new();
+        view.start_search();
+        view.search_input_char('a');
+        view.search_input_char('b');
+        view.search_input_char('c');
+
+        assert_eq!(view.search_query, "abc");
+
+        view.search_input_backspace();
+        assert_eq!(view.search_query, "ab");
+
+        view.search_input_backspace();
+        assert_eq!(view.search_query, "a");
+    }
+
+    #[test]
+    fn test_search_empty_query_no_results() {
+        let mut view = ChatView::new();
+        view.add_user_message("test message".to_string());
+
+        view.start_search();
+        // Empty query
+        view.update_search();
+
+        assert!(view.search_results.is_empty());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // v0.9 Phase 3: Smooth Scrolling Tests
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_smooth_scroll_initial_state() {
+        let view = ChatView::new();
+        assert_eq!(view.scroll_velocity, 0.0);
+        assert_eq!(view.scroll_accumulator, 0.0);
+        assert!(!view.scroll_animating);
+    }
+
+    #[test]
+    fn test_smooth_scroll_starts_animation() {
+        let mut view = ChatView::new();
+
+        view.smooth_scroll(1); // Scroll down
+
+        assert!(view.scroll_animating);
+        assert!(view.scroll_velocity > 0.0);
+    }
+
+    #[test]
+    fn test_smooth_scroll_negative_direction() {
+        let mut view = ChatView::new();
+
+        view.smooth_scroll(-1); // Scroll up
+
+        assert!(view.scroll_animating);
+        assert!(view.scroll_velocity < 0.0);
+        // Scrolling up should disable auto-follow
+        assert!(!view.user_at_bottom);
+    }
+
+    #[test]
+    fn test_smooth_scroll_velocity_accumulates() {
+        let mut view = ChatView::new();
+
+        view.smooth_scroll(1);
+        let v1 = view.scroll_velocity;
+
+        view.smooth_scroll(1);
+        let v2 = view.scroll_velocity;
+
+        // Velocity should accumulate
+        assert!(v2 > v1);
+    }
+
+    #[test]
+    fn test_update_scroll_animation_applies_friction() {
+        let mut view = ChatView::new();
+        view.smooth_scroll(1);
+        let initial_velocity = view.scroll_velocity;
+
+        view.update_scroll_animation();
+        let after_velocity = view.scroll_velocity;
+
+        // Velocity should decrease after friction
+        assert!(after_velocity < initial_velocity);
+    }
+
+    #[test]
+    fn test_update_scroll_animation_stops_at_low_velocity() {
+        let mut view = ChatView::new();
+        view.scroll_velocity = 0.05; // Below SCROLL_MIN_VELOCITY
+        view.scroll_animating = true;
+
+        let still_animating = view.update_scroll_animation();
+
+        assert!(!still_animating);
+        assert!(!view.scroll_animating);
+        assert_eq!(view.scroll_velocity, 0.0);
+        assert_eq!(view.scroll_accumulator, 0.0);
+    }
+
+    #[test]
+    fn test_update_scroll_animation_inactive_returns_false() {
+        let mut view = ChatView::new();
+        // Not animating
+
+        let result = view.update_scroll_animation();
+
+        assert!(!result);
+    }
+
+    #[test]
+    fn test_stop_smooth_scroll() {
+        let mut view = ChatView::new();
+        view.smooth_scroll(1);
+        assert!(view.scroll_animating);
+
+        view.stop_smooth_scroll();
+
+        assert!(!view.scroll_animating);
+        assert_eq!(view.scroll_velocity, 0.0);
+        assert_eq!(view.scroll_accumulator, 0.0);
+    }
+
+    #[test]
+    fn test_is_scroll_animating() {
+        let mut view = ChatView::new();
+        assert!(!view.is_scroll_animating());
+
+        view.smooth_scroll(1);
+        assert!(view.is_scroll_animating());
+
+        view.stop_smooth_scroll();
+        assert!(!view.is_scroll_animating());
+    }
+
+    #[test]
+    fn test_smooth_scroll_animation_converges_to_stop() {
+        let mut view = ChatView::new();
+        view.smooth_scroll(1);
+
+        // Run animation until it stops (should take finite iterations)
+        let mut iterations = 0;
+        while view.update_scroll_animation() && iterations < 100 {
+            iterations += 1;
+        }
+
+        // Animation should eventually stop
+        assert!(!view.scroll_animating);
+        assert!(iterations < 100, "Animation should converge within 100 iterations");
     }
 }

@@ -899,6 +899,50 @@ impl App {
                     self.chat_view.complete_agent_activity();
                     tracing::debug!("Agent completed");
                 }
+                // ═══════════════════════════════════════════════════════════════════════
+                // Connection Verification Events (v0.8.2)
+                // ═══════════════════════════════════════════════════════════════════════
+                StreamChunk::ProviderVerifying { provider, model } => {
+                    tracing::debug!(provider = %provider, model = %model, "Provider verification started");
+                    // Update provider selector state if visible
+                    self.chat_view.provider_selector.set_verifying(&provider);
+                }
+                StreamChunk::ProviderVerified {
+                    provider,
+                    model,
+                    latency_ms,
+                } => {
+                    tracing::info!(
+                        provider = %provider,
+                        model = %model,
+                        latency_ms = %latency_ms,
+                        "Provider verified"
+                    );
+                    self.chat_view.provider_selector
+                        .set_verified(&provider, std::time::Duration::from_millis(latency_ms));
+                }
+                StreamChunk::ProviderVerifyFailed { provider, error } => {
+                    tracing::warn!(provider = %provider, error = %error, "Provider verification failed");
+                    self.chat_view.provider_selector.set_verify_failed(&provider, error);
+                }
+                StreamChunk::McpPinging { server } => {
+                    tracing::debug!(server = %server, "MCP ping started");
+                    // MCP ping status could be tracked similarly if needed
+                }
+                StreamChunk::McpPinged {
+                    server,
+                    latency_ms,
+                    tool_count,
+                } => {
+                    tracing::info!(
+                        server = %server,
+                        latency_ms = %latency_ms,
+                        tool_count = %tool_count,
+                        "MCP server pinged"
+                    );
+                    // Update MCP server status in session context
+                    self.chat_view.update_mcp_server_status(&server, true, latency_ms);
+                }
             }
         }
 
@@ -1325,11 +1369,16 @@ impl App {
                     let context = self.build_conversation_context();
                     let prompt_with_context = format!("{}{}", context, msg);
 
+                    // v0.8.2: Capture selected provider/model for correct routing
+                    let provider_id = self.chat_view.current_provider_id.clone();
+                    let model_name = self.chat_view.current_model.clone();
+
                     // Spawn tracked task to call ChatAgent.infer() with timeout protection
                     let tx = self.llm_response_tx.clone();
                     if self.ensure_chat_agent().is_some() {
                         self.spawn_tracked(async move {
-                            match crate::tui::ChatAgent::new() {
+                            // v0.8.2: Use selected provider/model (CRITICAL FIX!)
+                            match crate::tui::ChatAgent::with_overrides(Some(&provider_id), Some(&model_name)) {
                                 Ok(mut agent) => {
                                     match timeout(INFER_TIMEOUT, agent.infer(&prompt_with_context))
                                         .await
@@ -1423,6 +1472,11 @@ impl App {
             ViewAction::OpenSettings => Action::SetMode(TuiMode::Settings),
             ViewAction::ToggleTheme => {
                 self.toggle_theme();
+                Action::Continue
+            }
+            ViewAction::VerifyProviders => {
+                // Spawn async provider verification (v0.8.2)
+                self.spawn_provider_verification();
                 Action::Continue
             }
         }
@@ -2135,20 +2189,23 @@ impl App {
         let prompt_tokens = (prompt_with_context.len() / 4) as u32;
         let max_tokens = 4096u32;
 
+        // v0.8.2: Capture selected provider ID for correct routing
+        let provider_id = self.chat_view.current_provider_id.clone();
+
         // Check if agent exists or can be created
         if self.ensure_chat_agent().is_some() {
             self.spawn_tracked(async move {
                 // v0.8.0: Send InferStart for inline visualization
                 let _ = stream_tx
                     .send(StreamChunk::InferStart {
-                        model: model_name,
+                        model: model_name.clone(),
                         prompt_tokens,
                         max_tokens,
                     })
                     .await;
-                // Create a new agent for the async task (ChatAgent is not Send)
+                // v0.8.2: Create agent with selected provider/model (CRITICAL FIX!)
                 // Wire streaming for real-time token display (Claude Code-like UX)
-                match ChatAgent::new() {
+                match ChatAgent::with_overrides(Some(&provider_id), Some(&model_name)) {
                     Ok(agent) => {
                         let mut agent = agent.with_stream_chunks(stream_tx.clone());
                         // Wrap inference with timeout protection
@@ -2652,13 +2709,73 @@ impl App {
                 }
             }
 
-            // Create EventLog for observability
-            let event_log = EventLog::new();
+            // Create EventLog for observability with broadcast for TUI activity
+            // v0.8.1: Use broadcast to relay AgentTurn events to TUI
+            let (event_log, mut event_rx) = EventLog::new_with_broadcast();
+
+            // Spawn task to relay EventLog events to TUI via StreamChunk
+            let relay_status_tx = status_tx.clone();
+            tokio::spawn(async move {
+                use crate::event::EventKind;
+                while let Ok(event) = event_rx.recv().await {
+                    match event.kind {
+                        EventKind::AgentTurn { metadata: Some(ref m), .. } => {
+                            // Relay thinking content if present
+                            if let Some(ref thinking) = m.thinking {
+                                let _ = relay_status_tx
+                                    .send(StreamChunk::Thinking(thinking.clone()))
+                                    .await;
+                            }
+                            // Relay token metrics (cast u32 to u64)
+                            if m.input_tokens > 0 || m.output_tokens > 0 {
+                                let _ = relay_status_tx
+                                    .send(StreamChunk::Metrics {
+                                        input_tokens: m.input_tokens as u64,
+                                        output_tokens: m.output_tokens as u64,
+                                    })
+                                    .await;
+                            }
+                        }
+                        EventKind::McpInvoke { tool, mcp_server, .. } => {
+                            // Relay MCP tool call start
+                            let _ = relay_status_tx
+                                .send(StreamChunk::McpCallStart {
+                                    tool: tool.unwrap_or_default(),
+                                    server: mcp_server,
+                                    params: String::new(),
+                                })
+                                .await;
+                        }
+                        EventKind::McpResponse { is_error, response, .. } => {
+                            // Relay MCP tool call completion
+                            if !is_error {
+                                let _ = relay_status_tx
+                                    .send(StreamChunk::McpCallComplete {
+                                        result: response
+                                            .map(|v| v.to_string())
+                                            .unwrap_or_else(|| "OK".to_string()),
+                                    })
+                                    .await;
+                            } else {
+                                let _ = relay_status_tx
+                                    .send(StreamChunk::McpCallFailed {
+                                        error: response
+                                            .map(|v| v.to_string())
+                                            .unwrap_or_else(|| "MCP error".to_string()),
+                                    })
+                                    .await;
+                            }
+                        }
+                        _ => {} // Ignore other event types
+                    }
+                }
+            });
 
             // Create RigAgentLoop with connected clients
+            // v0.8.1: Wire streaming channel for real-time token display
             let mut agent = match RigAgentLoop::new(task_id.clone(), params, event_log, mcp_clients)
             {
-                Ok(loop_instance) => loop_instance,
+                Ok(loop_instance) => loop_instance.with_stream_tx(status_tx.clone()),
                 Err(e) => {
                     let _ = response_tx
                         .send(format!("❌ Failed to create agent: {}", e))
@@ -2669,6 +2786,7 @@ impl App {
 
             match agent.run_auto().await {
                 Ok(result) => {
+                    use serde_json::Value;
                     // Format the response with status and metrics
                     let status_emoji = match result.status {
                         RigAgentStatus::NaturalCompletion => "✅",
@@ -2679,10 +2797,24 @@ impl App {
                     };
 
                     // Extract final output text
-                    let output_text = if result.final_output.is_string() {
-                        result.final_output.as_str().unwrap_or("").to_string()
-                    } else {
-                        result.final_output.to_string()
+                    // v0.8.1: RigAgentLoop returns {"response": "..."} JSON object
+                    let output_text = match &result.final_output {
+                        // Object with "response" key (normal case)
+                        Value::Object(obj) => {
+                            if let Some(Value::String(s)) = obj.get("response") {
+                                s.clone()
+                            } else if let Some(val) = obj.get("response") {
+                                // Response exists but isn't a string - serialize it
+                                val.to_string()
+                            } else {
+                                // No response key - serialize entire object
+                                result.final_output.to_string()
+                            }
+                        }
+                        // Direct string (unlikely but handle it)
+                        Value::String(s) => s.clone(),
+                        // Anything else - serialize
+                        _ => result.final_output.to_string(),
                     };
 
                     let response = format!(
@@ -2695,6 +2827,9 @@ impl App {
                     let _ = response_tx.send(format!("❌ Agent failed: {}", e)).await;
                 }
             }
+
+            // v0.8.1: Send Done to signal streaming completion (triggers final display)
+            let _ = status_tx.send(StreamChunk::Done(String::new())).await;
 
             // v0.8.0: Send AgentComplete for activity tracking
             let _ = status_tx.send(StreamChunk::AgentComplete).await;
@@ -3022,6 +3157,92 @@ impl App {
         });
 
         self.set_status(&format!("🌌 Warping through: {}", path.display()));
+    }
+
+    /// Spawn async provider verification tasks (v0.8.2)
+    ///
+    /// Verifies all configured providers in parallel, sending StreamChunk events
+    /// to update the provider selector display in real-time.
+    fn spawn_provider_verification(&self) {
+        let tx = self.stream_chunk_tx.clone();
+        let providers = self.chat_view.provider_selector.providers.clone();
+
+        // Mark all providers as verifying
+        for provider in &providers {
+            let _ = tx.try_send(StreamChunk::ProviderVerifying {
+                provider: provider.id.clone(),
+                model: provider
+                    .models
+                    .first()
+                    .map(|m| m.name.clone())
+                    .unwrap_or_default(),
+            });
+        }
+
+        // Spawn verification tasks for each provider
+        for provider_info in providers {
+            let tx = tx.clone();
+            let provider_id = provider_info.id.clone();
+
+            self.spawn_tracked(async move {
+                // Create provider and check if configured
+                let provider_opt: Option<RigProvider> = match provider_id.as_str() {
+                    "claude" => {
+                        let p = RigProvider::claude();
+                        if p.is_configured() { Some(p) } else { None }
+                    }
+                    "openai" => {
+                        let p = RigProvider::openai();
+                        if p.is_configured() { Some(p) } else { None }
+                    }
+                    "mistral" => {
+                        let p = RigProvider::mistral();
+                        if p.is_configured() { Some(p) } else { None }
+                    }
+                    "groq" => {
+                        let p = RigProvider::groq();
+                        if p.is_configured() { Some(p) } else { None }
+                    }
+                    "deepseek" => {
+                        let p = RigProvider::deepseek();
+                        if p.is_configured() { Some(p) } else { None }
+                    }
+                    "ollama" => {
+                        // Ollama is always available (local, no API key needed)
+                        Some(RigProvider::ollama())
+                    }
+                    _ => None,
+                };
+
+                match provider_opt {
+                    Some(provider) => {
+                        match provider.verify().await {
+                            Ok(result) => {
+                                let _ = tx
+                                    .send(StreamChunk::ProviderVerified {
+                                        provider: provider_id,
+                                        model: result.model,
+                                        latency_ms: result.latency.as_millis() as u64,
+                                    })
+                                    .await;
+                            }
+                            Err(e) => {
+                                let _ = tx
+                                    .send(StreamChunk::ProviderVerifyFailed {
+                                        provider: provider_id,
+                                        error: e.to_string(),
+                                    })
+                                    .await;
+                            }
+                        }
+                    }
+                    None => {
+                        // Not configured - leave as Unknown status
+                        tracing::debug!(provider = %provider_id, "Provider not configured");
+                    }
+                }
+            });
+        }
     }
 
     /// Spawn a tracked background task that will be cancelled on cleanup

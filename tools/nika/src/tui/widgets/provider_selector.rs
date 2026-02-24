@@ -2,6 +2,12 @@
 //!
 //! Popup for selecting LLM provider and model with streaming indicators.
 //! Inspired by VS Code command palette style.
+//!
+//! ## v0.8.2: Real Availability Checks
+//!
+//! Providers now perform actual availability checks:
+//! - API-based providers: Check for non-empty API key
+//! - Ollama: Ping localhost:11434/api/tags to verify server is running
 
 use ratatui::{
     buffer::Buffer,
@@ -10,6 +16,7 @@ use ratatui::{
     text::Span,
     widgets::{Block, Borders, Clear, Widget},
 };
+use std::time::Duration;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COLORS (VS Code-like dark theme)
@@ -24,6 +31,67 @@ const AVAILABLE_COLOR: Color = Color::Rgb(34, 197, 94); // green
 const UNAVAILABLE_COLOR: Color = Color::Rgb(239, 68, 68); // red
 const STREAMING_COLOR: Color = Color::Rgb(59, 130, 246); // blue
 
+// ═══════════════════════════════════════════════════════════════════════════
+// OLLAMA HEALTH CHECK (v0.8.2)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Check if Ollama server is running by pinging localhost:11434
+///
+/// Returns true if the server responds within 500ms, false otherwise.
+/// This is a blocking call - use sparingly (e.g., on provider list init).
+pub fn check_ollama_available() -> bool {
+    // Use a short timeout to avoid blocking the UI
+    let client = match reqwest::blocking::Client::builder()
+        .timeout(Duration::from_millis(500))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+
+    let base_url =
+        std::env::var("OLLAMA_API_BASE_URL").unwrap_or_else(|_| "http://localhost:11434".into());
+
+    // Try to get the list of models - if this works, Ollama is running
+    match client.get(format!("{}/api/tags", base_url)).send() {
+        Ok(resp) => resp.status().is_success(),
+        Err(_) => false,
+    }
+}
+
+/// Async version of Ollama health check for non-blocking contexts
+pub async fn check_ollama_available_async() -> bool {
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_millis(500))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+
+    let base_url =
+        std::env::var("OLLAMA_API_BASE_URL").unwrap_or_else(|_| "http://localhost:11434".into());
+
+    match client.get(format!("{}/api/tags", base_url)).send().await {
+        Ok(resp) => resp.status().is_success(),
+        Err(_) => false,
+    }
+}
+
+/// Connection verification status (v0.8.2)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum VerifyStatus {
+    /// Not yet verified
+    #[default]
+    Unknown,
+    /// Verification in progress
+    Verifying,
+    /// Successfully verified
+    Verified,
+    /// Verification failed
+    Failed,
+}
+
 /// Provider information for display
 #[derive(Debug, Clone)]
 pub struct ProviderInfo {
@@ -37,10 +105,18 @@ pub struct ProviderInfo {
     pub default_model: &'static str,
     /// Available models
     pub models: Vec<ModelInfo>,
-    /// Whether API key is configured
+    /// Whether API key is configured (or server is running for Ollama)
     pub available: bool,
     /// Environment variable name
     pub env_var: &'static str,
+    /// Reason why provider is unavailable (v0.8.2)
+    pub unavailable_reason: Option<String>,
+    /// Connection verification status (v0.8.2)
+    pub verify_status: VerifyStatus,
+    /// Last measured latency (v0.8.2)
+    pub latency: Option<Duration>,
+    /// Verification error message (v0.8.2)
+    pub verify_error: Option<String>,
 }
 
 /// Model information
@@ -60,7 +136,34 @@ pub struct ModelInfo {
 
 impl ProviderInfo {
     /// Create provider info for all supported providers
+    ///
+    /// v0.8.2: Now includes real availability checks:
+    /// - API providers: Check for non-empty API key
+    /// - Ollama: Ping localhost:11434 to verify server is running
     pub fn all_providers() -> Vec<ProviderInfo> {
+        // Helper to check API key availability with reason
+        let check_api_key = |key: &str| -> (bool, Option<String>) {
+            match std::env::var(key) {
+                Ok(v) if !v.is_empty() => (true, None),
+                Ok(_) => (false, Some(format!("{} is empty", key))),
+                Err(_) => (false, Some(format!("{} not set", key))),
+            }
+        };
+
+        // Check Ollama availability (v0.8.2: real health check)
+        let ollama_available = check_ollama_available();
+        let ollama_reason = if ollama_available {
+            None
+        } else {
+            Some("Server not running (start with 'ollama serve')".to_string())
+        };
+
+        let (claude_available, claude_reason) = check_api_key("ANTHROPIC_API_KEY");
+        let (openai_available, openai_reason) = check_api_key("OPENAI_API_KEY");
+        let (mistral_available, mistral_reason) = check_api_key("MISTRAL_API_KEY");
+        let (groq_available, groq_reason) = check_api_key("GROQ_API_KEY");
+        let (deepseek_available, deepseek_reason) = check_api_key("DEEPSEEK_API_KEY");
+
         vec![
             ProviderInfo {
                 id: "claude".to_string(),
@@ -68,7 +171,11 @@ impl ProviderInfo {
                 icon: "🧠",
                 default_model: "claude-sonnet-4-6",
                 env_var: "ANTHROPIC_API_KEY",
-                available: std::env::var("ANTHROPIC_API_KEY").is_ok_and(|v| !v.is_empty()),
+                available: claude_available,
+                unavailable_reason: claude_reason,
+                verify_status: VerifyStatus::Unknown,
+                latency: None,
+                verify_error: None,
                 models: vec![
                     ModelInfo {
                         id: "claude-sonnet-4-6".to_string(),
@@ -99,7 +206,11 @@ impl ProviderInfo {
                 icon: "🤖",
                 default_model: "gpt-4o",
                 env_var: "OPENAI_API_KEY",
-                available: std::env::var("OPENAI_API_KEY").is_ok_and(|v| !v.is_empty()),
+                available: openai_available,
+                unavailable_reason: openai_reason,
+                verify_status: VerifyStatus::Unknown,
+                latency: None,
+                verify_error: None,
                 models: vec![
                     ModelInfo {
                         id: "gpt-4o".to_string(),
@@ -130,7 +241,11 @@ impl ProviderInfo {
                 icon: "🌬️",
                 default_model: "mistral-large-latest",
                 env_var: "MISTRAL_API_KEY",
-                available: std::env::var("MISTRAL_API_KEY").is_ok_and(|v| !v.is_empty()),
+                available: mistral_available,
+                unavailable_reason: mistral_reason,
+                verify_status: VerifyStatus::Unknown,
+                latency: None,
+                verify_error: None,
                 models: vec![
                     ModelInfo {
                         id: "mistral-large-latest".to_string(),
@@ -154,7 +269,11 @@ impl ProviderInfo {
                 icon: "⚡",
                 default_model: "llama-3.3-70b-versatile",
                 env_var: "GROQ_API_KEY",
-                available: std::env::var("GROQ_API_KEY").is_ok_and(|v| !v.is_empty()),
+                available: groq_available,
+                unavailable_reason: groq_reason,
+                verify_status: VerifyStatus::Unknown,
+                latency: None,
+                verify_error: None,
                 models: vec![
                     ModelInfo {
                         id: "llama-3.3-70b-versatile".to_string(),
@@ -178,7 +297,11 @@ impl ProviderInfo {
                 icon: "🔍",
                 default_model: "deepseek-chat",
                 env_var: "DEEPSEEK_API_KEY",
-                available: std::env::var("DEEPSEEK_API_KEY").is_ok_and(|v| !v.is_empty()),
+                available: deepseek_available,
+                unavailable_reason: deepseek_reason,
+                verify_status: VerifyStatus::Unknown,
+                latency: None,
+                verify_error: None,
                 models: vec![
                     ModelInfo {
                         id: "deepseek-chat".to_string(),
@@ -202,7 +325,11 @@ impl ProviderInfo {
                 icon: "🦙",
                 default_model: "llama3.2",
                 env_var: "OLLAMA_API_BASE_URL",
-                available: true, // Always available (localhost)
+                available: ollama_available,
+                unavailable_reason: ollama_reason,
+                verify_status: VerifyStatus::Unknown,
+                latency: None,
+                verify_error: None,
                 models: vec![
                     ModelInfo {
                         id: "llama3.2".to_string(),
@@ -389,6 +516,48 @@ impl ProviderSelectorState {
         self.model_mode = true;
         self.selected_model = 0;
     }
+
+    /// Mark provider as verifying (v0.8.2)
+    pub fn set_verifying(&mut self, provider_id: &str) {
+        if let Some(p) = self.providers.iter_mut().find(|p| p.id == provider_id) {
+            p.verify_status = VerifyStatus::Verifying;
+        }
+    }
+
+    /// Update provider verification result (v0.8.2)
+    pub fn set_verified(&mut self, provider_id: &str, latency: Duration) {
+        if let Some(p) = self.providers.iter_mut().find(|p| p.id == provider_id) {
+            p.verify_status = VerifyStatus::Verified;
+            p.latency = Some(latency);
+            p.verify_error = None;
+            p.available = true;
+            p.unavailable_reason = None;
+        }
+    }
+
+    /// Mark provider verification as failed (v0.8.2)
+    pub fn set_verify_failed(&mut self, provider_id: &str, error: String) {
+        if let Some(p) = self.providers.iter_mut().find(|p| p.id == provider_id) {
+            p.verify_status = VerifyStatus::Failed;
+            p.verify_error = Some(error.clone());
+            p.unavailable_reason = Some(error);
+        }
+    }
+
+    /// Refresh provider list (re-check availability) (v0.8.2)
+    pub fn refresh(&mut self) {
+        self.providers = ProviderInfo::all_providers();
+    }
+
+    /// Get provider by ID
+    pub fn get_provider(&self, id: &str) -> Option<&ProviderInfo> {
+        self.providers.iter().find(|p| p.id == id)
+    }
+
+    /// Get mutable provider by ID
+    pub fn get_provider_mut(&mut self, id: &str) -> Option<&mut ProviderInfo> {
+        self.providers.iter_mut().find(|p| p.id == id)
+    }
 }
 
 /// Provider Selector widget
@@ -475,17 +644,35 @@ impl<'a> ProviderSelector<'a> {
             };
             buf.set_string(area.x + 4, y, &provider.name, name_style);
 
-            // Status indicator
-            let status_x = area.x + area.width.saturating_sub(12);
-            if provider.available {
-                buf.set_string(status_x, y, "✓ Ready", Style::default().fg(AVAILABLE_COLOR));
-            } else {
-                buf.set_string(
-                    status_x,
-                    y,
-                    "✗ No Key",
-                    Style::default().fg(UNAVAILABLE_COLOR),
-                );
+            // Status indicator (v0.8.2: More descriptive status with latency)
+            let status_x = area.x + area.width.saturating_sub(18);
+            match (&provider.verify_status, provider.available) {
+                (VerifyStatus::Verified, _) => {
+                    // Show latency if verified
+                    let latency_str = provider
+                        .latency
+                        .map(|d| format!("✓ {}ms", d.as_millis()))
+                        .unwrap_or_else(|| "✓ OK".to_string());
+                    buf.set_string(status_x, y, &latency_str, Style::default().fg(AVAILABLE_COLOR));
+                }
+                (VerifyStatus::Verifying, _) => {
+                    buf.set_string(status_x, y, "⟳ Checking...", Style::default().fg(STREAMING_COLOR));
+                }
+                (VerifyStatus::Failed, _) => {
+                    buf.set_string(status_x, y, "✗ Failed", Style::default().fg(UNAVAILABLE_COLOR));
+                }
+                (VerifyStatus::Unknown, true) => {
+                    buf.set_string(status_x, y, "○ Ready", Style::default().fg(AVAILABLE_COLOR));
+                }
+                (VerifyStatus::Unknown, false) => {
+                    // Show specific reason for unavailability
+                    let status_text = if provider.id == "ollama" {
+                        "✗ Offline"
+                    } else {
+                        "✗ No Key"
+                    };
+                    buf.set_string(status_x, y, status_text, Style::default().fg(UNAVAILABLE_COLOR));
+                }
             }
 
             // Streaming indicator
@@ -642,10 +829,21 @@ mod tests {
     }
 
     #[test]
-    fn test_provider_ollama_always_available() {
+    fn test_provider_ollama_availability_depends_on_server() {
+        // v0.8.2: Ollama availability now depends on actual server status
         let providers = ProviderInfo::all_providers();
         let ollama = providers.iter().find(|p| p.id == "ollama").unwrap();
-        assert!(ollama.available);
+        // In CI/test environment, Ollama is typically not running
+        // so it should show as unavailable with a reason
+        if !ollama.available {
+            assert!(ollama.unavailable_reason.is_some());
+            assert!(ollama
+                .unavailable_reason
+                .as_ref()
+                .unwrap()
+                .contains("ollama serve"));
+        }
+        // If Ollama IS running, it should be available
     }
 
     #[test]

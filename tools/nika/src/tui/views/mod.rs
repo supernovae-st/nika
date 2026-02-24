@@ -268,6 +268,8 @@ pub enum ViewAction {
     OpenSettings,
     /// Toggle theme (v0.8.1)
     ToggleTheme,
+    /// Verify all configured providers (v0.8.2)
+    VerifyProviders,
 }
 
 #[cfg(test)]

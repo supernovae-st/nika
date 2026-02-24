@@ -59,6 +59,68 @@ async fn test_claude_streaming() {
                 StreamChunk::McpError { server_name, error } => {
                     eprintln!("MCP ERROR: '{}' - {}", server_name, error);
                 }
+                // v0.8.0: Chat inline box events
+                StreamChunk::McpCallStart {
+                    tool,
+                    server,
+                    params,
+                } => {
+                    eprintln!("MCP CALL START: {}:{} ({})", server, tool, params);
+                }
+                StreamChunk::McpCallComplete { result } => {
+                    eprintln!("MCP CALL COMPLETE: {}", result);
+                }
+                StreamChunk::McpCallFailed { error } => {
+                    eprintln!("MCP CALL FAILED: {}", error);
+                }
+                StreamChunk::InferStart {
+                    model,
+                    prompt_tokens,
+                    max_tokens,
+                } => {
+                    eprintln!("INFER START: {} ({}→{})", model, prompt_tokens, max_tokens);
+                }
+                StreamChunk::InferTokens { output_tokens } => {
+                    eprintln!("INFER TOKENS: {}", output_tokens);
+                }
+                StreamChunk::InferComplete => {
+                    eprintln!("INFER COMPLETE");
+                }
+                // v0.8.0: Activity events for exec/fetch/agent
+                StreamChunk::ExecStart { command } => {
+                    eprintln!("EXEC START: {}", command);
+                }
+                StreamChunk::ExecComplete => {
+                    eprintln!("EXEC COMPLETE");
+                }
+                StreamChunk::FetchStart { url, method } => {
+                    eprintln!("FETCH START: {} {}", method, url);
+                }
+                StreamChunk::FetchComplete => {
+                    eprintln!("FETCH COMPLETE");
+                }
+                StreamChunk::AgentStart { goal } => {
+                    eprintln!("AGENT START: {}", goal);
+                }
+                StreamChunk::AgentComplete => {
+                    eprintln!("AGENT COMPLETE");
+                }
+                // v0.8.2: Connection verification events
+                StreamChunk::ProviderVerifying { provider, model } => {
+                    eprintln!("PROVIDER VERIFYING: {} ({})", provider, model);
+                }
+                StreamChunk::ProviderVerified { provider, model, latency_ms } => {
+                    eprintln!("PROVIDER VERIFIED: {} ({}) in {}ms", provider, model, latency_ms);
+                }
+                StreamChunk::ProviderVerifyFailed { provider, error } => {
+                    eprintln!("PROVIDER VERIFY FAILED: {} - {}", provider, error);
+                }
+                StreamChunk::McpPinging { server } => {
+                    eprintln!("MCP PINGING: {}", server);
+                }
+                StreamChunk::McpPinged { server, latency_ms, tool_count } => {
+                    eprintln!("MCP PINGED: {} in {}ms ({} tools)", server, latency_ms, tool_count);
+                }
             }
         }
         (tokens, done)
