@@ -18,7 +18,6 @@
 mod activity_stack;
 mod agent_steps;
 mod agent_turns;
-mod big_text;
 mod command_palette;
 mod dag;
 mod dag_ascii;
@@ -48,8 +47,10 @@ pub mod task_box;
 mod terminal_size;
 mod timeline;
 mod verb_input;
+pub mod provider_modal;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
+pub use provider_modal::*;
 // Provider selector popup (v0.7.2) + Ollama health check (v0.8.2) + Verification status + MCP display
 pub use provider_selector::{
     check_ollama_available, check_ollama_available_async, McpServerDisplay, ModelInfo,
@@ -117,8 +118,6 @@ pub use terminal_size::{
 pub use help_overlay::{HelpOverlay, HelpOverlayState, HelpSection, HELP_SECTIONS};
 // Status messages (v0.8 - user feedback)
 pub use status_message::{StatusLevel, StatusMessage, StatusMessageWidget, StatusQueue};
-// BigText widget for ASCII art titles (v0.8)
-pub use big_text::{BigText, BigTextGradient, GradientType};
 // Matrix Rain effect (v0.8 - WOW dither effect)
 pub use matrix_rain::MatrixRain;
 // Matrix Decrypt effect (v0.8 - streaming text reveal with verb themes)
