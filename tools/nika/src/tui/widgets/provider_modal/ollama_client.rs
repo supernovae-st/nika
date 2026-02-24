@@ -11,11 +11,30 @@ use serde::Deserialize;
 use thiserror::Error;
 use tokio::sync::mpsc;
 
+/// Maximum buffer size for NDJSON streaming (1MB) - prevents DoS
+const MAX_NDJSON_BUFFER_SIZE: usize = 1024 * 1024;
+
 /// Ollama API base URL (default: http://localhost:11434)
+/// Validates URL scheme is HTTP or HTTPS to prevent SSRF
 pub fn ollama_base_url() -> String {
-    std::env::var("OLLAMA_HOST")
+    let url_str = std::env::var("OLLAMA_HOST")
         .or_else(|_| std::env::var("OLLAMA_API_BASE_URL"))
-        .unwrap_or_else(|_| "http://localhost:11434".to_string())
+        .unwrap_or_else(|_| "http://localhost:11434".to_string());
+
+    // Validate URL scheme (SEC-002: SSRF prevention)
+    if let Ok(url) = url::Url::parse(&url_str) {
+        if matches!(url.scheme(), "http" | "https") {
+            return url_str;
+        }
+        tracing::warn!(
+            "Invalid Ollama URL scheme '{}', using default",
+            url.scheme()
+        );
+    } else {
+        tracing::warn!("Invalid Ollama URL '{}', using default", url_str);
+    }
+
+    "http://localhost:11434".to_string()
 }
 
 /// Model info from /api/tags
@@ -186,6 +205,14 @@ impl OllamaClient {
 
                 buffer.push_str(&String::from_utf8_lossy(&bytes));
 
+                // SEC-003: Prevent DoS via unbounded buffer growth
+                if buffer.len() > MAX_NDJSON_BUFFER_SIZE {
+                    let _ = tx
+                        .send(PullProgress::Error("Response too large".to_string()))
+                        .await;
+                    break;
+                }
+
                 // Process complete NDJSON lines
                 while let Some(newline_pos) = buffer.find('\n') {
                     let line = buffer[..newline_pos].to_string();
@@ -305,5 +332,38 @@ mod tests {
             },
         };
         assert_eq!(model.size_display(), "4.7 GB");
+    }
+
+    // SEC-002: URL validation tests
+    #[test]
+    fn test_ollama_base_url_valid_http() {
+        std::env::set_var("OLLAMA_HOST", "http://192.168.1.100:11434");
+        let url = ollama_base_url();
+        assert_eq!(url, "http://192.168.1.100:11434");
+        std::env::remove_var("OLLAMA_HOST");
+    }
+
+    #[test]
+    fn test_ollama_base_url_valid_https() {
+        std::env::set_var("OLLAMA_HOST", "https://ollama.example.com");
+        let url = ollama_base_url();
+        assert_eq!(url, "https://ollama.example.com");
+        std::env::remove_var("OLLAMA_HOST");
+    }
+
+    #[test]
+    fn test_ollama_base_url_invalid_scheme_uses_default() {
+        std::env::set_var("OLLAMA_HOST", "ftp://malicious.com");
+        let url = ollama_base_url();
+        assert_eq!(url, "http://localhost:11434");
+        std::env::remove_var("OLLAMA_HOST");
+    }
+
+    #[test]
+    fn test_ollama_base_url_invalid_url_uses_default() {
+        std::env::set_var("OLLAMA_HOST", "not-a-valid-url");
+        let url = ollama_base_url();
+        assert_eq!(url, "http://localhost:11434");
+        std::env::remove_var("OLLAMA_HOST");
     }
 }

@@ -177,7 +177,8 @@ impl DownloadState {
 }
 
 /// Main provider modal state
-#[derive(Debug, Clone, Default)]
+/// SEC-004: Custom Debug impl redacts key_input_buffer to prevent API key leaks in logs
+#[derive(Clone, Default)]
 pub struct ProviderModalState {
     /// Modal visibility
     pub visible: bool,
@@ -191,8 +192,23 @@ pub struct ProviderModalState {
     pub download_state: DownloadState,
     /// Key input mode active
     pub key_input_mode: bool,
-    /// Key input buffer
+    /// Key input buffer (may contain sensitive API keys)
     pub key_input_buffer: String,
+}
+
+// SEC-004: Redact key_input_buffer in Debug output to prevent API key leaks
+impl std::fmt::Debug for ProviderModalState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProviderModalState")
+            .field("visible", &self.visible)
+            .field("active_tab", &self.active_tab)
+            .field("selected_idx", &self.selected_idx)
+            .field("item_count", &self.item_count)
+            .field("download_state", &self.download_state)
+            .field("key_input_mode", &self.key_input_mode)
+            .field("key_input_buffer", &"[REDACTED]")
+            .finish()
+    }
 }
 
 impl ProviderModalState {
@@ -455,5 +471,34 @@ mod tests {
         // Should not go below 0
         state.navigate_up();
         assert_eq!(state.selected_idx, 0);
+    }
+
+    // SEC-004: Debug redacts key_input_buffer
+    #[test]
+    fn test_modal_state_debug_redacts_key_buffer() {
+        let mut state = ProviderModalState::default();
+        state.key_input_buffer = "sk-ant-secret-key-12345".to_string();
+
+        let debug_output = format!("{:?}", state);
+
+        // API key should NOT appear in debug output
+        assert!(!debug_output.contains("sk-ant"));
+        assert!(!debug_output.contains("secret"));
+        // Should show [REDACTED] instead
+        assert!(debug_output.contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn test_modal_close_clears_input() {
+        let mut state = ProviderModalState::default();
+        state.open();
+        state.key_input_mode = true;
+        state.key_input_buffer = "sk-ant-test".to_string();
+
+        state.close();
+
+        assert!(!state.visible);
+        assert!(!state.key_input_mode);
+        assert!(state.key_input_buffer.is_empty());
     }
 }

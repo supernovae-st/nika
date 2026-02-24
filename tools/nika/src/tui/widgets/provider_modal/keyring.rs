@@ -81,7 +81,13 @@ pub fn mask_api_key(key: &str) -> String {
 }
 
 /// Validate API key format (basic checks)
+/// SEC-001: Always validates non-empty, even for unknown providers
 pub fn validate_key_format(provider: &str, key: &str) -> Result<(), String> {
+    // SEC-001: Universal empty check for all providers
+    if key.trim().is_empty() {
+        return Err("API key cannot be empty".into());
+    }
+
     match provider {
         "anthropic" => {
             if !key.starts_with("sk-ant-") {
@@ -96,12 +102,20 @@ pub fn validate_key_format(provider: &str, key: &str) -> Result<(), String> {
                 return Err("OpenAI keys start with 'sk-'".into());
             }
         }
-        "mistral" => {
+        "mistral" | "groq" | "deepseek" => {
             if key.len() < 32 {
                 return Err("Key seems too short".into());
             }
         }
-        _ => {}
+        "ollama" => {
+            // Ollama doesn't use API keys, but may use base URL
+        }
+        _ => {
+            // Unknown provider: basic length check
+            if key.len() < 10 {
+                return Err("Key seems too short".into());
+            }
+        }
     }
     Ok(())
 }
@@ -170,6 +184,28 @@ mod tests {
     fn test_validate_unknown_provider_accepts_any() {
         let result = validate_key_format("unknown", "any-key-format");
         assert!(result.is_ok());
+    }
+
+    // SEC-001: Empty key validation tests
+    #[test]
+    fn test_validate_empty_key_rejected() {
+        let result = validate_key_format("anthropic", "");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("empty"));
+    }
+
+    #[test]
+    fn test_validate_whitespace_only_key_rejected() {
+        let result = validate_key_format("openai", "   ");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("empty"));
+    }
+
+    #[test]
+    fn test_validate_unknown_provider_short_key_rejected() {
+        let result = validate_key_format("unknown", "short");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("too short"));
     }
 
     #[test]

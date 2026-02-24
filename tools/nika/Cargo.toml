@@ -40,6 +40,7 @@ miette = { version = "7.6", features = ["fancy"] }
 
 # HTTP
 reqwest = { version = "0.12", features = ["json", "stream"] }
+url = "2"  # URL parsing and validation
 
 # Secure credential storage
 keyring = "3"
