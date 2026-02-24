@@ -75,6 +75,8 @@ use crate::tui::widgets::{
     HelpOverlayState,
     InferStreamData,
     MatrixRain,
+    NikaIntro,
+    NikaIntroState,
     McpCallData,
     McpCallStatus,
     McpServerInfo,
@@ -372,6 +374,8 @@ pub struct ChatView {
     pub rain_opacity: f32,
     /// Whether rain effect is actively fading out
     pub rain_fading: bool,
+    /// v0.9.1: NIKA intro animation state (ASCII art explosion)
+    pub intro_state: NikaIntroState,
 
     // === v0.8.1 Agent Phase Tracking ===
     /// Current agent execution phase (for real-time status)
@@ -655,9 +659,10 @@ impl ChatView {
                 .with_wave_factor(2.0)
                 .with_initial_chaos(15),
             matrix_effect_enabled: true, // Enable by default
-            // v0.9.1: Matrix rain starts visible at startup, fades out
-            rain_opacity: 1.0, // Start fully visible
-            rain_fading: true, // Start fading immediately
+            // v0.9.1: Matrix rain waits for intro to complete
+            rain_opacity: 0.0, // Start invisible (intro plays first)
+            rain_fading: false, // Intro triggers rain when done
+            intro_state: NikaIntroState::new(), // ASCII art explosion intro
 
             // v0.8.1 Agent Phase Tracking
             agent_phase: AgentPhase::Idle,
@@ -1598,10 +1603,12 @@ impl ChatView {
         if self.is_streaming && self.matrix_effect_enabled {
             self.streaming_decrypt.tick();
         }
+        // v0.9.1: Tick intro animation (NIKA ASCII art explosion)
+        // Note: area-dependent tick happens in render() where we have the rect
         // v0.9.1: Tick matrix rain fade effect
         if self.rain_fading && self.rain_opacity > 0.0 {
-            // Fast fade (0.06 per tick = ~1.5 seconds to fully fade at 10Hz)
-            self.rain_opacity = (self.rain_opacity - 0.06).max(0.0);
+            // Fast fade (0.04 per tick = ~2 seconds to fully fade at 10Hz)
+            self.rain_opacity = (self.rain_opacity - 0.04).max(0.0);
         }
         // v0.8.1: Tick phase indicator animation (icon swap + chaos decay)
         self.tick_phase_indicator();
@@ -2897,23 +2904,38 @@ impl View for ChatView {
             .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
             .split(chunks[1]);
 
-        // v0.9.1: Matrix Rain background effect (renders BEFORE content for layering)
-        // Shows at startup, on first message, on workflow/agent start - then fades out
-        // Option C: Full screen coverage for maximum WOW effect
-        if self.matrix_effect_enabled && self.rain_opacity > 0.05 {
-            // Render across the FULL view (header to input area)
-            let rain_area = Rect {
-                x: area.x + 1,
-                y: area.y + 1,
-                width: area.width.saturating_sub(2),
-                height: area.height.saturating_sub(2),
-            };
-            MatrixRain::new()
-                .frame(self.frame)
-                .density(0.12) // Subtle effect, not overwhelming
-                .opacity(self.rain_opacity)
-                .with_mascots(true)
-                .render(rain_area, frame.buffer_mut());
+        // v0.9.1: NIKA Intro + Matrix Rain background effect
+        // Phase 1: NIKA ASCII art appears and explodes
+        // Phase 2: Matrix rain fades in then out
+        let effect_area = Rect {
+            x: area.x + 1,
+            y: area.y + 1,
+            width: area.width.saturating_sub(2),
+            height: area.height.saturating_sub(2),
+        };
+
+        if self.matrix_effect_enabled {
+            // Tick intro animation (needs area for particle spawning)
+            let was_done = self.intro_state.is_done();
+            self.intro_state.tick(effect_area);
+
+            // When intro finishes, trigger rain effect
+            if !was_done && self.intro_state.is_done() {
+                self.rain_opacity = 0.5; // Start rain at medium opacity
+                self.rain_fading = true; // Begin fade out
+            }
+
+            // Render intro OR rain (not both)
+            if !self.intro_state.is_done() {
+                NikaIntro::new(&self.intro_state).render(effect_area, frame.buffer_mut());
+            } else if self.rain_opacity > 0.05 {
+                MatrixRain::new()
+                    .frame(self.frame)
+                    .density(0.08) // Very subtle, smooth effect
+                    .opacity(self.rain_opacity)
+                    .with_mascots(true)
+                    .render(effect_area, frame.buffer_mut());
+            }
         }
 
         // Messages panel with inline MCP/Infer boxes

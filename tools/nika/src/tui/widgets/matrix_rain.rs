@@ -25,33 +25,54 @@ use crate::tui::theme::solarized;
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Half-width Katakana (authentic Matrix style, monospace)
-const KATAKANA: &[char] = &[
+const KATAKANA_HALF: &[char] = &[
     'ｱ', 'ｲ', 'ｳ', 'ｴ', 'ｵ', 'ｶ', 'ｷ', 'ｸ', 'ｹ', 'ｺ', 'ｻ', 'ｼ', 'ｽ', 'ｾ', 'ｿ', 'ﾀ', 'ﾁ', 'ﾂ', 'ﾃ',
     'ﾄ', 'ﾅ', 'ﾆ', 'ﾇ', 'ﾈ', 'ﾉ', 'ﾊ', 'ﾋ', 'ﾌ', 'ﾍ', 'ﾎ', 'ﾏ', 'ﾐ', 'ﾑ', 'ﾒ', 'ﾓ', 'ﾔ', 'ﾕ', 'ﾖ',
     'ﾗ', 'ﾘ', 'ﾙ', 'ﾚ', 'ﾛ', 'ﾜ', 'ﾝ',
 ];
 
-/// Minimal ASCII (subtle, code-like)
-const ASCII_MINIMAL: &[char] = &[
-    '0', '1', '.', ':', '_', '-', '>', '<', '/', '\\', '|', '+', '*',
+/// Full-width Katakana (more variety)
+const KATAKANA_FULL: &[char] = &[
+    'ア', 'イ', 'ウ', 'エ', 'オ', 'カ', 'キ', 'ク', 'ケ', 'コ', 'サ', 'シ', 'ス', 'セ', 'ソ',
+    'タ', 'チ', 'ツ', 'テ', 'ト', 'ナ', 'ニ', 'ヌ', 'ネ', 'ノ', 'ハ', 'ヒ', 'フ', 'ヘ', 'ホ',
+    'マ', 'ミ', 'ム', 'メ', 'モ', 'ヤ', 'ユ', 'ヨ', 'ラ', 'リ', 'ル', 'レ', 'ロ', 'ワ', 'ヲ', 'ン',
 ];
 
-/// Nika mascot emojis (4% of drops, brand identity)
-/// 🦋 is 16% of emoji picks (4 out of 25 = brand prominence)
+/// Hiragana (softer Japanese aesthetic)
+const HIRAGANA: &[char] = &[
+    'あ', 'い', 'う', 'え', 'お', 'か', 'き', 'く', 'け', 'こ', 'さ', 'し', 'す', 'せ', 'そ',
+    'た', 'ち', 'つ', 'て', 'と', 'な', 'に', 'ぬ', 'ね', 'の', 'は', 'ひ', 'ふ', 'へ', 'ほ',
+];
+
+/// Hacker ASCII (code-like, terminal aesthetic)
+const ASCII_HACKER: &[char] = &[
+    '0', '1', '.', ':', '_', '-', '>', '<', '/', '\\', '|', '+', '*',
+    '{', '}', '[', ']', '(', ')', '=', '#', '@', '$', '%', '^', '&',
+    '~', '`', ';', '"', '\'', '!', '?',
+];
+
+/// Nika mascot emojis (6% of drops, brand identity)
+/// 🦋 is 40% of emoji picks (dominant brand symbol)
 const NIKA_MASCOTS: &[&str] = &[
-    // === Nika Brand (16% of emojis = 4 entries) ===
-    "🦋", "🦋", "🦋", "🦋",
+    // === Nika Brand (40% = 20 entries out of ~50) ===
+    "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋",
+    "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋", "🦋",
     // === Tech/Rust ===
     "🦀", // Rust crab
     "⚡", // Energy/async
     "✨", // Magic/AI
     "🔮", // Crystal ball (prediction)
+    "💻", // Computer
+    "🖥️", // Desktop
+    "⌨️", // Keyboard
     // === Cosmic ===
     "🌌", // Galaxy
     "🪐", // Planet
     "💎", // Gem/quality
     "🌟", // Star
     "☄️", // Comet
+    "🌙", // Moon
+    "🔥", // Fire
     // === Animals ===
     "🐔", // Classic Nika
     "🦖", // T-Rex
@@ -76,6 +97,8 @@ const NIKA_MASCOTS: &[&str] = &[
     "🐦‍🔥", // Phoenix
     "🎭", // Theater masks
     "🎪", // Circus
+    "👾", // Alien/retro game
+    "🤖", // Robot
 ];
 
 /// Rain colors (Solarized palette - vibrant multicolor)
@@ -204,22 +227,30 @@ impl MatrixRain {
         self
     }
 
-    /// Generate a random glyph (katakana-dominant, 4% emojis)
+    /// Generate a random glyph (mixed Japanese + hacker ASCII + emojis)
     fn random_glyph(&self, rng: &mut SmallRng) -> RainGlyph {
         let roll: f32 = rng.gen();
 
-        if self.with_mascots && roll < 0.04 {
-            // 4% - Nika mascots (🦋 is 16% of these = brand prominence)
+        if self.with_mascots && roll < 0.06 {
+            // 6% - Nika mascots (🦋 is 40% of these = dominant brand)
             let idx = rng.gen_range(0..NIKA_MASCOTS.len());
             RainGlyph::Emoji(NIKA_MASCOTS[idx])
-        } else if roll < 0.85 {
-            // 81% - Katakana (dominant, Matrix-authentic)
-            let idx = rng.gen_range(0..KATAKANA.len());
-            RainGlyph::Char(KATAKANA[idx])
+        } else if roll < 0.40 {
+            // 34% - Half-width Katakana (authentic Matrix)
+            let idx = rng.gen_range(0..KATAKANA_HALF.len());
+            RainGlyph::Char(KATAKANA_HALF[idx])
+        } else if roll < 0.60 {
+            // 20% - Full-width Katakana (variety)
+            let idx = rng.gen_range(0..KATAKANA_FULL.len());
+            RainGlyph::Char(KATAKANA_FULL[idx])
+        } else if roll < 0.75 {
+            // 15% - Hiragana (soft aesthetic)
+            let idx = rng.gen_range(0..HIRAGANA.len());
+            RainGlyph::Char(HIRAGANA[idx])
         } else {
-            // 15% - Minimal ASCII
-            let idx = rng.gen_range(0..ASCII_MINIMAL.len());
-            RainGlyph::Char(ASCII_MINIMAL[idx])
+            // 25% - Hacker ASCII (terminal vibe)
+            let idx = rng.gen_range(0..ASCII_HACKER.len());
+            RainGlyph::Char(ASCII_HACKER[idx])
         }
     }
 
@@ -418,10 +449,10 @@ mod tests {
 
     #[test]
     fn test_katakana_list() {
-        // Verify katakana are half-width
-        assert!(KATAKANA.contains(&'ｱ'));
-        assert!(KATAKANA.contains(&'ｶ'));
-        assert!(KATAKANA.contains(&'ﾝ'));
-        assert_eq!(KATAKANA.len(), 45); // Full set
+        // Verify katakana half-width chars are present
+        assert!(KATAKANA_HALF.contains(&'ｱ'));
+        assert!(KATAKANA_HALF.contains(&'ｶ'));
+        assert!(KATAKANA_HALF.contains(&'ﾝ'));
+        assert_eq!(KATAKANA_HALF.len(), 45); // Full half-width set
     }
 }

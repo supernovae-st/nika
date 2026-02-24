@@ -44,7 +44,7 @@ use crate::tui::standalone::{BrowserEntry, StandaloneState};
 use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
-use crate::tui::widgets::{DagAscii, NodeBoxData, NodeBoxMode, Timeline, TimelineEntry};
+use crate::tui::widgets::{DagAscii, MatrixRain, NodeBoxData, NodeBoxMode, Timeline, TimelineEntry};
 
 /// Home view state
 pub struct HomeView {
@@ -74,6 +74,13 @@ pub struct HomeView {
     pub preview_mode: PreviewMode,
     /// Animation frame counter (0-255, wraps)
     pub frame: u8,
+    // === v0.9.1: Matrix Rain Effect ===
+    /// Matrix rain background opacity (0.0 = invisible, 1.0 = full)
+    pub rain_opacity: f32,
+    /// Whether rain effect is actively fading out
+    pub rain_fading: bool,
+    /// Whether matrix effect is enabled
+    pub matrix_effect_enabled: bool,
 }
 
 impl HomeView {
@@ -101,14 +108,26 @@ impl HomeView {
             dag_expanded: false,
             preview_mode: PreviewMode::Dag,
             frame: 0,
+            // v0.9.1: Matrix Rain starts visible and fades
+            rain_opacity: 1.0,
+            rain_fading: true,
+            matrix_effect_enabled: true,
         }
     }
 
     /// Tick animation frame (called from main loop)
-    /// Note: Animation integration pending - will be wired in v0.8.1
-    #[allow(dead_code)]
     pub fn tick(&mut self) {
         self.frame = self.frame.wrapping_add(1);
+        // v0.9.1: Tick matrix rain fade effect
+        if self.rain_fading && self.rain_opacity > 0.0 {
+            self.rain_opacity = (self.rain_opacity - 0.04).max(0.0); // Smooth fade ~2s
+        }
+    }
+
+    /// Trigger matrix rain effect with fade-out
+    pub fn trigger_rain_effect(&mut self) {
+        self.rain_opacity = 0.6; // Start subtle
+        self.rain_fading = true;
     }
 
     /// Update filtered indices based on search query
@@ -729,6 +748,22 @@ impl HomeView {
 
 impl View for HomeView {
     fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
+        // v0.9.1: Matrix Rain background effect (full screen, renders FIRST)
+        if self.matrix_effect_enabled && self.rain_opacity > 0.05 {
+            let rain_area = Rect {
+                x: area.x + 1,
+                y: area.y + 1,
+                width: area.width.saturating_sub(2),
+                height: area.height.saturating_sub(2),
+            };
+            MatrixRain::new()
+                .frame(self.frame)
+                .density(0.08) // Very subtle, smooth
+                .opacity(self.rain_opacity)
+                .with_mascots(true)
+                .render(rain_area, frame.buffer_mut());
+        }
+
         // Layout: Files (40%) | Preview (60%) above, History bar below
         let history_height = if self.history_expanded { 6 } else { 3 };
 

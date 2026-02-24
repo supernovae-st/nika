@@ -31,6 +31,7 @@ mod infer_stream_box;
 mod matrix_decrypt;
 mod matrix_rain;
 mod mcp_call_box;
+mod nika_intro;
 mod mcp_log;
 mod mention_system;
 mod message_bubble;
@@ -120,6 +121,8 @@ pub use help_overlay::{HelpOverlay, HelpOverlayState, HelpSection, HELP_SECTIONS
 pub use status_message::{StatusLevel, StatusMessage, StatusMessageWidget, StatusQueue};
 // Matrix Rain effect (v0.8 - WOW dither effect for background)
 pub use matrix_rain::MatrixRain;
+// Nika Intro animation (v0.9.1 - ASCII art explosion into rain)
+pub use nika_intro::{IntroPhase, NikaIntro, NikaIntroState};
 // Matrix Decrypt effect (v0.8 - streaming text reveal with verb themes)
 pub use matrix_decrypt::{DecryptVerb, MatrixDecrypt, MultiLineDecrypt, StreamingDecrypt};
 // Task Box widgets (v0.8.2 - structured verb boxes)

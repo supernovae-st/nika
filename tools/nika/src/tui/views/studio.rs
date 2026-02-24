@@ -38,7 +38,7 @@ use crate::error::NikaError;
 use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
-use crate::tui::widgets::{DagAscii, NodeBoxData, NodeBoxMode, ScrollIndicator};
+use crate::tui::widgets::{DagAscii, MatrixRain, NodeBoxData, NodeBoxMode, ScrollIndicator};
 use crate::util::atomic_write;
 
 /// Editor mode (vim-like)
@@ -304,6 +304,15 @@ pub struct StudioView {
     cached_workflow: RefCell<Option<crate::ast::Workflow>>,
     /// Content hash when workflow was cached (invalidation)
     cached_content_hash: Cell<u64>,
+    // === v0.9.1: Matrix Rain Effect ===
+    /// Animation frame counter (0-255, wraps)
+    pub frame: u8,
+    /// Matrix rain background opacity (0.0 = invisible, 1.0 = full)
+    pub rain_opacity: f32,
+    /// Whether rain effect is actively fading out
+    pub rain_fading: bool,
+    /// Whether matrix effect is enabled
+    pub matrix_effect_enabled: bool,
 }
 
 impl StudioView {
@@ -320,7 +329,27 @@ impl StudioView {
             last_edit_time: None,
             cached_workflow: RefCell::new(None),
             cached_content_hash: Cell::new(0),
+            // v0.9.1: Matrix Rain starts visible and fades
+            frame: 0,
+            rain_opacity: 1.0,
+            rain_fading: true,
+            matrix_effect_enabled: true,
         }
+    }
+
+    /// Tick animation frame (called from main loop)
+    pub fn tick(&mut self) {
+        self.frame = self.frame.wrapping_add(1);
+        // v0.9.1: Tick matrix rain fade effect
+        if self.rain_fading && self.rain_opacity > 0.0 {
+            self.rain_opacity = (self.rain_opacity - 0.04).max(0.0); // Smooth fade ~2s
+        }
+    }
+
+    /// Trigger matrix rain effect with fade-out
+    pub fn trigger_rain_effect(&mut self) {
+        self.rain_opacity = 0.6; // Start subtle
+        self.rain_fading = true;
     }
 
     /// Mark content as edited - validation will run after debounce delay
@@ -443,6 +472,22 @@ impl Default for StudioView {
 
 impl View for StudioView {
     fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
+        // v0.9.1: Matrix Rain background effect (full screen, renders FIRST)
+        if self.matrix_effect_enabled && self.rain_opacity > 0.05 {
+            let rain_area = Rect {
+                x: area.x + 1,
+                y: area.y + 1,
+                width: area.width.saturating_sub(2),
+                height: area.height.saturating_sub(2),
+            };
+            MatrixRain::new()
+                .frame(self.frame)
+                .density(0.08) // Very subtle, smooth
+                .opacity(self.rain_opacity)
+                .with_mascots(true)
+                .render(rain_area, frame.buffer_mut());
+        }
+
         // Layout: Editor (70%) | Structure (30%) above, Validation bar below
         let chunks = Layout::default()
             .direction(Direction::Vertical)

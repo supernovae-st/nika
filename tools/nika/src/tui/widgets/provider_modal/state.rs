@@ -438,6 +438,40 @@ impl ProviderModalState {
         self.cached_cloud_label.as_ref().unwrap().clone()
     }
 
+    /// Get Ollama tab label with model count
+    /// v0.8.9: Shows number of available models
+    pub fn ollama_tab_label(&self) -> String {
+        let count = self.ollama_models.len();
+        if count > 0 {
+            format!("🦙 OLLAMA ({})", count)
+        } else {
+            "🦙 OLLAMA".to_string()
+        }
+    }
+
+    /// Get Keys tab label with status indicators
+    /// v0.8.9: Shows ✓ for configured keys, ✗ for missing
+    pub fn keys_tab_label(&self) -> String {
+        // Count configured vs missing keys from provider statuses
+        let configured: usize = self
+            .provider_statuses
+            .iter()
+            .filter(|s| matches!(s, ConnectionStatus::Connected { .. } | ConnectionStatus::NotConfigured))
+            .count();
+
+        // Simple indicator: show count of verified
+        if configured > 0 {
+            let verified = self
+                .provider_statuses
+                .iter()
+                .filter(|s| matches!(s, ConnectionStatus::Connected { .. }))
+                .count();
+            format!("🔐 KEYS {}/{}", verified, configured.max(6))
+        } else {
+            "🔐 KEYS".to_string()
+        }
+    }
+
     /// Update provider status by index
     ///
     /// v0.8.9: Guard against invalid index (max 5 for 6 providers)
@@ -525,6 +559,7 @@ impl ProviderModalState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tui::widgets::provider_modal::OllamaModelInfo;
 
     #[test]
     fn test_tab_default_is_cloud() {
@@ -1043,5 +1078,58 @@ mod tests {
             assert!(valid_chars.contains(&indicator));
             state.tick_animation();
         }
+    }
+
+    #[test]
+    fn test_ollama_tab_label_empty() {
+        let state = ProviderModalState::default();
+        assert_eq!(state.ollama_tab_label(), "🦙 OLLAMA");
+    }
+
+    #[test]
+    fn test_ollama_tab_label_with_models() {
+        use crate::tui::widgets::provider_modal::OllamaModelDetails;
+
+        let mut state = ProviderModalState::default();
+        let details = OllamaModelDetails {
+            parameter_size: "7B".to_string(),
+            quantization_level: "Q4_0".to_string(),
+            family: Some("llama".to_string()),
+        };
+        state.ollama_models = vec![
+            OllamaModelInfo {
+                name: "llama3.2".to_string(),
+                size: 4_200_000_000,
+                digest: "sha256:abc123".to_string(),
+                modified_at: "2024-01-01".to_string(),
+                details: details.clone(),
+            },
+            OllamaModelInfo {
+                name: "codellama".to_string(),
+                size: 3_800_000_000,
+                digest: "sha256:def456".to_string(),
+                modified_at: "2024-01-01".to_string(),
+                details,
+            },
+        ];
+        assert_eq!(state.ollama_tab_label(), "🦙 OLLAMA (2)");
+    }
+
+    #[test]
+    fn test_keys_tab_label_empty() {
+        let state = ProviderModalState::default();
+        assert_eq!(state.keys_tab_label(), "🔐 KEYS");
+    }
+
+    #[test]
+    fn test_keys_tab_label_with_verified() {
+        let mut state = ProviderModalState::default();
+        state.provider_statuses = vec![
+            ConnectionStatus::Connected { latency_ms: 100 },
+            ConnectionStatus::Connected { latency_ms: 150 },
+            ConnectionStatus::NotConfigured,
+        ];
+        // 2 verified out of 6 max
+        assert!(state.keys_tab_label().contains("2/6"));
     }
 }

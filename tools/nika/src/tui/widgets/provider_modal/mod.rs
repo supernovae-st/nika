@@ -43,13 +43,15 @@ impl<'a> ProviderModal<'a> {
     }
 
     fn render_tabs(&mut self, area: Rect, buf: &mut Buffer) {
-        // Use dynamic label for Cloud tab (shows active model)
-        // v0.8.9: Uses cached string to avoid format! work per frame
+        // v0.8.9: All tabs now have dynamic labels with live info
         let cloud_label = self.state.cloud_tab_label();
+        let ollama_label = self.state.ollama_tab_label();
+        let keys_label = self.state.keys_tab_label();
+
         let tab_titles: Vec<Span> = vec![
             Span::raw(cloud_label),
-            Span::raw(ProviderModalTab::Ollama.label()),
-            Span::raw(ProviderModalTab::Keys.label()),
+            Span::raw(ollama_label),
+            Span::raw(keys_label),
             Span::raw(ProviderModalTab::Config.label()),
         ];
 
