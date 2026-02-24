@@ -23,6 +23,11 @@ pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Timeout for MCP tool calls (invoke: verb)
 pub const MCP_CALL_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// v0.8.5: Timeout for complete MCP server initialization (connect + list_tools + overhead)
+/// Prevents hanging on slow/unresponsive MCP servers during startup.
+/// Should be > CONNECT_TIMEOUT + MCP_CALL_TIMEOUT to allow sequential operations.
+pub const MCP_INIT_TIMEOUT: Duration = Duration::from_secs(45);
+
 /// Timeout for streaming chunk delivery (per-chunk, not total stream)
 /// If no chunk arrives within this time, the stream is considered stalled.
 pub const STREAM_CHUNK_TIMEOUT: Duration = Duration::from_secs(60);
@@ -52,8 +57,16 @@ mod tests {
         assert!(INFER_TIMEOUT.as_secs() > 0);
         assert!(CONNECT_TIMEOUT.as_secs() > 0);
         assert!(MCP_CALL_TIMEOUT.as_secs() > 0);
+        assert!(MCP_INIT_TIMEOUT.as_secs() > 0);
         assert!(STREAM_CHUNK_TIMEOUT.as_secs() > 0);
         assert!(WORKFLOW_TIMEOUT.as_secs() > 0);
+    }
+
+    #[test]
+    fn mcp_init_timeout_is_longer_than_call_timeout() {
+        // v0.8.5: Init timeout should be > call timeout to allow for connect + list_tools
+        assert!(MCP_INIT_TIMEOUT > MCP_CALL_TIMEOUT);
+        assert!(MCP_INIT_TIMEOUT > CONNECT_TIMEOUT);
     }
 
     #[test]

@@ -33,7 +33,9 @@ use tokio::sync::{broadcast, mpsc, OnceCell};
 use tokio::task::AbortHandle;
 use tokio::time::timeout;
 
-use crate::util::constants::{EXEC_TIMEOUT, FETCH_TIMEOUT, INFER_TIMEOUT, WORKFLOW_TIMEOUT};
+use crate::util::constants::{
+    EXEC_TIMEOUT, FETCH_TIMEOUT, INFER_TIMEOUT, MCP_INIT_TIMEOUT, WORKFLOW_TIMEOUT,
+};
 
 use crate::ast::schema_validator::WorkflowSchemaValidator;
 use crate::ast::{AgentParams, McpConfigInline, Workflow};
@@ -2571,11 +2573,14 @@ impl App {
                 let name_owned = server_name_clone.clone();
                 let configs = mcp_configs.clone();
 
-                match cell
-                    .get_or_try_init(|| async {
+                // v0.8.5: Wrap MCP init with timeout to prevent hanging on slow/unresponsive servers
+                match timeout(
+                    MCP_INIT_TIMEOUT,
+                    cell.get_or_try_init(|| async {
                         if let Some(ref cfgs) = configs {
                             if let Some(inline_config) = cfgs.get(&name_owned) {
-                                let mut mcp_config = McpConfig::new(&name_owned, &inline_config.command);
+                                let mut mcp_config =
+                                    McpConfig::new(&name_owned, &inline_config.command);
                                 for arg in &inline_config.args {
                                     mcp_config = mcp_config.with_arg(arg);
                                 }
@@ -2586,11 +2591,12 @@ impl App {
                                     mcp_config = mcp_config.with_cwd(cwd);
                                 }
 
-                                let client = McpClient::new(mcp_config)
-                                    .map_err(|e| NikaError::McpStartError {
+                                let client = McpClient::new(mcp_config).map_err(|e| {
+                                    NikaError::McpStartError {
                                         name: name_owned.clone(),
                                         reason: e.to_string(),
-                                    })?;
+                                    }
+                                })?;
 
                                 client.connect().await.map_err(|e| NikaError::McpStartError {
                                     name: name_owned.clone(),
@@ -2610,21 +2616,48 @@ impl App {
                         } else {
                             Err(NikaError::McpNotConfigured { name: name_owned })
                         }
-                    })
-                    .await
+                    }),
+                )
+                .await
                 {
-                    Ok(c) => {
+                    Ok(Ok(c)) => {
                         // Notify TUI of successful MCP connection (v0.7.0)
-                        let _ = status_tx.send(StreamChunk::McpConnected(server_name_clone.clone())).await;
+                        let _ = status_tx
+                            .send(StreamChunk::McpConnected(server_name_clone.clone()))
+                            .await;
                         Arc::clone(c)
                     }
-                    Err(e) => {
+                    Ok(Err(e)) => {
                         // Notify TUI of MCP connection failure (v0.7.0)
-                        let _ = status_tx.send(StreamChunk::McpError {
-                            server_name: server_name_clone.clone(),
-                            error: e.to_string(),
-                        }).await;
-                        let _ = tx.send(format!("❌ Failed to connect to {}: {}", server_name_clone, e)).await;
+                        let _ = status_tx
+                            .send(StreamChunk::McpError {
+                                server_name: server_name_clone.clone(),
+                                error: e.to_string(),
+                            })
+                            .await;
+                        let _ = tx
+                            .send(format!(
+                                "❌ Failed to connect to {}: {}",
+                                server_name_clone, e
+                            ))
+                            .await;
+                        return;
+                    }
+                    Err(_elapsed) => {
+                        // v0.8.5: Timeout error - MCP server init took too long
+                        let error_msg = format!(
+                            "MCP server '{}' initialization timed out after {}s",
+                            server_name_clone,
+                            MCP_INIT_TIMEOUT.as_secs()
+                        );
+                        tracing::warn!(mcp_server = %server_name_clone, "MCP init timeout");
+                        let _ = status_tx
+                            .send(StreamChunk::McpError {
+                                server_name: server_name_clone.clone(),
+                                error: error_msg.clone(),
+                            })
+                            .await;
+                        let _ = tx.send(format!("❌ {}", error_msg)).await;
                         return;
                     }
                 }
@@ -2783,60 +2816,84 @@ impl App {
                 let name_owned = server_name.clone();
                 let configs = mcp_configs.clone();
 
-                match cell
-                    .get_or_try_init(|| async {
+                // v0.8.5: Wrap MCP init with timeout to prevent hanging on slow/unresponsive servers
+                match timeout(
+                    MCP_INIT_TIMEOUT,
+                    cell.get_or_try_init(|| async {
                         if let Some(ref cfgs) = configs {
-                                if let Some(inline_config) = cfgs.get(&name_owned) {
-                                    let mut mcp_config = McpConfig::new(&name_owned, &inline_config.command);
-                                    for arg in &inline_config.args {
-                                        mcp_config = mcp_config.with_arg(arg);
-                                    }
-                                    for (key, value) in &inline_config.env {
-                                        mcp_config = mcp_config.with_env(key, value);
-                                    }
-                                    if let Some(cwd) = &inline_config.cwd {
-                                        mcp_config = mcp_config.with_cwd(cwd);
-                                    }
+                            if let Some(inline_config) = cfgs.get(&name_owned) {
+                                let mut mcp_config =
+                                    McpConfig::new(&name_owned, &inline_config.command);
+                                for arg in &inline_config.args {
+                                    mcp_config = mcp_config.with_arg(arg);
+                                }
+                                for (key, value) in &inline_config.env {
+                                    mcp_config = mcp_config.with_env(key, value);
+                                }
+                                if let Some(cwd) = &inline_config.cwd {
+                                    mcp_config = mcp_config.with_cwd(cwd);
+                                }
 
-                                    let client = McpClient::new(mcp_config)
-                                        .map_err(|e| NikaError::McpStartError {
-                                            name: name_owned.clone(),
-                                            reason: e.to_string(),
-                                        })?;
-
-                                    client.connect().await.map_err(|e| NikaError::McpStartError {
+                                let client = McpClient::new(mcp_config).map_err(|e| {
+                                    NikaError::McpStartError {
                                         name: name_owned.clone(),
                                         reason: e.to_string(),
-                                    })?;
-
-                                    // Cache tools for synchronous get_tool_definitions() access
-                                    if let Err(e) = client.list_tools().await {
-                                        tracing::warn!(mcp_server = %name_owned, error = %e, "Failed to cache tools");
                                     }
+                                })?;
 
-                                    tracing::info!(mcp_server = %name_owned, "Connected to MCP server");
-                                    Ok(Arc::new(client))
+                                client.connect().await.map_err(|e| NikaError::McpStartError {
+                                    name: name_owned.clone(),
+                                    reason: e.to_string(),
+                                })?;
+
+                                // Cache tools for synchronous get_tool_definitions() access
+                                if let Err(e) = client.list_tools().await {
+                                    tracing::warn!(mcp_server = %name_owned, error = %e, "Failed to cache tools");
+                                }
+
+                                tracing::info!(mcp_server = %name_owned, "Connected to MCP server");
+                                Ok(Arc::new(client))
                             } else {
                                 Err(NikaError::McpNotConfigured { name: name_owned })
                             }
                         } else {
                             Err(NikaError::McpNotConfigured { name: name_owned })
                         }
-                    })
-                    .await
+                    }),
+                )
+                .await
                 {
-                    Ok(client) => {
+                    Ok(Ok(client)) => {
                         mcp_clients.insert(server_name.clone(), Arc::clone(client));
                         // Notify TUI of successful MCP connection (v0.7.0)
-                        let _ = status_tx.send(StreamChunk::McpConnected(server_name.clone())).await;
+                        let _ = status_tx
+                            .send(StreamChunk::McpConnected(server_name.clone()))
+                            .await;
                     }
-                    Err(e) => {
+                    Ok(Err(e)) => {
                         tracing::warn!(server = %server_name, error = %e, "Failed to connect MCP server");
                         // Notify TUI of MCP connection failure (v0.7.0)
-                        let _ = status_tx.send(StreamChunk::McpError {
-                            server_name: server_name.clone(),
-                            error: e.to_string(),
-                        }).await;
+                        let _ = status_tx
+                            .send(StreamChunk::McpError {
+                                server_name: server_name.clone(),
+                                error: e.to_string(),
+                            })
+                            .await;
+                    }
+                    Err(_elapsed) => {
+                        // v0.8.5: Timeout error - MCP server init took too long
+                        let error_msg = format!(
+                            "MCP server '{}' initialization timed out after {}s",
+                            server_name,
+                            MCP_INIT_TIMEOUT.as_secs()
+                        );
+                        tracing::warn!(mcp_server = %server_name, "MCP init timeout");
+                        let _ = status_tx
+                            .send(StreamChunk::McpError {
+                                server_name: server_name.clone(),
+                                error: error_msg,
+                            })
+                            .await;
                     }
                 }
             }
