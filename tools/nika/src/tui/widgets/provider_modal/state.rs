@@ -196,6 +196,10 @@ pub struct ProviderModalState {
     pub key_input_buffer: String,
     /// Whether Ollama is available (running)
     pub ollama_available: bool,
+    /// Provider connection statuses (6 providers)
+    pub provider_statuses: Vec<ConnectionStatus>,
+    /// Ollama models loaded from server
+    pub ollama_models: Vec<super::ollama_client::OllamaModelInfo>,
 }
 
 // SEC-004: Redact key_input_buffer in Debug output to prevent API key leaks
@@ -210,6 +214,8 @@ impl std::fmt::Debug for ProviderModalState {
             .field("key_input_mode", &self.key_input_mode)
             .field("key_input_buffer", &"[REDACTED]")
             .field("ollama_available", &self.ollama_available)
+            .field("provider_statuses", &self.provider_statuses)
+            .field("ollama_models", &format!("[{} models]", self.ollama_models.len()))
             .finish()
     }
 }
@@ -258,6 +264,48 @@ impl ProviderModalState {
     /// Go to previous tab
     pub fn prev_tab(&mut self) {
         self.switch_tab(self.active_tab.prev());
+    }
+
+    /// Update provider status by index
+    pub fn set_provider_status(&mut self, index: usize, status: ConnectionStatus) {
+        // Ensure vector is large enough
+        while self.provider_statuses.len() <= index {
+            self.provider_statuses.push(ConnectionStatus::Unknown);
+        }
+        self.provider_statuses[index] = status;
+    }
+
+    /// Update provider status by name
+    pub fn set_provider_status_by_name(&mut self, name: &str, status: ConnectionStatus) {
+        let index = match name.to_lowercase().as_str() {
+            "anthropic" | "claude" => 0,
+            "openai" => 1,
+            "mistral" => 2,
+            "groq" => 3,
+            "deepseek" => 4,
+            "ollama" => 5,
+            _ => return,
+        };
+        self.set_provider_status(index, status);
+    }
+
+    /// Get provider statuses for CloudTab
+    pub fn get_provider_statuses(&self) -> Vec<ConnectionStatus> {
+        let mut statuses = Vec::with_capacity(6);
+        for i in 0..6 {
+            statuses.push(
+                self.provider_statuses
+                    .get(i)
+                    .cloned()
+                    .unwrap_or(ConnectionStatus::Unknown),
+            );
+        }
+        statuses
+    }
+
+    /// Set Ollama models
+    pub fn set_ollama_models(&mut self, models: Vec<super::ollama_client::OllamaModelInfo>) {
+        self.ollama_models = models;
     }
 }
 
@@ -503,5 +551,105 @@ mod tests {
         assert!(!state.visible);
         assert!(!state.key_input_mode);
         assert!(state.key_input_buffer.is_empty());
+    }
+
+    #[test]
+    fn test_set_provider_status_by_index() {
+        let mut state = ProviderModalState::default();
+        state.set_provider_status(0, ConnectionStatus::Connected { latency_ms: 100 });
+        state.set_provider_status(1, ConnectionStatus::Failed {
+            error: "No key".into(),
+        });
+
+        assert_eq!(state.provider_statuses.len(), 2);
+        assert!(matches!(
+            state.provider_statuses[0],
+            ConnectionStatus::Connected { latency_ms: 100 }
+        ));
+    }
+
+    #[test]
+    fn test_set_provider_status_by_name() {
+        let mut state = ProviderModalState::default();
+        state.set_provider_status_by_name("anthropic", ConnectionStatus::Connected { latency_ms: 150 });
+        state.set_provider_status_by_name("openai", ConnectionStatus::Checking);
+        state.set_provider_status_by_name("claude", ConnectionStatus::Failed {
+            error: "Updated".into(),
+        }); // Same as anthropic (index 0)
+
+        assert!(matches!(
+            state.provider_statuses[0],
+            ConnectionStatus::Failed { .. }
+        ));
+        assert!(matches!(
+            state.provider_statuses[1],
+            ConnectionStatus::Checking
+        ));
+    }
+
+    #[test]
+    fn test_set_provider_status_by_name_all_providers() {
+        let mut state = ProviderModalState::default();
+        state.set_provider_status_by_name("anthropic", ConnectionStatus::Connected { latency_ms: 1 });
+        state.set_provider_status_by_name("openai", ConnectionStatus::Connected { latency_ms: 2 });
+        state.set_provider_status_by_name("mistral", ConnectionStatus::Connected { latency_ms: 3 });
+        state.set_provider_status_by_name("groq", ConnectionStatus::Connected { latency_ms: 4 });
+        state.set_provider_status_by_name("deepseek", ConnectionStatus::Connected { latency_ms: 5 });
+        state.set_provider_status_by_name("ollama", ConnectionStatus::Connected { latency_ms: 6 });
+
+        assert_eq!(state.provider_statuses.len(), 6);
+    }
+
+    #[test]
+    fn test_get_provider_statuses_returns_6() {
+        let state = ProviderModalState::default();
+        let statuses = state.get_provider_statuses();
+        assert_eq!(statuses.len(), 6);
+        // All should be Unknown by default
+        assert!(statuses.iter().all(|s| matches!(s, ConnectionStatus::Unknown)));
+    }
+
+    #[test]
+    fn test_get_provider_statuses_with_partial_data() {
+        let mut state = ProviderModalState::default();
+        state.set_provider_status(0, ConnectionStatus::Connected { latency_ms: 100 });
+        state.set_provider_status(2, ConnectionStatus::Checking);
+
+        let statuses = state.get_provider_statuses();
+        assert_eq!(statuses.len(), 6);
+        assert!(matches!(statuses[0], ConnectionStatus::Connected { .. }));
+        assert!(matches!(statuses[1], ConnectionStatus::Unknown));
+        assert!(matches!(statuses[2], ConnectionStatus::Checking));
+    }
+
+    #[test]
+    fn test_set_ollama_models() {
+        use super::super::ollama_client::{OllamaModelDetails, OllamaModelInfo};
+
+        let mut state = ProviderModalState::default();
+        let models = vec![
+            OllamaModelInfo {
+                name: "llama3.2".to_string(),
+                size: 4_700_000_000,
+                digest: "sha256:abc".to_string(),
+                modified_at: "2026-02-24".to_string(),
+                details: OllamaModelDetails {
+                    parameter_size: "8B".to_string(),
+                    quantization_level: "Q4_0".to_string(),
+                    family: Some("llama".to_string()),
+                },
+            },
+        ];
+
+        state.set_ollama_models(models);
+        assert_eq!(state.ollama_models.len(), 1);
+        assert_eq!(state.ollama_models[0].name, "llama3.2");
+    }
+
+    #[test]
+    fn test_modal_state_default_has_empty_statuses() {
+        let state = ProviderModalState::default();
+        assert!(state.provider_statuses.is_empty());
+        assert!(state.ollama_models.is_empty());
     }
 }
