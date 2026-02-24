@@ -1,9 +1,12 @@
 # Nika TUI — 5-Views Design Specification
 
+> **⚠️ SUPERSEDED:** This document is replaced by [6-Views Design](./2026-02-24-v010-v012-6-views-design.md).
+> Settings view is now included as view #6 in standby mode (opens existing Provider Modal until v0.11.1).
+
 **Version:** 1.0.0
 **Date:** 2026-02-24
 **Authors:** Thibaut, Claude
-**Status:** APPROVED
+**Status:** SUPERSEDED (see 6-Views Design)
 
 ---
 

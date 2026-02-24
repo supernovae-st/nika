@@ -89,7 +89,7 @@
 
 ---
 
-## 4-View Architecture (Current)
+## 4-View Architecture (v0.8.x Current)
 
 | View | Hotkey | Panels | Purpose | Matrix Rain |
 |------|--------|--------|---------|-------------|
@@ -98,7 +98,22 @@
 | **Studio** | `s` / `3` | 3 | YAML editor with validation | ✅ Subtle |
 | **Monitor** | `m` / `4` | 4 | Trace viewer, event log | ✅ On events |
 
-> **Note:** Matrix Rain appears on ALL views with context-appropriate triggers. 5th view (Agents) planned for v0.12.x.
+> **Note:** Matrix Rain appears on ALL views with context-appropriate triggers.
+
+### 6-View Architecture (v0.10+)
+
+See [6-VIEWS-DESIGN.md](../v0.10+/2026-02-24-v010-v012-6-views-design.md) for complete design.
+
+| View | Hotkey | v0.8.x Predecessor | Target Version |
+|------|--------|-------------------|----------------|
+| **Explorer** | `1` / `e` | Home | v0.10.0 |
+| **Chat** | `2` / `c` | Chat (enhanced) | v0.9.x |
+| **Editor** | `3` / `d` | Studio | v0.10.0 |
+| **Runner** | `4` / `r` | Monitor | v0.10.0 |
+| **Scheduler** | `5` / `s` | NEW | v0.12.0 |
+| **Settings** | `6` / `,` | NEW (standby) | v0.11.1 |
+
+> **Settings Standby:** Opens existing Provider Modal until v0.11.1.
 
 ---
 

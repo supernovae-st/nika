@@ -49,53 +49,67 @@
 
 ---
 
-## Architecture 5-Views
+## Architecture 6-Views (v0.10+)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│  [1] CHAT   [2] STUDIO   [3] MONITOR   [4] DAG   [5] HISTORY      Tab / 1-5    │
+│                        NIKA TUI v0.10-v0.12 — 6 VIEWS                           │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│   [1]           [2]           [3]           [4]           [5]           [6]     │
+│ EXPLORER      CHAT        EDITOR       RUNNER      SCHEDULER    SETTINGS       │
+│                                                                                 │
+│  📁 Files    💬 Agent     ✏️ YAML      ▶️ Execute   📅 Cron      ⚙️ Config      │
+│  🦋 Browse   🐔 Talk      🚂 Edit      📊 Monitor   🔄 Queue     🎨 Theme       │
+│                                                                                 │
+│   DEFAULT     Tab →        Tab →        Tab →        Tab →        Tab →         │
+│                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
-│             │ │             │ │             │ │             │ │             │
-│    CHAT     │ │   STUDIO    │ │   MONITOR   │ │     DAG     │ │   HISTORY   │
-│             │ │             │ │             │ │             │ │             │
-│  💬 Agent   │ │  📝 YAML    │ │  🔄 Live    │ │  🕸️ Graph   │ │  📜 Traces  │
-│  interactif │ │   Editor    │ │  Execution  │ │   Visual    │ │   Browser   │
-│             │ │             │ │             │ │             │ │             │
-└─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘
-      │               │               │               │               │
-      └───────────────┴───────────────┴───────────────┴───────────────┘
-                                      │
-                                      ▼
-                       ┌─────────────────────────────┐
-                       │     StableGraph (DAG)       │
-                       │     Source of Truth         │
-                       └─────────────────────────────┘
 ```
 
-### Détail des vues
+### Détail des 6 vues
 
-| Vue | Raccourci | Purpose | Actions clés |
-|-----|-----------|---------|--------------|
-| **Chat** | `1` | Conversation agent interactive | Prompt, @mention, inline TaskBox |
-| **Studio** | `2` | Éditeur YAML avec preview | Edit, Validate, DAG preview |
-| **Monitor** | `3` | Exécution temps réel | Progress, Live output, Cancel |
-| **DAG** | `4` | Visualisation graphe | Navigate nodes, Expand details |
-| **History** | `5` | Historique des traces | Browse, Replay, Compare |
+| # | Vue | Key | Purpose | Actions clés |
+|---|-----|-----|---------|--------------|
+| 1 | **Explorer** | `1` / `e` | File browser + DAG preview | Browse, Preview, Open |
+| 2 | **Chat** | `2` / `c` | AI agent conversation | Prompt, @mention, inline TaskBox |
+| 3 | **Editor** | `3` / `d` | YAML editing with DAG sync | Edit, Validate, DAG preview |
+| 4 | **Runner** | `4` / `r` | Execution monitor | Progress, Live output, Cancel |
+| 5 | **Scheduler** | `5` / `s` | Cron/queue management | Schedule, Timeline, History |
+| 6 | **Settings** | `6` / `,` | Configuration | Theme, Providers, MCP, Sessions |
+
+> **Note v0.10.0:** La vue **Settings** est en standby — elle ouvre la modale Provider existante pour l'instant. Le design complet sera implémenté en v0.11.1.
 
 ### Relations entre vues
 
 ```
-     CHAT ───Export YAML───► STUDIO
-       │                        │
-       │ Show DAG               │ Run Workflow
-       ▼                        ▼
-      DAG ◄───Sync───────► MONITOR
-       │                        │
-       └───► HISTORY ◄──────────┘
-                │
-                └── Replay → CHAT ou MONITOR
+  EXPLORER ───Open File───► EDITOR ───Run───► RUNNER
+      │                         │                 │
+      │ Open Chat               │ Export          │ Schedule
+      ▼                         ▼                 ▼
+    CHAT ─────Export YAML─────► EDITOR        SCHEDULER
+      │                         │                 │
+      │ Live DAG                │                 │
+      └─────────────────────────┴─────────────────┘
+                                │
+                                ▼
+                  ┌─────────────────────────────┐
+                  │     StableGraph (DAG)       │
+                  │     Source of Truth         │
+                  └─────────────────────────────┘
+```
+
+### Évolution des vues
+
+```
+v0.8.x (4 vues)                     v0.10.x+ (6 vues)
+───────────────                     ─────────────────
+[1] Chat                            [1] Explorer (NEW - VS Code style)
+[2] Home                      →     [2] Chat (enhanced with Live DAG)
+[3] Studio                          [3] Editor (ex-Studio + DAG sync)
+[4] Monitor                         [4] Runner (ex-Monitor + animations)
+                                    [5] Scheduler (NEW - cron/queue)
+                                    [6] Settings (NEW - standby → modal)
 ```
 
 ---
@@ -210,10 +224,10 @@ Grâce à `StableGraph`, chaque message a un `NodeIndex` **stable** (ne change p
 
 Le YAML exporté peut être :
 - Sauvegardé comme workflow réutilisable
-- Modifié dans Studio View
+- Modifié dans Editor View
 - Partagé avec l'équipe
 - Versionné dans git
-- Rejoué dans Monitor
+- Rejoué dans Runner
 
 ---
 
@@ -244,14 +258,27 @@ v0.9.4 — DAG Panel + TaskBox (8 tasks + 58 widget tasks, 25 + 208 tests)
 v0.9.5 — Polish & Export (6 tasks, 18 tests)
     │    Animations, YAML export from chat
     │
-━━━ PHASE B: File-First Architecture ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━ PHASE B: 6-Views Architecture ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     ▼
-v0.10.x — Project structure, user profile, long-term memory, policies
+v0.10.0 — Explorer + Editor (4 views → 6 views)
+    │    File browser, DAG sync, VS Code style
+    ▼
+v0.10.1 — Chat-as-DAG Integration
+    │    Live DAG, YAML preview, @mentions, // fork syntax
+    ▼
+v0.11.0 — Runner + Scheduler
+    │    Animated execution, cron management, timeline view
+    ▼
+v0.11.1 — Settings View + Provider Modal v2
+    │    Full Settings view, Ollama client, keyring integration
+    ▼
+v0.12.0 — Polish + Performance
+    │    NovaNet tree effects, minimap, 60fps animations
     │
 ━━━ PHASE C+: Future ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     ▼
-v0.11.x — Context discovery, boot sequence
-v0.12.x — Multi-agent orchestration
+v0.13.x — Context discovery, boot sequence
+v0.14.x — Multi-agent orchestration
 ```
 
 ---
@@ -290,7 +317,7 @@ v0.12.x — Multi-agent orchestration
 | **@mention** | Référencer n'importe quel message/résultat |
 | **Export YAML** | Conversation → Workflow réutilisable |
 | **Visual Feedback** | TaskBox widgets pour chaque verbe |
-| **5-Views** | Navigation fluide Tab / 1-5 |
+| **6-Views** | Navigation fluide Tab / 1-6 |
 | **DX** | Undo/Redo, sessions, fuzzy search |
 
 ---
@@ -301,6 +328,7 @@ v0.12.x — Multi-agent orchestration
 |----------|---------|
 | [INDEX.md](./INDEX.md) | Implementation plans index |
 | [ROADMAP-v09x.md](./ROADMAP-v09x.md) | Version-by-version breakdown |
+| [5-VIEWS-DESIGN.md](../v0.10+/2026-02-24-v010-v012-6-views-design.md) | **TUI 6-Views Architecture (v0.10+)** |
 | [v0.8.9-DX-Preparation.md](./v0.8.9-DX-Preparation.md) | Pre-flight DX tasks |
 | [v0.9.0-StableGraph.md](./v0.9.0-StableGraph.md) | DAG foundation |
 | [v0.9.4a-TaskBoxFoundation.md](./v0.9.4a-TaskBoxFoundation.md) | Widget system |
@@ -314,6 +342,7 @@ v0.12.x — Multi-agent orchestration
 3. **@N = NodeIndex** — Référence stable, pas position
 4. **5 verbes = 5 TaskBox** — Mapping 1:1
 5. **Export = reconstruction** — Chat → YAML via DAG traversal
+6. **6 Views** — Explorer-first (VS Code style), Settings en standby (modale)
 
 ---
 
@@ -323,13 +352,15 @@ v0.12.x — Multi-agent orchestration
 # Development
 cargo test                           # Run 1,902 tests
 cargo run -- chat                    # Chat view
-cargo run -- studio                  # Studio view
+cargo run -- studio                  # Editor view
 
-# After v0.9.x
-nika chat                            # Interactive agent
-nika chat --export workflow.yaml     # Export session
-nika studio workflow.yaml            # Edit YAML
-nika run workflow.yaml               # Execute
+# After v0.10.x
+nika                                 # Explorer view (default)
+nika chat                            # Chat view
+nika editor workflow.yaml            # Editor view
+nika run workflow.yaml               # Runner view
+nika scheduler                       # Scheduler view
+nika settings                        # Settings (opens modal for now)
 ```
 
 ---

@@ -11,7 +11,24 @@
 | [ROADMAP-v09x.md](./ROADMAP-v09x.md) | Version overview, skill mapping | Starting v0.9.x work |
 | [UX-UI-PRESERVE.md](./UX-UI-PRESERVE.md) | Components to keep | Before TUI changes |
 | [WIRING-CHECKPOINTS.md](./WIRING-CHECKPOINTS.md) | Integration tests | After each version |
-| **[5-VIEWS-DESIGN.md](../v0.10+/2026-02-24-v010-v012-6-views-design.md)** | **TUI 5-Views Architecture** | **Before ANY TUI work** |
+| **[6-VIEWS-DESIGN.md](../v0.10+/2026-02-24-v010-v012-6-views-design.md)** | **TUI 6-Views Architecture** | **Before ANY TUI work** |
+
+---
+
+## TUI Views Evolution
+
+**v0.8.x → v0.10+:** Transition from 4 views to 6 views.
+
+| # | View | Key | Version | Predecessor |
+|---|------|-----|---------|-------------|
+| 1 | **Explorer** | `1` / `e` | v0.10.0 | Home |
+| 2 | **Chat** | `2` / `c` | v0.9.x | Chat (enhanced) |
+| 3 | **Editor** | `3` / `d` | v0.10.0 | Studio |
+| 4 | **Runner** | `4` / `r` | v0.10.0 | Monitor |
+| 5 | **Scheduler** | `5` / `s` | v0.12.0 | NEW |
+| 6 | **Settings** | `6` / `,` | v0.11.1 | NEW (standby) |
+
+> **Note v0.10.0:** Settings view is in **standby** — opens existing Provider Modal until v0.11.1.
 
 ---
 
@@ -108,9 +125,9 @@ v0.9.4 (DAG Panel)
     ▼
 v0.9.5 (Polish & Export)
     │
-━━━ PHASE B: File-First Architecture ━━━━
+━━━ PHASE B: 6-Views Architecture (v0.10→v0.12) ━━━
     ▼
-v0.10.0 (Project Structure)
+v0.10.0 (Explorer + Project Structure)
     │
     ▼
 v0.10.1 (User Profile)
@@ -127,13 +144,13 @@ v0.10.4 (Heartbeat)
     ▼
 v0.10.5 (Enriched Agents)
     │
-━━━ PHASE C: Context System ━━━━━━━━━━━━━
+━━━ PHASE C: Context System + Settings ━━━━━━━━
     ▼
-v0.11.x (Context Discovery + Boot Sequence)
+v0.11.x (Context Discovery + Settings view v0.11.1)
     │
-━━━ PHASE D: Multi-Agent (TBD) ━━━━━━━━━━
+━━━ PHASE D: Multi-Agent + Scheduler ━━━━━━━━━
     ▼
-v0.12.x (Defined after 0.11.x)
+v0.12.x (Full Scheduler view + Multi-Agent)
 ```
 
 **NO v1.0 — We stay in 0.XX versioning.**
