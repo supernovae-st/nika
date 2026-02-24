@@ -215,7 +215,10 @@ impl std::fmt::Debug for ProviderModalState {
             .field("key_input_buffer", &"[REDACTED]")
             .field("ollama_available", &self.ollama_available)
             .field("provider_statuses", &self.provider_statuses)
-            .field("ollama_models", &format!("[{} models]", self.ollama_models.len()))
+            .field(
+                "ollama_models",
+                &format!("[{} models]", self.ollama_models.len()),
+            )
             .finish()
     }
 }
@@ -301,6 +304,13 @@ impl ProviderModalState {
             );
         }
         statuses
+    }
+
+    /// Check if any provider is connected (verified)
+    pub fn has_any_connected(&self) -> bool {
+        self.provider_statuses
+            .iter()
+            .any(|s| matches!(s, ConnectionStatus::Connected { .. }))
     }
 
     /// Set Ollama models
@@ -581,9 +591,12 @@ mod tests {
     fn test_set_provider_status_by_index() {
         let mut state = ProviderModalState::default();
         state.set_provider_status(0, ConnectionStatus::Connected { latency_ms: 100 });
-        state.set_provider_status(1, ConnectionStatus::Failed {
-            error: "No key".into(),
-        });
+        state.set_provider_status(
+            1,
+            ConnectionStatus::Failed {
+                error: "No key".into(),
+            },
+        );
 
         assert_eq!(state.provider_statuses.len(), 2);
         assert!(matches!(
@@ -595,11 +608,17 @@ mod tests {
     #[test]
     fn test_set_provider_status_by_name() {
         let mut state = ProviderModalState::default();
-        state.set_provider_status_by_name("anthropic", ConnectionStatus::Connected { latency_ms: 150 });
+        state.set_provider_status_by_name(
+            "anthropic",
+            ConnectionStatus::Connected { latency_ms: 150 },
+        );
         state.set_provider_status_by_name("openai", ConnectionStatus::Checking);
-        state.set_provider_status_by_name("claude", ConnectionStatus::Failed {
-            error: "Updated".into(),
-        }); // Same as anthropic (index 0)
+        state.set_provider_status_by_name(
+            "claude",
+            ConnectionStatus::Failed {
+                error: "Updated".into(),
+            },
+        ); // Same as anthropic (index 0)
 
         assert!(matches!(
             state.provider_statuses[0],
@@ -614,11 +633,15 @@ mod tests {
     #[test]
     fn test_set_provider_status_by_name_all_providers() {
         let mut state = ProviderModalState::default();
-        state.set_provider_status_by_name("anthropic", ConnectionStatus::Connected { latency_ms: 1 });
+        state.set_provider_status_by_name(
+            "anthropic",
+            ConnectionStatus::Connected { latency_ms: 1 },
+        );
         state.set_provider_status_by_name("openai", ConnectionStatus::Connected { latency_ms: 2 });
         state.set_provider_status_by_name("mistral", ConnectionStatus::Connected { latency_ms: 3 });
         state.set_provider_status_by_name("groq", ConnectionStatus::Connected { latency_ms: 4 });
-        state.set_provider_status_by_name("deepseek", ConnectionStatus::Connected { latency_ms: 5 });
+        state
+            .set_provider_status_by_name("deepseek", ConnectionStatus::Connected { latency_ms: 5 });
         state.set_provider_status_by_name("ollama", ConnectionStatus::Connected { latency_ms: 6 });
 
         assert_eq!(state.provider_statuses.len(), 6);
@@ -630,7 +653,9 @@ mod tests {
         let statuses = state.get_provider_statuses();
         assert_eq!(statuses.len(), 6);
         // All should be Unknown by default
-        assert!(statuses.iter().all(|s| matches!(s, ConnectionStatus::Unknown)));
+        assert!(statuses
+            .iter()
+            .all(|s| matches!(s, ConnectionStatus::Unknown)));
     }
 
     #[test]
@@ -651,19 +676,17 @@ mod tests {
         use super::super::ollama_client::{OllamaModelDetails, OllamaModelInfo};
 
         let mut state = ProviderModalState::default();
-        let models = vec![
-            OllamaModelInfo {
-                name: "llama3.2".to_string(),
-                size: 4_700_000_000,
-                digest: "sha256:abc".to_string(),
-                modified_at: "2026-02-24".to_string(),
-                details: OllamaModelDetails {
-                    parameter_size: "8B".to_string(),
-                    quantization_level: "Q4_0".to_string(),
-                    family: Some("llama".to_string()),
-                },
+        let models = vec![OllamaModelInfo {
+            name: "llama3.2".to_string(),
+            size: 4_700_000_000,
+            digest: "sha256:abc".to_string(),
+            modified_at: "2026-02-24".to_string(),
+            details: OllamaModelDetails {
+                parameter_size: "8B".to_string(),
+                quantization_level: "Q4_0".to_string(),
+                family: Some("llama".to_string()),
             },
-        ];
+        }];
 
         state.set_ollama_models(models);
         assert_eq!(state.ollama_models.len(), 1);
@@ -714,19 +737,17 @@ mod tests {
         use super::super::ollama_client::{OllamaModelDetails, OllamaModelInfo};
 
         let mut state = ProviderModalState::default();
-        let models = vec![
-            OllamaModelInfo {
-                name: "llama3.2".to_string(),
-                size: 4_700_000_000,
-                digest: "sha256:abc".to_string(),
-                modified_at: "2026-02-24".to_string(),
-                details: OllamaModelDetails {
-                    parameter_size: "8B".to_string(),
-                    quantization_level: "Q4_0".to_string(),
-                    family: Some("llama".to_string()),
-                },
+        let models = vec![OllamaModelInfo {
+            name: "llama3.2".to_string(),
+            size: 4_700_000_000,
+            digest: "sha256:abc".to_string(),
+            modified_at: "2026-02-24".to_string(),
+            details: OllamaModelDetails {
+                parameter_size: "8B".to_string(),
+                quantization_level: "Q4_0".to_string(),
+                family: Some("llama".to_string()),
             },
-        ];
+        }];
 
         state.process_loader_event(LoaderEvent::OllamaModels(models));
         assert_eq!(state.ollama_models.len(), 1);

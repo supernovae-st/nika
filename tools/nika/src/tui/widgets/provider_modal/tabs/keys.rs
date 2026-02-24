@@ -213,12 +213,7 @@ impl Widget for KeysTab<'_> {
 
             // Status icon with color
             let status_x = area.x + 1 + provider_part.len() as u16 + 2;
-            buf.set_string(
-                status_x,
-                y,
-                status_icon,
-                Style::default().fg(status_color),
-            );
+            buf.set_string(status_x, y, status_icon, Style::default().fg(status_color));
 
             // Key display
             let key_x = status_x + 2;

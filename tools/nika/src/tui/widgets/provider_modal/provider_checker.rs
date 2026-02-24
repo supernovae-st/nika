@@ -68,7 +68,14 @@ impl ProviderChecker {
 
     /// Check all providers in parallel
     pub async fn check_all(&self) -> Vec<(&'static str, ConnectionStatus)> {
-        let providers = ["anthropic", "openai", "mistral", "groq", "deepseek", "ollama"];
+        let providers = [
+            "anthropic",
+            "openai",
+            "mistral",
+            "groq",
+            "deepseek",
+            "ollama",
+        ];
 
         let mut handles = Vec::new();
         for provider in providers {

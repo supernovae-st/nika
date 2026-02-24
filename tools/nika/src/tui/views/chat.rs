@@ -86,14 +86,12 @@ use crate::tui::widgets::{
     MentionSuggestion,
     MentionType,
     MissionControlPanel,
+    ModalEventHandler,
     ParsedInput,
     ProStatusBar,
     Provider,
     ProviderModal,
     ProviderModalState,
-    ModalEventHandler,
-    ProviderSelector,
-    ProviderSelectorState,
     ScrollIndicator,
     SessionContext,
     SessionMetrics,
@@ -320,9 +318,7 @@ pub struct ChatView {
     pub activity_items: Vec<ActivityItem>,
     /// Command palette state (⌘K)
     pub command_palette: CommandPaletteState,
-    /// Provider selector state (⌘P - v0.7.2)
-    pub provider_selector: ProviderSelectorState,
-    /// Provider modal state (Shift+P - v0.8.7 full management)
+    /// Provider modal state (⌘P - v0.8.8 full management)
     pub provider_modal: ProviderModalState,
     /// Inline content for current streaming (MCP calls, infer boxes)
     pub inline_content: Vec<InlineContent>,
@@ -613,7 +609,6 @@ impl ChatView {
             session_context,
             activity_items: vec![],
             command_palette: CommandPaletteState::new(),
-            provider_selector: ProviderSelectorState::new(),
             provider_modal: ProviderModalState::default(),
             inline_content: vec![],
             frame: 0,
@@ -1917,19 +1912,14 @@ impl ChatView {
         self.command_palette.toggle();
     }
 
-    /// Toggle provider selector visibility (⌘P)
+    /// Toggle Provider Modal visibility (⌘P)
     ///
-    /// Returns true if the selector was opened (verification needed).
-    pub fn toggle_provider_selector(&mut self) -> bool {
-        let was_visible = self.provider_selector.visible;
-        self.provider_selector.toggle();
-        // Return true if we just opened the selector (trigger verification)
-        !was_visible && self.provider_selector.visible
-    }
-
-    /// Toggle Provider Modal v2 (full management) - Shift+P
-    pub fn toggle_provider_modal(&mut self) {
+    /// Returns true if the modal was opened (verification needed).
+    pub fn toggle_provider_modal(&mut self) -> bool {
+        let was_visible = self.provider_modal.visible;
         self.provider_modal.visible = !self.provider_modal.visible;
+        // Return true if we just opened the modal (trigger verification)
+        !was_visible && self.provider_modal.visible
     }
 
     /// Transition activity from hot to warm
@@ -2871,14 +2861,7 @@ impl View for ChatView {
                 .render(palette_area, frame.buffer_mut());
         }
 
-        // 6. Provider selector overlay (if visible) - ⌘P
-        if self.provider_selector.visible {
-            let selector_area = centered_rect(70, 60, area);
-            ProviderSelector::new(&self.provider_selector)
-                .render(selector_area, frame.buffer_mut());
-        }
-
-        // 6b. Provider Modal v2 overlay (if visible) - Shift+P
+        // 6. Provider Modal overlay (if visible) - ⌘P
         if self.provider_modal.visible {
             ProviderModal::new(&self.provider_modal).render(area, frame.buffer_mut());
         }
@@ -2916,12 +2899,7 @@ impl View for ChatView {
             return self.handle_palette_key(key);
         }
 
-        // Handle provider selector when visible
-        if self.provider_selector.visible {
-            return self.handle_provider_selector_key(key);
-        }
-
-        // Handle Provider Modal v2 when visible (Shift+P)
+        // Handle Provider Modal when visible (⌘P)
         if self.provider_modal.visible {
             return self.handle_provider_modal_key(key);
         }
@@ -2983,19 +2961,13 @@ impl View for ChatView {
             return ViewAction::None;
         }
 
-        // Check for Cmd/Ctrl+P (provider selector toggle)
+        // Check for Cmd/Ctrl+P (provider modal toggle)
         if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('p') {
-            let opened = self.toggle_provider_selector();
-            // Trigger provider verification when selector opens (v0.8.2)
+            let opened = self.toggle_provider_modal();
+            // Trigger provider verification when modal opens (v0.8.8)
             if opened {
                 return ViewAction::VerifyProviders;
             }
-            return ViewAction::None;
-        }
-
-        // Check for Shift+P (Provider Modal v2 toggle - full management)
-        if key.modifiers.contains(KeyModifiers::SHIFT) && key.code == KeyCode::Char('P') {
-            self.toggle_provider_modal();
             return ViewAction::None;
         }
 
@@ -3553,94 +3525,7 @@ impl ChatView {
         }
     }
 
-    /// Handle key events when provider selector is visible
-    fn handle_provider_selector_key(&mut self, key: KeyEvent) -> ViewAction {
-        match key.code {
-            KeyCode::Esc => {
-                self.provider_selector.close();
-                ViewAction::None
-            }
-            KeyCode::Enter => {
-                // Get selected provider and model
-                let provider = self.provider_selector.selected_provider();
-                let model = self.provider_selector.selected_model();
-
-                // v0.8.2: VERIFY provider is available before allowing selection
-                if !provider.available {
-                    let reason = provider
-                        .unavailable_reason
-                        .clone()
-                        .unwrap_or_else(|| "Provider not available".to_string());
-                    self.add_system_message(format!(
-                        "⚠️ Cannot switch to {}: {}",
-                        provider.name, reason
-                    ));
-                    self.provider_selector.close();
-                    return ViewAction::None;
-                }
-
-                if let Some(model_info) = model {
-                    // v0.8.3: Store provider ID for actual inference (BUG #2 fix)
-                    let provider_id = provider.id.clone();
-                    let model_id = model_info.id.clone();
-
-                    self.current_provider_id = provider_id.clone();
-
-                    // Update current model
-                    self.current_model = model_id.clone();
-                    self.cached_provider = Provider::from_model_name(&self.current_model);
-                    self.provider_name = provider.name.clone();
-
-                    // Add system message
-                    let streaming_indicator = if model_info.streaming { "⚡" } else { "📄" };
-                    let thinking_indicator = if model_info.thinking { " 🧠" } else { "" };
-                    self.add_system_message(format!(
-                        "{} {} Switched to {} {}{}",
-                        streaming_indicator,
-                        provider.icon,
-                        provider.name,
-                        model_info.name,
-                        thinking_indicator
-                    ));
-
-                    self.provider_selector.close();
-
-                    // v0.8.3: Notify app.rs to invalidate/recreate chat_agent (BUG #2 fix)
-                    return ViewAction::ProviderSelectorConfirm {
-                        provider_id,
-                        model: model_id,
-                    };
-                }
-
-                self.provider_selector.close();
-                ViewAction::None
-            }
-            KeyCode::Up => {
-                self.provider_selector.move_up();
-                ViewAction::None
-            }
-            KeyCode::Down => {
-                self.provider_selector.move_down();
-                ViewAction::None
-            }
-            KeyCode::Left => {
-                // Exit model mode back to provider mode
-                self.provider_selector.model_mode = false;
-                self.provider_selector.selected_model = 0;
-                ViewAction::None
-            }
-            KeyCode::Right | KeyCode::Tab => {
-                // Enter model mode
-                self.provider_selector.enter_model_mode();
-                ViewAction::None
-            }
-            // R = Refresh verification (invalidate cache + re-verify) (v0.8.2)
-            KeyCode::Char('r') | KeyCode::Char('R') => ViewAction::RefreshVerification,
-            _ => ViewAction::None,
-        }
-    }
-
-    /// Handle key events for Provider Modal v2 (full management)
+    /// Handle key events for Provider Modal (full management)
     fn handle_provider_modal_key(&mut self, key: KeyEvent) -> ViewAction {
         let result = ModalEventHandler::handle(&mut self.provider_modal, key);
 

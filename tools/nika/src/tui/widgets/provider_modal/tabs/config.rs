@@ -24,11 +24,7 @@ pub struct ConfigEntry {
 
 impl ConfigEntry {
     /// Create a new config entry
-    pub fn new(
-        label: &'static str,
-        value: impl Into<String>,
-        description: &'static str,
-    ) -> Self {
+    pub fn new(label: &'static str, value: impl Into<String>, description: &'static str) -> Self {
         Self {
             label,
             value: value.into(),
@@ -67,11 +63,7 @@ impl ConfigTab {
                 "Claude",
                 "Primary provider for infer: tasks",
             ),
-            ConfigEntry::new(
-                "Default Model",
-                "claude-sonnet-4-6",
-                "Model for new tasks",
-            ),
+            ConfigEntry::new("Default Model", "claude-sonnet-4-6", "Model for new tasks"),
             ConfigEntry::new("Theme", "Solarized Dark", "TUI color theme"),
             ConfigEntry::new(
                 "Auto-save Sessions",
@@ -79,7 +71,11 @@ impl ConfigTab {
                 "Persist editor state on exit",
             ),
             ConfigEntry::new("MCP Timeout", "30s", "Timeout for MCP operations"),
-            ConfigEntry::readonly("Config Path", "~/.nika/config.toml", "Configuration file location"),
+            ConfigEntry::readonly(
+                "Config Path",
+                "~/.nika/config.toml",
+                "Configuration file location",
+            ),
         ];
         Self {
             entries,

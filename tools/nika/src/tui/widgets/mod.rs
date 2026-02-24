@@ -51,10 +51,11 @@ mod verb_input;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
 pub use provider_modal::*;
-// Provider selector popup (v0.7.2) + Ollama health check (v0.8.2) + Verification status + MCP display
+// Ollama health check (v0.8.2) + Verification status + MCP display
+// Note: ProviderSelector/ProviderSelectorState removed in v0.8.8 (replaced by Provider Modal)
 pub use provider_selector::{
     check_ollama_available, check_ollama_available_async, McpServerDisplay, ModelInfo,
-    ProviderInfo, ProviderSelector, ProviderSelectorState, SelectorSection, VerifyStatus,
+    ProviderInfo, SelectorSection, VerifyStatus,
 };
 
 // === Chat UX Enrichment Widgets ===

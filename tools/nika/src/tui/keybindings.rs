@@ -199,14 +199,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
             bindings.push(Keybinding {
                 code: KeyCode::Char('p'),
                 modifiers: KeyModifiers::CONTROL,
-                description: "Provider selector (quick)",
-                category: KeyCategory::Chat,
-            });
-            // v0.8.7: Shift+P for full Provider Modal
-            bindings.push(Keybinding {
-                code: KeyCode::Char('P'),
-                modifiers: KeyModifiers::SHIFT,
-                description: "Provider Modal (full)",
+                description: "Provider Modal",
                 category: KeyCategory::Chat,
             });
             bindings.push(Keybinding {

@@ -67,12 +67,18 @@ impl ModalLoader {
     }
 
     /// Send a command to the loader
-    pub async fn send(&self, cmd: LoaderCommand) -> Result<(), mpsc::error::SendError<LoaderCommand>> {
+    pub async fn send(
+        &self,
+        cmd: LoaderCommand,
+    ) -> Result<(), mpsc::error::SendError<LoaderCommand>> {
         self.cmd_tx.send(cmd).await
     }
 
     /// Try to send a command without blocking
-    pub fn try_send(&self, cmd: LoaderCommand) -> Result<(), mpsc::error::TrySendError<LoaderCommand>> {
+    pub fn try_send(
+        &self,
+        cmd: LoaderCommand,
+    ) -> Result<(), mpsc::error::TrySendError<LoaderCommand>> {
         self.cmd_tx.try_send(cmd)
     }
 
@@ -112,7 +118,9 @@ impl ModalLoader {
                     tokio::spawn(async move {
                         let results = checker.check_all().await;
                         for (provider, status) in results {
-                            let _ = tx.send(LoaderEvent::ProviderStatus { provider, status }).await;
+                            let _ = tx
+                                .send(LoaderEvent::ProviderStatus { provider, status })
+                                .await;
                         }
                         let _ = tx.send(LoaderEvent::ProvidersComplete).await;
                     });
@@ -136,10 +144,12 @@ impl ModalLoader {
                                 let _ = tx.send(LoaderEvent::OllamaModels(models)).await;
                             }
                             Err(e) => {
-                                let _ = tx.send(LoaderEvent::Error {
-                                    source: "ollama".to_string(),
-                                    message: e.to_string(),
-                                }).await;
+                                let _ = tx
+                                    .send(LoaderEvent::Error {
+                                        source: "ollama".to_string(),
+                                        message: e.to_string(),
+                                    })
+                                    .await;
                             }
                         }
                     });
@@ -193,7 +203,11 @@ impl LoadingState {
         match event {
             LoaderEvent::ProviderStatus { provider, status } => {
                 // Update or add provider status
-                if let Some(pos) = self.provider_statuses.iter().position(|(p, _)| *p == provider) {
+                if let Some(pos) = self
+                    .provider_statuses
+                    .iter()
+                    .position(|(p, _)| *p == provider)
+                {
                     self.provider_statuses[pos] = (provider, status);
                 } else {
                     self.provider_statuses.push((provider, status));

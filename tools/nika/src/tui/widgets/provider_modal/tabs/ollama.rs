@@ -36,7 +36,6 @@ impl<'a> OllamaTab<'a> {
         }
     }
 
-
     /// Set availability status (whether Ollama is running)
     pub fn available(mut self, available: bool) -> Self {
         self.is_available = available;

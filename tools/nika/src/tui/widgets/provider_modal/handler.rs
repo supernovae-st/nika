@@ -49,10 +49,7 @@ pub enum ModalAction {
     /// Test API key for a provider
     TestApiKey { provider: &'static str },
     /// Save API key for a provider
-    SaveApiKey {
-        provider: &'static str,
-        key: String,
-    },
+    SaveApiKey { provider: &'static str, key: String },
     /// Pull Ollama model
     PullModel { model: String },
     /// Delete Ollama model
@@ -144,17 +141,15 @@ impl ModalEventHandler {
                     provider: Self::selected_provider(state),
                 })
             }
-            KeyCode::Char('r') => {
-                match state.active_tab {
-                    ProviderModalTab::Cloud => {
-                        HandleResult::consumed_with_action(ModalAction::RefreshProviders)
-                    }
-                    ProviderModalTab::Ollama => {
-                        HandleResult::consumed_with_action(ModalAction::RefreshOllamaModels)
-                    }
-                    _ => HandleResult::consumed(),
+            KeyCode::Char('r') => match state.active_tab {
+                ProviderModalTab::Cloud => {
+                    HandleResult::consumed_with_action(ModalAction::RefreshProviders)
                 }
-            }
+                ProviderModalTab::Ollama => {
+                    HandleResult::consumed_with_action(ModalAction::RefreshOllamaModels)
+                }
+                _ => HandleResult::consumed(),
+            },
 
             _ => HandleResult::ignored(),
         }
@@ -466,7 +461,10 @@ mod tests {
         let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('t')));
 
         assert!(result.consumed);
-        assert!(matches!(result.action, Some(ModalAction::TestApiKey { .. })));
+        assert!(matches!(
+            result.action,
+            Some(ModalAction::TestApiKey { .. })
+        ));
     }
 
     #[test]
@@ -518,7 +516,10 @@ mod tests {
 
         assert!(result.consumed);
         assert!(!state.key_input_mode);
-        assert!(matches!(result.action, Some(ModalAction::SaveApiKey { .. })));
+        assert!(matches!(
+            result.action,
+            Some(ModalAction::SaveApiKey { .. })
+        ));
     }
 
     #[test]

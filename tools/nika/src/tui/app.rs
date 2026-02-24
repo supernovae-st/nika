@@ -973,8 +973,11 @@ impl App {
                 // ═══════════════════════════════════════════════════════════════════════
                 StreamChunk::ProviderVerifying { provider, model } => {
                     tracing::debug!(provider = %provider, model = %model, "Provider verification started");
-                    // Update provider selector state if visible
-                    self.chat_view.provider_selector.set_verifying(&provider);
+                    // Update provider modal state
+                    use super::widgets::provider_modal::ConnectionStatus;
+                    self.chat_view
+                        .provider_modal
+                        .set_provider_status_by_name(&provider, ConnectionStatus::Checking);
                 }
                 StreamChunk::ProviderVerified {
                     provider,
@@ -987,15 +990,21 @@ impl App {
                         latency_ms = %latency_ms,
                         "Provider verified"
                     );
-                    self.chat_view
-                        .provider_selector
-                        .set_verified(&provider, std::time::Duration::from_millis(latency_ms));
+                    use super::widgets::provider_modal::ConnectionStatus;
+                    self.chat_view.provider_modal.set_provider_status_by_name(
+                        &provider,
+                        ConnectionStatus::Connected { latency_ms },
+                    );
                 }
                 StreamChunk::ProviderVerifyFailed { provider, error } => {
                     tracing::warn!(provider = %provider, error = %error, "Provider verification failed");
-                    self.chat_view
-                        .provider_selector
-                        .set_verify_failed(&provider, error.clone());
+                    use super::widgets::provider_modal::ConnectionStatus;
+                    self.chat_view.provider_modal.set_provider_status_by_name(
+                        &provider,
+                        ConnectionStatus::Failed {
+                            error: error.clone(),
+                        },
+                    );
 
                     // v0.8.3: BUG #3 fix - If the CURRENT provider failed, warn user and invalidate
                     if self.chat_view.current_provider_id == provider {
@@ -1032,17 +1041,11 @@ impl App {
                 // v0.8.4: Provider verification timeout
                 StreamChunk::ProviderVerificationTimeout => {
                     tracing::warn!("Provider verification timed out - no providers available");
-                    // Check if ANY provider is verified (v0.8.4: use verify_status field on ProviderInfo)
-                    let has_verified = self
-                        .chat_view
-                        .provider_selector
-                        .providers
-                        .iter()
-                        .any(|p| p.verify_status == super::widgets::VerifyStatus::Verified);
-                    if !has_verified {
+                    // Check if ANY provider is connected/verified
+                    if !self.chat_view.provider_modal.has_any_connected() {
                         // Show warning banner in chat
                         self.chat_view.add_system_message(
-                            "⚠️ No LLM providers available. Set an API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.) or press Cmd+P to configure."
+                            "⚠️ No LLM providers available. Set an API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.) or press ⌘P to configure."
                                 .to_string(),
                         );
                     }
@@ -3400,22 +3403,25 @@ impl App {
     /// Spawn async provider verification tasks (v0.8.2)
     ///
     /// Verifies all configured providers in parallel, sending StreamChunk events
-    /// to update the provider selector display in real-time.
+    /// to update the Provider Modal display in real-time.
     ///
     /// Uses TTL-based caching to avoid redundant API calls (30s default).
     fn spawn_provider_verification(&self) {
         let tx = self.stream_chunk_tx.clone();
-        let providers = self.chat_view.provider_selector.providers.clone();
+        // v0.8.8: Static list of provider IDs (no longer from ProviderSelectorState)
+        let provider_ids = [
+            ("claude", "claude-sonnet-4-6"),
+            ("openai", "gpt-4o"),
+            ("mistral", "mistral-large-latest"),
+            ("groq", "llama-3.3-70b-versatile"),
+            ("deepseek", "deepseek-chat"),
+            ("ollama", "llama3.2"),
+        ];
         let cache = Arc::clone(&self.verification_cache);
 
         // Check cache and send events for cached providers, mark uncached as verifying
-        for provider in &providers {
-            let provider_id = &provider.id;
-            let model = provider
-                .models
-                .first()
-                .map(|m| m.name.clone())
-                .unwrap_or_default();
+        for (provider_id, default_model) in &provider_ids {
+            let model = default_model.to_string();
 
             // Check if we have a valid cached result
             let cached = {
@@ -3434,21 +3440,21 @@ impl App {
                 match entry.status {
                     super::widgets::VerifyStatus::Verified => {
                         let _ = tx.try_send(StreamChunk::ProviderVerified {
-                            provider: provider_id.clone(),
+                            provider: provider_id.to_string(),
                             model: entry.model.unwrap_or(model),
                             latency_ms: entry.latency.map(|d| d.as_millis() as u64).unwrap_or(0),
                         });
                     }
                     super::widgets::VerifyStatus::Failed => {
                         let _ = tx.try_send(StreamChunk::ProviderVerifyFailed {
-                            provider: provider_id.clone(),
+                            provider: provider_id.to_string(),
                             error: entry.error.unwrap_or_else(|| "Unknown error".to_string()),
                         });
                     }
                     _ => {
                         // Verifying or Unknown - re-verify
                         let _ = tx.try_send(StreamChunk::ProviderVerifying {
-                            provider: provider_id.clone(),
+                            provider: provider_id.to_string(),
                             model,
                         });
                     }
@@ -3456,15 +3462,15 @@ impl App {
             } else {
                 // Mark as verifying - will spawn task below
                 let _ = tx.try_send(StreamChunk::ProviderVerifying {
-                    provider: provider_id.clone(),
+                    provider: provider_id.to_string(),
                     model,
                 });
             }
         }
 
         // Spawn verification tasks only for providers NOT in valid cache
-        for provider_info in providers {
-            let provider_id = provider_info.id.clone();
+        for (provider_id_str, _) in provider_ids {
+            let provider_id = provider_id_str.to_string();
 
             // Skip if cached
             {
