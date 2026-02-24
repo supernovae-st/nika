@@ -138,6 +138,59 @@ impl ApiKeyState {
     }
 }
 
+/// Download state for Ollama model pulls
+#[derive(Debug, Clone, PartialEq)]
+pub enum DownloadState {
+    /// No download in progress
+    Idle,
+    /// Downloading with progress
+    Downloading {
+        model: String,
+        progress: f64,
+        downloaded: u64,
+        total: u64,
+    },
+    /// Download completed
+    Complete { model: String },
+    /// Download failed
+    Failed { model: String, error: String },
+}
+
+impl Default for DownloadState {
+    fn default() -> Self {
+        Self::Idle
+    }
+}
+
+impl DownloadState {
+    /// Check if download is active
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Downloading { .. })
+    }
+
+    /// Get percentage (0-100)
+    pub fn percentage(&self) -> u16 {
+        match self {
+            Self::Downloading { progress, .. } => (*progress * 100.0) as u16,
+            Self::Complete { .. } => 100,
+            _ => 0,
+        }
+    }
+
+    /// Format bytes for display
+    pub fn format_bytes(bytes: u64) -> String {
+        if bytes >= 1_000_000_000 {
+            format!("{:.1} GB", bytes as f64 / 1_000_000_000.0)
+        } else if bytes >= 1_000_000 {
+            format!("{:.1} MB", bytes as f64 / 1_000_000.0)
+        } else if bytes >= 1_000 {
+            format!("{:.1} KB", bytes as f64 / 1_000.0)
+        } else {
+            format!("{} B", bytes)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,5 +276,34 @@ mod tests {
 
         let invalid = ApiKeyState::Invalid { masked: "sk-...xyz".into(), error: "Bad".into() };
         assert_eq!(invalid.status_icon(), "✗");
+    }
+
+    #[test]
+    fn test_download_progress_percentage() {
+        let state = DownloadState::Downloading {
+            model: "llama3.2".into(),
+            progress: 0.45,
+            downloaded: 2_100_000_000,
+            total: 4_700_000_000,
+        };
+        assert_eq!(state.percentage(), 45);
+    }
+
+    #[test]
+    fn test_download_state_is_active() {
+        assert!(!DownloadState::Idle.is_active());
+        assert!(DownloadState::Downloading {
+            model: "".into(), progress: 0.0, downloaded: 0, total: 0
+        }.is_active());
+        assert!(!DownloadState::Complete { model: "".into() }.is_active());
+        assert!(!DownloadState::Failed { model: "".into(), error: "".into() }.is_active());
+    }
+
+    #[test]
+    fn test_download_format_bytes() {
+        assert_eq!(DownloadState::format_bytes(4_700_000_000), "4.7 GB");
+        assert_eq!(DownloadState::format_bytes(500_000_000), "500.0 MB");
+        assert_eq!(DownloadState::format_bytes(1_500), "1.5 KB");
+        assert_eq!(DownloadState::format_bytes(500), "500 B");
     }
 }
