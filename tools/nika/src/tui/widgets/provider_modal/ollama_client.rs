@@ -122,6 +122,11 @@ impl Default for OllamaClient {
 impl OllamaClient {
     /// Create client with connection pooling
     pub fn new() -> Self {
+        Self::with_base_url(ollama_base_url())
+    }
+
+    /// Create client with custom base URL (for testing)
+    pub fn with_base_url(base_url: String) -> Self {
         let client = Client::builder()
             .connect_timeout(std::time::Duration::from_secs(5))
             .pool_max_idle_per_host(2)
@@ -129,10 +134,7 @@ impl OllamaClient {
             .build()
             .expect("Failed to create HTTP client");
 
-        Self {
-            client,
-            base_url: ollama_base_url(),
-        }
+        Self { client, base_url }
     }
 
     /// Check if Ollama is running (2s timeout)
@@ -277,9 +279,16 @@ mod tests {
 
     #[test]
     fn test_ollama_base_url_default() {
+        // Use unique env var name to avoid test pollution
+        let prev = std::env::var("OLLAMA_HOST").ok();
         std::env::remove_var("OLLAMA_HOST");
         std::env::remove_var("OLLAMA_API_BASE_URL");
-        assert_eq!(ollama_base_url(), "http://localhost:11434");
+        let result = ollama_base_url();
+        // Restore
+        if let Some(v) = prev {
+            std::env::set_var("OLLAMA_HOST", v);
+        }
+        assert_eq!(result, "http://localhost:11434");
     }
 
     #[test]
@@ -365,5 +374,206 @@ mod tests {
         let url = ollama_base_url();
         assert_eq!(url, "http://localhost:11434");
         std::env::remove_var("OLLAMA_HOST");
+    }
+
+    // =========== Wiremock Integration Tests ===========
+
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn test_is_available_returns_true_when_running() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/api/tags"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "models": []
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = OllamaClient::with_base_url(mock_server.uri());
+        assert!(client.is_available().await);
+    }
+
+    #[tokio::test]
+    async fn test_is_available_returns_false_when_not_running() {
+        // Use a port that's definitely not running anything
+        let client = OllamaClient::with_base_url("http://127.0.0.1:19999".to_string());
+        assert!(!client.is_available().await);
+    }
+
+    #[tokio::test]
+    async fn test_list_models_returns_empty_list() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/api/tags"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "models": []
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = OllamaClient::with_base_url(mock_server.uri());
+        let models = client.list_models().await.unwrap();
+        assert!(models.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_list_models_returns_models() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/api/tags"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "models": [
+                    {
+                        "name": "llama3.2:latest",
+                        "size": 4700000000_u64,
+                        "digest": "sha256:abc123",
+                        "modified_at": "2026-02-24T10:00:00Z",
+                        "details": {
+                            "parameter_size": "8B",
+                            "quantization_level": "Q4_0"
+                        }
+                    },
+                    {
+                        "name": "mistral:latest",
+                        "size": 7000000000_u64,
+                        "digest": "sha256:def456",
+                        "modified_at": "2026-02-23T10:00:00Z",
+                        "details": {
+                            "parameter_size": "7B",
+                            "quantization_level": "Q4_K_M"
+                        }
+                    }
+                ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = OllamaClient::with_base_url(mock_server.uri());
+        let models = client.list_models().await.unwrap();
+
+        assert_eq!(models.len(), 2);
+        assert_eq!(models[0].name, "llama3.2:latest");
+        assert_eq!(models[0].size, 4700000000);
+        assert_eq!(models[1].name, "mistral:latest");
+    }
+
+    #[tokio::test]
+    async fn test_list_models_connection_error() {
+        let client = OllamaClient::with_base_url("http://127.0.0.1:19999".to_string());
+        let result = client.list_models().await;
+        assert!(matches!(result, Err(OllamaError::ConnectionFailed(_))));
+    }
+
+    #[tokio::test]
+    async fn test_list_models_parse_error() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/api/tags"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("not json"))
+            .mount(&mock_server)
+            .await;
+
+        let client = OllamaClient::with_base_url(mock_server.uri());
+        let result = client.list_models().await;
+        assert!(matches!(result, Err(OllamaError::ParseError(_))));
+    }
+
+    #[tokio::test]
+    async fn test_delete_model_success() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("DELETE"))
+            .and(path("/api/delete"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        let client = OllamaClient::with_base_url(mock_server.uri());
+        let result = client.delete_model("llama3.2").await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_delete_model_not_found() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("DELETE"))
+            .and(path("/api/delete"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let client = OllamaClient::with_base_url(mock_server.uri());
+        let result = client.delete_model("nonexistent").await;
+        assert!(matches!(result, Err(OllamaError::DeleteFailed(_))));
+    }
+
+    #[tokio::test]
+    async fn test_pull_model_emits_starting() {
+        let mock_server = MockServer::start().await;
+
+        // Mock returns a simple NDJSON response
+        Mock::given(method("POST"))
+            .and(path("/api/pull"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(
+                r#"{"status":"pulling manifest"}
+{"status":"success"}
+"#,
+            ))
+            .mount(&mock_server)
+            .await;
+
+        let client = OllamaClient::with_base_url(mock_server.uri());
+        let mut rx = client.pull_model("llama3.2").await;
+
+        // First event should be Starting
+        let first = rx.recv().await;
+        assert!(matches!(first, Some(PullProgress::Starting)));
+    }
+
+    #[tokio::test]
+    async fn test_pull_model_complete_flow() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/pull"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(
+                r#"{"status":"pulling manifest"}
+{"status":"pulling sha256:abc","digest":"sha256:abc","total":1000,"completed":500}
+{"status":"pulling sha256:abc","digest":"sha256:abc","total":1000,"completed":1000}
+{"status":"verifying sha256:abc"}
+{"status":"writing manifest"}
+{"status":"success"}
+"#,
+            ))
+            .mount(&mock_server)
+            .await;
+
+        let client = OllamaClient::with_base_url(mock_server.uri());
+        let mut rx = client.pull_model("llama3.2").await;
+
+        let mut events = vec![];
+        while let Some(event) = rx.recv().await {
+            events.push(event);
+        }
+
+        // Should have Starting, then downloading events, verifying, writing, complete
+        assert!(!events.is_empty());
+        assert!(matches!(events[0], PullProgress::Starting));
+        assert!(events.iter().any(|e| matches!(e, PullProgress::Complete)));
+    }
+
+    #[tokio::test]
+    async fn test_with_base_url_creates_client() {
+        let client = OllamaClient::with_base_url("http://custom:1234".to_string());
+        // Just verify it creates successfully (internal state)
+        assert_eq!(client.base_url, "http://custom:1234");
     }
 }
