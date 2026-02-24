@@ -1773,6 +1773,7 @@ impl ChatView {
             if let Some(entry) = self.history.get(i) {
                 self.input = Input::new(entry.clone());
                 self.input.handle(InputRequest::GoToEnd);
+                self.update_mode_from_input(); // v0.8.1: Sync mode indicator
             }
         }
     }
@@ -1793,11 +1794,13 @@ impl ChatView {
                 if let Some(entry) = self.history.get(next_idx) {
                     self.input = Input::new(entry.clone());
                     self.input.handle(InputRequest::GoToEnd);
+                    self.update_mode_from_input(); // v0.8.1: Sync mode indicator
                 }
             }
             Some(_) => {
                 self.history_index = None;
                 self.input.reset();
+                self.update_mode_from_input(); // v0.8.1: Sync mode indicator
             }
             None => {}
         }
@@ -1806,11 +1809,46 @@ impl ChatView {
     /// Insert character at cursor (delegates to tui-input)
     pub fn insert_char(&mut self, c: char) {
         self.input.handle(InputRequest::InsertChar(c));
+        self.update_mode_from_input(); // v0.8.1: Sync mode indicator
     }
 
     /// Delete character before cursor (delegates to tui-input)
     pub fn backspace(&mut self) {
         self.input.handle(InputRequest::DeletePrevChar);
+        self.update_mode_from_input(); // v0.8.1: Sync mode indicator
+    }
+
+    /// v0.8.1: Update chat_mode and current_verb based on input prefix
+    /// This syncs the mode indicator with what the user is typing
+    fn update_mode_from_input(&mut self) {
+        let input = self.input.value();
+
+        // Check for verb prefix in input
+        if let Some((_, verb_color, is_complete, _)) = Self::detect_verb_in_input(input) {
+            // Only update if we have a complete verb (with space after)
+            if is_complete {
+                // Update chat_mode for Infer/Agent toggle
+                match verb_color {
+                    VerbColor::Agent => self.chat_mode = ChatMode::Agent,
+                    VerbColor::Infer => self.chat_mode = ChatMode::Infer,
+                    // Other verbs keep current chat_mode but update current_verb
+                    _ => {}
+                }
+
+                // Update current_verb for MissionControlPanel
+                self.current_verb = match verb_color {
+                    VerbColor::Infer => CurrentVerb::Infer,
+                    VerbColor::Exec => CurrentVerb::Exec,
+                    VerbColor::Fetch => CurrentVerb::Fetch,
+                    VerbColor::Invoke => CurrentVerb::Invoke,
+                    VerbColor::Agent => CurrentVerb::Agent,
+                };
+            }
+        } else if input.is_empty() || !input.starts_with('/') {
+            // No verb prefix → reset to defaults
+            self.current_verb = CurrentVerb::None;
+            // Keep chat_mode as-is when no prefix (user might want to stay in Agent mode)
+        }
     }
 
     /// Move cursor left (delegates to tui-input)
@@ -1836,6 +1874,7 @@ impl ChatView {
     /// Delete previous word (Ctrl+Backspace)
     pub fn delete_prev_word(&mut self) {
         self.input.handle(InputRequest::DeletePrevWord);
+        self.update_mode_from_input(); // v0.8.1: Sync mode indicator
     }
 
     /// Go to start of input (Home)
@@ -1862,6 +1901,7 @@ impl ChatView {
                 for c in text.chars() {
                     self.input.handle(InputRequest::InsertChar(c));
                 }
+                self.update_mode_from_input(); // v0.8.1: Sync mode indicator
             }
         }
     }
@@ -4751,6 +4791,103 @@ mod tests {
 
         view.set_current_verb(CurrentVerb::Fetch);
         assert!(matches!(view.current_verb, CurrentVerb::Fetch));
+    }
+
+    #[test]
+    fn test_update_mode_from_input_agent() {
+        // v0.8.1: Test that typing /agent updates chat_mode and current_verb
+        let mut view = ChatView::new();
+
+        // Initial state
+        assert!(matches!(view.chat_mode, ChatMode::Infer));
+        assert!(matches!(view.current_verb, CurrentVerb::None));
+
+        // Type "/agent " (with space to mark complete)
+        for c in "/agent ".chars() {
+            view.insert_char(c);
+        }
+
+        // Mode should switch to Agent
+        assert!(
+            matches!(view.chat_mode, ChatMode::Agent),
+            "chat_mode should be Agent after typing /agent"
+        );
+        assert!(
+            matches!(view.current_verb, CurrentVerb::Agent),
+            "current_verb should be Agent after typing /agent"
+        );
+    }
+
+    #[test]
+    fn test_update_mode_from_input_infer() {
+        // v0.8.1: Test that typing /infer updates mode
+        let mut view = ChatView::new();
+        view.chat_mode = ChatMode::Agent; // Start in Agent mode
+
+        // Type "/infer "
+        for c in "/infer ".chars() {
+            view.insert_char(c);
+        }
+
+        // Mode should switch to Infer
+        assert!(
+            matches!(view.chat_mode, ChatMode::Infer),
+            "chat_mode should be Infer after typing /infer"
+        );
+        assert!(
+            matches!(view.current_verb, CurrentVerb::Infer),
+            "current_verb should be Infer after typing /infer"
+        );
+    }
+
+    #[test]
+    fn test_update_mode_from_input_verb_exec() {
+        // v0.8.1: Test that typing /exec updates current_verb but not chat_mode
+        let mut view = ChatView::new();
+
+        // Type "/exec " (the Nika workflow verb, not shell exec)
+        for c in "/exec ".chars() {
+            view.insert_char(c);
+        }
+
+        // chat_mode should stay Infer (exec is not a chat mode)
+        assert!(
+            matches!(view.chat_mode, ChatMode::Infer),
+            "chat_mode should stay Infer for /exec"
+        );
+        // current_verb should be Exec
+        assert!(
+            matches!(view.current_verb, CurrentVerb::Exec),
+            "current_verb should be Exec after typing /exec"
+        );
+    }
+
+    #[test]
+    fn test_update_mode_from_input_reset_on_clear() {
+        // v0.8.1: Test that clearing input resets current_verb
+        let mut view = ChatView::new();
+
+        // Type "/agent "
+        for c in "/agent ".chars() {
+            view.insert_char(c);
+        }
+        assert!(matches!(view.current_verb, CurrentVerb::Agent));
+
+        // Clear input by backspacing everything
+        for _ in 0.."/agent ".len() {
+            view.backspace();
+        }
+
+        // current_verb should reset to None
+        assert!(
+            matches!(view.current_verb, CurrentVerb::None),
+            "current_verb should be None after clearing input"
+        );
+        // chat_mode stays Agent (intentional - user chose Agent mode)
+        assert!(
+            matches!(view.chat_mode, ChatMode::Agent),
+            "chat_mode should stay Agent after clearing"
+        );
     }
 
     #[test]
