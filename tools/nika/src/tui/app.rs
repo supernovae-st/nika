@@ -2903,59 +2903,98 @@ impl App {
             let (event_log, mut event_rx) = EventLog::new_with_broadcast();
 
             // Spawn task to relay EventLog events to TUI via StreamChunk
+            // v0.8.5: Add timeout to recv() to prevent orphaned relay task
             let relay_status_tx = status_tx.clone();
             tokio::spawn(async move {
                 use crate::event::EventKind;
-                while let Ok(event) = event_rx.recv().await {
-                    match event.kind {
-                        EventKind::AgentTurn { metadata: Some(ref m), .. } => {
-                            // Relay thinking content if present
-                            if let Some(ref thinking) = m.thinking {
-                                let _ = relay_status_tx
-                                    .send(StreamChunk::Thinking(thinking.clone()))
-                                    .await;
-                            }
-                            // Relay token metrics (cast u32 to u64)
-                            if m.input_tokens > 0 || m.output_tokens > 0 {
-                                let _ = relay_status_tx
-                                    .send(StreamChunk::Metrics {
-                                        input_tokens: m.input_tokens as u64,
-                                        output_tokens: m.output_tokens as u64,
-                                    })
-                                    .await;
+                use std::time::Duration;
+                use tokio::time::timeout;
+
+                // Relay timeout: check every 30s to prevent orphaned tasks
+                // The agent has WORKFLOW_TIMEOUT (300s), so this is just a safety check
+                const RELAY_RECV_TIMEOUT: Duration = Duration::from_secs(30);
+                let mut consecutive_timeouts = 0u32;
+
+                loop {
+                    match timeout(RELAY_RECV_TIMEOUT, event_rx.recv()).await {
+                        Ok(Ok(event)) => {
+                            // Reset timeout counter on successful receive
+                            consecutive_timeouts = 0;
+
+                            match event.kind {
+                                EventKind::AgentTurn { metadata: Some(ref m), .. } => {
+                                    // Relay thinking content if present
+                                    if let Some(ref thinking) = m.thinking {
+                                        let _ = relay_status_tx
+                                            .send(StreamChunk::Thinking(thinking.clone()))
+                                            .await;
+                                    }
+                                    // Relay token metrics (cast u32 to u64)
+                                    if m.input_tokens > 0 || m.output_tokens > 0 {
+                                        let _ = relay_status_tx
+                                            .send(StreamChunk::Metrics {
+                                                input_tokens: m.input_tokens as u64,
+                                                output_tokens: m.output_tokens as u64,
+                                            })
+                                            .await;
+                                    }
+                                }
+                                EventKind::McpInvoke { tool, mcp_server, .. } => {
+                                    // Relay MCP tool call start
+                                    let _ = relay_status_tx
+                                        .send(StreamChunk::McpCallStart {
+                                            tool: tool.unwrap_or_default(),
+                                            server: mcp_server,
+                                            params: String::new(),
+                                        })
+                                        .await;
+                                }
+                                EventKind::McpResponse { is_error, response, .. } => {
+                                    // Relay MCP tool call completion
+                                    if !is_error {
+                                        let _ = relay_status_tx
+                                            .send(StreamChunk::McpCallComplete {
+                                                result: response
+                                                    .map(|v| v.to_string())
+                                                    .unwrap_or_else(|| "OK".to_string()),
+                                            })
+                                            .await;
+                                    } else {
+                                        let _ = relay_status_tx
+                                            .send(StreamChunk::McpCallFailed {
+                                                error: response
+                                                    .map(|v| v.to_string())
+                                                    .unwrap_or_else(|| "MCP error".to_string()),
+                                            })
+                                            .await;
+                                    }
+                                }
+                                _ => {} // Ignore other event types
                             }
                         }
-                        EventKind::McpInvoke { tool, mcp_server, .. } => {
-                            // Relay MCP tool call start
-                            let _ = relay_status_tx
-                                .send(StreamChunk::McpCallStart {
-                                    tool: tool.unwrap_or_default(),
-                                    server: mcp_server,
-                                    params: String::new(),
-                                })
-                                .await;
+                        Ok(Err(_)) => {
+                            // Channel closed - agent completed, exit relay task
+                            tracing::debug!("Event relay: channel closed, exiting");
+                            break;
                         }
-                        EventKind::McpResponse { is_error, response, .. } => {
-                            // Relay MCP tool call completion
-                            if !is_error {
-                                let _ = relay_status_tx
-                                    .send(StreamChunk::McpCallComplete {
-                                        result: response
-                                            .map(|v| v.to_string())
-                                            .unwrap_or_else(|| "OK".to_string()),
-                                    })
-                                    .await;
-                            } else {
-                                let _ = relay_status_tx
-                                    .send(StreamChunk::McpCallFailed {
-                                        error: response
-                                            .map(|v| v.to_string())
-                                            .unwrap_or_else(|| "MCP error".to_string()),
-                                    })
-                                    .await;
+                        Err(_elapsed) => {
+                            // Timeout - agent may be slow (long thinking, tool call)
+                            consecutive_timeouts += 1;
+                            tracing::debug!(
+                                consecutive_timeouts,
+                                "Event relay timeout, continuing to wait"
+                            );
+
+                            // After 10 consecutive timeouts (5 min), assume orphaned and exit
+                            // This prevents truly orphaned relay tasks from running forever
+                            if consecutive_timeouts >= 10 {
+                                tracing::warn!(
+                                    "Event relay: 10 consecutive timeouts, assuming orphaned"
+                                );
+                                break;
                             }
+                            continue;
                         }
-                        _ => {} // Ignore other event types
                     }
                 }
             });
