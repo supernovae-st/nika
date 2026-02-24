@@ -140,10 +140,16 @@ impl Widget for CloudTab<'_> {
                 let provider_idx = row_idx * 3 + col_idx;
                 if provider_idx < self.providers.len() {
                     let p = &self.providers[provider_idx];
-                    let style = if provider_idx == self.state.selected_idx {
-                        CardStyle::Selected
-                    } else {
-                        CardStyle::Normal
+
+                    // Determine card style based on selection AND active status
+                    let is_selected = provider_idx == self.state.selected_idx;
+                    let is_active = self.state.active_provider_idx == Some(provider_idx);
+
+                    let style = match (is_selected, is_active) {
+                        (true, true) => CardStyle::SelectedActive,
+                        (true, false) => CardStyle::Selected,
+                        (false, true) => CardStyle::Active,
+                        (false, false) => CardStyle::Normal,
                     };
 
                     // Render provider card

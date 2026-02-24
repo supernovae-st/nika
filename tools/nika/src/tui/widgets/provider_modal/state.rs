@@ -178,7 +178,7 @@ impl DownloadState {
 
 /// Main provider modal state
 /// SEC-004: Custom Debug impl redacts key_input_buffer to prevent API key leaks in logs
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ProviderModalState {
     /// Modal visibility
     pub visible: bool,
@@ -200,6 +200,26 @@ pub struct ProviderModalState {
     pub provider_statuses: Vec<ConnectionStatus>,
     /// Ollama models loaded from server
     pub ollama_models: Vec<super::ollama_client::OllamaModelInfo>,
+    /// Currently active provider index (the one being used for inference)
+    pub active_provider_idx: Option<usize>,
+}
+
+impl Default for ProviderModalState {
+    fn default() -> Self {
+        Self {
+            visible: false,
+            active_tab: ProviderModalTab::Cloud,
+            selected_idx: 0,
+            item_count: 6, // Cloud tab has 6 providers by default
+            download_state: DownloadState::default(),
+            key_input_mode: false,
+            key_input_buffer: String::new(),
+            ollama_available: false,
+            provider_statuses: Vec::new(),
+            ollama_models: Vec::new(),
+            active_provider_idx: None,
+        }
+    }
 }
 
 // SEC-004: Redact key_input_buffer in Debug output to prevent API key leaks
@@ -219,6 +239,7 @@ impl std::fmt::Debug for ProviderModalState {
                 "ollama_models",
                 &format!("[{} models]", self.ollama_models.len()),
             )
+            .field("active_provider_idx", &self.active_provider_idx)
             .finish()
     }
 }
@@ -245,17 +266,63 @@ impl ProviderModalState {
     pub fn switch_tab(&mut self, tab: ProviderModalTab) {
         self.active_tab = tab;
         self.selected_idx = 0; // Reset selection on tab change
+                               // Update item_count based on tab
+        self.item_count = match tab {
+            ProviderModalTab::Cloud => 6, // 6 cloud providers
+            ProviderModalTab::Ollama => self.ollama_models.len().max(1), // Dynamic
+            ProviderModalTab::Keys => 6,  // 6 API key entries
+            ProviderModalTab::Config => 4, // Config options
+        };
     }
 
-    /// Navigate up in current list
+    /// Navigate up in current list/grid
+    /// For Cloud tab (2x3 grid): moves up one row (idx - 3)
+    /// For other tabs: moves up one item (idx - 1)
     pub fn navigate_up(&mut self) {
-        self.selected_idx = self.selected_idx.saturating_sub(1);
+        if self.active_tab == ProviderModalTab::Cloud {
+            // 2x3 grid: move up one row
+            if self.selected_idx >= 3 {
+                self.selected_idx -= 3;
+            }
+        } else {
+            self.selected_idx = self.selected_idx.saturating_sub(1);
+        }
     }
 
-    /// Navigate down in current list
+    /// Navigate down in current list/grid
+    /// For Cloud tab (2x3 grid): moves down one row (idx + 3)
+    /// For other tabs: moves down one item (idx + 1)
     pub fn navigate_down(&mut self) {
-        if self.item_count > 0 && self.selected_idx < self.item_count - 1 {
+        if self.item_count == 0 {
+            return;
+        }
+        if self.active_tab == ProviderModalTab::Cloud {
+            // 2x3 grid: move down one row
+            if self.selected_idx + 3 < self.item_count {
+                self.selected_idx += 3;
+            }
+        } else if self.selected_idx < self.item_count - 1 {
             self.selected_idx += 1;
+        }
+    }
+
+    /// Navigate left in grid (Cloud tab only)
+    pub fn navigate_left(&mut self) {
+        if self.active_tab == ProviderModalTab::Cloud {
+            // Don't wrap to previous row
+            if self.selected_idx % 3 != 0 {
+                self.selected_idx -= 1;
+            }
+        }
+    }
+
+    /// Navigate right in grid (Cloud tab only)
+    pub fn navigate_right(&mut self) {
+        if self.active_tab == ProviderModalTab::Cloud && self.item_count > 0 {
+            // Don't wrap to next row
+            if self.selected_idx % 3 != 2 && self.selected_idx < self.item_count - 1 {
+                self.selected_idx += 1;
+            }
         }
     }
 
@@ -267,6 +334,32 @@ impl ProviderModalState {
     /// Go to previous tab
     pub fn prev_tab(&mut self) {
         self.switch_tab(self.active_tab.prev());
+    }
+
+    /// Set the active provider (the one currently used for inference)
+    pub fn set_active_provider(&mut self, name: &str) {
+        self.active_provider_idx = match name.to_lowercase().as_str() {
+            "anthropic" | "claude" => Some(0),
+            "openai" => Some(1),
+            "mistral" => Some(2),
+            "groq" => Some(3),
+            "deepseek" => Some(4),
+            "ollama" => Some(5),
+            _ => None,
+        };
+    }
+
+    /// Get the name of the currently active provider
+    pub fn active_provider_name(&self) -> Option<&'static str> {
+        match self.active_provider_idx {
+            Some(0) => Some("Claude"),
+            Some(1) => Some("OpenAI"),
+            Some(2) => Some("Mistral"),
+            Some(3) => Some("Groq"),
+            Some(4) => Some("DeepSeek"),
+            Some(5) => Some("Ollama"),
+            _ => None,
+        }
     }
 
     /// Update provider status by index
@@ -526,8 +619,10 @@ mod tests {
     }
 
     #[test]
-    fn test_modal_navigate() {
+    fn test_modal_navigate_list_mode() {
+        // Use Keys tab for list navigation test (not grid)
         let mut state = ProviderModalState::default();
+        state.switch_tab(ProviderModalTab::Keys); // Keys tab uses list navigation
         state.item_count = 5;
 
         assert_eq!(state.selected_idx, 0);
@@ -554,6 +649,56 @@ mod tests {
         assert_eq!(state.selected_idx, 0);
 
         // Should not go below 0
+        state.navigate_up();
+        assert_eq!(state.selected_idx, 0);
+    }
+
+    #[test]
+    fn test_modal_navigate_grid_mode() {
+        // Cloud tab (default) uses 2x3 grid navigation
+        let mut state = ProviderModalState::default();
+        // Default is Cloud tab with item_count = 6
+
+        // Grid layout:
+        //   0 1 2  (row 0)
+        //   3 4 5  (row 1)
+
+        assert_eq!(state.selected_idx, 0);
+        assert_eq!(state.active_tab, ProviderModalTab::Cloud);
+
+        // Navigate right: 0 -> 1 -> 2
+        state.navigate_right();
+        assert_eq!(state.selected_idx, 1);
+        state.navigate_right();
+        assert_eq!(state.selected_idx, 2);
+
+        // At right edge, can't go further
+        state.navigate_right();
+        assert_eq!(state.selected_idx, 2);
+
+        // Navigate down: 2 -> 5
+        state.navigate_down();
+        assert_eq!(state.selected_idx, 5);
+
+        // At bottom, can't go further
+        state.navigate_down();
+        assert_eq!(state.selected_idx, 5);
+
+        // Navigate left: 5 -> 4 -> 3
+        state.navigate_left();
+        assert_eq!(state.selected_idx, 4);
+        state.navigate_left();
+        assert_eq!(state.selected_idx, 3);
+
+        // At left edge, can't go further
+        state.navigate_left();
+        assert_eq!(state.selected_idx, 3);
+
+        // Navigate up: 3 -> 0
+        state.navigate_up();
+        assert_eq!(state.selected_idx, 0);
+
+        // At top, can't go further
         state.navigate_up();
         assert_eq!(state.selected_idx, 0);
     }

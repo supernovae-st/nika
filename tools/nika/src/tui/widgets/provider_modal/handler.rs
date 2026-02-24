@@ -111,13 +111,21 @@ impl ModalEventHandler {
                 HandleResult::consumed()
             }
 
-            // Navigation
+            // Navigation (vim-style: h/j/k/l + arrows)
             KeyCode::Up | KeyCode::Char('k') => {
                 state.navigate_up();
                 HandleResult::consumed()
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 state.navigate_down();
+                HandleResult::consumed()
+            }
+            KeyCode::Left | KeyCode::Char('h') => {
+                state.navigate_left();
+                HandleResult::consumed()
+            }
+            KeyCode::Right | KeyCode::Char('l') => {
+                state.navigate_right();
                 HandleResult::consumed()
             }
 
@@ -351,50 +359,132 @@ mod tests {
         assert_eq!(result.action, Some(ModalAction::Close));
     }
 
+    // Note: Cloud tab (default) uses 2x3 grid navigation
+    // Up/Down move by rows (±3), Left/Right move by columns (±1)
+    // Grid layout:
+    //   0 1 2  (row 0: Claude, OpenAI, Mistral)
+    //   3 4 5  (row 1: Groq, DeepSeek, Ollama)
+
     #[test]
-    fn test_handle_up_navigates() {
+    fn test_handle_up_navigates_grid() {
         let mut state = ProviderModalState::default();
         state.visible = true;
-        state.selected_idx = 2;
+        state.selected_idx = 4; // Row 1, col 1 (DeepSeek)
 
         ModalEventHandler::handle(&mut state, key_event(KeyCode::Up));
 
+        // Should move up one row: 4 -> 1 (OpenAI)
         assert_eq!(state.selected_idx, 1);
     }
 
     #[test]
-    fn test_handle_k_navigates_up() {
+    fn test_handle_k_navigates_up_grid() {
         let mut state = ProviderModalState::default();
         state.visible = true;
-        state.selected_idx = 3;
+        state.selected_idx = 5; // Row 1, col 2 (Ollama)
 
         ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('k')));
 
+        // Should move up one row: 5 -> 2 (Mistral)
         assert_eq!(state.selected_idx, 2);
     }
 
     #[test]
-    fn test_handle_down_navigates() {
+    fn test_handle_down_navigates_grid() {
         let mut state = ProviderModalState::default();
         state.visible = true;
-        state.item_count = 6;
-        state.selected_idx = 2;
+        state.selected_idx = 2; // Row 0, col 2 (Mistral)
 
         ModalEventHandler::handle(&mut state, key_event(KeyCode::Down));
 
-        assert_eq!(state.selected_idx, 3);
+        // Should move down one row: 2 -> 5 (Ollama)
+        assert_eq!(state.selected_idx, 5);
     }
 
     #[test]
-    fn test_handle_j_navigates_down() {
+    fn test_handle_j_navigates_down_grid() {
         let mut state = ProviderModalState::default();
         state.visible = true;
-        state.item_count = 6;
-        state.selected_idx = 1;
+        state.selected_idx = 1; // Row 0, col 1 (OpenAI)
 
         ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('j')));
 
-        assert_eq!(state.selected_idx, 2);
+        // Should move down one row: 1 -> 4 (DeepSeek)
+        assert_eq!(state.selected_idx, 4);
+    }
+
+    #[test]
+    fn test_handle_left_navigates_grid() {
+        let mut state = ProviderModalState::default();
+        state.visible = true;
+        state.selected_idx = 2; // Row 0, col 2 (Mistral)
+
+        ModalEventHandler::handle(&mut state, key_event(KeyCode::Left));
+
+        // Should move left: 2 -> 1 (OpenAI)
+        assert_eq!(state.selected_idx, 1);
+    }
+
+    #[test]
+    fn test_handle_h_navigates_left_grid() {
+        let mut state = ProviderModalState::default();
+        state.visible = true;
+        state.selected_idx = 5; // Row 1, col 2 (Ollama)
+
+        ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('h')));
+
+        // Should move left: 5 -> 4 (DeepSeek)
+        assert_eq!(state.selected_idx, 4);
+    }
+
+    #[test]
+    fn test_handle_right_navigates_grid() {
+        let mut state = ProviderModalState::default();
+        state.visible = true;
+        state.selected_idx = 3; // Row 1, col 0 (Groq)
+
+        ModalEventHandler::handle(&mut state, key_event(KeyCode::Right));
+
+        // Should move right: 3 -> 4 (DeepSeek)
+        assert_eq!(state.selected_idx, 4);
+    }
+
+    #[test]
+    fn test_handle_l_navigates_right_grid() {
+        let mut state = ProviderModalState::default();
+        state.visible = true;
+        state.selected_idx = 0; // Row 0, col 0 (Claude)
+
+        ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('l')));
+
+        // Should move right: 0 -> 1 (OpenAI)
+        assert_eq!(state.selected_idx, 1);
+    }
+
+    #[test]
+    fn test_grid_navigation_respects_boundaries() {
+        let mut state = ProviderModalState::default();
+        state.visible = true;
+
+        // At left edge, can't go left
+        state.selected_idx = 0;
+        ModalEventHandler::handle(&mut state, key_event(KeyCode::Left));
+        assert_eq!(state.selected_idx, 0); // Stays at 0
+
+        // At right edge (col 2), can't go right
+        state.selected_idx = 2;
+        ModalEventHandler::handle(&mut state, key_event(KeyCode::Right));
+        assert_eq!(state.selected_idx, 2); // Stays at 2
+
+        // At top row, can't go up
+        state.selected_idx = 1;
+        ModalEventHandler::handle(&mut state, key_event(KeyCode::Up));
+        assert_eq!(state.selected_idx, 1); // Stays at 1
+
+        // At bottom row, can't go down
+        state.selected_idx = 4;
+        ModalEventHandler::handle(&mut state, key_event(KeyCode::Down));
+        assert_eq!(state.selected_idx, 4); // Stays at 4
     }
 
     #[test]

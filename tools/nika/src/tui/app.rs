@@ -778,9 +778,11 @@ impl App {
         while let Ok(chunk) = self.stream_chunk_rx.try_recv() {
             match chunk {
                 StreamChunk::Token(token) => {
-                    // v0.8.1: Trigger streaming phase on first token
+                    // v0.9.1 FIX: Initialize streaming with verb for proper Matrix effect theming
+                    // Previously called on_streaming_start() which didn't set up streaming_decrypt
                     if !self.chat_view.is_streaming {
-                        self.chat_view.on_streaming_start();
+                        use crate::tui::widgets::DecryptVerb;
+                        self.chat_view.start_streaming_with_verb(DecryptVerb::Infer);
                     }
                     // v0.8.1 FIX: ONLY update streaming_decrypt for Matrix effect
                     // DON'T append to message directly - that causes double display

@@ -1793,12 +1793,26 @@ impl ChatView {
     }
 
     /// Append content to current inference stream
+    /// v0.9.1: Updated to handle TaskBox::Infer (tokens only) - Matrix effect handles text
     pub fn append_infer_content(&mut self, chunk: &str, tokens_out: u32) {
-        if let Some(InlineContent::InferStream(data)) = self.inline_content.last_mut() {
-            data.append_content(chunk);
-            data.update_tokens(tokens_out);
+        // Update TaskBox::Infer token count (if present)
+        // v0.9.1 FIX: Handle Task(TaskBox::Infer) instead of legacy InferStream
+        for content in self.inline_content.iter_mut().rev() {
+            match content {
+                InlineContent::Task(TaskBox::Infer(infer)) if infer.state.is_running() => {
+                    infer.tokens_out = tokens_out;
+                    break;
+                }
+                InlineContent::InferStream(data) => {
+                    // Legacy support - update if still used
+                    data.append_content(chunk);
+                    data.update_tokens(tokens_out);
+                    break;
+                }
+                _ => continue,
+            }
         }
-        // Also update the partial response for backwards compatibility
+        // Matrix effect handles the actual text display via partial_response
         self.partial_response.push_str(chunk);
     }
 
@@ -4967,7 +4981,9 @@ impl ChatView {
         }
 
         // Add streaming indicator if streaming is in progress
-        if self.is_streaming && self.inline_content.is_empty() {
+        // v0.9.1 FIX: Removed inline_content.is_empty() condition - Matrix effect should
+        // render even when TaskBox exists (they serve different purposes)
+        if self.is_streaming {
             items.push(ListItem::new(Line::from(vec![
                 Span::styled(
                     "🤖 AI ",
@@ -5003,11 +5019,12 @@ impl ChatView {
                 }
             }
 
-            // v0.8.1: Only show phase indicator if no content yet
-            // Once streaming starts, the Matrix effect replaces this indicator
-            if self.partial_response.is_empty() {
+            // v0.9.1 FIX: Show phase indicator longer during streaming
+            // Users want to see the animated "Streaming" phase with 🦋 icon
+            // Show until we have substantial content (50+ chars) instead of hiding immediately
+            if self.partial_response.len() < 50 {
                 // v0.8.1: Use AgentPhaseIndicator with Matrix effect
-                // Shows real phase (Syncing/Planning/Invoking/Inferring) instead of generic "Generating"
+                // Shows real phase (Syncing/Planning/Invoking/Inferring/Streaming)
                 let phase_line = self.phase_indicator.build_line();
                 let mut spans = vec![Span::styled(
                     "│ ",

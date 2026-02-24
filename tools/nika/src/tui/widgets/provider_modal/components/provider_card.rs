@@ -15,25 +15,40 @@ use super::super::state::ConnectionStatus;
 pub enum CardStyle {
     #[default]
     Normal,
+    /// Currently selected in UI (cursor is on this card)
     Selected,
+    /// Disabled (e.g., no API key)
     Disabled,
+    /// Active provider: currently in use for inference
+    Active,
+    /// Both selected and active
+    SelectedActive,
 }
 
 impl CardStyle {
     pub fn border_color(&self) -> Color {
         match self {
-            Self::Selected => Color::Rgb(99, 102, 241), // indigo
-            Self::Normal => Color::Rgb(55, 65, 81),     // gray
-            Self::Disabled => Color::Rgb(31, 41, 55),   // dark gray
+            Self::Selected => Color::Rgb(99, 102, 241),      // indigo
+            Self::Active => Color::Rgb(34, 197, 94),         // green (in use!)
+            Self::SelectedActive => Color::Rgb(34, 197, 94), // green + bold
+            Self::Normal => Color::Rgb(55, 65, 81),          // gray
+            Self::Disabled => Color::Rgb(31, 41, 55),        // dark gray
         }
     }
 
     pub fn bg_color(&self) -> Color {
         match self {
-            Self::Selected => Color::Rgb(30, 41, 59), // slate-800
-            Self::Normal => Color::Rgb(17, 24, 39),   // gray-900
+            Self::Selected => Color::Rgb(30, 41, 59),       // slate-800
+            Self::Active => Color::Rgb(22, 78, 48),         // green tint
+            Self::SelectedActive => Color::Rgb(30, 60, 50), // selected + green
+            Self::Normal => Color::Rgb(17, 24, 39),         // gray-900
             Self::Disabled => Color::Rgb(17, 24, 39),
         }
+    }
+
+    /// Whether this card shows the active indicator
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Active | Self::SelectedActive)
     }
 }
 
@@ -83,6 +98,19 @@ impl Widget for ProviderCard<'_> {
             return;
         }
 
+        // Build title with optional "IN USE" badge
+        let title = if self.style.is_active() {
+            format!(" {} {} ★ IN USE ", self.icon, self.name)
+        } else {
+            format!(" {} {} ", self.icon, self.name)
+        };
+
+        let title_color = if self.style.is_active() {
+            Color::Rgb(34, 197, 94) // Green for active
+        } else {
+            Color::Rgb(229, 231, 235) // Default white
+        };
+
         // Card border with rounded corners
         let block = Block::default()
             .borders(Borders::ALL)
@@ -90,9 +118,9 @@ impl Widget for ProviderCard<'_> {
             .border_style(Style::default().fg(self.style.border_color()))
             .style(Style::default().bg(self.style.bg_color()))
             .title(Span::styled(
-                format!(" {} {} ", self.icon, self.name),
+                title,
                 Style::default()
-                    .fg(Color::Rgb(229, 231, 235))
+                    .fg(title_color)
                     .add_modifier(Modifier::BOLD),
             ));
 
