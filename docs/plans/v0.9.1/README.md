@@ -290,11 +290,11 @@ v0.14.x — Multi-agent orchestration
 | v0.8.9 DX Preparation | 8 | 56 |
 | v0.9.0 StableGraph | 6 | 25 |
 | v0.9.1 ChatWorkflow | 6 | 21 |
-| v0.9.2 @mention Bindings | 10 | 35 |
+| v0.9.2 @mention Bindings | 10 | 40 |
 | v0.9.3 Builtin Tools | 10 | 45 |
 | v0.9.4 DAG Panel | 8 | 25 |
 | v0.9.5 Polish | 6 | 18 |
-| **v0.9.x Core Subtotal** | **46** | **169** |
+| **v0.9.x Core Subtotal** | **46** | **174** |
 | TaskBox Foundation (v0.9.4a) | 15 | 62 |
 | InferBox (v0.9.4b) | 10 | 35 |
 | ExecBox (v0.9.4c) | 9 | 30 |
@@ -302,9 +302,9 @@ v0.14.x — Multi-agent orchestration
 | InvokeBox (v0.9.4e) | 8 | 25 |
 | AgentBox (v0.9.4f) | 8 | 30 |
 | **TaskBox Subtotal** | **58** | **210** |
-| **TOTAL NEW** | **112** | **435** |
+| **TOTAL NEW** | **112** | **440** |
 | Existing tests | — | 1,902 |
-| **FINAL** | — | **2,337** |
+| **FINAL** | — | **2,342** |
 
 ---
 
