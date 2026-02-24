@@ -7217,6 +7217,56 @@ mod tests {
         assert!(view.search_results.is_empty());
     }
 
+    #[test]
+    fn test_search_finds_thinking_content() {
+        let mut view = ChatView::new();
+        // Add message with thinking content that has unique word
+        let msg_id = view.next_message_id();
+        view.messages.push(ChatMessage {
+            id: msg_id,
+            role: MessageRole::Nika,
+            content: "Here is my answer".to_string(),
+            thinking: Some("Let me analyze the problem carefully".to_string()),
+            timestamp: Local::now(),
+            created_at: Instant::now(),
+            execution: None,
+        });
+        // Add normal message without the search term
+        view.add_user_message("other message".to_string());
+
+        view.start_search();
+        // Search for word only in thinking content
+        view.search_query = "analyze".to_string();
+        view.update_search();
+
+        // Should find the message with thinking content
+        assert_eq!(view.search_results.len(), 1);
+        assert_eq!(view.search_results[0], 1); // Index 1 (after welcome message)
+    }
+
+    #[test]
+    fn test_search_no_duplicate_when_both_match() {
+        let mut view = ChatView::new();
+        // Add message where both content and thinking contain the search term
+        let msg_id = view.next_message_id();
+        view.messages.push(ChatMessage {
+            id: msg_id,
+            role: MessageRole::Nika,
+            content: "This test contains the word unique".to_string(),
+            thinking: Some("Thinking about unique solution".to_string()),
+            timestamp: Local::now(),
+            created_at: Instant::now(),
+            execution: None,
+        });
+
+        view.start_search();
+        view.search_query = "unique".to_string();
+        view.update_search();
+
+        // Should only find it once, not twice
+        assert_eq!(view.search_results.len(), 1);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════════
     // v0.9 Phase 3: Smooth Scrolling Tests
     // ═══════════════════════════════════════════════════════════════════════════════
