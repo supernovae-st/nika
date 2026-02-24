@@ -239,18 +239,35 @@ impl Widget for AgentBox {
             if self.expanded_children {
                 // Render each child with indentation
                 for child in &self.children {
-                    let child_height = child.required_height().min(area.y + area.height - y - 3);
-                    if child_height < 3 || y + child_height >= area.y + area.height - 2 {
+                    // PERF: Safe bounds calculation with saturating arithmetic
+                    let available_height = area
+                        .y
+                        .saturating_add(area.height)
+                        .saturating_sub(y)
+                        .saturating_sub(3);
+                    let child_height = child.required_height().min(available_height);
+
+                    // Early exit if not enough space
+                    if child_height < 3
+                        || y.saturating_add(child_height)
+                            >= area.y.saturating_add(area.height).saturating_sub(2)
+                    {
                         break;
                     }
 
                     // Create indented area for child
+                    let child_width = area.width.saturating_sub(4);
                     let child_area = Rect {
                         x: area.x + 2,
                         y,
-                        width: area.width - 4,
+                        width: child_width,
                         height: child_height,
                     };
+
+                    // Skip rendering if child area too small
+                    if child_area.width < 30 || child_area.height < 3 {
+                        continue;
+                    }
 
                     // Fill background for child area
                     for cy in child_area.y..child_area.y + child_area.height {

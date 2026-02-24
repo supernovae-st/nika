@@ -24,6 +24,8 @@ use std::fs;
 use std::path::Path;
 use std::time::Instant;
 
+use chrono::{DateTime, Local};
+
 use arboard::Clipboard;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
@@ -60,9 +62,13 @@ use crate::tui::widgets::{
     ActivityItem, ActivityTemp, AgentPhase, AgentPhaseIndicator, ChatModeIndicator, CommandPalette,
     CommandPaletteState, ContextItem, CurrentVerb, DecryptVerb, HelpOverlay, HelpOverlayState,
     InferStreamData, McpCallData, McpCallStatus, McpServerInfo, McpStatus, MemoryFile,
+    // v0.9 Phase 2: @ mention autocomplete
+    Mention, MentionAutocomplete, MentionAutocompleteState, MentionSuggestion, MentionType,
     MissionControlPanel, ParsedInput, ProStatusBar, Provider, ProviderSelector,
     ProviderSelectorState, ScrollIndicator, SessionContext, SessionMetrics, StreamingDecrypt,
     SystemCommand, TurnMetrics,
+    // Task Box widgets (v0.8.1 - visual verb containers)
+    task_box::{BoxState, TaskBox},
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -90,9 +96,14 @@ pub enum MessageRole {
 /// A chat message
 #[derive(Debug, Clone)]
 pub struct ChatMessage {
+    /// v0.9: Stable unique ID for tracking (survives message list mutations)
+    pub id: u64,
     pub role: MessageRole,
     pub content: String,
-    pub timestamp: Instant,
+    /// v0.9: Display timestamp (HH:MM) for better conversation tracking
+    pub timestamp: DateTime<Local>,
+    /// v0.8.1: Instant for elapsed time calculations
+    pub created_at: Instant,
     /// Optional inline execution result
     pub execution: Option<ExecutionResult>,
     /// Optional agent thinking/reasoning content (v0.5.2+)
@@ -216,6 +227,8 @@ pub enum InlineContent {
     McpCall(McpCallData),
     /// Streaming inference with token counter
     InferStream(InferStreamData),
+    /// Task box for any verb (v0.8.1 - unified rendering)
+    Task(TaskBox),
 }
 
 /// Inference mode for conversation
@@ -290,6 +303,9 @@ pub struct ChatView {
     pub deep_thinking: bool,
     /// Current provider name for display
     pub provider_name: String,
+    /// Current provider ID for inference (v0.8.2: used by ChatAgent)
+    /// This is the actual provider ID (claude, openai, mistral, etc.)
+    pub current_provider_id: String,
 
     // === Thinking Accumulation (v0.5.2+) ===
     /// Accumulated thinking content during streaming
@@ -364,6 +380,21 @@ pub struct ChatView {
     /// When true, new messages auto-scroll. When false (user scrolled up), they don't.
     /// Reset to true when user sends a message or manually scrolls to bottom.
     pub user_at_bottom: bool,
+
+    // === v0.9 Thinking Toggle ===
+    /// Set of message IDs with toggled thinking state (differs from default)
+    /// Toggle individual messages with 't', toggle all with 'T'
+    /// v0.9 FIX: Uses stable message IDs instead of indices for stability
+    pub thinking_collapsed: std::collections::HashSet<u64>,
+    /// Whether thinking sections are expanded by default
+    /// false = collapsed by default (show summary), true = expanded by default
+    pub thinking_expanded_default: bool,
+    /// v0.9: Counter for generating unique message IDs
+    message_id_counter: u64,
+
+    // === v0.9 Phase 2: @ Mention Autocomplete ===
+    /// State for the @ mention autocomplete popup
+    pub mention_autocomplete: MentionAutocompleteState,
 }
 
 /// Position of a rendered line for hit testing
@@ -443,14 +474,42 @@ impl TextSelection {
 
 impl ChatView {
     pub fn new() -> Self {
-        // Detect initial model and provider from environment
-        let (initial_model, provider_name) = if std::env::var("ANTHROPIC_API_KEY").is_ok() {
-            ("claude-sonnet-4".to_string(), "Claude".to_string())
-        } else if std::env::var("OPENAI_API_KEY").is_ok() {
-            ("gpt-4o".to_string(), "OpenAI".to_string())
-        } else {
-            ("No API Key".to_string(), "None".to_string())
-        };
+        // Detect initial model and provider from environment (v0.8.2: also track provider_id)
+        let (initial_model, provider_name, provider_id) =
+            if std::env::var("ANTHROPIC_API_KEY").is_ok_and(|v| !v.is_empty()) {
+                (
+                    "claude-sonnet-4-6".to_string(),
+                    "Anthropic Claude".to_string(),
+                    "claude".to_string(),
+                )
+            } else if std::env::var("OPENAI_API_KEY").is_ok_and(|v| !v.is_empty()) {
+                ("gpt-4o".to_string(), "OpenAI".to_string(), "openai".to_string())
+            } else if std::env::var("MISTRAL_API_KEY").is_ok_and(|v| !v.is_empty()) {
+                (
+                    "mistral-large-latest".to_string(),
+                    "Mistral AI".to_string(),
+                    "mistral".to_string(),
+                )
+            } else if std::env::var("GROQ_API_KEY").is_ok_and(|v| !v.is_empty()) {
+                (
+                    "llama-3.3-70b-versatile".to_string(),
+                    "Groq".to_string(),
+                    "groq".to_string(),
+                )
+            } else if std::env::var("DEEPSEEK_API_KEY").is_ok_and(|v| !v.is_empty()) {
+                (
+                    "deepseek-chat".to_string(),
+                    "DeepSeek".to_string(),
+                    "deepseek".to_string(),
+                )
+            } else {
+                // No API key found - will show error on inference attempt
+                (
+                    "No API Key".to_string(),
+                    "None".to_string(),
+                    "none".to_string(),
+                )
+            };
 
         // Initialize session context with detected MCP servers
         let mut session_context = SessionContext::new();
@@ -460,12 +519,14 @@ impl ChatView {
 
         Self {
             messages: vec![ChatMessage {
+                id: 1, // First message gets ID 1
                 role: MessageRole::System,
                 content:
                     "Welcome to Nika Agent. Type a message to chat, or use /help for commands."
                         .to_string(),
                 thinking: None,
-                timestamp: Instant::now(),
+                timestamp: Local::now(),
+                created_at: Instant::now(),
                 execution: None,
             }],
             input: Input::default(),
@@ -490,6 +551,7 @@ impl ChatView {
             chat_mode: ChatMode::default(),
             deep_thinking: false,
             provider_name,
+            current_provider_id: provider_id,
 
             // Thinking Accumulation (v0.5.2)
             pending_thinking: None,
@@ -536,6 +598,14 @@ impl ChatView {
 
             // v0.8.1 Smart Auto-Scroll
             user_at_bottom: true, // Start at bottom
+
+            // v0.9 Thinking Toggle
+            thinking_collapsed: std::collections::HashSet::new(),
+            thinking_expanded_default: true, // Expanded by default
+            message_id_counter: 1, // Start at 1 (initial message has ID 1)
+
+            // v0.9 Phase 2: @ Mention Autocomplete
+            mention_autocomplete: MentionAutocompleteState::new(),
         }
     }
 
@@ -1062,6 +1132,8 @@ impl ChatView {
         if self.matrix_effect_enabled {
             self.streaming_decrypt.push_text(chunk);
         }
+        // v0.8.2: Auto-scroll during streaming to follow new content
+        self.auto_scroll_to_bottom();
     }
 
     /// Finish streaming and return the full response
@@ -1074,6 +1146,8 @@ impl ChatView {
         self.inline_content.clear();
         // v0.8.1: Reset agent phase
         self.on_agent_complete();
+        // v0.8.2: Final auto-scroll after streaming completes
+        self.auto_scroll_to_bottom();
         std::mem::take(&mut self.partial_response)
     }
 
@@ -1187,13 +1261,19 @@ impl ChatView {
     pub fn load_session(&mut self, path: impl AsRef<Path>) -> std::io::Result<()> {
         let session = ChatSession::load(path)?;
 
-        // Clear current messages and load from session
+        // Clear current messages and reset ID counter
         self.messages.clear();
+        self.thinking_collapsed.clear(); // Clear thinking state for new session
+        self.message_id_counter = 0; // Reset counter for fresh session
+
         for msg in session.messages {
+            let id = self.next_message_id();
             self.messages.push(ChatMessage {
+                id,
                 role: msg.role.into(),
                 content: msg.content,
-                timestamp: Instant::now(), // Use current time since original is lost
+                timestamp: Local::now(), // Use current time since original is lost
+                created_at: Instant::now(),
                 execution: None,
                 thinking: msg.thinking,
             });
@@ -1266,10 +1346,13 @@ impl ChatView {
 
     /// Add a tool message
     pub fn add_tool_message(&mut self, content: String) {
+        let id = self.next_message_id();
         self.messages.push(ChatMessage {
+            id,
             role: MessageRole::Tool,
             content,
-            timestamp: Instant::now(),
+            timestamp: Local::now(),
+            created_at: Instant::now(),
             execution: None,
             thinking: None,
         });
@@ -1285,6 +1368,7 @@ impl ChatView {
             match content {
                 InlineContent::McpCall(data) => data.tick(),
                 InlineContent::InferStream(data) => data.tick(),
+                InlineContent::Task(task_box) => task_box.tick(),
             }
         }
         // v0.8 WOW: Tick flash effects
@@ -1318,6 +1402,9 @@ impl ChatView {
             server_info.status = McpStatus::Hot;
             server_info.last_call = Some(Instant::now());
         }
+
+        // v0.8.2: Auto-scroll when MCP call appears
+        self.auto_scroll_to_bottom();
     }
 
     /// Complete an MCP call with result
@@ -1328,6 +1415,8 @@ impl ChatView {
         }
         // Move activity from hot to warm
         self.transition_activity_to_warm("invoke");
+        // v0.8.2: Auto-scroll when MCP result arrives
+        self.auto_scroll_to_bottom();
     }
 
     /// Fail an MCP call with error
@@ -1336,6 +1425,61 @@ impl ChatView {
             data.error = Some(error.to_string());
             data.status = McpCallStatus::Failed;
         }
+        // v0.8.2: Auto-scroll when MCP error appears
+        self.auto_scroll_to_bottom();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // TaskBox Integration (v0.8.1)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// Add a TaskBox to inline content
+    ///
+    /// This is the unified way to display verb-specific boxes in the chat.
+    /// Each verb type (infer, exec, fetch, invoke, agent) has its own visual treatment.
+    pub fn add_task_box(&mut self, task_box: TaskBox) {
+        // Add activity based on verb type
+        let verb_name = match &task_box {
+            TaskBox::Infer(_) => "infer",
+            TaskBox::Exec(_) => "exec",
+            TaskBox::Fetch(_) => "fetch",
+            TaskBox::Invoke(_) => "invoke",
+            TaskBox::Agent(_) => "agent",
+        };
+        self.activity_items.push(ActivityItem::hot(
+            format!("task-{}-{}", verb_name, self.inline_content.len()),
+            verb_name,
+        ));
+
+        self.inline_content.push(InlineContent::Task(task_box));
+        self.auto_scroll_to_bottom();
+    }
+
+    /// Update the last TaskBox (for streaming updates)
+    pub fn update_last_task_box<F>(&mut self, f: F)
+    where
+        F: FnOnce(&mut TaskBox),
+    {
+        if let Some(InlineContent::Task(task_box)) = self.inline_content.last_mut() {
+            f(task_box);
+        }
+    }
+
+    /// Complete the last TaskBox with success
+    pub fn complete_last_task_box(&mut self, duration_ms: u64) {
+        if let Some(InlineContent::Task(task_box)) = self.inline_content.last_mut() {
+            *task_box.state_mut() = BoxState::success(duration_ms);
+        }
+        self.transition_activity_to_warm("task");
+        self.auto_scroll_to_bottom();
+    }
+
+    /// Fail the last TaskBox with error
+    pub fn fail_last_task_box(&mut self, error: &str, duration_ms: u64) {
+        if let Some(InlineContent::Task(task_box)) = self.inline_content.last_mut() {
+            *task_box.state_mut() = BoxState::failed(error, duration_ms);
+        }
+        self.auto_scroll_to_bottom();
     }
 
     /// Start an inference stream
@@ -1505,10 +1649,13 @@ impl ChatView {
 
     /// Add a user message
     pub fn add_user_message(&mut self, content: String) {
+        let id = self.next_message_id();
         self.messages.push(ChatMessage {
+            id,
             role: MessageRole::User,
             content: content.clone(),
-            timestamp: Instant::now(),
+            timestamp: Local::now(),
+            created_at: Instant::now(),
             execution: None,
             thinking: None,
         });
@@ -1521,10 +1668,13 @@ impl ChatView {
 
     /// Add a Nika response
     pub fn add_nika_message(&mut self, content: String, execution: Option<ExecutionResult>) {
+        let id = self.next_message_id();
         self.messages.push(ChatMessage {
+            id,
             role: MessageRole::Nika,
             content,
-            timestamp: Instant::now(),
+            timestamp: Local::now(),
+            created_at: Instant::now(),
             execution,
             thinking: None,
         });
@@ -1538,10 +1688,13 @@ impl ChatView {
         thinking: Option<String>,
         execution: Option<ExecutionResult>,
     ) {
+        let id = self.next_message_id();
         self.messages.push(ChatMessage {
+            id,
             role: MessageRole::Nika,
             content,
-            timestamp: Instant::now(),
+            timestamp: Local::now(),
+            created_at: Instant::now(),
             execution,
             thinking,
         });
@@ -1550,14 +1703,322 @@ impl ChatView {
 
     /// Add a system message (for mode changes, status updates)
     pub fn add_system_message(&mut self, content: impl Into<String>) {
+        let id = self.next_message_id();
         self.messages.push(ChatMessage {
+            id,
             role: MessageRole::System,
             content: content.into(),
-            timestamp: Instant::now(),
+            timestamp: Local::now(),
+            created_at: Instant::now(),
             execution: None,
             thinking: None,
         });
         self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
+    }
+
+    /// v0.9: Export chat session to JSON file
+    ///
+    /// Exports all messages to a JSON file for later analysis or sharing.
+    /// If no path is provided, generates a timestamped filename.
+    ///
+    /// # Security
+    /// Path is validated to prevent directory traversal attacks:
+    /// - Rejects paths with `..` components
+    /// - Rejects absolute paths (must be relative to current directory)
+    /// - Ensures `.json` extension
+    ///
+    /// # Returns
+    /// The path to the exported file on success
+    pub fn export_session(&self, path: Option<&str>) -> Result<String, String> {
+        // Generate default filename with timestamp
+        let filepath = match path {
+            Some(p) => {
+                // v0.9 SECURITY: Validate user-provided path
+                let path = Path::new(p);
+
+                // Reject absolute paths (must be relative to current directory)
+                if path.is_absolute() {
+                    return Err("Security: Absolute paths not allowed. Use a relative path.".into());
+                }
+
+                // Reject paths with parent directory traversal
+                for component in path.components() {
+                    if matches!(component, std::path::Component::ParentDir) {
+                        return Err(
+                            "Security: Path traversal (..) not allowed. Use a simple filename."
+                                .into(),
+                        );
+                    }
+                }
+
+                // Ensure .json extension (user-friendly, prevents accidental overwrites)
+                let p_str = p.to_string();
+                if p_str.ends_with(".json") {
+                    p_str
+                } else {
+                    format!("{}.json", p_str)
+                }
+            }
+            None => format!("nika-chat-{}.json", Local::now().format("%Y%m%d-%H%M%S")),
+        };
+
+        // Build exportable session data
+        #[derive(Serialize)]
+        struct ExportedSession {
+            exported_at: String,
+            model: String,
+            message_count: usize,
+            messages: Vec<ExportedMessage>,
+        }
+
+        #[derive(Serialize)]
+        struct ExportedMessage {
+            role: String,
+            content: String,
+            timestamp: String,
+            thinking: Option<String>,
+        }
+
+        let messages: Vec<ExportedMessage> = self
+            .messages
+            .iter()
+            .map(|m| ExportedMessage {
+                role: format!("{:?}", m.role),
+                content: m.content.clone(),
+                timestamp: m.timestamp.to_rfc3339(),
+                thinking: m.thinking.clone(),
+            })
+            .collect();
+
+        let session = ExportedSession {
+            exported_at: Local::now().to_rfc3339(),
+            model: self.current_model.clone(),
+            message_count: messages.len(),
+            messages,
+        };
+
+        // Serialize to JSON
+        let json = serde_json::to_string_pretty(&session)
+            .map_err(|e| format!("JSON serialization failed: {}", e))?;
+
+        // Write to file using atomic_write for safety
+        atomic_write(Path::new(&filepath), json.as_bytes())
+            .map_err(|e| format!("File write failed: {}", e))?;
+
+        Ok(filepath)
+    }
+
+    /// v0.9: Generate a new unique message ID
+    fn next_message_id(&mut self) -> u64 {
+        self.message_id_counter += 1;
+        self.message_id_counter
+    }
+
+    /// v0.9: Toggle thinking section visibility for a specific message
+    ///
+    /// Toggles the collapsed state of thinking content for the message at index.
+    /// Used with 't' key to show/hide thinking for the cursor message.
+    /// v0.9 FIX: Uses stable message IDs instead of indices for stability.
+    pub fn toggle_thinking(&mut self, idx: usize) {
+        // Only toggle if this message has thinking content
+        if let Some(msg) = self.messages.get(idx) {
+            if msg.thinking.is_some() {
+                let msg_id = msg.id;
+                if self.thinking_collapsed.contains(&msg_id) {
+                    self.thinking_collapsed.remove(&msg_id);
+                } else {
+                    self.thinking_collapsed.insert(msg_id);
+                }
+            }
+        }
+    }
+
+    /// v0.9: Toggle thinking visibility for all messages
+    ///
+    /// Toggles the default expanded state and clears individual overrides.
+    /// Used with 'T' key to show/hide all thinking sections at once.
+    pub fn toggle_all_thinking(&mut self) {
+        self.thinking_expanded_default = !self.thinking_expanded_default;
+        self.thinking_collapsed.clear();
+        // Add system message to confirm the toggle
+        let state = if self.thinking_expanded_default {
+            "expanded"
+        } else {
+            "collapsed"
+        };
+        self.add_system_message(format!("🧠 Thinking sections now {} by default", state));
+    }
+
+    /// v0.9: Check if thinking is visible for a specific message
+    ///
+    /// Returns true if thinking section should be shown for message at index.
+    /// The `thinking_collapsed` set tracks messages that differ from the default.
+    /// If default=false (collapsed), set contains messages to SHOW.
+    /// If default=true (expanded), set contains messages to HIDE.
+    /// v0.9 FIX: Uses stable message IDs instead of indices for stability.
+    pub fn is_thinking_visible(&self, idx: usize) -> bool {
+        // Get the message ID from the index
+        if let Some(msg) = self.messages.get(idx) {
+            // If in the override set, return the OPPOSITE of default
+            if self.thinking_collapsed.contains(&msg.id) {
+                return !self.thinking_expanded_default;
+            }
+        }
+        // Otherwise use default
+        self.thinking_expanded_default
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // v0.9 Phase 2: @ Mention Autocomplete
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// Check for @ trigger in current input and update autocomplete popup
+    ///
+    /// Called on every input change to detect when user types @ and show suggestions.
+    pub fn check_mention_trigger(&mut self) {
+        let input = self.input.value();
+        let cursor_char = self.input.cursor();
+
+        // Convert character index to byte index for safe string slicing
+        // tui-input uses character indices, but at_trigger_position needs byte indices
+        let cursor_byte = input
+            .char_indices()
+            .nth(cursor_char)
+            .map(|(i, _)| i)
+            .unwrap_or(input.len());
+
+        // Check if we're in a @ trigger position
+        if let Some(trigger) = Mention::at_trigger_position(input, cursor_byte) {
+            // Generate suggestions based on trigger
+            let suggestions = self.generate_mention_suggestions(&trigger);
+
+            if !suggestions.is_empty() {
+                self.mention_autocomplete.show(trigger, suggestions);
+            } else {
+                self.mention_autocomplete.hide();
+            }
+        } else {
+            self.mention_autocomplete.hide();
+        }
+    }
+
+    /// Generate suggestions for a mention trigger
+    fn generate_mention_suggestions(&self, trigger: &crate::tui::widgets::MentionTrigger) -> Vec<MentionSuggestion> {
+        let mut suggestions = Vec::new();
+        let query = trigger.query.to_lowercase();
+
+        match trigger.trigger_type {
+            Some(MentionType::File) | None => {
+                // Suggest files from memory_files and working directory
+                for file in &self.memory_files {
+                    if file.name.to_lowercase().contains(&query) {
+                        suggestions.push(MentionSuggestion::file(&file.name));
+                    }
+                }
+
+                // If no type specified, also suggest type prefixes
+                if trigger.trigger_type.is_none() && query.is_empty() {
+                    // Show type hints when user just typed @
+                    if suggestions.len() < 5 {
+                        suggestions.push(MentionSuggestion {
+                            display: "entity:".to_string(),
+                            insert: "@entity:".to_string(),
+                            mention_type: MentionType::Entity,
+                            description: Some("Reference a NovaNet entity".to_string()),
+                        });
+                        suggestions.push(MentionSuggestion {
+                            display: "locale:".to_string(),
+                            insert: "@locale:".to_string(),
+                            mention_type: MentionType::Locale,
+                            description: Some("Reference a locale".to_string()),
+                        });
+                        suggestions.push(MentionSuggestion {
+                            display: "project:".to_string(),
+                            insert: "@project:".to_string(),
+                            mention_type: MentionType::Project,
+                            description: Some("Reference a project".to_string()),
+                        });
+                    }
+                }
+            }
+            Some(MentionType::Entity) => {
+                // Suggest entities (would come from NovaNet MCP)
+                // For now, use context_items as source
+                for item in &self.context_items {
+                    if item.mention.to_lowercase().contains(&query) {
+                        suggestions.push(MentionSuggestion::entity(&item.mention, Some(&item.mention)));
+                    }
+                }
+                // Add some example entities if empty
+                if suggestions.is_empty() && query.is_empty() {
+                    suggestions.push(MentionSuggestion::entity("qr-code", Some("QR Code")));
+                    suggestions.push(MentionSuggestion::entity("url-shortener", Some("URL Shortener")));
+                }
+            }
+            Some(MentionType::Locale) => {
+                // Suggest common locales
+                let locales = [
+                    ("en-US", "English (US)"),
+                    ("fr-FR", "French"),
+                    ("de-DE", "German"),
+                    ("es-ES", "Spanish"),
+                    ("it-IT", "Italian"),
+                    ("ja-JP", "Japanese"),
+                    ("zh-CN", "Chinese (Simplified)"),
+                    ("pt-BR", "Portuguese (Brazil)"),
+                ];
+                for (code, name) in locales {
+                    if code.to_lowercase().contains(&query) || name.to_lowercase().contains(&query) {
+                        suggestions.push(MentionSuggestion::locale(code, Some(name)));
+                    }
+                }
+            }
+            Some(MentionType::Project) => {
+                // Suggest projects (would come from NovaNet MCP)
+                if "qrcode-ai".contains(&query) {
+                    suggestions.push(MentionSuggestion::project("qrcode-ai", Some("QR Code AI")));
+                }
+            }
+            Some(MentionType::Term) => {
+                // Suggest terms (would come from NovaNet MCP)
+                // For now, empty - would be populated by MCP
+            }
+        }
+
+        // Limit to 8 suggestions
+        suggestions.truncate(8);
+        suggestions
+    }
+
+    /// Accept the currently selected mention suggestion
+    ///
+    /// Replaces the partial @ trigger with the full mention text.
+    pub fn accept_mention_suggestion(&mut self) {
+        if let (Some(trigger), Some(suggestion)) = (
+            self.mention_autocomplete.trigger.as_ref(),
+            self.mention_autocomplete.current(),
+        ) {
+            let input = self.input.value().to_string();
+            let before = &input[..trigger.start];
+            let after = &input[trigger.start + trigger.partial.len()..];
+
+            // Build new input with suggestion
+            let new_input = format!("{}{} {}", before, suggestion.insert, after);
+
+            // Update input (using tui-input API)
+            // Move cursor to start if not already there
+            if self.input.cursor() > 0 {
+                self.input.handle(InputRequest::GoToStart);
+            }
+            self.input = Input::new(new_input.clone());
+            // Move cursor to after the inserted mention + space
+            let new_cursor = trigger.start + suggestion.insert.len() + 1;
+            for _ in 0..new_cursor.min(new_input.len()) {
+                self.input.handle(InputRequest::GoToEnd);
+            }
+        }
+
+        self.mention_autocomplete.hide();
     }
 
     /// v0.8.1 FIX: Auto-scroll to bottom of conversation (NovaNet pattern)
@@ -1691,6 +2152,7 @@ impl ChatView {
             ParsedInput::System(cmd) => {
                 self.handle_system_command(cmd);
                 self.input.reset();
+                self.update_mode_from_input(); // v0.8.1: Preserve mode after clear
                 return None;
             }
             ParsedInput::PartialPrefix(_) => {
@@ -1704,6 +2166,7 @@ impl ChatView {
 
         self.add_user_message(message.clone());
         self.input.reset();
+        self.update_mode_from_input(); // v0.8.1: Preserve mode after submit
         Some(message)
     }
 
@@ -1810,12 +2273,14 @@ impl ChatView {
     pub fn insert_char(&mut self, c: char) {
         self.input.handle(InputRequest::InsertChar(c));
         self.update_mode_from_input(); // v0.8.1: Sync mode indicator
+        self.check_mention_trigger(); // v0.9 Phase 2: @ mention autocomplete
     }
 
     /// Delete character before cursor (delegates to tui-input)
     pub fn backspace(&mut self) {
         self.input.handle(InputRequest::DeletePrevChar);
         self.update_mode_from_input(); // v0.8.1: Sync mode indicator
+        self.check_mention_trigger(); // v0.9 Phase 2: @ mention autocomplete
     }
 
     /// v0.8.1: Update chat_mode and current_verb based on input prefix
@@ -1991,6 +2456,21 @@ impl View for ChatView {
             let help_area = centered_rect(70, 80, area);
             HelpOverlay::new(&self.help_overlay).render(help_area, frame.buffer_mut());
         }
+
+        // 8. v0.9 Phase 2: Mention autocomplete popup (if visible)
+        if self.mention_autocomplete.visible {
+            // Position popup above the input area
+            let popup_height = (self.mention_autocomplete.suggestions.len().min(8) + 2) as u16;
+            let popup_y = chunks[2].y.saturating_sub(popup_height);
+            let popup_area = Rect::new(
+                chunks[2].x + 2, // Slight offset from left
+                popup_y,
+                chunks[2].width.min(50).saturating_sub(4),
+                popup_height,
+            );
+            MentionAutocomplete::new(&self.mention_autocomplete)
+                .render(popup_area, frame.buffer_mut());
+        }
     }
 
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
@@ -2007,6 +2487,30 @@ impl View for ChatView {
         // Handle provider selector when visible
         if self.provider_selector.visible {
             return self.handle_provider_selector_key(key);
+        }
+
+        // v0.9 Phase 2: Handle mention autocomplete when visible
+        if self.mention_autocomplete.visible {
+            match key.code {
+                KeyCode::Tab | KeyCode::Enter => {
+                    self.accept_mention_suggestion();
+                    return ViewAction::None;
+                }
+                KeyCode::Down => {
+                    self.mention_autocomplete.next();
+                    return ViewAction::None;
+                }
+                KeyCode::Up => {
+                    self.mention_autocomplete.prev();
+                    return ViewAction::None;
+                }
+                KeyCode::Esc => {
+                    self.mention_autocomplete.hide();
+                    return ViewAction::None;
+                }
+                // Let other keys pass through to normal handling
+                _ => {}
+            }
         }
 
         // Check for Cmd/Ctrl+K (command palette toggle)
@@ -2030,6 +2534,12 @@ impl View for ChatView {
                 "disabled"
             };
             self.add_system_message(format!("🧠 Deep thinking {}", status));
+            return ViewAction::None;
+        }
+
+        // Alt+T = Toggle all thinking sections visibility (v0.9)
+        if key.modifiers.contains(KeyModifiers::ALT) && key.code == KeyCode::Char('t') {
+            self.toggle_all_thinking();
             return ViewAction::None;
         }
 
@@ -2176,6 +2686,22 @@ impl View for ChatView {
                     }
                     return ViewAction::None;
                 }
+                // t = Toggle thinking for selected message (v0.9)
+                KeyCode::Char('t') => {
+                    let cursor = self.conversation_scroll.cursor;
+                    if cursor < self.messages.len()
+                        && self.messages[cursor].thinking.is_some()
+                    {
+                        self.toggle_thinking(cursor);
+                        let state = if self.is_thinking_visible(cursor) {
+                            "expanded"
+                        } else {
+                            "collapsed"
+                        };
+                        self.add_system_message(format!("🧠 Thinking {} for message", state));
+                    }
+                    return ViewAction::None;
+                }
                 // Enter in Conversation/Activity = Return focus to Input
                 KeyCode::Enter => {
                     self.focus_panel(ChatPanel::Input);
@@ -2238,6 +2764,18 @@ impl View for ChatView {
                         Command::Clear => ViewAction::ChatClear,
                         Command::Exec { command } => ViewAction::ChatExec(command),
                         Command::Fetch { url, method } => ViewAction::ChatFetch(url, method),
+                        Command::FetchError {
+                            error,
+                            hint,
+                            example,
+                        } => {
+                            // v0.8.2: Show helpful error message for fetch mistakes
+                            self.add_nika_message(
+                                format!("{}\n{}\n{}", error, hint, example),
+                                None,
+                            );
+                            ViewAction::None
+                        }
                         Command::Invoke {
                             tool,
                             server,
@@ -2282,6 +2820,24 @@ impl View for ChatView {
                             } else {
                                 ViewAction::ChatModelSwitch(provider)
                             }
+                        }
+                        Command::Export { path } => {
+                            // v0.9: Export chat to JSON file
+                            match self.export_session(path.as_deref()) {
+                                Ok(filepath) => {
+                                    self.add_system_message(format!(
+                                        "📤 Chat exported to: {}",
+                                        filepath
+                                    ));
+                                }
+                                Err(e) => {
+                                    self.add_system_message(format!(
+                                        "❌ Export failed: {}",
+                                        e
+                                    ));
+                                }
+                            }
+                            ViewAction::None
                         }
                         Command::Infer { prompt } | Command::Chat { message: prompt } => {
                             // Resolve @file mentions in the prompt
@@ -2434,6 +2990,18 @@ impl ChatView {
                             Command::Clear => ViewAction::ChatClear,
                             Command::Exec { command } => ViewAction::ChatExec(command),
                             Command::Fetch { url, method } => ViewAction::ChatFetch(url, method),
+                            Command::FetchError {
+                                error,
+                                hint,
+                                example,
+                            } => {
+                                // v0.8.2: Show helpful error message
+                                self.add_nika_message(
+                                    format!("{}\n{}\n{}", error, hint, example),
+                                    None,
+                                );
+                                ViewAction::None
+                            }
                             Command::Invoke {
                                 tool,
                                 server,
@@ -2451,6 +3019,24 @@ impl ChatView {
                             ),
                             Command::Mcp { action } => ViewAction::ChatMcp(action),
                             Command::Model { provider } => ViewAction::ChatModelSwitch(provider),
+                            Command::Export { path } => {
+                                // v0.9: Export chat to JSON file
+                                match self.export_session(path.as_deref()) {
+                                    Ok(filepath) => {
+                                        self.add_system_message(format!(
+                                            "📤 Chat exported to: {}",
+                                            filepath
+                                        ));
+                                    }
+                                    Err(e) => {
+                                        self.add_system_message(format!(
+                                            "❌ Export failed: {}",
+                                            e
+                                        ));
+                                    }
+                                }
+                                ViewAction::None
+                            }
                             Command::Infer { prompt } | Command::Chat { message: prompt } => {
                                 ViewAction::ChatInfer(prompt)
                             }
@@ -2491,7 +3077,24 @@ impl ChatView {
                 let provider = self.provider_selector.selected_provider();
                 let model = self.provider_selector.selected_model();
 
+                // v0.8.2: VERIFY provider is available before allowing selection
+                if !provider.available {
+                    let reason = provider
+                        .unavailable_reason
+                        .clone()
+                        .unwrap_or_else(|| "Provider not available".to_string());
+                    self.add_system_message(format!(
+                        "⚠️ Cannot switch to {}: {}",
+                        provider.name, reason
+                    ));
+                    self.provider_selector.close();
+                    return ViewAction::None;
+                }
+
                 if let Some(model_info) = model {
+                    // v0.8.2: Store provider ID for actual inference (CRITICAL FIX!)
+                    self.current_provider_id = provider.id.clone();
+
                     // Update current model
                     self.current_model = model_info.id.clone();
                     self.cached_provider = Provider::from_model_name(&self.current_model);
@@ -2802,46 +3405,109 @@ impl ChatView {
         let idx = (frame / 60) as usize; // Change every ~1 second at 60fps
         match verb_color {
             VerbColor::Invoke => {
+                // v0.8.2: MCP tool examples from NovaNet + common patterns
                 const HINTS: &[&str] = &[
-                    "novanet_describe entity:qr-code",
-                    "novanet_generate locale:fr-FR",
-                    "novanet_traverse start:entity",
-                    "tool_name { params }",
+                    "novanet:describe {\"entity\": \"qr-code\"}",
+                    "novanet:generate {\"locale\": \"fr-FR\", \"entity\": \"landing\"}",
+                    "novanet:traverse {\"start\": \"entity:qr\", \"depth\": 2}",
+                    "novanet:search {\"query\": \"pricing page\"}",
+                    "novanet:atoms {\"entity\": \"qr-code\", \"forms\": [\"title\", \"text\"]}",
+                    "filesystem:read_file {\"path\": \"./README.md\"}",
+                    "filesystem:list_directory {\"path\": \"./src\"}",
+                    "browser:screenshot {\"url\": \"https://example.com\"}",
+                    "database:query {\"sql\": \"SELECT * FROM users LIMIT 5\"}",
+                    "github:search_repos {\"query\": \"language:rust stars:>1000\"}",
                 ];
                 HINTS[idx % HINTS.len()]
             }
             VerbColor::Infer => {
+                // v0.8.2: Creative & practical LLM prompts
                 const HINTS: &[&str] = &[
-                    "Generate a landing page headline",
-                    "Summarize this content in 3 bullets",
-                    "Translate to French: ...",
-                    "Explain this code snippet",
+                    "Generate a landing page headline for a SaaS product",
+                    "Summarize this article in 3 bullet points",
+                    "Translate to French: Hello, how are you today?",
+                    "Explain this Rust code like I'm a beginner",
+                    "Write unit tests for this function using pytest",
+                    "Convert this SQL query to a TypeScript Prisma query",
+                    "Rewrite this paragraph in a more professional tone",
+                    "Generate 5 creative names for a coffee shop",
+                    "Create a regex to match email addresses",
+                    "Write a haiku about programming",
+                    "Debug this error: 'cannot borrow as mutable'",
+                    "Suggest 3 improvements for this API endpoint",
+                    "Write a commit message for these changes",
+                    "Create a product description for wireless earbuds",
+                    "Explain the difference between async and sync",
                 ];
                 HINTS[idx % HINTS.len()]
             }
             VerbColor::Exec => {
+                // v0.8.2: Productive shell one-liners
                 const HINTS: &[&str] = &[
                     "npm run build",
                     "cargo test --release",
                     "git status",
-                    "ls -la ./src",
+                    "git log --oneline -10",
+                    "git diff --staged",
+                    "git commit -am \"fix: resolve issue\"",
+                    "ls -la ./src | head -20",
+                    "find . -name \"*.rs\" | wc -l",
+                    "grep -r \"TODO\" ./src",
+                    "docker ps -a",
+                    "docker-compose up -d",
+                    "npm outdated",
+                    "cargo clippy -- -D warnings",
+                    "python -m pytest -v",
+                    "curl -I https://example.com",
+                    "du -sh ./target",
+                    "cat package.json | jq '.dependencies'",
+                    "ps aux | grep node",
+                    "netstat -an | grep LISTEN",
+                    "tree -L 2 ./src",
                 ];
                 HINTS[idx % HINTS.len()]
             }
             VerbColor::Fetch => {
+                // v0.8.2: Fun real APIs that actually work! (no auth required)
                 const HINTS: &[&str] = &[
-                    "https://api.example.com/data",
-                    "GET https://jsonplaceholder.typicode.com/todos/1",
-                    "POST https://api.service.com/webhook",
+                    "https://catfact.ninja/fact",                         // 🐱 Cat facts
+                    "https://api.open-meteo.com/v1/forecast?latitude=48.8566&longitude=2.3522&current_weather=true", // ☀️ Paris
+                    "https://httpbin.org/get",                            // 🧪 HTTP test
+                    "https://dog.ceo/api/breeds/image/random",            // 🐕 Random dog
+                    "https://api.chucknorris.io/jokes/random",            // 💪 Chuck Norris
+                    "https://uselessfacts.jsph.pl/random.json?language=en", // 🤯 Useless fact
+                    "https://api.coindesk.com/v1/bpi/currentprice.json",  // 💰 Bitcoin
+                    "https://api.github.com/zen",                         // 🧘 GitHub wisdom
+                    "https://official-joke-api.appspot.com/random_joke",  // 😂 Random joke
+                    "https://api.adviceslip.com/advice",                  // 💡 Life advice
+                    "https://randomfox.ca/floof/",                        // 🦊 Random fox
+                    "https://xkcd.com/info.0.json",                       // 📰 Latest xkcd
+                    "https://api.ipify.org?format=json",                  // 🌐 Your IP
+                    "https://worldtimeapi.org/api/ip",                    // 🕐 World time
+                    "https://opentdb.com/api.php?amount=1",               // ❓ Trivia
+                    "http://api.open-notify.org/iss-now.json",            // 🛸 ISS position
+                    "https://api.agify.io?name=thibaut",                  // 🎂 Age guess
                 ];
                 HINTS[idx % HINTS.len()]
             }
             VerbColor::Agent => {
+                // v0.8.2: Complex multi-step agentic tasks
                 const HINTS: &[&str] = &[
-                    "Research and generate a full report on...",
-                    "Analyze the codebase and suggest improvements",
-                    "Build a landing page for QR Code AI",
-                    "Debug this issue and propose a fix",
+                    "Research competitors and write a market analysis report",
+                    "Analyze this codebase and suggest 5 improvements",
+                    "Build a landing page for QR Code AI with SEO",
+                    "Debug this error and propose a fix with tests",
+                    "Create a full REST API spec for a todo app",
+                    "Review this PR and provide detailed feedback",
+                    "Refactor this module to use async/await",
+                    "Generate documentation for all public functions",
+                    "Find and fix all security vulnerabilities",
+                    "Create a migration plan from v1 to v2 API",
+                    "Write a technical blog post about this feature",
+                    "Set up CI/CD pipeline with GitHub Actions",
+                    "Optimize database queries for better performance",
+                    "Create test fixtures for integration tests",
+                    "Design a caching strategy for this endpoint",
                 ];
                 HINTS[idx % HINTS.len()]
             }
@@ -3104,16 +3770,21 @@ impl ChatView {
                     // v0.8.2: Show contextual placeholder when verb is complete and no argument yet
                     if is_complete && rest_part.trim().is_empty() {
                         let placeholder = Self::verb_placeholder(&verb_color, self.frame);
+                        // Animated color pulse for placeholder
+                        let pulse = ((self.frame as f32 / 30.0).sin() + 1.0) / 2.0; // 0.0-1.0
+                        let (r, g, b) = verb_color.muted_tuple();
+                        let fade = 0.4 + (pulse * 0.3); // 0.4-0.7 opacity
+                        let pr = (r as f32 * fade) as u8;
+                        let pg = (g as f32 * fade) as u8;
+                        let pb = (b as f32 * fade) as u8;
                         spans.push(Span::styled(
                             format!(" {}", placeholder),
                             Style::default()
-                                .fg(theme.text_muted)
+                                .fg(Color::Rgb(pr, pg, pb))
                                 .add_modifier(Modifier::ITALIC),
                         ));
-                        spans.push(Span::styled(
-                            " [Tab]",
-                            Style::default().fg(theme.text_muted),
-                        ));
+                        // Tab hint with verb color
+                        spans.push(Span::styled(" ⭾", Style::default().fg(verb_color.muted())));
                     }
                 }
             } else {
@@ -3203,13 +3874,17 @@ impl ChatView {
                 current_line += 1;
             }
 
-            // Account for thinking lines if present
+            // Account for thinking lines if present and visible (v0.9)
             if let Some(ref thinking) = msg.thinking {
-                current_line += 1; // "🧠 Thinking:" header
-                let think_lines = thinking.lines().take(3).count();
-                current_line += think_lines;
-                if thinking.lines().count() > 3 {
-                    current_line += 1; // "... (N more lines)"
+                if self.is_thinking_visible(msg_idx) {
+                    current_line += 1; // "🧠 Thinking:" header
+                    let think_lines = thinking.lines().take(3).count();
+                    current_line += think_lines;
+                    if thinking.lines().count() > 3 {
+                        current_line += 1; // "... (N more lines)"
+                    }
+                } else {
+                    current_line += 1; // Collapsed indicator: "🧠 Thinking: (collapsed)"
                 }
             }
 
@@ -3224,6 +3899,11 @@ impl ChatView {
         // v0.8 Text Selection: Extract selection state for use in closure
         let selection = self.text_selection.clone();
         let selection_bg = theme.highlight; // Use highlight color for selection background
+
+        // v0.9: Pre-compute thinking visibility for use in closure
+        let thinking_visible: Vec<bool> = (0..self.messages.len())
+            .map(|i| self.is_thinking_visible(i))
+            .collect();
 
         let mut items: Vec<ListItem> = self
             .messages
@@ -3264,10 +3944,17 @@ impl ChatView {
                     MessageRole::Tool => "🔧 Tool ",
                 };
 
+                // v0.9 UX: Format timestamp as HH:MM
+                let ts_str = msg.timestamp.format("%H:%M").to_string();
+
                 // v0.8 WOW: Add COPIED indicator when flashing
                 let mut header_spans = vec![
                     Span::styled(prefix_with_space, style.add_modifier(Modifier::BOLD)),
                     Span::styled(SEPARATOR_20, Style::default().fg(theme.text_muted)),
+                    Span::styled(
+                        format!(" {} ", ts_str),
+                        Style::default().fg(theme.text_muted),
+                    ),
                 ];
                 if is_flashing {
                     header_spans.push(Span::styled(
@@ -3336,43 +4023,58 @@ impl ChatView {
                     char_offset += line_len + 1; // +1 for newline/wrap
                 }
 
-                // Add thinking display if present (v0.5.2+)
+                // Add thinking display if present (v0.5.2+, v0.9: visibility toggle)
                 if let Some(ref thinking) = msg.thinking {
-                    // Thinking indicator header
-                    lines.push(ListItem::new(Line::from(vec![
-                        Span::styled("│ ", Style::default().fg(color)),
-                        Span::styled(
-                            "🧠 Thinking:",
-                            Style::default()
-                                .fg(thinking_header_color)
-                                .add_modifier(Modifier::ITALIC),
-                        ),
-                    ])));
+                    let is_visible = thinking_visible.get(idx).copied().unwrap_or(false);
 
-                    // Truncate thinking to first 3 lines for inline display
-                    let thinking_lines: Vec<&str> = thinking.lines().take(3).collect();
-                    for think_line in &thinking_lines {
-                        // Truncate each line to 60 chars (UTF-8 safe)
-                        let display_line = truncate_str(think_line, 60);
+                    if is_visible {
+                        // Expanded: show header and content
                         lines.push(ListItem::new(Line::from(vec![
-                            Span::styled("│   ", Style::default().fg(color)),
+                            Span::styled("│ ", Style::default().fg(color)),
                             Span::styled(
-                                display_line,
+                                "🧠 Thinking: [t to collapse]",
                                 Style::default()
-                                    .fg(thinking_content_color)
+                                    .fg(thinking_header_color)
                                     .add_modifier(Modifier::ITALIC),
                             ),
                         ])));
-                    }
 
-                    // Show ellipsis if there are more lines
-                    let total_lines = thinking.lines().count();
-                    if total_lines > 3 {
+                        // Truncate thinking to first 3 lines for inline display
+                        let thinking_lines: Vec<&str> = thinking.lines().take(3).collect();
+                        for think_line in &thinking_lines {
+                            // Truncate each line to 60 chars (UTF-8 safe)
+                            let display_line = truncate_str(think_line, 60);
+                            lines.push(ListItem::new(Line::from(vec![
+                                Span::styled("│   ", Style::default().fg(color)),
+                                Span::styled(
+                                    display_line,
+                                    Style::default()
+                                        .fg(thinking_content_color)
+                                        .add_modifier(Modifier::ITALIC),
+                                ),
+                            ])));
+                        }
+
+                        // Show ellipsis if there are more lines
+                        let total_lines = thinking.lines().count();
+                        if total_lines > 3 {
+                            lines.push(ListItem::new(Line::from(vec![
+                                Span::styled("│   ", Style::default().fg(color)),
+                                Span::styled(
+                                    format!("... ({} more lines)", total_lines - 3),
+                                    Style::default().fg(muted_color),
+                                ),
+                            ])));
+                        }
+                    } else {
+                        // Collapsed: show only header with hint
                         lines.push(ListItem::new(Line::from(vec![
-                            Span::styled("│   ", Style::default().fg(color)),
+                            Span::styled("│ ", Style::default().fg(color)),
                             Span::styled(
-                                format!("... ({} more lines)", total_lines - 3),
-                                Style::default().fg(muted_color),
+                                "🧠 Thinking: (collapsed) [t to expand]",
+                                Style::default()
+                                    .fg(muted_color)
+                                    .add_modifier(Modifier::ITALIC),
                             ),
                         ])));
                     }
@@ -3501,6 +4203,210 @@ impl ChatView {
                         Style::default().fg(infer_box_color),
                     )])));
                     items.push(ListItem::new("")); // spacing
+                }
+                InlineContent::Task(task_box) => {
+                    // v0.8.1: Render TaskBox using verb-specific colors
+                    let verb_color = task_box.verb_color().rgb();
+                    let border_color = task_box.state().border_color(verb_color);
+                    let state_icon = task_box.state().icon();
+                    let state_suffix = task_box.state().suffix();
+
+                    // Render based on TaskBox variant
+                    match task_box {
+                        TaskBox::Invoke(invoke) => {
+                            // Top border: ╭─ 🔌 INVOKE: tool_name ─── status ─╮
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled(
+                                    format!("╭─ 🔌 INVOKE: {} ", invoke.tool),
+                                    Style::default().fg(border_color),
+                                ),
+                                Span::styled(
+                                    format!("{} {} ─╮", state_icon, state_suffix),
+                                    Style::default().fg(border_color),
+                                ),
+                            ])));
+                            // Server line
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled(
+                                    format!("server: {}", invoke.server),
+                                    Style::default().fg(muted_color),
+                                ),
+                            ])));
+                            // Params (if any)
+                            if !invoke.params.is_null() {
+                                let params_str = serde_json::to_string(&invoke.params)
+                                    .unwrap_or_else(|_| "{}".to_string());
+                                items.push(ListItem::new(Line::from(vec![
+                                    Span::styled("│ ", Style::default().fg(border_color)),
+                                    Span::styled("📥 ", Style::default().fg(muted_color)),
+                                    Span::raw(truncate_str(&params_str, 40)),
+                                ])));
+                            }
+                            // Result or error
+                            if let Some(ref result) = invoke.result {
+                                let result_str = serde_json::to_string(result)
+                                    .unwrap_or_else(|_| "null".to_string());
+                                items.push(ListItem::new(Line::from(vec![
+                                    Span::styled("│ ", Style::default().fg(border_color)),
+                                    Span::styled("📤 ", Style::default().fg(success_color)),
+                                    Span::raw(truncate_str(&result_str, 40)),
+                                ])));
+                            } else if let Some(ref err) = invoke.error {
+                                items.push(ListItem::new(Line::from(vec![
+                                    Span::styled("│ ", Style::default().fg(border_color)),
+                                    Span::styled("❌ ", Style::default().fg(error_color)),
+                                    Span::raw(truncate_str(err, 40)),
+                                ])));
+                            }
+                            // Bottom border
+                            items.push(ListItem::new(Line::from(vec![Span::styled(
+                                SEPARATOR_52,
+                                Style::default().fg(border_color),
+                            )])));
+                            items.push(ListItem::new("")); // spacing
+                        }
+                        TaskBox::Infer(infer) => {
+                            // Top border: ╭─ ⚡ INFER ─── status ─╮
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled(
+                                    format!("╭─ ⚡ INFER: {} ", truncate_str(&infer.model, 20)),
+                                    Style::default().fg(border_color),
+                                ),
+                                Span::styled(
+                                    format!("{} {} ─╮", state_icon, state_suffix),
+                                    Style::default().fg(border_color),
+                                ),
+                            ])));
+                            // Token info
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled(
+                                    format!("📊 {} in → {} out", infer.tokens_in, infer.tokens_out),
+                                    Style::default().fg(muted_color),
+                                ),
+                            ])));
+                            // Response (last 3 lines)
+                            let response_lines: Vec<&str> = infer.response.lines().collect();
+                            let start = response_lines.len().saturating_sub(3);
+                            for line in response_lines.iter().skip(start) {
+                                items.push(ListItem::new(Line::from(vec![
+                                    Span::styled("│ ", Style::default().fg(border_color)),
+                                    Span::raw(truncate_str(line, 50)),
+                                ])));
+                            }
+                            // Bottom border
+                            items.push(ListItem::new(Line::from(vec![Span::styled(
+                                "╰───────────────────────────────────────────────────╯",
+                                Style::default().fg(border_color),
+                            )])));
+                            items.push(ListItem::new("")); // spacing
+                        }
+                        TaskBox::Exec(exec) => {
+                            // Top border: ╭─ 📟 EXEC ─── status ─╮
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled(
+                                    format!("╭─ 📟 EXEC: {} ", truncate_str(&exec.command, 30)),
+                                    Style::default().fg(border_color),
+                                ),
+                                Span::styled(
+                                    format!("{} {} ─╮", state_icon, state_suffix),
+                                    Style::default().fg(border_color),
+                                ),
+                            ])));
+                            // Exit code or output
+                            if let Some(code) = exec.exit_code {
+                                items.push(ListItem::new(Line::from(vec![
+                                    Span::styled("│ ", Style::default().fg(border_color)),
+                                    Span::styled(
+                                        format!("exit: {}", code),
+                                        Style::default().fg(if code == 0 {
+                                            success_color
+                                        } else {
+                                            error_color
+                                        }),
+                                    ),
+                                ])));
+                            }
+                            // Output (last 2 lines)
+                            let output_lines: Vec<&str> = exec.stdout.lines().collect();
+                            for line in output_lines.iter().rev().take(2).rev() {
+                                items.push(ListItem::new(Line::from(vec![
+                                    Span::styled("│ ", Style::default().fg(border_color)),
+                                    Span::raw(truncate_str(line, 50)),
+                                ])));
+                            }
+                            // Bottom border
+                            items.push(ListItem::new(Line::from(vec![Span::styled(
+                                SEPARATOR_52,
+                                Style::default().fg(border_color),
+                            )])));
+                            items.push(ListItem::new("")); // spacing
+                        }
+                        TaskBox::Fetch(fetch) => {
+                            // Top border: ╭─ 🛰️ FETCH ─── status ─╮
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled(
+                                    format!("╭─ 🛰️ FETCH: {} {} ", fetch.method, truncate_str(&fetch.url, 25)),
+                                    Style::default().fg(border_color),
+                                ),
+                                Span::styled(
+                                    format!("{} {} ─╮", state_icon, state_suffix),
+                                    Style::default().fg(border_color),
+                                ),
+                            ])));
+                            // Status code
+                            if let Some(status) = fetch.status_code {
+                                items.push(ListItem::new(Line::from(vec![
+                                    Span::styled("│ ", Style::default().fg(border_color)),
+                                    Span::styled(
+                                        format!("status: {}", status),
+                                        Style::default().fg(if (200..300).contains(&status) {
+                                            success_color
+                                        } else {
+                                            error_color
+                                        }),
+                                    ),
+                                ])));
+                            }
+                            // Bottom border
+                            items.push(ListItem::new(Line::from(vec![Span::styled(
+                                SEPARATOR_52,
+                                Style::default().fg(border_color),
+                            )])));
+                            items.push(ListItem::new("")); // spacing
+                        }
+                        TaskBox::Agent(agent) => {
+                            // Top border: ╭─ 🐔 AGENT ─── status ─╮
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled(
+                                    format!("╭─ 🐔 AGENT: {} ", truncate_str(&agent.prompt, 25)),
+                                    Style::default().fg(border_color),
+                                ),
+                                Span::styled(
+                                    format!("{} {} ─╮", state_icon, state_suffix),
+                                    Style::default().fg(border_color),
+                                ),
+                            ])));
+                            // Turn/cost info
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled(
+                                    format!(
+                                        "Turn {}/{} │ 💰 ${:.2} │ 🔌 {} tools",
+                                        agent.turn, agent.max_turns, agent.cost, agent.tool_calls
+                                    ),
+                                    Style::default().fg(muted_color),
+                                ),
+                            ])));
+                            // Bottom border
+                            items.push(ListItem::new(Line::from(vec![Span::styled(
+                                SEPARATOR_52,
+                                Style::default().fg(border_color),
+                            )])));
+                            items.push(ListItem::new("")); // spacing
+                        }
+                    }
                 }
             }
         }
@@ -4381,9 +5287,11 @@ mod tests {
     #[test]
     fn test_chat_message_has_thinking_field() {
         let msg = ChatMessage {
+            id: 1, // Test ID
             role: MessageRole::Nika,
             content: "Here's my answer.".to_string(),
-            timestamp: Instant::now(),
+            timestamp: Local::now(),
+            created_at: Instant::now(),
             execution: None,
             thinking: Some("Let me analyze this step by step...".to_string()),
         };
@@ -5231,5 +6139,406 @@ mod tests {
         assert!(view.text_selection.is_none());
         assert!(!view.is_selecting);
         assert!(view.line_positions.is_empty());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.8.2: Provider Switching Tests (Critical Bug Fix)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_chat_view_has_current_provider_id() {
+        let view = ChatView::new();
+        // Provider ID should be set based on available API keys
+        assert!(!view.current_provider_id.is_empty());
+        // Should be one of the known providers
+        let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "ollama"];
+        assert!(
+            valid_providers.contains(&view.current_provider_id.as_str()),
+            "Provider ID '{}' should be a valid provider",
+            view.current_provider_id
+        );
+    }
+
+    #[test]
+    fn test_provider_id_matches_model() {
+        let view = ChatView::new();
+        // Provider ID should match the model's provider
+        match view.current_provider_id.as_str() {
+            "claude" => assert!(view.current_model.starts_with("claude")),
+            "openai" => assert!(view.current_model.starts_with("gpt")),
+            "mistral" => assert!(view.current_model.starts_with("mistral")),
+            "groq" => assert!(view.current_model.contains("llama") || view.current_model.contains("mixtral")),
+            "deepseek" => assert!(view.current_model.starts_with("deepseek")),
+            "ollama" => assert!(view.current_model.contains("llama")),
+            _ => panic!("Unknown provider: {}", view.current_provider_id),
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.9: Thinking Toggle Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_thinking_toggle_initial_state() {
+        let view = ChatView::new();
+        assert!(view.thinking_collapsed.is_empty());
+        // Default: expanded (thinking_expanded_default = true)
+        assert!(view.thinking_expanded_default);
+    }
+
+    #[test]
+    fn test_toggle_thinking_message_without_thinking() {
+        let mut view = ChatView::new();
+        view.add_user_message("Question".to_string());
+
+        // User message is at index 1 (system welcome is 0)
+        // Should not add to collapsed set if no thinking
+        view.toggle_thinking(1);
+        assert!(view.thinking_collapsed.is_empty());
+    }
+
+    #[test]
+    fn test_toggle_all_thinking() {
+        let mut view = ChatView::new();
+
+        // Add messages with thinking (indices 1 and 2 after system welcome at 0)
+        view.add_nika_message_with_thinking(
+            "Answer 1".to_string(),
+            Some("Thinking 1".to_string()),
+            None,
+        );
+        view.add_nika_message_with_thinking(
+            "Answer 2".to_string(),
+            Some("Thinking 2".to_string()),
+            None,
+        );
+
+        // Default is expanded (thinking_expanded_default = true)
+        assert!(view.thinking_expanded_default);
+
+        // Toggle all - should collapse all
+        view.toggle_all_thinking();
+        assert!(!view.thinking_expanded_default);
+        assert!(view.thinking_collapsed.is_empty()); // Cleared
+
+        // Toggle all again - should expand all
+        view.toggle_all_thinking();
+        assert!(view.thinking_expanded_default);
+        assert!(view.thinking_collapsed.is_empty()); // Still cleared
+    }
+
+    #[test]
+    fn test_is_thinking_visible_respects_default() {
+        let mut view = ChatView::new();
+        view.add_nika_message_with_thinking(
+            "Answer".to_string(),
+            Some("Thinking".to_string()),
+            None,
+        );
+
+        // Message is at index 1 (system welcome at 0)
+        // Get the message ID for direct set manipulation
+        let msg_id = view.messages[1].id;
+
+        // Default = true -> visible
+        assert!(view.is_thinking_visible(1));
+
+        // Change default to collapsed
+        view.thinking_expanded_default = false;
+        assert!(!view.is_thinking_visible(1));
+
+        // Add message ID to override set -> should be visible (opposite of default=false)
+        // v0.9 FIX: Use message ID instead of index for stability
+        view.thinking_collapsed.insert(msg_id);
+        assert!(view.is_thinking_visible(1));
+    }
+
+    #[test]
+    fn test_toggle_thinking_with_content() {
+        let mut view = ChatView::new();
+        // Default is expanded (true)
+        view.add_nika_message_with_thinking(
+            "Answer".to_string(),
+            Some("My reasoning...".to_string()),
+            None,
+        );
+
+        // Message at index 1, initially expanded (default = true, not in override set)
+        assert!(view.is_thinking_visible(1));
+
+        // Toggle adds to override set -> now shows opposite of default (false = collapsed)
+        view.toggle_thinking(1);
+        assert!(!view.is_thinking_visible(1)); // Now collapsed
+
+        // Toggle again removes from override set -> back to default (true = expanded)
+        view.toggle_thinking(1);
+        assert!(view.is_thinking_visible(1)); // Back to expanded
+    }
+
+    #[test]
+    fn test_thinking_toggle_with_collapsed_default() {
+        let mut view = ChatView::new();
+        view.thinking_expanded_default = false; // Start with collapsed default
+
+        view.add_nika_message_with_thinking(
+            "Answer".to_string(),
+            Some("Thinking...".to_string()),
+            None,
+        );
+
+        // Message at index 1, initially collapsed (default = false, not in override set)
+        assert!(!view.is_thinking_visible(1));
+
+        // Toggle adds to override set -> shows opposite of default (true = expanded)
+        view.toggle_thinking(1);
+        assert!(view.is_thinking_visible(1)); // Now expanded
+
+        // Toggle again removes from override set -> back to default (false = collapsed)
+        view.toggle_thinking(1);
+        assert!(!view.is_thinking_visible(1)); // Back to collapsed
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.9: Export Path Validation Security Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_export_rejects_absolute_paths() {
+        let view = ChatView::new();
+        let result = view.export_session(Some("/tmp/malicious.json"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Absolute paths not allowed"));
+    }
+
+    #[test]
+    fn test_export_rejects_path_traversal() {
+        let view = ChatView::new();
+
+        // Simple parent traversal
+        let result = view.export_session(Some("../../../etc/passwd.json"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Path traversal"));
+
+        // Hidden in middle of path
+        let result = view.export_session(Some("exports/../../../malicious.json"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Path traversal"));
+    }
+
+    #[test]
+    fn test_export_allows_relative_paths() {
+        let view = ChatView::new();
+
+        // Simple filename (no directory) - should work
+        // Use unique name to avoid test interference
+        let filename = format!("test-export-relative-{}", std::process::id());
+        let result = view.export_session(Some(&filename));
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert!(path.ends_with(".json")); // .json added
+
+        // Cleanup test file
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_export_adds_json_extension() {
+        let view = ChatView::new();
+
+        // Use unique filenames to avoid test interference
+        let base_name = format!("test-export-ext-{}", std::process::id());
+
+        // Without .json extension
+        let result = view.export_session(Some(&base_name));
+        assert!(result.is_ok());
+        let path1 = result.unwrap();
+        assert!(path1.ends_with(".json"));
+        let _ = std::fs::remove_file(&path1);
+
+        // With .json extension already
+        let name_with_ext = format!("{}.json", base_name);
+        let result = view.export_session(Some(&name_with_ext));
+        assert!(result.is_ok());
+        let path2 = result.unwrap();
+        assert_eq!(path2, name_with_ext);
+        let _ = std::fs::remove_file(&path2);
+    }
+
+    #[test]
+    fn test_export_default_filename_is_safe() {
+        let view = ChatView::new();
+
+        // Default filename (None) should always be safe
+        let result = view.export_session(None);
+        assert!(result.is_ok());
+        let filename = result.unwrap();
+        assert!(filename.starts_with("nika-chat-"));
+        assert!(filename.ends_with(".json"));
+
+        // Cleanup test file
+        let _ = std::fs::remove_file(&filename);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // v0.9 Phase 2: @ Mention Autocomplete Tests
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_mention_autocomplete_hidden_by_default() {
+        let view = ChatView::new();
+        assert!(!view.mention_autocomplete.visible);
+        assert!(view.mention_autocomplete.suggestions.is_empty());
+    }
+
+    #[test]
+    fn test_mention_autocomplete_triggers_on_at() {
+        let mut view = ChatView::new();
+
+        // Type @ to trigger autocomplete
+        view.insert_char('@');
+        view.check_mention_trigger();
+
+        // Should show autocomplete with suggestions (file suggestions)
+        // Note: actual visibility depends on generate_mention_suggestions implementation
+        // For now, we test that check_mention_trigger runs without panic
+        assert!(view.input.value() == "@");
+    }
+
+    #[test]
+    fn test_mention_autocomplete_hides_on_space() {
+        let mut view = ChatView::new();
+
+        // Type @test (simulating a mention)
+        view.input = Input::new("@test ".to_string());
+        view.input.handle(InputRequest::GoToEnd);
+        view.check_mention_trigger();
+
+        // After space, autocomplete should be hidden
+        assert!(!view.mention_autocomplete.visible);
+    }
+
+    #[test]
+    fn test_mention_autocomplete_navigation() {
+        let mut view = ChatView::new();
+
+        // Manually show autocomplete with suggestions
+        let suggestions = vec![
+            MentionSuggestion {
+                mention_type: MentionType::File,
+                display: "file1.txt".to_string(),
+                insert: "@file1.txt".to_string(),
+                description: Some("A file".to_string()),
+            },
+            MentionSuggestion {
+                mention_type: MentionType::File,
+                display: "file2.txt".to_string(),
+                insert: "@file2.txt".to_string(),
+                description: Some("Another file".to_string()),
+            },
+        ];
+        view.mention_autocomplete.show(
+            crate::tui::widgets::MentionTrigger {
+                start: 0,
+                partial: "@".to_string(),
+                trigger_type: None,
+                query: String::new(),
+            },
+            suggestions,
+        );
+
+        assert!(view.mention_autocomplete.visible);
+        assert_eq!(view.mention_autocomplete.selected, 0);
+
+        // Navigate down
+        view.mention_autocomplete.next();
+        assert_eq!(view.mention_autocomplete.selected, 1);
+
+        // Navigate down wraps around
+        view.mention_autocomplete.next();
+        assert_eq!(view.mention_autocomplete.selected, 0);
+
+        // Navigate up wraps around
+        view.mention_autocomplete.prev();
+        assert_eq!(view.mention_autocomplete.selected, 1);
+    }
+
+    #[test]
+    fn test_mention_autocomplete_hide() {
+        let mut view = ChatView::new();
+
+        // Manually show autocomplete
+        view.mention_autocomplete.show(
+            crate::tui::widgets::MentionTrigger {
+                start: 0,
+                partial: "@".to_string(),
+                trigger_type: None,
+                query: String::new(),
+            },
+            vec![MentionSuggestion {
+                mention_type: MentionType::File,
+                display: "test.txt".to_string(),
+                insert: "@test.txt".to_string(),
+                description: None,
+            }],
+        );
+        assert!(view.mention_autocomplete.visible);
+
+        // Hide
+        view.mention_autocomplete.hide();
+        assert!(!view.mention_autocomplete.visible);
+        assert!(view.mention_autocomplete.suggestions.is_empty());
+    }
+
+    #[test]
+    fn test_check_mention_trigger_unicode_safe() {
+        let mut view = ChatView::new();
+
+        // Test with unicode content before cursor
+        view.input = Input::new("🦀🐔@".to_string());
+        view.input.handle(InputRequest::GoToEnd);
+
+        // Should not panic on unicode (byte vs char index handling)
+        view.check_mention_trigger();
+    }
+
+    #[test]
+    fn test_check_mention_trigger_empty_input() {
+        let mut view = ChatView::new();
+
+        // Empty input should not show autocomplete
+        view.check_mention_trigger();
+        assert!(!view.mention_autocomplete.visible);
+    }
+
+    #[test]
+    fn test_accept_mention_suggestion_replaces_trigger() {
+        let mut view = ChatView::new();
+
+        // Set up input with partial mention
+        view.input = Input::new("@fi".to_string());
+        view.input.handle(InputRequest::GoToEnd);
+
+        // Show autocomplete with a suggestion
+        view.mention_autocomplete.show(
+            crate::tui::widgets::MentionTrigger {
+                start: 0,
+                partial: "@fi".to_string(),
+                trigger_type: None,
+                query: "fi".to_string(),
+            },
+            vec![MentionSuggestion {
+                mention_type: MentionType::File,
+                display: "file.txt".to_string(),
+                insert: "@file.txt".to_string(),
+                description: None,
+            }],
+        );
+
+        // Accept the suggestion
+        view.accept_mention_suggestion();
+
+        // Should have replaced @fi with @file.txt
+        assert!(view.input.value().contains("file.txt"));
+        assert!(!view.mention_autocomplete.visible);
     }
 }

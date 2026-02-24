@@ -279,8 +279,11 @@ impl Widget for ExecBox {
             .cwd
             .as_ref()
             .map(|c| {
-                let display = if c.len() > 20 {
-                    format!("...{}", &c[c.len() - 17..])
+                // PERF: Use char count, not byte length (UTF-8 safe)
+                let char_count = c.chars().count();
+                let display = if char_count > 20 {
+                    let truncated: String = c.chars().skip(char_count - 17).collect();
+                    format!("...{}", truncated)
                 } else {
                     c.clone()
                 };

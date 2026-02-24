@@ -31,6 +31,18 @@ pub struct InvokeBox {
     pub expanded_params: bool,
     /// Is result section expanded
     pub expanded_result: bool,
+    // === PERF: JSON Cache Fields (avoid serde in render loop) ===
+    // WARNING: These caches are ONLY updated via with_params()/with_result() builders.
+    // Direct mutation of self.params/self.result will NOT invalidate the cache.
+    // ALWAYS use builders or set_params()/set_result() methods to keep cache in sync.
+    /// Cached one-line JSON for params (render collapsed mode)
+    params_oneline_cached: Option<String>,
+    /// Cached pretty JSON for params (render expanded mode)
+    params_pretty_cached: Option<String>,
+    /// Cached one-line JSON for result (render collapsed mode)
+    result_oneline_cached: Option<String>,
+    /// Cached pretty JSON for result (render expanded mode)
+    result_pretty_cached: Option<String>,
 }
 
 impl InvokeBox {
@@ -45,6 +57,10 @@ impl InvokeBox {
             state: BoxState::default(),
             expanded_params: false,
             expanded_result: false,
+            params_oneline_cached: None,
+            params_pretty_cached: None,
+            result_oneline_cached: None,
+            result_pretty_cached: None,
         }
     }
 
@@ -54,28 +70,39 @@ impl InvokeBox {
         self
     }
 
-    /// Set parameters
+    /// Set parameters (pre-caches JSON strings for render performance)
     pub fn with_params(mut self, params: serde_json::Value) -> Self {
+        // PERF: Pre-compute JSON strings to avoid serde in render loop
+        if !params.is_null() {
+            self.params_oneline_cached = serde_json::to_string(&params).ok();
+            self.params_pretty_cached = serde_json::to_string_pretty(&params).ok();
+        }
         self.params = params;
         self
     }
 
-    /// Set parameters from string
-    pub fn with_params_str(mut self, params: &str) -> Self {
-        self.params = serde_json::from_str(params).unwrap_or(serde_json::Value::Null);
-        self
+    /// Set parameters from string (pre-caches JSON strings)
+    pub fn with_params_str(self, params: &str) -> Self {
+        let parsed = serde_json::from_str(params).unwrap_or(serde_json::Value::Null);
+        self.with_params(parsed)
     }
 
-    /// Set result
+    /// Set result (pre-caches JSON strings for render performance)
     pub fn with_result(mut self, result: serde_json::Value) -> Self {
+        // PERF: Pre-compute JSON strings to avoid serde in render loop
+        self.result_oneline_cached = serde_json::to_string(&result).ok();
+        self.result_pretty_cached = serde_json::to_string_pretty(&result).ok();
         self.result = Some(result);
         self
     }
 
-    /// Set result from string
-    pub fn with_result_str(mut self, result: &str) -> Self {
-        self.result = serde_json::from_str(result).ok();
-        self
+    /// Set result from string (pre-caches JSON strings)
+    pub fn with_result_str(self, result: &str) -> Self {
+        if let Ok(parsed) = serde_json::from_str(result) {
+            self.with_result(parsed)
+        } else {
+            self
+        }
     }
 
     /// Set error
@@ -95,23 +122,28 @@ impl InvokeBox {
     }
 
     /// Calculate required height
+    /// PERF: Uses cached JSON strings to avoid serde in layout calculation
     pub fn required_height(&self) -> u16 {
         let mut height: u16 = 5; // Header + server + params header + result header + bottom
 
-        // Params section
+        // Params section - PERF: use cached pretty JSON
         if self.expanded_params && !self.params.is_null() {
-            let params_str = serde_json::to_string_pretty(&self.params).unwrap_or_default();
-            height += params_str.lines().count().min(5) as u16;
+            let lines = self
+                .params_pretty_cached
+                .as_ref()
+                .map(|s| s.lines().count())
+                .unwrap_or(0);
+            height += lines.min(5) as u16;
         }
 
-        // Result section
+        // Result section - PERF: use cached pretty JSON
         if self.expanded_result && self.result.is_some() {
-            let result_str = self
-                .result
+            let lines = self
+                .result_pretty_cached
                 .as_ref()
-                .map(|r| serde_json::to_string_pretty(r).unwrap_or_default())
-                .unwrap_or_default();
-            height += result_str.lines().count().min(5) as u16;
+                .map(|s| s.lines().count())
+                .unwrap_or(0);
+            height += lines.min(5) as u16;
         }
 
         height
@@ -186,10 +218,14 @@ impl Widget for InvokeBox {
             buf.set_string(area.x + 2, y, "PARAMS", dim_style);
             y += 1;
 
-            // Params content
+            // Params content - PERF: uses pre-cached JSON strings
             if !self.params.is_null() {
                 if self.expanded_params {
-                    let params_str = serde_json::to_string_pretty(&self.params).unwrap_or_default();
+                    // Use cached pretty JSON if available
+                    let params_str = self
+                        .params_pretty_cached
+                        .as_deref()
+                        .unwrap_or("null");
                     for line in params_str.lines().take(5) {
                         if y >= area.y + area.height - 3 {
                             break;
@@ -205,7 +241,12 @@ impl Widget for InvokeBox {
                     buf.set_string(area.x, y, "│", border_style);
                     buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
-                    let params_oneline = Self::format_json_oneline(&self.params, inner_width - 6);
+                    // PERF: Use cached oneline JSON, truncate for display
+                    let params_oneline = self
+                        .params_oneline_cached
+                        .as_ref()
+                        .map(|s| Self::truncate(s, inner_width - 6))
+                        .unwrap_or_else(|| "null".to_string());
                     buf.set_string(
                         area.x + 2,
                         y,
@@ -224,15 +265,16 @@ impl Widget for InvokeBox {
             y += 1;
         }
 
-        // RESULT section
+        // RESULT section - PERF: uses pre-cached JSON strings
         if y < area.y + area.height - 2 {
             buf.set_string(area.x, y, "│", border_style);
             buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
+            // PERF: Use cached string length instead of serializing
             let result_len = self
-                .result
+                .result_oneline_cached
                 .as_ref()
-                .map(|r| serde_json::to_string(r).map(|s| s.len()).unwrap_or(0))
+                .map(|s| s.len())
                 .unwrap_or(0);
             let result_header = if result_len > 0 {
                 format!(
@@ -261,12 +303,17 @@ impl Widget for InvokeBox {
                     );
                     y += 1;
                 }
-            } else if let Some(ref result) = self.result {
+            } else if self.result.is_some() {
                 if y < area.y + area.height - 2 {
                     buf.set_string(area.x, y, "│", border_style);
                     buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
-                    let result_display = Self::format_json_oneline(result, inner_width - 6);
+                    // PERF: Use cached oneline JSON, truncate for display
+                    let result_display = self
+                        .result_oneline_cached
+                        .as_ref()
+                        .map(|s| Self::truncate(s, inner_width - 6))
+                        .unwrap_or_else(|| "null".to_string());
                     buf.set_string(
                         area.x + 2,
                         y,
@@ -391,5 +438,93 @@ mod tests {
             InvokeBox::new("tool", "server").with_params(serde_json::json!({"key": "value"}));
         // Same when not expanded
         assert!(with_params.required_height() >= 5);
+    }
+
+    // === Cache Coherency Tests (v0.8.1 PERF) ===
+
+    #[test]
+    fn test_params_cache_populated_on_with_params() {
+        let box_ = InvokeBox::new("tool", "server")
+            .with_params(serde_json::json!({"key": "value", "num": 42}));
+
+        // Cache should be populated
+        assert!(box_.params_oneline_cached.is_some());
+        assert!(box_.params_pretty_cached.is_some());
+
+        // Cache content should match params
+        let oneline = box_.params_oneline_cached.unwrap();
+        assert!(oneline.contains("key"));
+        assert!(oneline.contains("value"));
+        assert!(oneline.contains("42"));
+
+        // Pretty cache should have newlines (multi-line format)
+        let pretty = box_.params_pretty_cached.unwrap();
+        assert!(pretty.contains('\n'));
+    }
+
+    #[test]
+    fn test_result_cache_populated_on_with_result() {
+        let box_ = InvokeBox::new("tool", "server")
+            .with_result(serde_json::json!({"entity": "qr-code", "locale": "fr-FR"}));
+
+        // Cache should be populated
+        assert!(box_.result_oneline_cached.is_some());
+        assert!(box_.result_pretty_cached.is_some());
+
+        // Cache content should match result
+        let oneline = box_.result_oneline_cached.unwrap();
+        assert!(oneline.contains("qr-code"));
+        assert!(oneline.contains("fr-FR"));
+    }
+
+    #[test]
+    fn test_empty_params_no_cache() {
+        let box_ = InvokeBox::new("tool", "server");
+
+        // No params = no cache
+        assert!(box_.params_oneline_cached.is_none());
+        assert!(box_.params_pretty_cached.is_none());
+    }
+
+    #[test]
+    fn test_null_params_no_cache() {
+        let box_ = InvokeBox::new("tool", "server")
+            .with_params(serde_json::Value::Null);
+
+        // Null params = no cache (is_null() check in with_params)
+        assert!(box_.params_oneline_cached.is_none());
+        assert!(box_.params_pretty_cached.is_none());
+    }
+
+    #[test]
+    fn test_params_str_uses_with_params() {
+        let box_ = InvokeBox::new("tool", "server")
+            .with_params_str(r#"{"from": "string"}"#);
+
+        // Should populate cache via with_params delegation
+        assert!(box_.params_oneline_cached.is_some());
+        let oneline = box_.params_oneline_cached.unwrap();
+        assert!(oneline.contains("from"));
+        assert!(oneline.contains("string"));
+    }
+
+    #[test]
+    fn test_required_height_uses_cached_lines() {
+        let mut box_ = InvokeBox::new("tool", "server")
+            .with_params(serde_json::json!({
+                "line1": "value1",
+                "line2": "value2",
+                "line3": "value3"
+            }));
+
+        // Collapsed: base height
+        let collapsed_height = box_.required_height();
+
+        // Expanded: should use cached pretty JSON lines
+        box_.expanded_params = true;
+        let expanded_height = box_.required_height();
+
+        // Expanded should be taller (adds lines from pretty JSON)
+        assert!(expanded_height > collapsed_height);
     }
 }
