@@ -946,3 +946,171 @@ fn test_all_command_verbs_comprehensive() {
     assert_eq!(Command::parse("/help").verb(), "help", "help verb");
     assert_eq!(Command::parse("chat message").verb(), "chat", "chat verb");
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AGENT PHASE TRACKING INTEGRATION TESTS (v0.8.1)
+// ═══════════════════════════════════════════════════════════════════════════
+
+use nika::tui::widgets::AgentPhase;
+use nika::tui::ChatView;
+
+/// Test that ChatView initializes with Idle phase
+#[test]
+fn test_chat_view_initial_phase_is_idle() {
+    let view = ChatView::new();
+    assert_eq!(view.agent_phase, AgentPhase::Idle);
+    assert!(view.agent_phase_tool.is_none());
+}
+
+/// Test on_agent_start sets Syncing phase
+#[test]
+fn test_on_agent_start_sets_syncing_phase() {
+    let mut view = ChatView::new();
+    assert_eq!(view.agent_phase, AgentPhase::Idle);
+
+    view.on_agent_start();
+
+    assert_eq!(view.agent_phase, AgentPhase::Syncing);
+    assert!(view.agent_phase_tool.is_none());
+}
+
+/// Test on_agent_turn sets Planning phase
+#[test]
+fn test_on_agent_turn_sets_planning_phase() {
+    let mut view = ChatView::new();
+    view.on_agent_start();
+
+    view.on_agent_turn(0);
+
+    assert_eq!(view.agent_phase, AgentPhase::Planning);
+}
+
+/// Test on_mcp_invoke sets Invoking phase with tool name
+#[test]
+fn test_on_mcp_invoke_sets_invoking_phase() {
+    let mut view = ChatView::new();
+    view.on_agent_start();
+    view.on_agent_turn(0);
+
+    view.on_mcp_invoke("novanet_describe", "novanet");
+
+    assert_eq!(view.agent_phase, AgentPhase::Invoking);
+    assert_eq!(view.agent_phase_tool, Some("novanet_describe".to_string()));
+}
+
+/// Test on_mcp_response sets Processing phase
+#[test]
+fn test_on_mcp_response_sets_processing_phase() {
+    let mut view = ChatView::new();
+    view.on_agent_start();
+    view.on_mcp_invoke("novanet_describe", "novanet");
+
+    view.on_mcp_response();
+
+    assert_eq!(view.agent_phase, AgentPhase::Processing);
+    // Tool name preserved for context
+    assert_eq!(view.agent_phase_tool, Some("novanet_describe".to_string()));
+}
+
+/// Test on_provider_called sets Inferring phase
+#[test]
+fn test_on_provider_called_sets_inferring_phase() {
+    let mut view = ChatView::new();
+    view.on_agent_start();
+
+    view.on_provider_called();
+
+    assert_eq!(view.agent_phase, AgentPhase::Inferring);
+}
+
+/// Test on_streaming_start sets Streaming phase
+#[test]
+fn test_on_streaming_start_sets_streaming_phase() {
+    let mut view = ChatView::new();
+    view.on_agent_start();
+    view.on_provider_called();
+
+    view.on_streaming_start();
+
+    assert_eq!(view.agent_phase, AgentPhase::Streaming);
+}
+
+/// Test on_agent_complete resets to Idle phase
+#[test]
+fn test_on_agent_complete_resets_to_idle() {
+    let mut view = ChatView::new();
+    view.on_agent_start();
+    view.on_mcp_invoke("tool", "server");
+    view.on_provider_called();
+
+    view.on_agent_complete();
+
+    assert_eq!(view.agent_phase, AgentPhase::Idle);
+    assert!(view.agent_phase_tool.is_none());
+}
+
+/// Test full agent lifecycle: Start → Turn → Invoke → Response → Infer → Stream → Complete
+#[test]
+fn test_agent_phase_full_lifecycle() {
+    let mut view = ChatView::new();
+
+    // Initial
+    assert_eq!(view.agent_phase, AgentPhase::Idle);
+
+    // Agent starts
+    view.on_agent_start();
+    assert_eq!(view.agent_phase, AgentPhase::Syncing);
+
+    // First turn
+    view.on_agent_turn(0);
+    assert_eq!(view.agent_phase, AgentPhase::Planning);
+
+    // MCP call
+    view.on_mcp_invoke("novanet_generate", "novanet");
+    assert_eq!(view.agent_phase, AgentPhase::Invoking);
+    assert_eq!(view.agent_phase_tool.as_deref(), Some("novanet_generate"));
+
+    // MCP response
+    view.on_mcp_response();
+    assert_eq!(view.agent_phase, AgentPhase::Processing);
+
+    // Provider called for inference
+    view.on_provider_called();
+    assert_eq!(view.agent_phase, AgentPhase::Inferring);
+
+    // Streaming starts
+    view.on_streaming_start();
+    assert_eq!(view.agent_phase, AgentPhase::Streaming);
+
+    // Agent completes
+    view.on_agent_complete();
+    assert_eq!(view.agent_phase, AgentPhase::Idle);
+    assert!(view.agent_phase_tool.is_none());
+}
+
+/// Test phase indicator tick advances animation frame
+#[test]
+fn test_phase_indicator_tick_animation() {
+    let mut view = ChatView::new();
+    view.on_agent_start();
+
+    let initial_frame = view.phase_indicator.frame();
+    view.tick_phase_indicator();
+    let after_tick = view.phase_indicator.frame();
+
+    assert_eq!(after_tick, initial_frame + 1);
+}
+
+/// Test tick_phase_indicator is called during tick()
+#[test]
+fn test_tick_calls_phase_indicator_tick() {
+    let mut view = ChatView::new();
+    view.on_agent_start();
+
+    let initial_frame = view.phase_indicator.frame();
+    view.tick(); // Main tick method
+    let after_tick = view.phase_indicator.frame();
+
+    // Phase indicator frame should advance
+    assert_eq!(after_tick, initial_frame + 1);
+}

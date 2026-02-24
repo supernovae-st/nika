@@ -742,6 +742,10 @@ impl App {
         while let Ok(chunk) = self.stream_chunk_rx.try_recv() {
             match chunk {
                 StreamChunk::Token(token) => {
+                    // v0.8.1: Trigger streaming phase on first token
+                    if !self.chat_view.is_streaming {
+                        self.chat_view.on_streaming_start();
+                    }
                     // v0.8.1 FIX: ONLY update streaming_decrypt for Matrix effect
                     // DON'T append to message directly - that causes double display
                     // The message will be updated when streaming finishes
@@ -907,9 +911,34 @@ impl App {
     ///
     /// Updates the ChatView's inline content and activity items when
     /// MCP, Provider, or Agent events occur.
+    /// v0.8.1: Also updates agent phase indicator for real-time status display.
     fn handle_chat_view_event(&mut self, kind: &EventKind) {
         match kind {
-            // MCP tool calls
+            // ═══════════════════════════════════════════
+            // AGENT EVENTS (v0.8.1 phase tracking)
+            // ═══════════════════════════════════════════
+            EventKind::AgentStart { .. } => {
+                self.chat_view.on_agent_start();
+            }
+            EventKind::AgentTurn {
+                turn_index, kind, ..
+            } => {
+                // v0.8.1: Use kind to determine phase
+                // "started" = Syncing (agent connecting)
+                // Other = Planning (agent thinking)
+                if kind == "started" {
+                    self.chat_view.on_agent_start();
+                } else {
+                    self.chat_view.on_agent_turn(*turn_index);
+                }
+            }
+            EventKind::AgentComplete { .. } => {
+                self.chat_view.on_agent_complete();
+            }
+
+            // ═══════════════════════════════════════════
+            // MCP EVENTS
+            // ═══════════════════════════════════════════
             EventKind::McpInvoke {
                 mcp_server,
                 tool,
@@ -923,6 +952,8 @@ impl App {
                     .unwrap_or_default();
                 self.chat_view
                     .add_mcp_call(tool_name, mcp_server, &params_str);
+                // v0.8.1: Update agent phase to Invoking
+                self.chat_view.on_mcp_invoke(tool_name, mcp_server);
             }
             EventKind::McpResponse {
                 is_error, response, ..
@@ -941,14 +972,21 @@ impl App {
                         .unwrap_or_default();
                     self.chat_view.complete_mcp_call(&result_str);
                 }
+                // v0.8.1: Update agent phase to Processing
+                self.chat_view.on_mcp_response();
             }
-            // Provider events (infer: verb)
+
+            // ═══════════════════════════════════════════
+            // PROVIDER EVENTS
+            // ═══════════════════════════════════════════
             EventKind::ProviderCalled {
                 model, prompt_len, ..
             } => {
                 // Start inference stream visualization
                 self.chat_view
                     .start_infer_stream(model, *prompt_len as u32, 4096);
+                // v0.8.1: Update agent phase to Inferring
+                self.chat_view.on_provider_called();
             }
             EventKind::ProviderResponded {
                 input_tokens,
@@ -967,7 +1005,10 @@ impl App {
                 // Mark status bar as dirty to refresh token display
                 self.state.dirty.status = true;
             }
-            // MCP connection status events (v0.7.0)
+
+            // ═══════════════════════════════════════════
+            // MCP CONNECTION EVENTS (v0.7.0)
+            // ═══════════════════════════════════════════
             EventKind::McpConnected { server_name } => {
                 self.chat_view.mark_mcp_server_connected(server_name);
                 self.state.dirty.status = true;

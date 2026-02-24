@@ -47,7 +47,7 @@ fn is_cmd_pressed(modifiers: KeyModifiers) -> bool {
 }
 use crate::tui::file_resolve::FileResolver;
 use crate::tui::state::{ChatPanel, PanelScrollState, TuiState};
-use crate::tui::theme::Theme;
+use crate::tui::theme::{Theme, VerbColor};
 use crate::util::atomic_write;
 
 // PERF: Pre-computed constants to avoid allocations in render loop
@@ -57,11 +57,12 @@ const SEPARATOR_52: &str = "╰────────────────�
 use crate::tui::utils::{truncate_str, wrap_text};
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
-    ActivityItem, ActivityTemp, ChatModeIndicator, CommandPalette, CommandPaletteState,
-    ContextItem, CurrentVerb, DecryptVerb, HelpOverlay, HelpOverlayState, InferStreamData,
-    McpCallData, McpCallStatus, McpServerInfo, McpStatus, MemoryFile, MissionControlPanel,
-    ParsedInput, ProStatusBar, Provider, ProviderSelector, ProviderSelectorState, ScrollIndicator,
-    SessionContext, SessionMetrics, StreamingDecrypt, SystemCommand, TurnMetrics,
+    ActivityItem, ActivityTemp, AgentPhase, AgentPhaseIndicator, ChatModeIndicator, CommandPalette,
+    CommandPaletteState, ContextItem, CurrentVerb, DecryptVerb, HelpOverlay, HelpOverlayState,
+    InferStreamData, McpCallData, McpCallStatus, McpServerInfo, McpStatus, MemoryFile,
+    MissionControlPanel, ParsedInput, ProStatusBar, Provider, ProviderSelector,
+    ProviderSelectorState, ScrollIndicator, SessionContext, SessionMetrics, StreamingDecrypt,
+    SystemCommand, TurnMetrics,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -316,10 +317,18 @@ pub struct ChatView {
     pub copy_flash_index: Option<usize>,
     /// Frame when copy happened (for flash duration)
     pub copy_flash_start: u8,
-    /// Matrix decrypt effect for streaming text (v0.8 WOW)
+    /// Matrix rain reveal effect for streaming text (v0.8.1 WOW)
     pub streaming_decrypt: StreamingDecrypt,
     /// Whether matrix decrypt effect is enabled
     pub matrix_effect_enabled: bool,
+
+    // === v0.8.1 Agent Phase Tracking ===
+    /// Current agent execution phase (for real-time status)
+    pub agent_phase: AgentPhase,
+    /// Phase indicator widget with Matrix effect
+    pub phase_indicator: AgentPhaseIndicator,
+    /// Tool name currently being invoked (for Invoking phase)
+    pub agent_phase_tool: Option<String>,
 
     // === v0.7.3 Mission Control ===
     /// Context items loaded via @ mentions
@@ -495,13 +504,19 @@ impl ChatView {
             panel_rects: std::collections::HashMap::new(),
             conversation_list_state: ListState::default(),
 
-            // v0.8 WOW Effects
+            // v0.8.1 WOW Effects - Matrix Streaming Decrypt
             copy_flash_index: None,
             copy_flash_start: 0,
             streaming_decrypt: StreamingDecrypt::new()
-                .with_verb(DecryptVerb::Infer)
-                .with_reveal_speed(0.08), // ~12 frames to reveal
+                .with_reveal_speed(0.5) // ~2 frames per char reveal
+                .with_wave_factor(2.0) // wave width factor
+                .with_initial_chaos(15), // frames of full chaos before reveal
             matrix_effect_enabled: true, // Enable by default
+
+            // v0.8.1 Agent Phase Tracking
+            agent_phase: AgentPhase::Idle,
+            phase_indicator: AgentPhaseIndicator::new(AgentPhase::Idle),
+            agent_phase_tool: None,
 
             // v0.7.3 Mission Control
             context_items: vec![],
@@ -1031,13 +1046,13 @@ impl ChatView {
     pub fn start_streaming_with_verb(&mut self, verb: DecryptVerb) {
         self.is_streaming = true;
         self.partial_response.clear();
-        // v0.8.1 WOW: Reset and configure matrix decrypt for verb theme
-        // Parameters tuned for visible chaos + cascade reveal effect
+        // v0.8.1 WOW: Reset and configure matrix streaming decrypt
+        // Parameters tuned for visible chaos → reveal wave effect
         self.streaming_decrypt = StreamingDecrypt::new()
-            .with_verb(verb)
-            .with_reveal_speed(0.025) // Slow reveal (~40 frames = 667ms at 60fps)
-            .with_wave_factor(0.15) // Cascade: later chars reveal slower
-            .with_initial_chaos(8); // ~130ms of visible chaos before reveal
+            .with_verb(verb) // Theme colors for revealed text
+            .with_reveal_speed(0.4) // ~2.5 frames per char reveal
+            .with_wave_factor(2.5) // wider wave for smoother reveal
+            .with_initial_chaos(12); // frames of chaos before reveal starts
     }
 
     /// Append chunk to partial response during streaming
@@ -1057,7 +1072,69 @@ impl ChatView {
         // v0.8 FIX: Clear inline boxes when streaming completes
         // They represent the operation that just finished, not history
         self.inline_content.clear();
+        // v0.8.1: Reset agent phase
+        self.on_agent_complete();
         std::mem::take(&mut self.partial_response)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // v0.8.1: Agent Phase Event Handlers
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// Called when agent starts - sets Syncing phase
+    pub fn on_agent_start(&mut self) {
+        self.agent_phase = AgentPhase::Syncing;
+        self.phase_indicator = AgentPhaseIndicator::new(AgentPhase::Syncing);
+        self.agent_phase_tool = None;
+    }
+
+    /// Called when agent turn begins - sets Planning phase
+    /// turn_index: Current turn number (0-indexed)
+    pub fn on_agent_turn(&mut self, _turn_index: u32) {
+        self.agent_phase = AgentPhase::Planning;
+        self.phase_indicator.set_phase(AgentPhase::Planning);
+        self.agent_phase_tool = None;
+    }
+
+    /// Called when MCP tool is invoked - sets Invoking phase
+    pub fn on_mcp_invoke(&mut self, tool: &str, _server: &str) {
+        self.agent_phase = AgentPhase::Invoking;
+        self.agent_phase_tool = Some(tool.to_string());
+        self.phase_indicator = AgentPhaseIndicator::new(AgentPhase::Invoking).with_tool(tool);
+    }
+
+    /// Called when MCP response received - sets Processing phase
+    pub fn on_mcp_response(&mut self) {
+        self.agent_phase = AgentPhase::Processing;
+        self.phase_indicator.set_phase(AgentPhase::Processing);
+        // Keep tool name for context
+    }
+
+    /// Called when provider/LLM called - sets Inferring phase
+    pub fn on_provider_called(&mut self) {
+        self.agent_phase = AgentPhase::Inferring;
+        self.phase_indicator.set_phase(AgentPhase::Inferring);
+        self.agent_phase_tool = None;
+    }
+
+    /// Called when first streaming token arrives - sets Streaming phase
+    pub fn on_streaming_start(&mut self) {
+        self.agent_phase = AgentPhase::Streaming;
+        self.phase_indicator.set_phase(AgentPhase::Streaming);
+    }
+
+    /// Called when agent completes - resets to Idle
+    pub fn on_agent_complete(&mut self) {
+        self.agent_phase = AgentPhase::Idle;
+        self.phase_indicator.set_phase(AgentPhase::Idle);
+        self.agent_phase_tool = None;
+    }
+
+    /// Tick the phase indicator animation
+    pub fn tick_phase_indicator(&mut self) {
+        if self.agent_phase.is_active() {
+            self.phase_indicator.tick();
+        }
     }
 
     /// Get total tokens used in this session
@@ -1216,6 +1293,8 @@ impl ChatView {
         if self.is_streaming && self.matrix_effect_enabled {
             self.streaming_decrypt.tick();
         }
+        // v0.8.1: Tick phase indicator animation (icon swap + chaos decay)
+        self.tick_phase_indicator();
     }
 
     /// Add an MCP call to the inline content
@@ -1855,7 +1934,9 @@ impl View for ChatView {
         // 5. Command palette overlay (if visible)
         if self.command_palette.visible {
             let palette_area = centered_rect(60, 50, area);
-            CommandPalette::new(&self.command_palette).render(palette_area, frame.buffer_mut());
+            CommandPalette::new(&self.command_palette)
+                .with_frame(self.frame)
+                .render(palette_area, frame.buffer_mut());
         }
 
         // 6. Provider selector overlay (if visible) - ⌘P
@@ -1983,22 +2064,30 @@ impl View for ChatView {
         }
 
         // ═══════════════════════════════════════════════════════════════════════════════
-        // Panel Navigation (v0.8 UX Enhancement)
-        // Tab/Shift+Tab ALWAYS cycle panels: Conversation → Activity → Input → ...
+        // Panel Navigation (v0.8.2 UX Enhancement)
+        // Left/Right arrows cycle panels when NOT in Input panel
+        // Tab = autocomplete verb in Input panel
         // ═══════════════════════════════════════════════════════════════════════════════
 
-        // Tab = Focus next panel (always works, even in Input panel)
-        if key.code == KeyCode::Tab && !key.modifiers.contains(KeyModifiers::SHIFT) {
-            self.focus_next_panel();
+        // Tab = Autocomplete verb when in Input panel
+        if key.code == KeyCode::Tab && self.focused_panel == ChatPanel::Input {
+            if let Some(completed) = self.try_verb_autocomplete() {
+                self.input = Input::new(completed);
+                self.input.handle(InputRequest::GoToEnd);
+            }
             return ViewAction::None;
         }
 
-        // Shift+Tab = Focus previous panel (always works)
-        if key.code == KeyCode::BackTab
-            || (key.code == KeyCode::Tab && key.modifiers.contains(KeyModifiers::SHIFT))
-        {
-            self.focus_prev_panel();
-            return ViewAction::None;
+        // Left/Right arrows = Focus prev/next panel (when NOT in Input)
+        if self.focused_panel != ChatPanel::Input {
+            if key.code == KeyCode::Right {
+                self.focus_next_panel();
+                return ViewAction::None;
+            }
+            if key.code == KeyCode::Left {
+                self.focus_prev_panel();
+                return ViewAction::None;
+            }
         }
 
         // Scroll keys and vim-style navigation when NOT in Input panel
@@ -2508,16 +2597,19 @@ impl ChatView {
                 }
             }
 
-            // Add thinking indicator with animation
-            items.push(ListItem::new(Line::from(vec![
-                Span::styled("  | ", Style::default().fg(theme.status_success)),
-                Span::styled(
-                    "Thinking...",
-                    Style::default()
-                        .fg(theme.status_running)
-                        .add_modifier(Modifier::ITALIC),
-                ),
-            ])));
+            // v0.8.1 FIX: Only show "Thinking..." if no content yet
+            // Once streaming starts, the Matrix effect replaces this indicator
+            if self.partial_response.is_empty() {
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled("  | ", Style::default().fg(theme.status_success)),
+                    Span::styled(
+                        "Thinking...",
+                        Style::default()
+                            .fg(theme.status_running)
+                            .add_modifier(Modifier::ITALIC),
+                    ),
+                ])));
+            }
         }
 
         let list = List::new(items).block(
@@ -2528,6 +2620,233 @@ impl ChatView {
         );
 
         frame.render_widget(list, area);
+    }
+
+    /// v0.8.2: Try to autocomplete verb command with Tab
+    /// Returns Some(new_input) if autocomplete happened, None otherwise
+    fn try_verb_autocomplete(&self) -> Option<String> {
+        let input = self.input.value();
+
+        if let Some((_verb_len, verb_color, is_complete, full_verb)) =
+            Self::detect_verb_in_input(input)
+        {
+            if !is_complete {
+                // Partial match → complete the verb name
+                return Some(format!("/{} ", full_verb));
+            } else {
+                // Complete verb → check if we should insert placeholder
+                let rest = if input.len() > full_verb.len() + 1 {
+                    &input[full_verb.len() + 1..] // +1 for /
+                } else {
+                    ""
+                };
+                if rest.trim().is_empty() {
+                    // Insert first placeholder example
+                    let placeholder = Self::verb_placeholder(&verb_color, 0);
+                    return Some(format!("/{} {}", full_verb, placeholder));
+                }
+            }
+        }
+        None
+    }
+
+    /// v0.8.2: Get contextual placeholder for a verb command
+    /// Returns a hint based on verb type, cycling through examples using frame
+    /// Generate per-character gradient spans for smooth verb animation
+    /// Creates a flowing wave effect with ASCII background zone
+    fn render_verb_gradient(
+        text: &str,
+        verb_color: &VerbColor,
+        frame: u8,
+        is_complete: bool,
+    ) -> Vec<Span<'static>> {
+        let chars: Vec<char> = text.chars().collect();
+        let len = chars.len();
+        if len == 0 {
+            return vec![];
+        }
+
+        let base_rgb = verb_color.rgb_tuple();
+        let glow_rgb = verb_color.glow_tuple();
+        // White for peak sparkle
+        let sparkle_rgb: (u8, u8, u8) = (255, 255, 255);
+        // Dark for contrast (muted base)
+        let dark_rgb: (u8, u8, u8) = (base_rgb.0 / 2, base_rgb.1 / 2, base_rgb.2 / 2);
+        // Background color (very subtle)
+        let bg_base: (u8, u8, u8) = (
+            12 + base_rgb.0 / 15,
+            12 + base_rgb.1 / 15,
+            12 + base_rgb.2 / 15,
+        );
+
+        chars
+            .into_iter()
+            .enumerate()
+            .map(|(i, c)| {
+                // FUN but not epileptic: visible wave per character
+                let phase_offset = (i as f32) * std::f32::consts::PI * 0.6; // ~108° per char - visible difference
+                let time = (frame as f32 / 12.0) * std::f32::consts::PI; // Medium speed - fun but readable
+                let wave = ((time + phase_offset).sin() + 1.0) / 2.0; // 0.0 to 1.0
+
+                // Secondary wave for extra life
+                let shimmer_time = (frame as f32 / 20.0) * std::f32::consts::PI;
+                let shimmer = ((shimmer_time + phase_offset * 2.0).sin() + 1.0) / 2.0;
+
+                if is_complete {
+                    // Fun color wave: dark → base → glow → sparkle
+                    // Using smooth sine curve for nice transitions
+
+                    let (r, g, b) = if wave < 0.25 {
+                        // Dark to base (valley)
+                        let t = wave * 4.0;
+                        (
+                            (dark_rgb.0 as f32 * (1.0 - t) + base_rgb.0 as f32 * t) as u8,
+                            (dark_rgb.1 as f32 * (1.0 - t) + base_rgb.1 as f32 * t) as u8,
+                            (dark_rgb.2 as f32 * (1.0 - t) + base_rgb.2 as f32 * t) as u8,
+                        )
+                    } else if wave < 0.6 {
+                        // Base to glow (rising)
+                        let t = (wave - 0.25) / 0.35;
+                        (
+                            (base_rgb.0 as f32 * (1.0 - t) + glow_rgb.0 as f32 * t) as u8,
+                            (base_rgb.1 as f32 * (1.0 - t) + glow_rgb.1 as f32 * t) as u8,
+                            (base_rgb.2 as f32 * (1.0 - t) + glow_rgb.2 as f32 * t) as u8,
+                        )
+                    } else {
+                        // Glow to white sparkle at peak (with shimmer variation)
+                        let t = ((wave - 0.6) / 0.4) * (0.6 + shimmer * 0.4);
+                        (
+                            (glow_rgb.0 as f32 * (1.0 - t) + sparkle_rgb.0 as f32 * t) as u8,
+                            (glow_rgb.1 as f32 * (1.0 - t) + sparkle_rgb.1 as f32 * t) as u8,
+                            (glow_rgb.2 as f32 * (1.0 - t) + sparkle_rgb.2 as f32 * t) as u8,
+                        )
+                    };
+
+                    let color = Color::Rgb(r, g, b);
+
+                    // Background zone with gentle pulse
+                    let bg_pulse = 0.6 + wave * 0.4; // Background follows the wave too
+                    let bg_r = (bg_base.0 as f32 * bg_pulse).min(255.0) as u8;
+                    let bg_g = (bg_base.1 as f32 * bg_pulse).min(255.0) as u8;
+                    let bg_b = (bg_base.2 as f32 * bg_pulse).min(255.0) as u8;
+
+                    Span::styled(
+                        c.to_string(),
+                        Style::default()
+                            .fg(color)
+                            .bg(Color::Rgb(bg_r, bg_g, bg_b))
+                            .add_modifier(Modifier::BOLD),
+                    )
+                } else {
+                    // Partial match: visible wave but calmer
+                    let wave_mild = 0.3 + wave * 0.5; // 0.3 to 0.8 range
+                    let r = (dark_rgb.0 as f32 * (1.0 - wave_mild) + glow_rgb.0 as f32 * wave_mild)
+                        as u8;
+                    let g = (dark_rgb.1 as f32 * (1.0 - wave_mild) + glow_rgb.1 as f32 * wave_mild)
+                        as u8;
+                    let b = (dark_rgb.2 as f32 * (1.0 - wave_mild) + glow_rgb.2 as f32 * wave_mild)
+                        as u8;
+
+                    Span::styled(
+                        c.to_string(),
+                        Style::default()
+                            .fg(Color::Rgb(r, g, b))
+                            .add_modifier(Modifier::BOLD),
+                    )
+                }
+            })
+            .collect()
+    }
+
+    fn verb_placeholder(verb_color: &VerbColor, frame: u8) -> &'static str {
+        let idx = (frame / 60) as usize; // Change every ~1 second at 60fps
+        match verb_color {
+            VerbColor::Invoke => {
+                const HINTS: &[&str] = &[
+                    "novanet_describe entity:qr-code",
+                    "novanet_generate locale:fr-FR",
+                    "novanet_traverse start:entity",
+                    "tool_name { params }",
+                ];
+                HINTS[idx % HINTS.len()]
+            }
+            VerbColor::Infer => {
+                const HINTS: &[&str] = &[
+                    "Generate a landing page headline",
+                    "Summarize this content in 3 bullets",
+                    "Translate to French: ...",
+                    "Explain this code snippet",
+                ];
+                HINTS[idx % HINTS.len()]
+            }
+            VerbColor::Exec => {
+                const HINTS: &[&str] = &[
+                    "npm run build",
+                    "cargo test --release",
+                    "git status",
+                    "ls -la ./src",
+                ];
+                HINTS[idx % HINTS.len()]
+            }
+            VerbColor::Fetch => {
+                const HINTS: &[&str] = &[
+                    "https://api.example.com/data",
+                    "GET https://jsonplaceholder.typicode.com/todos/1",
+                    "POST https://api.service.com/webhook",
+                ];
+                HINTS[idx % HINTS.len()]
+            }
+            VerbColor::Agent => {
+                const HINTS: &[&str] = &[
+                    "Research and generate a full report on...",
+                    "Analyze the codebase and suggest improvements",
+                    "Build a landing page for QR Code AI",
+                    "Debug this issue and propose a fix",
+                ];
+                HINTS[idx % HINTS.len()]
+            }
+        }
+    }
+
+    /// v0.8.2: Detect verb command at start of input (e.g., "/invoke", "/infer")
+    /// Returns (verb_len, verb_color, is_complete, full_verb_name) if found
+    fn detect_verb_in_input(input: &str) -> Option<(usize, VerbColor, bool, &'static str)> {
+        // Must start with /
+        if !input.starts_with('/') {
+            return None;
+        }
+
+        // Extract the word after /
+        let rest = &input[1..];
+        let verb_end = rest.find(|c: char| c.is_whitespace()).unwrap_or(rest.len());
+        let verb_word = rest[..verb_end].to_lowercase();
+
+        // Known verbs with their names
+        const VERBS: &[(&str, VerbColor)] = &[
+            ("invoke", VerbColor::Invoke),
+            ("infer", VerbColor::Infer),
+            ("fetch", VerbColor::Fetch),
+            ("exec", VerbColor::Exec),
+            ("agent", VerbColor::Agent),
+        ];
+
+        // Check for exact match first
+        for (name, color) in VERBS {
+            if verb_word == *name {
+                return Some((1 + verb_end, *color, true, name));
+            }
+        }
+
+        // Check for partial match (prefix) - only if at least 2 chars typed
+        if verb_word.len() >= 2 {
+            for (name, color) in VERBS {
+                if name.starts_with(&verb_word) {
+                    return Some((1 + verb_end, *color, false, name));
+                }
+            }
+        }
+
+        None
     }
 
     fn render_input(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
@@ -2608,22 +2927,174 @@ impl ChatView {
                 Style::default().fg(theme.text_muted),
             ));
         } else {
-            spans.push(Span::raw(before_cursor));
-            // v0.8 WOW: Blinking block cursor
-            if cursor_visible {
-                spans.push(Span::styled(
-                    cursor_char.to_string(),
-                    Style::default().bg(theme.highlight).fg(Color::Black),
-                ));
+            // v0.8.2: Detect verb at start of input for colorized rendering
+            if let Some((verb_len, verb_color, is_complete, full_verb)) =
+                Self::detect_verb_in_input(input_value)
+            {
+                // Get base color for cursor
+                let verb_fg_color = if is_complete {
+                    verb_color.animated(self.frame)
+                } else {
+                    verb_color.muted()
+                };
+
+                // Split input into verb part and rest
+                let verb_part = &input_value[..verb_len.min(input_value.len())];
+                let rest_part = if input_value.len() > verb_len {
+                    &input_value[verb_len..]
+                } else {
+                    ""
+                };
+
+                // Calculate remaining letters for autocomplete hint (Tab to complete)
+                let typed_verb_len = verb_len.saturating_sub(1); // without /
+                let remaining_hint: String = if !is_complete && typed_verb_len < full_verb.len() {
+                    full_verb[typed_verb_len..].to_string()
+                } else {
+                    String::new()
+                };
+
+                // Handle cursor position relative to verb boundary
+                if cursor_pos < verb_len {
+                    // Cursor is within verb - use per-character gradient animation
+                    let before_in_verb: String = verb_part.chars().take(cursor_pos).collect();
+                    let after_in_verb: String = verb_part.chars().skip(cursor_pos + 1).collect();
+
+                    // v0.8.2: ASCII box with animated emoji for the verb
+
+                    let emoji = verb_color.icon();
+                    spans.extend(Self::render_verb_gradient(
+                        emoji,
+                        &verb_color,
+                        self.frame,
+                        is_complete,
+                    ));
+                    spans.push(Span::raw(" ")); // Space after emoji
+
+                    // Render before cursor with gradient
+                    spans.extend(Self::render_verb_gradient(
+                        &before_in_verb,
+                        &verb_color,
+                        self.frame,
+                        is_complete,
+                    ));
+
+                    // Cursor character with verb color background (dramatic)
+                    if cursor_visible {
+                        spans.push(Span::styled(
+                            cursor_char.to_string(),
+                            Style::default()
+                                .bg(verb_color.glow())
+                                .fg(Color::Black)
+                                .add_modifier(Modifier::BOLD),
+                        ));
+                    } else {
+                        spans.push(Span::styled(
+                            cursor_char.to_string(),
+                            Style::default()
+                                .fg(verb_fg_color)
+                                .add_modifier(Modifier::UNDERLINED | Modifier::BOLD),
+                        ));
+                    }
+
+                    // Render after cursor with gradient
+                    spans.extend(Self::render_verb_gradient(
+                        &after_in_verb,
+                        &verb_color,
+                        self.frame,
+                        is_complete,
+                    ));
+
+                    // Show remaining letters hint for partial match (Tab to complete)
+                    if !remaining_hint.is_empty() {
+                        spans.push(Span::styled(
+                            remaining_hint.clone(),
+                            Style::default()
+                                .fg(theme.text_muted)
+                                .add_modifier(Modifier::ITALIC),
+                        ));
+
+                        spans.push(Span::styled(
+                            " [Tab]",
+                            Style::default().fg(theme.text_muted),
+                        ));
+                    } else if is_complete {
+                    }
+                    spans.push(Span::raw(rest_part));
+                } else {
+                    // Cursor is after verb - full gradient on verb
+                    // v0.8.2: ASCII box with animated emoji for the verb
+
+                    let emoji = verb_color.icon();
+                    spans.extend(Self::render_verb_gradient(
+                        emoji,
+                        &verb_color,
+                        self.frame,
+                        is_complete,
+                    ));
+                    spans.push(Span::raw(" ")); // Space after emoji
+
+                    spans.extend(Self::render_verb_gradient(
+                        verb_part,
+                        &verb_color,
+                        self.frame,
+                        is_complete,
+                    ));
+
+                    let rest_cursor_pos = cursor_pos - verb_len;
+                    let before_rest: String = rest_part.chars().take(rest_cursor_pos).collect();
+                    let after_rest: String = rest_part.chars().skip(rest_cursor_pos + 1).collect();
+
+                    spans.push(Span::raw(before_rest));
+                    if cursor_visible {
+                        spans.push(Span::styled(
+                            cursor_char.to_string(),
+                            Style::default().bg(theme.highlight).fg(Color::Black),
+                        ));
+                    } else {
+                        spans.push(Span::styled(
+                            cursor_char.to_string(),
+                            Style::default()
+                                .fg(theme.highlight)
+                                .add_modifier(Modifier::UNDERLINED),
+                        ));
+                    }
+                    spans.push(Span::raw(after_rest));
+
+                    // v0.8.2: Show contextual placeholder when verb is complete and no argument yet
+                    if is_complete && rest_part.trim().is_empty() {
+                        let placeholder = Self::verb_placeholder(&verb_color, self.frame);
+                        spans.push(Span::styled(
+                            format!(" {}", placeholder),
+                            Style::default()
+                                .fg(theme.text_muted)
+                                .add_modifier(Modifier::ITALIC),
+                        ));
+                        spans.push(Span::styled(
+                            " [Tab]",
+                            Style::default().fg(theme.text_muted),
+                        ));
+                    }
+                }
             } else {
-                spans.push(Span::styled(
-                    cursor_char.to_string(),
-                    Style::default()
-                        .fg(theme.highlight)
-                        .add_modifier(Modifier::UNDERLINED),
-                ));
+                // No verb detected, render normally
+                spans.push(Span::raw(before_cursor));
+                // v0.8 WOW: Blinking block cursor
+                if cursor_visible {
+                    spans.push(Span::styled(
+                        cursor_char.to_string(),
+                        Style::default().bg(theme.highlight).fg(Color::Black),
+                    ));
+                } else {
+                    spans.push(Span::styled(
+                        cursor_char.to_string(),
+                        Style::default()
+                            .fg(theme.highlight)
+                            .add_modifier(Modifier::UNDERLINED),
+                    ));
+                }
+                spans.push(Span::raw(after_cursor));
             }
-            spans.push(Span::raw(after_cursor));
         }
 
         let line = Line::from(spans);
@@ -2994,6 +3465,118 @@ impl ChatView {
             }
         }
 
+        // v0.8.1: Show agent phase indicator box when agent is active (not Idle)
+        // This shows real phases (Syncing/Planning/Invoking/Processing/Inferring/Streaming) with Matrix effect
+        // IMPORTANT: Show during ALL active phases including Streaming - users want to see activity!
+        if self.agent_phase != AgentPhase::Idle {
+            // Phase indicator box header - color by phase type
+            let phase_color = match self.agent_phase {
+                AgentPhase::Syncing => theme.status_running,
+                AgentPhase::Planning => theme.status_running,
+                AgentPhase::Routing => theme.status_running,
+                AgentPhase::Invoking => theme.highlight,
+                AgentPhase::Processing => theme.status_success,
+                AgentPhase::Inferring => theme.status_running,
+                AgentPhase::Composing => theme.status_running,
+                AgentPhase::Streaming => theme.status_success, // Streaming = green = active output
+                AgentPhase::Idle => theme.text_muted,          // Shouldn't reach here but safe
+            };
+
+            // Box top
+            items.push(ListItem::new(Line::from(vec![Span::styled(
+                format!(
+                    "┌─ 🐔 Nika {}─┐",
+                    "─".repeat(content_width.saturating_sub(15))
+                ),
+                Style::default().fg(phase_color),
+            )])));
+
+            // Phase indicator line with Matrix effect
+            let phase_line = self.phase_indicator.build_line();
+            let mut phase_spans = vec![Span::styled("│  ", Style::default().fg(phase_color))];
+            phase_spans.extend(phase_line.spans);
+            // Pad to box width
+            phase_spans.push(Span::styled(
+                format!("{:width$}│", "", width = content_width.saturating_sub(30)),
+                Style::default().fg(phase_color),
+            ));
+            items.push(ListItem::new(Line::from(phase_spans)));
+
+            // Show tool details if in Invoking/Processing phase
+            if matches!(
+                self.agent_phase,
+                AgentPhase::Invoking | AgentPhase::Processing
+            ) {
+                if let Some(ref tool) = self.agent_phase_tool {
+                    // Get last MCP call details if available
+                    if let Some(InlineContent::McpCall(mcp_data)) = self.inline_content.last() {
+                        // Server line
+                        items.push(ListItem::new(Line::from(vec![
+                            Span::styled("│  ", Style::default().fg(phase_color)),
+                            Span::styled("├── ", Style::default().fg(theme.text_muted)),
+                            Span::styled("server: ", Style::default().fg(theme.text_muted)),
+                            Span::styled(
+                                mcp_data.server.clone(),
+                                Style::default().fg(theme.highlight),
+                            ),
+                        ])));
+
+                        // Params line (truncated)
+                        if !mcp_data.params.is_empty() {
+                            let params_preview = if mcp_data.params.len() > 40 {
+                                format!("{}...", &mcp_data.params[..40])
+                            } else {
+                                mcp_data.params.clone()
+                            };
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│  ", Style::default().fg(phase_color)),
+                                Span::styled("├── ", Style::default().fg(theme.text_muted)),
+                                Span::styled("params: ", Style::default().fg(theme.text_muted)),
+                                Span::styled(
+                                    params_preview,
+                                    Style::default().fg(theme.text_secondary),
+                                ),
+                            ])));
+                        }
+
+                        // Duration line
+                        let elapsed_secs = mcp_data.duration.as_secs_f64();
+                        items.push(ListItem::new(Line::from(vec![
+                            Span::styled("│  ", Style::default().fg(phase_color)),
+                            Span::styled("└── ", Style::default().fg(theme.text_muted)),
+                            Span::styled("⏱ ", Style::default().fg(theme.text_muted)),
+                            Span::styled(
+                                format!("{:.1}s", elapsed_secs),
+                                Style::default().fg(if elapsed_secs > 5.0 {
+                                    theme.status_failed
+                                } else if elapsed_secs > 2.0 {
+                                    theme.status_running
+                                } else {
+                                    theme.status_success
+                                }),
+                            ),
+                        ])));
+                    } else {
+                        // Fallback: just show tool name
+                        items.push(ListItem::new(Line::from(vec![
+                            Span::styled("│  ", Style::default().fg(phase_color)),
+                            Span::styled("└── ", Style::default().fg(theme.text_muted)),
+                            Span::styled("tool: ", Style::default().fg(theme.text_muted)),
+                            Span::styled(tool.clone(), Style::default().fg(theme.highlight)),
+                        ])));
+                    }
+                }
+            }
+
+            // Box bottom
+            items.push(ListItem::new(Line::from(vec![Span::styled(
+                format!("└{}┘", "─".repeat(content_width.saturating_sub(2))),
+                Style::default().fg(phase_color),
+            )])));
+
+            items.push(ListItem::new("")); // spacing
+        }
+
         // Add streaming indicator if streaming is in progress
         if self.is_streaming && self.inline_content.is_empty() {
             items.push(ListItem::new(Line::from(vec![
@@ -3031,31 +3614,19 @@ impl ChatView {
                 }
             }
 
-            // v0.8 WOW: Enhanced animated thinking indicator with typing wave
-            let spinners = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
-            let spinner = spinners[(self.frame as usize) % spinners.len()];
-
-            // Typing wave effect: ●○○ → ○●○ → ○○● → ○○○ → ...
-            let wave_pos = (self.frame as usize / 3) % 5;
-            let wave: String = (0..3)
-                .map(|i| if i == wave_pos % 3 { "●" } else { "○" })
-                .collect::<Vec<_>>()
-                .join("");
-
-            items.push(ListItem::new(Line::from(vec![
-                Span::styled("│ ", Style::default().fg(theme.status_success)),
-                Span::styled(
-                    format!("{} ", spinner),
-                    Style::default().fg(theme.status_running),
-                ),
-                Span::styled(
-                    "Generating",
-                    Style::default()
-                        .fg(theme.status_running)
-                        .add_modifier(Modifier::ITALIC),
-                ),
-                Span::styled(format!(" {} ", wave), Style::default().fg(theme.highlight)),
-            ])));
+            // v0.8.1: Only show phase indicator if no content yet
+            // Once streaming starts, the Matrix effect replaces this indicator
+            if self.partial_response.is_empty() {
+                // v0.8.1: Use AgentPhaseIndicator with Matrix effect
+                // Shows real phase (Syncing/Planning/Invoking/Inferring) instead of generic "Generating"
+                let phase_line = self.phase_indicator.build_line();
+                let mut spans = vec![Span::styled(
+                    "│ ",
+                    Style::default().fg(theme.status_success),
+                )];
+                spans.extend(phase_line.spans);
+                items.push(ListItem::new(Line::from(spans)));
+            }
         }
 
         // v0.8 UX: Focus indicators for Conversation panel

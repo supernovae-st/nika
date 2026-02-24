@@ -71,6 +71,282 @@ const SPINNER_FRAMES: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦
 const PROGRESS_FILLED: char = '█';
 const PROGRESS_EMPTY: char = '░';
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// AGENT PHASE (v0.8.1: Real-time status tracking)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Agent execution phase for real-time status display
+///
+/// Shows what the agent is actually doing instead of generic "Generating..."
+///
+/// # Currently Used Phases (v0.8.1)
+///
+/// | Phase | Event Trigger | Description |
+/// |-------|---------------|-------------|
+/// | `Idle` | AgentComplete | No agent running |
+/// | `Syncing` | AgentTurn{kind:"started"} | Agent connecting/starting |
+/// | `Planning` | AgentTurn{kind:other} | Agent thinking about action |
+/// | `Invoking` | McpInvoke | Calling MCP tool |
+/// | `Processing` | McpResponse | Handling tool result |
+/// | `Inferring` | ProviderCalled | LLM text generation |
+/// | `Streaming` | First token | Outputting tokens |
+///
+/// # Reserved Phases (Not Currently Triggered)
+///
+/// | Phase | Intended Use |
+/// |-------|--------------|
+/// | `Routing` | Future: Selecting which tool to call |
+/// | `Composing` | Future: Formulating final response |
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AgentPhase {
+    /// No agent running (default)
+    #[default]
+    Idle,
+    /// 🦋 Connecting to API / starting up
+    Syncing,
+    /// 🐔 Analyzing context + deciding action
+    Planning,
+    /// 🔀 Selecting which tool to call (reserved - not currently triggered)
+    Routing,
+    /// 🔌 Calling MCP tool
+    Invoking,
+    /// ⚙️ Handling tool result
+    Processing,
+    /// ⚡ LLM text generation
+    Inferring,
+    /// ✍️ Formulating response (reserved - not currently triggered)
+    Composing,
+    /// 📡 Outputting tokens
+    Streaming,
+}
+
+impl AgentPhase {
+    /// Get the icon for this phase (Nika vocabulary)
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Self::Idle => "",
+            Self::Syncing => "🦋",
+            Self::Planning => "🐔",
+            Self::Routing => "🔀",
+            Self::Invoking => "🔌",
+            Self::Processing => "⚙️",
+            Self::Inferring => "⚡",
+            Self::Composing => "✍️",
+            Self::Streaming => "📡",
+        }
+    }
+
+    /// Get the label for this phase
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Idle => "",
+            Self::Syncing => "Syncing",
+            Self::Planning => "Planning",
+            Self::Routing => "Routing",
+            Self::Invoking => "Invoking",
+            Self::Processing => "Processing",
+            Self::Inferring => "Inferring",
+            Self::Composing => "Composing",
+            Self::Streaming => "Streaming",
+        }
+    }
+
+    /// For Matrix effect: alternate between 🦋 (Nika brand) and phase icon
+    /// Switches every 5 frames (~500ms at 10fps)
+    pub fn animated_icon(&self, frame: u8) -> &'static str {
+        if *self == Self::Idle {
+            return self.icon();
+        }
+        if frame % 10 < 5 {
+            "🦋" // Nika brand icon
+        } else {
+            self.icon()
+        }
+    }
+
+    /// Check if this phase is active (not idle)
+    pub fn is_active(&self) -> bool {
+        *self != Self::Idle
+    }
+
+    /// Check if this is a tool-related phase
+    pub fn is_tool_phase(&self) -> bool {
+        matches!(self, Self::Invoking | Self::Processing)
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AGENT PHASE INDICATOR (v0.8.1: Compact status with Matrix effect)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+use crate::tui::theme::solarized;
+use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
+
+/// Katakana characters for Matrix chaos effect
+const KATAKANA_CHARS: &[char] = &[
+    'ア', 'イ', 'ウ', 'エ', 'オ', 'カ', 'キ', 'ク', 'ケ', 'コ', 'サ', 'シ', 'ス', 'セ', 'ソ', 'タ',
+    'チ', 'ツ', 'テ', 'ト', 'ナ', 'ニ', 'ヌ', 'ネ', 'ノ', 'ハ', 'ヒ', 'フ', 'ヘ', 'ホ', 'マ', 'ミ',
+    'ム', 'メ', 'モ', 'ヤ', 'ユ', 'ヨ', 'ラ', 'リ', 'ル', 'レ', 'ロ', 'ワ', 'ヲ', 'ン',
+];
+
+/// Compact phase indicator with Matrix effect on label
+///
+/// Shows: `🦋⟷🔌 カタInvokingカナ novanet_describe...`
+///
+/// Features:
+/// - Animated icon alternating between 🦋 and phase icon
+/// - Matrix chaos effect on label text
+/// - Tool name display when invoking
+/// - Animated dots "..."
+#[derive(Debug, Clone)]
+pub struct AgentPhaseIndicator {
+    /// Current phase
+    phase: AgentPhase,
+    /// Tool name (for Invoking phase)
+    tool_name: Option<String>,
+    /// Animation frame counter
+    frame: u8,
+    /// RNG seed for consistent chaos per-indicator
+    seed: u64,
+    /// How many chars are revealed (for progressive reveal)
+    revealed_chars: usize,
+}
+
+impl Default for AgentPhaseIndicator {
+    fn default() -> Self {
+        Self::new(AgentPhase::Idle)
+    }
+}
+
+impl AgentPhaseIndicator {
+    /// Create a new phase indicator
+    pub fn new(phase: AgentPhase) -> Self {
+        Self {
+            phase,
+            tool_name: None,
+            frame: 0,
+            seed: 42,
+            revealed_chars: 0,
+        }
+    }
+
+    /// Set the tool name (for Invoking phase)
+    pub fn with_tool(mut self, tool: impl Into<String>) -> Self {
+        self.tool_name = Some(tool.into());
+        self
+    }
+
+    /// Set a custom seed for chaos RNG
+    pub fn with_seed(mut self, seed: u64) -> Self {
+        self.seed = seed;
+        self
+    }
+
+    /// Update the phase
+    pub fn set_phase(&mut self, phase: AgentPhase) {
+        if self.phase != phase {
+            self.phase = phase;
+            self.revealed_chars = 0; // Reset reveal on phase change
+        }
+    }
+
+    /// Set tool name
+    pub fn set_tool(&mut self, tool: Option<String>) {
+        self.tool_name = tool;
+    }
+
+    /// Advance animation frame
+    pub fn tick(&mut self) {
+        self.frame = self.frame.wrapping_add(1);
+        // Reveal one more char every 2 frames
+        if self.frame % 2 == 0 {
+            self.revealed_chars = self.revealed_chars.saturating_add(1);
+        }
+    }
+
+    /// Get current frame
+    pub fn frame(&self) -> u8 {
+        self.frame
+    }
+
+    /// Get current phase
+    pub fn phase(&self) -> AgentPhase {
+        self.phase
+    }
+
+    /// Build a Line with Matrix effect on the label
+    ///
+    /// Output: `🦋 カSyncingナ...` or `🔌 Invoking novanet_describe...`
+    pub fn build_line(&self) -> Line<'static> {
+        use ratatui::style::Modifier;
+
+        if self.phase == AgentPhase::Idle {
+            return Line::from(vec![]);
+        }
+
+        let mut spans = vec![];
+        let mut rng = SmallRng::seed_from_u64(self.seed.wrapping_add(self.frame as u64));
+
+        // Animated icon (🦋 ⟷ phase_icon)
+        let icon = self.phase.animated_icon(self.frame);
+        spans.push(Span::styled(
+            format!("{} ", icon),
+            Style::default().fg(solarized::CYAN),
+        ));
+
+        // Label with Matrix chaos effect
+        let label = self.phase.label();
+        for (i, ch) in label.chars().enumerate() {
+            if i < self.revealed_chars {
+                // Revealed: show actual character
+                spans.push(Span::styled(
+                    ch.to_string(),
+                    Style::default().fg(solarized::BASE1),
+                ));
+            } else {
+                // Chaos: show random katakana with color
+                let chaos_char = KATAKANA_CHARS[rng.gen_range(0..KATAKANA_CHARS.len())];
+                let colors = [
+                    solarized::CYAN,
+                    solarized::GREEN,
+                    solarized::YELLOW,
+                    solarized::BLUE,
+                    solarized::MAGENTA,
+                ];
+                let color = colors[rng.gen_range(0..colors.len())];
+                spans.push(Span::styled(
+                    chaos_char.to_string(),
+                    Style::default().fg(color),
+                ));
+            }
+        }
+
+        // Tool name (if invoking)
+        if let Some(tool) = &self.tool_name {
+            spans.push(Span::raw(" "));
+            spans.push(Span::styled(
+                tool.clone(),
+                Style::default()
+                    .fg(solarized::BLUE)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        }
+
+        // Animated dots
+        let dot_count = ((self.frame / 5) % 4) as usize;
+        let dots = ".".repeat(dot_count.max(1));
+        spans.push(Span::styled(dots, Style::default().fg(solarized::BASE01)));
+
+        Line::from(spans)
+    }
+
+    /// Check if fully revealed (no more chaos)
+    pub fn is_fully_revealed(&self) -> bool {
+        self.revealed_chars >= self.phase.label().len()
+    }
+}
+
 /// Step status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StepStatus {
@@ -2178,5 +2454,234 @@ mod tests {
         let truncated = truncate_json(long, 40);
         assert!(truncated.len() < long.len());
         assert!(truncated.ends_with("...") || truncated.ends_with("...}"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // AGENT PHASE TESTS (v0.8.1)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_agent_phase_default_is_idle() {
+        let phase = AgentPhase::default();
+        assert_eq!(phase, AgentPhase::Idle);
+    }
+
+    #[test]
+    fn test_agent_phase_icons() {
+        assert_eq!(AgentPhase::Idle.icon(), "");
+        assert_eq!(AgentPhase::Syncing.icon(), "🦋");
+        assert_eq!(AgentPhase::Planning.icon(), "🐔");
+        assert_eq!(AgentPhase::Routing.icon(), "🔀");
+        assert_eq!(AgentPhase::Invoking.icon(), "🔌");
+        assert_eq!(AgentPhase::Processing.icon(), "⚙️");
+        assert_eq!(AgentPhase::Inferring.icon(), "⚡");
+        assert_eq!(AgentPhase::Composing.icon(), "✍️");
+        assert_eq!(AgentPhase::Streaming.icon(), "📡");
+    }
+
+    #[test]
+    fn test_agent_phase_labels() {
+        assert_eq!(AgentPhase::Idle.label(), "");
+        assert_eq!(AgentPhase::Syncing.label(), "Syncing");
+        assert_eq!(AgentPhase::Planning.label(), "Planning");
+        assert_eq!(AgentPhase::Routing.label(), "Routing");
+        assert_eq!(AgentPhase::Invoking.label(), "Invoking");
+        assert_eq!(AgentPhase::Processing.label(), "Processing");
+        assert_eq!(AgentPhase::Inferring.label(), "Inferring");
+        assert_eq!(AgentPhase::Composing.label(), "Composing");
+        assert_eq!(AgentPhase::Streaming.label(), "Streaming"); // v0.8.1: Show label for Matrix effect
+    }
+
+    #[test]
+    fn test_agent_phase_animated_icon_alternates() {
+        // Frame 0-4: should show 🦋
+        assert_eq!(AgentPhase::Planning.animated_icon(0), "🦋");
+        assert_eq!(AgentPhase::Planning.animated_icon(4), "🦋");
+
+        // Frame 5-9: should show phase icon
+        assert_eq!(AgentPhase::Planning.animated_icon(5), "🐔");
+        assert_eq!(AgentPhase::Planning.animated_icon(9), "🐔");
+
+        // Frame 10+: cycles back
+        assert_eq!(AgentPhase::Planning.animated_icon(10), "🦋");
+        assert_eq!(AgentPhase::Planning.animated_icon(15), "🐔");
+    }
+
+    #[test]
+    fn test_agent_phase_animated_icon_idle_special_case() {
+        // Idle doesn't animate - always shows empty icon
+        assert_eq!(AgentPhase::Idle.animated_icon(0), "");
+        assert_eq!(AgentPhase::Idle.animated_icon(5), "");
+    }
+
+    #[test]
+    fn test_agent_phase_animated_icon_streaming_animates() {
+        // v0.8.1: Streaming now animates like other phases
+        assert_eq!(AgentPhase::Streaming.animated_icon(0), "🦋"); // Frame 0-4: Nika brand
+        assert_eq!(AgentPhase::Streaming.animated_icon(5), "📡"); // Frame 5-9: Streaming icon
+        assert_eq!(AgentPhase::Streaming.animated_icon(10), "🦋"); // Cycles back
+    }
+
+    #[test]
+    fn test_agent_phase_is_active() {
+        assert!(!AgentPhase::Idle.is_active());
+        assert!(AgentPhase::Syncing.is_active());
+        assert!(AgentPhase::Planning.is_active());
+        assert!(AgentPhase::Invoking.is_active());
+        assert!(AgentPhase::Streaming.is_active());
+    }
+
+    #[test]
+    fn test_agent_phase_is_tool_phase() {
+        assert!(!AgentPhase::Idle.is_tool_phase());
+        assert!(!AgentPhase::Syncing.is_tool_phase());
+        assert!(!AgentPhase::Planning.is_tool_phase());
+        assert!(AgentPhase::Invoking.is_tool_phase());
+        assert!(AgentPhase::Processing.is_tool_phase());
+        assert!(!AgentPhase::Inferring.is_tool_phase());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // AGENT PHASE INDICATOR TESTS (v0.8.1)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_phase_indicator_new() {
+        let indicator = AgentPhaseIndicator::new(AgentPhase::Syncing);
+        assert_eq!(indicator.phase(), AgentPhase::Syncing);
+        assert_eq!(indicator.frame(), 0);
+    }
+
+    #[test]
+    fn test_phase_indicator_with_tool() {
+        let indicator =
+            AgentPhaseIndicator::new(AgentPhase::Invoking).with_tool("novanet_describe");
+        assert_eq!(indicator.phase(), AgentPhase::Invoking);
+        // Tool name is stored but private, we test via build_line
+    }
+
+    #[test]
+    fn test_phase_indicator_tick_advances_frame() {
+        let mut indicator = AgentPhaseIndicator::new(AgentPhase::Planning);
+        assert_eq!(indicator.frame(), 0);
+
+        indicator.tick();
+        assert_eq!(indicator.frame(), 1);
+
+        indicator.tick();
+        assert_eq!(indicator.frame(), 2);
+    }
+
+    #[test]
+    fn test_phase_indicator_tick_reveals_chars() {
+        let mut indicator = AgentPhaseIndicator::new(AgentPhase::Syncing);
+        // "Syncing" = 7 chars
+        assert!(!indicator.is_fully_revealed());
+
+        // Reveal happens every 2 frames
+        for _ in 0..14 {
+            indicator.tick();
+        }
+
+        assert!(indicator.is_fully_revealed());
+    }
+
+    #[test]
+    fn test_phase_indicator_set_phase_resets_reveal() {
+        let mut indicator = AgentPhaseIndicator::new(AgentPhase::Syncing);
+
+        // Advance to partial reveal
+        for _ in 0..10 {
+            indicator.tick();
+        }
+        assert!(indicator.revealed_chars > 0);
+
+        // Change phase
+        indicator.set_phase(AgentPhase::Planning);
+
+        // Should reset reveal
+        assert_eq!(indicator.revealed_chars, 0);
+    }
+
+    #[test]
+    fn test_phase_indicator_build_line_idle_empty() {
+        let indicator = AgentPhaseIndicator::new(AgentPhase::Idle);
+        let line = indicator.build_line();
+        assert!(line.spans.is_empty());
+    }
+
+    #[test]
+    fn test_phase_indicator_build_line_has_icon() {
+        let indicator = AgentPhaseIndicator::new(AgentPhase::Syncing);
+        let line = indicator.build_line();
+
+        // First span should contain the icon
+        assert!(!line.spans.is_empty());
+        let first_span = &line.spans[0];
+        // Should contain 🦋 (initial frame shows Nika icon)
+        assert!(first_span.content.contains('🦋'));
+    }
+
+    #[test]
+    fn test_phase_indicator_build_line_with_tool_name() {
+        let indicator =
+            AgentPhaseIndicator::new(AgentPhase::Invoking).with_tool("novanet_describe");
+        let line = indicator.build_line();
+
+        // Should contain tool name somewhere
+        let full_text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(full_text.contains("novanet_describe"));
+    }
+
+    #[test]
+    fn test_phase_indicator_build_line_has_dots() {
+        let indicator = AgentPhaseIndicator::new(AgentPhase::Planning);
+        let line = indicator.build_line();
+
+        // Last span should have dots
+        let full_text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(full_text.contains('.'));
+    }
+
+    #[test]
+    fn test_phase_indicator_chaos_chars_present() {
+        let indicator = AgentPhaseIndicator::new(AgentPhase::Syncing);
+        let line = indicator.build_line();
+
+        // At frame 0, all label chars should be chaos (katakana)
+        let full_text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+
+        // Should NOT contain "Syncing" yet (all chaos)
+        assert!(!full_text.contains("Syncing"));
+
+        // Should contain at least some katakana
+        let has_katakana = full_text.chars().any(|c| {
+            ('\u{30A0}'..='\u{30FF}').contains(&c) // Katakana range
+        });
+        assert!(has_katakana);
+    }
+
+    #[test]
+    fn test_phase_indicator_progressive_reveal() {
+        let mut indicator = AgentPhaseIndicator::new(AgentPhase::Syncing);
+
+        // Initial: all chaos
+        let line0 = indicator.build_line();
+        let text0: String = line0.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(!text0.contains('S')); // 'S' from "Syncing" not revealed
+
+        // After many ticks: should reveal 'S'
+        for _ in 0..4 {
+            indicator.tick();
+        }
+        let line1 = indicator.build_line();
+        let text1: String = line1.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(text1.contains('S')); // 'S' revealed
+    }
+
+    #[test]
+    fn test_phase_indicator_default() {
+        let indicator = AgentPhaseIndicator::default();
+        assert_eq!(indicator.phase(), AgentPhase::Idle);
     }
 }
