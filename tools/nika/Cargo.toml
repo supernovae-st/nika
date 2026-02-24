@@ -41,6 +41,9 @@ miette = { version = "7.6", features = ["fancy"] }
 # HTTP
 reqwest = { version = "0.12", features = ["json"] }
 
+# Secure credential storage
+keyring = "3"
+
 # Utilities
 bytes = "1.11.1"  # Force upgrade to fix RUSTSEC-2026-0007
 regex = "1.11"
