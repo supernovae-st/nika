@@ -81,8 +81,8 @@ impl Widget for ProviderModal<'_> {
         }
 
         // Calculate modal size (80% width, 70% height, centered)
-        let modal_width = (area.width * 80 / 100).min(100).max(50);
-        let modal_height = (area.height * 70 / 100).min(30).max(15);
+        let modal_width = (area.width * 80 / 100).clamp(50, 100);
+        let modal_height = (area.height * 70 / 100).clamp(15, 30);
         let modal_x = (area.width - modal_width) / 2 + area.x;
         let modal_y = (area.height - modal_height) / 2 + area.y;
 

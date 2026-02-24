@@ -142,7 +142,8 @@ mod tests {
 
     #[test]
     fn test_validate_anthropic_key_valid() {
-        let result = validate_key_format("anthropic", "sk-ant-api03-abcdefghijklmnopqrstuvwxyz123456");
+        let result =
+            validate_key_format("anthropic", "sk-ant-api03-abcdefghijklmnopqrstuvwxyz123456");
         assert!(result.is_ok());
     }
 

@@ -22,16 +22,16 @@ pub enum CardStyle {
 impl CardStyle {
     pub fn border_color(&self) -> Color {
         match self {
-            Self::Selected => Color::Rgb(99, 102, 241),  // indigo
-            Self::Normal => Color::Rgb(55, 65, 81),      // gray
-            Self::Disabled => Color::Rgb(31, 41, 55),    // dark gray
+            Self::Selected => Color::Rgb(99, 102, 241), // indigo
+            Self::Normal => Color::Rgb(55, 65, 81),     // gray
+            Self::Disabled => Color::Rgb(31, 41, 55),   // dark gray
         }
     }
 
     pub fn bg_color(&self) -> Color {
         match self {
-            Self::Selected => Color::Rgb(30, 41, 59),    // slate-800
-            Self::Normal => Color::Rgb(17, 24, 39),      // gray-900
+            Self::Selected => Color::Rgb(30, 41, 59), // slate-800
+            Self::Normal => Color::Rgb(17, 24, 39),   // gray-900
             Self::Disabled => Color::Rgb(17, 24, 39),
         }
     }
@@ -49,12 +49,7 @@ pub struct ProviderCard<'a> {
 }
 
 impl<'a> ProviderCard<'a> {
-    pub fn new(
-        icon: &'a str,
-        name: &'a str,
-        model: &'a str,
-        status: &'a ConnectionStatus,
-    ) -> Self {
+    pub fn new(icon: &'a str, name: &'a str, model: &'a str, status: &'a ConnectionStatus) -> Self {
         Self {
             icon,
             name,

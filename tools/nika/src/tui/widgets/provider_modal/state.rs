@@ -54,9 +54,10 @@ impl ProviderModalTab {
 }
 
 /// Provider connection status with rich info
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ConnectionStatus {
     /// Not yet checked
+    #[default]
     Unknown,
     /// Currently checking connection
     Checking,
@@ -66,12 +67,6 @@ pub enum ConnectionStatus {
     Failed { error: String },
     /// API key not configured
     NotConfigured,
-}
-
-impl Default for ConnectionStatus {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }
 
 impl ConnectionStatus {
@@ -93,9 +88,10 @@ impl ConnectionStatus {
 }
 
 /// API key configuration state
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ApiKeyState {
     /// No key configured
+    #[default]
     NotConfigured,
     /// Key is stored (masked for display)
     Configured { masked: String },
@@ -103,12 +99,6 @@ pub enum ApiKeyState {
     Verified { masked: String, latency_ms: u64 },
     /// Key is invalid
     Invalid { masked: String, error: String },
-}
-
-impl Default for ApiKeyState {
-    fn default() -> Self {
-        Self::NotConfigured
-    }
 }
 
 impl ApiKeyState {
@@ -139,9 +129,10 @@ impl ApiKeyState {
 }
 
 /// Download state for Ollama model pulls
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum DownloadState {
     /// No download in progress
+    #[default]
     Idle,
     /// Downloading with progress
     Downloading {
@@ -154,12 +145,6 @@ pub enum DownloadState {
     Complete { model: String },
     /// Download failed
     Failed { model: String, error: String },
-}
-
-impl Default for DownloadState {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 impl DownloadState {
@@ -282,10 +267,22 @@ mod tests {
 
     #[test]
     fn test_tab_from_key() {
-        assert_eq!(ProviderModalTab::from_key('1'), Some(ProviderModalTab::Cloud));
-        assert_eq!(ProviderModalTab::from_key('2'), Some(ProviderModalTab::Ollama));
-        assert_eq!(ProviderModalTab::from_key('3'), Some(ProviderModalTab::Keys));
-        assert_eq!(ProviderModalTab::from_key('4'), Some(ProviderModalTab::Config));
+        assert_eq!(
+            ProviderModalTab::from_key('1'),
+            Some(ProviderModalTab::Cloud)
+        );
+        assert_eq!(
+            ProviderModalTab::from_key('2'),
+            Some(ProviderModalTab::Ollama)
+        );
+        assert_eq!(
+            ProviderModalTab::from_key('3'),
+            Some(ProviderModalTab::Keys)
+        );
+        assert_eq!(
+            ProviderModalTab::from_key('4'),
+            Some(ProviderModalTab::Config)
+        );
         assert_eq!(ProviderModalTab::from_key('x'), None);
     }
 
@@ -303,7 +300,9 @@ mod tests {
         let checking = ConnectionStatus::Checking;
         assert_eq!(checking.display_text(), "⠹ Checking...");
 
-        let failed = ConnectionStatus::Failed { error: "Timeout".into() };
+        let failed = ConnectionStatus::Failed {
+            error: "Timeout".into(),
+        };
         assert_eq!(failed.display_text(), "✗ Timeout");
 
         let not_configured = ConnectionStatus::NotConfigured;
@@ -337,10 +336,15 @@ mod tests {
         let not_configured = ApiKeyState::NotConfigured;
         assert_eq!(not_configured.status_icon(), "⚠");
 
-        let configured = ApiKeyState::Configured { masked: "sk-...xyz".into() };
+        let configured = ApiKeyState::Configured {
+            masked: "sk-...xyz".into(),
+        };
         assert_eq!(configured.status_icon(), "✓");
 
-        let invalid = ApiKeyState::Invalid { masked: "sk-...xyz".into(), error: "Bad".into() };
+        let invalid = ApiKeyState::Invalid {
+            masked: "sk-...xyz".into(),
+            error: "Bad".into(),
+        };
         assert_eq!(invalid.status_icon(), "✗");
     }
 
@@ -359,10 +363,18 @@ mod tests {
     fn test_download_state_is_active() {
         assert!(!DownloadState::Idle.is_active());
         assert!(DownloadState::Downloading {
-            model: "".into(), progress: 0.0, downloaded: 0, total: 0
-        }.is_active());
+            model: "".into(),
+            progress: 0.0,
+            downloaded: 0,
+            total: 0
+        }
+        .is_active());
         assert!(!DownloadState::Complete { model: "".into() }.is_active());
-        assert!(!DownloadState::Failed { model: "".into(), error: "".into() }.is_active());
+        assert!(!DownloadState::Failed {
+            model: "".into(),
+            error: "".into()
+        }
+        .is_active());
     }
 
     #[test]
