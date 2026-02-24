@@ -57,7 +57,9 @@ use super::theme::Theme;
 use super::utils::truncate_str;
 use super::verification::{VerificationCache, VerificationEntry};
 use super::views::{ChatView, HomeView, McpAction, StudioView, TuiView, View, ViewAction};
-use super::widgets::task_box::{AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox};
+use super::widgets::task_box::{
+    AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,
+};
 use super::widgets::{ConnectionStatus, Header, StatusBar, StatusMessageWidget, StatusMetrics};
 use crate::config::mask_api_key;
 use crossterm::event::KeyEvent;
@@ -842,7 +844,8 @@ impl App {
                     params,
                 } => {
                     // v0.8.4: Create TaskBox::Invoke for inline rendering
-                    let params_json = serde_json::from_str(&params).unwrap_or(serde_json::Value::Null);
+                    let params_json =
+                        serde_json::from_str(&params).unwrap_or(serde_json::Value::Null);
                     let invoke_box = InvokeBox::new(&tool, &server)
                         .with_params(params_json)
                         .with_state(BoxState::running());
@@ -850,14 +853,30 @@ impl App {
                     tracing::debug!(tool = %tool, server = %server, "MCP call started with TaskBox");
                 }
                 StreamChunk::McpCallComplete { result } => {
-                    // Complete inline MCP call visualization
+                    // v0.8.4: Update TaskBox::Invoke with result
+                    self.chat_view.update_last_task_box(|task_box| {
+                        if let TaskBox::Invoke(invoke) = task_box {
+                            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&result) {
+                                invoke.result = Some(parsed);
+                            }
+                            invoke.state = BoxState::success(0);
+                        }
+                    });
+                    // Keep legacy method for backward compatibility
                     self.chat_view.complete_mcp_call(&result);
-                    tracing::debug!("MCP call completed");
+                    tracing::debug!("MCP call completed with TaskBox");
                 }
                 StreamChunk::McpCallFailed { error } => {
-                    // Mark inline MCP call as failed
+                    // v0.8.4: Update TaskBox::Invoke with error
+                    self.chat_view.update_last_task_box(|task_box| {
+                        if let TaskBox::Invoke(invoke) = task_box {
+                            invoke.error = Some(error.clone());
+                            invoke.state = BoxState::failed(&error, 0);
+                        }
+                    });
+                    // Keep legacy method for backward compatibility
                     self.chat_view.fail_mcp_call(&error);
-                    tracing::warn!(error = %error, "MCP call failed");
+                    tracing::warn!(error = %error, "MCP call failed with TaskBox");
                 }
                 StreamChunk::InferStart {
                     model,
@@ -884,6 +903,8 @@ impl App {
                     self.chat_view.append_infer_content("", output_tokens);
                 }
                 StreamChunk::InferComplete => {
+                    // v0.8.4: Update TaskBox::Infer with success
+                    self.chat_view.complete_last_task_box(0);
                     // Complete inline inference visualization
                     self.chat_view.complete_infer_stream();
                     // v0.8.1 FIX: Transfer partial_response to message when streaming finishes
@@ -894,7 +915,7 @@ impl App {
                             last.content = final_response;
                         }
                     }
-                    tracing::debug!("Infer completed");
+                    tracing::debug!("Infer completed with TaskBox");
                 }
                 // ═══════════════════════════════════════════════════════════════════════
                 // Activity Events for /exec, /fetch, /agent (v0.8.0)
@@ -906,8 +927,9 @@ impl App {
                     tracing::debug!(command = %command, "Exec started with TaskBox");
                 }
                 StreamChunk::ExecComplete => {
-                    self.chat_view.complete_exec_activity();
-                    tracing::debug!("Exec completed");
+                    // v0.8.4: Update TaskBox::Exec with success
+                    self.chat_view.complete_last_task_box(0);
+                    tracing::debug!("Exec completed with TaskBox");
                 }
                 StreamChunk::FetchStart { url, method } => {
                     // v0.8.4: Create TaskBox::Fetch for inline rendering
@@ -916,8 +938,9 @@ impl App {
                     tracing::debug!(url = %url, method = %method, "Fetch started with TaskBox");
                 }
                 StreamChunk::FetchComplete => {
-                    self.chat_view.complete_fetch_activity();
-                    tracing::debug!("Fetch completed");
+                    // v0.8.4: Update TaskBox::Fetch with success
+                    self.chat_view.complete_last_task_box(0);
+                    tracing::debug!("Fetch completed with TaskBox");
                 }
                 StreamChunk::AgentStart { goal } => {
                     // v0.8.4: Create TaskBox::Agent for inline rendering
@@ -927,7 +950,8 @@ impl App {
                     tracing::debug!(goal = %goal, "Agent started with TaskBox");
                 }
                 StreamChunk::AgentComplete => {
-                    self.chat_view.complete_agent_activity();
+                    // v0.8.4: Update TaskBox::Agent with success
+                    self.chat_view.complete_last_task_box(0);
                     tracing::debug!("Agent completed");
                 }
                 // ═══════════════════════════════════════════════════════════════════════
