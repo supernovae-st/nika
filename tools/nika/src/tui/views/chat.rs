@@ -5256,6 +5256,7 @@ impl ChatView {
 
     /// Render command hints bar
     fn render_hints(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        // v0.8.7: Fixed labels to match actual behavior
         let hints = Line::from(vec![
             Span::styled(
                 " ⌘K ",
@@ -5268,20 +5269,20 @@ impl ChatView {
             ),
             Span::raw(" model  "),
             Span::styled(
-                " Tab ",
+                " ⇧P ",
                 Style::default().fg(Color::Black).bg(theme.highlight),
             ),
-            Span::raw(" view  "),
+            Span::raw(" providers  "),
+            Span::styled(
+                " 1234 ",
+                Style::default().fg(Color::Black).bg(theme.highlight),
+            ),
+            Span::raw(" views  "),
             Span::styled(
                 " Esc ",
                 Style::default().fg(Color::Black).bg(theme.highlight),
             ),
-            Span::raw(" back  "),
-            Span::styled(
-                " ↑↓ ",
-                Style::default().fg(Color::Black).bg(theme.highlight),
-            ),
-            Span::raw(" hist"),
+            Span::raw(" close"),
         ]);
 
         let paragraph = Paragraph::new(hints);

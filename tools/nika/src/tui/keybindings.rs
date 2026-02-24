@@ -61,11 +61,13 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
     let mut bindings = Vec::new();
 
     // Global bindings (always available)
-    // v0.8.1: Removed 'q' to quit - too easy to accidentally quit
+    // v0.8.7: Ctrl+C is context-dependent:
+    // - In input: Copy to clipboard
+    // - Elsewhere: Quit (double-tap required)
     bindings.push(Keybinding {
         code: KeyCode::Char('c'),
         modifiers: KeyModifiers::CONTROL,
-        description: "Quit (double-tap)",
+        description: "Copy / Quit (2x)",
         category: KeyCategory::Global,
     });
     bindings.push(Keybinding {
@@ -187,11 +189,24 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                     category: KeyCategory::Chat,
                 });
             }
-            // Ctrl+K/T/M available in all Chat modes (v0.7.0)
+            // Ctrl+K/P/T/M/F/R available in all Chat modes (v0.7.0+)
             bindings.push(Keybinding {
                 code: KeyCode::Char('k'),
                 modifiers: KeyModifiers::CONTROL,
                 description: "Command palette",
+                category: KeyCategory::Chat,
+            });
+            bindings.push(Keybinding {
+                code: KeyCode::Char('p'),
+                modifiers: KeyModifiers::CONTROL,
+                description: "Provider selector (quick)",
+                category: KeyCategory::Chat,
+            });
+            // v0.8.7: Shift+P for full Provider Modal
+            bindings.push(Keybinding {
+                code: KeyCode::Char('P'),
+                modifiers: KeyModifiers::SHIFT,
+                description: "Provider Modal (full)",
                 category: KeyCategory::Chat,
             });
             bindings.push(Keybinding {
@@ -204,6 +219,20 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 code: KeyCode::Char('m'),
                 modifiers: KeyModifiers::CONTROL,
                 description: "Toggle Infer/Agent mode",
+                category: KeyCategory::Chat,
+            });
+            // v0.9 Phase 3: Search
+            bindings.push(Keybinding {
+                code: KeyCode::Char('f'),
+                modifiers: KeyModifiers::CONTROL,
+                description: "Search conversation",
+                category: KeyCategory::Chat,
+            });
+            // v0.9 Phase 2: Retry
+            bindings.push(Keybinding {
+                code: KeyCode::Char('r'),
+                modifiers: KeyModifiers::CONTROL,
+                description: "Retry failed MCP",
                 category: KeyCategory::Chat,
             });
             // Cursor navigation shortcuts (v0.7.1)
@@ -238,12 +267,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 category: KeyCategory::Chat,
             });
             // Clipboard shortcuts (v0.7.1)
-            bindings.push(Keybinding {
-                code: KeyCode::Char('c'),
-                modifiers: KeyModifiers::CONTROL,
-                description: "Copy to clipboard",
-                category: KeyCategory::Chat,
-            });
+            // Note: Ctrl+C already listed globally as "Copy / Quit (2x)"
             bindings.push(Keybinding {
                 code: KeyCode::Char('v'),
                 modifiers: KeyModifiers::CONTROL,
