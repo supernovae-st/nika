@@ -20,7 +20,7 @@ use std::path::PathBuf;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use nucleo::{Config, Matcher, Utf32Str};
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Widget},
@@ -44,10 +44,7 @@ use crate::tui::standalone::{BrowserEntry, StandaloneState};
 use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
-use crate::tui::widgets::{
-    AnimatedLatencySparkline, BigTextGradient, DagAscii, GradientType, MatrixRain, NodeBoxData,
-    NodeBoxMode, SparklineAnimation, Timeline, TimelineEntry,
-};
+use crate::tui::widgets::{DagAscii, NodeBoxData, NodeBoxMode, Timeline, TimelineEntry};
 
 /// Home view state
 pub struct HomeView {
@@ -57,8 +54,6 @@ pub struct HomeView {
     pub list_state: ListState,
     /// Whether history bar is expanded
     pub history_expanded: bool,
-    /// Show welcome screen (v0.5.2+)
-    pub show_welcome: bool,
     /// Fuzzy search query (v0.6.1)
     pub search_query: String,
     /// Whether search mode is active
@@ -79,8 +74,6 @@ pub struct HomeView {
     pub preview_mode: PreviewMode,
     /// Animation frame counter (0-255, wraps)
     pub frame: u8,
-    /// Activity sparkline data (simulated for demo)
-    activity_data: Vec<u64>,
 }
 
 impl HomeView {
@@ -90,25 +83,14 @@ impl HomeView {
         let has_nika_dir = root.join(".nika").exists();
         let standalone = StandaloneState::new(root);
         let mut list_state = ListState::default();
-        let show_welcome = standalone.browser_entries.is_empty();
         let entry_count = standalone.browser_entries.len();
         if !standalone.browser_entries.is_empty() {
             list_state.select(Some(0));
         }
-        // Generate initial activity data for sparkline (demo)
-        let activity_data: Vec<u64> = (0..30)
-            .map(|i| {
-                // Wave pattern for visual interest
-                let wave = ((i as f64 * 0.3).sin() * 30.0 + 50.0) as u64;
-                wave.clamp(20, 80)
-            })
-            .collect();
-
         Self {
             standalone,
             list_state,
             history_expanded: false,
-            show_welcome,
             search_query: String::new(),
             search_active: false,
             filtered_indices: (0..entry_count).collect(),
@@ -119,7 +101,6 @@ impl HomeView {
             dag_expanded: false,
             preview_mode: PreviewMode::Dag,
             frame: 0,
-            activity_data,
         }
     }
 
@@ -128,15 +109,6 @@ impl HomeView {
     #[allow(dead_code)]
     pub fn tick(&mut self) {
         self.frame = self.frame.wrapping_add(1);
-        // Shift activity data for flow effect
-        if self.frame % 4 == 0 {
-            self.activity_data.rotate_left(1);
-            // Add new random-ish value
-            let new_val = ((self.frame as f64 * 0.1).sin() * 25.0 + 55.0) as u64;
-            if let Some(last) = self.activity_data.last_mut() {
-                *last = new_val.clamp(20, 80);
-            }
-        }
     }
 
     /// Update filtered indices based on search query
@@ -686,178 +658,6 @@ impl HomeView {
         }
     }
 
-    /// Render the welcome screen (v0.5.2+)
-    fn render_welcome(&self, frame_ctx: &mut Frame, area: Rect, theme: &Theme) {
-        // ═══════════════════════════════════════════════════════════════════════════
-        // 0. MATRIX RAIN BACKGROUND (WOW DITHER EFFECT)
-        // ═══════════════════════════════════════════════════════════════════════════
-        let matrix = MatrixRain::new()
-            .frame(self.frame)
-            .density(0.15) // Subtle background
-            .with_emojis(true)
-            .seed(42);
-        frame_ctx.render_widget(matrix, area);
-
-        // ═══════════════════════════════════════════════════════════════════════════
-        // LAYOUT: Logo (5) + Sparkline (3) + Content (rest)
-        // ═══════════════════════════════════════════════════════════════════════════
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(5), // BigText logo (3 lines + padding)
-                Constraint::Length(3), // Activity sparkline
-                Constraint::Min(10),   // Content
-            ])
-            .split(area);
-
-        // ═══════════════════════════════════════════════════════════════════════════
-        // 1. ANIMATED GRADIENT BIGTEXT LOGO (WOW EFFECT)
-        // ═══════════════════════════════════════════════════════════════════════════
-        let logo_area = chunks[0];
-        let big_text = BigTextGradient::new("NIKA")
-            .gradient(GradientType::Solarized)
-            .frame(self.frame)
-            .alignment(Alignment::Center)
-            .bold(true);
-        frame_ctx.render_widget(big_text, logo_area);
-
-        // ═══════════════════════════════════════════════════════════════════════════
-        // 2. ANIMATED ACTIVITY SPARKLINE
-        // ═══════════════════════════════════════════════════════════════════════════
-        let sparkline_area = chunks[1];
-        let sparkline = AnimatedLatencySparkline::new(&self.activity_data)
-            .animation(SparklineAnimation::Pulse)
-            .frame(self.frame)
-            .warn_threshold(70)
-            .error_threshold(90);
-        frame_ctx.render_widget(sparkline, sparkline_area);
-
-        // ═══════════════════════════════════════════════════════════════════════════
-        // 3. WELCOME CONTENT WITH VERB COLORS
-        // ═══════════════════════════════════════════════════════════════════════════
-        let content_area = chunks[2];
-
-        // Get verb colors for visual showcase
-        let infer_color = VerbColor::Infer.rgb();
-        let exec_color = VerbColor::Exec.rgb();
-        let fetch_color = VerbColor::Fetch.rgb();
-        let invoke_color = VerbColor::Invoke.rgb();
-        let agent_color = VerbColor::Agent.rgb();
-
-        let welcome_lines = vec![
-            Line::from(vec![
-                Span::styled("AI Workflow Engine ", Style::default().fg(theme.text_muted)),
-                Span::styled("v0.8.0", Style::default().fg(theme.highlight)),
-            ]),
-            Line::from(""),
-            // ── Keybindings FIRST (must be visible for tests) ──
-            Line::from(vec![
-                Span::styled(
-                    "Tab",
-                    Style::default()
-                        .fg(theme.highlight)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(" views  ", Style::default().fg(theme.text_muted)),
-                Span::styled(
-                    "Enter",
-                    Style::default()
-                        .fg(theme.highlight)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(" run  ", Style::default().fg(theme.text_muted)),
-                Span::styled(
-                    "?",
-                    Style::default()
-                        .fg(theme.highlight)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(" help  ", Style::default().fg(theme.text_muted)),
-                Span::styled(
-                    "q",
-                    Style::default()
-                        .fg(theme.highlight)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(" quit", Style::default().fg(theme.text_muted)),
-            ]),
-            Line::from(Span::styled(
-                "────────────────────────────────────",
-                Style::default().fg(theme.border_normal),
-            )),
-            Line::from(""),
-            // ── 5 Verbs with COLOR (compact) ──
-            Line::from(vec![
-                Span::styled("⚡", Style::default().fg(infer_color)),
-                Span::styled(
-                    " infer ",
-                    Style::default()
-                        .fg(infer_color)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled("📟", Style::default().fg(exec_color)),
-                Span::styled(
-                    " exec ",
-                    Style::default().fg(exec_color).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled("🛰️", Style::default().fg(fetch_color)),
-                Span::styled(
-                    " fetch ",
-                    Style::default()
-                        .fg(fetch_color)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled("🔌", Style::default().fg(invoke_color)),
-                Span::styled(
-                    " invoke ",
-                    Style::default()
-                        .fg(invoke_color)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled("🐔", Style::default().fg(agent_color)),
-                Span::styled(
-                    " agent",
-                    Style::default()
-                        .fg(agent_color)
-                        .add_modifier(Modifier::BOLD),
-                ),
-            ]),
-            Line::from(""),
-            // ── Quick Start (compact) ──
-            Line::from(Span::styled(
-                "Quick Start",
-                Style::default()
-                    .fg(theme.highlight)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(vec![
-                Span::styled("1.", Style::default().fg(theme.status_success)),
-                Span::raw(" Create "),
-                Span::styled("workflow.nika.yaml", Style::default().fg(theme.highlight)),
-                Span::raw("  "),
-                Span::styled("2.", Style::default().fg(theme.status_success)),
-                Span::raw(" Run "),
-                Span::styled("nika <file>", Style::default().fg(theme.highlight)),
-            ]),
-        ];
-
-        let paragraph = Paragraph::new(welcome_lines)
-            .alignment(Alignment::Center)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(" ✨ LAUNCH PAD ✨ ")
-                    .title_style(
-                        Style::default()
-                            .fg(theme.highlight)
-                            .add_modifier(Modifier::BOLD),
-                    )
-                    .border_style(Style::default().fg(theme.border_focused)),
-            );
-
-        frame_ctx.render_widget(paragraph, content_area);
-    }
-
     /// Render the history bar (bottom, toggleable)
     /// v0.8.2: Uses Timeline widget for visual history display
     fn render_history(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
@@ -929,25 +729,7 @@ impl HomeView {
 
 impl View for HomeView {
     fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
-        // Show welcome screen when no files or explicitly requested
-        if self.show_welcome || self.standalone.browser_entries.is_empty() {
-            // Layout: Welcome (60%) | Tips (40%) above, History bar below
-            let history_height = if self.history_expanded { 6 } else { 3 };
-
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Min(10), Constraint::Length(history_height)])
-                .split(area);
-
-            // Render welcome screen in main area
-            self.render_welcome(frame, chunks[0], theme);
-
-            // History bar (bottom)
-            self.render_history(frame, chunks[1], theme);
-            return;
-        }
-
-        // Normal layout: Files (40%) | Preview (60%) above, History bar below
+        // Layout: Files (40%) | Preview (60%) above, History bar below
         let history_height = if self.history_expanded { 6 } else { 3 };
 
         let chunks = Layout::default()
@@ -1277,47 +1059,24 @@ mod tests {
         assert!(status.contains("0 in history"));
     }
 
-    // === Welcome Screen Tests (MEDIUM 13) ===
+    // === File Browser Tests ===
 
     #[test]
-    fn test_welcome_shows_when_no_workflows() {
+    fn test_empty_directory_has_no_entries() {
         // Use a non-existent directory so StandaloneState starts empty
         let view = HomeView::new(PathBuf::from("/nonexistent/path/that/has/no/nika/files"));
-
-        // show_welcome should be true when no entries exist
         assert!(
             view.standalone.browser_entries.is_empty(),
             "Browser should be empty for non-existent path"
         );
-        assert!(view.show_welcome, "Welcome should show when no workflows");
     }
 
     #[test]
-    fn test_welcome_hides_when_workflows_exist() {
-        let mut view = HomeView::new(PathBuf::from("."));
-        view.standalone.browser_entries.clear();
-        view.standalone.browser_entries.push(BrowserEntry::new(
-            PathBuf::from("test.nika.yaml"),
-            &PathBuf::from("."),
-        ));
-
-        // Re-evaluate show_welcome based on entries
-        view.show_welcome = view.standalone.browser_entries.is_empty();
-
-        assert!(
-            !view.show_welcome,
-            "Welcome should hide when workflows exist"
-        );
-    }
-
-    #[test]
-    fn test_welcome_screen_renders_without_panic() {
+    fn test_home_view_renders_file_browser() {
         use ratatui::backend::TestBackend;
         use ratatui::Terminal;
 
         let mut view = HomeView::new(PathBuf::from("."));
-        view.standalone.browser_entries.clear();
-        view.show_welcome = true;
 
         let backend = TestBackend::new(80, 24);
         let mut terminal = Terminal::new(backend).unwrap();
@@ -1330,84 +1089,8 @@ mod tests {
             })
             .unwrap();
 
-        // Check that the welcome screen contains expected elements
+        // Just verify it renders without panic
         let buffer = terminal.backend().buffer();
-        let content: String = buffer.content.iter().map(|c| c.symbol()).collect();
-
-        // Check for BigText branding (uses block characters like █▄▀)
-        assert!(
-            content.contains('█') || content.contains('▀') || content.contains('▄'),
-            "Welcome should show BigText branding with block characters"
-        );
-
-        // Check for version
-        assert!(
-            content.contains("v0.8.0"),
-            "Welcome should show version number"
-        );
-    }
-
-    #[test]
-    fn test_welcome_screen_contains_quick_start() {
-        use ratatui::backend::TestBackend;
-        use ratatui::Terminal;
-
-        let mut view = HomeView::new(PathBuf::from("."));
-        view.standalone.browser_entries.clear();
-        view.show_welcome = true;
-
-        let backend = TestBackend::new(100, 30);
-        let mut terminal = Terminal::new(backend).unwrap();
-        let state = TuiState::new("test.nika.yaml");
-        let theme = Theme::novanet();
-
-        terminal
-            .draw(|frame| {
-                view.render(frame, frame.area(), &state, &theme);
-            })
-            .unwrap();
-
-        let buffer = terminal.backend().buffer();
-        let content: String = buffer.content.iter().map(|c| c.symbol()).collect();
-
-        // Check for quick start hints
-        assert!(
-            content.contains("QUICK START") || content.contains("Quick Start"),
-            "Welcome should contain quick start section"
-        );
-    }
-
-    #[test]
-    fn test_welcome_screen_contains_keybindings() {
-        use ratatui::backend::TestBackend;
-        use ratatui::Terminal;
-
-        let mut view = HomeView::new(PathBuf::from("."));
-        view.standalone.browser_entries.clear();
-        view.show_welcome = true;
-
-        let backend = TestBackend::new(100, 30);
-        let mut terminal = Terminal::new(backend).unwrap();
-        let state = TuiState::new("test.nika.yaml");
-        let theme = Theme::novanet();
-
-        terminal
-            .draw(|frame| {
-                view.render(frame, frame.area(), &state, &theme);
-            })
-            .unwrap();
-
-        let buffer = terminal.backend().buffer();
-        let content: String = buffer.content.iter().map(|c| c.symbol()).collect();
-
-        // Check for keybinding hints
-        assert!(
-            content.contains("Tab") || content.contains("⇥"),
-            "Welcome should show Tab keybinding"
-        );
-        assert!(
-            content.contains("Enter") || content.contains("⏎"),
-            "Welcome should show Enter keybinding"
-        );
+        let _content: String = buffer.content.iter().map(|c| c.symbol()).collect();
     }
 }

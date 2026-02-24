@@ -1654,12 +1654,116 @@ impl ChatView {
         }
     }
 
-    /// Complete the last TaskBox with success
+    /// Complete the last TaskBox with success (generic fallback)
     pub fn complete_last_task_box(&mut self, duration_ms: u64) {
         if let Some(InlineContent::Task(task_box)) = self.inline_content.last_mut() {
             *task_box.state_mut() = BoxState::success(duration_ms);
         }
         self.transition_activity_to_warm("task");
+        self.auto_scroll_to_bottom();
+    }
+
+    /// Complete the last RUNNING TaskBox::Infer
+    pub fn complete_last_infer_box(&mut self, duration_ms: u64) {
+        // Find last Infer box that is Running
+        for content in self.inline_content.iter_mut().rev() {
+            if let InlineContent::Task(TaskBox::Infer(infer)) = content {
+                if infer.state.is_running() {
+                    infer.state = BoxState::success(duration_ms);
+                    break;
+                }
+            }
+        }
+        self.transition_activity_to_warm("infer");
+        self.auto_scroll_to_bottom();
+    }
+
+    /// Complete the last RUNNING TaskBox::Exec
+    pub fn complete_last_exec_box(&mut self, duration_ms: u64) {
+        for content in self.inline_content.iter_mut().rev() {
+            if let InlineContent::Task(TaskBox::Exec(exec)) = content {
+                if exec.state.is_running() {
+                    exec.state = BoxState::success(duration_ms);
+                    break;
+                }
+            }
+        }
+        self.transition_activity_to_warm("exec");
+        self.auto_scroll_to_bottom();
+    }
+
+    /// Complete the last RUNNING TaskBox::Fetch
+    pub fn complete_last_fetch_box(&mut self, duration_ms: u64) {
+        for content in self.inline_content.iter_mut().rev() {
+            if let InlineContent::Task(TaskBox::Fetch(fetch)) = content {
+                if fetch.state.is_running() {
+                    fetch.state = BoxState::success(duration_ms);
+                    break;
+                }
+            }
+        }
+        self.transition_activity_to_warm("fetch");
+        self.auto_scroll_to_bottom();
+    }
+
+    /// Complete the last RUNNING TaskBox::Invoke
+    pub fn complete_last_invoke_box(&mut self, duration_ms: u64) {
+        for content in self.inline_content.iter_mut().rev() {
+            if let InlineContent::Task(TaskBox::Invoke(invoke)) = content {
+                if invoke.state.is_running() {
+                    invoke.state = BoxState::success(duration_ms);
+                    break;
+                }
+            }
+        }
+        self.transition_activity_to_warm("invoke");
+        self.auto_scroll_to_bottom();
+    }
+
+    /// Complete the last RUNNING TaskBox::Invoke with result
+    pub fn complete_last_invoke_box_with_result(
+        &mut self,
+        result: serde_json::Value,
+        duration_ms: u64,
+    ) {
+        for content in self.inline_content.iter_mut().rev() {
+            if let InlineContent::Task(TaskBox::Invoke(invoke)) = content {
+                if invoke.state.is_running() {
+                    invoke.result = Some(result);
+                    invoke.state = BoxState::success(duration_ms);
+                    break;
+                }
+            }
+        }
+        self.transition_activity_to_warm("invoke");
+        self.auto_scroll_to_bottom();
+    }
+
+    /// Fail the last RUNNING TaskBox::Invoke with error
+    pub fn fail_last_invoke_box(&mut self, error: &str, duration_ms: u64) {
+        for content in self.inline_content.iter_mut().rev() {
+            if let InlineContent::Task(TaskBox::Invoke(invoke)) = content {
+                if invoke.state.is_running() {
+                    invoke.error = Some(error.to_string());
+                    invoke.state = BoxState::failed(error, duration_ms);
+                    break;
+                }
+            }
+        }
+        self.auto_scroll_to_bottom();
+    }
+
+    /// Complete the last RUNNING TaskBox::Agent
+    pub fn complete_last_agent_box(&mut self, duration_ms: u64) {
+        for content in self.inline_content.iter_mut().rev() {
+            if let InlineContent::Task(TaskBox::Agent(agent)) = content {
+                if agent.state.is_running() {
+                    agent.state = BoxState::success(duration_ms);
+                    break;
+                }
+            }
+        }
+        self.transition_activity_to_warm("agent");
         self.auto_scroll_to_bottom();
     }
 
@@ -1818,10 +1922,13 @@ impl ChatView {
     }
 
     /// Transition activity from hot to warm
+    /// v0.8.5 FIX: Use .rev() to find the LAST hot activity (most recent)
+    /// Before: Only first concurrent op transitioned, others stuck forever
     fn transition_activity_to_warm(&mut self, verb: &str) {
         if let Some(item) = self
             .activity_items
             .iter_mut()
+            .rev() // v0.8.5: Search from newest to oldest
             .find(|i| i.verb == verb && i.temp == ActivityTemp::Hot)
         {
             item.temp = ActivityTemp::Warm;
@@ -1830,14 +1937,25 @@ impl ChatView {
     }
 
     /// Clear completed (warm) activities older than duration
+    /// v0.8.5 FIX: Also remove stuck Hot items that have been running too long
     pub fn clear_old_activities(&mut self, max_age_secs: u64) {
         use std::time::Duration;
+        let max_duration = Duration::from_secs(max_age_secs);
+
         self.activity_items.retain(|item| {
-            item.temp != ActivityTemp::Warm
-                || item
-                    .duration
-                    .map(|d| d < Duration::from_secs(max_age_secs))
-                    .unwrap_or(true)
+            match item.temp {
+                ActivityTemp::Warm => {
+                    // Remove warm items older than max_age
+                    item.duration.map(|d| d < max_duration).unwrap_or(true)
+                }
+                ActivityTemp::Hot => {
+                    // v0.8.5 FIX: Remove stuck hot items (running > max_age = likely hung)
+                    item.started
+                        .map(|s| s.elapsed() < max_duration)
+                        .unwrap_or(true)
+                }
+                ActivityTemp::Queued => true, // Keep queued items
+            }
         });
     }
 
