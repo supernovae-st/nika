@@ -92,6 +92,52 @@ impl ConnectionStatus {
     }
 }
 
+/// API key configuration state
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ApiKeyState {
+    /// No key configured
+    NotConfigured,
+    /// Key is stored (masked for display)
+    Configured { masked: String },
+    /// Key verified working with latency
+    Verified { masked: String, latency_ms: u64 },
+    /// Key is invalid
+    Invalid { masked: String, error: String },
+}
+
+impl Default for ApiKeyState {
+    fn default() -> Self {
+        Self::NotConfigured
+    }
+}
+
+impl ApiKeyState {
+    /// Mask API key for display (show first 6 and last 1 char)
+    pub fn mask_key(key: &str) -> String {
+        if key.len() <= 10 {
+            return "****".to_string();
+        }
+        let prefix = &key[..6.min(key.len())];
+        let suffix = &key[key.len().saturating_sub(1)..];
+        format!("{}...{}", prefix, suffix)
+    }
+
+    /// Status icon for display
+    pub fn status_icon(&self) -> &'static str {
+        match self {
+            Self::NotConfigured => "⚠",
+            Self::Configured { .. } => "✓",
+            Self::Verified { .. } => "✓",
+            Self::Invalid { .. } => "✗",
+        }
+    }
+
+    /// Check if key is configured (valid or not)
+    pub fn is_configured(&self) -> bool {
+        !matches!(self, Self::NotConfigured)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,5 +197,31 @@ mod tests {
         assert!(!ConnectionStatus::Checking.is_available());
         assert!(!ConnectionStatus::Failed { error: "".into() }.is_available());
         assert!(!ConnectionStatus::NotConfigured.is_available());
+    }
+
+    #[test]
+    fn test_api_key_masking() {
+        let key = "sk-ant-api03-abc123xyz789def456ghi";
+        let masked = ApiKeyState::mask_key(key);
+        assert_eq!(masked, "sk-ant...i");
+    }
+
+    #[test]
+    fn test_api_key_masking_short_key() {
+        let key = "short";
+        let masked = ApiKeyState::mask_key(key);
+        assert_eq!(masked, "****");
+    }
+
+    #[test]
+    fn test_api_key_state_display() {
+        let not_configured = ApiKeyState::NotConfigured;
+        assert_eq!(not_configured.status_icon(), "⚠");
+
+        let configured = ApiKeyState::Configured { masked: "sk-...xyz".into() };
+        assert_eq!(configured.status_icon(), "✓");
+
+        let invalid = ApiKeyState::Invalid { masked: "sk-...xyz".into(), error: "Bad".into() };
+        assert_eq!(invalid.status_icon(), "✗");
     }
 }
