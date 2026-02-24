@@ -9,12 +9,14 @@
 mod components;
 mod keyring;
 mod ollama_client;
+mod provider_checker;
 mod state;
 mod tabs;
 
 pub use components::*;
 pub use keyring::*;
 pub use ollama_client::*;
+pub use provider_checker::*;
 pub use state::*;
 pub use tabs::*;
 

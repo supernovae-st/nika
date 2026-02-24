@@ -1,8 +1,9 @@
-# Nika v0.9 Plans Index
+# Nika v0.9.1 Plans Index
 
-**Target Version:** v0.9.0
+**Target Version:** v0.9.1
 **Codename:** "File-First Agentic Architecture"
 **Status:** In Development
+**Prerequisite:** v0.9.0 (foundation release)
 
 ---
 
@@ -10,8 +11,8 @@
 
 | File | Description | Lines | Status |
 |------|-------------|-------|--------|
-| `v09-consolidated-design.md` | Full specification (Schema v0.6, Context, Agents, Skills, Boot) | ~2,100 | Draft |
-| `v09-implementation-plan.md` | 9-sprint breakdown with dependencies | ~2,000 | Approved |
+| `v091-consolidated-design.md` | Full specification (Schema v0.6, Context, Agents, Skills, Boot) | ~2,100 | Draft |
+| `v091-implementation-plan.md` | 9-sprint breakdown with dependencies | ~2,000 | Approved |
 | `chat-as-workflow-dag.md` | Chat-as-DAG design (@mentions, //, bindings) | ~370 | Draft |
 | `chat-dag-implementation-plan.md` | Implementation details for Chat-as-DAG | ~600 | Draft |
 
@@ -21,14 +22,14 @@
 |------|-------------|--------|
 | `memory-and-agents-design.md` | Agent SOUL pattern, memory.yaml, policies.yaml | Draft |
 | `nika-project-structure.md` | .nika/ directory structure, new YAML files | Draft |
-| `nika-meta-execution-plan.md` | Meta-plan for executing v0.9 | Draft |
+| `nika-meta-execution-plan.md` | Meta-plan for executing v0.9.1 | Draft |
 
 ---
 
 ## Key Features Summary
 
 ```
-v0.9.0 — File-First Agentic Architecture
+v0.9.1 — File-First Agentic Architecture
 ├── Schema v0.6
 │   ├── context: (files + session)
 │   ├── agents: (3-modes + SOUL)
@@ -72,8 +73,8 @@ v0.9.0 — File-First Agentic Architecture
 
 ## Metrics
 
-| Metric | Current (v0.8) | Target (v0.9) |
-|--------|----------------|---------------|
+| Metric | Current (v0.9.0) | Target (v0.9.1) |
+|--------|------------------|-----------------|
 | Tests | 1,902 | 2,200+ |
 | LOC | ~25,000 | ~29,000 |
 | New code | - | ~4,500 lines |
