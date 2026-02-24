@@ -137,7 +137,9 @@ impl Widget for ConfigTab {
             // Highlight entire row if selected
             if is_selected {
                 for x in area.x..area.x + area.width {
-                    buf.get_mut(x, y).set_style(selected_bg);
+                    if let Some(cell) = buf.cell_mut((x, y)) {
+                        cell.set_style(selected_bg);
+                    }
                 }
             }
 
