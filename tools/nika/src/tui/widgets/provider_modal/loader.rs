@@ -172,7 +172,17 @@ impl Drop for ModalLoader {
     fn drop(&mut self) {
         // Send stop command if handle exists
         if self.handle.is_some() {
-            let _ = self.cmd_tx.try_send(LoaderCommand::Stop);
+            // v0.8.9: Use runtime spawn to ensure Stop is delivered
+            // try_send can fail silently if the channel buffer is full
+            if let Ok(rt) = tokio::runtime::Handle::try_current() {
+                let tx = self.cmd_tx.clone();
+                rt.spawn(async move {
+                    let _ = tx.send(LoaderCommand::Stop).await;
+                });
+            } else {
+                // No runtime available - try_send is best effort
+                let _ = self.cmd_tx.try_send(LoaderCommand::Stop);
+            }
         }
     }
 }

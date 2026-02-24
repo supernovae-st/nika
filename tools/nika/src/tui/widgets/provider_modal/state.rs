@@ -417,19 +417,25 @@ impl ProviderModalState {
         FRAMES[(self.animation_frame as usize / 4) % FRAMES.len()]
     }
 
-    /// Get Cloud tab label with active model if set
-    pub fn cloud_tab_label(&self) -> String {
-        if let Some(ref model) = self.active_model {
-            // Shorten model name for display (keep up to 20 chars)
-            let short = if model.len() > 20 {
-                format!("{}...", &model[..17])
+    /// Get cloud tab label, cached to avoid format! work per frame
+    /// v0.8.9: Returns clone of cached string, recomputed only when model changes
+    pub fn cloud_tab_label(&mut self) -> String {
+        if self.cached_cloud_label.is_none() {
+            let label = if let Some(ref model) = self.active_model {
+                // Shorten model name for display (keep up to 20 chars)
+                let short = if model.len() > 20 {
+                    format!("{}...", &model[..17])
+                } else {
+                    model.clone()
+                };
+                format!("☁️  CLOUD [{}]", short)
             } else {
-                model.clone()
+                "☁️  CLOUD".to_string()
             };
-            format!("☁️  CLOUD [{}]", short)
-        } else {
-            "☁️  CLOUD".to_string()
+            self.cached_cloud_label = Some(label);
         }
+        // Clone is cheaper than format! on cache hit
+        self.cached_cloud_label.as_ref().unwrap().clone()
     }
 
     /// Update provider status by index

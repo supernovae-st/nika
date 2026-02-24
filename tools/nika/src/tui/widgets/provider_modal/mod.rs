@@ -34,16 +34,17 @@ use ratatui::{
 
 /// Main provider modal widget
 pub struct ProviderModal<'a> {
-    state: &'a ProviderModalState,
+    state: &'a mut ProviderModalState,
 }
 
 impl<'a> ProviderModal<'a> {
-    pub fn new(state: &'a ProviderModalState) -> Self {
+    pub fn new(state: &'a mut ProviderModalState) -> Self {
         Self { state }
     }
 
-    fn render_tabs(&self, area: Rect, buf: &mut Buffer) {
+    fn render_tabs(&mut self, area: Rect, buf: &mut Buffer) {
         // Use dynamic label for Cloud tab (shows active model)
+        // v0.8.9: Uses cached string to avoid format! work per frame
         let cloud_label = self.state.cloud_tab_label();
         let tab_titles: Vec<Span> = vec![
             Span::raw(cloud_label),
@@ -85,7 +86,7 @@ impl<'a> ProviderModal<'a> {
 }
 
 impl Widget for ProviderModal<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+    fn render(mut self, area: Rect, buf: &mut Buffer) {
         if !self.state.visible {
             return;
         }
@@ -173,8 +174,8 @@ mod tests {
 
     #[test]
     fn test_modal_hidden_does_not_render() {
-        let state = ProviderModalState::default(); // visible: false
-        let modal = ProviderModal::new(&state);
+        let mut state = ProviderModalState::default(); // visible: false
+        let modal = ProviderModal::new(&mut state);
 
         let mut buf = Buffer::empty(Rect::new(0, 0, 80, 24));
         modal.render(Rect::new(0, 0, 80, 24), &mut buf);
@@ -187,7 +188,7 @@ mod tests {
     fn test_modal_visible_renders_border() {
         let mut state = ProviderModalState::default();
         state.visible = true;
-        let modal = ProviderModal::new(&state);
+        let modal = ProviderModal::new(&mut state);
 
         let mut buf = Buffer::empty(Rect::new(0, 0, 80, 24));
         modal.render(Rect::new(0, 0, 80, 24), &mut buf);

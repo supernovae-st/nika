@@ -613,6 +613,7 @@ impl App {
             if let Some(ref mut home) = self.home_view {
                 home.tick(); // Enables gradient logo animation + sparkline pulse
             }
+            self.studio_view.tick(); // v0.9.1: Matrix Rain animation
             self.studio_view.maybe_validate(); // Debounced validation (300ms after last edit)
 
             // 4. Render frame based on current view

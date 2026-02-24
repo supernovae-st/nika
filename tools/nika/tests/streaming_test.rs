@@ -139,6 +139,10 @@ async fn test_claude_streaming() {
                 StreamChunk::ProviderVerificationTimeout => {
                     eprintln!("PROVIDER VERIFICATION TIMEOUT");
                 }
+                // v0.8.9: Provider not configured
+                StreamChunk::ProviderNotConfigured { provider } => {
+                    eprintln!("PROVIDER NOT CONFIGURED: {}", provider);
+                }
             }
         }
         (tokens, done)

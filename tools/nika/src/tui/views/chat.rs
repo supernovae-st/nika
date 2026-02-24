@@ -1336,8 +1336,8 @@ impl ChatView {
     /// Trigger matrix rain effect with fade-out
     /// Call on startup, first message, workflow launch, etc.
     pub fn trigger_rain_effect(&mut self) {
-        self.rain_opacity = 0.8; // Start slightly dimmed for subtlety
-        self.rain_fading = true; // Will fade out over ~4 seconds
+        self.rain_opacity = 0.6; // v0.9.1: Start subtle
+        self.rain_fading = true; // Will fade out over ~1.5 seconds
     }
 
     /// Stop rain effect immediately (optional)
@@ -1600,8 +1600,8 @@ impl ChatView {
         }
         // v0.9.1: Tick matrix rain fade effect
         if self.rain_fading && self.rain_opacity > 0.0 {
-            // Fade out slowly (0.02 per tick = ~5 seconds to fully fade at 10Hz)
-            self.rain_opacity = (self.rain_opacity - 0.02).max(0.0);
+            // Fast fade (0.06 per tick = ~1.5 seconds to fully fade at 10Hz)
+            self.rain_opacity = (self.rain_opacity - 0.06).max(0.0);
         }
         // v0.8.1: Tick phase indicator animation (icon swap + chaos decay)
         self.tick_phase_indicator();
@@ -2897,19 +2897,20 @@ impl View for ChatView {
             .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
             .split(chunks[1]);
 
-        // v0.9.1: Matrix Rain background effect (renders BEFORE messages for layering)
+        // v0.9.1: Matrix Rain background effect (renders BEFORE content for layering)
         // Shows at startup, on first message, on workflow/agent start - then fades out
+        // Option C: Full screen coverage for maximum WOW effect
         if self.matrix_effect_enabled && self.rain_opacity > 0.05 {
-            // Render across the full conversation area as a subtle background
+            // Render across the FULL view (header to input area)
             let rain_area = Rect {
-                x: main_chunks[0].x + 1,
-                y: main_chunks[0].y + 1,
-                width: main_chunks[0].width.saturating_sub(2),
-                height: main_chunks[0].height.saturating_sub(2).min(6), // Max 6 lines
+                x: area.x + 1,
+                y: area.y + 1,
+                width: area.width.saturating_sub(2),
+                height: area.height.saturating_sub(2),
             };
             MatrixRain::new()
                 .frame(self.frame)
-                .density(0.2) // Sparse
+                .density(0.12) // Subtle effect, not overwhelming
                 .opacity(self.rain_opacity)
                 .with_mascots(true)
                 .render(rain_area, frame.buffer_mut());
@@ -2952,7 +2953,8 @@ impl View for ChatView {
 
         // 6. Provider Modal overlay (if visible) - ⌘P
         if self.provider_modal.visible {
-            ProviderModal::new(&self.provider_modal).render(area, frame.buffer_mut());
+            // v0.8.9: Pass &mut for cloud_tab_label caching
+            ProviderModal::new(&mut self.provider_modal).render(area, frame.buffer_mut());
         }
 
         // 7. Help overlay (if visible) - ? or F1
