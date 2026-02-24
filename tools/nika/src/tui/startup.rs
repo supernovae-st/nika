@@ -278,8 +278,11 @@ pub fn verify_project_access() -> Result<ProjectReport> {
 
 /// Verify project access in a specific directory (for testing)
 pub fn verify_project_access_in(project_dir: &std::path::Path) -> Result<ProjectReport> {
-    let mut report = ProjectReport::default();
-    report.project_dir = Some(project_dir.to_path_buf());
+    // v0.8.4: Use struct initialization to avoid clippy::field_reassign_with_default
+    let mut report = ProjectReport {
+        project_dir: Some(project_dir.to_path_buf()),
+        ..Default::default()
+    };
 
     // Check if we can read the directory
     match std::fs::read_dir(project_dir) {
@@ -300,13 +303,13 @@ pub fn verify_project_access_in(project_dir: &std::path::Path) -> Result<Project
             .filter(|e| {
                 e.path()
                     .extension()
-                    .map_or(false, |ext| ext == "yaml" || ext == "yml")
+                    .is_some_and(|ext| ext == "yaml" || ext == "yml")
             })
             .filter(|e| {
                 e.path()
                     .file_name()
                     .and_then(|n| n.to_str())
-                    .map_or(false, |n| n.ends_with(".nika.yaml") || n.ends_with(".nika.yml"))
+                    .is_some_and(|n| n.ends_with(".nika.yaml") || n.ends_with(".nika.yml"))
             })
             .count();
     }

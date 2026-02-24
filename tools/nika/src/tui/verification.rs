@@ -198,6 +198,13 @@ impl VerificationCache {
             .count()
     }
 
+    /// Check if ANY provider has been verified (v0.8.4)
+    pub fn has_any_verified_provider(&self) -> bool {
+        self.providers
+            .values()
+            .any(|e| e.status == VerifyStatus::Verified && self.is_valid(e))
+    }
+
     /// Get count of verified MCP servers
     pub fn verified_mcp_count(&self) -> usize {
         self.mcp_servers

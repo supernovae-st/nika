@@ -55,6 +55,7 @@ use super::standalone::{HistoryEntry, StandaloneState};
 use super::state::{PanelId, SettingsField, TuiMode, TuiState};
 use super::theme::Theme;
 use super::utils::truncate_str;
+use super::startup;
 use super::verification::{VerificationCache, VerificationEntry};
 use super::views::{ChatView, HomeView, McpAction, StudioView, TuiView, View, ViewAction};
 use super::widgets::task_box::{
@@ -556,12 +557,30 @@ impl App {
     pub async fn run_unified(mut self) -> Result<()> {
         tracing::info!("TUI (unified) started");
 
+        // v0.8.4: Startup verification - ensure directories, schema, config, project access
+        let startup_report = startup::verify_startup()?;
+        if !startup_report.is_ok() {
+            // Log details before failing
+            for warning in startup_report.warnings() {
+                tracing::error!("Startup issue: {}", warning);
+            }
+            return Err(NikaError::StartupError {
+                phase: "verification".into(),
+                reason: "Startup verification failed - see logs for details".into(),
+            });
+        }
+        tracing::info!("{}", startup_report.summary());
+        for warning in startup_report.warnings() {
+            tracing::warn!("Startup warning: {}", warning);
+        }
+
         // Initialize MCP clients from workflow config
         self.init_mcp_clients();
 
-        // v0.8.2: Startup verification - verify all providers and MCP servers
+        // v0.8.2: Provider/MCP verification - verify all providers and MCP servers
         // Results are cached for 30s to avoid redundant API calls
         self.spawn_provider_verification();
+        self.spawn_provider_verification_timeout(); // v0.8.4: Show fallback UI after 5s
         self.spawn_mcp_verification();
 
         // Initialize terminal
@@ -1014,6 +1033,24 @@ impl App {
                     // Update MCP server status in session context
                     self.chat_view
                         .update_mcp_server_status(&server, true, latency_ms);
+                }
+                // v0.8.4: Provider verification timeout
+                StreamChunk::ProviderVerificationTimeout => {
+                    tracing::warn!("Provider verification timed out - no providers available");
+                    // Check if ANY provider is verified (v0.8.4: use verify_status field on ProviderInfo)
+                    let has_verified = self
+                        .chat_view
+                        .provider_selector
+                        .providers
+                        .iter()
+                        .any(|p| p.verify_status == super::widgets::VerifyStatus::Verified);
+                    if !has_verified {
+                        // Show warning banner in chat
+                        self.chat_view.add_system_message(
+                            "⚠️ No LLM providers available. Set an API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.) or press Cmd+P to configure."
+                                .to_string(),
+                        );
+                    }
                 }
             }
         }
@@ -3462,6 +3499,32 @@ impl App {
                 }
             });
         }
+    }
+
+    /// Spawn provider verification timeout watcher (v0.8.4)
+    ///
+    /// After 5 seconds, checks if ANY provider has been verified.
+    /// If not, sends ProviderVerificationTimeout event to show fallback UI.
+    fn spawn_provider_verification_timeout(&self) {
+        const PROVIDER_VERIFICATION_TIMEOUT: Duration = Duration::from_secs(5);
+
+        let tx = self.stream_chunk_tx.clone();
+        let cache = Arc::clone(&self.verification_cache);
+
+        self.spawn_tracked(async move {
+            tokio::time::sleep(PROVIDER_VERIFICATION_TIMEOUT).await;
+
+            // Check if ANY provider is verified
+            let has_verified = {
+                let cache_guard = cache.lock();
+                cache_guard.has_any_verified_provider()
+            };
+
+            if !has_verified {
+                // Send timeout event
+                let _ = tx.try_send(StreamChunk::ProviderVerificationTimeout);
+            }
+        });
     }
 
     /// Spawn async MCP server verification tasks (v0.8.2)

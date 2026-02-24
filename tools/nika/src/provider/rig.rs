@@ -538,6 +538,8 @@ pub enum StreamChunk {
         latency_ms: u64,
         tool_count: usize,
     },
+    /// v0.8.4: All provider verifications timed out (no providers available)
+    ProviderVerificationTimeout,
 }
 
 // =============================================================================
