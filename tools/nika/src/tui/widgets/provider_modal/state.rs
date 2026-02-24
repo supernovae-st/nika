@@ -191,6 +191,72 @@ impl DownloadState {
     }
 }
 
+/// Main provider modal state
+#[derive(Debug, Clone, Default)]
+pub struct ProviderModalState {
+    /// Modal visibility
+    pub visible: bool,
+    /// Active tab
+    pub active_tab: ProviderModalTab,
+    /// Selected index in current tab
+    pub selected_idx: usize,
+    /// Total items in current tab (for navigation bounds)
+    pub item_count: usize,
+    /// Download state for Ollama
+    pub download_state: DownloadState,
+    /// Key input mode active
+    pub key_input_mode: bool,
+    /// Key input buffer
+    pub key_input_buffer: String,
+}
+
+impl ProviderModalState {
+    /// Toggle modal visibility
+    pub fn toggle(&mut self) {
+        self.visible = !self.visible;
+    }
+
+    /// Open modal
+    pub fn open(&mut self) {
+        self.visible = true;
+    }
+
+    /// Close modal
+    pub fn close(&mut self) {
+        self.visible = false;
+        self.key_input_mode = false;
+        self.key_input_buffer.clear();
+    }
+
+    /// Switch to a different tab
+    pub fn switch_tab(&mut self, tab: ProviderModalTab) {
+        self.active_tab = tab;
+        self.selected_idx = 0; // Reset selection on tab change
+    }
+
+    /// Navigate up in current list
+    pub fn navigate_up(&mut self) {
+        self.selected_idx = self.selected_idx.saturating_sub(1);
+    }
+
+    /// Navigate down in current list
+    pub fn navigate_down(&mut self) {
+        if self.item_count > 0 && self.selected_idx < self.item_count - 1 {
+            self.selected_idx += 1;
+        }
+    }
+
+    /// Go to next tab
+    pub fn next_tab(&mut self) {
+        self.switch_tab(self.active_tab.next());
+    }
+
+    /// Go to previous tab
+    pub fn prev_tab(&mut self) {
+        self.switch_tab(self.active_tab.prev());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -305,5 +371,77 @@ mod tests {
         assert_eq!(DownloadState::format_bytes(500_000_000), "500.0 MB");
         assert_eq!(DownloadState::format_bytes(1_500), "1.5 KB");
         assert_eq!(DownloadState::format_bytes(500), "500 B");
+    }
+
+    #[test]
+    fn test_modal_state_default() {
+        let state = ProviderModalState::default();
+        assert!(!state.visible);
+        assert_eq!(state.active_tab, ProviderModalTab::Cloud);
+        assert_eq!(state.selected_idx, 0);
+    }
+
+    #[test]
+    fn test_modal_toggle_visibility() {
+        let mut state = ProviderModalState::default();
+        assert!(!state.visible);
+
+        state.toggle();
+        assert!(state.visible);
+
+        state.toggle();
+        assert!(!state.visible);
+    }
+
+    #[test]
+    fn test_modal_open_close() {
+        let mut state = ProviderModalState::default();
+        state.open();
+        assert!(state.visible);
+        state.close();
+        assert!(!state.visible);
+    }
+
+    #[test]
+    fn test_modal_tab_switch() {
+        let mut state = ProviderModalState::default();
+        state.selected_idx = 3;
+        state.switch_tab(ProviderModalTab::Ollama);
+
+        assert_eq!(state.active_tab, ProviderModalTab::Ollama);
+        assert_eq!(state.selected_idx, 0); // Reset on tab switch
+    }
+
+    #[test]
+    fn test_modal_navigate() {
+        let mut state = ProviderModalState::default();
+        state.item_count = 5;
+
+        assert_eq!(state.selected_idx, 0);
+
+        state.navigate_down();
+        assert_eq!(state.selected_idx, 1);
+
+        state.navigate_down();
+        state.navigate_down();
+        state.navigate_down();
+        assert_eq!(state.selected_idx, 4);
+
+        // Should not go past end
+        state.navigate_down();
+        assert_eq!(state.selected_idx, 4);
+
+        state.navigate_up();
+        assert_eq!(state.selected_idx, 3);
+
+        // Go to top
+        state.navigate_up();
+        state.navigate_up();
+        state.navigate_up();
+        assert_eq!(state.selected_idx, 0);
+
+        // Should not go below 0
+        state.navigate_up();
+        assert_eq!(state.selected_idx, 0);
     }
 }
