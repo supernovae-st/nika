@@ -462,7 +462,976 @@ cargo run -- chat
 
 ---
 
-## Phase 3: DAG Panel
+## Phase 3: Builtin Tools
+
+**Goal:** Implement TIER 1 `nika:*` builtin tools for chat and workflow integration.
+
+**Reference:** [2026-02-24-builtin-tools-spec.md](./2026-02-24-builtin-tools-spec.md)
+
+### Task 3.1: Create BuiltinTool Trait
+
+**File:** `src/runtime/builtin/mod.rs` (NEW)
+
+```rust
+//! Builtin tools for Nika workflows
+//!
+//! These tools use the `nika:*` prefix and have access to internal state
+//! (EventLog, DataStore) unlike MCP tools which are stateless.
+
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+
+use rig::completion::ToolDefinition;
+use rig::tool::{ToolDyn, ToolError};
+use serde_json::Value;
+
+use crate::event::EventLog;
+use crate::store::DataStore;
+
+pub mod prompt;
+pub mod run;
+pub mod sleep;
+pub mod log;
+pub mod assert;
+pub mod emit;
+pub mod router;
+
+/// Extended trait for builtin tools with internal state access
+pub trait BuiltinTool: ToolDyn + Send + Sync {
+    /// Get reference to event log
+    fn event_log(&self) -> &EventLog;
+
+    /// Get reference to data store
+    fn data_store(&self) -> Option<&DataStore> {
+        None
+    }
+
+    /// Tool category for routing
+    fn category(&self) -> BuiltinCategory {
+        BuiltinCategory::ControlFlow
+    }
+
+    /// Whether this tool can pause execution (e.g., nika:prompt)
+    fn can_pause(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuiltinCategory {
+    /// Control flow tools (sleep, assert)
+    ControlFlow,
+    /// Human-in-the-loop tools (prompt)
+    HumanInLoop,
+    /// Workflow composition (run)
+    Composition,
+    /// Observability tools (log, emit)
+    Observability,
+}
+
+/// Helper macro for implementing ToolDyn on builtin tools
+#[macro_export]
+macro_rules! impl_tool_dyn {
+    ($tool:ty, $name:expr) => {
+        impl rig::tool::ToolDyn for $tool {
+            fn name(&self) -> &str {
+                $name
+            }
+
+            fn definition(&self) -> rig::completion::ToolDefinition {
+                self.tool_definition()
+            }
+
+            fn call(
+                &self,
+                args: String,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<String, rig::tool::ToolError>> + Send + '_>,
+            > {
+                Box::pin(self.execute(args))
+            }
+        }
+    };
+}
+```
+
+### Task 3.2: Create BuiltinToolRouter
+
+**File:** `src/runtime/builtin/router.rs` (NEW)
+
+```rust
+use std::sync::Arc;
+use rustc_hash::FxHashMap;
+use rig::completion::ToolDefinition;
+
+use crate::error::NikaError;
+use crate::event::{EventKind, EventLog};
+use crate::store::DataStore;
+
+use super::{BuiltinTool, BuiltinCategory};
+use super::prompt::PromptTool;
+use super::run::RunTool;
+use super::sleep::SleepTool;
+use super::log::LogTool;
+use super::assert::AssertTool;
+use super::emit::EmitTool;
+
+/// Routes `nika:*` tool calls to builtin implementations
+pub struct BuiltinToolRouter {
+    tools: FxHashMap<&'static str, Arc<dyn BuiltinTool>>,
+    event_log: EventLog,
+}
+
+impl BuiltinToolRouter {
+    /// Create router with all TIER 1 tools registered
+    pub fn new(event_log: EventLog, data_store: DataStore) -> Self {
+        let mut tools: FxHashMap<&'static str, Arc<dyn BuiltinTool>> = FxHashMap::default();
+
+        // Register TIER 1 tools
+        tools.insert("prompt", Arc::new(PromptTool::new(event_log.clone())));
+        tools.insert("run", Arc::new(RunTool::new(event_log.clone(), data_store.clone())));
+        tools.insert("sleep", Arc::new(SleepTool::new(event_log.clone())));
+        tools.insert("log", Arc::new(LogTool::new(event_log.clone())));
+        tools.insert("assert", Arc::new(AssertTool::new(event_log.clone(), data_store)));
+        tools.insert("emit", Arc::new(EmitTool::new(event_log.clone())));
+
+        Self { tools, event_log }
+    }
+
+    /// Check if tool name has nika: prefix
+    pub fn is_builtin(tool_name: &str) -> bool {
+        tool_name.starts_with("nika:")
+    }
+
+    /// Extract tool name after nika: prefix
+    fn extract_name(tool_name: &str) -> Option<&str> {
+        tool_name.strip_prefix("nika:")
+    }
+
+    /// Dispatch to builtin tool
+    pub async fn dispatch(&self, tool_name: &str, args: String) -> Result<String, NikaError> {
+        let name = Self::extract_name(tool_name)
+            .ok_or_else(|| NikaError::BuiltinToolError {
+                tool: tool_name.to_string(),
+                reason: "Missing nika: prefix".into(),
+                code: 200,
+            })?;
+
+        let tool = self.tools.get(name)
+            .ok_or_else(|| NikaError::BuiltinToolError {
+                tool: tool_name.to_string(),
+                reason: format!("Unknown builtin tool: {}", name),
+                code: 201,
+            })?;
+
+        // Emit BuiltinInvoke event
+        self.event_log.emit(EventKind::BuiltinInvoke {
+            tool: Arc::from(tool_name),
+            args: args.clone(),
+        });
+
+        // Call tool via ToolDyn interface
+        use rig::tool::ToolDyn;
+        let result = tool.call(args).await
+            .map_err(|e| NikaError::BuiltinToolError {
+                tool: tool_name.to_string(),
+                reason: e.to_string(),
+                code: 203,
+            })?;
+
+        // Emit BuiltinResponse event
+        self.event_log.emit(EventKind::BuiltinResponse {
+            tool: Arc::from(tool_name),
+            result: result.clone(),
+        });
+
+        Ok(result)
+    }
+
+    /// Get all tool definitions for agent discovery
+    pub fn definitions(&self) -> Vec<ToolDefinition> {
+        use rig::tool::ToolDyn;
+        self.tools.values()
+            .map(|t| t.definition())
+            .collect()
+    }
+
+    /// Get tool by name (without nika: prefix)
+    pub fn get(&self, name: &str) -> Option<&Arc<dyn BuiltinTool>> {
+        self.tools.get(name)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_builtin_with_prefix() {
+        assert!(BuiltinToolRouter::is_builtin("nika:prompt"));
+        assert!(BuiltinToolRouter::is_builtin("nika:sleep"));
+    }
+
+    #[test]
+    fn test_is_builtin_without_prefix() {
+        assert!(!BuiltinToolRouter::is_builtin("novanet:describe"));
+        assert!(!BuiltinToolRouter::is_builtin("prompt"));
+    }
+
+    #[test]
+    fn test_extract_name() {
+        assert_eq!(BuiltinToolRouter::extract_name("nika:prompt"), Some("prompt"));
+        assert_eq!(BuiltinToolRouter::extract_name("nika:sleep"), Some("sleep"));
+        assert_eq!(BuiltinToolRouter::extract_name("novanet:describe"), None);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_unknown_tool() {
+        let router = BuiltinToolRouter::new(EventLog::new(), DataStore::new());
+        let result = router.dispatch("nika:unknown", "{}".into()).await;
+        assert!(result.is_err());
+    }
+}
+```
+
+### Task 3.3: Implement nika:sleep Tool
+
+**File:** `src/runtime/builtin/sleep.rs` (NEW)
+
+```rust
+use std::time::Duration;
+
+use rig::completion::ToolDefinition;
+use rig::tool::ToolError;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+
+use crate::event::{EventKind, EventLog};
+use crate::impl_tool_dyn;
+use super::{BuiltinTool, BuiltinCategory};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SleepParams {
+    /// Duration string: "5s", "1m", "500ms", "1h30m"
+    pub duration: String,
+}
+
+pub struct SleepTool {
+    event_log: EventLog,
+}
+
+impl SleepTool {
+    pub fn new(event_log: EventLog) -> Self {
+        Self { event_log }
+    }
+
+    pub fn tool_definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: "nika:sleep".to_string(),
+            description: "Pause execution for a specified duration.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "duration": {
+                        "type": "string",
+                        "description": "Duration (e.g., '5s', '1m', '500ms', '1h30m')"
+                    }
+                },
+                "required": ["duration"],
+                "additionalProperties": false
+            }),
+        }
+    }
+
+    pub async fn execute(&self, args: String) -> Result<String, ToolError> {
+        let params: SleepParams = serde_json::from_str(&args)
+            .map_err(|e| ToolError::InvalidArguments(e.to_string()))?;
+
+        let duration = parse_duration(&params.duration)
+            .map_err(|e| ToolError::InvalidArguments(e))?;
+
+        // Cap at 1 hour to prevent runaway
+        if duration > Duration::from_secs(3600) {
+            return Err(ToolError::InvalidArguments(
+                "Duration cannot exceed 1 hour".into()
+            ));
+        }
+
+        self.event_log.emit(EventKind::BuiltinSleep {
+            duration_ms: duration.as_millis() as u64,
+        });
+
+        tokio::time::sleep(duration).await;
+
+        Ok(json!({ "slept_ms": duration.as_millis() }).to_string())
+    }
+}
+
+impl BuiltinTool for SleepTool {
+    fn event_log(&self) -> &EventLog {
+        &self.event_log
+    }
+
+    fn category(&self) -> BuiltinCategory {
+        BuiltinCategory::ControlFlow
+    }
+}
+
+impl_tool_dyn!(SleepTool, "nika:sleep");
+
+/// Parse duration string like "5s", "1m", "500ms", "1h30m"
+fn parse_duration(s: &str) -> Result<Duration, String> {
+    humantime::parse_duration(s)
+        .map_err(|e| format!("Invalid duration '{}': {}", s, e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_duration_seconds() {
+        assert_eq!(parse_duration("5s").unwrap(), Duration::from_secs(5));
+        assert_eq!(parse_duration("30s").unwrap(), Duration::from_secs(30));
+    }
+
+    #[test]
+    fn test_parse_duration_milliseconds() {
+        assert_eq!(parse_duration("500ms").unwrap(), Duration::from_millis(500));
+        assert_eq!(parse_duration("100ms").unwrap(), Duration::from_millis(100));
+    }
+
+    #[test]
+    fn test_parse_duration_minutes() {
+        assert_eq!(parse_duration("1m").unwrap(), Duration::from_secs(60));
+        assert_eq!(parse_duration("5m").unwrap(), Duration::from_secs(300));
+    }
+
+    #[test]
+    fn test_parse_duration_combined() {
+        assert_eq!(parse_duration("1m30s").unwrap(), Duration::from_secs(90));
+    }
+
+    #[test]
+    fn test_parse_duration_invalid() {
+        assert!(parse_duration("invalid").is_err());
+        assert!(parse_duration("5").is_err());
+    }
+
+    #[tokio::test]
+    async fn test_sleep_executes() {
+        let tool = SleepTool::new(EventLog::new());
+        let start = std::time::Instant::now();
+
+        let result = tool.execute(r#"{"duration": "100ms"}"#.into()).await;
+
+        assert!(result.is_ok());
+        assert!(start.elapsed() >= Duration::from_millis(90)); // Allow some slack
+    }
+
+    #[tokio::test]
+    async fn test_sleep_rejects_long_duration() {
+        let tool = SleepTool::new(EventLog::new());
+
+        let result = tool.execute(r#"{"duration": "2h"}"#.into()).await;
+
+        assert!(result.is_err());
+    }
+}
+```
+
+### Task 3.4: Implement nika:log Tool
+
+**File:** `src/runtime/builtin/log.rs` (NEW)
+
+```rust
+use std::sync::Arc;
+
+use rig::completion::ToolDefinition;
+use rig::tool::ToolError;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+use crate::event::{EventKind, EventLog};
+use crate::impl_tool_dyn;
+use super::{BuiltinTool, BuiltinCategory};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogParams {
+    /// Log level
+    pub level: LogLevel,
+    /// Message to log
+    pub message: String,
+    /// Optional structured data
+    #[serde(default)]
+    pub data: Option<Value>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+pub struct LogTool {
+    event_log: EventLog,
+}
+
+impl LogTool {
+    pub fn new(event_log: EventLog) -> Self {
+        Self { event_log }
+    }
+
+    pub fn tool_definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: "nika:log".to_string(),
+            description: "Emit a structured log message.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "level": {
+                        "type": "string",
+                        "enum": ["debug", "info", "warn", "error"],
+                        "description": "Log level"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Log message"
+                    },
+                    "data": {
+                        "type": "object",
+                        "description": "Optional structured data"
+                    }
+                },
+                "required": ["level", "message"],
+                "additionalProperties": false
+            }),
+        }
+    }
+
+    pub async fn execute(&self, args: String) -> Result<String, ToolError> {
+        let params: LogParams = serde_json::from_str(&args)
+            .map_err(|e| ToolError::InvalidArguments(e.to_string()))?;
+
+        // Emit to EventLog
+        self.event_log.emit(EventKind::BuiltinLog {
+            level: params.level,
+            message: Arc::from(params.message.as_str()),
+            data: params.data.clone(),
+        });
+
+        // Also emit via tracing
+        match params.level {
+            LogLevel::Debug => tracing::debug!(message = %params.message, data = ?params.data, "nika:log"),
+            LogLevel::Info => tracing::info!(message = %params.message, data = ?params.data, "nika:log"),
+            LogLevel::Warn => tracing::warn!(message = %params.message, data = ?params.data, "nika:log"),
+            LogLevel::Error => tracing::error!(message = %params.message, data = ?params.data, "nika:log"),
+        }
+
+        Ok(json!({ "logged": true }).to_string())
+    }
+}
+
+impl BuiltinTool for LogTool {
+    fn event_log(&self) -> &EventLog {
+        &self.event_log
+    }
+
+    fn category(&self) -> BuiltinCategory {
+        BuiltinCategory::Observability
+    }
+}
+
+impl_tool_dyn!(LogTool, "nika:log");
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_log_info() {
+        let event_log = EventLog::new();
+        let tool = LogTool::new(event_log.clone());
+
+        let result = tool.execute(r#"{"level": "info", "message": "Test message"}"#.into()).await;
+
+        assert!(result.is_ok());
+        assert!(event_log.events().iter().any(|e| matches!(&e.kind, EventKind::BuiltinLog { level, .. } if *level == LogLevel::Info)));
+    }
+
+    #[tokio::test]
+    async fn test_log_with_data() {
+        let tool = LogTool::new(EventLog::new());
+
+        let result = tool.execute(r#"{"level": "debug", "message": "Test", "data": {"key": "value"}}"#.into()).await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_log_invalid_level() {
+        let tool = LogTool::new(EventLog::new());
+
+        let result = tool.execute(r#"{"level": "invalid", "message": "Test"}"#.into()).await;
+
+        assert!(result.is_err());
+    }
+}
+```
+
+### Task 3.5: Implement nika:assert Tool
+
+**File:** `src/runtime/builtin/assert.rs` (NEW)
+
+```rust
+use std::sync::Arc;
+
+use rig::completion::ToolDefinition;
+use rig::tool::ToolError;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+
+use crate::event::{EventKind, EventLog};
+use crate::store::DataStore;
+use crate::impl_tool_dyn;
+use super::{BuiltinTool, BuiltinCategory};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssertParams {
+    /// Condition expression (must evaluate to truthy)
+    pub condition: String,
+    /// Optional custom error message
+    #[serde(default)]
+    pub message: Option<String>,
+}
+
+pub struct AssertTool {
+    event_log: EventLog,
+    data_store: DataStore,
+}
+
+impl AssertTool {
+    pub fn new(event_log: EventLog, data_store: DataStore) -> Self {
+        Self { event_log, data_store }
+    }
+
+    pub fn tool_definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: "nika:assert".to_string(),
+            description: "Validate a condition. Fails workflow if false.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "condition": {
+                        "type": "string",
+                        "description": "Condition to evaluate (e.g., '{{use.count}} > 0')"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Custom error message on failure"
+                    }
+                },
+                "required": ["condition"],
+                "additionalProperties": false
+            }),
+        }
+    }
+
+    pub async fn execute(&self, args: String) -> Result<String, ToolError> {
+        let params: AssertParams = serde_json::from_str(&args)
+            .map_err(|e| ToolError::InvalidArguments(e.to_string()))?;
+
+        // Resolve bindings in condition
+        let resolved = self.data_store.resolve_template(&params.condition)
+            .unwrap_or_else(|_| params.condition.clone());
+
+        // Evaluate condition
+        let result = evaluate_condition(&resolved)
+            .map_err(|e| ToolError::ExecutionError(e))?;
+
+        if result {
+            self.event_log.emit(EventKind::BuiltinAssertPassed {
+                condition: Arc::from(params.condition.as_str()),
+            });
+            Ok(json!({ "passed": true }).to_string())
+        } else {
+            let message = params.message.unwrap_or_else(|| {
+                format!("Assertion failed: {}", params.condition)
+            });
+
+            self.event_log.emit(EventKind::BuiltinAssertFailed {
+                condition: Arc::from(params.condition.as_str()),
+                message: Arc::from(message.as_str()),
+            });
+
+            Err(ToolError::ExecutionError(message))
+        }
+    }
+}
+
+impl BuiltinTool for AssertTool {
+    fn event_log(&self) -> &EventLog {
+        &self.event_log
+    }
+
+    fn data_store(&self) -> Option<&DataStore> {
+        Some(&self.data_store)
+    }
+
+    fn category(&self) -> BuiltinCategory {
+        BuiltinCategory::ControlFlow
+    }
+}
+
+impl_tool_dyn!(AssertTool, "nika:assert");
+
+/// Evaluate simple condition expressions
+/// Supports: ==, !=, >, <, >=, <=, &&, ||, !
+fn evaluate_condition(expr: &str) -> Result<bool, String> {
+    evalexpr::eval_boolean(expr)
+        .map_err(|e| format!("Invalid condition '{}': {}", expr, e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_evaluate_equality() {
+        assert!(evaluate_condition("1 == 1").unwrap());
+        assert!(!evaluate_condition("1 == 2").unwrap());
+    }
+
+    #[test]
+    fn test_evaluate_comparison() {
+        assert!(evaluate_condition("5 > 3").unwrap());
+        assert!(!evaluate_condition("3 > 5").unwrap());
+        assert!(evaluate_condition("5 >= 5").unwrap());
+    }
+
+    #[test]
+    fn test_evaluate_boolean() {
+        assert!(evaluate_condition("true && true").unwrap());
+        assert!(!evaluate_condition("true && false").unwrap());
+        assert!(evaluate_condition("true || false").unwrap());
+    }
+
+    #[test]
+    fn test_evaluate_string() {
+        assert!(evaluate_condition(r#""hello" == "hello""#).unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_assert_passes() {
+        let tool = AssertTool::new(EventLog::new(), DataStore::new());
+
+        let result = tool.execute(r#"{"condition": "1 == 1"}"#.into()).await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_assert_fails() {
+        let tool = AssertTool::new(EventLog::new(), DataStore::new());
+
+        let result = tool.execute(r#"{"condition": "1 == 2"}"#.into()).await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_assert_custom_message() {
+        let tool = AssertTool::new(EventLog::new(), DataStore::new());
+
+        let result = tool.execute(r#"{"condition": "false", "message": "Custom error"}"#.into()).await;
+
+        match result {
+            Err(ToolError::ExecutionError(msg)) => assert_eq!(msg, "Custom error"),
+            _ => panic!("Expected execution error"),
+        }
+    }
+}
+```
+
+### Task 3.6: Implement nika:emit Tool
+
+**File:** `src/runtime/builtin/emit.rs` (NEW)
+
+```rust
+use std::sync::Arc;
+
+use rig::completion::ToolDefinition;
+use rig::tool::ToolError;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+use crate::event::{EventKind, EventLog};
+use crate::impl_tool_dyn;
+use super::{BuiltinTool, BuiltinCategory};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmitParams {
+    /// Event name
+    pub event: String,
+    /// Event data
+    #[serde(default)]
+    pub data: Value,
+}
+
+pub struct EmitTool {
+    event_log: EventLog,
+}
+
+impl EmitTool {
+    pub fn new(event_log: EventLog) -> Self {
+        Self { event_log }
+    }
+
+    pub fn tool_definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: "nika:emit".to_string(),
+            description: "Emit a custom event for observability.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "event": {
+                        "type": "string",
+                        "description": "Event name (e.g., 'page_generated')"
+                    },
+                    "data": {
+                        "type": "object",
+                        "description": "Event payload"
+                    }
+                },
+                "required": ["event"],
+                "additionalProperties": false
+            }),
+        }
+    }
+
+    pub async fn execute(&self, args: String) -> Result<String, ToolError> {
+        let params: EmitParams = serde_json::from_str(&args)
+            .map_err(|e| ToolError::InvalidArguments(e.to_string()))?;
+
+        self.event_log.emit(EventKind::CustomEvent {
+            name: Arc::from(params.event.as_str()),
+            data: params.data.clone(),
+        });
+
+        Ok(json!({ "emitted": params.event }).to_string())
+    }
+}
+
+impl BuiltinTool for EmitTool {
+    fn event_log(&self) -> &EventLog {
+        &self.event_log
+    }
+
+    fn category(&self) -> BuiltinCategory {
+        BuiltinCategory::Observability
+    }
+}
+
+impl_tool_dyn!(EmitTool, "nika:emit");
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_emit_event() {
+        let event_log = EventLog::new();
+        let tool = EmitTool::new(event_log.clone());
+
+        let result = tool.execute(r#"{"event": "test_event", "data": {"key": "value"}}"#.into()).await;
+
+        assert!(result.is_ok());
+        assert!(event_log.events().iter().any(|e| matches!(&e.kind, EventKind::CustomEvent { name, .. } if name.as_ref() == "test_event")));
+    }
+
+    #[tokio::test]
+    async fn test_emit_without_data() {
+        let tool = EmitTool::new(EventLog::new());
+
+        let result = tool.execute(r#"{"event": "simple_event"}"#.into()).await;
+
+        assert!(result.is_ok());
+    }
+}
+```
+
+### Task 3.7: Wire Builtin Tools into Executor
+
+**File:** `src/runtime/executor.rs` (MODIFY)
+
+```rust
+use crate::runtime::builtin::router::BuiltinToolRouter;
+
+pub struct Executor {
+    // Existing fields...
+    builtin_router: BuiltinToolRouter,
+}
+
+impl Executor {
+    pub fn new(/* ... */) -> Self {
+        Self {
+            // Existing initialization...
+            builtin_router: BuiltinToolRouter::new(event_log.clone(), data_store.clone()),
+        }
+    }
+
+    async fn execute_invoke(&mut self, task: &Task) -> Result<TaskResult, NikaError> {
+        let invoke = task.action.as_invoke().unwrap();
+
+        // Route based on prefix
+        if BuiltinToolRouter::is_builtin(&invoke.tool) {
+            // Builtin tool
+            let params_json = serde_json::to_string(&invoke.params)
+                .map_err(|e| NikaError::SerializationError(e.to_string()))?;
+
+            let result = self.builtin_router.dispatch(&invoke.tool, params_json).await?;
+
+            Ok(TaskResult {
+                task_id: task.id.clone(),
+                output: serde_json::from_str(&result).unwrap_or(serde_json::Value::String(result)),
+                duration_ms: 0, // TODO: track duration
+            })
+        } else {
+            // MCP tool (existing logic)
+            self.execute_mcp_invoke(task).await
+        }
+    }
+}
+```
+
+### Task 3.8: Add New EventKind Variants
+
+**File:** `src/event/log.rs` (MODIFY)
+
+```rust
+use crate::runtime::builtin::log::LogLevel;
+
+pub enum EventKind {
+    // Existing variants...
+
+    // NEW: Builtin tool events
+    BuiltinInvoke {
+        tool: Arc<str>,
+        args: String,
+    },
+    BuiltinResponse {
+        tool: Arc<str>,
+        result: String,
+    },
+    BuiltinSleep {
+        duration_ms: u64,
+    },
+    BuiltinLog {
+        level: LogLevel,
+        message: Arc<str>,
+        data: Option<serde_json::Value>,
+    },
+    BuiltinAssertPassed {
+        condition: Arc<str>,
+    },
+    BuiltinAssertFailed {
+        condition: Arc<str>,
+        message: Arc<str>,
+    },
+    CustomEvent {
+        name: Arc<str>,
+        data: serde_json::Value,
+    },
+}
+```
+
+### Verification Phase 3
+
+```bash
+# 1. Run tests
+cargo test builtin::
+cargo test router
+
+# 2. Integration test - nika:sleep
+cargo run -- run examples/test-sleep.nika.yaml
+
+# 3. Integration test - nika:log
+cargo run -- run examples/test-log.nika.yaml
+
+# 4. Integration test - nika:assert
+cargo run -- run examples/test-assert.nika.yaml
+
+# 5. Verify events in trace
+nika trace list
+nika trace show <id>
+# Should see BuiltinInvoke, BuiltinResponse, CustomEvent
+```
+
+### Test Files for Phase 3
+
+**File:** `examples/test-sleep.nika.yaml`
+
+```yaml
+schema: nika/workflow@0.6
+workflow: test-sleep
+
+tasks:
+  - id: log-start
+    invoke:
+      tool: nika:log
+      params:
+        level: info
+        message: "Starting sleep test"
+
+  - id: sleep-100ms
+    invoke:
+      tool: nika:sleep
+      params:
+        duration: "100ms"
+
+  - id: log-done
+    invoke:
+      tool: nika:log
+      params:
+        level: info
+        message: "Sleep completed"
+
+flows:
+  - log-start -> sleep-100ms
+  - sleep-100ms -> log-done
+```
+
+**File:** `examples/test-assert.nika.yaml`
+
+```yaml
+schema: nika/workflow@0.6
+workflow: test-assert
+
+tasks:
+  - id: assert-true
+    invoke:
+      tool: nika:assert
+      params:
+        condition: "1 == 1"
+
+  - id: assert-math
+    invoke:
+      tool: nika:assert
+      params:
+        condition: "5 > 3"
+        message: "Math should work"
+
+flows:
+  - assert-true -> assert-math
+```
+
+---
+
+## Phase 4: DAG Panel
 
 **Goal:** Add live DAG visualization sidebar to chat view.
 

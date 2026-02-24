@@ -30,6 +30,172 @@
 3. **Pattern clair** — `mcp_server:tool` = external, `nika:*` = builtin
 4. **Industrie standard** — Temporal (activities), Prefect (tasks), GitHub Actions (actions)
 
+---
+
+## Chat ↔ Workflow Equivalence Principle (2026-02-24)
+
+**Core Rule:** Chat and Workflow DAGs MUST use identical logic for seamless export/import.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  ÉQUIVALENCE CHAT ↔ WORKFLOW                                                    │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Chat Session                          Workflow YAML                            │
+│  ────────────                          ─────────────                            │
+│  [User: "Décris QR Code"]              tasks:                                   │
+│  [Agent: infer → response]               - id: msg-1                            │
+│  [User: "Génère landing @1"]               type: UserInput                      │
+│  [Agent: invoke nika:prompt]               content: "Décris QR Code"            │
+│                                          - id: msg-2                            │
+│            │                               infer: "..."                         │
+│            │ export                        use.prev: msg-1                      │
+│            ▼                             - id: msg-3                            │
+│                                            type: UserInput                      │
+│  YAML identique ──────────────────────     content: "Génère landing @1"        │
+│                                          - id: msg-4                            │
+│            │                               invoke: nika:prompt                  │
+│            │ import                        ...                                  │
+│            ▼                                                                    │
+│                                                                                 │
+│  Chat Session (restored)               Même logique, même Executor              │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### nika:prompt Works in BOTH Chat AND Workflow
+
+**Revised Decision:** `nika:prompt` existe dans les DEUX contextes avec comportement identique.
+
+| Context | User Input (spontané) | nika:prompt (sollicité) |
+|---------|----------------------|-------------------------|
+| **Chat** | User tape message → NodeType::UserInput | Agent invoque nika:prompt → TUI affiche widget |
+| **Workflow** | N/A (pas de user live) | Task avec invoke: nika:prompt → pause & attend |
+| **Export** | Devient task type: UserInput | Reste invoke: nika:prompt |
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  DISTINCTION PRÉSERVÉE                                                          │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  NodeType::UserInput                    invoke: nika:prompt                     │
+│  ──────────────────                     ─────────────────────                   │
+│  • User initie (spontané)               • Agent sollicite (structuré)           │
+│  • Texte libre                          • confirm/text/select/multiselect       │
+│  • Pas de timeout                       • Timeout configurable                  │
+│  • Chat seulement (live user)           • Chat ET Workflow                      │
+│                                                                                 │
+│  Binding: {{use.msg-N.output}}          Binding: {{use.task-N.result}}          │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Why this matters:**
+- Export chat → YAML workflow sans perte de logique
+- Import YAML → chat session (si UserInput = prompt au user)
+- Même Executor, même résolution de bindings
+- Agent peut solliciter user dans les deux contextes
+
+---
+
+## Builtin Tools by Tier (2026-02-24)
+
+**Research Sources:** Claude Code (18 builtin tools), GitHub Actions, LangGraph, n8n, Temporal
+
+### MCP vs Builtin Distinction
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  EXTERNE (MCP)                         INTERNE (Builtin nika:*)                 │
+│  ─────────────                         ───────────────────────                  │
+│  • APIs tierces                        • Control flow                           │
+│  • Base de données                     • État interne                           │
+│  • Services cloud                      • HITL (Human-in-the-Loop)               │
+│  • Scraping web                        • Composition de workflow                │
+│                                                                                 │
+│  Pattern: mcp_server:tool              Pattern: nika:tool                       │
+│  Ex: novanet:describe                  Ex: nika:prompt                          │
+│                                                                                 │
+│  Latence réseau, retry, timeout        Latence locale, pas de retry             │
+│  Stateless (call → response)           Stateful (accès au DAG, EventLog)        │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### TIER 1 — v0.9.4 MVP (6 tools)
+
+| Tool | Purpose | Parameters | Output |
+|------|---------|------------|--------|
+| `nika:prompt` | HITL user input | `type: confirm\|text\|select\|multiselect`, `message`, `options?`, `timeout?` | User response |
+| `nika:run` | Workflow composition | `path: ./workflow.nika.yaml`, `inputs?` | Sub-workflow result |
+| `nika:sleep` | Delay/wait | `duration: "5s"\|"1m"\|"500ms"` | void |
+| `nika:log` | Debug output | `level: debug\|info\|warn\|error`, `message` | void |
+| `nika:assert` | Validation gate | `condition: "{{use.x}} > 0"`, `message?` | Pass or Error |
+| `nika:emit` | Custom event | `event: string`, `data: object` | EventLog entry |
+
+### TIER 2 — v0.10+ (4 tools)
+
+| Tool | Purpose | Parameters | Output |
+|------|---------|------------|--------|
+| `nika:schedule` | Defer execution | `cron: "0 9 * * *"`, `workflow: path` | Schedule ID |
+| `nika:wait` | Wait for condition | `condition: "{{use.x.status}} == 'done'"`, `timeout?`, `poll_interval?` | Resolved value |
+| `nika:set` | Set DAG variable | `key: string`, `value: any` | void |
+| `nika:env` | Read environment | `var: string`, `default?` | Env value |
+
+### TIER 3 — v0.11+ DRAFT (5 tools) ⚠️ NEEDS REVIEW
+
+| Tool | Purpose | Status |
+|------|---------|--------|
+| `nika:checkpoint` | Save execution state | Draft — Review if EventLog suffices |
+| `nika:cache` | Cache expensive results | Draft — Review cache invalidation strategy |
+| `nika:artifact` | Store file outputs | Draft — Review vs simple file writes |
+| `nika:notify` | External notifications | Draft — Review vs MCP (Slack, email) |
+| `nika:todo` | Task tracking | Draft — Review if EventLog::TaskCreated suffices |
+
+**v0.11 is DRAFT** — These tools need review before implementation. Our plan focuses through v0.10.
+
+---
+
+## Heartbeat System Cron Decision (2026-02-24)
+
+**Decision:** System Cron first (v0.9.3), optional Daemon later (v0.11+).
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  v0.9.3: SYSTEM CRON (Simple, Proven)                                           │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  .nika/heartbeat.yaml                  Generated crontab                        │
+│  ────────────────────                  ─────────────────                        │
+│  schedules:                            # Nika heartbeat - managed by nika       │
+│    - name: daily-report                0 9 * * * cd /project && nika run ...    │
+│      cron: "0 9 * * *"                 0 0 * * 0 cd /project && nika run ...    │
+│      workflow: ./daily.nika.yaml                                                │
+│    - name: weekly-sync                                                          │
+│      cron: "0 0 * * 0"                                                          │
+│      workflow: ./sync.nika.yaml                                                 │
+│                                                                                 │
+│  Command: nika heartbeat install       → Installs to system crontab             │
+│  Command: nika heartbeat uninstall     → Removes from crontab                   │
+│  Command: nika heartbeat status        → Shows scheduled jobs                   │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  v0.11+: OPTIONAL DAEMON (Future)                                               │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  nika daemon start       → Long-running process with scheduler                  │
+│  nika daemon stop        → Graceful shutdown                                    │
+│  nika daemon status      → Health check                                         │
+│                                                                                 │
+│  Benefits: Sub-minute scheduling, watch mode, live config reload                │
+│  Complexity: Process management, systemd integration, PID files                 │
+│                                                                                 │
+│  Decision: Not needed for MVP. System Cron covers 90% of use cases.             │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ### User Input in Chat-as-DAG
 
 ```
@@ -527,7 +693,9 @@ tasks:
 | `v091-consolidated-design.md` | Full specification (Schema v0.6, Context, Agents, Skills, Boot) | Draft |
 | `v091-implementation-plan.md` | 9-sprint breakdown with dependencies | Approved |
 | `2026-02-24-chat-as-workflow-dag.md` | Chat-as-DAG design (NodeType, @mentions, //, bindings, **builtin tools**) | **Updated** |
+| `2026-02-24-chat-workflow-conversion.md` | **Chat ↔ Workflow bidirectional export/import specification** | **NEW** |
 | `chat-dag-implementation-plan.md` | Implementation details for Chat-as-DAG | Draft |
+| `2026-02-24-gap-analysis.md` | **Audit: gaps, missing specs, recommended plans** | **NEW** |
 
 ## Supporting Plans
 
@@ -759,6 +927,24 @@ g_stable.remove_node(1.into());
 ## Related Documents
 
 - **v0.10+ Plans:** `../v0.10+/` (6-Views, Provider Modal v2)
+- **v0.11+ Plans:** DRAFT — Needs review before implementation (daemon, advanced builtins)
 - **v0.8 Archive:** `../archive-v0.8/` (completed work)
 - **ADRs:** `../../tools/nika/.claude/rules/adr/`
 - **Agent Reviews:** See "Agent Review Documents" section above
+
+---
+
+## Decisions Summary (2026-02-24)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **5 Verbs** | Preserved (ADR-001) | Irréductible, extend via builtin tools |
+| **Builtin Tools** | 15 tools in 3 tiers | `nika:*` pattern via `invoke:` |
+| **Chat ↔ Workflow** | Identical DAG logic | Export/import sans perte |
+| **nika:prompt** | Chat AND Workflow | Équivalence principle |
+| **NodeType** | Task, UserInput, SystemMessage | Distinguish user vs agent |
+| **Heartbeat** | System Cron (v0.9.3) | Simple, proven, no daemon |
+| **Daemon** | Optional (v0.11+) | Draft, needs review |
+| **StableGraph** | petgraph required | Stable indices for @mentions |
+
+**Plan Scope:** v0.9.1 → v0.10.3 (detailed) | v0.11+ (draft/brouillon)

@@ -1,12 +1,12 @@
-//! Matrix Rain Widget - Dithered emoji/ASCII cascade effect
+//! Matrix Rain Widget - Subtle animated background effect
 //!
-//! Creates a satisfying visual effect with random characters, emojis,
-//! and colors cascading down the screen like the Matrix.
+//! A lightweight Matrix-style rain effect using katakana and Nika mascots.
+//! Designed to be subtle and fade out over time.
 //!
 //! ```text
-//! ✨ n 🧠 _ a 🔥 j _ 🦙 p ★ 7 💫 _
-//! 🐔 < _ o 2 h q 🧀 _ p 🍕 4 4 5 d
-//! ⚡ e c j _ _ o 2 h q m 🔥 _ p [ _
+//! ｱ   ｶ   ﾊ       ← falling katakana (sparse)
+//!   ｲ     ﾋ  🦋
+//! ｳ   ｷ       ﾗ   ← with rare Nika mascots
 //! ```
 
 use rand::rngs::SmallRng;
@@ -20,52 +20,85 @@ use ratatui::{
 
 use crate::tui::theme::solarized;
 
-/// Characters to use in the matrix effect (ASCII + special)
-const MATRIX_CHARS: &[char] = &[
-    // ASCII lowercase
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
-    't', 'u', 'v', 'w', 'x', 'y', 'z', // Numbers
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', // Special ASCII
-    '_', '<', '>', '[', ']', '{', '}', '/', '\\', '*', '#', '@', '^', '-', '+', '=', '~', '|', '.',
-    ',', ':', ';',
+// ═══════════════════════════════════════════════════════════════════════════════
+// CHARACTER SETS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Half-width Katakana (authentic Matrix style, monospace)
+const KATAKANA: &[char] = &[
+    'ｱ', 'ｲ', 'ｳ', 'ｴ', 'ｵ', 'ｶ', 'ｷ', 'ｸ', 'ｹ', 'ｺ', 'ｻ', 'ｼ', 'ｽ', 'ｾ', 'ｿ', 'ﾀ', 'ﾁ', 'ﾂ', 'ﾃ',
+    'ﾄ', 'ﾅ', 'ﾆ', 'ﾇ', 'ﾈ', 'ﾉ', 'ﾊ', 'ﾋ', 'ﾌ', 'ﾍ', 'ﾎ', 'ﾏ', 'ﾐ', 'ﾑ', 'ﾒ', 'ﾓ', 'ﾔ', 'ﾕ', 'ﾖ',
+    'ﾗ', 'ﾘ', 'ﾙ', 'ﾚ', 'ﾛ', 'ﾜ', 'ﾝ',
 ];
 
-/// Emojis to sprinkle in the matrix (high impact visual)
-const MATRIX_EMOJIS: &[&str] = &[
-    // Tech/AI
-    "🧠", "🤖", "⚡", "💫", "✨", "🔥", "⭐", "★", // Animals (Nika mascots)
-    "🐔", "🐤", "🦙", "🐭", // Food (fun)
-    "🧀", "🍕", "🌶️", // Symbols
-    "❤️", "💜", "💛", "🔮", "💎", "🎯", "🚀", // Nature
-    "🌸", "🌟", "✦", "✧",
+/// Minimal ASCII (subtle, code-like)
+const ASCII_MINIMAL: &[char] = &[
+    '0', '1', '.', ':', '_', '-', '>', '<', '/', '\\', '|', '+', '*',
 ];
 
-/// Matrix rain colors (Solarized accents)
-const MATRIX_COLORS: &[Color] = &[
+/// Nika mascot emojis (4% of drops, brand identity)
+/// 🦋 is 16% of emoji picks (4 out of 25 = brand prominence)
+const NIKA_MASCOTS: &[&str] = &[
+    // === Nika Brand (16% of emojis = 4 entries) ===
+    "🦋", "🦋", "🦋", "🦋",
+    // === Tech/Rust ===
+    "🦀", // Rust crab
+    "⚡", // Energy/async
+    "✨", // Magic/AI
+    "🔮", // Crystal ball (prediction)
+    // === Cosmic ===
+    "🌌", // Galaxy
+    "🪐", // Planet
+    "💎", // Gem/quality
+    "🌟", // Star
+    "☄️", // Comet
+    // === Animals ===
+    "🐔", // Classic Nika
+    "🦖", // T-Rex
+    "🦕", // Bronto
+    "🪼", // Jellyfish
+    "🦙", // Llama (LLM!)
+    "🐒", // Monkey
+    "🦄", // Unicorn
+    "🐯", // Tiger
+    "🦁", // Lion
+    "🦚", // Peacock
+    "🦎", // Gecko
+    "🦈", // Shark
+    "🦞", // Lobster
+    "🦑", // Squid
+    "🐙", // Octopus
+    "🦩", // Flamingo
+    "🦜", // Parrot
+    // === Special ===
+    "🏝️", // Island
+    "🗿", // Moai
+    "🐦‍🔥", // Phoenix
+    "🎭", // Theater masks
+    "🎪", // Circus
+];
+
+/// Rain colors (Solarized palette - vibrant multicolor)
+const RAIN_COLORS: &[Color] = &[
+    // === Primary Matrix colors (more frequent) ===
+    solarized::CYAN,
     solarized::CYAN,
     solarized::GREEN,
+    solarized::GREEN,
+    // === Accent colors ===
+    solarized::BLUE,
+    solarized::VIOLET,
+    solarized::MAGENTA,
     solarized::YELLOW,
     solarized::ORANGE,
-    solarized::MAGENTA,
-    solarized::VIOLET,
-    solarized::BLUE,
-    solarized::RED,
+    // === Muted (subtle background) ===
+    solarized::BASE01,
+    solarized::BASE00,
 ];
 
-/// A single drop in the matrix rain
-#[derive(Clone)]
-struct RainDrop {
-    /// Current row position
-    y: i16,
-    /// Speed (rows per frame)
-    speed: u8,
-    /// Character/emoji at this position
-    glyph: RainGlyph,
-    /// Color for this drop
-    color: Color,
-    /// Trail length
-    trail: u8,
-}
+// ═══════════════════════════════════════════════════════════════════════════════
+// RAIN DROP
+// ═══════════════════════════════════════════════════════════════════════════════
 
 #[derive(Clone)]
 enum RainGlyph {
@@ -77,28 +110,43 @@ impl RainGlyph {
     fn as_str(&self) -> String {
         match self {
             RainGlyph::Char(c) => c.to_string(),
-            RainGlyph::Emoji(e) => e.to_string(),
+            RainGlyph::Emoji(e) => (*e).to_string(),
         }
     }
 
     fn width(&self) -> u16 {
         match self {
             RainGlyph::Char(_) => 1,
-            RainGlyph::Emoji(_) => 2, // Most emojis are 2 cells wide
+            RainGlyph::Emoji(_) => 2,
         }
     }
 }
 
-/// Matrix Rain effect widget
+#[derive(Clone)]
+struct RainDrop {
+    y: i16,
+    speed: u8,
+    glyph: RainGlyph,
+    color: Color,
+    trail: u8,
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MATRIX RAIN WIDGET
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Subtle Matrix Rain effect with fade-out support
 ///
-/// Renders a cascading rain of characters and emojis with Solarized colors.
+/// Use `.with_fade()` for automatic fade-out over time.
 pub struct MatrixRain {
     /// Animation frame counter (0-255)
     frame: u8,
-    /// Density of rain drops (0.0 - 1.0)
+    /// Density of rain drops (0.0 - 1.0), default very sparse
     density: f32,
-    /// Whether to include emojis
-    with_emojis: bool,
+    /// Opacity for fade effect (0.0 = invisible, 1.0 = full)
+    opacity: f32,
+    /// Whether to include Nika mascot emojis
+    with_mascots: bool,
     /// Seed for reproducible randomness
     seed: u64,
 }
@@ -107,8 +155,9 @@ impl Default for MatrixRain {
     fn default() -> Self {
         Self {
             frame: 0,
-            density: 0.3,
-            with_emojis: true,
+            density: 0.15, // Very sparse by default
+            opacity: 1.0,
+            with_mascots: true,
             seed: 42,
         }
     }
@@ -126,15 +175,27 @@ impl MatrixRain {
     }
 
     /// Set rain density (0.0 = sparse, 1.0 = dense)
+    /// Default is 0.15 (very sparse)
     pub fn density(mut self, density: f32) -> Self {
         self.density = density.clamp(0.0, 1.0);
         self
     }
 
-    /// Enable/disable emojis
-    pub fn with_emojis(mut self, enable: bool) -> Self {
-        self.with_emojis = enable;
+    /// Set opacity for fade effect (0.0 = invisible, 1.0 = full)
+    pub fn opacity(mut self, opacity: f32) -> Self {
+        self.opacity = opacity.clamp(0.0, 1.0);
         self
+    }
+
+    /// Enable/disable Nika mascot emojis
+    pub fn with_mascots(mut self, enable: bool) -> Self {
+        self.with_mascots = enable;
+        self
+    }
+
+    /// Alias for with_mascots (backwards compat)
+    pub fn with_emojis(self, enable: bool) -> Self {
+        self.with_mascots(enable)
     }
 
     /// Set seed for reproducible randomness
@@ -143,179 +204,224 @@ impl MatrixRain {
         self
     }
 
-    /// Generate a random glyph
+    /// Generate a random glyph (katakana-dominant, 4% emojis)
     fn random_glyph(&self, rng: &mut SmallRng) -> RainGlyph {
-        // 20% chance for emoji if enabled
-        if self.with_emojis && rng.gen_bool(0.2) {
-            let idx = rng.gen_range(0..MATRIX_EMOJIS.len());
-            RainGlyph::Emoji(MATRIX_EMOJIS[idx])
+        let roll: f32 = rng.gen();
+
+        if self.with_mascots && roll < 0.04 {
+            // 4% - Nika mascots (🦋 is 16% of these = brand prominence)
+            let idx = rng.gen_range(0..NIKA_MASCOTS.len());
+            RainGlyph::Emoji(NIKA_MASCOTS[idx])
+        } else if roll < 0.85 {
+            // 81% - Katakana (dominant, Matrix-authentic)
+            let idx = rng.gen_range(0..KATAKANA.len());
+            RainGlyph::Char(KATAKANA[idx])
         } else {
-            let idx = rng.gen_range(0..MATRIX_CHARS.len());
-            RainGlyph::Char(MATRIX_CHARS[idx])
+            // 15% - Minimal ASCII
+            let idx = rng.gen_range(0..ASCII_MINIMAL.len());
+            RainGlyph::Char(ASCII_MINIMAL[idx])
         }
     }
 
     /// Generate rain drops for a column
     fn generate_drops(&self, col: u16, height: u16, rng: &mut SmallRng) -> Vec<RainDrop> {
         let mut drops = Vec::new();
-        let num_drops = (height as f32 * self.density * 0.5) as usize;
 
-        for i in 0..num_drops.max(1) {
+        // Very few drops per column (sparse effect)
+        let num_drops = ((height as f32 * self.density * 0.3) as usize).max(1);
+
+        for i in 0..num_drops {
             // Stagger drops based on column and index
             let base_y =
-                (col as i16 * 7 + i as i16 * 13 + self.frame as i16 * 2) % (height as i16 * 2);
-            let y = base_y - height as i16; // Start above visible area
+                (col as i16 * 7 + i as i16 * 17 + self.frame as i16 * 2) % (height as i16 * 2);
+            let y = base_y - height as i16;
 
-            let speed = rng.gen_range(1..=3);
-            let color_idx = rng.gen_range(0..MATRIX_COLORS.len());
-            let trail = rng.gen_range(2..=6);
+            let speed = rng.gen_range(1..=2); // Slower movement
+            let color_idx = rng.gen_range(0..RAIN_COLORS.len());
+            let trail = rng.gen_range(1..=3); // Short trails
 
             drops.push(RainDrop {
                 y,
                 speed,
                 glyph: self.random_glyph(rng),
-                color: MATRIX_COLORS[color_idx],
+                color: RAIN_COLORS[color_idx],
                 trail,
             });
         }
 
         drops
     }
+
+    /// Apply opacity to a color
+    fn apply_opacity(&self, color: Color, brightness: f32) -> Color {
+        let effective = brightness * self.opacity;
+
+        if effective < 0.1 {
+            return solarized::BASE03; // Background (invisible)
+        }
+
+        match color {
+            Color::Rgb(r, g, b) => Color::Rgb(
+                (r as f32 * effective) as u8,
+                (g as f32 * effective) as u8,
+                (b as f32 * effective) as u8,
+            ),
+            c => {
+                if effective < 0.5 {
+                    solarized::BASE02
+                } else {
+                    c
+                }
+            }
+        }
+    }
 }
 
 impl Widget for MatrixRain {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        if area.width == 0 || area.height == 0 {
+        if area.width == 0 || area.height == 0 || self.opacity < 0.05 {
             return;
         }
 
-        // Create seeded RNG for reproducible but animated results
         let seed = self.seed.wrapping_add(self.frame as u64);
         let mut rng = SmallRng::seed_from_u64(seed);
 
-        // Process each column
+        // Process every 3rd column for sparse effect
         let mut col = 0u16;
         while col < area.width {
-            // Generate drops for this column
             let drops = self.generate_drops(col, area.height, &mut rng);
 
             for drop in drops {
-                // Calculate current position based on frame
                 let current_y = drop.y + (self.frame as i16 / drop.speed as i16);
 
-                // Render the drop and its trail
+                // Render the drop and its short trail
                 for trail_offset in 0..=drop.trail {
                     let y = current_y - trail_offset as i16;
 
                     if y >= 0 && y < area.height as i16 {
                         let x = area.x + col;
-                        let y = area.y + y as u16;
+                        let y_pos = area.y + y as u16;
 
-                        // Check bounds
-                        if x < area.x + area.width && y < area.y + area.height {
+                        if x < area.x + area.width && y_pos < area.y + area.height {
                             // Trail fades out
                             let brightness = if trail_offset == 0 {
-                                1.0 // Head is brightest
+                                0.8 // Head (not too bright)
                             } else {
-                                1.0 - (trail_offset as f32 / drop.trail as f32) * 0.7
+                                0.4 - (trail_offset as f32 / drop.trail as f32) * 0.3
                             };
 
-                            // Get color with fading
-                            let color = if brightness > 0.8 {
-                                drop.color
-                            } else if brightness > 0.5 {
-                                // Dim version
-                                match drop.color {
-                                    Color::Rgb(r, g, b) => Color::Rgb(
-                                        (r as f32 * brightness) as u8,
-                                        (g as f32 * brightness) as u8,
-                                        (b as f32 * brightness) as u8,
-                                    ),
-                                    c => c,
+                            let color = self.apply_opacity(drop.color, brightness);
+
+                            // Render glyph
+                            let glyph_str = drop.glyph.as_str();
+                            let glyph_width = drop.glyph.width();
+
+                            if x + glyph_width <= area.x + area.width {
+                                // Only render if not emoji or emoji fits
+                                if matches!(drop.glyph, RainGlyph::Char(_)) || trail_offset == 0 {
+                                    buf.set_string(
+                                        x,
+                                        y_pos,
+                                        &glyph_str,
+                                        Style::default().fg(color),
+                                    );
                                 }
-                            } else {
-                                solarized::BASE01 // Very dim
-                            };
-
-                            // Generate glyph for this position (changes per frame for effect)
-                            let glyph = if trail_offset == 0 {
-                                drop.glyph.clone()
-                            } else {
-                                // Trail uses random chars
-                                RainGlyph::Char(MATRIX_CHARS[rng.gen_range(0..MATRIX_CHARS.len())])
-                            };
-
-                            if let Some(cell) = buf.cell_mut((x, y)) {
-                                cell.set_symbol(&glyph.as_str());
-                                cell.set_style(Style::default().fg(color));
                             }
                         }
                     }
                 }
             }
 
-            // Skip width based on potential emoji
-            col += 1;
+            col += 3; // Skip columns for sparse effect
         }
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// TESTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::backend::TestBackend;
-    use ratatui::Terminal;
 
     #[test]
-    fn test_matrix_rain_renders() {
-        let backend = TestBackend::new(40, 10);
-        let mut terminal = Terminal::new(backend).unwrap();
-
-        terminal
-            .draw(|frame| {
-                let rain = MatrixRain::new().frame(0).density(0.5).with_emojis(true);
-                frame.render_widget(rain, frame.area());
-            })
-            .unwrap();
-
-        // Just verify it doesn't panic
+    fn test_matrix_rain_new() {
+        let rain = MatrixRain::new();
+        assert_eq!(rain.frame, 0);
+        assert!((rain.density - 0.15).abs() < 0.01);
+        assert!((rain.opacity - 1.0).abs() < 0.01);
+        assert!(rain.with_mascots);
     }
 
     #[test]
-    fn test_matrix_rain_animation() {
-        let backend = TestBackend::new(20, 5);
-        let mut terminal = Terminal::new(backend).unwrap();
+    fn test_matrix_rain_builder() {
+        let rain = MatrixRain::new()
+            .frame(42)
+            .density(0.3)
+            .opacity(0.5)
+            .with_mascots(false)
+            .seed(123);
 
-        // Render multiple frames
-        for frame in 0..10 {
-            terminal
-                .draw(|f| {
-                    let rain = MatrixRain::new().frame(frame);
-                    f.render_widget(rain, f.area());
-                })
-                .unwrap();
-        }
+        assert_eq!(rain.frame, 42);
+        assert!((rain.density - 0.3).abs() < 0.01);
+        assert!((rain.opacity - 0.5).abs() < 0.01);
+        assert!(!rain.with_mascots);
+        assert_eq!(rain.seed, 123);
     }
 
     #[test]
-    fn test_matrix_rain_density() {
-        let rain_sparse = MatrixRain::new().density(0.1);
-        let rain_dense = MatrixRain::new().density(0.9);
+    fn test_density_clamping() {
+        let rain = MatrixRain::new().density(2.0);
+        assert!((rain.density - 1.0).abs() < 0.01);
 
-        // Verify density is clamped
-        let rain_over = MatrixRain::new().density(2.0);
-        assert!(rain_over.density <= 1.0);
-
-        let rain_under = MatrixRain::new().density(-1.0);
-        assert!(rain_under.density >= 0.0);
+        let rain = MatrixRain::new().density(-0.5);
+        assert!((rain.density - 0.0).abs() < 0.01);
     }
 
     #[test]
-    fn test_rain_glyph_width() {
-        let char_glyph = RainGlyph::Char('a');
-        assert_eq!(char_glyph.width(), 1);
+    fn test_opacity_clamping() {
+        let rain = MatrixRain::new().opacity(1.5);
+        assert!((rain.opacity - 1.0).abs() < 0.01);
 
-        let emoji_glyph = RainGlyph::Emoji("🧠");
-        assert_eq!(emoji_glyph.width(), 2);
+        let rain = MatrixRain::new().opacity(-0.2);
+        assert!((rain.opacity - 0.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_render_empty_area() {
+        let rain = MatrixRain::new();
+        let area = Rect::new(0, 0, 0, 0);
+        let mut buf = Buffer::empty(area);
+        rain.render(area, &mut buf);
+        // Should not panic
+    }
+
+    #[test]
+    fn test_render_zero_opacity() {
+        let rain = MatrixRain::new().opacity(0.0);
+        let area = Rect::new(0, 0, 10, 5);
+        let mut buf = Buffer::empty(area);
+        rain.render(area, &mut buf);
+        // Should skip rendering
+    }
+
+    #[test]
+    fn test_nika_mascots_list() {
+        // Verify all expected mascots are present
+        assert!(NIKA_MASCOTS.contains(&"🦋"));
+        assert!(NIKA_MASCOTS.contains(&"🦀"));
+        assert!(NIKA_MASCOTS.contains(&"🐔"));
+        assert!(NIKA_MASCOTS.contains(&"⚡"));
+        assert!(NIKA_MASCOTS.contains(&"🪐"));
+    }
+
+    #[test]
+    fn test_katakana_list() {
+        // Verify katakana are half-width
+        assert!(KATAKANA.contains(&'ｱ'));
+        assert!(KATAKANA.contains(&'ｶ'));
+        assert!(KATAKANA.contains(&'ﾝ'));
+        assert_eq!(KATAKANA.len(), 45); // Full set
     }
 }

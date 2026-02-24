@@ -206,6 +206,8 @@ pub struct ProviderModalState {
     pub active_model: Option<String>,
     /// Animation frame counter for active provider cycling effect
     pub animation_frame: u8,
+    /// v0.8.9: Cached cloud tab label to avoid allocation per frame
+    cached_cloud_label: Option<String>,
 }
 
 impl Default for ProviderModalState {
@@ -224,6 +226,7 @@ impl Default for ProviderModalState {
             active_provider_idx: None,
             active_model: None,
             animation_frame: 0,
+            cached_cloud_label: None,
         }
     }
 }
@@ -398,6 +401,8 @@ impl ProviderModalState {
     /// Set the active model name
     pub fn set_active_model(&mut self, model: impl Into<String>) {
         self.active_model = Some(model.into());
+        // v0.8.9: Invalidate cached label on model change
+        self.cached_cloud_label = None;
     }
 
     /// Tick animation frame (call on each frame update)
@@ -428,7 +433,17 @@ impl ProviderModalState {
     }
 
     /// Update provider status by index
+    ///
+    /// v0.8.9: Guard against invalid index (max 5 for 6 providers)
     pub fn set_provider_status(&mut self, index: usize, status: ConnectionStatus) {
+        // Guard against unbounded growth
+        if index >= 6 {
+            tracing::warn!(
+                index = %index,
+                "Invalid provider index (max 5), ignoring status update"
+            );
+            return;
+        }
         // Ensure vector is large enough
         while self.provider_statuses.len() <= index {
             self.provider_statuses.push(ConnectionStatus::Unknown);

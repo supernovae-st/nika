@@ -1021,6 +1021,14 @@ impl App {
                         ));
                     }
                 }
+                // v0.8.9: Handle provider not configured (no API key)
+                StreamChunk::ProviderNotConfigured { provider } => {
+                    tracing::debug!(provider = %provider, "Provider not configured");
+                    use super::widgets::provider_modal::ConnectionStatus;
+                    self.chat_view
+                        .provider_modal
+                        .set_provider_status_by_name(&provider, ConnectionStatus::NotConfigured);
+                }
                 StreamChunk::McpPinging { server } => {
                     tracing::debug!(server = %server, "MCP ping started");
                     // MCP ping status could be tracked similarly if needed
@@ -3568,48 +3576,81 @@ impl App {
                     _ => None,
                 };
 
+                // v0.8.9: Per-provider verification timeout (10 seconds)
+                const SINGLE_PROVIDER_TIMEOUT: Duration = Duration::from_secs(10);
+
                 match provider_opt {
-                    Some(provider) => match provider.verify().await {
-                        Ok(result) => {
-                            // Cache the successful result
-                            {
-                                let mut cache_guard = cache.lock();
-                                cache_guard.set_provider(
-                                    provider_id.clone(),
-                                    VerificationEntry::verified(
-                                        result.latency,
-                                        Some(result.model.clone()),
-                                    ),
-                                );
+                    Some(provider) => {
+                        match tokio::time::timeout(SINGLE_PROVIDER_TIMEOUT, provider.verify()).await
+                        {
+                            Ok(Ok(result)) => {
+                                // Cache the successful result
+                                {
+                                    let mut cache_guard = cache.lock();
+                                    cache_guard.set_provider(
+                                        provider_id.clone(),
+                                        VerificationEntry::verified(
+                                            result.latency,
+                                            Some(result.model.clone()),
+                                        ),
+                                    );
+                                }
+                                let _ = tx
+                                    .send(StreamChunk::ProviderVerified {
+                                        provider: provider_id,
+                                        model: result.model,
+                                        latency_ms: result.latency.as_millis() as u64,
+                                    })
+                                    .await;
                             }
-                            let _ = tx
-                                .send(StreamChunk::ProviderVerified {
-                                    provider: provider_id,
-                                    model: result.model,
-                                    latency_ms: result.latency.as_millis() as u64,
-                                })
-                                .await;
-                        }
-                        Err(e) => {
-                            // Cache the failure
-                            {
-                                let mut cache_guard = cache.lock();
-                                cache_guard.set_provider(
-                                    provider_id.clone(),
-                                    VerificationEntry::failed(e.to_string()),
-                                );
+                            Ok(Err(e)) => {
+                                // Cache the failure
+                                {
+                                    let mut cache_guard = cache.lock();
+                                    cache_guard.set_provider(
+                                        provider_id.clone(),
+                                        VerificationEntry::failed(e.to_string()),
+                                    );
+                                }
+                                let _ = tx
+                                    .send(StreamChunk::ProviderVerifyFailed {
+                                        provider: provider_id,
+                                        error: e.to_string(),
+                                    })
+                                    .await;
                             }
-                            let _ = tx
-                                .send(StreamChunk::ProviderVerifyFailed {
-                                    provider: provider_id,
-                                    error: e.to_string(),
-                                })
-                                .await;
+                            Err(_timeout) => {
+                                // v0.8.9: Timeout - send failed event
+                                tracing::warn!(
+                                    provider = %provider_id,
+                                    "Provider verification timed out after 10s"
+                                );
+                                {
+                                    let mut cache_guard = cache.lock();
+                                    cache_guard.set_provider(
+                                        provider_id.clone(),
+                                        VerificationEntry::failed(
+                                            "Verification timeout (10s)".to_string(),
+                                        ),
+                                    );
+                                }
+                                let _ = tx
+                                    .send(StreamChunk::ProviderVerifyFailed {
+                                        provider: provider_id,
+                                        error: "Verification timeout (10s)".to_string(),
+                                    })
+                                    .await;
+                            }
                         }
-                    },
+                    }
                     None => {
-                        // Not configured - leave as Unknown status (don't cache)
+                        // v0.8.9: Send NotConfigured event to clear Checking state
                         tracing::debug!(provider = %provider_id, "Provider not configured");
+                        let _ = tx
+                            .send(StreamChunk::ProviderNotConfigured {
+                                provider: provider_id,
+                            })
+                            .await;
                     }
                 }
             });

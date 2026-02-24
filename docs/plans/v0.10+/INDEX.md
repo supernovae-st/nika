@@ -14,10 +14,11 @@ v0.10.x — 6-View Production TUI
 ├── v0.10.2 — Scheduler View + heartbeat.yaml
 └── v0.10.3 — Settings View + Provider Modal v2
 
-v0.11.x — Advanced Features
+v0.11.x — Advanced Features ⚠️ DRAFT (needs review)
 ├── v0.11.0 — Provider Modal v2 (full)
 ├── v0.11.1 — Ollama Native Client
-└── v0.11.2 — Keyring Integration
+├── v0.11.2 — Keyring Integration
+└── v0.11.3 — Advanced Builtin Tools (nika:checkpoint, nika:cache, nika:artifact, nika:notify, nika:todo)
 
 v0.12.x — Polish & Performance
 ├── v0.12.0 — NovaNet Tree Effects
@@ -236,6 +237,38 @@ tasks:
 - [ ] Migration from .env
 - [ ] 30 new tests passing
 - [ ] **v0.11.2 Release Ready**
+
+---
+
+## v0.11.3 — Advanced Builtin Tools ⚠️ DRAFT
+
+**Status:** NEEDS REVIEW — These tools may be unnecessary or overlap with existing functionality.
+
+**Focus:** Advanced workflow automation (TIER 3 builtin tools from v0.9.1 research)
+**Effort:** TBD | Requires design review
+
+### Tools Under Review
+
+| Tool | Purpose | Review Question |
+|------|---------|-----------------|
+| `nika:checkpoint` | Save execution state | Does EventLog already provide this? |
+| `nika:cache` | Cache expensive results | What's the cache invalidation strategy? |
+| `nika:artifact` | Store file outputs | Is this better than simple file writes? |
+| `nika:notify` | External notifications | Should this be MCP instead (Slack, email)? |
+| `nika:todo` | Task tracking | Does EventLog::TaskCreated suffice? |
+
+### Review Criteria
+
+Before implementing, each tool must answer:
+
+1. **Necessity:** Can existing tools/patterns achieve this?
+2. **Scope:** Is this internal (builtin) or external (MCP)?
+3. **Complexity:** Is the implementation cost justified?
+4. **Consistency:** Does it fit the `nika:*` pattern?
+
+### Decision
+
+**Defer until v0.11.x planning phase.** Current focus is v0.9.1 → v0.10.3.
 
 ---
 

@@ -536,6 +536,8 @@ pub enum StreamChunk {
     },
     /// Provider verification failed
     ProviderVerifyFailed { provider: String, error: String },
+    /// v0.8.9: Provider not configured (no API key set)
+    ProviderNotConfigured { provider: String },
     /// MCP server ping started
     McpPinging { server: String },
     /// MCP server ping succeeded

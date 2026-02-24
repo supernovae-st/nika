@@ -1,7 +1,7 @@
 # Chat as Workflow DAG — Design Document
 
 **Date:** 2026-02-24
-**Status:** Draft
+**Status:** Complete (Open Questions Resolved)
 **Authors:** Thibaut, Claude
 
 ---
@@ -398,19 +398,403 @@ Fan-in (@mentions):
 
 ---
 
-## Open Questions
+## Thread-Safety Architecture (CRITICAL)
 
-1. **Session Recovery:** How to restore DAG state on app restart?
-   - Option: Persist to `.nika/sessions/chat-dag.json`
+### Required Patterns
 
-2. **Max DAG Size:** What happens with 100+ messages?
-   - Option: Collapse old nodes, show only recent N
+```rust
+// ChatWorkflow must be thread-safe for TUI + async execution
+pub struct ChatWorkflow {
+    // StableGraph wrapped for concurrent access
+    dag: Arc<parking_lot::Mutex<StableGraph<ChatNode, (), Directed>>>,
 
-3. **Error Recovery:** How to handle failed tasks in the DAG?
-   - Option: Allow retry from DAG panel (click node → retry)
+    // Lock-free ID generation
+    next_node_id: AtomicU32,
 
-4. **Export to YAML:** Should we allow exporting chat DAG as .nika.yaml?
-   - Option: Yes, for reproducibility
+    // EventLog is already thread-safe (Arc<Mutex<Vec<Event>>>)
+    event_log: EventLog,
+
+    // DataStore is Arc-wrapped internally
+    data_store: DataStore,
+}
+
+impl ChatWorkflow {
+    /// Add node without holding lock across await
+    pub fn add_node(&self, node: ChatNode) -> NodeIndex {
+        let mut dag = self.dag.lock(); // parking_lot: no poisoning
+        let idx = dag.add_node(node);
+        // Lock released here before any async work
+        idx
+    }
+
+    /// Execute task - acquires lock briefly, releases before await
+    pub async fn execute_task(&self, node_idx: NodeIndex) -> Result<Value, NikaError> {
+        // 1. Get task data (brief lock)
+        let task = {
+            let dag = self.dag.lock();
+            dag[node_idx].clone()
+        }; // Lock released
+
+        // 2. Execute (no lock held during await)
+        let result = self.executor.execute(&task).await?;
+
+        // 3. Update result (brief lock)
+        {
+            let mut dag = self.dag.lock();
+            dag[node_idx].set_result(result.clone());
+        } // Lock released
+
+        Ok(result)
+    }
+}
+```
+
+### Anti-Patterns to AVOID
+
+```rust
+// ❌ NEVER hold lock across .await
+async fn bad_pattern(&self) {
+    let mut dag = self.dag.lock();
+    let result = self.executor.execute(&task).await; // DEADLOCK RISK
+    dag[idx].set_result(result);
+}
+
+// ✅ Release lock before await
+async fn good_pattern(&self) {
+    let task = {
+        let dag = self.dag.lock();
+        dag[idx].clone()
+    };
+    let result = self.executor.execute(&task).await;
+    {
+        let mut dag = self.dag.lock();
+        dag[idx].set_result(result);
+    }
+}
+```
+
+### Mutex Choice
+
+| Mutex | When to Use |
+|-------|-------------|
+| `parking_lot::Mutex` | Default choice - faster, no poisoning |
+| `tokio::sync::Mutex` | ONLY if you must hold across await (avoid!) |
+| `std::sync::Mutex` | Never use in async context |
+
+---
+
+## Performance Targets
+
+### Frame Rate
+
+| Metric | Target | Rationale |
+|--------|--------|-----------|
+| Frame time | <16.7ms | 60 FPS rendering |
+| DAG render (100 nodes) | <5ms | Must not block UI |
+| Node add | <1ms | Real-time feel |
+| Lock hold time | <100µs | No contention |
+
+### Memory
+
+| Metric | Target | Strategy |
+|--------|--------|----------|
+| Per-node overhead | <1KB | Arc<str> interning |
+| Max nodes in memory | 500 | Older nodes virtualized |
+| Event buffer | 1000 events | Ring buffer with overflow |
+
+### Scaling
+
+| DAG Size | Rendering Strategy |
+|----------|--------------------|
+| 1-50 nodes | Full render every frame |
+| 50-200 nodes | Dirty region tracking |
+| 200+ nodes | Virtualized viewport |
+
+---
+
+## Resolved Questions (2026-02-24)
+
+### 1. Session Recovery ✅ RESOLVED
+
+**Decision:** Persist DAG state to `.nika/sessions/<session-id>.json`
+
+**Implementation:**
+
+```rust
+// Session file structure
+#[derive(Serialize, Deserialize)]
+pub struct ChatDagSession {
+    pub version: &'static str,  // "1.0"
+    pub session_id: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub nodes: Vec<SerializedNode>,
+    pub edges: Vec<(u32, u32)>,  // (source_idx, target_idx)
+    pub data_store_snapshot: HashMap<String, Value>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct SerializedNode {
+    pub index: u32,
+    pub node_type: NodeType,
+    pub status: TaskStatus,
+    pub result: Option<Value>,
+    pub created_at: DateTime<Utc>,
+}
+```
+
+**Behavior:**
+- Auto-save every 5 seconds (debounced)
+- Auto-save on app exit (graceful shutdown)
+- Auto-restore on app start (if session file exists)
+- Manual "New Session" clears DAG and creates fresh file
+- Session files cleaned up after 7 days (configurable)
+
+**File location:**
+```
+.nika/sessions/
+├── chat-<timestamp>.json     # Session files
+├── current -> chat-xxx.json  # Symlink to active session
+└── metadata.json             # Session index
+```
+
+### 2. Max DAG Size ✅ RESOLVED
+
+**Decision:** Virtualized rendering with node collapsing at 100+ nodes
+
+**Implementation:**
+
+| DAG Size | Strategy | Visual |
+|----------|----------|--------|
+| 1-100 | Full render | All nodes visible |
+| 101-500 | Viewport virtualization | Only visible nodes rendered |
+| 500+ | Collapse + archive | Old nodes collapsed into "..." summary |
+
+**Collapsed Node:**
+```
+╭─────────────────────────────────────────╮
+│ 📦 Messages 1-50 (collapsed)            │
+│    50 tasks • 12 errors • 45.2K tokens  │
+│    Click to expand                      │
+╰─────────────────────────────────────────╯
+```
+
+**Memory Management:**
+```rust
+pub struct ChatWorkflow {
+    // Active nodes in StableGraph
+    dag: Arc<Mutex<StableGraph<ChatNode, (), Directed>>>,
+
+    // Archived nodes (serialized, not in graph)
+    archived: Vec<ArchivedNodeRange>,
+
+    // Config
+    max_active_nodes: usize,  // Default: 100
+}
+
+impl ChatWorkflow {
+    fn maybe_archive_old_nodes(&mut self) {
+        if self.dag.lock().node_count() > self.max_active_nodes {
+            // Archive oldest 50 nodes
+            self.archive_range(0..50);
+        }
+    }
+}
+```
+
+### 3. Error Recovery ✅ RESOLVED
+
+**Decision:** Click-to-retry from DAG panel with cascading rerun option
+
+**Implementation:**
+
+```rust
+pub enum RetryStrategy {
+    /// Retry only this task
+    Single,
+    /// Retry this task and all dependents
+    Cascade,
+    /// Skip this task, continue with dependents using cached context
+    SkipContinue,
+}
+
+impl ChatDagPanel {
+    pub fn handle_node_click(&mut self, node_idx: NodeIndex) {
+        let node = &self.dag[node_idx];
+
+        if node.status == TaskStatus::Failed {
+            // Show retry popup
+            self.show_retry_options(node_idx, vec![
+                RetryStrategy::Single,
+                RetryStrategy::Cascade,
+                RetryStrategy::SkipContinue,
+            ]);
+        } else {
+            // Scroll chat to this message
+            self.scroll_to_message(node_idx);
+        }
+    }
+
+    pub async fn retry_task(&mut self, node_idx: NodeIndex, strategy: RetryStrategy) {
+        match strategy {
+            RetryStrategy::Single => {
+                // Reset status to Pending
+                self.dag[node_idx].status = TaskStatus::Pending;
+                // Re-execute
+                self.execute_single(node_idx).await;
+            }
+            RetryStrategy::Cascade => {
+                // Find all dependents
+                let dependents = self.dag.get_transitive_successors(node_idx);
+                // Reset all to Pending
+                for idx in std::iter::once(node_idx).chain(dependents) {
+                    self.dag[idx].status = TaskStatus::Pending;
+                }
+                // Re-execute in topological order
+                self.execute_from(node_idx).await;
+            }
+            RetryStrategy::SkipContinue => {
+                // Mark as Skipped
+                self.dag[node_idx].status = TaskStatus::Skipped;
+                // Continue with dependents
+                let dependents = self.dag.get_direct_successors(node_idx);
+                for idx in dependents {
+                    self.execute_single(idx).await;
+                }
+            }
+        }
+    }
+}
+```
+
+**UI:**
+```
+┌──────────────────────────────────────────┐
+│ ❌ msg-005 failed                        │
+│ "API rate limit exceeded"                │
+│                                          │
+│ [Retry] [Retry + Dependents] [Skip]      │
+└──────────────────────────────────────────┘
+```
+
+### 4. Export to YAML ✅ RESOLVED
+
+**Decision:** Yes, export chat DAG as `.nika.yaml` workflow for reproducibility
+
+**Implementation:**
+
+```rust
+impl ChatWorkflow {
+    /// Export current DAG as executable workflow YAML
+    pub fn export_to_yaml(&self) -> String {
+        let mut tasks = Vec::new();
+        let dag = self.dag.lock();
+
+        // Topological order
+        for node_idx in petgraph::algo::toposort(&*dag, None).unwrap() {
+            let node = &dag[node_idx];
+            let task = match &node.node_type {
+                NodeType::UserInput { content, .. } => {
+                    // Convert to nika:prompt or comment
+                    TaskYaml {
+                        id: node.id.clone(),
+                        comment: Some(format!("User: {}", content)),
+                        // Option: Convert to nika:prompt for replay
+                        invoke: if self.export_options.interactive {
+                            Some(InvokeYaml {
+                                tool: "nika:prompt".into(),
+                                params: json!({
+                                    "type": "text",
+                                    "message": content,
+                                }),
+                            })
+                        } else {
+                            None
+                        },
+                        ..Default::default()
+                    }
+                }
+                NodeType::Task { verb, .. } => {
+                    // Convert verb to YAML representation
+                    self.convert_task_to_yaml(node)
+                }
+                NodeType::SystemMessage { .. } => continue, // Skip system messages
+            };
+            tasks.push(task);
+        }
+
+        // Generate YAML
+        let workflow = WorkflowYaml {
+            schema: "nika/workflow@0.6".into(),
+            workflow: format!("chat-export-{}", self.session_id),
+            description: Some("Exported from chat session".into()),
+            tasks,
+            flows: self.generate_flows(),
+        };
+
+        serde_yaml::to_string(&workflow).unwrap()
+    }
+}
+```
+
+**Export Options:**
+
+| Option | Effect |
+|--------|--------|
+| `--interactive` | UserInput → `nika:prompt` (for replay with user input) |
+| `--static` | UserInput → hardcoded values (for deterministic replay) |
+| `--include-results` | Add `expected_output` for testing |
+
+**Command:**
+```bash
+# In TUI
+Ctrl+Shift+E → Export dialog
+
+# CLI
+nika chat export --session <id> --output workflow.nika.yaml --interactive
+```
+
+**Example Output:**
+```yaml
+schema: nika/workflow@0.6
+workflow: chat-export-2026-02-24-001
+description: "Exported from chat session"
+
+tasks:
+  - id: msg-001
+    # User: "Décris QR Code"
+    invoke:
+      tool: nika:prompt
+      params:
+        type: text
+        message: "Décris QR Code"
+        default: "Décris QR Code"  # For non-interactive replay
+
+  - id: msg-002
+    infer: "Generate description based on user request"
+    use:
+      prev: msg-001.output
+
+  - id: msg-003
+    # User: "Génère un titre @1"
+    invoke:
+      tool: nika:prompt
+      params:
+        type: text
+        message: "Génère un titre @1"
+
+  - id: msg-004
+    infer: "Generate title based on description"
+    use:
+      desc: msg-002.output
+      request: msg-003.output
+
+flows:
+  - msg-001 -> msg-002
+  - msg-002 -> msg-003
+  - msg-001 -> msg-004
+  - msg-003 -> msg-004
+```
 
 ---
 

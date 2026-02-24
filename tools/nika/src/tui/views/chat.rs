@@ -365,10 +365,13 @@ pub struct ChatView {
     pub copy_flash_start: u8,
     /// Matrix decrypt effect for streaming text (chaos → reveal)
     pub streaming_decrypt: StreamingDecrypt,
-    /// Matrix rain background effect (standalone cascading rain)
-    pub matrix_rain_bg: MatrixRain,
     /// Whether matrix decrypt effect is enabled
     pub matrix_effect_enabled: bool,
+    /// Matrix rain background opacity (0.0 = invisible, 1.0 = full)
+    /// Used for fade-in/fade-out transitions
+    pub rain_opacity: f32,
+    /// Whether rain effect is actively fading out
+    pub rain_fading: bool,
 
     // === v0.8.1 Agent Phase Tracking ===
     /// Current agent execution phase (for real-time status)
@@ -651,9 +654,10 @@ impl ChatView {
                 .with_reveal_speed(0.5)
                 .with_wave_factor(2.0)
                 .with_initial_chaos(15),
-            // Matrix rain background: cascading characters/emojis
-            matrix_rain_bg: MatrixRain::new().density(0.3).with_emojis(true),
             matrix_effect_enabled: true, // Enable by default
+            // v0.9.1: Matrix rain starts visible at startup, fades out
+            rain_opacity: 1.0, // Start fully visible
+            rain_fading: true, // Start fading immediately
 
             // v0.8.1 Agent Phase Tracking
             agent_phase: AgentPhase::Idle,
@@ -1326,6 +1330,24 @@ impl ChatView {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
+    // v0.9.1: Matrix Rain Effect Triggers
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// Trigger matrix rain effect with fade-out
+    /// Call on startup, first message, workflow launch, etc.
+    pub fn trigger_rain_effect(&mut self) {
+        self.rain_opacity = 0.8; // Start slightly dimmed for subtlety
+        self.rain_fading = true; // Will fade out over ~4 seconds
+    }
+
+    /// Stop rain effect immediately (optional)
+    #[allow(dead_code)]
+    pub fn stop_rain_effect(&mut self) {
+        self.rain_opacity = 0.0;
+        self.rain_fading = false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
     // v0.8.1: Agent Phase Event Handlers
     // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1334,6 +1356,8 @@ impl ChatView {
         self.agent_phase = AgentPhase::Syncing;
         self.phase_indicator = AgentPhaseIndicator::new(AgentPhase::Syncing);
         self.agent_phase_tool = None;
+        // v0.9.1: Trigger rain effect on agent start
+        self.trigger_rain_effect();
     }
 
     /// Called when agent turn begins - sets Planning phase
@@ -1349,6 +1373,8 @@ impl ChatView {
         self.agent_phase = AgentPhase::Invoking;
         self.agent_phase_tool = Some(tool.to_string());
         self.phase_indicator = AgentPhaseIndicator::new(AgentPhase::Invoking).with_tool(tool);
+        // v0.9.1: Trigger rain effect on MCP tool call (important action)
+        self.trigger_rain_effect();
     }
 
     /// Called when MCP response received - sets Processing phase
@@ -1369,6 +1395,8 @@ impl ChatView {
     pub fn on_streaming_start(&mut self) {
         self.agent_phase = AgentPhase::Streaming;
         self.phase_indicator.set_phase(AgentPhase::Streaming);
+        // v0.9.1: Trigger rain effect when LLM starts streaming (WOW moment)
+        self.trigger_rain_effect();
     }
 
     /// Called when agent completes - resets to Idle
@@ -1569,6 +1597,11 @@ impl ChatView {
         // v0.8 WOW: Tick matrix decrypt animation (reveal progress)
         if self.is_streaming && self.matrix_effect_enabled {
             self.streaming_decrypt.tick();
+        }
+        // v0.9.1: Tick matrix rain fade effect
+        if self.rain_fading && self.rain_opacity > 0.0 {
+            // Fade out slowly (0.02 per tick = ~5 seconds to fully fade at 10Hz)
+            self.rain_opacity = (self.rain_opacity - 0.02).max(0.0);
         }
         // v0.8.1: Tick phase indicator animation (icon swap + chaos decay)
         self.tick_phase_indicator();
@@ -2089,6 +2122,12 @@ impl ChatView {
 
     /// Add a user message
     pub fn add_user_message(&mut self, content: String) {
+        // v0.9.1: Trigger rain on first real user message (after welcome)
+        let is_first_user_message = !self.messages.iter().any(|m| m.role == MessageRole::User);
+        if is_first_user_message {
+            self.trigger_rain_effect();
+        }
+
         let id = self.next_message_id();
         self.messages.push(ChatMessage {
             id,
@@ -2858,25 +2897,26 @@ impl View for ChatView {
             .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
             .split(chunks[1]);
 
-        // Messages panel with inline MCP/Infer boxes
-        self.render_messages_v2(frame, main_chunks[0], theme);
-
-        // v0.9.1: Matrix Rain background in Mission Control area (decorative effect)
-        // Render behind Mission Control when idle (not streaming, few messages)
-        if self.matrix_effect_enabled && !self.is_streaming && self.messages.len() <= 2 {
-            // Render a 3-line rain strip at top of Mission Control area
+        // v0.9.1: Matrix Rain background effect (renders BEFORE messages for layering)
+        // Shows at startup, on first message, on workflow/agent start - then fades out
+        if self.matrix_effect_enabled && self.rain_opacity > 0.05 {
+            // Render across the full conversation area as a subtle background
             let rain_area = Rect {
-                x: main_chunks[1].x,
-                y: main_chunks[1].y,
-                width: main_chunks[1].width,
-                height: 3.min(main_chunks[1].height),
+                x: main_chunks[0].x + 1,
+                y: main_chunks[0].y + 1,
+                width: main_chunks[0].width.saturating_sub(2),
+                height: main_chunks[0].height.saturating_sub(2).min(6), // Max 6 lines
             };
             MatrixRain::new()
                 .frame(self.frame)
-                .density(0.4)
-                .with_emojis(true)
+                .density(0.2) // Sparse
+                .opacity(self.rain_opacity)
+                .with_mascots(true)
                 .render(rain_area, frame.buffer_mut());
         }
+
+        // Messages panel with inline MCP/Infer boxes
+        self.render_messages_v2(frame, main_chunks[0], theme);
 
         // Mission Control panel (v0.7.3 - replaces Activity Stack)
         // v0.8.1: Now includes Activity section with hot/warm/queued tasks
