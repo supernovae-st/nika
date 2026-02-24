@@ -14,7 +14,7 @@ use ratatui::{
 use super::super::state::ConnectionStatus;
 
 /// Maximum width for status text to prevent overflow (chars)
-const MAX_STATUS_WIDTH: usize = 14;
+const MAX_STATUS_WIDTH: usize = 12;
 
 /// Truncate text to max_len with ellipsis if needed
 fn truncate_status(text: &str, max_len: usize) -> String {
@@ -23,6 +23,25 @@ fn truncate_status(text: &str, max_len: usize) -> String {
     } else {
         let truncated: String = text.chars().take(max_len.saturating_sub(1)).collect();
         format!("{}…", truncated)
+    }
+}
+
+/// Get short status text for line 1 (just indicator + short label)
+fn short_status_text(status: &ConnectionStatus) -> &'static str {
+    match status {
+        ConnectionStatus::Unknown => "○ Unknown",
+        ConnectionStatus::Checking => "⠹ Checking",
+        ConnectionStatus::Connected { .. } => "● Online",
+        ConnectionStatus::Failed { .. } => "✗ Error",
+        ConnectionStatus::NotConfigured => "○ No key",
+    }
+}
+
+/// Get error message from Failed status, if any
+fn get_error_message(status: &ConnectionStatus) -> Option<&str> {
+    match status {
+        ConnectionStatus::Failed { error } => Some(error.as_str()),
+        _ => None,
     }
 }
 
@@ -241,13 +260,20 @@ impl Widget for ProviderCard<'_> {
             }
         } else {
             // No verification entry - render normal status
-            // v0.8.91: Truncate to prevent overflow
-            let status_text = truncate_status(&self.status.display_text(), MAX_STATUS_WIDTH);
-            let status_color = match self.status {
-                ConnectionStatus::Connected { .. } => Color::Rgb(34, 197, 94),
-                ConnectionStatus::Failed { .. } => Color::Rgb(239, 68, 68),
-                ConnectionStatus::Checking => Color::Rgb(59, 130, 246),
-                _ => Color::Rgb(107, 114, 128),
+            // v0.8.92: Use short text for Failed, full latency for Connected
+            let (status_text, status_color) = match self.status {
+                ConnectionStatus::Connected { latency_ms } => {
+                    (format!("● {}ms", latency_ms), Color::Rgb(34, 197, 94))
+                }
+                ConnectionStatus::Failed { .. } => {
+                    (short_status_text(self.status).to_string(), Color::Rgb(239, 68, 68))
+                }
+                ConnectionStatus::Checking => {
+                    (short_status_text(self.status).to_string(), Color::Rgb(59, 130, 246))
+                }
+                _ => {
+                    (short_status_text(self.status).to_string(), Color::Rgb(107, 114, 128))
+                }
             };
             let status_x = inner.right().saturating_sub(status_text.len() as u16 + 1);
             buf.set_string(
@@ -258,45 +284,65 @@ impl Widget for ProviderCard<'_> {
             );
         }
 
-        // Row 2: Features + Sparkline + Context window
+        // Row 2: Features + Sparkline + Context window (or error message if Failed)
         if inner.height >= 2 {
-            let features_str = self.features.join(" ");
-            buf.set_string(
-                inner.x + 1,
-                inner.y + 1,
-                &features_str,
-                Style::default().fg(Color::Rgb(59, 130, 246)),
-            );
+            // v0.8.92: Show error message on line 2 if Failed
+            let is_error = get_error_message(self.status).is_some();
 
-            // v0.8.9: Sparkline visualization (center)
-            if !self.latency_history.is_empty() {
-                let sparkline = latency_to_sparkline(self.latency_history);
-                // Calculate center position between features and context window
-                let features_end = inner.x + 1 + features_str.len() as u16 + 1;
-                let sparkline_len = sparkline.chars().count() as u16;
-                // Place sparkline in center of remaining space
-                let remaining_width = inner.width.saturating_sub(features_end - inner.x);
-                let sparkline_x = if remaining_width > sparkline_len + 6 {
-                    features_end + (remaining_width - sparkline_len - 6) / 2
+            if let Some(error_msg) = get_error_message(self.status) {
+                // Calculate available width for error (leave space for context window)
+                let ctx_width = if self.context_window > 0 {
+                    format!("{}K", self.context_window / 1000).len() + 2
                 } else {
-                    features_end
+                    0
                 };
-                // Gradient color from green (fast) to red (slow)
-                let sparkline_color = if self.latency_history.iter().all(|&l| l < 200) {
-                    Color::Rgb(34, 197, 94) // Green - all fast
-                } else if self.latency_history.iter().any(|&l| l > 500) {
-                    Color::Rgb(239, 68, 68) // Red - some slow
-                } else {
-                    Color::Rgb(251, 191, 36) // Yellow - medium
-                };
+                let available_width = (inner.width as usize).saturating_sub(ctx_width + 2);
+                let truncated_error = truncate_status(error_msg, available_width);
+
                 buf.set_string(
-                    sparkline_x,
+                    inner.x + 1,
                     inner.y + 1,
-                    &sparkline,
-                    Style::default().fg(sparkline_color),
+                    &truncated_error,
+                    Style::default().fg(Color::Rgb(239, 68, 68)), // Red for error
                 );
+            } else {
+                // Normal: features + sparkline
+                let features_str = self.features.join(" ");
+                buf.set_string(
+                    inner.x + 1,
+                    inner.y + 1,
+                    &features_str,
+                    Style::default().fg(Color::Rgb(59, 130, 246)),
+                );
+
+                // v0.8.9: Sparkline visualization (center) - only when not error
+                if !self.latency_history.is_empty() {
+                    let sparkline = latency_to_sparkline(self.latency_history);
+                    let features_end = inner.x + 1 + features_str.len() as u16 + 1;
+                    let sparkline_len = sparkline.chars().count() as u16;
+                    let remaining_width = inner.width.saturating_sub(features_end - inner.x);
+                    let sparkline_x = if remaining_width > sparkline_len + 6 {
+                        features_end + (remaining_width - sparkline_len - 6) / 2
+                    } else {
+                        features_end
+                    };
+                    let sparkline_color = if self.latency_history.iter().all(|&l| l < 200) {
+                        Color::Rgb(34, 197, 94)
+                    } else if self.latency_history.iter().any(|&l| l > 500) {
+                        Color::Rgb(239, 68, 68)
+                    } else {
+                        Color::Rgb(251, 191, 36)
+                    };
+                    buf.set_string(
+                        sparkline_x,
+                        inner.y + 1,
+                        &sparkline,
+                        Style::default().fg(sparkline_color),
+                    );
+                }
             }
 
+            // Context window (always shown on right)
             if self.context_window > 0 {
                 let ctx_str = format!("{}K", self.context_window / 1000);
                 let ctx_x = inner.right().saturating_sub(ctx_str.len() as u16 + 1);

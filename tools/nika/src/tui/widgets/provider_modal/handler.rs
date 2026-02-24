@@ -46,6 +46,11 @@ impl HandleResult {
 pub enum ModalAction {
     /// Check provider connection
     CheckProvider { provider: &'static str },
+    /// Select provider as active (Enter on Cloud tab)
+    SelectProvider {
+        provider: &'static str,
+        model: String,
+    },
     /// Test API key for a provider
     TestApiKey { provider: &'static str },
     /// Save API key for a provider
@@ -218,9 +223,18 @@ impl ModalEventHandler {
                 HandleResult::consumed()
             }
             ProviderModalTab::Cloud => {
-                // Check connection for selected provider
-                HandleResult::consumed_with_action(ModalAction::CheckProvider {
-                    provider: Self::selected_cloud_provider(state),
+                // Select provider as active and close modal
+                let provider = Self::selected_cloud_provider(state);
+                let model = Self::default_model_for_provider(state.selected_idx);
+
+                // Update state immediately
+                state.active_provider_idx = Some(state.selected_idx);
+                state.active_model = Some(model.to_string());
+                state.visible = false; // Close modal
+
+                HandleResult::consumed_with_action(ModalAction::SelectProvider {
+                    provider,
+                    model: model.to_string(),
                 })
             }
             ProviderModalTab::Ollama => {
@@ -251,6 +265,19 @@ impl ModalEventHandler {
             4 => "deepseek",
             5 => "ollama",
             _ => "anthropic",
+        }
+    }
+
+    /// Get default model for provider index
+    fn default_model_for_provider(idx: usize) -> &'static str {
+        match idx {
+            0 => "claude-sonnet-4",
+            1 => "gpt-4o",
+            2 => "mistral-large",
+            3 => "llama-3.3-70b",
+            4 => "deepseek-chat",
+            5 => "llama3.2",
+            _ => "claude-sonnet-4",
         }
     }
 }
@@ -500,19 +527,26 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_enter_in_cloud_tab_checks_provider() {
+    fn test_handle_enter_in_cloud_tab_selects_provider() {
         let mut state = ProviderModalState::default();
         state.visible = true;
         state.active_tab = ProviderModalTab::Cloud;
-        state.selected_idx = 1;
+        state.selected_idx = 1; // OpenAI
 
         let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Enter));
 
         assert!(result.consumed);
         assert_eq!(
             result.action,
-            Some(ModalAction::CheckProvider { provider: "openai" })
+            Some(ModalAction::SelectProvider {
+                provider: "openai",
+                model: "gpt-4o".to_string(),
+            })
         );
+        // Verify modal closes and provider is selected
+        assert!(!state.visible);
+        assert_eq!(state.active_provider_idx, Some(1));
+        assert_eq!(state.active_model, Some("gpt-4o".to_string()));
     }
 
     #[test]
