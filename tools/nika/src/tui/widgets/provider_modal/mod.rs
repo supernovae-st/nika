@@ -125,7 +125,13 @@ impl Widget for ProviderModal<'_> {
         // Render tab content
         match self.state.active_tab {
             ProviderModalTab::Cloud => CloudTab::new(self.state).render(chunks[1], buf),
-            ProviderModalTab::Ollama => OllamaTab.render(chunks[1], buf),
+            ProviderModalTab::Ollama => {
+                // TODO: Pass actual models from async loader
+                let empty_models: Vec<OllamaModelInfo> = vec![];
+                OllamaTab::new(&empty_models, self.state.selected_idx, &self.state.download_state)
+                    .available(self.state.ollama_available)
+                    .render(chunks[1], buf);
+            }
             ProviderModalTab::Keys => KeysTab.render(chunks[1], buf),
             ProviderModalTab::Config => {
                 buf.set_string(

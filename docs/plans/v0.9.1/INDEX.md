@@ -24,6 +24,20 @@
 | `nika-project-structure.md` | .nika/ directory structure, new YAML files | Draft |
 | `nika-meta-execution-plan.md` | Meta-plan for executing v0.9.1 | Draft |
 
+## Research (2026-02-24)
+
+| File | Source | Key Topics |
+|------|--------|------------|
+| `2026-02-24-agentic-architecture-research.md` | Perplexity Sonar Pro | File-first patterns, SOUL, Boot sequence, Memory/Skills YAML, Chat-as-DAG, MCP, TUI |
+
+**Research Summary:**
+- **File-First**: Manus `.manus/SKILL.md` pattern, event streams, plans as files
+- **SOUL Pattern**: Identity, Communication, Rules, Capabilities in structured Markdown
+- **Boot Sequence**: 7 phases (Args → Config → Doctor → Tools/MCP → Context → Model → Ready)
+- **Memory**: Short-term (buffer), Working (injection), Long-term (vector + files)
+- **LangGraph**: StateGraph API for nodes/edges, conditional branching, message reducers
+- **MCP**: Transport abstraction, lifecycle management, multi-server orchestration
+
 ---
 
 ## Key Features Summary

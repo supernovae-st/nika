@@ -194,6 +194,8 @@ pub struct ProviderModalState {
     pub key_input_mode: bool,
     /// Key input buffer (may contain sensitive API keys)
     pub key_input_buffer: String,
+    /// Whether Ollama is available (running)
+    pub ollama_available: bool,
 }
 
 // SEC-004: Redact key_input_buffer in Debug output to prevent API key leaks
@@ -207,6 +209,7 @@ impl std::fmt::Debug for ProviderModalState {
             .field("download_state", &self.download_state)
             .field("key_input_mode", &self.key_input_mode)
             .field("key_input_buffer", &"[REDACTED]")
+            .field("ollama_available", &self.ollama_available)
             .finish()
     }
 }
