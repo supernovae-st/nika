@@ -307,6 +307,30 @@ impl ProviderModalState {
     pub fn set_ollama_models(&mut self, models: Vec<super::ollama_client::OllamaModelInfo>) {
         self.ollama_models = models;
     }
+
+    /// Process a loader event and update state accordingly
+    pub fn process_loader_event(&mut self, event: super::loader::LoaderEvent) {
+        use super::loader::LoaderEvent;
+
+        match event {
+            LoaderEvent::ProviderStatus { provider, status } => {
+                self.set_provider_status_by_name(provider, status);
+            }
+            LoaderEvent::ProvidersComplete => {
+                // All providers checked, could update UI state if needed
+            }
+            LoaderEvent::OllamaAvailable(available) => {
+                self.ollama_available = available;
+            }
+            LoaderEvent::OllamaModels(models) => {
+                self.ollama_models = models;
+            }
+            LoaderEvent::Error { source, message } => {
+                // Handle errors - could show in status bar or notification
+                tracing::warn!("Loader error from {}: {}", source, message);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -651,5 +675,81 @@ mod tests {
         let state = ProviderModalState::default();
         assert!(state.provider_statuses.is_empty());
         assert!(state.ollama_models.is_empty());
+    }
+
+    #[test]
+    fn test_process_loader_event_provider_status() {
+        use super::super::loader::LoaderEvent;
+
+        let mut state = ProviderModalState::default();
+        state.process_loader_event(LoaderEvent::ProviderStatus {
+            provider: "anthropic",
+            status: ConnectionStatus::Connected { latency_ms: 120 },
+        });
+
+        let statuses = state.get_provider_statuses();
+        assert!(matches!(
+            statuses[0],
+            ConnectionStatus::Connected { latency_ms: 120 }
+        ));
+    }
+
+    #[test]
+    fn test_process_loader_event_ollama_available() {
+        use super::super::loader::LoaderEvent;
+
+        let mut state = ProviderModalState::default();
+        assert!(!state.ollama_available);
+
+        state.process_loader_event(LoaderEvent::OllamaAvailable(true));
+        assert!(state.ollama_available);
+
+        state.process_loader_event(LoaderEvent::OllamaAvailable(false));
+        assert!(!state.ollama_available);
+    }
+
+    #[test]
+    fn test_process_loader_event_ollama_models() {
+        use super::super::loader::LoaderEvent;
+        use super::super::ollama_client::{OllamaModelDetails, OllamaModelInfo};
+
+        let mut state = ProviderModalState::default();
+        let models = vec![
+            OllamaModelInfo {
+                name: "llama3.2".to_string(),
+                size: 4_700_000_000,
+                digest: "sha256:abc".to_string(),
+                modified_at: "2026-02-24".to_string(),
+                details: OllamaModelDetails {
+                    parameter_size: "8B".to_string(),
+                    quantization_level: "Q4_0".to_string(),
+                    family: Some("llama".to_string()),
+                },
+            },
+        ];
+
+        state.process_loader_event(LoaderEvent::OllamaModels(models));
+        assert_eq!(state.ollama_models.len(), 1);
+    }
+
+    #[test]
+    fn test_process_loader_event_providers_complete() {
+        use super::super::loader::LoaderEvent;
+
+        let mut state = ProviderModalState::default();
+        // Should not panic
+        state.process_loader_event(LoaderEvent::ProvidersComplete);
+    }
+
+    #[test]
+    fn test_process_loader_event_error() {
+        use super::super::loader::LoaderEvent;
+
+        let mut state = ProviderModalState::default();
+        // Should not panic, just log
+        state.process_loader_event(LoaderEvent::Error {
+            source: "ollama".to_string(),
+            message: "Connection refused".to_string(),
+        });
     }
 }
