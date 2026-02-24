@@ -325,3 +325,92 @@ v0.10+ requires these v0.9.x features:
 | LOC | ~30,500 | ~37,000 |
 | TUI Views | 4 | 6 |
 | Providers | 6 | 6 + Ollama native |
+
+---
+
+## Quality Gates (2026-02-24)
+
+**Based on rust-architect review (86KB analysis, 5 patterns).**
+
+### Phase 0 — Pre-v0.10 Foundation (9.5 hours)
+
+Must complete BEFORE v0.10.0 development:
+
+| Pattern | Effort | Issue | Fix |
+|---------|--------|-------|-----|
+| **ViewState Trait** | 2h | Tight coupling between views | Trait-based view abstraction |
+| **Event Coalescing** | 2h | 150 allocations/frame | Batch keyboard events |
+| **DAG Caching** | 4h | O(n²) layout recalc | Cache layout positions |
+| **Memory Bounds** | 1.5h | Unbounded growth | Ring buffers for history |
+
+**ROI:** 9.5h now vs 20-30h refactoring later (3:1 return)
+
+### Per-Version Quality Gates
+
+#### v0.10.x Gates
+
+| After | Gate | Criteria | Agent |
+|-------|------|----------|-------|
+| B10.1 | **ViewState Trait** | All 6 views implement trait | rust-architect |
+| B10.3 | **Editor Perf** | 60fps with 1000+ line YAML | rust-perf |
+| B10.5 | **Ralph Wiggum** | Full v0.10.0 audit | nika-deep-verify |
+| B10.7 | **DAG Cache** | 4x faster for 500+ nodes | rust-perf |
+| B10.9 | **v0.10.1 E2E** | Runner + DAG panel integration | E2E |
+
+#### v0.11.x Gates
+
+| After | Gate | Criteria | Agent |
+|-------|------|----------|-------|
+| B11.1 | **Provider Trait** | 83% fewer states | rust-architect |
+| B11.3 | **Connection Test** | All 6 providers tested | E2E |
+| B11.9 | **Ollama E2E** | Local-first mode works | E2E |
+| B11.12 | **Security Audit** | Keyring integration secure | rust-security |
+
+#### v0.12.x Gates
+
+| After | Gate | Criteria | Agent |
+|-------|------|----------|-------|
+| B12.5 | **60fps Verified** | Flamegraph shows no hot paths | rust-perf |
+| B12.8 | **Crash Recovery** | State persists across restarts | E2E |
+| B12.9 | **Final Audit** | Production ready | nika-deep-verify |
+
+### Architecture Patterns from rust-architect
+
+**Recommended patterns for v0.10+ (86KB analysis):**
+
+```rust
+// Pattern 1: ViewState Trait (2h to implement)
+pub trait ViewState: Send + Sync {
+    fn render(&self, frame: &mut Frame, area: Rect);
+    fn handle_key(&mut self, key: KeyEvent) -> Option<Action>;
+    fn on_enter(&mut self);
+    fn on_leave(&mut self);
+}
+
+// Pattern 2: Event Coalescing (2h)
+// Batch rapid keystrokes into single update
+
+// Pattern 3: DAG Layout Caching (4h)
+// Cache node positions, invalidate on structure change
+
+// Pattern 4: Ring Buffer History (1.5h)
+// Bounded command history, no unbounded Vec growth
+```
+
+### Performance Targets
+
+| Metric | v0.10 | v0.11 | v0.12 |
+|--------|-------|-------|-------|
+| Frame time | <16.7ms | <16.7ms | <10ms |
+| DAG render (100 nodes) | <5ms | <3ms | <2ms |
+| Memory (idle) | <50MB | <50MB | <50MB |
+| Memory (100 tasks) | <100MB | <80MB | <60MB |
+
+### Agent Review Documents
+
+| Document | Location | Content |
+|----------|----------|---------|
+| `v0.10-tui-architecture-review.md` | `docs/architecture/` | Deep technical analysis |
+| `v0.10-implementation-checklist.md` | `docs/architecture/` | 100+ tasks |
+| `v0.10-patterns-visual-guide.md` | `docs/architecture/` | Before/after diagrams |
+| `PHASE-0-EXECUTIVE-SUMMARY.md` | `docs/architecture/` | Business case |

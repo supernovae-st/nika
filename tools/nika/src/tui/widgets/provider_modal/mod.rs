@@ -7,6 +7,7 @@
 //! - Configuration preferences
 
 mod components;
+mod handler;
 mod keyring;
 mod loader;
 mod ollama_client;
@@ -15,6 +16,7 @@ mod state;
 mod tabs;
 
 pub use components::*;
+pub use handler::*;
 pub use keyring::*;
 pub use loader::*;
 pub use ollama_client::*;
