@@ -39,7 +39,7 @@ thiserror = "1.0"
 miette = { version = "7.6", features = ["fancy"] }
 
 # HTTP
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
 
 # Secure credential storage
 keyring = "3"
