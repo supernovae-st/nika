@@ -24,8 +24,10 @@
 //! ```
 
 use crate::mcp::McpClient;
+use crate::util::STREAM_CHUNK_TIMEOUT;
 use futures::StreamExt;
 use rig::client::{CompletionClient, Nothing, ProviderClient};
+use tokio::time::timeout;
 use rig::completion::{CompletionModel as _, GetTokenUsage, Prompt, PromptError, ToolDefinition};
 use rig::providers::{anthropic, deepseek, groq, mistral, ollama, openai};
 use rig::streaming::StreamedAssistantContent;
@@ -453,6 +455,10 @@ impl ProviderVerifyError {
 pub enum RigInferError {
     #[error("Completion error: {0}")]
     PromptError(String),
+
+    /// v0.8.5: Stream timeout - no chunk received within timeout period
+    #[error("Stream timeout: no chunk received for {duration_ms}ms")]
+    Timeout { duration_ms: u64 },
 }
 
 // =============================================================================
@@ -604,7 +610,22 @@ impl RigProvider {
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
 
-                while let Some(chunk_result) = stream.next().await {
+                // v0.8.5: Per-chunk timeout to prevent hanging streams
+                loop {
+                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                        Ok(Some(result)) => result,
+                        Ok(None) => break, // Stream ended normally
+                        Err(_elapsed) => {
+                            let _ = tx.try_send(StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            )));
+                            return Err(RigInferError::Timeout {
+                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                            });
+                        }
+                    };
+
                     match chunk_result {
                         Ok(content) => match content {
                             StreamedAssistantContent::Text(text) => {
@@ -644,7 +665,22 @@ impl RigProvider {
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
 
-                while let Some(chunk_result) = stream.next().await {
+                // v0.8.5: Per-chunk timeout to prevent hanging streams
+                loop {
+                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                        Ok(Some(result)) => result,
+                        Ok(None) => break,
+                        Err(_elapsed) => {
+                            let _ = tx.try_send(StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            )));
+                            return Err(RigInferError::Timeout {
+                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                            });
+                        }
+                    };
+
                     match chunk_result {
                         Ok(content) => match content {
                             StreamedAssistantContent::Text(text) => {
@@ -679,7 +715,22 @@ impl RigProvider {
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
 
-                while let Some(chunk_result) = stream.next().await {
+                // v0.8.5: Per-chunk timeout to prevent hanging streams
+                loop {
+                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                        Ok(Some(result)) => result,
+                        Ok(None) => break,
+                        Err(_elapsed) => {
+                            let _ = tx.try_send(StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            )));
+                            return Err(RigInferError::Timeout {
+                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                            });
+                        }
+                    };
+
                     match chunk_result {
                         Ok(content) => match content {
                             StreamedAssistantContent::Text(text) => {
@@ -712,7 +763,22 @@ impl RigProvider {
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
 
-                while let Some(chunk_result) = stream.next().await {
+                // v0.8.5: Per-chunk timeout to prevent hanging streams
+                loop {
+                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                        Ok(Some(result)) => result,
+                        Ok(None) => break,
+                        Err(_elapsed) => {
+                            let _ = tx.try_send(StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            )));
+                            return Err(RigInferError::Timeout {
+                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                            });
+                        }
+                    };
+
                     match chunk_result {
                         Ok(content) => match content {
                             StreamedAssistantContent::Text(text) => {
@@ -745,7 +811,22 @@ impl RigProvider {
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
 
-                while let Some(chunk_result) = stream.next().await {
+                // v0.8.5: Per-chunk timeout to prevent hanging streams
+                loop {
+                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                        Ok(Some(result)) => result,
+                        Ok(None) => break,
+                        Err(_elapsed) => {
+                            let _ = tx.try_send(StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            )));
+                            return Err(RigInferError::Timeout {
+                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                            });
+                        }
+                    };
+
                     match chunk_result {
                         Ok(content) => match content {
                             StreamedAssistantContent::Text(text) => {
@@ -778,7 +859,22 @@ impl RigProvider {
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
 
-                while let Some(chunk_result) = stream.next().await {
+                // v0.8.5: Per-chunk timeout to prevent hanging streams
+                loop {
+                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                        Ok(Some(result)) => result,
+                        Ok(None) => break,
+                        Err(_elapsed) => {
+                            let _ = tx.try_send(StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            )));
+                            return Err(RigInferError::Timeout {
+                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                            });
+                        }
+                    };
+
                     match chunk_result {
                         Ok(content) => match content {
                             StreamedAssistantContent::Text(text) => {
@@ -1024,6 +1120,16 @@ mod tests {
     fn test_rig_infer_error_display() {
         let err = RigInferError::PromptError("Test error message".to_string());
         assert_eq!(err.to_string(), "Completion error: Test error message");
+    }
+
+    #[test]
+    fn test_rig_infer_error_timeout_display() {
+        // v0.8.5: Test new Timeout variant
+        let err = RigInferError::Timeout { duration_ms: 60000 };
+        assert_eq!(
+            err.to_string(),
+            "Stream timeout: no chunk received for 60000ms"
+        );
     }
 
     // =========================================================================
