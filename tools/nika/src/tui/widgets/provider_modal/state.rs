@@ -93,6 +93,10 @@ pub enum ApiKeyState {
     /// No key configured
     #[default]
     NotConfigured,
+    /// Key is being saved to keyring
+    Saving { masked: String },
+    /// Key is stored, now testing
+    Testing { masked: String },
     /// Key is stored (masked for display)
     Configured { masked: String },
     /// Key verified working with latency
@@ -116,6 +120,8 @@ impl ApiKeyState {
     pub fn status_icon(&self) -> &'static str {
         match self {
             Self::NotConfigured => "⚠",
+            Self::Saving { .. } => "⏳",
+            Self::Testing { .. } => "⠹",
             Self::Configured { .. } => "✓",
             Self::Verified { .. } => "✓",
             Self::Invalid { .. } => "✗",

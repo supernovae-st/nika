@@ -190,6 +190,8 @@ impl Widget for KeysTab<'_> {
             // Status indicator and color
             let (status_icon, status_color) = match &entry.state {
                 ApiKeyState::NotConfigured => ("○", Color::Rgb(107, 114, 128)),
+                ApiKeyState::Saving { .. } => ("⏳", Color::Rgb(250, 204, 21)), // Yellow
+                ApiKeyState::Testing { .. } => ("⠹", Color::Rgb(96, 165, 250)), // Blue
                 ApiKeyState::Configured { .. } => ("●", Color::Rgb(34, 197, 94)),
                 ApiKeyState::Verified { .. } => ("✓", Color::Rgb(34, 197, 94)),
                 ApiKeyState::Invalid { .. } => ("✗", Color::Rgb(239, 68, 68)),
@@ -198,6 +200,8 @@ impl Widget for KeysTab<'_> {
             // Key display
             let key_display = match &entry.state {
                 ApiKeyState::NotConfigured => "Not configured".to_string(),
+                ApiKeyState::Saving { masked } => format!("{} Saving...", masked),
+                ApiKeyState::Testing { masked } => format!("{} Testing...", masked),
                 ApiKeyState::Configured { masked } => masked.clone(),
                 ApiKeyState::Verified { masked, latency_ms } => {
                     format!("{} ({}ms)", masked, latency_ms)
@@ -245,9 +249,18 @@ impl Widget for KeysTab<'_> {
             );
 
             // Input field (masked with asterisks)
+            // Cap display width to leave room for hint (max 80 chars or area width - hint)
             let input_y = input_y + 1;
-            let masked_input: String = "*".repeat(self.input_buffer.len());
-            let input_display = format!("[{}]", masked_input);
+            let hint = "Press Enter to save, Esc to cancel";
+            let max_input_width = (area.width as usize).saturating_sub(hint.len() + 6);
+            let masked_len = self.input_buffer.len().min(max_input_width);
+            let masked_input: String = "*".repeat(masked_len);
+            let overflow_indicator = if self.input_buffer.len() > max_input_width {
+                "..."
+            } else {
+                ""
+            };
+            let input_display = format!("[{}{}]", masked_input, overflow_indicator);
             buf.set_string(
                 area.x + 1,
                 input_y,
@@ -257,11 +270,11 @@ impl Widget for KeysTab<'_> {
                     .add_modifier(Modifier::BOLD),
             );
 
-            // Hint
+            // Hint (positioned after input)
             buf.set_string(
                 area.x + 1 + input_display.len() as u16 + 2,
                 input_y,
-                "Press Enter to save, Esc to cancel",
+                hint,
                 Style::default().fg(Color::Rgb(107, 114, 128)),
             );
         }

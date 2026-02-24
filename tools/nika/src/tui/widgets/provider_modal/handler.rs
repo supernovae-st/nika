@@ -53,8 +53,10 @@ pub enum ModalAction {
     },
     /// Test API key for a provider
     TestApiKey { provider: &'static str },
-    /// Save API key for a provider
+    /// Save API key for a provider (old, for compatibility)
     SaveApiKey { provider: &'static str, key: String },
+    /// Save API key and then test it (recommended flow)
+    SaveAndTestApiKey { provider: &'static str, key: String },
     /// Pull Ollama model
     PullModel { model: String },
     /// Delete Ollama model
@@ -178,14 +180,14 @@ impl ModalEventHandler {
                 HandleResult::consumed()
             }
 
-            // Submit key
+            // Submit key - saves AND tests (full flow)
             KeyCode::Enter => {
                 let key_value = state.key_input_buffer.clone();
                 state.key_input_mode = false;
                 state.key_input_buffer.clear();
 
                 if !key_value.is_empty() {
-                    HandleResult::consumed_with_action(ModalAction::SaveApiKey {
+                    HandleResult::consumed_with_action(ModalAction::SaveAndTestApiKey {
                         provider: Self::selected_provider(state),
                         key: key_value,
                     })
@@ -202,8 +204,17 @@ impl ModalEventHandler {
 
             // Type character
             KeyCode::Char(c) => {
-                // Allow alphanumeric, dashes, underscores
-                if c.is_alphanumeric() || c == '-' || c == '_' {
+                // Allow alphanumeric and common API key characters
+                // API keys often contain: -, _, ., +, = (base64), :, /
+                if c.is_alphanumeric()
+                    || c == '-'
+                    || c == '_'
+                    || c == '.'
+                    || c == '+'
+                    || c == '='
+                    || c == ':'
+                    || c == '/'
+                {
                     state.key_input_buffer.push(c);
                 }
                 HandleResult::consumed()
@@ -249,10 +260,16 @@ impl ModalEventHandler {
     }
 
     /// Get currently selected provider name for Keys tab
-    fn selected_provider(_state: &ProviderModalState) -> &'static str {
-        // This would actually look up from the entries based on selected_idx
-        // For now, return a placeholder
-        "anthropic"
+    fn selected_provider(state: &ProviderModalState) -> &'static str {
+        match state.selected_idx {
+            0 => "anthropic",
+            1 => "openai",
+            2 => "mistral",
+            3 => "groq",
+            4 => "deepseek",
+            5 => "ollama",
+            _ => "anthropic",
+        }
     }
 
     /// Get currently selected cloud provider name
@@ -630,20 +647,25 @@ mod tests {
     }
 
     #[test]
-    fn test_input_mode_enter_saves_key() {
+    fn test_input_mode_enter_saves_and_tests_key() {
         let mut state = ProviderModalState::default();
         state.visible = true;
         state.key_input_mode = true;
+        state.active_tab = ProviderModalTab::Keys;
+        state.selected_idx = 0; // Anthropic
         state.key_input_buffer = "sk-ant-test123".to_string();
 
         let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Enter));
 
         assert!(result.consumed);
         assert!(!state.key_input_mode);
-        assert!(matches!(
+        assert_eq!(
             result.action,
-            Some(ModalAction::SaveApiKey { .. })
-        ));
+            Some(ModalAction::SaveAndTestApiKey {
+                provider: "anthropic",
+                key: "sk-ant-test123".to_string(),
+            })
+        );
     }
 
     #[test]
@@ -697,6 +719,21 @@ mod tests {
         ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('b')));
 
         assert_eq!(state.key_input_buffer, "a-_b");
+    }
+
+    #[test]
+    fn test_input_mode_allows_api_key_characters() {
+        let mut state = ProviderModalState::default();
+        state.visible = true;
+        state.key_input_mode = true;
+        state.key_input_buffer.clear();
+
+        // API keys can contain: alphanumeric, -, _, ., +, =, :, /
+        for c in ['s', 'k', '-', 'a', 'n', 't', '.', '+', '=', ':', '/'] {
+            ModalEventHandler::handle(&mut state, key_event(KeyCode::Char(c)));
+        }
+
+        assert_eq!(state.key_input_buffer, "sk-ant.+=:/");
     }
 
     #[test]
