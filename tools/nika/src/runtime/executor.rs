@@ -469,17 +469,13 @@ impl TaskExecutor {
                     }
                     "openai" | "gpt" => {
                         if std::env::var("OPENAI_API_KEY").is_err() {
-                            return Err(NikaError::Provider(
-                                "OPENAI_API_KEY not set".to_string(),
-                            ));
+                            return Err(NikaError::Provider("OPENAI_API_KEY not set".to_string()));
                         }
                         RigProvider::openai()
                     }
                     "mistral" => {
                         if std::env::var("MISTRAL_API_KEY").is_err() {
-                            return Err(NikaError::Provider(
-                                "MISTRAL_API_KEY not set".to_string(),
-                            ));
+                            return Err(NikaError::Provider("MISTRAL_API_KEY not set".to_string()));
                         }
                         RigProvider::mistral()
                     }

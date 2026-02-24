@@ -388,7 +388,11 @@ impl StartupReport {
             "Startup {} in {:?} (dirs: {}, schema: {}, config: {}, project: {})",
             status,
             self.duration,
-            if self.directories.is_ok() { "✓" } else { "✗" },
+            if self.directories.is_ok() {
+                "✓"
+            } else {
+                "✗"
+            },
             if self.schema.is_ok() { "✓" } else { "✗" },
             if self.config.is_ok() { "✓" } else { "✗" },
             if self.project.is_ok() { "✓" } else { "✗" },

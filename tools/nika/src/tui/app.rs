@@ -52,10 +52,10 @@ use super::focus::{FocusState, PanelId as NavPanelId};
 use super::mode::InputMode;
 use super::panels::{ContextPanel, GraphPanel, ProgressPanel, ReasoningPanel};
 use super::standalone::{HistoryEntry, StandaloneState};
+use super::startup;
 use super::state::{PanelId, SettingsField, TuiMode, TuiState};
 use super::theme::Theme;
 use super::utils::truncate_str;
-use super::startup;
 use super::verification::{VerificationCache, VerificationEntry};
 use super::views::{ChatView, HomeView, McpAction, StudioView, TuiView, View, ViewAction};
 use super::widgets::task_box::{

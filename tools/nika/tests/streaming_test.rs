@@ -135,6 +135,10 @@ async fn test_claude_streaming() {
                         server, latency_ms, tool_count
                     );
                 }
+                // v0.8.4: Provider verification timeout (not expected in streaming tests)
+                StreamChunk::ProviderVerificationTimeout => {
+                    eprintln!("PROVIDER VERIFICATION TIMEOUT");
+                }
             }
         }
         (tokens, done)

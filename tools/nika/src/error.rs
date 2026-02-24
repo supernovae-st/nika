@@ -661,9 +661,9 @@ impl FixSuggestion for NikaError {
                 Some("Check ~/.config/nika/config.toml for syntax errors")
             }
             // Startup errors (v0.8.4)
-            NikaError::StartupError { .. } => {
-                Some("Check directory permissions and run 'nika init' to create required directories")
-            }
+            NikaError::StartupError { .. } => Some(
+                "Check directory permissions and run 'nika init' to create required directories",
+            ),
             // Tool errors
             NikaError::ToolError { .. } => {
                 Some("Check file path and permissions. Use Read before Edit.")
