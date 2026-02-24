@@ -70,20 +70,23 @@ impl<'a> ProviderModal<'a> {
 
     fn render_footer(&self, area: Rect, buf: &mut Buffer) {
         let hints = match self.state.active_tab {
-            ProviderModalTab::Cloud => {
-                "[hjkl/←↓↑→] Navigate │ [Enter] Select │ [Tab] Next │ [Esc] Close"
-            }
-            ProviderModalTab::Ollama => "[jk/↑↓] Navigate │ [p] Pull │ [d] Delete │ [Esc] Close",
-            ProviderModalTab::Keys => "[jk/↑↓] Navigate │ [Enter] Edit │ [t] Test │ [Esc] Close",
-            ProviderModalTab::Config => "[jk/↑↓] Navigate │ [Enter] Toggle │ [Esc] Close",
+            ProviderModalTab::Cloud => "[hjkl] Navigate │ [Enter] Select │ [Tab] Next │ [Esc] Close",
+            ProviderModalTab::Ollama => "[jk] Navigate │ [p] Pull │ [d] Delete │ [Esc] Close",
+            ProviderModalTab::Keys => "[jk] Navigate │ [Enter] Edit │ [t] Test │ [Esc] Close",
+            ProviderModalTab::Config => "[jk] Navigate │ [Enter] Toggle │ [Esc] Close",
         };
 
+        // Render hints on the left
         buf.set_string(
             area.x + 1,
             area.y,
             hints,
             Style::default().fg(Color::Rgb(107, 114, 128)),
         );
+
+        // v0.8.9: Render session stats on the right
+        let stats = self.state.get_session_stats();
+        FooterStatsBar::new(&stats).render(area, buf);
     }
 }
 
@@ -104,41 +107,42 @@ impl Widget for ProviderModal<'_> {
         // Clear background
         Clear.render(modal_area, buf);
 
-        // Main border
+        // Main border (no title - we use AnimatedHeader)
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(Color::Rgb(99, 102, 241)))
-            .style(Style::default().bg(Color::Rgb(17, 24, 39)))
-            .title(Span::styled(
-                " PROVIDERS ",
-                Style::default()
-                    .fg(Color::Rgb(229, 231, 235))
-                    .add_modifier(Modifier::BOLD),
-            ));
+            .style(Style::default().bg(Color::Rgb(17, 24, 39)));
 
         let inner = block.inner(modal_area);
         block.render(modal_area, buf);
 
-        // Layout: tabs | content | footer
+        // Layout: header | tabs | content | footer
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
+                Constraint::Length(1), // Header (AnimatedHeader)
                 Constraint::Length(1), // Tabs
                 Constraint::Min(5),    // Content
                 Constraint::Length(1), // Footer
             ])
             .split(inner);
 
+        // v0.8.9: Render animated cosmic header
+        let header = AnimatedHeader::new()
+            .with_title("PROVIDERS")
+            .with_frame(self.state.animation_frame);
+        header.render(chunks[0], buf);
+
         // Render tabs
-        self.render_tabs(chunks[0], buf);
+        self.render_tabs(chunks[1], buf);
 
         // Render tab content
         match self.state.active_tab {
             ProviderModalTab::Cloud => {
                 // Use live provider statuses from state
                 let statuses = self.state.get_provider_statuses();
-                CloudTab::with_statuses(self.state, statuses).render(chunks[1], buf);
+                CloudTab::with_statuses(self.state, statuses).render(chunks[2], buf);
             }
             ProviderModalTab::Ollama => {
                 // Use live Ollama models from state
@@ -148,7 +152,7 @@ impl Widget for ProviderModal<'_> {
                     &self.state.download_state,
                 )
                 .available(self.state.ollama_available)
-                .render(chunks[1], buf);
+                .render(chunks[2], buf);
             }
             ProviderModalTab::Keys => {
                 KeysTab::new(
@@ -156,15 +160,15 @@ impl Widget for ProviderModal<'_> {
                     self.state.key_input_mode,
                     &self.state.key_input_buffer,
                 )
-                .render(chunks[1], buf);
+                .render(chunks[2], buf);
             }
             ProviderModalTab::Config => {
-                ConfigTab::new(self.state.selected_idx).render(chunks[1], buf);
+                ConfigTab::new(self.state.selected_idx).render(chunks[2], buf);
             }
         }
 
         // Render footer
-        self.render_footer(chunks[2], buf);
+        self.render_footer(chunks[3], buf);
     }
 }
 

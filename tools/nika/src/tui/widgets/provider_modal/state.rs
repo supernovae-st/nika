@@ -176,6 +176,9 @@ impl DownloadState {
     }
 }
 
+/// Maximum latency history samples per provider
+const LATENCY_HISTORY_MAX: usize = 10;
+
 /// Main provider modal state
 /// SEC-004: Custom Debug impl redacts key_input_buffer to prevent API key leaks in logs
 #[derive(Clone)]
@@ -208,6 +211,12 @@ pub struct ProviderModalState {
     pub animation_frame: u8,
     /// v0.8.9: Cached cloud tab label to avoid allocation per frame
     cached_cloud_label: Option<String>,
+    /// v0.8.9: Latency history per provider (6 providers × 10 samples)
+    latency_history: Vec<Vec<u64>>,
+    /// v0.8.9: Matrix verification effect state
+    pub verification_state: super::components::VerificationState,
+    /// v0.8.9: Whether verification animation is active
+    pub verification_active: bool,
 }
 
 impl Default for ProviderModalState {
@@ -227,6 +236,9 @@ impl Default for ProviderModalState {
             active_model: None,
             animation_frame: 0,
             cached_cloud_label: None,
+            latency_history: vec![Vec::new(); 6], // Pre-allocate for 6 providers
+            verification_state: super::components::VerificationState::new_providers(),
+            verification_active: false,
         }
     }
 }
@@ -251,6 +263,14 @@ impl std::fmt::Debug for ProviderModalState {
             .field("active_provider_idx", &self.active_provider_idx)
             .field("active_model", &self.active_model)
             .field("animation_frame", &self.animation_frame)
+            .field(
+                "latency_history",
+                &format!(
+                    "[{} providers]",
+                    self.latency_history.iter().filter(|h| !h.is_empty()).count()
+                ),
+            )
+            .field("verification_active", &self.verification_active)
             .finish()
     }
 }
@@ -408,6 +428,45 @@ impl ProviderModalState {
     /// Tick animation frame (call on each frame update)
     pub fn tick_animation(&mut self) {
         self.animation_frame = self.animation_frame.wrapping_add(1);
+
+        // v0.8.9: Also tick verification animation if active
+        if self.verification_active {
+            self.verification_state.tick();
+
+            // Auto-deactivate when all entries complete
+            if self.verification_state.all_complete {
+                self.verification_active = false;
+            }
+        }
+    }
+
+    /// v0.8.9: Start verification animation (reset and activate)
+    pub fn start_verification(&mut self) {
+        self.verification_state.reset();
+        self.verification_active = true;
+    }
+
+    /// v0.8.9: Update verification entry when provider status changes
+    pub fn sync_verification_status(&mut self, index: usize) {
+        use super::components::VerifyStatus;
+
+        if let Some(status) = self.provider_statuses.get(index) {
+            let verify_status = match status {
+                ConnectionStatus::Unknown => VerifyStatus::Checking,
+                ConnectionStatus::Checking => VerifyStatus::Checking,
+                ConnectionStatus::Connected { .. } => VerifyStatus::Connected,
+                ConnectionStatus::Failed { .. } => VerifyStatus::Failed,
+                ConnectionStatus::NotConfigured => VerifyStatus::NotConfigured,
+            };
+            self.verification_state.set_status(index, verify_status);
+        }
+    }
+
+    /// v0.8.9: Sync all verification statuses from provider_statuses
+    pub fn sync_all_verification_statuses(&mut self) {
+        for i in 0..6 {
+            self.sync_verification_status(i);
+        }
     }
 
     /// Get animated indicator for active provider
@@ -475,6 +534,8 @@ impl ProviderModalState {
     /// Update provider status by index
     ///
     /// v0.8.9: Guard against invalid index (max 5 for 6 providers)
+    /// v0.8.9: Automatically pushes latency to history when Connected
+    /// v0.8.9: Syncs verification animation status
     pub fn set_provider_status(&mut self, index: usize, status: ConnectionStatus) {
         // Guard against unbounded growth
         if index >= 6 {
@@ -488,7 +549,16 @@ impl ProviderModalState {
         while self.provider_statuses.len() <= index {
             self.provider_statuses.push(ConnectionStatus::Unknown);
         }
+
+        // v0.8.9: Push latency to history when connected
+        if let ConnectionStatus::Connected { latency_ms } = &status {
+            self.push_latency(index, *latency_ms);
+        }
+
         self.provider_statuses[index] = status;
+
+        // v0.8.9: Sync verification animation status
+        self.sync_verification_status(index);
     }
 
     /// Update provider status by name
@@ -524,6 +594,84 @@ impl ProviderModalState {
         self.provider_statuses
             .iter()
             .any(|s| matches!(s, ConnectionStatus::Connected { .. }))
+    }
+
+    /// v0.8.9: Push a latency sample to history for a provider
+    /// Maintains a rolling window of LATENCY_HISTORY_MAX samples
+    pub fn push_latency(&mut self, index: usize, latency_ms: u64) {
+        if index >= 6 {
+            return;
+        }
+        // Ensure vector has space for this provider
+        while self.latency_history.len() <= index {
+            self.latency_history.push(Vec::new());
+        }
+        let history = &mut self.latency_history[index];
+        // Push new value, remove oldest if at max
+        if history.len() >= LATENCY_HISTORY_MAX {
+            history.remove(0);
+        }
+        history.push(latency_ms);
+    }
+
+    /// v0.8.9: Push latency by provider name
+    pub fn push_latency_by_name(&mut self, name: &str, latency_ms: u64) {
+        let index = match name.to_lowercase().as_str() {
+            "anthropic" | "claude" => 0,
+            "openai" => 1,
+            "mistral" => 2,
+            "groq" => 3,
+            "deepseek" => 4,
+            "ollama" => 5,
+            _ => return,
+        };
+        self.push_latency(index, latency_ms);
+    }
+
+    /// v0.8.9: Get latency history for a provider (for sparkline)
+    pub fn get_latency_history(&self, index: usize) -> &[u64] {
+        self.latency_history
+            .get(index)
+            .map(|h| h.as_slice())
+            .unwrap_or(&[])
+    }
+
+    /// v0.8.9: Compute session statistics for footer display
+    pub fn get_session_stats(&self) -> super::components::SessionStats {
+        use super::components::SessionStats;
+
+        let connected_providers = self
+            .provider_statuses
+            .iter()
+            .filter(|s| matches!(s, ConnectionStatus::Connected { .. }))
+            .count();
+
+        // Calculate average latency from connected providers
+        let latencies: Vec<u64> = self
+            .provider_statuses
+            .iter()
+            .filter_map(|s| {
+                if let ConnectionStatus::Connected { latency_ms } = s {
+                    Some(*latency_ms)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let avg_latency_ms = if !latencies.is_empty() {
+            Some(latencies.iter().sum::<u64>() / latencies.len() as u64)
+        } else {
+            None
+        };
+
+        SessionStats {
+            connected_providers,
+            total_providers: 6,
+            tokens_used: 0,       // TODO: Wire to actual session token tracking
+            mcp_connections: 0,   // TODO: Wire to MCP client status
+            avg_latency_ms,
+        }
     }
 
     /// Set Ollama models
@@ -1131,5 +1279,224 @@ mod tests {
         ];
         // 2 verified out of 6 max
         assert!(state.keys_tab_label().contains("2/6"));
+    }
+
+    // v0.8.9: Latency history tests
+    #[test]
+    fn test_latency_history_default_empty() {
+        let state = ProviderModalState::default();
+        assert_eq!(state.latency_history.len(), 6);
+        for history in &state.latency_history {
+            assert!(history.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_push_latency_adds_sample() {
+        let mut state = ProviderModalState::default();
+        state.push_latency(0, 100);
+        state.push_latency(0, 150);
+        state.push_latency(0, 120);
+
+        let history = state.get_latency_history(0);
+        assert_eq!(history, &[100, 150, 120]);
+    }
+
+    #[test]
+    fn test_push_latency_respects_max() {
+        let mut state = ProviderModalState::default();
+        // Push more than max (10)
+        for i in 0..15 {
+            state.push_latency(0, i as u64 * 10);
+        }
+
+        let history = state.get_latency_history(0);
+        assert_eq!(history.len(), 10);
+        // Should have kept the last 10 values (50, 60, ..., 140)
+        assert_eq!(history[0], 50);
+        assert_eq!(history[9], 140);
+    }
+
+    #[test]
+    fn test_push_latency_by_name() {
+        let mut state = ProviderModalState::default();
+        state.push_latency_by_name("anthropic", 100);
+        state.push_latency_by_name("claude", 120); // Same as anthropic
+        state.push_latency_by_name("openai", 200);
+        state.push_latency_by_name("mistral", 80);
+
+        assert_eq!(state.get_latency_history(0), &[100, 120]); // claude/anthropic
+        assert_eq!(state.get_latency_history(1), &[200]); // openai
+        assert_eq!(state.get_latency_history(2), &[80]); // mistral
+    }
+
+    #[test]
+    fn test_push_latency_invalid_index_ignored() {
+        let mut state = ProviderModalState::default();
+        state.push_latency(10, 100); // Invalid
+        state.push_latency_by_name("unknown", 100); // Invalid
+
+        // No history added
+        for history in &state.latency_history {
+            assert!(history.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_get_latency_history_invalid_index() {
+        let state = ProviderModalState::default();
+        let empty: &[u64] = &[];
+        assert_eq!(state.get_latency_history(10), empty); // Invalid
+    }
+
+    #[test]
+    fn test_set_provider_status_pushes_latency() {
+        let mut state = ProviderModalState::default();
+        state.set_provider_status(0, ConnectionStatus::Connected { latency_ms: 150 });
+        state.set_provider_status(0, ConnectionStatus::Connected { latency_ms: 180 });
+
+        let history = state.get_latency_history(0);
+        assert_eq!(history, &[150, 180]);
+    }
+
+    #[test]
+    fn test_set_provider_status_by_name_pushes_latency() {
+        let mut state = ProviderModalState::default();
+        state.set_provider_status_by_name("openai", ConnectionStatus::Connected { latency_ms: 200 });
+
+        let history = state.get_latency_history(1);
+        assert_eq!(history, &[200]);
+    }
+
+    #[test]
+    fn test_latency_history_not_pushed_for_non_connected() {
+        let mut state = ProviderModalState::default();
+        state.set_provider_status(0, ConnectionStatus::Checking);
+        state.set_provider_status(0, ConnectionStatus::Failed { error: "timeout".into() });
+        state.set_provider_status(0, ConnectionStatus::NotConfigured);
+
+        let history = state.get_latency_history(0);
+        assert!(history.is_empty());
+    }
+
+    #[test]
+    fn test_get_session_stats_empty() {
+        let state = ProviderModalState::default();
+        let stats = state.get_session_stats();
+
+        assert_eq!(stats.connected_providers, 0);
+        assert_eq!(stats.total_providers, 6);
+        assert_eq!(stats.tokens_used, 0);
+        assert!(stats.avg_latency_ms.is_none());
+    }
+
+    #[test]
+    fn test_get_session_stats_with_connections() {
+        let mut state = ProviderModalState::default();
+        state.set_provider_status(0, ConnectionStatus::Connected { latency_ms: 100 });
+        state.set_provider_status(1, ConnectionStatus::Connected { latency_ms: 200 });
+        state.set_provider_status(2, ConnectionStatus::NotConfigured);
+
+        let stats = state.get_session_stats();
+
+        assert_eq!(stats.connected_providers, 2);
+        assert_eq!(stats.total_providers, 6);
+        // Average of 100 and 200 is 150
+        assert_eq!(stats.avg_latency_ms, Some(150));
+    }
+
+    // v0.8.9: Verification state tests
+    #[test]
+    fn test_verification_state_default() {
+        let state = ProviderModalState::default();
+        assert!(!state.verification_active);
+        assert_eq!(state.verification_state.entries.len(), 6);
+    }
+
+    #[test]
+    fn test_start_verification() {
+        let mut state = ProviderModalState::default();
+        state.start_verification();
+
+        assert!(state.verification_active);
+        // All entries should be reset to Checking
+        for entry in &state.verification_state.entries {
+            assert_eq!(entry.status, super::super::components::VerifyStatus::Checking);
+            assert_eq!(entry.progress, 0.0);
+        }
+    }
+
+    #[test]
+    fn test_sync_verification_status() {
+        use super::super::components::VerifyStatus;
+
+        let mut state = ProviderModalState::default();
+        state.set_provider_status(0, ConnectionStatus::Connected { latency_ms: 100 });
+        state.set_provider_status(1, ConnectionStatus::Failed { error: "Timeout".into() });
+        state.set_provider_status(2, ConnectionStatus::NotConfigured);
+
+        // Verification status should be synced
+        assert_eq!(state.verification_state.entries[0].status, VerifyStatus::Connected);
+        assert_eq!(state.verification_state.entries[1].status, VerifyStatus::Failed);
+        assert_eq!(state.verification_state.entries[2].status, VerifyStatus::NotConfigured);
+    }
+
+    #[test]
+    fn test_tick_animation_advances_verification() {
+        let mut state = ProviderModalState::default();
+        state.start_verification();
+
+        let initial_frame = state.verification_state.frame;
+        state.tick_animation();
+
+        assert_eq!(state.verification_state.frame, initial_frame + 1);
+    }
+
+    #[test]
+    fn test_verification_auto_deactivates_when_complete() {
+        use super::super::components::VerifyStatus;
+
+        let mut state = ProviderModalState::default();
+        state.start_verification();
+        assert!(state.verification_active);
+
+        // Set all to connected
+        for i in 0..6 {
+            state.verification_state.set_status(i, VerifyStatus::Connected);
+        }
+
+        // Tick until complete
+        for _ in 0..30 {
+            state.tick_animation();
+        }
+
+        // Should auto-deactivate when all complete
+        assert!(!state.verification_active);
+    }
+
+    #[test]
+    fn test_sync_all_verification_statuses() {
+        use super::super::components::VerifyStatus;
+
+        let mut state = ProviderModalState::default();
+
+        // Set provider statuses directly (bypassing set_provider_status)
+        state.provider_statuses = vec![
+            ConnectionStatus::Connected { latency_ms: 100 },
+            ConnectionStatus::Checking,
+            ConnectionStatus::Failed { error: "err".into() },
+            ConnectionStatus::NotConfigured,
+            ConnectionStatus::Unknown,
+            ConnectionStatus::Connected { latency_ms: 200 },
+        ];
+
+        state.sync_all_verification_statuses();
+
+        assert_eq!(state.verification_state.entries[0].status, VerifyStatus::Connected);
+        assert_eq!(state.verification_state.entries[1].status, VerifyStatus::Checking);
+        assert_eq!(state.verification_state.entries[2].status, VerifyStatus::Failed);
+        assert_eq!(state.verification_state.entries[3].status, VerifyStatus::NotConfigured);
+        assert_eq!(state.verification_state.entries[4].status, VerifyStatus::Checking);
+        assert_eq!(state.verification_state.entries[5].status, VerifyStatus::Connected);
     }
 }

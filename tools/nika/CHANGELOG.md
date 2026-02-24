@@ -7,6 +7,27 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.8.92] - 2026-02-24
+
+### Changed
+- **Smooth NIKA Butterfly Animation** - Complete rewrite of explosion effect
+  - Ease-out cubic easing for natural deceleration
+  - Wave effect: center butterflies explode first, edges follow
+  - Soft fade-in at startup (first 3 frames)
+  - Shorter duration: 25 frames (~2.5s) instead of 40 frames (~4s)
+  - Cleaner sparkle arrangement (8 positions instead of 12)
+  - Lower density (0.02/0.05) for cleaner visual
+
+### Added
+- **Performance Tests** - 3 new matrix_rain tests
+  - `test_ease_out_function` - Validates easing curve properties
+  - `test_smooth_explosion_progression` - 30-frame stress test
+  - `test_wave_pattern_center_first` - Wave effect validation
+
+### Fixed
+- Reduced visual noise during butterfly explosion
+- Smoother transition to regular matrix rain after explosion
+
 ## [0.7.2] - 2026-02-23
 
 ### Fixed

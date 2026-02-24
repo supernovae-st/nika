@@ -27,7 +27,7 @@ impl ProviderInfo {
         vec![
             ProviderInfo {
                 name: "Claude",
-                icon: "🧠",
+                icon: "🍊",
                 model: "claude-sonnet-4",
                 env_var: "ANTHROPIC_API_KEY",
                 features: vec!["🧠", "👁️", "🔧"],
@@ -36,7 +36,7 @@ impl ProviderInfo {
             },
             ProviderInfo {
                 name: "OpenAI",
-                icon: "🤖",
+                icon: "🧿",
                 model: "gpt-4o",
                 env_var: "OPENAI_API_KEY",
                 features: vec!["🧠", "👁️", "🔧"],
@@ -45,7 +45,7 @@ impl ProviderInfo {
             },
             ProviderInfo {
                 name: "Mistral",
-                icon: "🌀",
+                icon: "⛵",
                 model: "mistral-large",
                 env_var: "MISTRAL_API_KEY",
                 features: vec!["🧠", "🔧"],
@@ -54,7 +54,7 @@ impl ProviderInfo {
             },
             ProviderInfo {
                 name: "Groq",
-                icon: "⚡",
+                icon: "👁️‍🗨️",
                 model: "llama-3.3-70b",
                 env_var: "GROQ_API_KEY",
                 features: vec!["🧠", "⚡"],
@@ -63,7 +63,7 @@ impl ProviderInfo {
             },
             ProviderInfo {
                 name: "DeepSeek",
-                icon: "🔬",
+                icon: "🐋",
                 model: "deepseek-chat",
                 env_var: "DEEPSEEK_API_KEY",
                 features: vec!["🧠", "💰"],
@@ -152,13 +152,30 @@ impl Widget for CloudTab<'_> {
                         (false, false) => CardStyle::Normal,
                     };
 
+                    // v0.8.9: Get latency history for sparkline
+                    let latency_history = self.state.get_latency_history(provider_idx);
+
+                    // v0.8.9: Get verification entry for Matrix effect
+                    let verify_entry = if self.state.verification_active {
+                        self.state.verification_state.entries.get(provider_idx)
+                    } else {
+                        None
+                    };
+
                     // Render provider card with animated indicator for active
-                    ProviderCard::new(p.icon, p.name, p.model, &p.status)
+                    let mut card = ProviderCard::new(p.icon, p.name, p.model, &p.status)
                         .style(style)
                         .features(p.features.clone())
                         .context_window(p.context_window)
                         .active_indicator(self.state.active_indicator())
-                        .render(*col_area, buf);
+                        .latency_history(latency_history);
+
+                    // Add verification entry if present
+                    if let Some(entry) = verify_entry {
+                        card = card.verify_entry(entry);
+                    }
+
+                    card.render(*col_area, buf);
                 }
             }
         }

@@ -75,7 +75,6 @@ use crate::tui::widgets::{
     HelpOverlayState,
     InferStreamData,
     MatrixRain,
-    NikaIntro,
     NikaIntroState,
     McpCallData,
     McpCallStatus,
@@ -376,6 +375,10 @@ pub struct ChatView {
     pub rain_fading: bool,
     /// v0.9.1: NIKA intro animation state (ASCII art explosion)
     pub intro_state: NikaIntroState,
+    /// v0.9.1: NIKA butterfly explosion animation frame (0=show pattern, 1+=spreading)
+    pub explosion_frame: u8,
+    /// v0.9.1: Whether NIKA pattern is still visible (before full explosion)
+    pub nika_pattern_visible: bool,
 
     // === v0.8.1 Agent Phase Tracking ===
     /// Current agent execution phase (for real-time status)
@@ -593,13 +596,23 @@ impl ChatView {
             .mcp_servers
             .push(McpServerInfo::new("novanet"));
 
+        // v0.9.1: ASCII art welcome banner
+        let welcome_banner = r#"
+    ███╗   ██╗██╗██╗  ██╗ █████╗
+    ████╗  ██║██║██║ ██╔╝██╔══██╗
+    ██╔██╗ ██║██║█████╔╝ ███████║
+    ██║╚██╗██║██║██╔═██╗ ██╔══██║
+    ██║ ╚████║██║██║  ██╗██║  ██║
+    ╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
+            🦋 Workflow Engine
+
+Type a message to chat, or use /help for commands."#;
+
         Self {
             messages: vec![ChatMessage {
                 id: 1, // First message gets ID 1
                 role: MessageRole::System,
-                content:
-                    "Welcome to Nika Agent. Type a message to chat, or use /help for commands."
-                        .to_string(),
+                content: welcome_banner.to_string(),
                 thinking: None,
                 timestamp: Local::now(),
                 created_at: Instant::now(),
@@ -659,10 +672,12 @@ impl ChatView {
                 .with_wave_factor(2.0)
                 .with_initial_chaos(15),
             matrix_effect_enabled: true, // Enable by default
-            // v0.9.1: Matrix rain waits for intro to complete
-            rain_opacity: 0.0, // Start invisible (intro plays first)
-            rain_fading: false, // Intro triggers rain when done
-            intro_state: NikaIntroState::new(), // ASCII art explosion intro
+            // v0.9.1: NIKA butterfly pattern + explosion
+            rain_opacity: 1.0, // Start visible for NIKA pattern
+            rain_fading: false, // Pattern handles its own fade
+            intro_state: NikaIntroState::new(), // Legacy (kept for compatibility)
+            explosion_frame: 0,    // v0.9.1: Start with NIKA pattern visible
+            nika_pattern_visible: true, // v0.9.1: Show NIKA pattern at start
 
             // v0.8.1 Agent Phase Tracking
             agent_phase: AgentPhase::Idle,
@@ -1609,6 +1624,17 @@ impl ChatView {
         if self.rain_fading && self.rain_opacity > 0.0 {
             // Fast fade (0.04 per tick = ~2 seconds to fully fade at 10Hz)
             self.rain_opacity = (self.rain_opacity - 0.04).max(0.0);
+        }
+
+        // v0.9.1: Tick NIKA butterfly explosion animation (SMOOTH: 25 frames = ~2.5s)
+        if self.nika_pattern_visible {
+            self.explosion_frame = self.explosion_frame.saturating_add(1);
+            // After explosion completes, smooth transition to regular rain
+            if self.explosion_frame >= 25 {
+                self.nika_pattern_visible = false;
+                self.rain_opacity = 0.3; // Start regular rain (more subtle)
+                self.rain_fading = true;
+            }
         }
         // v0.8.1: Tick phase indicator animation (icon swap + chaos decay)
         self.tick_phase_indicator();
@@ -2915,25 +2941,34 @@ impl View for ChatView {
         };
 
         if self.matrix_effect_enabled {
-            // Tick intro animation (needs area for particle spawning)
-            let was_done = self.intro_state.is_done();
-            self.intro_state.tick(effect_area);
+            // v0.9.1: NIKA butterfly pattern + smooth explosion (~2.5s total)
+            // Phase 1: Show NIKA with butterflies (frames 0-3) with fade-in
+            // Phase 2: Wave explosion from center (frames 3-25)
+            // Phase 3: Regular matrix rain fading out
 
-            // When intro finishes, trigger rain effect
-            if !was_done && self.intro_state.is_done() {
-                self.rain_opacity = 0.5; // Start rain at medium opacity
-                self.rain_fading = true; // Begin fade out
-            }
+            // Determine pattern visibility and explosion state
+            let show_pattern = self.nika_pattern_visible && self.explosion_frame < 25;
+            let explosion = if self.explosion_frame > 3 {
+                self.explosion_frame.saturating_sub(3) // Start explosion after brief display
+            } else {
+                0
+            };
 
-            // Render intro OR rain (not both)
-            if !self.intro_state.is_done() {
-                NikaIntro::new(&self.intro_state).render(effect_area, frame.buffer_mut());
-            } else if self.rain_opacity > 0.05 {
+            // Calculate opacity: smooth transition throughout
+            let effective_opacity = if show_pattern {
+                1.0 // Widget handles its own fading via easing
+            } else {
+                self.rain_opacity
+            };
+
+            if effective_opacity > 0.05 {
                 MatrixRain::new()
                     .frame(self.frame)
-                    .density(0.08) // Very subtle, smooth effect
-                    .opacity(self.rain_opacity)
+                    .density(if show_pattern { 0.02 } else { 0.05 }) // Very sparse, cleaner
+                    .opacity(effective_opacity)
                     .with_mascots(true)
+                    .with_nika_pattern(show_pattern)
+                    .explosion_frame(explosion)
                     .render(effect_area, frame.buffer_mut());
             }
         }

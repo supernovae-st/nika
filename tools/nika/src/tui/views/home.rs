@@ -125,6 +125,7 @@ impl HomeView {
     }
 
     /// Trigger matrix rain effect with fade-out
+    #[allow(dead_code)]
     pub fn trigger_rain_effect(&mut self) {
         self.rain_opacity = 0.6; // Start subtle
         self.rain_fading = true;

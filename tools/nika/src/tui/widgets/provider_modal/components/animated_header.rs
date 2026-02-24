@@ -84,7 +84,7 @@ impl AnimatedHeader {
 
     /// Render header to string for testing
     #[cfg(test)]
-    pub fn render_to_string(&self, width: usize) -> String {
+    pub fn render_to_string(&self, _width: usize) -> String {
         let stars = self.current_stars();
         let left_stars: String = stars[..5].join("");
         let right_stars: String = stars[5..].join("");
