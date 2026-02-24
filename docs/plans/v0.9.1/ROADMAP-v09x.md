@@ -10,17 +10,39 @@
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  v0.9.x RELEASE TRAIN                                                         ║
+║  v0.9.x → v0.10.x RELEASE TRAIN (NO v1.0 — stay in 0.XX)                      ║
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                               ║
-║  v0.9.0  StableGraph Foundation     │ FlowGraph → StableGraph migration       ║
-║  v0.9.1  ChatWorkflow Struct        │ DAG wrapper for chat messages           ║
-║  v0.9.2  @mention Binding System    │ Parser + WiringSpec generation          ║
-║  v0.9.3  Builtin Tools (6 nika:*)   │ sleep, log, emit, assert, prompt, run   ║
-║  v0.9.4  ChatDagPanel Widget        │ TUI DAG visualization                   ║
-║  v0.9.5  Polish & Export            │ Animations, persistence, Mermaid/JSON   ║
+║  ━━━ PHASE A: Chat-as-DAG Core ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ║
 ║                                                                               ║
-║  v1.0.0  Chat-as-DAG Complete       │ Full integration, 5-view architecture   ║
+║  v0.9.0  🏗️  StableGraph Foundation  │ FlowGraph → StableGraph migration      ║
+║  v0.9.1  💬 ChatWorkflow Struct      │ DAG wrapper for chat messages          ║
+║  v0.9.2  🔗 @mention Bindings        │ Parser + WiringSpec generation         ║
+║  v0.9.3  🛠️  Builtin Tools (6 nika:*) │ sleep, log, emit, assert, prompt, run  ║
+║  v0.9.4  📊 ChatDagPanel Widget      │ TUI DAG visualization sidebar          ║
+║  v0.9.5  ✨ Polish & Export          │ Animations, persistence, Mermaid/JSON  ║
+║                                                                               ║
+║  ━━━ PHASE B: File-First Architecture ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ║
+║                                                                               ║
+║  v0.10.0 📁 Project Structure        │ .nika/ dir, nika init, discovery       ║
+║  v0.10.1 👤 User Profile             │ user.yaml + SOUL integration           ║
+║  v0.10.2 🧠 Long-term Memory         │ memory.yaml + episodic/*.md            ║
+║  v0.10.3 📜 Policies & Governance    │ policies.yaml + boundary checks        ║
+║  v0.10.4 ⏰ Heartbeat Automation     │ heartbeat.yaml + cron triggers         ║
+║  v0.10.5 🤖 Enriched Agents          │ Full SOUL sections + agent routing     ║
+║                                                                               ║
+║  ━━━ PHASE C: Context System ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ║
+║                                                                               ║
+║  v0.11.0 📂 Context Discovery        │ 3-layer context + auto-import          ║
+║  v0.11.1 🎭 Flexible Agents          │ Reference/Inline/Inherit modes         ║
+║  v0.11.2 🧩 Composable Skills        │ skills/*.yaml + slot system            ║
+║  v0.11.3 🔄 Boot Sequence            │ 6-phase loading + validation           ║
+║  v0.11.4 🖥️  TUI Integration          │ /agent, /skill, /context commands      ║
+║  v0.11.5 📤 Export & Sharing         │ YAML export, workflow templates        ║
+║                                                                               ║
+║  ━━━ PHASE D: Multi-Agent Orchestration ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ║
+║                                                                               ║
+║  v0.12.x (TBD — defined after 0.11.x complete)                                ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -69,14 +91,14 @@
 
 ## 4-View Architecture (Current)
 
-| View | Hotkey | Panels | Purpose |
-|------|--------|--------|---------|
-| **Home** | `h` / `1` | 4 | Browse workflows, recent files |
-| **Chat** | `a` / `2` | 3 | Conversational agent + DAG panel (v0.9.4) |
-| **Studio** | `s` / `3` | 3 | YAML editor with validation |
-| **Monitor** | `m` / `4` | 4 | Trace viewer, event log |
+| View | Hotkey | Panels | Purpose | Matrix Rain |
+|------|--------|--------|---------|-------------|
+| **Home** | `h` / `1` | 4 | Browse workflows, recent files | ✅ Background |
+| **Chat** | `a` / `2` | 3→4 | Conversational agent + DAG panel (v0.9.4) | ✅ On typing |
+| **Studio** | `s` / `3` | 3 | YAML editor with validation | ✅ Subtle |
+| **Monitor** | `m` / `4` | 4 | Trace viewer, event log | ✅ On events |
 
-> **Note:** User mentioned "5 views" — the 5th view will be defined in v1.0.0 planning.
+> **Note:** Matrix Rain appears on ALL views with context-appropriate triggers. 5th view (Agents) planned for v0.12.x.
 
 ---
 
