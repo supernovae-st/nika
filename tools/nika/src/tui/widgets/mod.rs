@@ -37,6 +37,7 @@ mod mention_system;
 mod message_bubble;
 mod mission_control;
 mod pro_status_bar;
+pub mod provider_modal;
 mod provider_selector;
 mod scroll_indicator;
 mod session_context;
@@ -47,7 +48,6 @@ pub mod task_box;
 mod terminal_size;
 mod timeline;
 mod verb_input;
-pub mod provider_modal;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
 pub use provider_modal::*;

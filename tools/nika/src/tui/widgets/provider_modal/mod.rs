@@ -122,7 +122,7 @@ impl Widget for ProviderModal<'_> {
 
         // Render tab content
         match self.state.active_tab {
-            ProviderModalTab::Cloud => CloudTab.render(chunks[1], buf),
+            ProviderModalTab::Cloud => CloudTab::new(self.state).render(chunks[1], buf),
             ProviderModalTab::Ollama => OllamaTab.render(chunks[1], buf),
             ProviderModalTab::Keys => KeysTab.render(chunks[1], buf),
             ProviderModalTab::Config => {

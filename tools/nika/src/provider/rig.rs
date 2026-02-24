@@ -27,7 +27,6 @@ use crate::mcp::McpClient;
 use crate::util::STREAM_CHUNK_TIMEOUT;
 use futures::StreamExt;
 use rig::client::{CompletionClient, Nothing, ProviderClient};
-use tokio::time::timeout;
 use rig::completion::{CompletionModel as _, GetTokenUsage, Prompt, PromptError, ToolDefinition};
 use rig::providers::{anthropic, deepseek, groq, mistral, ollama, openai};
 use rig::streaming::StreamedAssistantContent;
@@ -36,6 +35,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use tokio::time::timeout;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TOOL ERROR TYPES
