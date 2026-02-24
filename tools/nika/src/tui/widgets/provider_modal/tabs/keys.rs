@@ -1,11 +1,456 @@
 //! API Keys tab
+//!
+//! Displays provider API keys with masked display and edit capability.
+//! Shows key status (configured, verified, invalid) for each provider.
 
-use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
+use ratatui::{
+    buffer::Buffer,
+    layout::Rect,
+    style::{Color, Modifier, Style},
+    widgets::Widget,
+};
 
-pub struct KeysTab;
+use super::super::keyring::{mask_api_key, provider_env_var};
+use super::super::state::ApiKeyState;
 
-impl Widget for KeysTab {
-    fn render(self, _area: Rect, _buf: &mut Buffer) {
-        // TODO: Implement
+/// Provider key entry for display
+#[derive(Debug, Clone)]
+pub struct ProviderKeyEntry {
+    pub provider: &'static str,
+    pub icon: &'static str,
+    pub env_var: &'static str,
+    pub state: ApiKeyState,
+}
+
+impl ProviderKeyEntry {
+    /// Create default entries for all providers
+    pub fn all_providers() -> Vec<Self> {
+        vec![
+            Self {
+                provider: "anthropic",
+                icon: "🧠",
+                env_var: provider_env_var("anthropic"),
+                state: Self::detect_state("anthropic"),
+            },
+            Self {
+                provider: "openai",
+                icon: "🤖",
+                env_var: provider_env_var("openai"),
+                state: Self::detect_state("openai"),
+            },
+            Self {
+                provider: "mistral",
+                icon: "🌀",
+                env_var: provider_env_var("mistral"),
+                state: Self::detect_state("mistral"),
+            },
+            Self {
+                provider: "groq",
+                icon: "⚡",
+                env_var: provider_env_var("groq"),
+                state: Self::detect_state("groq"),
+            },
+            Self {
+                provider: "deepseek",
+                icon: "🔬",
+                env_var: provider_env_var("deepseek"),
+                state: Self::detect_state("deepseek"),
+            },
+            Self {
+                provider: "ollama",
+                icon: "🦙",
+                env_var: provider_env_var("ollama"),
+                state: Self::detect_state("ollama"),
+            },
+        ]
+    }
+
+    /// Detect key state from environment
+    fn detect_state(provider: &str) -> ApiKeyState {
+        let env_var = provider_env_var(provider);
+        match std::env::var(env_var) {
+            Ok(key) if !key.is_empty() => ApiKeyState::Configured {
+                masked: mask_api_key(&key),
+            },
+            _ => ApiKeyState::NotConfigured,
+        }
+    }
+
+    /// Get display name (title case)
+    pub fn display_name(&self) -> &'static str {
+        match self.provider {
+            "anthropic" => "Anthropic",
+            "openai" => "OpenAI",
+            "mistral" => "Mistral",
+            "groq" => "Groq",
+            "deepseek" => "DeepSeek",
+            "ollama" => "Ollama",
+            _ => self.provider,
+        }
+    }
+}
+
+/// API Keys tab widget
+pub struct KeysTab<'a> {
+    entries: Vec<ProviderKeyEntry>,
+    selected_idx: usize,
+    input_mode: bool,
+    input_buffer: &'a str,
+}
+
+impl<'a> KeysTab<'a> {
+    pub fn new(selected_idx: usize, input_mode: bool, input_buffer: &'a str) -> Self {
+        Self {
+            entries: ProviderKeyEntry::all_providers(),
+            selected_idx,
+            input_mode,
+            input_buffer,
+        }
+    }
+
+    /// Create with custom entries (for testing)
+    pub fn with_entries(
+        entries: Vec<ProviderKeyEntry>,
+        selected_idx: usize,
+        input_mode: bool,
+        input_buffer: &'a str,
+    ) -> Self {
+        Self {
+            entries,
+            selected_idx,
+            input_mode,
+            input_buffer,
+        }
+    }
+
+    /// Get entry count
+    pub fn entry_count(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Get selected provider name
+    pub fn selected_provider(&self) -> Option<&str> {
+        self.entries.get(self.selected_idx).map(|e| e.provider)
+    }
+}
+
+impl Widget for KeysTab<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        if area.height < 3 {
+            return;
+        }
+
+        // Header
+        let header = "API Keys";
+        buf.set_string(
+            area.x + 1,
+            area.y,
+            header,
+            Style::default()
+                .fg(Color::Rgb(229, 231, 235))
+                .add_modifier(Modifier::BOLD),
+        );
+
+        // Shortcuts hint
+        let shortcuts = "[Enter] Edit  [t] Test";
+        let shortcuts_x = area.right().saturating_sub(shortcuts.len() as u16 + 1);
+        buf.set_string(
+            shortcuts_x,
+            area.y,
+            shortcuts,
+            Style::default().fg(Color::Rgb(107, 114, 128)),
+        );
+
+        // Calculate list area
+        let list_height = if self.input_mode {
+            area.height.saturating_sub(5) // Leave room for input
+        } else {
+            area.height.saturating_sub(2) // Just header
+        };
+
+        // Render provider list
+        for (i, entry) in self.entries.iter().enumerate() {
+            let y = area.y + 2 + i as u16;
+            if y >= area.y + 2 + list_height {
+                break;
+            }
+
+            let is_selected = i == self.selected_idx;
+            let style = if is_selected {
+                Style::default()
+                    .fg(Color::Rgb(229, 231, 235))
+                    .bg(Color::Rgb(30, 41, 59))
+            } else {
+                Style::default().fg(Color::Rgb(156, 163, 175))
+            };
+
+            // Selection indicator
+            let indicator = if is_selected { "▸" } else { " " };
+
+            // Status indicator and color
+            let (status_icon, status_color) = match &entry.state {
+                ApiKeyState::NotConfigured => ("○", Color::Rgb(107, 114, 128)),
+                ApiKeyState::Configured { .. } => ("●", Color::Rgb(34, 197, 94)),
+                ApiKeyState::Verified { .. } => ("✓", Color::Rgb(34, 197, 94)),
+                ApiKeyState::Invalid { .. } => ("✗", Color::Rgb(239, 68, 68)),
+            };
+
+            // Key display
+            let key_display = match &entry.state {
+                ApiKeyState::NotConfigured => "Not configured".to_string(),
+                ApiKeyState::Configured { masked } => masked.clone(),
+                ApiKeyState::Verified { masked, latency_ms } => {
+                    format!("{} ({}ms)", masked, latency_ms)
+                }
+                ApiKeyState::Invalid { masked, error } => {
+                    format!("{} - {}", masked, error)
+                }
+            };
+
+            // Line: indicator icon Provider .......... status key_display
+            let provider_part = format!("{} {} {:12}", indicator, entry.icon, entry.display_name());
+            buf.set_string(area.x + 1, y, &provider_part, style);
+
+            // Status icon with color
+            let status_x = area.x + 1 + provider_part.len() as u16 + 2;
+            buf.set_string(
+                status_x,
+                y,
+                status_icon,
+                Style::default().fg(status_color),
+            );
+
+            // Key display
+            let key_x = status_x + 2;
+            let max_key_len = (area.right().saturating_sub(key_x + 1)) as usize;
+            let truncated_key = if key_display.len() > max_key_len {
+                format!("{}…", &key_display[..max_key_len.saturating_sub(1)])
+            } else {
+                key_display
+            };
+            buf.set_string(key_x, y, &truncated_key, style);
+        }
+
+        // Input mode: show input field at bottom
+        if self.input_mode {
+            let input_y = area.bottom().saturating_sub(3);
+
+            // Label
+            let selected_name = self
+                .entries
+                .get(self.selected_idx)
+                .map(|e| e.display_name())
+                .unwrap_or("Provider");
+            let label = format!("Enter API key for {}:", selected_name);
+            buf.set_string(
+                area.x + 1,
+                input_y,
+                &label,
+                Style::default().fg(Color::Rgb(156, 163, 175)),
+            );
+
+            // Input field (masked with asterisks)
+            let input_y = input_y + 1;
+            let masked_input: String = "*".repeat(self.input_buffer.len());
+            let input_display = format!("[{}]", masked_input);
+            buf.set_string(
+                area.x + 1,
+                input_y,
+                &input_display,
+                Style::default()
+                    .fg(Color::Rgb(229, 231, 235))
+                    .add_modifier(Modifier::BOLD),
+            );
+
+            // Hint
+            buf.set_string(
+                area.x + 1 + input_display.len() as u16 + 2,
+                input_y,
+                "Press Enter to save, Esc to cancel",
+                Style::default().fg(Color::Rgb(107, 114, 128)),
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::buffer::Buffer;
+    use ratatui::layout::Rect;
+
+    #[test]
+    fn test_provider_key_entry_all_providers_returns_6() {
+        let entries = ProviderKeyEntry::all_providers();
+        assert_eq!(entries.len(), 6);
+    }
+
+    #[test]
+    fn test_provider_key_entry_has_correct_providers() {
+        let entries = ProviderKeyEntry::all_providers();
+        assert_eq!(entries[0].provider, "anthropic");
+        assert_eq!(entries[1].provider, "openai");
+        assert_eq!(entries[2].provider, "mistral");
+        assert_eq!(entries[3].provider, "groq");
+        assert_eq!(entries[4].provider, "deepseek");
+        assert_eq!(entries[5].provider, "ollama");
+    }
+
+    #[test]
+    fn test_provider_key_entry_display_names() {
+        let entries = ProviderKeyEntry::all_providers();
+        assert_eq!(entries[0].display_name(), "Anthropic");
+        assert_eq!(entries[1].display_name(), "OpenAI");
+        assert_eq!(entries[2].display_name(), "Mistral");
+    }
+
+    #[test]
+    fn test_keys_tab_entry_count() {
+        let tab = KeysTab::new(0, false, "");
+        assert_eq!(tab.entry_count(), 6);
+    }
+
+    #[test]
+    fn test_keys_tab_selected_provider() {
+        let tab = KeysTab::new(2, false, "");
+        assert_eq!(tab.selected_provider(), Some("mistral"));
+    }
+
+    #[test]
+    fn test_keys_tab_renders_header() {
+        let tab = KeysTab::new(0, false, "");
+        let mut buf = Buffer::empty(Rect::new(0, 0, 60, 15));
+        tab.render(Rect::new(0, 0, 60, 15), &mut buf);
+
+        let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+        assert!(content.contains("API Keys"));
+    }
+
+    #[test]
+    fn test_keys_tab_renders_providers() {
+        let tab = KeysTab::new(0, false, "");
+        let mut buf = Buffer::empty(Rect::new(0, 0, 70, 15));
+        tab.render(Rect::new(0, 0, 70, 15), &mut buf);
+
+        let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+        assert!(content.contains("Anthropic"));
+        assert!(content.contains("OpenAI"));
+        assert!(content.contains("Mistral"));
+    }
+
+    #[test]
+    fn test_keys_tab_renders_selection() {
+        let tab = KeysTab::new(1, false, "");
+        let mut buf = Buffer::empty(Rect::new(0, 0, 60, 15));
+        tab.render(Rect::new(0, 0, 60, 15), &mut buf);
+
+        let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+        // Selection indicator should be present
+        assert!(content.contains("▸"));
+    }
+
+    #[test]
+    fn test_keys_tab_input_mode_renders_input_field() {
+        let tab = KeysTab::new(0, true, "test");
+        let mut buf = Buffer::empty(Rect::new(0, 0, 80, 15));
+        tab.render(Rect::new(0, 0, 80, 15), &mut buf);
+
+        let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+        assert!(content.contains("Enter API key"));
+        assert!(content.contains("****")); // Masked input
+    }
+
+    #[test]
+    fn test_keys_tab_with_custom_entries() {
+        let entries = vec![ProviderKeyEntry {
+            provider: "test",
+            icon: "🔑",
+            env_var: "TEST_API_KEY",
+            state: ApiKeyState::Configured {
+                masked: "sk-t...t".to_string(),
+            },
+        }];
+        let tab = KeysTab::with_entries(entries, 0, false, "");
+        assert_eq!(tab.entry_count(), 1);
+    }
+
+    #[test]
+    fn test_keys_tab_small_area_no_panic() {
+        let tab = KeysTab::new(0, false, "");
+        let mut buf = Buffer::empty(Rect::new(0, 0, 20, 2));
+        // Should not panic
+        tab.render(Rect::new(0, 0, 20, 2), &mut buf);
+    }
+
+    #[test]
+    fn test_keys_tab_configured_state_shows_masked_key() {
+        let entries = vec![ProviderKeyEntry {
+            provider: "anthropic",
+            icon: "🧠",
+            env_var: "ANTHROPIC_API_KEY",
+            state: ApiKeyState::Configured {
+                masked: "sk-ant...x".to_string(),
+            },
+        }];
+        let tab = KeysTab::with_entries(entries, 0, false, "");
+        let mut buf = Buffer::empty(Rect::new(0, 0, 70, 10));
+        tab.render(Rect::new(0, 0, 70, 10), &mut buf);
+
+        let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+        assert!(content.contains("sk-ant...x"));
+    }
+
+    #[test]
+    fn test_keys_tab_not_configured_state() {
+        let entries = vec![ProviderKeyEntry {
+            provider: "openai",
+            icon: "🤖",
+            env_var: "OPENAI_API_KEY",
+            state: ApiKeyState::NotConfigured,
+        }];
+        let tab = KeysTab::with_entries(entries, 0, false, "");
+        let mut buf = Buffer::empty(Rect::new(0, 0, 70, 10));
+        tab.render(Rect::new(0, 0, 70, 10), &mut buf);
+
+        let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+        assert!(content.contains("Not configured"));
+    }
+
+    #[test]
+    fn test_keys_tab_verified_state_shows_latency() {
+        let entries = vec![ProviderKeyEntry {
+            provider: "mistral",
+            icon: "🌀",
+            env_var: "MISTRAL_API_KEY",
+            state: ApiKeyState::Verified {
+                masked: "mist...y".to_string(),
+                latency_ms: 142,
+            },
+        }];
+        let tab = KeysTab::with_entries(entries, 0, false, "");
+        let mut buf = Buffer::empty(Rect::new(0, 0, 70, 10));
+        tab.render(Rect::new(0, 0, 70, 10), &mut buf);
+
+        let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+        assert!(content.contains("142ms"));
+    }
+
+    #[test]
+    fn test_keys_tab_invalid_state_shows_error() {
+        let entries = vec![ProviderKeyEntry {
+            provider: "groq",
+            icon: "⚡",
+            env_var: "GROQ_API_KEY",
+            state: ApiKeyState::Invalid {
+                masked: "grq...z".to_string(),
+                error: "401 Unauthorized".to_string(),
+            },
+        }];
+        let tab = KeysTab::with_entries(entries, 0, false, "");
+        let mut buf = Buffer::empty(Rect::new(0, 0, 80, 10));
+        tab.render(Rect::new(0, 0, 80, 10), &mut buf);
+
+        let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+        assert!(content.contains("401 Unauthorized"));
     }
 }

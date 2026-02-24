@@ -132,7 +132,14 @@ impl Widget for ProviderModal<'_> {
                     .available(self.state.ollama_available)
                     .render(chunks[1], buf);
             }
-            ProviderModalTab::Keys => KeysTab.render(chunks[1], buf),
+            ProviderModalTab::Keys => {
+                KeysTab::new(
+                    self.state.selected_idx,
+                    self.state.key_input_mode,
+                    &self.state.key_input_buffer,
+                )
+                .render(chunks[1], buf);
+            }
             ProviderModalTab::Config => {
                 buf.set_string(
                     chunks[1].x + 2,
