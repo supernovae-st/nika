@@ -30,7 +30,6 @@ mod help_overlay;
 mod infer_stream_box;
 mod matrix_decrypt;
 mod matrix_rain;
-mod matrix_rain_reveal;
 mod mcp_call_box;
 mod mcp_log;
 mod mention_system;
@@ -119,12 +118,10 @@ pub use terminal_size::{
 pub use help_overlay::{HelpOverlay, HelpOverlayState, HelpSection, HELP_SECTIONS};
 // Status messages (v0.8 - user feedback)
 pub use status_message::{StatusLevel, StatusMessage, StatusMessageWidget, StatusQueue};
-// Matrix Rain effect (v0.8 - WOW dither effect)
+// Matrix Rain effect (v0.8 - WOW dither effect for background)
 pub use matrix_rain::MatrixRain;
 // Matrix Decrypt effect (v0.8 - streaming text reveal with verb themes)
 pub use matrix_decrypt::{DecryptVerb, MatrixDecrypt, MultiLineDecrypt, StreamingDecrypt};
-// Matrix Rain Reveal effect (v0.8.1 - falling rain + sparks + wave reveal)
-pub use matrix_rain_reveal::MatrixRainReveal;
 // Task Box widgets (v0.8.2 - structured verb boxes)
 pub use task_box::{
     exit, http, status, AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,

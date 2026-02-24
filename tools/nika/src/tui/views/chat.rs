@@ -74,6 +74,7 @@ use crate::tui::widgets::{
     HelpOverlay,
     HelpOverlayState,
     InferStreamData,
+    MatrixRain,
     McpCallData,
     McpCallStatus,
     McpServerInfo,
@@ -362,8 +363,10 @@ pub struct ChatView {
     pub copy_flash_index: Option<usize>,
     /// Frame when copy happened (for flash duration)
     pub copy_flash_start: u8,
-    /// Matrix rain reveal effect for streaming text (v0.8.1 WOW)
+    /// Matrix decrypt effect for streaming text (chaos → reveal)
     pub streaming_decrypt: StreamingDecrypt,
+    /// Matrix rain background effect (standalone cascading rain)
+    pub matrix_rain_bg: MatrixRain,
     /// Whether matrix decrypt effect is enabled
     pub matrix_effect_enabled: bool,
 
@@ -609,7 +612,15 @@ impl ChatView {
             session_context,
             activity_items: vec![],
             command_palette: CommandPaletteState::new(),
-            provider_modal: ProviderModalState::default(),
+            provider_modal: {
+                let mut modal = ProviderModalState::default();
+                // v0.8.8: Set active provider based on detected provider
+                if provider_id != "none" {
+                    modal.set_active_provider(&provider_id);
+                    modal.set_active_model(&initial_model);
+                }
+                modal
+            },
             inline_content: vec![],
             frame: 0,
 
@@ -635,10 +646,13 @@ impl ChatView {
             // v0.8.1 WOW Effects - Matrix Streaming Decrypt
             copy_flash_index: None,
             copy_flash_start: 0,
+            // Matrix decrypt: chaos emoji → text reveal during streaming
             streaming_decrypt: StreamingDecrypt::new()
-                .with_reveal_speed(0.5) // ~2 frames per char reveal
-                .with_wave_factor(2.0) // wave width factor
-                .with_initial_chaos(15), // frames of full chaos before reveal
+                .with_reveal_speed(0.5)
+                .with_wave_factor(2.0)
+                .with_initial_chaos(15),
+            // Matrix rain background: cascading characters/emojis
+            matrix_rain_bg: MatrixRain::new().density(0.3).with_emojis(true),
             matrix_effect_enabled: true, // Enable by default
 
             // v0.8.1 Agent Phase Tracking
@@ -1560,6 +1574,10 @@ impl ChatView {
         self.tick_phase_indicator();
         // v0.9 Phase 3: Update smooth scroll animation
         self.update_scroll_animation();
+        // v0.8.8: Tick provider modal animation (active indicator cycling)
+        if self.provider_modal.visible {
+            self.provider_modal.tick_animation();
+        }
     }
 
     /// Add an MCP call to the inline content
@@ -2842,6 +2860,23 @@ impl View for ChatView {
 
         // Messages panel with inline MCP/Infer boxes
         self.render_messages_v2(frame, main_chunks[0], theme);
+
+        // v0.9.1: Matrix Rain background in Mission Control area (decorative effect)
+        // Render behind Mission Control when idle (not streaming, few messages)
+        if self.matrix_effect_enabled && !self.is_streaming && self.messages.len() <= 2 {
+            // Render a 3-line rain strip at top of Mission Control area
+            let rain_area = Rect {
+                x: main_chunks[1].x,
+                y: main_chunks[1].y,
+                width: main_chunks[1].width,
+                height: 3.min(main_chunks[1].height),
+            };
+            MatrixRain::new()
+                .frame(self.frame)
+                .density(0.4)
+                .with_emojis(true)
+                .render(rain_area, frame.buffer_mut());
+        }
 
         // Mission Control panel (v0.7.3 - replaces Activity Stack)
         // v0.8.1: Now includes Activity section with hot/warm/queued tasks
