@@ -457,14 +457,47 @@ impl TaskExecutor {
         match self.rig_provider_cache.entry(name.to_string()) {
             Entry::Occupied(e) => Ok(e.get().clone()),
             Entry::Vacant(e) => {
+                // v0.8.4: Check env var BEFORE constructor (rig-core panics without it)
                 let provider = match name {
-                    "claude" | "anthropic" => RigProvider::claude(),
-                    "openai" | "gpt" => RigProvider::openai(),
-                    // v0.6: Additional providers
-                    "mistral" => RigProvider::mistral(),
+                    "claude" | "anthropic" => {
+                        if std::env::var("ANTHROPIC_API_KEY").is_err() {
+                            return Err(NikaError::Provider(
+                                "ANTHROPIC_API_KEY not set".to_string(),
+                            ));
+                        }
+                        RigProvider::claude()
+                    }
+                    "openai" | "gpt" => {
+                        if std::env::var("OPENAI_API_KEY").is_err() {
+                            return Err(NikaError::Provider(
+                                "OPENAI_API_KEY not set".to_string(),
+                            ));
+                        }
+                        RigProvider::openai()
+                    }
+                    "mistral" => {
+                        if std::env::var("MISTRAL_API_KEY").is_err() {
+                            return Err(NikaError::Provider(
+                                "MISTRAL_API_KEY not set".to_string(),
+                            ));
+                        }
+                        RigProvider::mistral()
+                    }
                     "ollama" => RigProvider::ollama(),
-                    "groq" => RigProvider::groq(),
-                    "deepseek" | "deep-seek" => RigProvider::deepseek(),
+                    "groq" => {
+                        if std::env::var("GROQ_API_KEY").is_err() {
+                            return Err(NikaError::Provider("GROQ_API_KEY not set".to_string()));
+                        }
+                        RigProvider::groq()
+                    }
+                    "deepseek" | "deep-seek" => {
+                        if std::env::var("DEEPSEEK_API_KEY").is_err() {
+                            return Err(NikaError::Provider(
+                                "DEEPSEEK_API_KEY not set".to_string(),
+                            ));
+                        }
+                        RigProvider::deepseek()
+                    }
                     _ => {
                         return Err(NikaError::Provider(format!(
                             "Unknown rig provider: {}. Supported: claude, openai, mistral, ollama, groq, deepseek",

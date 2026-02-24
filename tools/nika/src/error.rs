@@ -387,6 +387,12 @@ pub enum NikaError {
     ConfigError { reason: String },
 
     // ═══════════════════════════════════════════
+    // STARTUP ERRORS (150-159) - NEW v0.8.4
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-150] Startup verification failed in '{phase}': {reason}")]
+    StartupError { phase: String, reason: String },
+
+    // ═══════════════════════════════════════════
     // TOOL ERRORS (200-219) - NEW v0.6
     // ═══════════════════════════════════════════
     #[error("[{code}] {message}")]
@@ -478,6 +484,8 @@ impl NikaError {
             Self::TuiError { .. } => "NIKA-130",
             // Config errors
             Self::ConfigError { .. } => "NIKA-140",
+            // Startup errors
+            Self::StartupError { .. } => "NIKA-150",
             // Tool errors (code is dynamic)
             Self::ToolError { .. } => "NIKA-2XX",
         }
@@ -651,6 +659,10 @@ impl FixSuggestion for NikaError {
             // Config errors
             NikaError::ConfigError { .. } => {
                 Some("Check ~/.config/nika/config.toml for syntax errors")
+            }
+            // Startup errors (v0.8.4)
+            NikaError::StartupError { .. } => {
+                Some("Check directory permissions and run 'nika init' to create required directories")
             }
             // Tool errors
             NikaError::ToolError { .. } => {

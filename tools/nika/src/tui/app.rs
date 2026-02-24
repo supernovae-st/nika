@@ -3345,41 +3345,66 @@ impl App {
                 // Create provider and check if configured
                 let provider_opt: Option<RigProvider> = match provider_id.as_str() {
                     "claude" => {
-                        let p = RigProvider::claude();
-                        if p.is_configured() {
-                            Some(p)
+                        // v0.8.4: Check env var BEFORE constructor (rig-core panics without it)
+                        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+                            let p = RigProvider::claude();
+                            if p.is_configured() {
+                                Some(p)
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
                     }
                     "openai" => {
-                        let p = RigProvider::openai();
-                        if p.is_configured() {
-                            Some(p)
+                        // v0.8.4: Check env var BEFORE constructor (rig-core panics without it)
+                        if std::env::var("OPENAI_API_KEY").is_ok() {
+                            let p = RigProvider::openai();
+                            if p.is_configured() {
+                                Some(p)
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
                     }
                     "mistral" => {
-                        let p = RigProvider::mistral();
-                        if p.is_configured() {
-                            Some(p)
+                        // v0.8.4: Check env var BEFORE constructor (rig-core panics without it)
+                        if std::env::var("MISTRAL_API_KEY").is_ok() {
+                            let p = RigProvider::mistral();
+                            if p.is_configured() {
+                                Some(p)
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
                     }
                     "groq" => {
-                        let p = RigProvider::groq();
-                        if p.is_configured() {
-                            Some(p)
+                        // v0.8.4: Check env var BEFORE constructor (rig-core panics without it)
+                        if std::env::var("GROQ_API_KEY").is_ok() {
+                            let p = RigProvider::groq();
+                            if p.is_configured() {
+                                Some(p)
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
                     }
                     "deepseek" => {
-                        let p = RigProvider::deepseek();
-                        if p.is_configured() {
-                            Some(p)
+                        // v0.8.4: Check env var BEFORE constructor (rig-core panics without it)
+                        if std::env::var("DEEPSEEK_API_KEY").is_ok() {
+                            let p = RigProvider::deepseek();
+                            if p.is_configured() {
+                                Some(p)
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }

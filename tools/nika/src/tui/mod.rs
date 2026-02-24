@@ -72,6 +72,8 @@ mod unicode;
 #[cfg(feature = "tui")]
 mod utils;
 #[cfg(feature = "tui")]
+pub mod startup;
+#[cfg(feature = "tui")]
 mod verification;
 #[cfg(feature = "tui")]
 mod views;
