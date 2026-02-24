@@ -1475,8 +1475,9 @@ impl App {
                 Action::Continue
             }
             ViewAction::VerifyProviders => {
-                // Spawn async provider verification (v0.8.2)
+                // Spawn async verification for providers and MCP servers (v0.8.2)
                 self.spawn_provider_verification();
+                self.spawn_mcp_verification();
                 Action::Continue
             }
         }
@@ -3239,6 +3240,80 @@ impl App {
                     None => {
                         // Not configured - leave as Unknown status
                         tracing::debug!(provider = %provider_id, "Provider not configured");
+                    }
+                }
+            });
+        }
+    }
+
+    /// Spawn async MCP server verification tasks (v0.8.2)
+    ///
+    /// Pings all configured MCP servers in parallel, sending StreamChunk events
+    /// to update the session context display in real-time.
+    fn spawn_mcp_verification(&self) {
+        let Some(mcp_configs) = &self.mcp_configs else {
+            tracing::debug!("No MCP servers configured, skipping verification");
+            return;
+        };
+
+        let tx = self.stream_chunk_tx.clone();
+        let configs: Vec<_> = mcp_configs
+            .iter()
+            .map(|(name, config)| (name.clone(), config.clone()))
+            .collect();
+
+        for (server_name, config) in configs {
+            let tx = tx.clone();
+
+            // Send pinging event
+            let _ = tx.try_send(StreamChunk::McpPinging {
+                server: server_name.clone(),
+            });
+
+            let server_name_for_config = server_name.clone();
+            self.spawn_tracked(async move {
+                use crate::mcp::{McpClient, McpConfig};
+
+                // Build MCP config from inline config
+                let mut mcp_config = McpConfig::new(&server_name_for_config, &config.command);
+                for arg in &config.args {
+                    mcp_config = mcp_config.with_arg(arg);
+                }
+                for (key, value) in &config.env {
+                    mcp_config = mcp_config.with_env(key, value);
+                }
+                if let Some(cwd) = &config.cwd {
+                    mcp_config = mcp_config.with_cwd(cwd);
+                }
+
+                // Create client and ping
+                match McpClient::new(mcp_config) {
+                    Ok(client) => match client.ping().await {
+                        Ok(result) => {
+                            let _ = tx
+                                .send(StreamChunk::McpPinged {
+                                    server: server_name,
+                                    latency_ms: result.latency.as_millis() as u64,
+                                    tool_count: result.tool_count,
+                                })
+                                .await;
+                        }
+                        Err(e) => {
+                            let _ = tx
+                                .send(StreamChunk::McpError {
+                                    server_name,
+                                    error: e.to_string(),
+                                })
+                                .await;
+                        }
+                    },
+                    Err(e) => {
+                        let _ = tx
+                            .send(StreamChunk::McpError {
+                                server_name,
+                                error: e.to_string(),
+                            })
+                            .await;
                     }
                 }
             });
