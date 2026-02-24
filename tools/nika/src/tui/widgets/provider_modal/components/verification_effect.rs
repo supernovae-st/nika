@@ -15,9 +15,9 @@ use ratatui::{
 
 /// Half-width Katakana for Matrix effect (single-cell width)
 const MATRIX_KATAKANA: &[char] = &[
-    'ｱ', 'ｲ', 'ｳ', 'ｴ', 'ｵ', 'ｶ', 'ｷ', 'ｸ', 'ｹ', 'ｺ', 'ｻ', 'ｼ', 'ｽ', 'ｾ', 'ｿ', 'ﾀ', 'ﾁ', 'ﾂ',
-    'ﾃ', 'ﾄ', 'ﾅ', 'ﾆ', 'ﾇ', 'ﾈ', 'ﾉ', 'ﾊ', 'ﾋ', 'ﾌ', 'ﾍ', 'ﾎ', 'ﾏ', 'ﾐ', 'ﾑ', 'ﾒ', 'ﾓ', 'ﾔ',
-    'ﾕ', 'ﾖ', 'ﾗ', 'ﾘ', 'ﾙ', 'ﾚ', 'ﾛ', 'ﾜ', 'ﾝ',
+    'ｱ', 'ｲ', 'ｳ', 'ｴ', 'ｵ', 'ｶ', 'ｷ', 'ｸ', 'ｹ', 'ｺ', 'ｻ', 'ｼ', 'ｽ', 'ｾ', 'ｿ', 'ﾀ', 'ﾁ', 'ﾂ', 'ﾃ',
+    'ﾄ', 'ﾅ', 'ﾆ', 'ﾇ', 'ﾈ', 'ﾉ', 'ﾊ', 'ﾋ', 'ﾌ', 'ﾍ', 'ﾎ', 'ﾏ', 'ﾐ', 'ﾑ', 'ﾒ', 'ﾓ', 'ﾔ', 'ﾕ', 'ﾖ',
+    'ﾗ', 'ﾘ', 'ﾙ', 'ﾚ', 'ﾛ', 'ﾜ', 'ﾝ',
 ];
 
 /// ASCII characters for variety
@@ -44,9 +44,9 @@ impl VerifyStatus {
     /// Get color for this status
     pub fn color(&self) -> Color {
         match self {
-            VerifyStatus::Checking => Color::Rgb(99, 102, 241),   // Indigo (checking)
-            VerifyStatus::Connected => Color::Rgb(34, 197, 94),   // Green (success)
-            VerifyStatus::Failed => Color::Rgb(239, 68, 68),      // Red (error)
+            VerifyStatus::Checking => Color::Rgb(99, 102, 241), // Indigo (checking)
+            VerifyStatus::Connected => Color::Rgb(34, 197, 94), // Green (success)
+            VerifyStatus::Failed => Color::Rgb(239, 68, 68),    // Red (error)
             VerifyStatus::NotConfigured => Color::Rgb(107, 114, 128), // Gray (not set)
         }
     }
@@ -84,7 +84,10 @@ impl VerifyEntry {
             status: VerifyStatus::Checking,
             frame: 0,
             progress: 0.0,
-            seed: name.as_bytes().iter().fold(0u64, |acc, &b| acc.wrapping_add(b as u64)),
+            seed: name
+                .as_bytes()
+                .iter()
+                .fold(0u64, |acc, &b| acc.wrapping_add(b as u64)),
         }
     }
 
@@ -143,10 +146,10 @@ impl VerifyEntry {
                 // Scrambled - show matrix character with flickering color
                 let scrambled = self.scramble_char(i, &mut rng);
                 let colors = [
-                    Color::Rgb(34, 197, 94),   // Green
-                    Color::Rgb(74, 222, 128),  // Light green
-                    Color::Rgb(22, 163, 74),   // Dark green
-                    Color::Rgb(99, 102, 241),  // Indigo
+                    Color::Rgb(34, 197, 94),  // Green
+                    Color::Rgb(74, 222, 128), // Light green
+                    Color::Rgb(22, 163, 74),  // Dark green
+                    Color::Rgb(99, 102, 241), // Indigo
                 ];
                 let color = colors[rng.gen_range(0..colors.len())];
                 result.push((scrambled, color));
@@ -209,12 +212,7 @@ impl Widget for VerificationEffect<'_> {
             // Status indicator
             if self.show_indicator {
                 let indicator = entry.status.indicator();
-                buf.set_string(
-                    x,
-                    y,
-                    indicator,
-                    Style::default().fg(entry.status.color()),
-                );
+                buf.set_string(x, y, indicator, Style::default().fg(entry.status.color()));
                 x += 2; // Indicator + space
             }
 
@@ -319,7 +317,9 @@ impl VerificationState {
 
     /// Get provider index by name
     pub fn index_of(&self, name: &str) -> Option<usize> {
-        self.entries.iter().position(|e| e.name.eq_ignore_ascii_case(name))
+        self.entries
+            .iter()
+            .position(|e| e.name.eq_ignore_ascii_case(name))
     }
 
     /// Reset all entries
@@ -344,7 +344,10 @@ mod tests {
     fn test_verify_status_colors() {
         assert_eq!(VerifyStatus::Connected.color(), Color::Rgb(34, 197, 94));
         assert_eq!(VerifyStatus::Failed.color(), Color::Rgb(239, 68, 68));
-        assert_eq!(VerifyStatus::NotConfigured.color(), Color::Rgb(107, 114, 128));
+        assert_eq!(
+            VerifyStatus::NotConfigured.color(),
+            Color::Rgb(107, 114, 128)
+        );
         assert_eq!(VerifyStatus::Checking.color(), Color::Rgb(99, 102, 241));
     }
 
@@ -474,10 +477,7 @@ mod tests {
 
     #[test]
     fn test_verification_effect_renders() {
-        let entries = vec![
-            VerifyEntry::new("Claude"),
-            VerifyEntry::new("OpenAI"),
-        ];
+        let entries = vec![VerifyEntry::new("Claude"), VerifyEntry::new("OpenAI")];
         let effect = VerificationEffect::new(&entries);
 
         let mut buf = Buffer::empty(Rect::new(0, 0, 40, 5));
@@ -544,8 +544,11 @@ mod tests {
     fn test_katakana_chars_valid() {
         // Verify all katakana are valid half-width
         for &ch in MATRIX_KATAKANA {
-            assert!(ch as u32 >= 0xFF61 && ch as u32 <= 0xFF9F,
-                    "Character {} is not half-width katakana", ch);
+            assert!(
+                ch as u32 >= 0xFF61 && ch as u32 <= 0xFF9F,
+                "Character {} is not half-width katakana",
+                ch
+            );
         }
     }
 

@@ -70,7 +70,9 @@ impl<'a> ProviderModal<'a> {
 
     fn render_footer(&self, area: Rect, buf: &mut Buffer) {
         let hints = match self.state.active_tab {
-            ProviderModalTab::Cloud => "[hjkl] Navigate │ [Enter] Select │ [Tab] Next │ [Esc] Close",
+            ProviderModalTab::Cloud => {
+                "[hjkl] Navigate │ [Enter] Select │ [Tab] Next │ [Esc] Close"
+            }
             ProviderModalTab::Ollama => "[jk] Navigate │ [p] Pull │ [d] Delete │ [Esc] Close",
             ProviderModalTab::Keys => "[jk] Navigate │ [Enter] Edit │ [t] Test │ [Esc] Close",
             ProviderModalTab::Config => "[jk] Navigate │ [Enter] Toggle │ [Esc] Close",

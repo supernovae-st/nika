@@ -44,7 +44,9 @@ use crate::tui::standalone::{BrowserEntry, StandaloneState};
 use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
-use crate::tui::widgets::{DagAscii, MatrixRain, NodeBoxData, NodeBoxMode, Timeline, TimelineEntry};
+use crate::tui::widgets::{
+    DagAscii, MatrixRain, NodeBoxData, NodeBoxMode, Timeline, TimelineEntry,
+};
 
 /// Home view state
 pub struct HomeView {

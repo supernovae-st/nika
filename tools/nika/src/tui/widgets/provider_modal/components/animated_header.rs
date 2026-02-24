@@ -20,11 +20,11 @@ const STAR_FRAMES: &[&[&str]] = &[
 
 /// Colors for gradient effect (indigo → purple → pink)
 const GRADIENT_COLORS: &[Color] = &[
-    Color::Rgb(99, 102, 241),  // Indigo
-    Color::Rgb(139, 92, 246),  // Purple
-    Color::Rgb(236, 72, 153),  // Pink
-    Color::Rgb(139, 92, 246),  // Purple
-    Color::Rgb(99, 102, 241),  // Indigo
+    Color::Rgb(99, 102, 241), // Indigo
+    Color::Rgb(139, 92, 246), // Purple
+    Color::Rgb(236, 72, 153), // Pink
+    Color::Rgb(139, 92, 246), // Purple
+    Color::Rgb(99, 102, 241), // Indigo
 ];
 
 /// Animated cosmic header widget
@@ -88,10 +88,7 @@ impl AnimatedHeader {
         let stars = self.current_stars();
         let left_stars: String = stars[..5].join("");
         let right_stars: String = stars[5..].join("");
-        format!(
-            "{}   ◆ {}   {}",
-            left_stars, self.title, right_stars
-        )
+        format!("{}   ◆ {}   {}", left_stars, self.title, right_stars)
     }
 }
 

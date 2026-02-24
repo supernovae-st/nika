@@ -75,7 +75,6 @@ use crate::tui::widgets::{
     HelpOverlayState,
     InferStreamData,
     MatrixRain,
-    NikaIntroState,
     McpCallData,
     McpCallStatus,
     McpServerInfo,
@@ -89,6 +88,7 @@ use crate::tui::widgets::{
     MentionType,
     MissionControlPanel,
     ModalEventHandler,
+    NikaIntroState,
     ParsedInput,
     ProStatusBar,
     Provider,
@@ -596,23 +596,26 @@ impl ChatView {
             .mcp_servers
             .push(McpServerInfo::new("novanet"));
 
-        // v0.9.2: Stylish ASCII art welcome banner with decorations
+        // v0.9.4: Clean welcome banner - verb boxes rendered separately with colors
+        // v0.9.5: Wider text lines (~70 chars), dotted separator for light effect
         let welcome_banner = r#"
-  ✨ ─────────────────────────────────── ✨
+  ███╗   ██╗██╗██╗  ██╗ █████╗
+  ████╗  ██║██║██║ ██╔╝██╔══██╗
+  ██╔██╗ ██║██║█████╔╝ ███████║
+  ██║╚██╗██║██║██╔═██╗ ██╔══██║
+  ██║ ╚████║██║██║  ██╗██║  ██║
+  ╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
 
-       ███╗   ██╗██╗██╗  ██╗ █████╗
-       ████╗  ██║██║██║ ██╔╝██╔══██╗
-    🦋 ██╔██╗ ██║██║█████╔╝ ███████║ 🦋
-       ██║╚██╗██║██║██╔═██╗ ██╔══██║
-       ██║ ╚████║██║██║  ██╗██║  ██║
-       ╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
+  🦋 Workflow Engine  ·  💫 Semantic AI  ·  🦀 Rust
 
-    🦀 Workflow Engine  ·  💫 Semantic AI
+  Semantic DAG runtime where everything is a workflow. Chat, pipelines, agents —
+  all execute as dependency graphs. Write in YAML, stream from any LLM, orchestrate
+  MCP tools. Event-sourced. Async Rust · rig-core · tokio.
 
-  ✨ ─────────────────────────────────── ✨
+  · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·
 
-  Type a message to chat, or use /help for commands.
-  ⚡ infer · 📟 exec · 🛰️ fetch · 🔌 invoke · 🐔 agent"#;
+  Type a message to chat, or /help for commands.
+"#;
 
         Self {
             messages: vec![ChatMessage {
@@ -679,11 +682,11 @@ impl ChatView {
                 .with_initial_chaos(15),
             matrix_effect_enabled: true, // Enable by default
             // v0.9.1: NIKA butterfly pattern + explosion
-            rain_opacity: 1.0, // Start visible for NIKA pattern
-            rain_fading: false, // Pattern handles its own fade
+            rain_opacity: 1.0,                  // Start visible for NIKA pattern
+            rain_fading: false,                 // Pattern handles its own fade
             intro_state: NikaIntroState::new(), // Legacy (kept for compatibility)
-            explosion_frame: 0,    // v0.9.1: Start with NIKA pattern visible
-            nika_pattern_visible: true, // v0.9.1: Show NIKA pattern at start
+            explosion_frame: 0,                 // v0.9.1: Start with NIKA pattern visible
+            nika_pattern_visible: true,         // v0.9.1: Show NIKA pattern at start
 
             // v0.8.1 Agent Phase Tracking
             agent_phase: AgentPhase::Idle,
@@ -4537,15 +4540,21 @@ impl ChatView {
                     MessageRole::Tool => "🔧 Tool ",
                 };
 
-                // v0.9 UX: Format timestamp as HH:MM
-                let ts_str = msg.timestamp.format("%H:%M").to_string();
+                // v0.9.5 UX: Format timestamp as HH:MM:SS.mmm (with seconds and milliseconds)
+                let ts_str = msg.timestamp.format("%H:%M:%S%.3f").to_string();
+
+                // v0.9.5: Dynamic separator at 75% width for visual balance
+                // Leaves breathing room on the right side
+                let separator_len = (content_width * 75 / 100).saturating_sub(20); // 75% minus prefix+timestamp
+                let dynamic_separator = "─".repeat(separator_len);
 
                 // v0.8 WOW: Add COPIED indicator when flashing
+                // v0.9.5: Clock emoji before timestamp
                 let mut header_spans = vec![
                     Span::styled(prefix_with_space, style.add_modifier(Modifier::BOLD)),
-                    Span::styled(SEPARATOR_20, Style::default().fg(theme.text_muted)),
+                    Span::styled(dynamic_separator, Style::default().fg(theme.text_muted)),
                     Span::styled(
-                        format!(" {} ", ts_str),
+                        format!(" 🕐 {} ", ts_str),
                         Style::default().fg(theme.text_muted),
                     ),
                 ];
@@ -4567,8 +4576,28 @@ impl ChatView {
                 });
 
                 // v0.8.1 FIX: Wrap message content to fit panel width
-                // Use wrap_text for proper word wrapping
-                let wrapped_lines = wrap_text(&msg.content, content_width);
+                // v0.9.5: Smart wrap for System message - preserve ASCII art, wrap text
+                let wrapped_lines: Vec<String> = if idx == 0 && matches!(msg.role, MessageRole::System) {
+                    // For System banner: keep ASCII art lines intact, wrap text lines
+                    let mut result = Vec::new();
+                    for line in msg.content.lines() {
+                        // ASCII art detection: contains block chars (█╔╗╚╝║═╭╮╰╯─┌┐└┘│)
+                        let is_ascii_art = line.chars().any(|c| {
+                            matches!(c, '█' | '╔' | '╗' | '╚' | '╝' | '║' | '═' |
+                                       '╭' | '╮' | '╰' | '╯' | '─' | '┌' | '┐' |
+                                       '└' | '┘' | '│' | '▀' | '▄' | '░' | '▒' | '▓')
+                        });
+                        if is_ascii_art || line.len() <= content_width {
+                            result.push(line.to_string());
+                        } else {
+                            // Word-wrap long text lines
+                            result.extend(wrap_text(line, content_width));
+                        }
+                    }
+                    result
+                } else {
+                    wrap_text(&msg.content, content_width)
+                };
 
                 // v0.8 Text Selection: Track char offset for selection highlighting
                 let mut char_offset = 0usize;
@@ -4614,6 +4643,70 @@ impl ChatView {
                     ])));
 
                     char_offset += line_len + 1; // +1 for newline/wrap
+                }
+
+                // v0.9.5: Add colored verb boxes after welcome banner (first System message)
+                // Emoji widths are hardcoded per verb for perfect alignment
+                if idx == 0 && matches!(msg.role, MessageRole::System) {
+                    // Empty line before boxes
+                    lines.push(ListItem::new(Line::from(vec![Span::styled(
+                        "│ ",
+                        Style::default().fg(color),
+                    )])));
+
+                    // Verb boxes with pre-computed content for consistent alignment
+                    // Each box has: ┌────────────┐ (14 chars total: 12 dashes + 2 corners)
+                    //               │ ⚡ /verb  │ (inner content = 12 display cols)
+                    //               └────────────┘
+                    // Emoji display widths: ⚡=2, 📟=2, 📡=2, 🔌=2, 🐔=2
+                    // Formula: space(1) + emoji(2) + space(1) + /name(N+1) + padding = 12
+                    let verbs: [(VerbColor, &str); 5] = [
+                        (VerbColor::Infer, " ⚡ /infer  "),  // 1+2+1+6+2 = 12
+                        (VerbColor::Exec, " 📟 /exec   "),   // 1+2+1+5+3 = 12
+                        (VerbColor::Fetch, " 📡 /fetch  "),  // 1+2+1+6+2 = 12
+                        (VerbColor::Invoke, " 🔌 /invoke "), // 1+2+1+7+1 = 12
+                        (VerbColor::Agent, " 🐔 /agent  "),  // 1+2+1+6+2 = 12
+                    ];
+
+                    let box_border = "────────────"; // 12 dashes
+
+                    // Top borders line (2-space indent to align with banner)
+                    let mut top_spans = vec![Span::styled("│  ", Style::default().fg(color))];
+                    for (verb_color, _) in &verbs {
+                        let c = verb_color.rgb();
+                        top_spans.push(Span::styled(
+                            format!("┌{}┐", box_border),
+                            Style::default().fg(c),
+                        ));
+                        top_spans.push(Span::raw(" ")); // 1 space gap
+                    }
+                    lines.push(ListItem::new(Line::from(top_spans)));
+
+                    // Content line with emojis and names
+                    let mut content_spans = vec![Span::styled("│  ", Style::default().fg(color))];
+                    for (verb_color, content) in &verbs {
+                        let c = verb_color.rgb();
+                        content_spans.push(Span::styled("│", Style::default().fg(c)));
+                        content_spans.push(Span::styled(
+                            *content,
+                            Style::default().fg(c).add_modifier(Modifier::BOLD),
+                        ));
+                        content_spans.push(Span::styled("│", Style::default().fg(c)));
+                        content_spans.push(Span::raw(" ")); // 1 space gap
+                    }
+                    lines.push(ListItem::new(Line::from(content_spans)));
+
+                    // Bottom borders line
+                    let mut bottom_spans = vec![Span::styled("│  ", Style::default().fg(color))];
+                    for (verb_color, _) in &verbs {
+                        let c = verb_color.rgb();
+                        bottom_spans.push(Span::styled(
+                            format!("└{}┘", box_border),
+                            Style::default().fg(c),
+                        ));
+                        bottom_spans.push(Span::raw(" ")); // 1 space gap
+                    }
+                    lines.push(ListItem::new(Line::from(bottom_spans)));
                 }
 
                 // Add thinking display if present (v0.5.2+, v0.9: visibility toggle)

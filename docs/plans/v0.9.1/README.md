@@ -252,7 +252,7 @@ v0.9.2 — @mention Bindings (10 tasks, 35 tests)
 v0.9.3 — Builtin Tools (10 tasks, 45 tests)
     │    6 nika:* tools (export, history, etc.)
     ▼
-v0.9.4 — DAG Panel + TaskBox (8 tasks + 58 widget tasks, 25 + 208 tests)
+v0.9.4 — DAG Panel + TaskBox (8 tasks + 58 widget tasks, 25 + 210 tests)
     │    TUI visualization, 5 verb widgets
     ▼
 v0.9.5 — Polish & Export (6 tasks, 18 tests)
@@ -295,16 +295,16 @@ v0.14.x — Multi-agent orchestration
 | v0.9.4 DAG Panel | 8 | 25 |
 | v0.9.5 Polish | 6 | 18 |
 | **v0.9.x Core Subtotal** | **46** | **169** |
-| TaskBox Foundation (v0.9.4a) | 15 | 60 |
+| TaskBox Foundation (v0.9.4a) | 15 | 62 |
 | InferBox (v0.9.4b) | 10 | 35 |
 | ExecBox (v0.9.4c) | 9 | 30 |
 | FetchBox (v0.9.4d) | 8 | 28 |
 | InvokeBox (v0.9.4e) | 8 | 25 |
 | AgentBox (v0.9.4f) | 8 | 30 |
-| **TaskBox Subtotal** | **58** | **208** |
-| **TOTAL NEW** | **112** | **433** |
+| **TaskBox Subtotal** | **58** | **210** |
+| **TOTAL NEW** | **112** | **435** |
 | Existing tests | — | 1,902 |
-| **FINAL** | — | **2,335** |
+| **FINAL** | — | **2,337** |
 
 ---
 

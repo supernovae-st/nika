@@ -429,7 +429,25 @@ impl RunTool {
 
         // Resolve path relative to project root
         let workflow_path = self.project_root.join(&params.path);
-        if !workflow_path.exists() {
+
+        // SECURITY: Path traversal protection
+        // Canonicalize to resolve ../.. and ensure path stays within project
+        let canonical_path = workflow_path.canonicalize()
+            .map_err(|_| ToolError::ExecutionError(
+                format!("Workflow not found: {}", params.path)
+            ))?;
+        let canonical_root = self.project_root.canonicalize()
+            .map_err(|e| ToolError::ExecutionError(
+                format!("Failed to resolve project root: {}", e)
+            ))?;
+
+        if !canonical_path.starts_with(&canonical_root) {
+            return Err(ToolError::ExecutionError(
+                format!("Path traversal denied: {} escapes project root", params.path)
+            ));
+        }
+
+        if !canonical_path.exists() {
             return Err(ToolError::ExecutionError(
                 format!("Workflow not found: {}", params.path)
             ));
@@ -905,6 +923,7 @@ pub enum BuiltinErrorCode {
     WorkflowNotFound = 220,   // File doesn't exist
     WorkflowParseFailed = 221, // Invalid YAML
     SubWorkflowFailed = 222,  // Child workflow error
+    PathTraversalDenied = 223, // Path escapes project root (../../)
 
     // NIKA-230: nika:sleep
     DurationTooLong = 230,    // Exceeds 1 hour
@@ -933,6 +952,7 @@ impl From<BuiltinErrorCode> for u16 {
 | NIKA-201 | `[NIKA-201] Unknown builtin tool: {tool}` |
 | NIKA-210 | `[NIKA-210] Prompt timeout after {timeout}s waiting for user input` |
 | NIKA-220 | `[NIKA-220] Workflow not found: {path}` |
+| NIKA-223 | `[NIKA-223] Path traversal denied: {path} escapes project root` |
 | NIKA-230 | `[NIKA-230] Duration exceeds maximum (1 hour): {duration}` |
 | NIKA-240 | `[NIKA-240] Assertion failed: {condition}` |
 
@@ -995,13 +1015,13 @@ pub enum EventKind {
 | Tool | Test Cases | Count |
 |------|------------|-------|
 | `nika:prompt` | types (confirm/text/select/multiselect), timeout, headless, validation | 12 |
-| `nika:run` | valid path, invalid path, inputs, isolated/shared store | 10 |
+| `nika:run` | valid path, invalid path, inputs, isolated/shared store, path traversal denied | 11 |
 | `nika:sleep` | durations (s/m/ms), max limit, invalid format | 8 |
 | `nika:log` | levels, data serialization, tracing integration | 6 |
 | `nika:assert` | operators (==, >, <, etc.), binding resolution, failure | 10 |
 | `nika:emit` | event names, data payloads, EventLog verification | 6 |
 | **Router** | prefix detection, dispatch, unknown tool, definitions | 8 |
-| **Total** | | **60** |
+| **Total** | | **61** |
 
 ### 6.2 Integration Tests
 

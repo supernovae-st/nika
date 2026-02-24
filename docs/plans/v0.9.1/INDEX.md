@@ -48,12 +48,12 @@
 |---------|------|-------|-------|-------|
 | **v0.9.0** | [v0.9.0-StableGraph.md](./v0.9.0-StableGraph.md) | StableGraph migration | 6 | 25 |
 | **v0.9.1** | [v0.9.1-ChatWorkflow.md](./v0.9.1-ChatWorkflow.md) | ChatWorkflow struct | 6 | 21 |
-| **v0.9.2** | [v0.9.2-MentionBindings.md](./v0.9.2-MentionBindings.md) | @mention parser | 10 | 35 |
+| **v0.9.2** | [v0.9.2-MentionBindings.md](./v0.9.2-MentionBindings.md) | @mention parser | 10 | 40 |
 | **v0.9.3** | [v0.9.3-BuiltinTools.md](./v0.9.3-BuiltinTools.md) | 6 nika:* tools | 10 | 45 |
 | **v0.9.4** | [v0.9.4-DagPanel.md](./v0.9.4-DagPanel.md) | TUI DAG widget | 8 | 25 |
 | **v0.9.5** | [v0.9.5-Polish.md](./v0.9.5-Polish.md) | Animations, export | 6 | 18 |
 
-**Totals:** 46 tasks, 169 tests, 9 sessions (+ v0.8.9: 8 tasks, 56 tests)
+**Totals:** 46 tasks, 174 tests, 9 sessions (+ v0.8.9: 8 tasks, 56 tests)
 
 ---
 
@@ -67,13 +67,13 @@ The 5 semantic verbs have visual representations as **TaskBox** widgets. These a
 
 | Spec | Verb | Icon | Color | Tasks | Tests |
 |------|------|------|-------|-------|-------|
-| [v0.9.4a-TaskBoxFoundation](./v0.9.4a-TaskBoxFoundation.md) | — | — | — | 15 | 60 |
+| [v0.9.4a-TaskBoxFoundation](./v0.9.4a-TaskBoxFoundation.md) | — | — | — | 15 | 62 |
 | [v0.9.4b-InferBox](./v0.9.4b-InferBox.md) | `infer:` | ⚡ | Violet #8b5cf6 | 10 | 35 |
 | [v0.9.4c-ExecBox](./v0.9.4c-ExecBox.md) | `exec:` | 📟 | Amber #f59e0b | 9 | 30 |
 | [v0.9.4d-FetchBox](./v0.9.4d-FetchBox.md) | `fetch:` | 🛰️ | Cyan #06b6d4 | 8 | 28 |
 | [v0.9.4e-InvokeBox](./v0.9.4e-InvokeBox.md) | `invoke:` | 🔌 | Emerald #10b981 | 8 | 25 |
 | [v0.9.4f-AgentBox](./v0.9.4f-AgentBox.md) | `agent:` | 🐔/🐤 | Rose #f43f5e | 8 | 30 |
-| **TaskBox Totals** | **5 verbs** | — | — | **58** | **208** |
+| **TaskBox Totals** | **5 verbs** | — | — | **58** | **210** |
 
 ### TaskBox Implementation Order
 
@@ -321,9 +321,9 @@ Step 6: Update CHANGELOG     → Add release notes
 | Metric | Target |
 |--------|--------|
 | New tests (DX prep v0.8.9) | 56 |
-| New tests (core v0.9.x) | 169 |
-| New tests (TaskBox widgets) | 208 |
-| **Total new tests** | **433** |
+| New tests (core v0.9.x) | 174 |
+| New tests (TaskBox widgets) | 210 |
+| **Total new tests** | **440** |
 | Existing tests | 1,902 unchanged |
 | WIRING checkpoints | 6 passing |
 | clippy warnings | 0 |
@@ -338,9 +338,9 @@ Step 6: Update CHANGELOG     → Add release notes
 | Component | Tasks | Tests | Effort |
 |-----------|-------|-------|--------|
 | **v0.8.9 (DX Prep)** | 8 | 56 | ~4 hours |
-| v0.9.0-v0.9.5 (core) | 46 | 169 | 9 sessions |
-| TaskBox widgets (v0.9.4*) | 58 | 208 | ~14 hours |
-| **Total** | **112** | **433** | — |
+| v0.9.0-v0.9.5 (core) | 46 | 174 | 9 sessions |
+| TaskBox widgets (v0.9.4*) | 58 | 210 | ~14 hours |
+| **Total** | **112** | **440** | — |
 
 **Enhanced:**
 - Foundation spec: StreamChunk wiring, 5 performance patterns, 5 test patterns, memory bounds

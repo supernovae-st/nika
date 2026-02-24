@@ -42,16 +42,12 @@ const NIKA_ASCII: &[&str] = &[
 ];
 
 /// Alternative smaller logo for compact terminals
-const NIKA_SMALL: &[&str] = &[
-    "╔╗╔ ╦ ╦╔═ ╔═╗",
-    "║║║ ║ ╠╩╗ ╠═╣",
-    "╝╚╝ ╩ ╩ ╩ ╩ ╩",
-];
+const NIKA_SMALL: &[&str] = &["╔╗╔ ╦ ╦╔═ ╔═╗", "║║║ ║ ╠╩╗ ╠═╣", "╝╚╝ ╩ ╩ ╩ ╩ ╩"];
 
 /// Particle characters for explosion effect
 const EXPLOSION_CHARS: &[char] = &[
-    '█', '▓', '▒', '░', '╬', '╫', '╪', '┼', '╋', '┃', '━', '┏', '┓', '┗', '┛',
-    '◆', '◇', '○', '●', '◐', '◑', '◒', '◓', '★', '☆', '✦', '✧',
+    '█', '▓', '▒', '░', '╬', '╫', '╪', '┼', '╋', '┃', '━', '┏', '┓', '┗', '┛', '◆', '◇', '○', '●',
+    '◐', '◑', '◒', '◓', '★', '☆', '✦', '✧',
 ];
 
 /// Explosion colors (bright to faded)
