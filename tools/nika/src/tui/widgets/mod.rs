@@ -31,6 +31,7 @@ mod help_overlay;
 mod infer_stream_box;
 mod matrix_decrypt;
 mod matrix_rain;
+mod matrix_rain_reveal;
 mod mcp_call_box;
 mod mcp_log;
 mod mention_system;
@@ -43,6 +44,7 @@ mod session_context;
 mod sparkline;
 mod status_bar;
 mod status_message;
+pub mod task_box;
 mod terminal_size;
 mod timeline;
 mod verb_input;
@@ -98,8 +100,10 @@ pub use mention_system::{
     MentionTrigger, MentionType,
 };
 // Agent steps for Claude Code-like feedback (v0.7.3, enhanced v0.8)
+// v0.8.1: Added AgentPhase and AgentPhaseIndicator for real-time status
 pub use agent_steps::{
-    AgentStep, AgentStepGroup, AgentStepsWidget, StepStatus, TokenUsage, ToolCallMetadata,
+    AgentPhase, AgentPhaseIndicator, AgentStep, AgentStepGroup, AgentStepsWidget, StepStatus,
+    TokenUsage, ToolCallMetadata,
 };
 // Terminal size handling (v0.8 - graceful degradation)
 pub use terminal_size::{
@@ -116,3 +120,10 @@ pub use big_text::{BigText, BigTextGradient, GradientType};
 pub use matrix_rain::MatrixRain;
 // Matrix Decrypt effect (v0.8 - streaming text reveal with verb themes)
 pub use matrix_decrypt::{DecryptVerb, MatrixDecrypt, MultiLineDecrypt, StreamingDecrypt};
+// Matrix Rain Reveal effect (v0.8.1 - falling rain + sparks + wave reveal)
+pub use matrix_rain_reveal::MatrixRainReveal;
+// Task Box widgets (v0.8.2 - structured verb boxes)
+pub use task_box::{
+    exit, http, status, AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,
+    TaskBoxWidget, VerbColor, BRAILLE_SPINNER,
+};

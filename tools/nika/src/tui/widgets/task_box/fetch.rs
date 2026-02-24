@@ -1,0 +1,458 @@
+//! FetchBox Widget
+//!
+//! HTTP request box with request/response details.
+//! Shows method, URL, headers, body, status, and timing.
+
+use std::collections::HashMap;
+
+use ratatui::{
+    buffer::Buffer,
+    layout::Rect,
+    style::{Color, Style},
+    widgets::Widget,
+};
+
+use super::{http, BoxState, VerbColor};
+
+/// FetchBox data and rendering
+#[derive(Debug, Clone)]
+pub struct FetchBox {
+    /// HTTP method (GET, POST, etc.)
+    pub method: String,
+    /// Request URL
+    pub url: String,
+    /// Request headers
+    pub request_headers: HashMap<String, String>,
+    /// Request body (if any)
+    pub request_body: Option<String>,
+    /// HTTP status code
+    pub status_code: Option<u16>,
+    /// Response body
+    pub response_body: Option<String>,
+    /// Response size in bytes
+    pub response_size: u64,
+    /// Time to first byte (ms)
+    pub ttfb_ms: u64,
+    /// Retry count
+    pub retries: u32,
+    /// Execution state
+    pub state: BoxState,
+    /// Is request section expanded
+    pub expanded_request: bool,
+    /// Is response section expanded
+    pub expanded_response: bool,
+}
+
+impl FetchBox {
+    /// Create a new FetchBox
+    pub fn new(method: impl Into<String>, url: impl Into<String>) -> Self {
+        Self {
+            method: method.into(),
+            url: url.into(),
+            request_headers: HashMap::new(),
+            request_body: None,
+            status_code: None,
+            response_body: None,
+            response_size: 0,
+            ttfb_ms: 0,
+            retries: 0,
+            state: BoxState::default(),
+            expanded_request: false,
+            expanded_response: false,
+        }
+    }
+
+    /// Set the state
+    pub fn with_state(mut self, state: BoxState) -> Self {
+        self.state = state;
+        self
+    }
+
+    /// Add a request header
+    pub fn with_header(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.request_headers.insert(key.into(), value.into());
+        self
+    }
+
+    /// Set request body
+    pub fn with_request_body(mut self, body: impl Into<String>) -> Self {
+        self.request_body = Some(body.into());
+        self
+    }
+
+    /// Set response status code
+    pub fn with_status(mut self, code: u16) -> Self {
+        self.status_code = Some(code);
+        self
+    }
+
+    /// Set response body
+    pub fn with_response_body(mut self, body: impl Into<String>) -> Self {
+        self.response_body = Some(body.into());
+        self
+    }
+
+    /// Set response size
+    pub fn with_response_size(mut self, size: u64) -> Self {
+        self.response_size = size;
+        self
+    }
+
+    /// Set TTFB
+    pub fn with_ttfb(mut self, ttfb_ms: u64) -> Self {
+        self.ttfb_ms = ttfb_ms;
+        self
+    }
+
+    /// Set retry count
+    pub fn with_retries(mut self, retries: u32) -> Self {
+        self.retries = retries;
+        self
+    }
+
+    /// Toggle request expansion
+    pub fn toggle_request(&mut self) {
+        self.expanded_request = !self.expanded_request;
+    }
+
+    /// Toggle response expansion
+    pub fn toggle_response(&mut self) {
+        self.expanded_response = !self.expanded_response;
+    }
+
+    /// Calculate required height
+    pub fn required_height(&self) -> u16 {
+        let mut height: u16 = 5; // Header + method/url + request header + response header + footer
+
+        // Request section
+        if self.expanded_request {
+            height += self.request_headers.len() as u16;
+            if self.request_body.is_some() {
+                height += 1;
+            }
+        }
+
+        // Response section
+        if self.expanded_response && self.response_body.is_some() {
+            height += 3; // Some response lines
+        }
+
+        height
+    }
+
+    /// Truncate string preserving UTF-8
+    fn truncate(s: &str, max_len: usize) -> String {
+        let char_count = s.chars().count();
+        if char_count > max_len && max_len > 3 {
+            let truncated: String = s.chars().take(max_len - 3).collect();
+            format!("{}...", truncated)
+        } else {
+            s.to_string()
+        }
+    }
+
+    /// Format bytes for display
+    fn format_bytes(bytes: u64) -> String {
+        if bytes < 1024 {
+            format!("{} B", bytes)
+        } else if bytes < 1024 * 1024 {
+            format!("{:.1} KB", bytes as f64 / 1024.0)
+        } else {
+            format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+        }
+    }
+
+    /// Mask sensitive header values
+    fn mask_header_value(key: &str, value: &str) -> String {
+        let sensitive_keys = ["authorization", "x-api-key", "cookie", "set-cookie"];
+        if sensitive_keys
+            .iter()
+            .any(|k| key.to_lowercase().contains(k))
+        {
+            "***".to_string()
+        } else if value.len() > 50 {
+            Self::truncate(value, 50)
+        } else {
+            value.to_string()
+        }
+    }
+}
+
+impl Widget for FetchBox {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        if area.width < 30 || area.height < 5 {
+            return;
+        }
+
+        let verb = VerbColor::Fetch;
+        let border_color = self.state.border_color(verb.rgb());
+        let border_style = Style::default().fg(border_color);
+        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
+        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
+
+        let inner_width = (area.width - 2) as usize;
+        let status_icon = self.state.icon();
+        let status_suffix = self.state.suffix();
+
+        // Top border: ╭─ 🛰️ FETCH ─────────────────────────── ✅ 0.5s ───╮
+        let title_prefix = format!("╭─ {} ", verb.icon_label());
+        let title_suffix = format!(" {} {} ─╮", status_icon, status_suffix);
+        let dash_count = inner_width
+            .saturating_sub(title_prefix.chars().count())
+            .saturating_sub(title_suffix.chars().count());
+        let title = format!("{}{}{}", title_prefix, "─".repeat(dash_count), title_suffix);
+        buf.set_string(area.x, area.y, &title, border_style);
+
+        let mut y = area.y + 1;
+
+        // Method + URL line
+        if y < area.y + area.height - 1 {
+            buf.set_string(area.x, y, "│", border_style);
+            buf.set_string(area.x + area.width - 1, y, "│", border_style);
+
+            let method_style = Style::default().fg(Color::Rgb(34, 211, 238)); // Cyan
+            let url_display = Self::truncate(&self.url, inner_width - self.method.len() - 4);
+            buf.set_string(area.x + 2, y, &self.method, method_style);
+            buf.set_string(
+                area.x + 2 + self.method.len() as u16 + 1,
+                y,
+                &url_display,
+                content_style,
+            );
+            y += 1;
+        }
+
+        // Separator
+        if y < area.y + area.height - 1 {
+            let sep = format!("├{}┤", "─".repeat(inner_width));
+            buf.set_string(area.x, y, &sep, border_style);
+            y += 1;
+        }
+
+        // REQUEST section
+        if y < area.y + area.height - 2 {
+            buf.set_string(area.x, y, "│", border_style);
+            buf.set_string(area.x + area.width - 1, y, "│", border_style);
+            buf.set_string(area.x + 2, y, "REQUEST", dim_style);
+            y += 1;
+
+            // Headers (if expanded)
+            if self.expanded_request {
+                for (key, value) in &self.request_headers {
+                    if y >= area.y + area.height - 3 {
+                        break;
+                    }
+                    buf.set_string(area.x, y, "│", border_style);
+                    buf.set_string(area.x + area.width - 1, y, "│", border_style);
+
+                    let masked_value = Self::mask_header_value(key, value);
+                    let header_str = format!("┊ {}: {}", key, masked_value);
+                    let header_display = Self::truncate(&header_str, inner_width - 2);
+                    buf.set_string(area.x + 2, y, &header_display, dim_style);
+                    y += 1;
+                }
+            } else if !self.request_headers.is_empty() {
+                buf.set_string(area.x, y, "│", border_style);
+                buf.set_string(area.x + area.width - 1, y, "│", border_style);
+                buf.set_string(
+                    area.x + 2,
+                    y,
+                    format!("┊ headers: {{ {} entries }}", self.request_headers.len()),
+                    dim_style,
+                );
+                y += 1;
+            }
+
+            // Body
+            if let Some(ref body) = self.request_body {
+                if y < area.y + area.height - 3 {
+                    buf.set_string(area.x, y, "│", border_style);
+                    buf.set_string(area.x + area.width - 1, y, "│", border_style);
+
+                    let body_display = Self::truncate(body, inner_width - 10);
+                    buf.set_string(
+                        area.x + 2,
+                        y,
+                        format!("┊ body: {}", body_display),
+                        dim_style,
+                    );
+                    y += 1;
+                }
+            }
+        }
+
+        // Separator
+        if y < area.y + area.height - 2 {
+            let sep = format!("├{}┤", "─".repeat(inner_width));
+            buf.set_string(area.x, y, &sep, border_style);
+            y += 1;
+        }
+
+        // RESPONSE section
+        if y < area.y + area.height - 2 {
+            buf.set_string(area.x, y, "│", border_style);
+            buf.set_string(area.x + area.width - 1, y, "│", border_style);
+
+            let status_color = self
+                .status_code
+                .map(http::status_color)
+                .unwrap_or(Color::Rgb(100, 116, 139));
+            let status_text = self
+                .status_code
+                .map(|c| format!("{} {}", c, http::status_text(c)))
+                .unwrap_or_else(|| "...".to_string());
+
+            let response_header = format!(
+                "RESPONSE                                          {}",
+                status_text
+            );
+            let header_truncated = Self::truncate(&response_header, inner_width - 2);
+            buf.set_string(
+                area.x + 2,
+                y,
+                &header_truncated,
+                Style::default().fg(status_color),
+            );
+            y += 1;
+
+            // Response body
+            if let Some(ref body) = self.response_body {
+                if y < area.y + area.height - 2 {
+                    buf.set_string(area.x, y, "│", border_style);
+                    buf.set_string(area.x + area.width - 1, y, "│", border_style);
+
+                    let body_display = Self::truncate(body, inner_width - 4);
+                    buf.set_string(area.x + 2, y, format!("┊ {}", body_display), content_style);
+                    y += 1;
+                }
+            }
+        }
+
+        // Fill remaining lines
+        while y < area.y + area.height - 2 {
+            buf.set_string(area.x, y, "│", border_style);
+            buf.set_string(area.x + area.width - 1, y, "│", border_style);
+            y += 1;
+        }
+
+        // Footer with metrics
+        let size_str = Self::format_bytes(self.response_size);
+        let retry_str = if self.retries > 0 {
+            format!(" │ 🔄 retries: {}", self.retries)
+        } else {
+            String::new()
+        };
+
+        let footer = format!(
+            "│ 📦 {} │ ⏱️ TTFB: {}ms{}│",
+            size_str, self.ttfb_ms, retry_str
+        );
+        let footer_truncated = Self::truncate(&footer, inner_width + 2);
+        buf.set_string(
+            area.x,
+            area.y + area.height - 2,
+            &footer_truncated,
+            dim_style,
+        );
+
+        // Bottom border
+        let bottom = format!("╰{}╯", "─".repeat(inner_width));
+        buf.set_string(area.x, area.y + area.height - 1, &bottom, border_style);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fetch_box_new() {
+        let box_ = FetchBox::new("GET", "https://api.example.com/data");
+        assert_eq!(box_.method, "GET");
+        assert_eq!(box_.url, "https://api.example.com/data");
+        assert!(box_.status_code.is_none());
+    }
+
+    #[test]
+    fn test_fetch_box_with_response() {
+        let box_ = FetchBox::new("POST", "https://api.example.com/data")
+            .with_status(201)
+            .with_response_body(r#"{"id": 123}"#)
+            .with_response_size(1024)
+            .with_ttfb(150);
+
+        assert_eq!(box_.status_code, Some(201));
+        assert_eq!(box_.response_body, Some(r#"{"id": 123}"#.to_string()));
+        assert_eq!(box_.response_size, 1024);
+        assert_eq!(box_.ttfb_ms, 150);
+    }
+
+    #[test]
+    fn test_fetch_box_with_headers() {
+        let box_ = FetchBox::new("GET", "https://api.example.com")
+            .with_header("Authorization", "Bearer token123")
+            .with_header("Accept", "application/json");
+
+        assert_eq!(box_.request_headers.len(), 2);
+        assert!(box_.request_headers.contains_key("Authorization"));
+    }
+
+    #[test]
+    fn test_mask_header_value() {
+        // Sensitive headers should be masked
+        assert_eq!(
+            FetchBox::mask_header_value("Authorization", "Bearer secret"),
+            "***"
+        );
+        assert_eq!(FetchBox::mask_header_value("X-API-Key", "key123"), "***");
+        assert_eq!(FetchBox::mask_header_value("Cookie", "session=abc"), "***");
+
+        // Non-sensitive headers should be shown
+        assert_eq!(
+            FetchBox::mask_header_value("Accept", "application/json"),
+            "application/json"
+        );
+        assert_eq!(
+            FetchBox::mask_header_value("Content-Type", "text/html"),
+            "text/html"
+        );
+    }
+
+    #[test]
+    fn test_format_bytes() {
+        assert_eq!(FetchBox::format_bytes(100), "100 B");
+        assert_eq!(FetchBox::format_bytes(1024), "1.0 KB");
+        assert_eq!(FetchBox::format_bytes(1536), "1.5 KB");
+        assert_eq!(FetchBox::format_bytes(1048576), "1.0 MB");
+    }
+
+    #[test]
+    fn test_toggle_sections() {
+        let mut box_ = FetchBox::new("GET", "https://example.com");
+        assert!(!box_.expanded_request);
+        assert!(!box_.expanded_response);
+
+        box_.toggle_request();
+        assert!(box_.expanded_request);
+
+        box_.toggle_response();
+        assert!(box_.expanded_response);
+    }
+
+    #[test]
+    fn test_with_retries() {
+        let box_ = FetchBox::new("GET", "https://example.com").with_retries(2);
+        assert_eq!(box_.retries, 2);
+    }
+
+    #[test]
+    fn test_required_height() {
+        let minimal = FetchBox::new("GET", "https://example.com");
+        assert!(minimal.required_height() >= 5);
+
+        let with_headers =
+            FetchBox::new("GET", "https://example.com").with_header("Accept", "application/json");
+        // Should be same when not expanded
+        assert!(with_headers.required_height() >= 5);
+    }
+}
