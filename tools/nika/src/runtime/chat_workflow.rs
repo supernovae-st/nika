@@ -247,7 +247,7 @@ mod tests {
         let idx = workflow.add_message("Hello!", Role::User);
 
         assert_eq!(workflow.message_count(), 1);
-        assert!(idx.index() >= 0);
+        assert_eq!(idx.index(), 0); // First message gets index 0
     }
 
     #[test]
