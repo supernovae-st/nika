@@ -65,6 +65,9 @@ camino = "1.1"     # UTF-8 safe paths (Utf8PathBuf) - no OsStr panics
 ignore = "0.4"     # .gitignore/.ignore support (from ripgrep author)
 globset = "0.4"    # Fast glob pattern matching (from ripgrep author)
 
+# DAG - StableGraph for v0.9.0+ (stable NodeIndex after deletion)
+petgraph = { version = "0.6", features = ["serde-1"] }
+
 # MCP - Anthropic's official Rust SDK
 # See docs/research/2026-02-19-mcp-rust-crates.md for crate comparison
 rmcp = { version = "0.16", features = ["client", "transport-child-process"] }

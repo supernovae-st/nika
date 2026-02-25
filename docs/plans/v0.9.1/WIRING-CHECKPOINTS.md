@@ -23,59 +23,129 @@
 
 | Checkpoint | After Phase | Verifies | Command |
 |------------|-------------|----------|---------|
-| WIRING-1 | Phase 1 | FlowGraph ↔ ChatWorkflow | `cargo test wiring_checkpoint_1` |
-| WIRING-2 | Phase 2 | ChatWorkflow ↔ ChatAgent | `cargo test wiring_checkpoint_2` |
-| WIRING-3 | Phase 3 | BuiltinRouter ↔ Executor | `cargo test wiring_checkpoint_3` |
-| WIRING-4 | Phase 4 | ChatDagPanel ↔ EventLog | `cargo test wiring_checkpoint_4` |
-| WIRING-5 | Phase 5 | Session ↔ DAG Restore | `cargo test wiring_checkpoint_5` |
+| WIRING-0 | v0.9.0 | StableFlowGraph ↔ FlowGraph | `cargo test wiring_checkpoint_0` |
+| WIRING-1 | v0.9.1 | FlowGraph ↔ ChatWorkflow | `cargo test wiring_checkpoint_1` |
+| WIRING-2 | v0.9.2 | ChatWorkflow ↔ @mention Bindings | `cargo test wiring_checkpoint_2` |
+| WIRING-3 | v0.9.3 | BuiltinRouter ↔ Executor | `cargo test wiring_checkpoint_3` |
+| WIRING-4 | v0.9.4 | ChatDagPanel ↔ EventLog | `cargo test wiring_checkpoint_4` |
+| WIRING-5 | v0.9.5 | Session ↔ DAG Restore | `cargo test wiring_checkpoint_5` |
 
 ---
 
-## WIRING-1: FlowGraph ↔ ChatWorkflow
+## WIRING-0: StableFlowGraph Foundation
 
-**After:** Phase 1 (StableGraph Migration)
-**Verifies:** FlowGraph updates propagate to ChatWorkflow.dag
+**After:** v0.9.0 (StableGraph Migration)
+**Verifies:** StableFlowGraph provides stable NodeIndex after deletion
+
+```rust
+// tests/wiring_checkpoint_0.rs
+
+#[test]
+fn wiring_checkpoint_0_stable_node_index() {
+    use nika::dag::stable::StableFlowGraph;
+
+    // Test 1: Create StableFlowGraph
+    let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+
+    // Test 2: Add nodes and track indices
+    let idx1 = graph.add_node("Node 1".to_string());
+    let idx2 = graph.add_node("Node 2".to_string());
+    let idx3 = graph.add_node("Node 3".to_string());
+
+    // Test 3: NodeIndex values are stable after removal
+    graph.remove_node(idx2);
+
+    // idx1 and idx3 should still be valid
+    assert_eq!(graph.node_weight(idx1), Some(&"Node 1".to_string()));
+    assert_eq!(graph.node_weight(idx3), Some(&"Node 3".to_string()));
+
+    // idx2 is now invalid (removed)
+    assert_eq!(graph.node_weight(idx2), None);
+
+    // Test 4: Node count reflects removal
+    assert_eq!(graph.node_count(), 2);
+}
+
+#[test]
+fn wiring_checkpoint_0_stable_edges() {
+    use nika::dag::stable::StableFlowGraph;
+
+    let mut graph: StableFlowGraph<&str> = StableFlowGraph::new();
+
+    let a = graph.add_node("A");
+    let b = graph.add_node("B");
+    let c = graph.add_node("C");
+
+    // Add edges
+    graph.add_edge(a, b);
+    graph.add_edge(b, c);
+
+    // Test: Edges exist
+    assert!(graph.has_edge(a, b));
+    assert!(graph.has_edge(b, c));
+    assert!(!graph.has_edge(a, c));
+
+    // Remove middle node
+    graph.remove_node(b);
+
+    // Edges involving b should be gone
+    assert!(!graph.has_edge(a, b));
+    assert!(!graph.has_edge(b, c));
+
+    // But a and c still valid
+    assert_eq!(graph.node_weight(a), Some(&"A"));
+    assert_eq!(graph.node_weight(c), Some(&"C"));
+}
+```
+
+**Run:**
+```bash
+cargo test wiring_checkpoint_0 --test wiring_checkpoint_0
+```
+
+**Expected:** All 2 tests pass.
+
+---
+
+## WIRING-1: StableFlowGraph ↔ ChatWorkflow
+
+**After:** v0.9.1 (ChatWorkflow)
+**Verifies:** ChatWorkflow wraps StableFlowGraph correctly, auto-edges work
 
 ```rust
 // tests/wiring_checkpoint_1.rs
 
 #[test]
 fn wiring_checkpoint_1_flowgraph_to_chatworkflow() {
-    use nika::dag::FlowGraph;
-    use nika::runtime::chat_workflow::ChatWorkflow;
-    use nika::ast::Workflow;
+    use nika::runtime::chat_workflow::{ChatWorkflow, Role};
 
-    // Test 1: ChatWorkflow wraps FlowGraph
-    let workflow = Workflow::default();
-    let mut chat = ChatWorkflow::new(workflow);
+    // Test 1: ChatWorkflow wraps StableFlowGraph
+    let mut chat = ChatWorkflow::new();
 
-    // Test 2: add_task updates internal FlowGraph
-    let node_idx = chat.add_task("msg-001");
+    // Test 2: add_message updates internal DAG and returns stable NodeIndex
+    let node_idx = chat.add_message("Hello", Role::User);
     assert!(node_idx.index() >= 0);
 
-    // Test 3: NodeIndex is stable after deletion
-    chat.add_task("msg-002");
-    let original_idx = chat.dag.get_node_index("msg-001").unwrap();
-    chat.dag.remove_node("msg-002");
-    let after_idx = chat.dag.get_node_index("msg-001").unwrap();
-    assert_eq!(original_idx, after_idx, "NodeIndex should be stable");
+    // Test 3: NodeIndex is stable (StableGraph guarantees)
+    chat.add_message("Response", Role::Assistant);
+    let original_idx = chat.get_index_by_number(1).unwrap();
+    assert_eq!(original_idx, node_idx, "NodeIndex should be stable");
 
-    // Test 4: Edges are tracked
-    chat.add_task("msg-003");
-    chat.add_edge("msg-001", "msg-003").unwrap();
-    assert!(chat.dag.has_edge("msg-001", "msg-003"));
+    // Test 4: Sequential edges are auto-created
+    let idx2 = chat.get_index_by_number(2).unwrap();
+    assert!(chat.dag.has_edge(node_idx, idx2), "Sequential edge should exist");
 
-    // Test 5: message_counter increments
-    assert!(chat.message_counter > 0);
+    // Test 5: message_counter increments via accessor
+    assert_eq!(chat.current_message_number(), 2);
 }
 
 #[test]
 fn wiring_checkpoint_1_thread_safety() {
     use std::sync::Arc;
     use parking_lot::Mutex;
-    use nika::runtime::chat_workflow::ChatWorkflow;
+    use nika::runtime::chat_workflow::{ChatWorkflow, Role};
 
-    let workflow = Arc::new(Mutex::new(ChatWorkflow::new(Workflow::default())));
+    let workflow = Arc::new(Mutex::new(ChatWorkflow::new()));
 
     // Simulate concurrent access
     let handles: Vec<_> = (0..10)
@@ -83,7 +153,7 @@ fn wiring_checkpoint_1_thread_safety() {
             let wf = Arc::clone(&workflow);
             std::thread::spawn(move || {
                 let mut guard = wf.lock();
-                guard.add_task(&format!("msg-{:03}", i));
+                guard.add_message(&format!("Message {}", i), Role::User);
             })
         })
         .collect();
@@ -93,7 +163,7 @@ fn wiring_checkpoint_1_thread_safety() {
     }
 
     let guard = workflow.lock();
-    assert_eq!(guard.dag.node_count(), 10);
+    assert_eq!(guard.message_count(), 10);
 }
 ```
 
@@ -146,21 +216,21 @@ fn wiring_checkpoint_2_mentions_to_wiring() {
 
 #[test]
 fn wiring_checkpoint_2_chat_agent_receives_bindings() {
-    use nika::runtime::chat_workflow::ChatWorkflow;
+    use nika::runtime::chat_workflow::{ChatWorkflow, Role};
     use nika::runtime::chat_agent::ChatAgent;
 
-    let mut chat = ChatWorkflow::new(Workflow::default());
+    let mut chat = ChatWorkflow::new();
 
     // Add messages
     chat.add_message("First message", Role::User);
     chat.add_message("Response to first", Role::Assistant);
     chat.add_message("Expand on @1", Role::User);
 
-    // ChatAgent should see bindings
+    // ChatAgent should see bindings from @1 mention
     let agent = ChatAgent::new(&chat);
     let task = agent.current_task().unwrap();
 
-    // Verify bindings exist
+    // Verify bindings exist (from @1 mention in message 3)
     assert!(!task.wiring.use_entries.is_empty());
 }
 ```
@@ -385,7 +455,7 @@ fn wiring_checkpoint_5_session_persistence() {
 
 #[test]
 fn wiring_checkpoint_5_animations_tick() {
-    use nika::tui::widgets::node_box::{NodeBox, NodeKind, AnimationState};
+    use nika::tui::widgets::dag_node_box::{NodeBox, NodeKind, AnimationState};
 
     // Test 6: Node animation ticks
     let mut node = NodeBox::new("msg-001", NodeKind::UserMessage)
@@ -456,9 +526,10 @@ cargo run -- debug dag --format json
 
 ## References
 
-- [Phase 1: StableGraph](./Phase-1-StableGraph.md)
-- [Phase 2: Bindings](./Phase-2-Bindings.md)
-- [Phase 3: Builtin Tools](./Phase-3-BuiltinTools.md)
-- [Phase 4: DAG Panel](./Phase-4-DagPanel.md)
-- [Phase 5: Polish](./Phase-5-Polish.md)
-- [Master Plan](./2026-02-24-v091-master-plan.md)
+- [v0.9.0: StableGraph](./v0.9.0-StableGraph.md)
+- [v0.9.1: ChatWorkflow](./v0.9.1-ChatWorkflow.md)
+- [v0.9.2: Mention Bindings](./v0.9.2-MentionBindings.md)
+- [v0.9.3: Builtin Tools](./v0.9.3-BuiltinTools.md)
+- [v0.9.4: DAG Panel](./v0.9.4-DagPanel.md)
+- [v0.9.5: Polish](./v0.9.5-Polish.md)
+- [Master Plan](./README.md)

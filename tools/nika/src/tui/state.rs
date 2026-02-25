@@ -2,6 +2,31 @@
 //!
 //! Central state for the TUI application.
 //! Updated by events from the runtime, queried by panels for rendering.
+//!
+//! ## Animation Frame Standard (v0.9.x)
+//!
+//! All animation frames use a standardized system based on 60 FPS:
+//!
+//! - **TuiState.frame**: Main frame counter, wraps at 60 (1-second cycles)
+//! - **View.frame (u8)**: Per-view counter, wraps at 256 via `wrapping_add(1)`
+//! - **Widget frames**: Use frame value passed from parent, divide for speed
+//!
+//! ### Frame Division Patterns
+//!
+//! | Division | Effective FPS | Use Case |
+//! |----------|---------------|----------|
+//! | `frame / 3` | 20 FPS | Fast spinners, flow indicators |
+//! | `frame / 4` | 15 FPS | Standard spinners, edges |
+//! | `frame / 6` | 10 FPS | Normal spinners |
+//! | `frame / 8` | 7.5 FPS | Cursor blink, slow pulse |
+//! | `frame / 10` | 6 FPS | Agent indicators |
+//! | `frame / 15` | 4 FPS | Very slow animations |
+//!
+//! ### Canonical Ranges
+//!
+//! - **TuiState.frame**: 0-59 (modulo 60)
+//! - **View.frame**: 0-255 (wrapping_add)
+//! - **Widget internal**: Always accepts u8, handles own wrapping
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -15,6 +40,42 @@ use crate::event::{ContextSource, EventKind, ExcludedItem};
 use super::theme::{MissionPhase, TaskStatus, ThemeMode};
 use super::views::{DagTab, MissionTab, NovanetTab, ReasoningTab};
 use super::widgets::{StatusQueue, TimelineEntry};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ANIMATION FRAME CONSTANTS (v0.9.x)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// These constants define the animation frame standard for the TUI.
+// Some are reserved for future use as widgets migrate to the standard.
+
+/// Target FPS for smooth animations
+#[allow(dead_code)]
+pub const TARGET_FPS: u8 = 60;
+
+/// TuiState.frame modulo (1-second cycle at 60fps)
+pub const FRAME_CYCLE: u8 = 60;
+
+/// Frame divisor for fast spinners (~20 FPS)
+#[allow(dead_code)]
+pub const FRAME_DIV_FAST: u8 = 3;
+
+/// Frame divisor for standard spinners (~15 FPS)
+#[allow(dead_code)]
+pub const FRAME_DIV_STANDARD: u8 = 4;
+
+/// Frame divisor for normal spinners (~10 FPS)
+pub const FRAME_DIV_NORMAL: u8 = 6;
+
+/// Frame divisor for cursor blink (~7.5 FPS)
+#[allow(dead_code)]
+pub const FRAME_DIV_BLINK: u8 = 8;
+
+/// Frame divisor for slow animations (~6 FPS)
+#[allow(dead_code)]
+pub const FRAME_DIV_SLOW: u8 = 10;
+
+/// Frame divisor for very slow animations (~4 FPS)
+pub const FRAME_DIV_GLACIAL: u8 = 15;
 
 /// Panel identifier for focus management
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -2218,14 +2279,16 @@ impl TuiState {
     }
 
     /// Update elapsed time and animation frame (call on each render frame)
+    ///
+    /// Animation frame wraps at FRAME_CYCLE (60) for 1-second cycles at 60 FPS.
     pub fn tick(&mut self) {
         // Update elapsed time
         if let Some(started) = self.workflow.started_at {
             self.workflow.elapsed_ms = started.elapsed().as_millis() as u64;
         }
 
-        // Advance animation frame (wraps at 60 for 1-second cycles)
-        self.frame = self.frame.wrapping_add(1) % 60;
+        // Advance animation frame (wraps at FRAME_CYCLE for 1-second cycles)
+        self.frame = self.frame.wrapping_add(1) % FRAME_CYCLE;
 
         // Expire old status messages
         self.status_messages.tick();
@@ -2233,17 +2296,19 @@ impl TuiState {
 
     /// Get spinner character for current frame
     /// Uses braille spinner: ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
+    /// Divides by FRAME_DIV_NORMAL (6) for ~10 FPS animation
     pub fn spinner_char(&self) -> char {
         const SPINNER: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-        let idx = (self.frame / 6) as usize % SPINNER.len();
+        let idx = (self.frame / FRAME_DIV_NORMAL) as usize % SPINNER.len();
         SPINNER[idx]
     }
 
     /// Get rocket animation character for current frame
     /// Used during Launch phase
+    /// Divides by FRAME_DIV_GLACIAL (15) for ~4 FPS animation
     pub fn rocket_char(&self) -> char {
         const ROCKET: &[char] = &['🚀', '🔥', '💨', '✨'];
-        let idx = (self.frame / 15) as usize % ROCKET.len();
+        let idx = (self.frame / FRAME_DIV_GLACIAL) as usize % ROCKET.len();
         ROCKET[idx]
     }
 

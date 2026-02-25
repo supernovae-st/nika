@@ -2,6 +2,9 @@
 //!
 //! Each view (Chat, Home, Studio, Monitor) implements this trait
 //! for consistent rendering and input handling.
+//!
+//! v0.9.x: Added lifecycle hooks (`on_enter`, `on_leave`, `tick`) for
+//! animation support and view transition handling.
 
 use crossterm::event::KeyEvent;
 use ratatui::{layout::Rect, Frame};
@@ -14,6 +17,15 @@ use crate::tui::theme::Theme;
 ///
 /// Each view (Chat, Home, Studio, Monitor) implements this trait
 /// for consistent rendering and input handling.
+///
+/// ## Lifecycle Hooks (v0.9.x)
+///
+/// Views can override lifecycle hooks for animation and state management:
+/// - `on_enter`: Called when view becomes active (focus gained)
+/// - `on_leave`: Called when view becomes inactive (focus lost)
+/// - `tick`: Called each frame for animations (60fps target)
+///
+/// All hooks have default no-op implementations.
 pub trait View {
     /// Render the view to the frame
     /// v0.8 FIX: Changed to &mut self to support scroll state updates during render
@@ -24,6 +36,45 @@ pub trait View {
 
     /// Get the view's status line text (for footer)
     fn status_line(&self, state: &TuiState) -> String;
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Lifecycle Hooks (v0.9.x) - Default implementations provided
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Called when this view becomes active (gains focus)
+    ///
+    /// Use this to:
+    /// - Start animations
+    /// - Load/refresh data
+    /// - Initialize view-specific state
+    ///
+    /// Default: no-op
+    #[allow(unused_variables)]
+    fn on_enter(&mut self, state: &mut TuiState) {}
+
+    /// Called when this view becomes inactive (loses focus)
+    ///
+    /// Use this to:
+    /// - Pause animations
+    /// - Save draft state
+    /// - Clean up temporary resources
+    ///
+    /// Default: no-op
+    #[allow(unused_variables)]
+    fn on_leave(&mut self, state: &mut TuiState) {}
+
+    /// Called each frame for animation updates (target: 60fps)
+    ///
+    /// Use this to:
+    /// - Update animation frames (spinners, pulses, effects)
+    /// - Progress time-based state
+    /// - Update streaming content display
+    ///
+    /// Performance: Must complete in <1ms to maintain 60fps.
+    ///
+    /// Default: no-op
+    #[allow(unused_variables)]
+    fn tick(&mut self, state: &mut TuiState) {}
 }
 
 #[cfg(test)]
@@ -77,5 +128,116 @@ mod tests {
         // Verify that MockView can be used as a trait object
         let view = MockView::new();
         let _: &dyn View = &view;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Lifecycle Hook Tests (v0.9.x)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_lifecycle_hooks_have_default_implementations() {
+        // MockView doesn't override lifecycle hooks, so defaults are used
+        let mut view = MockView::new();
+        let mut state = TuiState::new("test.nika.yaml");
+
+        // These should compile and not panic (default no-ops)
+        view.on_enter(&mut state);
+        view.on_leave(&mut state);
+        view.tick(&mut state);
+    }
+
+    // Mock view that tracks lifecycle hook calls
+    struct MockViewWithHooks {
+        on_enter_count: usize,
+        on_leave_count: usize,
+        tick_count: usize,
+    }
+
+    impl MockViewWithHooks {
+        fn new() -> Self {
+            Self {
+                on_enter_count: 0,
+                on_leave_count: 0,
+                tick_count: 0,
+            }
+        }
+    }
+
+    impl View for MockViewWithHooks {
+        fn render(&mut self, _frame: &mut Frame, _area: Rect, _state: &TuiState, _theme: &Theme) {}
+        fn handle_key(&mut self, _key: KeyEvent, _state: &mut TuiState) -> ViewAction {
+            ViewAction::None
+        }
+        fn status_line(&self, _state: &TuiState) -> String {
+            "MockWithHooks".to_string()
+        }
+
+        fn on_enter(&mut self, _state: &mut TuiState) {
+            self.on_enter_count += 1;
+        }
+
+        fn on_leave(&mut self, _state: &mut TuiState) {
+            self.on_leave_count += 1;
+        }
+
+        fn tick(&mut self, _state: &mut TuiState) {
+            self.tick_count += 1;
+        }
+    }
+
+    #[test]
+    fn test_on_enter_hook_is_called() {
+        let mut view = MockViewWithHooks::new();
+        let mut state = TuiState::new("test.nika.yaml");
+
+        assert_eq!(view.on_enter_count, 0);
+        view.on_enter(&mut state);
+        assert_eq!(view.on_enter_count, 1);
+        view.on_enter(&mut state);
+        assert_eq!(view.on_enter_count, 2);
+    }
+
+    #[test]
+    fn test_on_leave_hook_is_called() {
+        let mut view = MockViewWithHooks::new();
+        let mut state = TuiState::new("test.nika.yaml");
+
+        assert_eq!(view.on_leave_count, 0);
+        view.on_leave(&mut state);
+        assert_eq!(view.on_leave_count, 1);
+    }
+
+    #[test]
+    fn test_tick_hook_is_called_multiple_times() {
+        let mut view = MockViewWithHooks::new();
+        let mut state = TuiState::new("test.nika.yaml");
+
+        assert_eq!(view.tick_count, 0);
+        for _ in 0..60 {
+            view.tick(&mut state);
+        }
+        assert_eq!(view.tick_count, 60, "60 ticks for 1 second at 60fps");
+    }
+
+    #[test]
+    fn test_lifecycle_sequence_enter_tick_leave() {
+        let mut view = MockViewWithHooks::new();
+        let mut state = TuiState::new("test.nika.yaml");
+
+        // Typical lifecycle: enter → multiple ticks → leave
+        view.on_enter(&mut state);
+        assert_eq!(view.on_enter_count, 1);
+
+        for _ in 0..10 {
+            view.tick(&mut state);
+        }
+        assert_eq!(view.tick_count, 10);
+
+        view.on_leave(&mut state);
+        assert_eq!(view.on_leave_count, 1);
+
+        // After leave, ticks can still happen (view still exists)
+        view.tick(&mut state);
+        assert_eq!(view.tick_count, 11);
     }
 }

@@ -246,7 +246,7 @@ v0.9.0 — StableGraph (6 tasks, 25 tests)
 v0.9.1 — ChatWorkflow (6 tasks, 21 tests)
     │    Chat as DAG wrapper, auto-generated message IDs
     ▼
-v0.9.2 — @mention Bindings (10 tasks, 35 tests)
+v0.9.2 — @mention Bindings (10 tasks, 40 tests)
     │    @N parser, reference resolution
     ▼
 v0.9.3 — Builtin Tools (10 tasks, 45 tests)
@@ -306,6 +306,17 @@ v0.14.x — Multi-agent orchestration
 | Existing tests | — | 1,902 |
 | **FINAL** | — | **2,342** |
 
+### Test Specification Approach
+
+> **Note:** Test counts are targets. Each plan document specifies primary tests per task (Step 1: Write failing test). Additional edge-case tests are added during TDD implementation.
+
+**Test categories per task:**
+1. **Primary test**: Specified in plan (fails until implementation)
+2. **Edge cases**: Added during implementation (error paths, boundaries)
+3. **Integration tests**: Added for WIRING checkpoints
+
+**WIRING checkpoint tests** are in `WIRING-CHECKPOINTS.md` and validate component integration.
+
 ---
 
 ## Success Criteria
@@ -343,6 +354,18 @@ v0.14.x — Multi-agent orchestration
 4. **5 verbes = 5 TaskBox** — Mapping 1:1
 5. **Export = reconstruction** — Chat → YAML via DAG traversal
 6. **6 Views** — Explorer-first (VS Code style), Settings en standby (modale)
+
+### Canonical Type Definitions
+
+| Type | Location | Version |
+|------|----------|---------|
+| `ChatWorkflow` | [v0.9.1-ChatWorkflow.md](./v0.9.1-ChatWorkflow.md) → `src/runtime/chat_workflow.rs` | v0.9.1 |
+| `ChatMessage` | [v0.9.1-ChatWorkflow.md](./v0.9.1-ChatWorkflow.md) → `src/runtime/chat_workflow.rs` | v0.9.1 |
+| `Mention` | [v0.9.2-MentionBindings.md](./v0.9.2-MentionBindings.md) → `src/binding/mention.rs` | v0.9.2 |
+| `ChatSession` | [v0.9.5-Polish.md](./v0.9.5-Polish.md) → `src/tui/session.rs` | v0.9.5 |
+| `TaskBox*` | [v0.9.4a-TaskBoxFoundation.md](./v0.9.4a-TaskBoxFoundation.md) → `src/tui/widgets/task_box.rs` | v0.9.4 |
+
+> **Note:** Other documents may reference older ChatSession definitions. The canonical version is in v0.9.5-Polish.md.
 
 ---
 

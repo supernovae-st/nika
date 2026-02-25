@@ -2249,6 +2249,7 @@ dependencies = [
  "notify",
  "nucleo",
  "parking_lot",
+ "petgraph",
  "pretty_assertions",
  "proptest",
  "rand 0.8.5",
@@ -2756,6 +2757,18 @@ checksum = "89815c69d36021a140146f26659a81d6c2afa33d216d736dd4be5381a7362220"
 dependencies = [
  "pest",
  "sha2",
+]
+
+[[package]]
+name = "petgraph"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4c5cc86750666a3ed20bdaf5ca2a0344f9c67674cae0515bec2da16fbaa47db"
+dependencies = [
+ "fixedbitset",
+ "indexmap",
+ "serde",
+ "serde_derive",
 ]
 
 [[package]]

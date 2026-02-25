@@ -112,7 +112,11 @@ pub use session::{
 #[cfg(feature = "tui")]
 pub use standalone::{BrowserEntry, HistoryEntry, StandalonePanel, StandaloneState};
 #[cfg(feature = "tui")]
-pub use state::{AgentTurnState, PanelId, PanelScrollState, TuiMode, TuiState};
+pub use state::{
+    // Animation frame constants (v0.9.x standard)
+    AgentTurnState, PanelId, PanelScrollState, TuiMode, TuiState, FRAME_CYCLE, FRAME_DIV_GLACIAL,
+    FRAME_DIV_NORMAL, TARGET_FPS,
+};
 #[cfg(feature = "tui")]
 pub use theme::{ColorMode, MissionPhase, TaskStatus, Theme, VerbColor};
 #[cfg(feature = "tui")]

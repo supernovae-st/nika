@@ -20,6 +20,13 @@
 //! - NIKA-120-129: Resilience errors (v0.2) [122-124 deprecated in v0.4]
 //! - NIKA-130-139: TUI errors (v0.2)
 //!
+//! v0.9.x ranges (reserved):
+//! - NIKA-200-209: Chat/Mention errors (v0.9.1-v0.9.2)
+//! - NIKA-210-219: Builtin tool errors (v0.9.3)
+//! - NIKA-220-229: DAG Panel errors (v0.9.4)
+//! - NIKA-230-239: Session persistence errors (v0.9.5)
+//! - NIKA-240-249: Animation/Export errors (v0.9.5)
+//!
 //! v0.6.1: Added miette for fancy error display with source spans
 
 use crate::mcp::types::McpErrorCode;
