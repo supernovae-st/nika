@@ -1,11 +1,16 @@
 //! TUI Views Module
 //!
-//! Four-view architecture for Nika TUI:
+//! Six-view architecture for Nika TUI (v0.11):
 //!
+//! **Main Views (Tab cycling):**
 //! 1. **Chat View** - AI agent conversation interface
 //! 2. **Home View** - Workflow browser (default)
 //! 3. **Studio View** - YAML editor with validation
 //! 4. **Monitor View** - Real-time execution monitoring
+//!
+//! **Auxiliary Views (accessed via shortcuts):**
+//! 5. **Settings View** - Provider config, theme, preferences
+//! 6. **Help View** - Keyboard shortcuts reference
 //!
 //! # Navigation
 //!
@@ -15,23 +20,36 @@
 //!  │  CHAT   │◄─►│  HOME   │◄──►│ STUDIO  │◄──►│ MONITOR │
 //!  │  Agent  │   │ Browser │    │  Editor │    │ Execute │
 //!  └─────────┘   └─────────┘    └─────────┘    └─────────┘
-//!                     ▲
-//!                     │ Default view
+//!                     ▲              ▲              ▲
+//!                     │              │              │
+//!                     ▼              ▼              ▼
+//!              ┌───────────┐  ┌───────────┐
+//!              │ SETTINGS  │  │   HELP    │
+//!              │  [Ctrl+,] │  │    [?]    │
+//!              └───────────┘  └───────────┘
 //! ```
 //!
-//! Navigation: [Tab] cycles forward, [Shift+Tab] cycles backward.
-//! Shortcuts: [1-4] or [a/h/s/m] jump directly to view.
+//! Navigation: [Tab] cycles main 4 views, [Shift+Tab] cycles backward.
+//! Shortcuts: [1-4] jump to main views, [?] opens Help, [Ctrl+,] opens Settings.
 
 mod chat;
+mod help;
 mod home;
+mod settings;
 mod studio;
 mod trait_view;
-// ChatMode exported for future external use (mode indicator in status bar)
+
+// Main view exports
 #[allow(unused_imports)]
 pub use chat::{ChatMode, ChatView, MessageRole};
 pub use home::HomeView;
 pub use studio::{EditorMode, StudioView};
-// Future export: ValidationResult
+
+// Auxiliary view exports (v0.11)
+pub use help::HelpView;
+pub use settings::{SettingsSection, SettingsView};
+
+// Trait export
 pub use trait_view::View;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -142,7 +160,7 @@ impl ReasoningTab {
     }
 }
 
-/// Active view in the TUI - 4 views navigation
+/// Active view in the TUI - 6 views navigation (v0.11)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TuiView {
     /// Chat agent - command Nika conversationally
@@ -154,10 +172,14 @@ pub enum TuiView {
     Studio,
     /// Monitor execution - real-time 4-panel display
     Monitor,
+    /// Settings - provider config, theme, preferences (v0.11.1)
+    Settings,
+    /// Help - keyboard shortcuts reference (v0.11.2)
+    Help,
 }
 
 impl TuiView {
-    /// Get all views in order
+    /// Get all views in order (main 4 views for Tab cycling)
     pub fn all() -> &'static [TuiView] {
         &[
             TuiView::Chat,
@@ -167,33 +189,56 @@ impl TuiView {
         ]
     }
 
-    /// Get next view (cycling)
+    /// Get all 6 views including auxiliary (v0.11)
+    pub fn all_including_auxiliary() -> &'static [TuiView] {
+        &[
+            TuiView::Chat,
+            TuiView::Home,
+            TuiView::Studio,
+            TuiView::Monitor,
+            TuiView::Settings,
+            TuiView::Help,
+        ]
+    }
+
+    /// Check if this is an auxiliary view (Settings/Help)
+    pub fn is_auxiliary(&self) -> bool {
+        matches!(self, TuiView::Settings | TuiView::Help)
+    }
+
+    /// Get next view (cycling through main 4 views only)
     pub fn next(&self) -> Self {
         match self {
             TuiView::Chat => TuiView::Home,
             TuiView::Home => TuiView::Studio,
             TuiView::Studio => TuiView::Monitor,
             TuiView::Monitor => TuiView::Chat,
+            // Auxiliary views return to Home on next
+            TuiView::Settings | TuiView::Help => TuiView::Home,
         }
     }
 
-    /// Get previous view (cycling)
+    /// Get previous view (cycling through main 4 views only)
     pub fn prev(&self) -> Self {
         match self {
             TuiView::Chat => TuiView::Monitor,
             TuiView::Home => TuiView::Chat,
             TuiView::Studio => TuiView::Home,
             TuiView::Monitor => TuiView::Studio,
+            // Auxiliary views return to Home on prev
+            TuiView::Settings | TuiView::Help => TuiView::Home,
         }
     }
 
-    /// Get view number (1-indexed for display)
+    /// Get view number (1-indexed for display, 0 for auxiliary)
     pub fn number(&self) -> u8 {
         match self {
             TuiView::Chat => 1,
             TuiView::Home => 2,
             TuiView::Studio => 3,
             TuiView::Monitor => 4,
+            TuiView::Settings => 5,
+            TuiView::Help => 6,
         }
     }
 
@@ -204,16 +249,20 @@ impl TuiView {
             TuiView::Home => "NIKA HOME",
             TuiView::Studio => "NIKA STUDIO",
             TuiView::Monitor => "NIKA MONITOR",
+            TuiView::Settings => "NIKA SETTINGS",
+            TuiView::Help => "NIKA HELP",
         }
     }
 
-    /// Get the icon for the view (terminal-friendly diamond)
+    /// Get the icon for the view (terminal-friendly)
     pub fn icon(&self) -> &'static str {
         match self {
             TuiView::Chat => "◆",
             TuiView::Home => "◆",
             TuiView::Studio => "◆",
             TuiView::Monitor => "◆",
+            TuiView::Settings => "⚙",
+            TuiView::Help => "?",
         }
     }
 
@@ -294,7 +343,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tui_view_all_four_variants() {
+    fn test_tui_view_all_main_four_variants() {
         let views = TuiView::all();
         assert_eq!(views.len(), 4);
         assert_eq!(views[0], TuiView::Chat);
@@ -304,7 +353,25 @@ mod tests {
     }
 
     #[test]
-    fn test_tui_view_next_cycles() {
+    fn test_tui_view_all_including_auxiliary() {
+        let views = TuiView::all_including_auxiliary();
+        assert_eq!(views.len(), 6);
+        assert_eq!(views[4], TuiView::Settings);
+        assert_eq!(views[5], TuiView::Help);
+    }
+
+    #[test]
+    fn test_tui_view_is_auxiliary() {
+        assert!(!TuiView::Chat.is_auxiliary());
+        assert!(!TuiView::Home.is_auxiliary());
+        assert!(!TuiView::Studio.is_auxiliary());
+        assert!(!TuiView::Monitor.is_auxiliary());
+        assert!(TuiView::Settings.is_auxiliary());
+        assert!(TuiView::Help.is_auxiliary());
+    }
+
+    #[test]
+    fn test_tui_view_next_cycles_main_views() {
         assert_eq!(TuiView::Chat.next(), TuiView::Home);
         assert_eq!(TuiView::Home.next(), TuiView::Studio);
         assert_eq!(TuiView::Studio.next(), TuiView::Monitor);
@@ -312,7 +379,13 @@ mod tests {
     }
 
     #[test]
-    fn test_tui_view_prev_cycles() {
+    fn test_tui_view_auxiliary_next_returns_home() {
+        assert_eq!(TuiView::Settings.next(), TuiView::Home);
+        assert_eq!(TuiView::Help.next(), TuiView::Home);
+    }
+
+    #[test]
+    fn test_tui_view_prev_cycles_main_views() {
         assert_eq!(TuiView::Chat.prev(), TuiView::Monitor);
         assert_eq!(TuiView::Home.prev(), TuiView::Chat);
         assert_eq!(TuiView::Studio.prev(), TuiView::Home);
@@ -320,38 +393,52 @@ mod tests {
     }
 
     #[test]
-    fn test_tui_view_number() {
+    fn test_tui_view_auxiliary_prev_returns_home() {
+        assert_eq!(TuiView::Settings.prev(), TuiView::Home);
+        assert_eq!(TuiView::Help.prev(), TuiView::Home);
+    }
+
+    #[test]
+    fn test_tui_view_number_all_six() {
         assert_eq!(TuiView::Chat.number(), 1);
         assert_eq!(TuiView::Home.number(), 2);
         assert_eq!(TuiView::Studio.number(), 3);
         assert_eq!(TuiView::Monitor.number(), 4);
+        assert_eq!(TuiView::Settings.number(), 5);
+        assert_eq!(TuiView::Help.number(), 6);
     }
 
     #[test]
-    fn test_tui_view_titles() {
+    fn test_tui_view_titles_all_six() {
         assert_eq!(TuiView::Chat.title(), "NIKA AGENT");
         assert_eq!(TuiView::Home.title(), "NIKA HOME");
         assert_eq!(TuiView::Studio.title(), "NIKA STUDIO");
         assert_eq!(TuiView::Monitor.title(), "NIKA MONITOR");
+        assert_eq!(TuiView::Settings.title(), "NIKA SETTINGS");
+        assert_eq!(TuiView::Help.title(), "NIKA HELP");
     }
 
     #[test]
-    fn test_tui_view_icons() {
+    fn test_tui_view_icons_all_six() {
         assert_eq!(TuiView::Chat.icon(), "◆");
         assert_eq!(TuiView::Home.icon(), "◆");
         assert_eq!(TuiView::Studio.icon(), "◆");
         assert_eq!(TuiView::Monitor.icon(), "◆");
+        assert_eq!(TuiView::Settings.icon(), "⚙");
+        assert_eq!(TuiView::Help.icon(), "?");
     }
 
     #[test]
-    fn test_view_action_switch_to_all_views() {
+    fn test_view_action_switch_to_all_six_views() {
         let actions = [
             ViewAction::SwitchView(TuiView::Chat),
             ViewAction::SwitchView(TuiView::Home),
             ViewAction::SwitchView(TuiView::Studio),
             ViewAction::SwitchView(TuiView::Monitor),
+            ViewAction::SwitchView(TuiView::Settings),
+            ViewAction::SwitchView(TuiView::Help),
         ];
-        assert_eq!(actions.len(), 4);
+        assert_eq!(actions.len(), 6);
     }
 
     #[test]

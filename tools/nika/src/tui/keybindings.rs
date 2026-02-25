@@ -328,6 +328,11 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 });
             }
         }
+        // v0.11: Settings and Help are auxiliary views with minimal keybindings
+        TuiView::Settings | TuiView::Help => {
+            // Settings and Help use default navigation (Tab, Esc, arrows)
+            // No additional view-specific bindings needed
+        }
     }
 
     bindings

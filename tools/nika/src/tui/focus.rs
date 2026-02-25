@@ -72,6 +72,8 @@ impl PanelId {
                 PanelId::MonitorNovanet,
                 PanelId::MonitorReasoning,
             ],
+            // Settings and Help are auxiliary views without panel navigation (v0.11)
+            TuiView::Settings | TuiView::Help => &[],
         }
     }
 
@@ -99,6 +101,8 @@ impl PanelId {
             TuiView::Chat => PanelId::ChatInput,
             TuiView::Studio => PanelId::StudioEditor,
             TuiView::Monitor => PanelId::MonitorMission,
+            // Auxiliary views don't have panels, return Home's default
+            TuiView::Settings | TuiView::Help => PanelId::HomeFiles,
         }
     }
 }

@@ -1255,6 +1255,9 @@ impl App {
                 TuiView::Home => home_status,
                 TuiView::Studio => studio_status,
                 TuiView::Monitor => monitor_status,
+                // Auxiliary views use their own status (v0.11)
+                TuiView::Settings => "Settings".to_string(),
+                TuiView::Help => "Help".to_string(),
             };
 
             terminal
@@ -1313,6 +1316,17 @@ impl App {
                         TuiView::Monitor => {
                             // Render Monitor's 4-panel layout within the content area
                             render_monitor_content(frame, state, theme, chunks[1]);
+                        }
+                        // v0.11: Auxiliary views (Settings, Help) - placeholder for now
+                        TuiView::Settings => {
+                            let placeholder = Paragraph::new("Settings view - coming soon")
+                                .block(Block::default().borders(Borders::ALL).title(" SETTINGS "));
+                            frame.render_widget(placeholder, chunks[1]);
+                        }
+                        TuiView::Help => {
+                            let placeholder = Paragraph::new("Help view - coming soon")
+                                .block(Block::default().borders(Borders::ALL).title(" HELP "));
+                            frame.render_widget(placeholder, chunks[1]);
                         }
                     }
 
@@ -1460,6 +1474,13 @@ impl App {
             TuiView::Studio => {
                 let view_action = self.studio_view.handle_key(key_event, &mut self.state);
                 self.convert_view_action(view_action)
+            }
+            // v0.11: Auxiliary views - Esc returns to Home
+            TuiView::Settings | TuiView::Help => {
+                if code == KeyCode::Esc {
+                    self.current_view = TuiView::Home;
+                }
+                Action::Continue
             }
         }
     }

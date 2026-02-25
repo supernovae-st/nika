@@ -307,6 +307,19 @@ impl<'a> StatusBar<'a> {
                 KeyHint::new("c", "Chat"),
                 KeyHint::new("q", "Stop"),
             ],
+            // v0.11: Settings and Help are auxiliary views
+            TuiView::Settings => vec![
+                KeyHint::new("Tab", "Next"),
+                KeyHint::new("Enter", "Select"),
+                KeyHint::new("Esc", "Back"),
+                KeyHint::new("q", "Close"),
+            ],
+            TuiView::Help => vec![
+                KeyHint::new("j/k", "Scroll"),
+                KeyHint::new("/", "Search"),
+                KeyHint::new("Esc", "Back"),
+                KeyHint::new("q", "Close"),
+            ],
         }
     }
 
