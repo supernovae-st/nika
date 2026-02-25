@@ -46,11 +46,11 @@ fn extract_version(content: &str) -> Option<String> {
 #[test]
 fn version_must_be_zero_major() {
     let cargo_path = find_cargo_toml();
-    let content = fs::read_to_string(&cargo_path)
-        .unwrap_or_else(|_| panic!("Failed to read {}", cargo_path));
+    let content =
+        fs::read_to_string(&cargo_path).unwrap_or_else(|_| panic!("Failed to read {}", cargo_path));
 
-    let version = extract_version(&content)
-        .unwrap_or_else(|| panic!("No version found in {}", cargo_path));
+    let version =
+        extract_version(&content).unwrap_or_else(|| panic!("No version found in {}", cargo_path));
 
     assert!(
         version.starts_with("0."),
@@ -75,11 +75,11 @@ fn version_must_be_zero_major() {
 #[test]
 fn version_follows_semver() {
     let cargo_path = find_cargo_toml();
-    let content = fs::read_to_string(&cargo_path)
-        .unwrap_or_else(|_| panic!("Failed to read {}", cargo_path));
+    let content =
+        fs::read_to_string(&cargo_path).unwrap_or_else(|_| panic!("Failed to read {}", cargo_path));
 
-    let version = extract_version(&content)
-        .unwrap_or_else(|| panic!("No version found in {}", cargo_path));
+    let version =
+        extract_version(&content).unwrap_or_else(|| panic!("No version found in {}", cargo_path));
 
     let parts: Vec<&str> = version.split('.').collect();
 
@@ -109,11 +109,11 @@ fn version_follows_semver() {
 #[test]
 fn version_not_zero_zero_zero() {
     let cargo_path = find_cargo_toml();
-    let content = fs::read_to_string(&cargo_path)
-        .unwrap_or_else(|_| panic!("Failed to read {}", cargo_path));
+    let content =
+        fs::read_to_string(&cargo_path).unwrap_or_else(|_| panic!("Failed to read {}", cargo_path));
 
-    let version = extract_version(&content)
-        .unwrap_or_else(|| panic!("No version found in {}", cargo_path));
+    let version =
+        extract_version(&content).unwrap_or_else(|| panic!("No version found in {}", cargo_path));
 
     assert_ne!(
         version, "0.0.0",
@@ -124,11 +124,11 @@ fn version_not_zero_zero_zero() {
 #[test]
 fn version_minor_within_bounds() {
     let cargo_path = find_cargo_toml();
-    let content = fs::read_to_string(&cargo_path)
-        .unwrap_or_else(|_| panic!("Failed to read {}", cargo_path));
+    let content =
+        fs::read_to_string(&cargo_path).unwrap_or_else(|_| panic!("Failed to read {}", cargo_path));
 
-    let version = extract_version(&content)
-        .unwrap_or_else(|| panic!("No version found in {}", cargo_path));
+    let version =
+        extract_version(&content).unwrap_or_else(|| panic!("No version found in {}", cargo_path));
 
     let parts: Vec<&str> = version.split('.').collect();
     if parts.len() >= 2 {

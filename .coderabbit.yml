@@ -1,0 +1,67 @@
+# 🏰 FORTRESS: CodeRabbit AI Review configuration
+# https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: en-US
+
+reviews:
+  # Enable automatic reviews on PRs
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+
+  # Review profile (chill = less strict, assertive = more strict)
+  profile: assertive
+
+  # Request changes on high severity issues
+  request_changes_workflow: true
+
+  # Focus areas for Nika
+  path_instructions:
+    - path: "**/*.rs"
+      instructions: |
+        Focus on:
+        - Rust idioms and best practices
+        - Error handling with NikaError
+        - Unsafe code justification
+        - Performance in hot paths (TUI render loops)
+        - tokio async patterns
+
+    - path: "src/tui/**"
+      instructions: |
+        Additional focus for TUI code:
+        - No allocations in render loops
+        - Proper state management
+        - Keyboard shortcut consistency
+        - Accessibility considerations
+
+    - path: "src/mcp/**"
+      instructions: |
+        Additional focus for MCP code:
+        - Timeout handling (30s default)
+        - Error code preservation
+        - Connection lifecycle
+
+    - path: "**/*.yaml"
+      instructions: |
+        For YAML workflow files:
+        - Schema compliance (nika/workflow@0.5)
+        - 5 semantic verbs only
+        - Binding syntax ({{use.alias}})
+
+  # High priority issues
+  high_level_summary: true
+  poem: false
+
+chat:
+  # Allow PR authors to chat with CodeRabbit
+  auto_reply: true
+
+# Ignore patterns
+path_filters:
+  excluded_paths:
+    - "target/**"
+    - "**/*.lock"
+    - "**/*.snap"
+    - ".github/workflows/**"
