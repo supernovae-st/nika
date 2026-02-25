@@ -18,9 +18,12 @@
 //! └── Node 2: "msg-003" (index=2)  ← STAYS index=2 ✅
 //! ```
 
-use petgraph::stable_graph::StableGraph;
+use petgraph::stable_graph::{NodeIndex, StableGraph};
 use petgraph::Directed;
 use serde::{Deserialize, Serialize};
+
+// Re-export NodeIndex for callers
+pub use petgraph::stable_graph::NodeIndex as StableNodeIndex;
 
 /// Edge weight for flow dependencies.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -93,6 +96,26 @@ impl<N> StableFlowGraph<N> {
     pub fn edge_count(&self) -> usize {
         self.inner.edge_count()
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Node operations (Task 0.2)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Add a node and return its stable index.
+    /// The index remains valid even after other nodes are removed.
+    pub fn add_node(&mut self, weight: N) -> NodeIndex {
+        self.inner.add_node(weight)
+    }
+
+    /// Get node weight by index.
+    pub fn node_weight(&self, idx: NodeIndex) -> Option<&N> {
+        self.inner.node_weight(idx)
+    }
+
+    /// Get mutable node weight by index.
+    pub fn node_weight_mut(&mut self, idx: NodeIndex) -> Option<&mut N> {
+        self.inner.node_weight_mut(idx)
+    }
 }
 
 impl<N> Default for StableFlowGraph<N> {
@@ -124,5 +147,52 @@ mod tests {
         let graph: StableFlowGraph<String> = StableFlowGraph::default();
         assert_eq!(graph.node_count(), 0);
         assert_eq!(graph.edge_count(), 0);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Task 0.2: add_node() tests
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_add_node_returns_stable_index() {
+        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+
+        let idx1 = graph.add_node("msg-001".to_string());
+        let idx2 = graph.add_node("msg-002".to_string());
+
+        assert_eq!(idx1.index(), 0);
+        assert_eq!(idx2.index(), 1);
+        assert_eq!(graph.node_count(), 2);
+    }
+
+    #[test]
+    fn test_add_node_increments_count() {
+        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+
+        assert_eq!(graph.node_count(), 0);
+        graph.add_node("a".to_string());
+        assert_eq!(graph.node_count(), 1);
+        graph.add_node("b".to_string());
+        assert_eq!(graph.node_count(), 2);
+    }
+
+    #[test]
+    fn test_node_weight_retrieves_value() {
+        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let idx = graph.add_node("test-value".to_string());
+
+        assert_eq!(graph.node_weight(idx), Some(&"test-value".to_string()));
+    }
+
+    #[test]
+    fn test_node_weight_mut_allows_modification() {
+        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let idx = graph.add_node("original".to_string());
+
+        if let Some(weight) = graph.node_weight_mut(idx) {
+            *weight = "modified".to_string();
+        }
+
+        assert_eq!(graph.node_weight(idx), Some(&"modified".to_string()));
     }
 }
