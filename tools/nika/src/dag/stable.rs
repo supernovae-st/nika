@@ -116,6 +116,22 @@ impl<N> StableFlowGraph<N> {
     pub fn node_weight_mut(&mut self, idx: NodeIndex) -> Option<&mut N> {
         self.inner.node_weight_mut(idx)
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Node removal (Task 0.3) — KEY: Other indices remain stable
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Remove a node by index.
+    /// Returns the node weight if it existed.
+    /// **Other node indices remain stable** — this is the key invariant.
+    pub fn remove_node(&mut self, idx: NodeIndex) -> Option<N> {
+        self.inner.remove_node(idx)
+    }
+
+    /// Check if a node exists.
+    pub fn contains_node(&self, idx: NodeIndex) -> bool {
+        self.inner.contains_node(idx)
+    }
 }
 
 impl<N> Default for StableFlowGraph<N> {
@@ -194,5 +210,71 @@ mod tests {
         }
 
         assert_eq!(graph.node_weight(idx), Some(&"modified".to_string()));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Task 0.3: remove_node() tests — INDEX STABILITY IS KEY
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_remove_node_preserves_other_indices() {
+        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+
+        let idx0 = graph.add_node("msg-001".to_string());
+        let idx1 = graph.add_node("msg-002".to_string());
+        let idx2 = graph.add_node("msg-003".to_string());
+
+        // Remove middle node
+        graph.remove_node(idx1);
+
+        // idx0 and idx2 should still be valid with same values
+        assert_eq!(graph.node_weight(idx0), Some(&"msg-001".to_string()));
+        assert_eq!(graph.node_weight(idx1), None); // Removed
+        assert_eq!(graph.node_weight(idx2), Some(&"msg-003".to_string()));
+
+        // Indices should NOT have shifted — THIS IS THE KEY INVARIANT
+        assert_eq!(idx0.index(), 0);
+        assert_eq!(idx2.index(), 2); // Still 2, not 1!
+    }
+
+    #[test]
+    fn test_remove_node_decrements_count() {
+        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+
+        let idx = graph.add_node("test".to_string());
+        assert_eq!(graph.node_count(), 1);
+
+        graph.remove_node(idx);
+        assert_eq!(graph.node_count(), 0);
+    }
+
+    #[test]
+    fn test_remove_node_returns_weight() {
+        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let idx = graph.add_node("value".to_string());
+
+        let removed = graph.remove_node(idx);
+        assert_eq!(removed, Some("value".to_string()));
+    }
+
+    #[test]
+    fn test_remove_node_missing_returns_none() {
+        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let idx = graph.add_node("value".to_string());
+        graph.remove_node(idx);
+
+        // Second removal returns None
+        let removed = graph.remove_node(idx);
+        assert_eq!(removed, None);
+    }
+
+    #[test]
+    fn test_contains_node_after_removal() {
+        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let idx = graph.add_node("test".to_string());
+
+        assert!(graph.contains_node(idx));
+        graph.remove_node(idx);
+        assert!(!graph.contains_node(idx));
     }
 }
