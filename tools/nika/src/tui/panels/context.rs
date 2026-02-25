@@ -15,19 +15,13 @@ use ratatui::{
 };
 
 use crate::tui::state::TuiState;
-use crate::tui::theme::Theme;
+use crate::tui::theme::{Theme, VerbColor};
 use crate::tui::utils::format_number;
 use crate::tui::widgets::{AnimatedLatencySparkline, Gauge, McpEntry, McpLog, SparklineAnimation};
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DEFAULT COLORS (fallbacks for theme-aware rendering)
+// NOTE: v0.9.1 - All colors now come from Theme (no hardcoded fallbacks)
 // ═══════════════════════════════════════════════════════════════════════════
-
-const DEFAULT_PENDING_COLOR: Color = Color::Rgb(245, 158, 11); // amber
-const DEFAULT_IDLE_COLOR: Color = Color::Rgb(139, 92, 246); // violet
-const DEFAULT_ERROR_COLOR: Color = Color::Rgb(239, 68, 68); // red
-const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
-const DEFAULT_MUTED_COLOR: Color = Color::Rgb(107, 114, 128); // gray
 
 /// NovaNet Station panel (Panel 3)
 pub struct ContextPanel<'a> {
@@ -91,9 +85,9 @@ impl<'a> ContextPanel<'a> {
             // Animated connection icon
             let frames = &["⊛", "⊕", "⊗", "⊙"];
             let idx = (self.state.frame / 8) as usize % frames.len();
-            (frames[idx], DEFAULT_PENDING_COLOR) // amber for pending
+            (frames[idx], self.theme.status_running) // amber for pending
         } else {
-            ("⊛", DEFAULT_IDLE_COLOR) // violet when idle
+            ("⊛", VerbColor::Infer.rgb()) // violet when idle
         };
 
         let header = Line::from(vec![
@@ -112,7 +106,7 @@ impl<'a> ContextPanel<'a> {
             if pending > 0 {
                 Span::styled(
                     format!(" {} ({} pending)", self.spinner(), pending),
-                    Style::default().fg(DEFAULT_PENDING_COLOR),
+                    Style::default().fg(self.theme.status_running),
                 )
             } else {
                 Span::styled("", Style::default())
@@ -167,10 +161,10 @@ impl<'a> ContextPanel<'a> {
             ),
             Span::styled(
                 format!("{} tokens", format_number(ctx.total_tokens)),
-                Style::default().fg(DEFAULT_IDLE_COLOR),
+                Style::default().fg(VerbColor::Infer.rgb()),
             ),
             if ctx.truncated {
-                Span::styled(" (truncated)", Style::default().fg(DEFAULT_ERROR_COLOR))
+                Span::styled(" (truncated)", Style::default().fg(self.theme.status_failed))
             } else {
                 Span::styled("", Style::default())
             },
@@ -190,11 +184,11 @@ impl<'a> ContextPanel<'a> {
 
             let ratio = (ctx.budget_used_pct / 100.0) as f64;
             let gauge_color = if ratio >= 0.9 {
-                DEFAULT_ERROR_COLOR // red - near limit
+                self.theme.status_failed // red - near limit
             } else if ratio >= 0.7 {
-                DEFAULT_PENDING_COLOR // amber - warning
+                self.theme.status_running // amber - warning
             } else {
-                DEFAULT_SUCCESS_COLOR // green - ok
+                self.theme.status_success // green - ok
             };
 
             let gauge = Gauge::new(ratio)
@@ -215,13 +209,13 @@ impl<'a> ContextPanel<'a> {
                 Span::styled("Sources: ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
                     format!("{}", sources_count),
-                    Style::default().fg(DEFAULT_SUCCESS_COLOR),
+                    Style::default().fg(self.theme.status_success),
                 ),
                 Span::styled(" included", Style::default().fg(Color::DarkGray)),
                 if excluded_count > 0 {
                     Span::styled(
                         format!(", {} excluded", excluded_count),
-                        Style::default().fg(DEFAULT_MUTED_COLOR),
+                        Style::default().fg(self.theme.text_muted),
                     )
                 } else {
                     Span::styled("", Style::default())
@@ -270,7 +264,7 @@ impl<'a> ContextPanel<'a> {
             spans.push(Span::styled(
                 format!("[{}]", server),
                 Style::default()
-                    .fg(DEFAULT_IDLE_COLOR)
+                    .fg(VerbColor::Infer.rgb())
                     .add_modifier(Modifier::BOLD),
             ));
         }

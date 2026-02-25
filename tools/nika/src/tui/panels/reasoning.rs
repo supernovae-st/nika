@@ -15,7 +15,7 @@ use ratatui::{
 };
 
 use crate::tui::state::TuiState;
-use crate::tui::theme::Theme;
+use crate::tui::theme::{Theme, VerbColor};
 use crate::tui::utils::format_number;
 use crate::tui::views::ReasoningTab;
 use crate::tui::widgets::{
@@ -23,21 +23,8 @@ use crate::tui::widgets::{
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// DEFAULT COLORS — Centralized for future theme integration
+// NOTE: v0.9.1 - All colors now come from Theme (no hardcoded fallbacks)
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/// Amber for running/active/warning states
-const DEFAULT_RUNNING_COLOR: Color = Color::Rgb(245, 158, 11);
-/// Red for near-limit/error states
-const DEFAULT_ERROR_COLOR: Color = Color::Rgb(239, 68, 68);
-/// Blue for normal progress states
-const DEFAULT_PROGRESS_COLOR: Color = Color::Rgb(59, 130, 246);
-/// Gray-400 for streaming/dimmed text
-const DEFAULT_STREAMING_COLOR: Color = Color::Rgb(156, 163, 175);
-/// Violet for thinking header and tokens
-const DEFAULT_THINKING_COLOR: Color = Color::Rgb(139, 92, 246);
-/// Violet-400 for thinking content (lighter)
-const DEFAULT_THINKING_CONTENT_COLOR: Color = Color::Rgb(167, 139, 250);
 
 /// Agent Reasoning panel (Panel 4)
 pub struct ReasoningPanel<'a> {
@@ -119,7 +106,7 @@ impl<'a> ReasoningPanel<'a> {
                 ),
                 Span::styled(
                     format!("{} Turn {}/{}", spinner, current_turn, max_turns),
-                    Style::default().fg(DEFAULT_RUNNING_COLOR),
+                    Style::default().fg(self.theme.status_running),
                 ),
             ])
         } else {
@@ -148,11 +135,11 @@ impl<'a> ReasoningPanel<'a> {
             let ratio = (current / max).min(1.0);
 
             let color = if ratio >= 0.9 {
-                DEFAULT_ERROR_COLOR
+                self.theme.status_failed
             } else if ratio >= 0.7 {
-                DEFAULT_RUNNING_COLOR
+                self.theme.status_running
             } else {
-                DEFAULT_PROGRESS_COLOR
+                self.theme.highlight
             };
 
             let gauge_area = Rect {
@@ -221,7 +208,7 @@ impl<'a> ReasoningPanel<'a> {
                 .join("\n");
 
             let paragraph = Paragraph::new(visible_lines)
-                .style(Style::default().fg(DEFAULT_STREAMING_COLOR))
+                .style(Style::default().fg(self.theme.text_muted))
                 .wrap(Wrap { trim: true });
 
             paragraph.render(content_area, buf);
@@ -251,7 +238,7 @@ impl<'a> ReasoningPanel<'a> {
                 area.y,
                 "─── 🧠 Thinking ───",
                 Style::default()
-                    .fg(DEFAULT_THINKING_COLOR)
+                    .fg(VerbColor::Infer.rgb())
                     .add_modifier(Modifier::BOLD),
             );
 
@@ -277,7 +264,7 @@ impl<'a> ReasoningPanel<'a> {
                 };
 
                 let paragraph = Paragraph::new(visible_lines)
-                    .style(Style::default().fg(DEFAULT_THINKING_CONTENT_COLOR))
+                    .style(Style::default().fg(VerbColor::Infer.glow()))
                     .wrap(Wrap { trim: true });
 
                 paragraph.render(content_area, buf);
@@ -303,7 +290,7 @@ impl<'a> ReasoningPanel<'a> {
                 Span::styled("Tokens: ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
                     format_number(total_tokens),
-                    Style::default().fg(DEFAULT_THINKING_COLOR),
+                    Style::default().fg(VerbColor::Infer.rgb()),
                 ),
             ]);
 
@@ -435,7 +422,7 @@ impl<'a> ReasoningPanel<'a> {
             area.y,
             "─── 🐤 Spawned Agents ───",
             Style::default()
-                .fg(Color::Rgb(234, 179, 8)) // Gold
+                .fg(VerbColor::Agent.rgb())
                 .add_modifier(Modifier::BOLD),
         );
 
@@ -463,7 +450,7 @@ impl<'a> ReasoningPanel<'a> {
                 area.x + 2,
                 y,
                 &line,
-                Style::default().fg(Color::Rgb(250, 204, 21)), // Yellow
+                Style::default().fg(VerbColor::Agent.glow()),
             );
         }
     }

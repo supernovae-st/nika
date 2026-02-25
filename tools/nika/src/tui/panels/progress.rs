@@ -16,26 +16,13 @@ use ratatui::{
 };
 
 use crate::tui::state::TuiState;
-use crate::tui::theme::{MissionPhase, TaskStatus, Theme};
+use crate::tui::theme::{MissionPhase, TaskStatus, Theme, VerbColor};
 use crate::tui::utils::format_number;
 use crate::tui::widgets::{AnimatedLatencySparkline, Gauge, SparklineAnimation, Timeline};
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// DEFAULT COLORS — Centralized for future theme integration
+// NOTE: v0.9.1 - All colors now come from Theme (no hardcoded fallbacks)
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/// Green for completed/success states (gauge complete, task success)
-const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94);
-/// Blue for in-progress states (gauge active, MCP calls)
-const DEFAULT_PROGRESS_COLOR: Color = Color::Rgb(59, 130, 246);
-/// Gray for pending/empty states (gauge empty)
-const DEFAULT_PENDING_COLOR: Color = Color::Rgb(107, 114, 128);
-/// Amber for running/active states
-const DEFAULT_RUNNING_COLOR: Color = Color::Rgb(245, 158, 11);
-/// Red for failed/error states
-const DEFAULT_ERROR_COLOR: Color = Color::Rgb(239, 68, 68);
-/// Violet for token/metrics display
-const DEFAULT_TOKENS_COLOR: Color = Color::Rgb(139, 92, 246);
 
 /// Progress panel (Panel 1: Mission Control)
 pub struct ProgressPanel<'a> {
@@ -187,11 +174,11 @@ impl<'a> ProgressPanel<'a> {
         let ratio = self.state.workflow.progress_pct() / 100.0;
         let gauge = Gauge::new(ratio as f64)
             .fill_color(if ratio >= 1.0 {
-                DEFAULT_SUCCESS_COLOR
+                self.theme.status_success
             } else if ratio > 0.0 {
-                DEFAULT_PROGRESS_COLOR
+                self.theme.highlight
             } else {
-                DEFAULT_PENDING_COLOR
+                self.theme.status_pending
             })
             .show_percent(true)
             .label("");
@@ -246,11 +233,11 @@ impl<'a> ProgressPanel<'a> {
 
         // Task ID with status icon (animated for running)
         let status_color = match task.status {
-            TaskStatus::Pending => Color::Gray,
-            TaskStatus::Running => DEFAULT_RUNNING_COLOR,
-            TaskStatus::Success => DEFAULT_SUCCESS_COLOR,
-            TaskStatus::Failed => DEFAULT_ERROR_COLOR,
-            TaskStatus::Paused => Color::Cyan,
+            TaskStatus::Pending => self.theme.status_pending,
+            TaskStatus::Running => self.theme.status_running,
+            TaskStatus::Success => self.theme.status_success,
+            TaskStatus::Failed => self.theme.status_failed,
+            TaskStatus::Paused => self.theme.status_paused,
         };
 
         let status_icon: &str = match task.status {
@@ -294,7 +281,7 @@ impl<'a> ProgressPanel<'a> {
                 Span::styled("    Tokens: ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
                     format!("{}", tokens),
-                    Style::default().fg(DEFAULT_TOKENS_COLOR),
+                    Style::default().fg(VerbColor::Infer.rgb()),
                 ),
             ])
         } else {
@@ -320,7 +307,7 @@ impl<'a> ProgressPanel<'a> {
             area.x + 2,
             area.y,
             &tokens_str,
-            Style::default().fg(DEFAULT_TOKENS_COLOR),
+            Style::default().fg(VerbColor::Infer.rgb()),
         );
 
         // Cost
@@ -336,7 +323,7 @@ impl<'a> ProgressPanel<'a> {
                 area.x + 2,
                 area.y + 1,
                 &mcp_str,
-                Style::default().fg(DEFAULT_PROGRESS_COLOR),
+                Style::default().fg(self.theme.highlight),
             );
 
             // Latency sparkline if we have data
