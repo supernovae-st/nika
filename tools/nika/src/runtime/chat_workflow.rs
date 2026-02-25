@@ -75,6 +75,9 @@ impl ChatWorkflow {
 
     /// Add a message to the conversation DAG.
     /// Returns the stable NodeIndex of the new message.
+    ///
+    /// Automatically creates a sequential edge from the previous message
+    /// to maintain linear conversation flow.
     pub fn add_message(&mut self, content: &str, role: Role) -> NodeIndex {
         self.message_counter += 1;
         let id = format!("msg-{:03}", self.message_counter);
@@ -88,6 +91,15 @@ impl ChatWorkflow {
 
         let idx = self.dag.add_node(message);
         self.id_to_index.insert(id, idx);
+
+        // Auto-create edge from previous message (sequential flow)
+        // First message (counter=1) has no previous, so skip
+        if self.message_counter > 1 {
+            if let Some(prev_idx) = self.get_index_by_number(self.message_counter - 1) {
+                self.dag.add_edge(prev_idx, idx);
+            }
+        }
+
         idx
     }
 
@@ -303,5 +315,43 @@ mod tests {
         let workflow = ChatWorkflow::new();
         let invalid_idx = NodeIndex::new(999);
         assert!(workflow.get_message_by_index(invalid_idx).is_none());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 1.4: Auto-Edge Creation tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_auto_edge_sequential_messages() {
+        let mut workflow = ChatWorkflow::new();
+
+        let idx1 = workflow.add_message("First", Role::User);
+        let idx2 = workflow.add_message("Second", Role::Assistant);
+        let idx3 = workflow.add_message("Third", Role::User);
+
+        // Sequential edges: 1 → 2 → 3
+        assert!(workflow.dag.has_edge(idx1, idx2), "Should have edge 1 → 2");
+        assert!(workflow.dag.has_edge(idx2, idx3), "Should have edge 2 → 3");
+
+        // No reverse edges
+        assert!(!workflow.dag.has_edge(idx2, idx1), "Should NOT have edge 2 → 1");
+        assert!(!workflow.dag.has_edge(idx3, idx2), "Should NOT have edge 3 → 2");
+    }
+
+    #[test]
+    fn test_first_message_has_no_incoming_edge() {
+        let mut workflow = ChatWorkflow::new();
+
+        let idx1 = workflow.add_message("First message", Role::User);
+
+        // First message should have no incoming edges
+        assert_eq!(workflow.dag.edge_count(), 0, "First message should have no edges");
+
+        // Add second message - now we should have exactly one edge
+        let _idx2 = workflow.add_message("Second message", Role::Assistant);
+        assert_eq!(workflow.dag.edge_count(), 1, "Should have exactly 1 edge after 2 messages");
+
+        // The first message still has no incoming edge (it's the source)
+        assert!(workflow.dag.node_weight(idx1).is_some());
     }
 }
