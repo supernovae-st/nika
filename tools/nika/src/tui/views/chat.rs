@@ -103,17 +103,8 @@ use crate::tui::widgets::{
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// DEFAULT COLORS (fallbacks when theme doesn't have specific fields)
+// NOTE: v0.9.1 - All colors now come from Theme (no hardcoded fallbacks)
 // ═══════════════════════════════════════════════════════════════════════════════
-
-const DEFAULT_THINKING_HEADER_COLOR: Color = Color::Rgb(245, 158, 11); // amber
-const DEFAULT_THINKING_CONTENT_COLOR: Color = Color::Rgb(156, 163, 175); // gray-400
-const DEFAULT_MUTED_COLOR: Color = Color::Rgb(107, 114, 128); // gray-500
-const DEFAULT_MCP_BOX_COLOR: Color = Color::Rgb(16, 185, 129); // Emerald
-const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
-const DEFAULT_ERROR_COLOR: Color = Color::Rgb(239, 68, 68); // red
-const DEFAULT_INFER_BOX_COLOR: Color = Color::Rgb(139, 92, 246); // Violet
-const DEFAULT_STATUS_RUNNING_COLOR: Color = Color::Rgb(250, 204, 21); // Yellow
 
 /// Message role in conversation
 #[derive(Debug, Clone, PartialEq, Eq)]
