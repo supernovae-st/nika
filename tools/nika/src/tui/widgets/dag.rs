@@ -10,7 +10,7 @@ use ratatui::{
     widgets::Widget,
 };
 
-use crate::tui::theme::{TaskStatus, Theme};
+use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFAULT COLORS (fallbacks for theme-aware rendering)
@@ -54,15 +54,17 @@ impl VerbType {
         "🐤" // Spawned subagent
     }
 
-    /// Get the color for this verb type (Tailwind-inspired, PLUQQY-style)
+    /// Get the color for this verb type.
+    ///
+    /// Delegates to VerbColor in theme.rs (single source of truth).
     pub fn color(&self) -> Color {
         match self {
-            Self::Unknown => Color::Rgb(107, 114, 128), // Gray - #6b7280
-            Self::Infer => Color::Rgb(99, 102, 241),    // Violet - #6366f1
-            Self::Exec => Color::Rgb(34, 197, 94),      // Green - #22c55e
-            Self::Fetch => Color::Rgb(6, 182, 212),     // Cyan - #06b6d4
-            Self::Invoke => Color::Rgb(59, 130, 246),   // Blue - #3b82f6
-            Self::Agent => Color::Rgb(234, 179, 8),     // Gold - #eab308
+            Self::Unknown => Color::Rgb(107, 114, 128), // Gray - no VerbColor equivalent
+            Self::Infer => VerbColor::Infer.rgb(),
+            Self::Exec => VerbColor::Exec.rgb(),
+            Self::Fetch => VerbColor::Fetch.rgb(),
+            Self::Invoke => VerbColor::Invoke.rgb(),
+            Self::Agent => VerbColor::Agent.rgb(),
         }
     }
 

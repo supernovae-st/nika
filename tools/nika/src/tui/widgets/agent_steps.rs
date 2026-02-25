@@ -49,20 +49,21 @@ use ratatui::{
 pub use super::dag::VerbType;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// COLOR PALETTE
+// THEME INTEGRATION (v0.9.1+ - migrated from hardcoded constants)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Status colors
-const COLOR_RUNNING: Color = Color::Rgb(250, 204, 21); // Yellow/Gold - in progress
-const COLOR_SUCCESS: Color = Color::Rgb(34, 197, 94); // Green - completed
-const COLOR_ERROR: Color = Color::Rgb(239, 68, 68); // Red - failed
-const COLOR_MUTED: Color = Color::Rgb(88, 110, 117); // Gray - tree lines
-const COLOR_CONTENT: Color = Color::Rgb(147, 161, 161); // Light gray - step text
-const COLOR_TOKENS: Color = Color::Rgb(168, 162, 158); // Warm gray - token counts
-const COLOR_COST: Color = Color::Rgb(251, 191, 36); // Amber - cost display
-const COLOR_BORDER: Color = Color::Rgb(71, 85, 105); // Slate - box borders
-const COLOR_HEADER: Color = Color::Rgb(248, 250, 252); // Near-white - headers
-const COLOR_DIMMED: Color = Color::Rgb(100, 116, 139); // Slate-500 - secondary text
+use crate::tui::theme::Theme;
+
+// Legacy color constants - kept for StepStatus::indicator() which doesn't have theme access
+// These will be phased out as we migrate to theme-aware methods
+const COLOR_RUNNING: Color = Color::Rgb(245, 158, 11); // Amber-500 (matches theme.status_running)
+const COLOR_SUCCESS: Color = Color::Rgb(16, 185, 129); // Emerald-500 (matches theme.status_success)
+const COLOR_ERROR: Color = Color::Rgb(239, 68, 68); // Red-500 (matches theme.status_failed)
+const COLOR_MUTED: Color = Color::Rgb(100, 116, 139); // Slate-500 (matches theme.text_muted)
+const COLOR_DIMMED: Color = Color::Rgb(100, 116, 139); // Slate-500 (same as muted - for dimmed text)
+const COLOR_CONTENT: Color = Color::Rgb(226, 232, 240); // Slate-200 (matches theme.text_primary)
+const COLOR_TOKENS: Color = Color::Rgb(139, 92, 246); // Violet-500 (matches VerbColor::Infer)
+const COLOR_COST: Color = Color::Rgb(34, 197, 94); // Green-500 (money indicator)
 
 /// Spinner frames for running steps
 const SPINNER_FRAMES: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -1217,16 +1218,20 @@ impl AgentStepGroup {
 }
 
 /// Widget to render agent steps (Claude Code-like)
+///
+/// v0.9.1+: Theme-aware widget with colors from Theme struct.
 pub struct AgentStepsWidget<'a> {
     group: &'a AgentStepGroup,
+    theme: &'a Theme,
     show_prompt: bool,
     compact: bool,
 }
 
 impl<'a> AgentStepsWidget<'a> {
-    pub fn new(group: &'a AgentStepGroup) -> Self {
+    pub fn new(group: &'a AgentStepGroup, theme: &'a Theme) -> Self {
         Self {
             group,
+            theme,
             show_prompt: true,
             compact: false,
         }
@@ -1242,6 +1247,61 @@ impl<'a> AgentStepsWidget<'a> {
         self
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // THEME-AWARE COLOR HELPERS (v0.9.1+)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Get color for step content/description
+    fn color_content(&self) -> Color {
+        self.theme.text_secondary
+    }
+
+    /// Get color for dimmed/secondary text
+    fn color_dimmed(&self) -> Color {
+        self.theme.text_muted
+    }
+
+    /// Get color for token counts
+    fn color_tokens(&self) -> Color {
+        self.theme.text_secondary
+    }
+
+    /// Get color for cost display (amber)
+    fn color_cost(&self) -> Color {
+        // Use status_running which is Amber-500 in Cosmic theme
+        self.theme.status_running
+    }
+
+    /// Get color for headers
+    fn color_header(&self) -> Color {
+        self.theme.text_primary
+    }
+
+    /// Get color for borders
+    fn color_border(&self) -> Color {
+        self.theme.border_normal
+    }
+
+    /// Get color for muted elements (tree lines, etc.)
+    fn color_muted(&self) -> Color {
+        self.theme.text_muted
+    }
+
+    /// Get color for success status
+    fn color_success(&self) -> Color {
+        self.theme.status_success
+    }
+
+    /// Get color for error status
+    fn color_error(&self) -> Color {
+        self.theme.status_failed
+    }
+
+    /// Get color for running status
+    fn color_running(&self) -> Color {
+        self.theme.status_running
+    }
+
     /// Render a verb tag pill: [infer] with verb color
     fn render_verb_pill(verb: VerbType) -> Vec<Span<'a>> {
         let color = verb.color();
@@ -1255,8 +1315,8 @@ impl<'a> AgentStepsWidget<'a> {
         ]
     }
 
-    /// Render indentation for nested steps
-    fn render_indent(depth: u8, parent_verb: Option<VerbType>) -> Vec<Span<'a>> {
+    /// Render indentation for nested steps (theme-aware)
+    fn render_indent(&self, depth: u8, parent_verb: Option<VerbType>) -> Vec<Span<'a>> {
         if depth == 0 {
             return vec![];
         }
@@ -1264,14 +1324,15 @@ impl<'a> AgentStepsWidget<'a> {
         let mut spans = Vec::new();
         for _ in 0..depth {
             // Use parent verb color for indent line if available
-            let color = parent_verb.map(|v| v.color()).unwrap_or(COLOR_MUTED);
+            let color = parent_verb.map(|v| v.color()).unwrap_or(self.color_muted());
             spans.push(Span::styled("│ ", Style::default().fg(color)));
         }
         spans
     }
 
-    /// Render a detail sub-line with tree continuation
+    /// Render a detail sub-line with tree continuation (theme-aware)
     fn render_detail_line(
+        &self,
         depth: u8,
         parent_verb: Option<VerbType>,
         is_last_detail: bool,
@@ -1281,13 +1342,13 @@ impl<'a> AgentStepsWidget<'a> {
 
         // Indentation for depth
         for _ in 0..depth {
-            let color = parent_verb.map(|v| v.color()).unwrap_or(COLOR_MUTED);
+            let color = parent_verb.map(|v| v.color()).unwrap_or(self.color_muted());
             spans.push(Span::styled("│ ", Style::default().fg(color)));
         }
 
         // Tree continuation
         let tree_char = if is_last_detail { "└─ " } else { "├─ " };
-        spans.push(Span::styled(tree_char, Style::default().fg(COLOR_MUTED)));
+        spans.push(Span::styled(tree_char, Style::default().fg(self.color_muted())));
 
         // Content
         spans.extend(content);
@@ -1295,7 +1356,7 @@ impl<'a> AgentStepsWidget<'a> {
         Line::from(spans)
     }
 
-    /// Render a collapsed step (summary only)
+    /// Render a collapsed step (summary only) - theme-aware
     fn render_collapsed_step(&self, step: &AgentStep, index: usize) -> Vec<Line<'a>> {
         let is_last = index == self.group.steps.len() - 1;
         let (indicator, status_color) = step.status.indicator(step.frame);
@@ -1303,7 +1364,7 @@ impl<'a> AgentStepsWidget<'a> {
         let mut spans = Vec::new();
 
         // Indentation
-        spans.extend(Self::render_indent(step.depth, step.parent_verb));
+        spans.extend(self.render_indent(step.depth, step.parent_verb));
 
         // Verb pill
         if let Some(verb) = step.verb {
@@ -1311,7 +1372,7 @@ impl<'a> AgentStepsWidget<'a> {
         }
 
         // Collapsed indicator
-        spans.push(Span::styled("▶ ", Style::default().fg(COLOR_DIMMED)));
+        spans.push(Span::styled("▶ ", Style::default().fg(self.color_dimmed())));
 
         // Status
         let tree = if is_last { "└" } else { "├" };
@@ -1329,14 +1390,14 @@ impl<'a> AgentStepsWidget<'a> {
         // Description
         spans.push(Span::styled(
             step.description.clone(),
-            Style::default().fg(COLOR_CONTENT),
+            Style::default().fg(self.color_content()),
         ));
 
         // Children count
         if !step.children.is_empty() {
             spans.push(Span::styled(
                 format!(" ({} nested)", step.children.len()),
-                Style::default().fg(COLOR_DIMMED),
+                Style::default().fg(self.color_dimmed()),
             ));
         }
 
@@ -1353,7 +1414,7 @@ impl<'a> AgentStepsWidget<'a> {
         let mut spans = Vec::new();
 
         // Indentation
-        spans.extend(Self::render_indent(step.depth, step.parent_verb));
+        spans.extend(self.render_indent(step.depth, step.parent_verb));
 
         // Verb pill
         if let Some(verb) = step.verb {
@@ -1441,7 +1502,7 @@ impl<'a> AgentStepsWidget<'a> {
                     Style::default().fg(COLOR_DIMMED),
                 ));
             }
-            lines.push(Self::render_detail_line(
+            lines.push(self.render_detail_line(
                 detail_depth,
                 detail_verb,
                 false,
@@ -1459,7 +1520,7 @@ impl<'a> AgentStepsWidget<'a> {
                     Style::default().fg(COLOR_COST),
                 ),
             ];
-            lines.push(Self::render_detail_line(
+            lines.push(self.render_detail_line(
                 detail_depth,
                 detail_verb,
                 false,
@@ -1477,7 +1538,7 @@ impl<'a> AgentStepsWidget<'a> {
                         Style::default().fg(COLOR_RUNNING),
                     ),
                 ];
-                lines.push(Self::render_detail_line(
+                lines.push(self.render_detail_line(
                     detail_depth,
                     detail_verb,
                     false,
@@ -1498,7 +1559,7 @@ impl<'a> AgentStepsWidget<'a> {
                     Style::default().fg(COLOR_DIMMED),
                 ));
             }
-            lines.push(Self::render_detail_line(
+            lines.push(self.render_detail_line(
                 detail_depth,
                 detail_verb,
                 false,
@@ -1511,7 +1572,7 @@ impl<'a> AgentStepsWidget<'a> {
                     Span::styled("params: ", Style::default().fg(COLOR_DIMMED)),
                     Span::styled(params.clone(), Style::default().fg(COLOR_MUTED)),
                 ];
-                lines.push(Self::render_detail_line(
+                lines.push(self.render_detail_line(
                     detail_depth,
                     detail_verb,
                     false,
@@ -1531,7 +1592,7 @@ impl<'a> AgentStepsWidget<'a> {
                         Style::default().fg(COLOR_DIMMED),
                     ));
                 }
-                lines.push(Self::render_detail_line(
+                lines.push(self.render_detail_line(
                     detail_depth,
                     detail_verb,
                     false,
@@ -1546,7 +1607,7 @@ impl<'a> AgentStepsWidget<'a> {
                 Span::styled("$ ", Style::default().fg(COLOR_DIMMED)),
                 Span::styled(command.clone(), Style::default().fg(COLOR_CONTENT)),
             ];
-            lines.push(Self::render_detail_line(
+            lines.push(self.render_detail_line(
                 detail_depth,
                 detail_verb,
                 false,
@@ -1564,7 +1625,7 @@ impl<'a> AgentStepsWidget<'a> {
                     Span::styled(format!("{}: ", prefix), Style::default().fg(COLOR_DIMMED)),
                     Span::styled(format!("{}", code), Style::default().fg(color)),
                 ];
-                lines.push(Self::render_detail_line(
+                lines.push(self.render_detail_line(
                     detail_depth,
                     detail_verb,
                     false,
@@ -1579,7 +1640,7 @@ impl<'a> AgentStepsWidget<'a> {
                 Span::styled("url: ", Style::default().fg(COLOR_DIMMED)),
                 Span::styled(url.clone(), Style::default().fg(COLOR_CONTENT)),
             ];
-            lines.push(Self::render_detail_line(
+            lines.push(self.render_detail_line(
                 detail_depth,
                 detail_verb,
                 false,
@@ -1599,7 +1660,7 @@ impl<'a> AgentStepsWidget<'a> {
                     Style::default().fg(COLOR_DIMMED),
                 ));
             }
-            lines.push(Self::render_detail_line(
+            lines.push(self.render_detail_line(
                 detail_depth,
                 detail_verb,
                 false,
@@ -1612,7 +1673,7 @@ impl<'a> AgentStepsWidget<'a> {
                     Span::styled("💡 ", Style::default().fg(COLOR_RUNNING)),
                     Span::styled(suggestion.clone(), Style::default().fg(COLOR_CONTENT)),
                 ];
-                lines.push(Self::render_detail_line(
+                lines.push(self.render_detail_line(
                     detail_depth,
                     detail_verb,
                     true,
@@ -1700,7 +1761,7 @@ impl<'a> AgentStepsWidget<'a> {
                 Span::styled("→ ", Style::default().fg(COLOR_DIMMED)),
                 Span::styled(&tool.tool_name, Style::default().fg(COLOR_MUTED)),
             ];
-            lines.push(Self::render_detail_line(
+            lines.push(self.render_detail_line(
                 parent_depth + 1,
                 step.verb,
                 true,
@@ -2003,7 +2064,8 @@ mod tests {
         group.add_step(AgentStep::completed("Step 2"));
         group.status = StepStatus::Completed;
 
-        let widget = AgentStepsWidget::new(&group);
+        let theme = Theme::novanet();
+        let widget = AgentStepsWidget::new(&group, &theme);
         let lines = widget.to_lines();
 
         assert!(!lines.is_empty());
@@ -2017,7 +2079,8 @@ mod tests {
         group.add_step(AgentStep::for_verb(VerbType::Infer, "Sending to LLM"));
         group.status = StepStatus::Running;
 
-        let widget = AgentStepsWidget::new(&group);
+        let theme = Theme::novanet();
+        let widget = AgentStepsWidget::new(&group, &theme);
         let lines = widget.to_lines();
 
         // Lines should contain verb pill spans
@@ -2042,7 +2105,8 @@ mod tests {
             "Generating response",
         ));
 
-        let widget = AgentStepsWidget::new(&group);
+        let theme = Theme::novanet();
+        let widget = AgentStepsWidget::new(&group, &theme);
         let lines = widget.to_lines();
 
         // Should have prompt + 3 steps
