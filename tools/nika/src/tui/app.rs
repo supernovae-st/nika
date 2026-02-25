@@ -61,7 +61,8 @@ use super::theme::Theme;
 use super::utils::truncate_str;
 use super::verification::{VerificationCache, VerificationEntry};
 use super::views::{
-    ChatView, HelpView, HomeView, McpAction, SettingsView, StudioView, TuiView, View, ViewAction,
+    ChatView, HelpView, HomeView, McpAction, MonitorView, SettingsView, StudioView, TuiView, View,
+    ViewAction,
 };
 use super::widgets::task_box::{
     AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,
@@ -241,6 +242,8 @@ pub struct App {
     settings_view: SettingsView,
     /// Help view state (v0.11 auxiliary)
     help_view: HelpView,
+    /// Monitor view state (v0.11 - workflow execution monitoring)
+    monitor_view: MonitorView,
     // ═══ LLM Integration for ChatOverlay ═══
     /// Channel for receiving LLM responses (complete responses)
     llm_response_rx: mpsc::Receiver<String>,
@@ -297,6 +300,7 @@ impl App {
         let _ = studio_view.load_file(workflow_path.to_path_buf());
         let settings_view = SettingsView::new();
         let help_view = HelpView::new();
+        let monitor_view = MonitorView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -333,6 +337,7 @@ impl App {
             studio_view,
             settings_view,
             help_view,
+            monitor_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -359,6 +364,7 @@ impl App {
         let studio_view = StudioView::new();
         let settings_view = SettingsView::new();
         let help_view = HelpView::new();
+        let monitor_view = MonitorView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -395,6 +401,7 @@ impl App {
             studio_view,
             settings_view,
             help_view,
+            monitor_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -1251,6 +1258,7 @@ impl App {
             let studio_view = &mut self.studio_view;
             let settings_view = &mut self.settings_view;
             let help_view = &mut self.help_view;
+            let monitor_view = &mut self.monitor_view;
             let workflow_path = &self.state.workflow.path;
             // P0 Fix: Use is_paused() accessor for unified pause state
             let paused = self.state.is_paused();
@@ -1330,8 +1338,8 @@ impl App {
                             studio_view.render(frame, chunks[1], state, theme);
                         }
                         TuiView::Monitor => {
-                            // Render Monitor's 4-panel layout within the content area
-                            render_monitor_content(frame, state, theme, chunks[1]);
+                            // v0.11: Monitor view with 4-panel layout via View trait
+                            monitor_view.render(frame, chunks[1], state, theme);
                         }
                         // v0.11: Auxiliary views (Settings, Help)
                         TuiView::Settings => {
@@ -1685,10 +1693,10 @@ impl App {
             }
             ViewAction::PullOllamaModel(model) => {
                 // v0.12.3: Pull Ollama model asynchronously
-                use super::widgets::provider_modal::OllamaClient;
+                // v0.11.0: Use shared OllamaClient from ChatView (avoids allocation per call)
                 let model_clone = model.clone();
+                let client = self.chat_view.ollama_client.clone();
                 self.spawn_tracked(async move {
-                    let client = OllamaClient::new();
                     let mut rx = client.pull_model(&model_clone).await;
                     while let Some(progress) = rx.recv().await {
                         tracing::debug!(model = %model_clone, ?progress, "Pull progress");
@@ -1699,10 +1707,10 @@ impl App {
             }
             ViewAction::DeleteOllamaModel(model) => {
                 // v0.12.3: Delete Ollama model asynchronously
-                use super::widgets::provider_modal::OllamaClient;
+                // v0.11.0: Use shared OllamaClient from ChatView (avoids allocation per call)
                 let model_clone = model.clone();
+                let client = self.chat_view.ollama_client.clone();
                 self.spawn_tracked(async move {
-                    let client = OllamaClient::new();
                     match client.delete_model(&model_clone).await {
                         Ok(()) => tracing::info!(model = %model_clone, "Model deleted"),
                         Err(e) => {
@@ -1715,9 +1723,9 @@ impl App {
             }
             ViewAction::RefreshOllamaModels => {
                 // v0.12.3: Refresh Ollama models list asynchronously
-                use super::widgets::provider_modal::OllamaClient;
+                // v0.11.0: Use shared OllamaClient from ChatView (avoids allocation per call)
+                let client = self.chat_view.ollama_client.clone();
                 self.spawn_tracked(async move {
-                    let client = OllamaClient::new();
                     match client.list_models().await {
                         Ok(models) => {
                             tracing::info!(count = models.len(), "Refreshed Ollama models")
@@ -4010,6 +4018,10 @@ impl Drop for App {
 
 /// Render Monitor view content within a given area (used in unified layout)
 /// This renders the 4-panel layout within the content area, preserving Header/StatusBar
+///
+/// DEPRECATED (v0.11.0): Now superseded by MonitorView::render() via View trait.
+/// Keeping for reference - has overlay handling that may need migration.
+#[allow(dead_code)]
 fn render_monitor_content(frame: &mut Frame, state: &TuiState, theme: &Theme, area: Rect) {
     // Create 2x2 layout within the given content area
     let main_chunks = Layout::default()

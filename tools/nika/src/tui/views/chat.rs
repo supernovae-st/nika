@@ -22,6 +22,7 @@
 
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Instant;
 
 use chrono::{DateTime, Local};
@@ -99,6 +100,7 @@ use crate::tui::widgets::{
     MissionControlPanel,
     ModalEventHandler,
     NikaIntroState,
+    OllamaClient,
     ParsedInput,
     ProStatusBar,
     Provider,
@@ -323,6 +325,9 @@ pub struct ChatView {
     pub command_palette: CommandPaletteState,
     /// Provider modal state (⌘P - v0.8.8 full management)
     pub provider_modal: ProviderModalState,
+    /// Shared Ollama client for model management (v0.11.0)
+    /// Reused across pull/delete/list operations to avoid repeated allocations
+    pub ollama_client: Arc<OllamaClient>,
     /// Inline content for current streaming (MCP calls, infer boxes)
     pub inline_content: Vec<InlineContent>,
     /// Animation frame counter (for spinners)
@@ -663,6 +668,8 @@ impl ChatView {
                 }
                 modal
             },
+            // v0.11.0: Shared Ollama client (reused for pull/delete/list)
+            ollama_client: Arc::new(OllamaClient::new()),
             inline_content: vec![],
             frame: 0,
 

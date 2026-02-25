@@ -97,8 +97,10 @@ pub enum ApiKeyState {
     Saving { masked: String },
     /// Key is stored, now testing
     Testing { masked: String },
-    /// Key is stored (masked for display)
+    /// Key from environment variable (session-based, ephemeral)
     Configured { masked: String },
+    /// Key from system keyring (persisted, secure) - v0.11.0
+    Stored { masked: String },
     /// Key verified working with latency
     Verified { masked: String, latency_ms: u64 },
     /// Key is invalid
@@ -123,6 +125,7 @@ impl ApiKeyState {
             Self::Saving { .. } => "⏳",
             Self::Testing { .. } => "⠹",
             Self::Configured { .. } => "✓",
+            Self::Stored { .. } => "🔐", // v0.11.0: Keyring stored
             Self::Verified { .. } => "✓",
             Self::Invalid { .. } => "✗",
         }

@@ -43,9 +43,8 @@ use crate::tui::theme::{MissionPhase, TaskStatus, Theme};
 /// - Panel 3: NovaNet Station (MCP calls)
 /// - Panel 4: Agent Reasoning (agent turns)
 ///
-/// NOTE: This view is tested via wiring_checkpoint_8.rs but not yet fully
-/// integrated into App (v0.11.0 work-in-progress). Allow dead_code temporarily.
-#[allow(dead_code)]
+/// v0.11.0: Now fully integrated into App via View trait.
+/// Wired in app.rs App struct and both constructors (new, new_standalone).
 pub struct MonitorView {
     /// Currently focused panel
     pub focus: PanelId,
@@ -55,7 +54,6 @@ pub struct MonitorView {
     pub frame: u8,
 }
 
-#[allow(dead_code)]
 impl MonitorView {
     /// Create a new MonitorView
     pub fn new() -> Self {

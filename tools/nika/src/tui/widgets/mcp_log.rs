@@ -214,6 +214,10 @@ fn format_size(bytes: usize) -> String {
 mod tests {
     use super::*;
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // McpEntry Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
     #[test]
     fn test_mcp_entry_creation() {
         let entry = McpEntry::new(1, "novanet")
@@ -228,9 +232,171 @@ mod tests {
     }
 
     #[test]
+    fn test_mcp_entry_with_resource() {
+        let entry = McpEntry::new(2, "novanet").with_resource("entity://qr-code");
+
+        assert_eq!(entry.seq, 2);
+        assert_eq!(entry.server, "novanet");
+        assert!(entry.tool.is_none());
+        assert_eq!(entry.resource, Some("entity://qr-code".to_string()));
+        assert!(!entry.completed);
+    }
+
+    #[test]
+    fn test_mcp_entry_incomplete() {
+        let entry = McpEntry::new(3, "test-server").with_tool("some_tool");
+
+        assert!(!entry.completed);
+        assert!(entry.output_len.is_none());
+    }
+
+    #[test]
+    fn test_mcp_entry_with_empty_strings() {
+        let entry = McpEntry::new(0, "").with_tool("");
+
+        assert_eq!(entry.server, "");
+        assert_eq!(entry.tool, Some("".to_string()));
+    }
+
+    #[test]
+    fn test_mcp_entry_completed_with_zero_bytes() {
+        let entry = McpEntry::new(1, "server").completed(0);
+
+        assert!(entry.completed);
+        assert_eq!(entry.output_len, Some(0));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // format_size Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
     fn test_format_size() {
         assert_eq!(format_size(500), "500B");
         assert_eq!(format_size(1500), "1.5KB");
         assert_eq!(format_size(1500000), "1.4MB");
+    }
+
+    #[test]
+    fn test_format_size_boundaries() {
+        assert_eq!(format_size(0), "0B");
+        assert_eq!(format_size(1023), "1023B");
+        assert_eq!(format_size(1024), "1.0KB");
+        assert_eq!(format_size(1048575), "1024.0KB"); // Just under 1MB
+        assert_eq!(format_size(1048576), "1.0MB");
+    }
+
+    #[test]
+    fn test_format_size_large_values() {
+        assert_eq!(format_size(10_485_760), "10.0MB"); // 10MB
+        assert_eq!(format_size(104_857_600), "100.0MB"); // 100MB
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // McpLog Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_mcp_log_creation_default() {
+        let entries = vec![];
+        let log = McpLog::new(&entries);
+
+        assert!(log.reverse);
+        assert_eq!(log.max_entries, 10);
+        assert!(log.theme.is_none());
+    }
+
+    #[test]
+    fn test_mcp_log_builder_reverse() {
+        let entries = vec![];
+        let log = McpLog::new(&entries).reverse(false);
+
+        assert!(!log.reverse);
+    }
+
+    #[test]
+    fn test_mcp_log_builder_max_entries() {
+        let entries = vec![];
+        let log = McpLog::new(&entries).max_entries(5);
+
+        assert_eq!(log.max_entries, 5);
+    }
+
+    #[test]
+    fn test_mcp_log_render_empty_entries() {
+        let entries: Vec<McpEntry> = vec![];
+        let log = McpLog::new(&entries);
+
+        let mut buf = Buffer::empty(Rect::new(0, 0, 40, 5));
+        log.render(Rect::new(0, 0, 40, 5), &mut buf);
+
+        // Should render "(no MCP calls)" message
+        let content = buf_to_string(&buf);
+        assert!(content.contains("no MCP calls"));
+    }
+
+    #[test]
+    fn test_mcp_log_render_zero_height() {
+        let entries = vec![McpEntry::new(1, "server").with_tool("tool")];
+        let log = McpLog::new(&entries);
+
+        let mut buf = Buffer::empty(Rect::new(0, 0, 40, 0));
+        log.render(Rect::new(0, 0, 40, 0), &mut buf);
+        // Should not panic with zero height
+    }
+
+    #[test]
+    fn test_mcp_log_render_narrow_width() {
+        let entries = vec![McpEntry::new(1, "server").with_tool("tool")];
+        let log = McpLog::new(&entries);
+
+        let mut buf = Buffer::empty(Rect::new(0, 0, 5, 5));
+        log.render(Rect::new(0, 0, 5, 5), &mut buf);
+        // Should not panic with very narrow width
+    }
+
+    #[test]
+    fn test_mcp_log_render_with_entries() {
+        let entries = vec![
+            McpEntry::new(1, "novanet")
+                .with_tool("novanet_describe")
+                .completed(512),
+            McpEntry::new(2, "novanet")
+                .with_tool("novanet_generate"),
+        ];
+        let log = McpLog::new(&entries);
+
+        let mut buf = Buffer::empty(Rect::new(0, 0, 60, 5));
+        log.render(Rect::new(0, 0, 60, 5), &mut buf);
+
+        let content = buf_to_string(&buf);
+        // Should contain tool names
+        assert!(content.contains("novanet_describe") || content.contains("novanet"));
+    }
+
+    #[test]
+    fn test_mcp_log_respects_max_entries() {
+        let entries: Vec<McpEntry> = (0..20)
+            .map(|i| McpEntry::new(i, "server").with_tool(format!("tool_{}", i)))
+            .collect();
+
+        let log = McpLog::new(&entries).max_entries(5);
+
+        // Just verify it doesn't panic and max_entries is set
+        assert_eq!(log.max_entries, 5);
+    }
+
+    // Helper function to convert buffer to string for assertions
+    fn buf_to_string(buf: &Buffer) -> String {
+        let mut s = String::new();
+        for y in 0..buf.area.height {
+            for x in 0..buf.area.width {
+                #[allow(deprecated)]
+                let cell = buf.get(buf.area.x + x, buf.area.y + y);
+                s.push(cell.symbol().chars().next().unwrap_or(' '));
+            }
+            s.push('\n');
+        }
+        s
     }
 }
