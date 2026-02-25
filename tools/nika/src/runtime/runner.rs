@@ -19,7 +19,7 @@ use tracing::{debug, info, instrument};
 
 use crate::ast::{Task, Workflow};
 use crate::binding::ResolvedBindings;
-use crate::dag::{validate_use_wiring, FlowGraph};
+use crate::dag::{validate_use_wiring, Dag};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog, TraceWriter};
 use crate::store::{DataStore, TaskResult};
@@ -42,7 +42,7 @@ struct IterationResult {
 /// DAG workflow runner with event sourcing
 pub struct Runner {
     workflow: Workflow,
-    flow_graph: FlowGraph,
+    flow_graph: Dag,
     datastore: DataStore,
     executor: TaskExecutor,
     event_log: EventLog,
@@ -68,7 +68,7 @@ impl Runner {
     /// Use `EventLog::new_with_broadcast()` to create an EventLog that
     /// sends events to TUI in real-time.
     pub fn with_event_log(workflow: Workflow, event_log: EventLog) -> Self {
-        let flow_graph = FlowGraph::from_workflow(&workflow);
+        let flow_graph = Dag::from_workflow(&workflow);
         let datastore = DataStore::new();
         let executor = TaskExecutor::new(
             &workflow.provider,

@@ -1,4 +1,4 @@
-//! FlowGraph - DAG structure built from workflow flows (optimized)
+//! Dag - DAG structure built from workflow flows (optimized)
 //!
 //! Performance optimizations:
 //! - Arc<str> for zero-cost cloning of task IDs
@@ -24,7 +24,7 @@ pub(crate) type DepVec = SmallVec<[Arc<str>; 4]>;
 /// Graph of task dependencies built from flows
 ///
 /// Uses Arc<str> + FxHashMap + SmallVec for maximum performance.
-pub struct FlowGraph {
+pub struct Dag {
     /// task_id -> list of successor task_ids (SmallVec: stack-allocated for ≤4)
     adjacency: FxHashMap<Arc<str>, DepVec>,
     /// task_id -> list of predecessor task_ids (SmallVec: stack-allocated for ≤4)
@@ -36,7 +36,7 @@ pub struct FlowGraph {
     task_set: FxHashSet<Arc<str>>,
 }
 
-impl FlowGraph {
+impl Dag {
     pub fn from_workflow(workflow: &Workflow) -> Self {
         let capacity = workflow.tasks.len();
         let mut adjacency: FxHashMap<Arc<str>, DepVec> =
@@ -272,7 +272,7 @@ flows:
     target: a
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         let result = graph.detect_cycles();
         assert!(result.is_err());
@@ -303,7 +303,7 @@ flows:
     target: c
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         assert!(graph.detect_cycles().is_ok());
     }
@@ -323,7 +323,7 @@ flows:
     target: a
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         let result = graph.detect_cycles();
         assert!(result.is_err());
@@ -356,7 +356,7 @@ flows:
     target: d
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         assert!(graph.detect_cycles().is_ok());
         assert_eq!(graph.get_final_tasks().len(), 1);
@@ -389,7 +389,7 @@ flows:
     target: d
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         assert!(graph.detect_cycles().is_ok());
         assert_eq!(graph.get_final_tasks().len(), 2);
@@ -420,7 +420,7 @@ flows:
     target: a
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         let result = graph.detect_cycles();
         assert!(result.is_err());

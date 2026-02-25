@@ -3,7 +3,7 @@
 //! Tests for DAG validation including cycle detection and path validation.
 
 use nika::ast::Workflow;
-use nika::dag::FlowGraph;
+use nika::dag::Dag;
 
 // ═══════════════════════════════════════════════════════════════
 // INTEGRATION TESTS: DAG Structure Validation
@@ -35,7 +35,7 @@ flows:
     target: d
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_ok());
     assert_eq!(graph.get_final_tasks().len(), 1);
@@ -59,7 +59,7 @@ flows:
     target: a
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     let result = graph.detect_cycles();
     assert!(result.is_err());
@@ -92,7 +92,7 @@ flows:
     target: d
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_ok());
     assert_eq!(graph.get_final_tasks().len(), 2);
@@ -130,7 +130,7 @@ flows:
     target: b
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     let result = graph.detect_cycles();
     assert!(result.is_err());
@@ -172,7 +172,7 @@ flows:
     target: e
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_ok());
     assert_eq!(graph.get_final_tasks().len(), 1);
@@ -209,7 +209,7 @@ flows:
     target: e
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_ok());
     assert_eq!(graph.get_final_tasks().len(), 1);
@@ -236,7 +236,7 @@ tasks:
       prompt: "B"
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_ok());
     assert_eq!(graph.get_final_tasks().len(), 2); // Both are final

@@ -29,7 +29,7 @@ This review provides **specific code improvements** before you start implementat
 From the plan:
 
 ```rust
-pub struct FlowGraph {
+pub struct Dag {
     graph: petgraph::DiGraph<TaskNode, ()>,
     node_map: HashMap<String, NodeIndex>,
 }
@@ -38,7 +38,7 @@ pub struct FlowGraph {
 **Target (v0.9.1):**
 
 ```rust
-pub struct FlowGraph {
+pub struct Dag {
     graph: petgraph::StableGraph<Arc<str>, ()>,
     id_to_node: FxHashMap<Arc<str>, NodeIndex>,
     node_to_id: Vec<Arc<str>>,
@@ -67,13 +67,13 @@ let idx = id_to_node[&Arc::from(task_id.as_str())];  // ❌ Extra clone
 
 ```rust
 // BETTER APPROACH 1: Store String, borrow as &str
-pub struct FlowGraph {
+pub struct Dag {
     graph: petgraph::StableGraph<String, ()>,
     id_to_node: FxHashMap<String, NodeIndex>,  // HashMap is fast for String
     node_to_id: Vec<String>,
 }
 
-impl FlowGraph {
+impl Dag {
     pub fn add_task(&mut self, task_id: String) -> NodeIndex {
         let idx = self.graph.add_node(task_id.clone());
         self.id_to_node.insert(task_id, idx);
@@ -88,7 +88,7 @@ impl FlowGraph {
 // BETTER APPROACH 2: Use Cow for zero-copy when possible
 use std::borrow::Cow;
 
-pub struct FlowGraph {
+pub struct Dag {
     graph: petgraph::StableGraph<Cow<'static, str>, ()>,
     // Owned for workflow tasks, borrowed for chat messages
 }
@@ -100,11 +100,11 @@ pub struct FlowGraph {
 
 ### Issue 1.1B: Missing Interior Mutability for Concurrent Access
 
-**Problem:** `FlowGraph` will be accessed from multiple async tasks (execution + TUI).
+**Problem:** `Dag` will be accessed from multiple async tasks (execution + TUI).
 
 ```rust
 // Current design (not thread-safe)
-pub struct FlowGraph {
+pub struct Dag {
     graph: petgraph::StableGraph<String, ()>,
     id_to_node: FxHashMap<String, NodeIndex>,
 }
@@ -121,21 +121,21 @@ tokio::spawn(async move {
 
 ```rust
 // Use Arc for shared ownership, DashMap for concurrent access
-pub struct FlowGraph {
+pub struct Dag {
     // Inner struct for actual data
-    inner: Arc<FlowGraphInner>,
+    inner: Arc<DagInner>,
 }
 
-struct FlowGraphInner {
+struct DagInner {
     graph: RwLock<petgraph::StableGraph<String, ()>>,
     id_to_node: DashMap<String, NodeIndex>,  // Concurrent hash map
     node_to_id: RwLock<Vec<String>>,
 }
 
-impl FlowGraph {
+impl Dag {
     pub fn new() -> Self {
         Self {
-            inner: Arc::new(FlowGraphInner {
+            inner: Arc::new(DagInner {
                 graph: RwLock::new(petgraph::StableGraph::new()),
                 id_to_node: DashMap::new(),
                 node_to_id: RwLock::new(Vec::new()),
@@ -155,7 +155,7 @@ impl FlowGraph {
     }
 }
 
-impl Clone for FlowGraph {
+impl Clone for Dag {
     fn clone(&self) -> Self {
         Self {
             inner: Arc::clone(&self.inner),  // Cheap Arc clone
@@ -210,13 +210,13 @@ pub enum DependencyType {
     ForEach,
 }
 
-pub struct FlowGraph {
+pub struct Dag {
     graph: TaskGraph,
     id_to_idx: DashMap<String, NodeIndex>,
     idx_to_id: RwLock<Vec<String>>,
 }
 
-impl FlowGraph {
+impl Dag {
     pub fn from_workflow(workflow: &Workflow) -> Result<Self, NikaError> {
         let mut graph = petgraph::StableGraph::new();
         let mut id_to_idx = DashMap::new();
@@ -299,7 +299,7 @@ impl FlowGraph {
 ```rust
 pub struct ChatWorkflow {
     pub workflow: Workflow,
-    pub dag: FlowGraph,
+    pub dag: Dag,
     pub store: DataStore,
     pub log: EventLog,
     pub message_counter: u32,
@@ -309,7 +309,7 @@ impl ChatWorkflow {
     pub fn new(session_id: &str) -> Self {
         Self {
             workflow: Workflow { ... },
-            dag: FlowGraph::new(),
+            dag: Dag::new(),
             store: DataStore::new(),
             log: EventLog::new(),
             message_counter: 0,
@@ -358,7 +358,7 @@ pub struct ChatSession {
 }
 
 pub struct ChatWorkflow {
-    pub dag: FlowGraph,
+    pub dag: Dag,
     pub store: DataStore,
     pub log: EventLog,
     pub message_counter: u32,
@@ -375,7 +375,7 @@ impl ChatSession {
     pub fn new(session_id: String) -> Self {
         Self {
             workflow: Arc::new(Mutex::new(ChatWorkflow {
-                dag: FlowGraph::new(),
+                dag: Dag::new(),
                 store: DataStore::new(),
                 log: EventLog::new(),
                 message_counter: 0,
@@ -464,7 +464,7 @@ impl ChatSession {
 
 ```rust
 pub struct ChatWorkflow {
-    pub dag: FlowGraph,
+    pub dag: Dag,
     pub store: DataStore,
     pub log: EventLog,
     pub message_counter: u32,
@@ -780,7 +780,7 @@ impl ChatDAG {
 From the implementation plan, error handling is scattered:
 
 ```rust
-// B1.1 - FlowGraph
+// B1.1 - Dag
 pub fn from_workflow(workflow: &Workflow) -> Result<Self, NikaError> {
     // No examples given
 }
@@ -1148,7 +1148,7 @@ async fn test_chat_workflow_with_mentions() {
 
 ## 10. References & Related Documents
 
-- **Current FlowGraph:** `/src/dag/flow_graph.rs`
+- **Current Dag:** `/src/dag/flow_graph.rs`
 - **Existing TaskExecutor:** `/src/runtime/executor.rs`
 - **Error handling:** `/src/error.rs`
 - **ContextLoader (v0.9.1):** `docs/plans/v0.9.1/2026-02-24-memory-and-agents-design.md`

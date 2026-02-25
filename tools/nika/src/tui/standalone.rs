@@ -442,7 +442,7 @@ impl StandaloneState {
     pub fn validate_selected(&mut self) {
         use crate::ast::schema_validator::WorkflowSchemaValidator;
         use crate::ast::Workflow;
-        use crate::dag::{validate_use_wiring, FlowGraph};
+        use crate::dag::{validate_use_wiring, Dag};
 
         let Some(entry) = self.browser_entries.get(self.browser_index) else {
             self.preview_content = "No workflow selected".to_string();
@@ -510,7 +510,7 @@ impl StandaloneState {
         result.push_str("│ ✓ Schema version valid\n");
 
         // Step 5: Build and validate DAG
-        let flow_graph = FlowGraph::from_workflow(&workflow);
+        let flow_graph = Dag::from_workflow(&workflow);
         if let Err(e) = validate_use_wiring(&workflow, &flow_graph) {
             result.push_str(&format!("│ ✗ Binding validation failed: {}\n", e));
             result.push_str("╰─\n");

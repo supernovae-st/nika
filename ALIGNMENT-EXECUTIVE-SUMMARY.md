@@ -68,7 +68,7 @@ evalexpr = "11.0"       # Expression evaluation for nika:assert (v0.9.3)
 
 1. **rig-core v0.31 API** - Verify ToolDyn trait signature
 2. **EventLog thread safety** - Confirm Arc<Mutex<>> compatibility
-3. **FlowGraph migration** - Replace vs parallel implementation (choose one)
+3. **Dag migration** - Replace vs parallel implementation (choose one)
 4. **@mention precedence** - Context (@entity:) vs message (@1) system design
 
 **Effort:** 2–4 hours (mostly clarification, no code changes needed yet)
@@ -85,9 +85,9 @@ evalexpr = "11.0"       # Expression evaluation for nika:assert (v0.9.3)
 
 ## Key Architectural Decisions
 
-### 1. FlowGraph → StableGraph Migration
+### 1. Dag → StableGraph Migration
 
-**Decision:** Replace custom `FxHashMap`-based `FlowGraph` with `petgraph::StableGraph`
+**Decision:** Replace custom `FxHashMap`-based `Dag` with `petgraph::StableGraph`
 
 **Why:** Enables stable `NodeIndex` for @mention references. Chat messages will be stable even after deletion.
 
@@ -173,7 +173,7 @@ ChatView
 
 ### Medium Risk (Requires Verification)
 
-- ⚠️ FlowGraph replacement (breaking change, but scoped to v0.9.0)
+- ⚠️ Dag replacement (breaking change, but scoped to v0.9.0)
 - ⚠️ ChatWorkflow integration (new async patterns, covered by WIRING tests)
 - ⚠️ Builtin tool dispatch (needs rig-core API confirmation)
 
@@ -202,7 +202,7 @@ Phase passes when:
 
 ### For Thibaut (Architect)
 
-1. **Decide:** Replace vs parallel FlowGraph implementation (create ADR)
+1. **Decide:** Replace vs parallel Dag implementation (create ADR)
 2. **Verify:** rig-core v0.31 ToolDyn API (10 minutes)
 3. **Review:** SPEC-ALIGNMENT-REPORT.md for any concerns
 4. **Approve:** Go/no-go for v0.9.0 start

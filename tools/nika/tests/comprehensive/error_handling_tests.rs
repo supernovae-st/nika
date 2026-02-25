@@ -10,7 +10,7 @@
 //! - Agent errors (NIKA-110-119)
 
 use nika::ast::Workflow;
-use nika::dag::FlowGraph;
+use nika::dag::Dag;
 
 // ============================================================================
 // PARSE ERROR TESTS (NIKA-000-009)
@@ -170,7 +170,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     assert!(
         graph.detect_cycles().is_err(),
         "Should detect self-referential cycle"
@@ -197,7 +197,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     assert!(
         graph.detect_cycles().is_err(),
         "Should detect two-node cycle"
@@ -228,7 +228,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     assert!(
         graph.detect_cycles().is_err(),
         "Should detect three-node cycle"
@@ -272,7 +272,7 @@ flows:
 
     // d -> b creates a cycle: b -> c -> d -> b
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     assert!(
         graph.detect_cycles().is_err(),
         "Should detect cycle in complex DAG"
@@ -295,8 +295,8 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
-    // FlowGraph builds successfully but may have reference to unknown task
-    let graph = FlowGraph::from_workflow(&workflow);
+    // Dag builds successfully but may have reference to unknown task
+    let graph = Dag::from_workflow(&workflow);
     // Check if the orphan reference was added or ignored
     let deps = graph.get_dependencies("task1");
     // Either the orphan is included or ignored - both are valid behaviors
@@ -320,7 +320,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
-    let result = FlowGraph::from_workflow(&workflow);
+    let result = Dag::from_workflow(&workflow);
     // Should either error or create a reference to unknown task
     let _ = result;
 }

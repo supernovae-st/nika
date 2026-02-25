@@ -12,7 +12,7 @@
 //! ┌──────────────────────────────────────────────────────────────┐
 //! │                      APPLICATION LAYER                       │
 //! │  runtime/   DAG execution (Runner, TaskExecutor)             │
-//! │  dag/       DAG structure (FlowGraph, validate)              │
+//! │  dag/       DAG structure (Dag, validate)              │
 //! │  binding/   Data binding (WiringSpec, ResolvedBindings)       │
 //! └──────────────────────────────────────────────────────────────┘
 //!                              │
@@ -98,10 +98,10 @@ pub use ast::{
 pub use runtime::{Runner, TaskExecutor};
 
 // DAG types
-pub use dag::{validate_use_wiring, FlowGraph};
+pub use dag::{validate_use_wiring, Dag};
 
 // StableGraph types (v0.9.0) - Stable NodeIndex after deletion
-pub use dag::{FlowEdge, StableFlowGraph};
+pub use dag::{DagEdge, StableDag};
 pub use petgraph::stable_graph::{EdgeIndex as StableEdgeIndex, NodeIndex as StableNodeIndex};
 
 // Binding types

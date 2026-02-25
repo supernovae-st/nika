@@ -63,16 +63,16 @@ agent:   → Multi-turn agentic loop
 
 ## 2. DAG Semantics Verification
 
-### 2.1 FlowGraph Construction
+### 2.1 Dag Construction
 
 **Spec (from CLAUDE.md):**
 ```
-Workflow → FlowGraph (DAG from flows) → Topological order execution
+Workflow → Dag (DAG from flows) → Topological order execution
 ```
 
 **Implementation (src/dag/flow.rs:39-91):**
 
-✅ **VERIFIED** - FlowGraph logic is sound:
+✅ **VERIFIED** - Dag logic is sound:
 
 Graph construction from flows with proper precedence tracking:
 - Arc<str> interning: Zero-cost cloning
@@ -326,7 +326,7 @@ Error ranges by category:
 | Domain | Spec | Implementation | Gap |
 |--------|------|-----------------|-----|
 | 5 Verbs | ADR-001 | src/ast/action.rs | ✅ None |
-| DAG topology | FlowGraph | src/dag/flow.rs | ✅ None |
+| DAG topology | Dag | src/dag/flow.rs | ✅ None |
 | Execution order | topological | src/runtime/runner.rs | ✅ None |
 | Bindings | use: block | src/binding/ | ✅ None |
 | for_each | v0.3 spec | src/runtime/executor.rs | ✅ None |

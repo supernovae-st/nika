@@ -20,10 +20,10 @@ use crate::binding::{
 };
 use crate::error::NikaError;
 
-use super::flow::FlowGraph;
+use super::flow::Dag;
 
 /// Validate a workflow's use: wiring against the flow graph
-pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &FlowGraph) -> Result<(), NikaError> {
+pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &Dag) -> Result<(), NikaError> {
     // Zero-clone: use &str references instead of owned Strings
     let all_task_ids: FxHashSet<&str> = workflow.tasks.iter().map(|t| t.id.as_str()).collect();
 
@@ -137,7 +137,7 @@ fn validate_wiring(
     task_id: &str,
     wiring: &WiringSpec,
     all_task_ids: &FxHashSet<&str>,
-    flow_graph: &FlowGraph,
+    flow_graph: &Dag,
 ) -> Result<(), NikaError> {
     for (alias, entry) in wiring {
         // Extract task_id from the path (first segment before '.')
@@ -164,7 +164,7 @@ fn validate_from_task(
     from_task: &str,
     task_id: &str,
     all_task_ids: &FxHashSet<&str>,
-    flow_graph: &FlowGraph,
+    flow_graph: &Dag,
 ) -> Result<(), NikaError> {
     // Check not self-reference first (cheapest O(1) check)
     if from_task == task_id {
@@ -285,9 +285,9 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // UNIT TESTS: FlowGraph construction
+    // UNIT TESTS: Dag construction
     // ─────────────────────────────────────────────────────────────
-    // Tests building FlowGraph from workflow flows
+    // Tests building Dag from workflow flows
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -299,7 +299,7 @@ tasks: []
 flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
         let final_tasks = graph.get_final_tasks();
         assert_eq!(final_tasks.len(), 0);
     }
@@ -315,7 +315,7 @@ tasks:
 flows: []
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         assert_eq!(graph.get_dependencies("task1").len(), 0);
         assert_eq!(graph.get_successors("task1").len(), 0);
@@ -347,7 +347,7 @@ flows:
     target: task3
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         // Verify dependencies
         assert_eq!(graph.get_dependencies("task1").len(), 0);
@@ -385,7 +385,7 @@ flows:
     target: task3
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         // task3 should have 2 dependencies
         let deps = graph.get_dependencies("task3");
@@ -416,7 +416,7 @@ flows:
     target: [task2, task3]
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         // task1 should have 2 successors
         assert_eq!(graph.get_successors("task1").len(), 2);
@@ -455,7 +455,7 @@ flows:
     target: task4
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         // task4 should have 2 dependencies
         assert_eq!(graph.get_dependencies("task4").len(), 2);
@@ -491,7 +491,7 @@ flows:
     target: task1
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         let result = graph.detect_cycles();
         assert!(result.is_err());
@@ -523,7 +523,7 @@ flows:
     target: a
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         let result = graph.detect_cycles();
         assert!(result.is_err());
@@ -544,7 +544,7 @@ flows:
     target: task1
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         let result = graph.detect_cycles();
         assert!(result.is_err());
@@ -581,7 +581,7 @@ flows:
     target: b
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         let result = graph.detect_cycles();
         assert!(result.is_err());
@@ -611,7 +611,7 @@ flows:
     target: task2
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         assert!(graph.has_path("task1", "task2"));
         assert!(!graph.has_path("task2", "task1"));
@@ -639,7 +639,7 @@ flows:
     target: c
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         assert!(graph.has_path("a", "c"));
         assert!(graph.has_path("a", "b"));
@@ -658,7 +658,7 @@ tasks:
       prompt: "A"
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         // A node has a path to itself
         assert!(graph.has_path("task1", "task1"));
@@ -684,7 +684,7 @@ flows:
     target: task2
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         assert!(!graph.has_path("task1", "task3"));
         assert!(!graph.has_path("task2", "task3"));
@@ -715,7 +715,7 @@ flows:
     target: d
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         // All nodes should reach d via different paths
         assert!(graph.has_path("a", "d"));
@@ -901,7 +901,7 @@ flows:
     target: task2
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let flow_graph = FlowGraph::from_workflow(&workflow);
+        let flow_graph = Dag::from_workflow(&workflow);
 
         let result = validate_use_wiring(&workflow, &flow_graph);
         assert!(result.is_ok());
@@ -923,7 +923,7 @@ tasks:
       data: nonexistent.result
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let flow_graph = FlowGraph::from_workflow(&workflow);
+        let flow_graph = Dag::from_workflow(&workflow);
 
         let result = validate_use_wiring(&workflow, &flow_graph);
         assert!(result.is_err());
@@ -943,7 +943,7 @@ tasks:
       self: task1.result
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let flow_graph = FlowGraph::from_workflow(&workflow);
+        let flow_graph = Dag::from_workflow(&workflow);
 
         let result = validate_use_wiring(&workflow, &flow_graph);
         assert!(result.is_err());
@@ -972,7 +972,7 @@ flows:
     target: task3
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let flow_graph = FlowGraph::from_workflow(&workflow);
+        let flow_graph = Dag::from_workflow(&workflow);
 
         let result = validate_use_wiring(&workflow, &flow_graph);
         assert!(result.is_err());
@@ -1002,7 +1002,7 @@ flows:
     target: task3
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let flow_graph = FlowGraph::from_workflow(&workflow);
+        let flow_graph = Dag::from_workflow(&workflow);
 
         let result = validate_use_wiring(&workflow, &flow_graph);
         assert!(result.is_ok());
@@ -1032,7 +1032,7 @@ flows:
     target: c
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let flow_graph = FlowGraph::from_workflow(&workflow);
+        let flow_graph = Dag::from_workflow(&workflow);
 
         // task1 → task3 via task2, so task1 is upstream of task3
         let result = validate_use_wiring(&workflow, &flow_graph);

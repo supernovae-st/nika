@@ -7,7 +7,7 @@
 //!
 //! ```text
 //! ChatWorkflow {
-//!     dag: StableFlowGraph<ChatMessage>,
+//!     dag: StableDag<ChatMessage>,
 //!     message_counter: u32,
 //!     id_to_index: HashMap<String, NodeIndex>,
 //! }
@@ -21,7 +21,7 @@ use crate::binding::{
     has_parallel_marker, parse_mentions, resolve_mention, strip_parallel_marker, text_to_wiring,
     Mention, MentionResolutionError, ResolvedMention, WiringSpec,
 };
-use crate::dag::StableFlowGraph;
+use crate::dag::StableDag;
 use chrono::{DateTime, Utc};
 use petgraph::stable_graph::NodeIndex;
 use serde::{Deserialize, Serialize};
@@ -51,7 +51,7 @@ pub struct ChatMessage {
 /// Sequential edges are auto-created for linear conversation flow.
 pub struct ChatWorkflow {
     /// The underlying DAG with stable node indices
-    pub dag: StableFlowGraph<ChatMessage>,
+    pub dag: StableDag<ChatMessage>,
     /// Counter for generating sequential message IDs
     message_counter: u32,
     /// Map from message ID to NodeIndex for fast lookup
@@ -62,7 +62,7 @@ impl ChatWorkflow {
     /// Create a new empty ChatWorkflow.
     pub fn new() -> Self {
         Self {
-            dag: StableFlowGraph::new(),
+            dag: StableDag::new(),
             message_counter: 0,
             id_to_index: HashMap::new(),
         }

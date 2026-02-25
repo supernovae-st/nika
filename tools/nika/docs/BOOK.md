@@ -399,7 +399,7 @@ tools/nika/src/
 │
 ├── dag/                 # Directed Acyclic Graph
 │   ├── mod.rs           # Module exports
-│   ├── flow.rs          # FlowGraph, topological sort
+│   ├── flow.rs          # Dag, topological sort
 │   └── validate.rs      # Cycle detection, dependency validation
 │
 ├── runtime/             # Execution engine
@@ -472,7 +472,7 @@ flowchart TB
 
     subgraph VALIDATE["2. VALIDATE (dag/, binding/)"]
         direction TB
-        FG["Build FlowGraph"] --> CD["Cycle Detection<br/>(Kahn's Algorithm)"]
+        FG["Build Dag"] --> CD["Cycle Detection<br/>(Kahn's Algorithm)"]
         CD --> VU["Validate use: refs"]
         VU --> VD["Verify Dependencies"]
     end
@@ -519,7 +519,7 @@ flowchart TB
 │                                     ▼                                       │
 │  2. VALIDATE (dag/, binding/)                                               │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  - Build FlowGraph from tasks + flows                               │   │
+│  │  - Build Dag from tasks + flows                                     │   │
 │  │  - Detect cycles (Kahn's algorithm)                                 │   │
 │  │  - Validate use: references against DAG                             │   │
 │  │  - Ensure all dependencies are upstream                             │   │

@@ -51,7 +51,7 @@ while let Some(result) = set.join_next().await {
 ```rust
 pub struct ChatWorkflow {
     pub workflow: Workflow,
-    pub dag: FlowGraph,
+    pub dag: Dag,
     pub store: DataStore,
     pub log: EventLog,
     pub message_counter: u32,
@@ -640,7 +640,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 pub struct ChatWorkflow {
     pub workflow: Workflow,
-    pub dag: FlowGraph,
+    pub dag: Dag,
     pub store: DataStore,
     pub log: EventLog,
     message_counter: AtomicU32,  // ← Thread-safe counter

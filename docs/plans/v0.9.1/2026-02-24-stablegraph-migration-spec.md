@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-Migrate `FlowGraph` from custom `FxHashMap`-based adjacency lists to `petgraph::StableGraph` for stable node indices. This enables:
+Migrate `Dag` from custom `FxHashMap`-based adjacency lists to `petgraph::StableGraph` for stable node indices. This enables:
 
 - **@mention stability** — `@1`, `@2` references remain valid after message deletion
 - **Reusable algorithms** — `is_cyclic_directed()`, `toposort()` from petgraph
@@ -21,12 +21,12 @@ Migrate `FlowGraph` from custom `FxHashMap`-based adjacency lists to `petgraph::
 
 ## Part 1: Current Implementation Analysis
 
-### Current FlowGraph Structure
+### Current Dag Structure
 
 **File:** `src/dag/flow.rs` (432 lines)
 
 ```rust
-pub struct FlowGraph {
+pub struct Dag {
     // task_id -> list of successor task_ids
     adjacency: FxHashMap<Arc<str>, DepVec>,
 
@@ -66,7 +66,7 @@ pub(crate) type DepVec = SmallVec<[Arc<str>; 4]>;
 
 ## Part 2: Target Implementation
 
-### New FlowGraph Structure
+### New Dag Structure
 
 ```rust
 use petgraph::stable_graph::{StableGraph, NodeIndex};
@@ -83,8 +83,8 @@ pub struct TaskNode {
     pub order: u32,
 }
 
-/// FlowGraph using petgraph::StableGraph for stable indices
-pub struct FlowGraph {
+/// Dag using petgraph::StableGraph for stable indices
+pub struct Dag {
     /// The actual graph structure
     graph: StableGraph<TaskNode, (), Directed>,
 
@@ -120,7 +120,7 @@ pub struct FlowGraph {
 ### Core Methods Implementation
 
 ```rust
-impl FlowGraph {
+impl Dag {
     /// Create empty graph
     pub fn new() -> Self {
         Self {
@@ -325,12 +325,12 @@ impl FlowGraph {
 petgraph = "0.6"
 ```
 
-### Step 2: Create New FlowGraph
+### Step 2: Create New Dag
 
 **File:** `src/dag/flow.rs`
 
-1. Keep old implementation as `FlowGraphLegacy` (temporarily)
-2. Add new `FlowGraph` with StableGraph
+1. Keep old implementation as `DagLegacy` (temporarily)
+2. Add new `Dag` with StableGraph
 3. Ensure same public API
 
 ### Step 3: Update Consumers
@@ -346,7 +346,7 @@ petgraph = "0.6"
 
 ### Step 4: Remove Legacy Code
 
-1. Delete `FlowGraphLegacy`
+1. Delete `DagLegacy`
 2. Delete custom cycle detection (~190 lines)
 3. Delete custom topological sort in `dag_layout.rs` (~80 lines)
 
@@ -363,7 +363,7 @@ mod tests {
 
     #[test]
     fn test_add_task() {
-        let mut fg = FlowGraph::new();
+        let mut fg = Dag::new();
         let idx = fg.add_task("task-1", 0);
         assert!(fg.contains("task-1"));
         assert_eq!(fg.node_count(), 1);
@@ -371,7 +371,7 @@ mod tests {
 
     #[test]
     fn test_add_edge() {
-        let mut fg = FlowGraph::new();
+        let mut fg = Dag::new();
         fg.add_task("a", 0);
         fg.add_task("b", 1);
         fg.add_edge("a", "b");
@@ -381,7 +381,7 @@ mod tests {
 
     #[test]
     fn test_remove_task_stability() {
-        let mut fg = FlowGraph::new();
+        let mut fg = Dag::new();
         let idx0 = fg.add_task("msg-001", 0);
         let idx1 = fg.add_task("msg-002", 1);
         let idx2 = fg.add_task("msg-003", 2);
@@ -397,7 +397,7 @@ mod tests {
 
     #[test]
     fn test_cycle_detection() {
-        let mut fg = FlowGraph::new();
+        let mut fg = Dag::new();
         fg.add_task("a", 0);
         fg.add_task("b", 1);
         fg.add_task("c", 2);
@@ -411,7 +411,7 @@ mod tests {
 
     #[test]
     fn test_topological_order() {
-        let mut fg = FlowGraph::new();
+        let mut fg = Dag::new();
         fg.add_task("c", 2);
         fg.add_task("a", 0);
         fg.add_task("b", 1);
@@ -429,7 +429,7 @@ mod tests {
 
     #[test]
     fn test_has_path() {
-        let mut fg = FlowGraph::new();
+        let mut fg = Dag::new();
         fg.add_task("a", 0);
         fg.add_task("b", 1);
         fg.add_task("c", 2);
@@ -444,7 +444,7 @@ mod tests {
 
     #[test]
     fn test_final_tasks() {
-        let mut fg = FlowGraph::new();
+        let mut fg = Dag::new();
         fg.add_task("a", 0);
         fg.add_task("b", 1);
         fg.add_task("c", 2);
@@ -472,7 +472,7 @@ mod tests {
             ..Default::default()
         };
 
-        let fg = FlowGraph::from_workflow(&workflow);
+        let fg = Dag::from_workflow(&workflow);
         assert_eq!(fg.node_count(), 2);
         assert_eq!(fg.edge_count(), 1);
     }
@@ -516,7 +516,7 @@ mod tests {
 ```rust
 pub struct ChatWorkflow {
     /// DAG using StableGraph (stable indices for @mentions)
-    pub dag: FlowGraph,
+    pub dag: Dag,
 
     /// Message counter (for ID generation)
     pub message_counter: AtomicU32,
@@ -593,7 +593,7 @@ User sends new message:
 
 If issues arise post-migration:
 
-1. Keep `FlowGraphLegacy` for 1 release
+1. Keep `DagLegacy` for 1 release
 2. Feature flag: `--features legacy-flowgraph`
 3. Monitor performance metrics for 2 weeks
 4. Remove legacy after confirmation

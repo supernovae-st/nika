@@ -8,7 +8,7 @@
 //! - depth_limit
 
 use nika::ast::{AgentParams, TaskAction, Workflow};
-use nika::dag::FlowGraph;
+use nika::dag::Dag;
 use std::path::PathBuf;
 
 /// Get path to examples directory
@@ -578,7 +578,7 @@ flows:
     assert_eq!(workflow.flows.len(), 2);
 
     // Verify DAG
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     assert!(
         graph.detect_cycles().is_ok(),
         "Agent chain should have no cycles"
@@ -621,7 +621,7 @@ fn test_parse_agent_sniper_complete() {
 fn test_agent_sniper_dag_valid() {
     let workflow = parse_workflow("test-agent-sniper-complete.nika.yaml");
 
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     // No cycles allowed
     assert!(

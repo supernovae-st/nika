@@ -10,7 +10,7 @@
 //! - All binding syntaxes ($var, {{use.var}})
 
 use nika::ast::{TaskAction, Workflow};
-use nika::dag::FlowGraph;
+use nika::dag::Dag;
 use std::path::PathBuf;
 
 fn examples_dir() -> PathBuf {
@@ -104,7 +104,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     // Verify path exists from c1 to c10
     assert!(graph.has_path("c1", "c10"), "Path should exist c1 to c10");
@@ -383,7 +383,7 @@ flows:
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
     assert_eq!(workflow.tasks.len(), 11);
 
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     let successors = graph.get_successors("source");
     assert_eq!(successors.len(), 10, "Source should have 10 successors");
 }
@@ -434,7 +434,7 @@ flows:
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
     assert_eq!(workflow.tasks.len(), 11);
 
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     let deps = graph.get_dependencies("sink");
     assert_eq!(deps.len(), 10, "Sink should have 10 dependencies");
 }
@@ -602,7 +602,7 @@ flows:
     assert_eq!(workflow.tasks.len(), 4);
     assert_eq!(workflow.flows.len(), 3);
 
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     assert!(graph.has_path("producer", "final"));
 }
 

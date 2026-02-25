@@ -50,7 +50,7 @@ Comprehensive implementation plan for Nika v0.9 following the Claude Code patter
 ║              └────────────────────┼────────────────────┘                      ║
 ║                                   ▼                                           ║
 ║                     ┌─────────────────────────┐                               ║
-║                     │      FlowGraph (DAG)    │                               ║
+║                     │      Dag (DAG)    │                               ║
 ║                     │   petgraph::DiGraph     │                               ║
 ║                     └────────────┬────────────┘                               ║
 ║                                  │                                            ║
@@ -88,7 +88,7 @@ Comprehensive implementation plan for Nika v0.9 following the Claude Code patter
 | DataStore | `src/store/mod.rs` | ✅ Working | Shared by Chat + Workflow |
 | Executor (5 verbs) | `src/runtime/executor.rs` | ✅ Working | Shared by Chat + Workflow |
 | EventLog (22 variants) | `src/event/log.rs` | ✅ Working | Shared by all |
-| FlowGraph | `src/dag/flow_graph.rs` | ✅ Working | Shared by all |
+| Dag | `src/dag/flow_graph.rs` | ✅ Working | Shared by all |
 | Pause/Resume | `runner.rs` (AtomicBool) | ✅ Working | Shared by all |
 | MCP Client | `src/mcp/client.rs` | ✅ Working | Shared by all |
 | TUI (4 views) | `src/tui/` | ✅ Working | Extended for DAG panel |
@@ -133,16 +133,16 @@ impl DataStore {
 - Chat: stores each message's output by `msg-XXX` ID
 - Heartbeat: inherits from triggered workflow
 
-### FlowGraph — The DAG Structure
+### Dag — The DAG Structure
 
 ```rust
 // src/dag/flow_graph.rs (EXISTS - v0.8)
-pub struct FlowGraph {
+pub struct Dag {
     graph: petgraph::DiGraph<TaskNode, ()>,
     node_map: HashMap<String, NodeIndex>,  // task_id → graph index
 }
 
-impl FlowGraph {
+impl Dag {
     pub fn add_task(&mut self, task: Task) -> NodeIndex;
     pub fn add_edge(&mut self, from: &str, to: &str);
     pub fn topological_order(&self) -> Vec<&Task>;
@@ -153,7 +153,7 @@ impl FlowGraph {
 **Used by:**
 - Workflow: built from `flows:` block at parse time
 - Chat: built incrementally as messages arrive (linear chain)
-- Heartbeat: loads workflow's FlowGraph
+- Heartbeat: loads workflow's Dag
 
 ### Executor — The 5 Verbs
 
@@ -308,7 +308,7 @@ Heartbeat is a **scheduler that triggers workflows**. Each triggered workflow is
 ║                       ▼                                                       ║
 ║           ┌────────────────────────┐                                          ║
 ║           │   Runner (same!)       │                                          ║
-║           │   FlowGraph → Executor │                                          ║
+║           │   Dag → Executor │                                          ║
 ║           │   DataStore → EventLog │                                          ║
 ║           └────────────────────────┘                                          ║
 ║                                                                               ║

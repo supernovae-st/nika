@@ -352,7 +352,7 @@ impl Task {
     ///
     /// Note: Task-level dependencies are defined via `flows` at the Workflow level.
     /// This method returns an empty vector as tasks don't have inline `depends_on`.
-    /// Use FlowGraph for full dependency analysis.
+    /// Use Dag for full dependency analysis.
     pub fn depends_on_ids(&self) -> Vec<&str> {
         Vec::new()
     }

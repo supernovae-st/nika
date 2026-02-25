@@ -49,11 +49,11 @@ pub enum DependencyType {
 }
 
 /// Thread-safe DAG representation using StableGraph
-pub struct FlowGraph {
-    inner: Arc<FlowGraphInner>,
+pub struct Dag {
+    inner: Arc<DagInner>,
 }
 
-struct FlowGraphInner {
+struct DagInner {
     /// The actual graph (Arc so we can share)
     graph: RwLock<StableGraph<DagNode, DagEdge>>,
 
@@ -64,11 +64,11 @@ struct FlowGraphInner {
     idx_to_id: RwLock<Vec<String>>,
 }
 
-impl FlowGraph {
+impl Dag {
     /// Create new empty DAG
     pub fn new() -> Self {
         Self {
-            inner: Arc::new(FlowGraphInner {
+            inner: Arc::new(DagInner {
                 graph: RwLock::new(StableGraph::new()),
                 id_to_idx: parking_lot::Mutex::new(FxHashMap::default()),
                 idx_to_id: RwLock::new(Vec::new()),
@@ -237,7 +237,7 @@ impl FlowGraph {
     }
 }
 
-impl Clone for FlowGraph {
+impl Clone for Dag {
     fn clone(&self) -> Self {
         Self {
             inner: Arc::clone(&self.inner),
@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_add_node_and_edge() {
-        let dag = FlowGraph::new();
+        let dag = Dag::new();
         dag.add_node("task-1".into()).unwrap();
         dag.add_node("task-2".into()).unwrap();
         dag.add_edge("task-1", "task-2").unwrap();
@@ -262,7 +262,7 @@ mod tests {
 
     #[test]
     fn test_concurrent_access() {
-        let dag = FlowGraph::new();
+        let dag = Dag::new();
         dag.add_node("task-1".into()).unwrap();
 
         let dag_clone = dag.clone();
@@ -574,7 +574,7 @@ mod tests {
 
 ```rust
 use crate::ast::{Workflow, Task};
-use crate::dag::FlowGraph;
+use crate::dag::Dag;
 use crate::store::DataStore;
 use crate::event::EventLog;
 use crate::error::Result;
@@ -584,7 +584,7 @@ use serde_json::json;
 
 /// Shared mutable state for a chat session
 pub struct ChatWorkflow {
-    dag: FlowGraph,
+    dag: Dag,
     store: DataStore,
     log: EventLog,
     message_counter: u32,
@@ -599,7 +599,7 @@ impl ChatWorkflowHandle {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(ChatWorkflow {
-                dag: FlowGraph::new(),
+                dag: Dag::new(),
                 store: DataStore::new(),
                 log: EventLog::new(),
                 message_counter: 0,

@@ -8,7 +8,7 @@
 //! - Fan-in/fan-out at scale
 
 use nika::ast::{TaskAction, Workflow};
-use nika::dag::FlowGraph;
+use nika::dag::Dag;
 use std::path::PathBuf;
 
 /// Get path to examples directory
@@ -47,7 +47,7 @@ fn test_parse_stress_large_dag() {
 fn test_stress_large_dag_valid() {
     let workflow = parse_workflow("test-stress-large-dag.nika.yaml");
 
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     // No cycles allowed
     assert!(
@@ -100,7 +100,7 @@ flows:
     assert_eq!(workflow.tasks.len(), 100);
     assert_eq!(workflow.flows.len(), 99);
 
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     assert!(
         graph.detect_cycles().is_ok(),
         "Linear chain should have no cycles"
@@ -145,7 +145,7 @@ flows:
     assert_eq!(workflow.tasks.len(), 52); // start + 50 parallel + end
     assert_eq!(workflow.flows.len(), 100); // 50 from start + 50 to end
 
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     assert!(
         graph.detect_cycles().is_ok(),
         "Fan-out/fan-in should have no cycles"
@@ -194,7 +194,7 @@ flows:
     let workflow: Workflow = serde_yaml::from_str(&yaml).expect("Should parse 20-level chain");
     assert_eq!(workflow.tasks.len(), 20);
 
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     assert!(
         graph.detect_cycles().is_ok(),
         "Deep chain should have no cycles"
@@ -267,7 +267,7 @@ flows:
     let workflow: Workflow = serde_yaml::from_str(&yaml).expect("Should parse diamond cascade");
     assert_eq!(workflow.tasks.len(), 40); // 10 diamonds * 4 nodes
 
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     assert!(
         graph.detect_cycles().is_ok(),
         "Diamond cascade should have no cycles"
@@ -308,7 +308,7 @@ flows:
     assert_eq!(workflow.tasks.len(), 101);
     assert_eq!(workflow.flows.len(), 100);
 
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     // Aggregator should have 100 dependencies
     let deps = graph.get_dependencies("aggregator");
@@ -349,7 +349,7 @@ flows:
     assert_eq!(workflow.tasks.len(), 101);
     assert_eq!(workflow.flows.len(), 100);
 
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     // Source should have 100 successors
     let successors = graph.get_successors("source");
@@ -426,7 +426,7 @@ flows:
     assert_eq!(workflow.tasks.len(), 4);
     assert_eq!(workflow.flows.len(), 1);
 
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     // Aggregator should depend on all three sources
     let deps = graph.get_dependencies("aggregator");
@@ -461,7 +461,7 @@ flows:
     assert_eq!(workflow.tasks.len(), 4);
     assert_eq!(workflow.flows.len(), 1);
 
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     // Source should have all three as successors
     let successors = graph.get_successors("source");
@@ -480,7 +480,7 @@ fn test_dag_construction_performance() {
     let workflow = parse_workflow("test-stress-large-dag.nika.yaml");
 
     let start = std::time::Instant::now();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     let elapsed = start.elapsed();
 
     // DAG construction should be fast (< 100ms for ~100 tasks)

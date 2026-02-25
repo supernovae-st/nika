@@ -36,7 +36,7 @@
 │                                                                                 │
 │    ┌─────────────────────┐              ┌─────────────────────┐                 │
 │    │        CHAT         │              │      WORKFLOW       │                 │
-│    │    Vec<Message>     │              │      FlowGraph      │                 │
+│    │    Vec<Message>     │              │      Dag      │                 │
 │    ├─────────────────────┤              ├─────────────────────┤                 │
 │    │                     │              │                     │                 │
 │    │  • Liste linéaire   │              │  • DAG structuré    │                 │
@@ -89,7 +89,7 @@
 │              │                       │                       │                  │
 │              ▼                       ▼                       ▼                  │
 │       ┌─────────────┐         ┌─────────────┐         ┌─────────────┐           │
-│       │ ChatWorkflow│         │  FlowGraph  │         │ Export YAML │           │
+│       │ ChatWorkflow│         │  Dag  │         │ Export YAML │           │
 │       │  <ChatMsg>  │         │   <Task>    │         │             │           │
 │       ├─────────────┤         ├─────────────┤         ├─────────────┤           │
 │       │             │         │             │         │             │           │

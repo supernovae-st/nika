@@ -6,7 +6,7 @@
 //! Unified syntax: `alias: task.path [?? default]`
 //! Extended syntax: `alias: {path: task.path, lazy: true}`
 //!
-//! Uses FxHashMap for faster hashing (consistent with FlowGraph).
+//! Uses FxHashMap for faster hashing (consistent with Dag).
 
 use rustc_hash::FxHashMap;
 use serde_json::Value;

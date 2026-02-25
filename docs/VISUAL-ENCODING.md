@@ -377,7 +377,7 @@ pub struct StreamResult {
 │                                                                                 │
 │  RUNTIME                                                                        │
 │  ├── DataStore (task results)                                                  │
-│  ├── FlowGraph (DAG validation)                                                │
+│  ├── Dag (DAG validation)                                                │
 │  ├── TaskExecutor (verb dispatch)                                              │
 │  ├── RigAgentLoop (multi-turn)                                                 │
 │  │   └── SpawnAgentTool (nesting)                                              │

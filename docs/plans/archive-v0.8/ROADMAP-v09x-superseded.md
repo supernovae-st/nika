@@ -15,7 +15,7 @@
 ║                                                                               ║
 ║  ━━━ PHASE A: Chat-as-DAG Core ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ║
 ║                                                                               ║
-║  v0.9.0  🏗️  StableGraph Foundation  │ FlowGraph → StableGraph migration      ║
+║  v0.9.0  🏗️  StableGraph Foundation  │ Dag → StableGraph migration      ║
 ║  v0.9.1  💬 ChatWorkflow Struct      │ DAG wrapper for chat messages          ║
 ║  v0.9.2  🔗 @mention Bindings        │ Parser + WiringSpec generation         ║
 ║  v0.9.3  🛠️  Builtin Tools (6 nika:*) │ sleep, log, emit, assert, prompt, run  ║
@@ -121,7 +121,7 @@ See [6-VIEWS-DESIGN.md](../v0.10+/2026-02-24-v010-v012-6-views-design.md) for co
 
 ### v0.9.0 — StableGraph Foundation
 
-**Focus:** Migrate FlowGraph from petgraph::DiGraph to StableGraph
+**Focus:** Migrate Dag from petgraph::DiGraph to StableGraph
 **Tasks:** 6 | **Tests:** 25 | **Effort:** 1 session
 
 | Task | Description | Tests |
@@ -130,10 +130,10 @@ See [6-VIEWS-DESIGN.md](../v0.10+/2026-02-24-v010-v012-6-views-design.md) for co
 | 0.2 | Implement `add_node()` with NodeIndex stability | 4 |
 | 0.3 | Implement `remove_node()` preserving other indices | 4 |
 | 0.4 | Implement `add_edge()` with EdgeIndex | 4 |
-| 0.5 | Migrate FlowGraph to use StableGraph | 4 |
-| 0.6 | Update all FlowGraph tests | 4 |
+| 0.5 | Migrate Dag to use StableGraph | 4 |
+| 0.6 | Update all Dag tests | 4 |
 
-**WIRING:** FlowGraph → existing DAG validation (WIRING-0)
+**WIRING:** Dag → existing DAG validation (WIRING-0)
 **Live Test:** `cargo test dag::` must pass
 
 **Plan File:** [v0.9.0-StableGraph.md](./v0.9.0-StableGraph.md)
@@ -154,7 +154,7 @@ See [6-VIEWS-DESIGN.md](../v0.10+/2026-02-24-v010-v012-6-views-design.md) for co
 | 1.5 | Add message counter for @N references | 3 |
 | 1.6 | Thread-safety with parking_lot::Mutex | 2 |
 
-**WIRING:** ChatWorkflow → FlowGraph internal DAG (WIRING-1)
+**WIRING:** ChatWorkflow → Dag internal DAG (WIRING-1)
 **Live Test:** `cargo run -- chat`, verify messages create nodes
 
 **Plan File:** [v0.9.1-ChatWorkflow.md](./v0.9.1-ChatWorkflow.md)

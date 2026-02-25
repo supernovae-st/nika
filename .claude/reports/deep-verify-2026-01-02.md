@@ -181,7 +181,7 @@
    - Add exec action to SPEC.md complete example
 
 3. **Low Priority**
-   - Add doc comments to public types (Runner, FlowGraph, etc.)
+   - Add doc comments to public types (Runner, Dag, etc.)
    - Replace executor `.expect()` with proper Result handling
    - Add token counting for v0.2
 

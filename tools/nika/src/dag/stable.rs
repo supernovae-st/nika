@@ -1,4 +1,4 @@
-//! StableFlowGraph - petgraph::StableGraph wrapper for stable NodeIndex (v0.9.0)
+//! StableDag - petgraph::StableGraph wrapper for stable NodeIndex (v0.9.0)
 //!
 //! Provides stable NodeIndex values that persist after node deletion.
 //! Critical for @mention references where deleted messages should not
@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 
 /// Edge weight for flow dependencies.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct FlowEdge {
+pub struct DagEdge {
     /// Optional edge label for debugging
     pub label: Option<String>,
 }
@@ -42,12 +42,12 @@ pub struct FlowEdge {
 /// For persistence, use stable identifiers (e.g., message IDs) instead of NodeIndex.
 /// The `index_map: HashMap<MessageId, NodeIndex>` pattern is recommended.
 #[derive(Debug, Clone)]
-pub struct StableFlowGraph<N> {
-    inner: StableGraph<N, FlowEdge, Directed>,
+pub struct StableDag<N> {
+    inner: StableGraph<N, DagEdge, Directed>,
 }
 
 // Manual Serialize impl to avoid lifetime issues with derive
-impl<N: Serialize> Serialize for StableFlowGraph<N> {
+impl<N: Serialize> Serialize for StableDag<N> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -57,18 +57,18 @@ impl<N: Serialize> Serialize for StableFlowGraph<N> {
 }
 
 // Manual Deserialize impl
-impl<'de, N: Deserialize<'de>> Deserialize<'de> for StableFlowGraph<N> {
+impl<'de, N: Deserialize<'de>> Deserialize<'de> for StableDag<N> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let inner = StableGraph::<N, FlowEdge, Directed>::deserialize(deserializer)?;
+        let inner = StableGraph::<N, DagEdge, Directed>::deserialize(deserializer)?;
         Ok(Self { inner })
     }
 }
 
-impl<N> StableFlowGraph<N> {
-    /// Create an empty StableFlowGraph.
+impl<N> StableDag<N> {
+    /// Create an empty StableDag.
     pub fn new() -> Self {
         Self {
             inner: StableGraph::new(),
@@ -140,7 +140,7 @@ impl<N> StableFlowGraph<N> {
         if !self.contains_node(a) || !self.contains_node(b) {
             return None;
         }
-        Some(self.inner.add_edge(a, b, FlowEdge::default()))
+        Some(self.inner.add_edge(a, b, DagEdge::default()))
     }
 
     /// Add a directed edge with a label.
@@ -156,7 +156,7 @@ impl<N> StableFlowGraph<N> {
         Some(self.inner.add_edge(
             a,
             b,
-            FlowEdge {
+            DagEdge {
                 label: Some(label.into()),
             },
         ))
@@ -205,7 +205,7 @@ impl<N> StableFlowGraph<N> {
     }
 }
 
-impl<N> Default for StableFlowGraph<N> {
+impl<N> Default for StableDag<N> {
     fn default() -> Self {
         Self::new()
     }
@@ -217,21 +217,21 @@ mod tests {
 
     #[test]
     fn test_stable_graph_new_creates_empty_graph() {
-        let graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let graph: StableDag<String> = StableDag::new();
         assert_eq!(graph.node_count(), 0);
         assert_eq!(graph.edge_count(), 0);
     }
 
     #[test]
     fn test_stable_graph_with_capacity() {
-        let graph: StableFlowGraph<String> = StableFlowGraph::with_capacity(10, 20);
+        let graph: StableDag<String> = StableDag::with_capacity(10, 20);
         assert_eq!(graph.node_count(), 0);
         // Capacity is internal optimization, not testable directly
     }
 
     #[test]
     fn test_stable_graph_default_is_empty() {
-        let graph: StableFlowGraph<String> = StableFlowGraph::default();
+        let graph: StableDag<String> = StableDag::default();
         assert_eq!(graph.node_count(), 0);
         assert_eq!(graph.edge_count(), 0);
     }
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn test_add_node_returns_stable_index() {
-        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let mut graph: StableDag<String> = StableDag::new();
 
         let idx1 = graph.add_node("msg-001".to_string());
         let idx2 = graph.add_node("msg-002".to_string());
@@ -254,7 +254,7 @@ mod tests {
 
     #[test]
     fn test_add_node_increments_count() {
-        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let mut graph: StableDag<String> = StableDag::new();
 
         assert_eq!(graph.node_count(), 0);
         graph.add_node("a".to_string());
@@ -265,7 +265,7 @@ mod tests {
 
     #[test]
     fn test_node_weight_retrieves_value() {
-        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let mut graph: StableDag<String> = StableDag::new();
         let idx = graph.add_node("test-value".to_string());
 
         assert_eq!(graph.node_weight(idx), Some(&"test-value".to_string()));
@@ -273,7 +273,7 @@ mod tests {
 
     #[test]
     fn test_node_weight_mut_allows_modification() {
-        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let mut graph: StableDag<String> = StableDag::new();
         let idx = graph.add_node("original".to_string());
 
         if let Some(weight) = graph.node_weight_mut(idx) {
@@ -289,7 +289,7 @@ mod tests {
 
     #[test]
     fn test_remove_node_preserves_other_indices() {
-        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let mut graph: StableDag<String> = StableDag::new();
 
         let idx0 = graph.add_node("msg-001".to_string());
         let idx1 = graph.add_node("msg-002".to_string());
@@ -310,7 +310,7 @@ mod tests {
 
     #[test]
     fn test_remove_node_decrements_count() {
-        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let mut graph: StableDag<String> = StableDag::new();
 
         let idx = graph.add_node("test".to_string());
         assert_eq!(graph.node_count(), 1);
@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_remove_node_returns_weight() {
-        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let mut graph: StableDag<String> = StableDag::new();
         let idx = graph.add_node("value".to_string());
 
         let removed = graph.remove_node(idx);
@@ -330,7 +330,7 @@ mod tests {
 
     #[test]
     fn test_remove_node_missing_returns_none() {
-        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let mut graph: StableDag<String> = StableDag::new();
         let idx = graph.add_node("value".to_string());
         graph.remove_node(idx);
 
@@ -341,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_contains_node_after_removal() {
-        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let mut graph: StableDag<String> = StableDag::new();
         let idx = graph.add_node("test".to_string());
 
         assert!(graph.contains_node(idx));
@@ -355,7 +355,7 @@ mod tests {
 
     #[test]
     fn test_add_edge_creates_directed_edge() {
-        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let mut graph: StableDag<String> = StableDag::new();
 
         let a = graph.add_node("a".to_string());
         let b = graph.add_node("b".to_string());
@@ -369,7 +369,7 @@ mod tests {
     fn test_add_edge_invalid_node_returns_none() {
         use petgraph::stable_graph::NodeIndex;
 
-        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let mut graph: StableDag<String> = StableDag::new();
 
         let a = graph.add_node("a".to_string());
         let invalid = NodeIndex::new(999);
@@ -381,7 +381,7 @@ mod tests {
 
     #[test]
     fn test_has_edge_checks_existence() {
-        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let mut graph: StableDag<String> = StableDag::new();
 
         let a = graph.add_node("a".to_string());
         let b = graph.add_node("b".to_string());
@@ -396,7 +396,7 @@ mod tests {
 
     #[test]
     fn test_remove_edge_works() {
-        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let mut graph: StableDag<String> = StableDag::new();
 
         let a = graph.add_node("a".to_string());
         let b = graph.add_node("b".to_string());
@@ -413,7 +413,7 @@ mod tests {
 
     #[test]
     fn test_remove_edge_nonexistent_returns_false() {
-        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+        let mut graph: StableDag<String> = StableDag::new();
 
         let a = graph.add_node("a".to_string());
         let b = graph.add_node("b".to_string());

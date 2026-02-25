@@ -6,7 +6,7 @@
 //! - Have proper dependency resolution
 
 use nika::ast::{TaskAction, Workflow};
-use nika::dag::FlowGraph;
+use nika::dag::Dag;
 use std::path::PathBuf;
 
 /// Get path to examples directory
@@ -67,8 +67,8 @@ fn test_parse_all_verbs_complex() {
 fn test_all_verbs_dag_construction() {
     let workflow = parse_workflow("test-all-verbs-complex.nika.yaml");
 
-    // Build DAG (returns FlowGraph directly, not Result)
-    let graph = FlowGraph::from_workflow(&workflow);
+    // Build DAG (returns Dag directly, not Result)
+    let graph = Dag::from_workflow(&workflow);
 
     // Verify no cycles (returns Result<(), NikaError>)
     assert!(

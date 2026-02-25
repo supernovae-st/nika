@@ -1,10 +1,10 @@
 //! Benchmark: DAG Validation
 //!
-//! Measures FlowGraph construction and validation performance.
+//! Measures Dag construction and validation performance.
 //! Run: cargo bench --bench dag_validation
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use nika::{validate_use_wiring, FlowGraph, Workflow};
+use nika::{validate_use_wiring, Dag, Workflow};
 
 /// Generate a linear workflow (A -> B -> C -> ...)
 fn generate_linear_workflow(size: usize) -> Workflow {
@@ -119,8 +119,8 @@ tasks:
     serde_yaml::from_str(&yaml).unwrap()
 }
 
-fn bench_flowgraph_construction(c: &mut Criterion) {
-    let mut group = c.benchmark_group("flowgraph_from_workflow");
+fn bench_dag_construction(c: &mut Criterion) {
+    let mut group = c.benchmark_group("dag_from_workflow");
 
     // Linear DAG
     for size in [10, 50, 100, 250].iter() {
@@ -128,7 +128,7 @@ fn bench_flowgraph_construction(c: &mut Criterion) {
 
         group.bench_with_input(BenchmarkId::new("linear", size), &workflow, |b, wf| {
             b.iter(|| {
-                let graph = FlowGraph::from_workflow(black_box(wf));
+                let graph = Dag::from_workflow(black_box(wf));
                 black_box(graph)
             });
         });
@@ -140,7 +140,7 @@ fn bench_flowgraph_construction(c: &mut Criterion) {
 
         group.bench_with_input(BenchmarkId::new("diamond", width), &workflow, |b, wf| {
             b.iter(|| {
-                let graph = FlowGraph::from_workflow(black_box(wf));
+                let graph = Dag::from_workflow(black_box(wf));
                 black_box(graph)
             });
         });
@@ -152,7 +152,7 @@ fn bench_flowgraph_construction(c: &mut Criterion) {
 
         group.bench_with_input(BenchmarkId::new("parallel", size), &workflow, |b, wf| {
             b.iter(|| {
-                let graph = FlowGraph::from_workflow(black_box(wf));
+                let graph = Dag::from_workflow(black_box(wf));
                 black_box(graph)
             });
         });
@@ -167,7 +167,7 @@ fn bench_cycle_detection(c: &mut Criterion) {
     // Linear DAG - no cycles
     for size in [10, 50, 100, 250].iter() {
         let workflow = generate_linear_workflow(*size);
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         group.bench_with_input(BenchmarkId::new("linear_no_cycle", size), &graph, |b, g| {
             b.iter(|| {
@@ -180,7 +180,7 @@ fn bench_cycle_detection(c: &mut Criterion) {
     // Diamond DAG - no cycles
     for width in [10, 50, 100].iter() {
         let workflow = generate_diamond_workflow(*width);
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         group.bench_with_input(
             BenchmarkId::new("diamond_no_cycle", width),
@@ -203,7 +203,7 @@ fn bench_has_path(c: &mut Criterion) {
     // Linear DAG - path from start to end (worst case)
     for size in [10, 50, 100, 250].iter() {
         let workflow = generate_linear_workflow(*size);
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         group.bench_with_input(
             BenchmarkId::new("linear_full_path", size),
@@ -220,7 +220,7 @@ fn bench_has_path(c: &mut Criterion) {
     // Diamond - path from source to sink
     for width in [10, 50, 100].iter() {
         let workflow = generate_diamond_workflow(*width);
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         group.bench_with_input(
             BenchmarkId::new("diamond_source_to_sink", width),
@@ -243,7 +243,7 @@ fn bench_get_dependencies(c: &mut Criterion) {
     // Diamond - get dependencies of sink (many predecessors)
     for width in [10, 50, 100, 250].iter() {
         let workflow = generate_diamond_workflow(*width);
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         group.bench_with_input(BenchmarkId::new("diamond_sink", width), &graph, |b, g| {
             b.iter(|| {
@@ -262,7 +262,7 @@ fn bench_get_final_tasks(c: &mut Criterion) {
     // Linear - one final task
     for size in [10, 50, 100, 250].iter() {
         let workflow = generate_linear_workflow(*size);
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         group.bench_with_input(BenchmarkId::new("linear", size), &graph, |b, g| {
             b.iter(|| {
@@ -275,7 +275,7 @@ fn bench_get_final_tasks(c: &mut Criterion) {
     // Parallel - all tasks are final
     for size in [10, 50, 100, 250].iter() {
         let workflow = generate_parallel_workflow(*size);
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         group.bench_with_input(BenchmarkId::new("parallel", size), &graph, |b, g| {
             b.iter(|| {
@@ -293,7 +293,7 @@ fn bench_validate_use_wiring(c: &mut Criterion) {
 
     for size in [5, 10, 25, 50].iter() {
         let workflow = generate_workflow_with_bindings(*size);
-        let graph = FlowGraph::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow);
 
         group.bench_with_input(
             BenchmarkId::new("consumers", size),
@@ -312,7 +312,7 @@ fn bench_validate_use_wiring(c: &mut Criterion) {
 
 criterion_group!(
     benches,
-    bench_flowgraph_construction,
+    bench_dag_construction,
     bench_cycle_detection,
     bench_has_path,
     bench_get_dependencies,

@@ -88,7 +88,7 @@ Audit of all v0.9.1 plan documents identified:
 
 **Missing details:**
 - petgraph dependency version (0.6.x?)
-- Exact FlowGraph struct changes
+- Exact Dag struct changes
 - NodeIndex↔TaskId mapping strategy
 - Node removal impact on references
 - Performance benchmarks (add/remove operations)
@@ -187,7 +187,7 @@ pub enum NodeType {
 
 ### 3.1 2026-02-24-stablegraph-migration-spec.md — P0
 
-**Purpose:** Detailed spec for FlowGraph → StableGraph refactor
+**Purpose:** Detailed spec for Dag → StableGraph refactor
 **Contents:**
 - petgraph version and features
 - Struct definition before/after

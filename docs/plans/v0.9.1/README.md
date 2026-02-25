@@ -16,13 +16,13 @@
 ║                                                                               ║
 ║   ┌─────────┐    ┌─────────┐          ┌─────────────────────────────┐         ║
 ║   │  Chat   │    │Workflow │          │    petgraph::StableGraph    │         ║
-║   │Vec<Msg> │    │FlowGraph│          │    (NodeIndex stable)       │         ║
+║   │Vec<Msg> │    │Dag│          │    (NodeIndex stable)       │         ║
 ║   └─────────┘    └─────────┘          └─────────────────────────────┘         ║
 ║        │              │                            │                          ║
 ║        │   Séparés    │               ┌────────────┴────────────┐             ║
 ║        │   Pas de     │               ▼                         ▼             ║
 ║        │   lien       │         ┌───────────┐            ┌───────────┐        ║
-║        ▼              ▼         │ChatWorkflow│            │FlowGraph  │        ║
+║        ▼              ▼         │ChatWorkflow│            │Dag  │        ║
 ║   Pas d'export   YAML statique  │<ChatMsg>   │            │<Task>     │        ║
 ║   Pas de @ref    Pas de chat    └───────────┘            └───────────┘        ║
 ║                                       │                         │             ║
@@ -335,7 +335,7 @@ v0.14.x — Multi-agent orchestration
 ## Key Decisions
 
 1. **petgraph::StableGraph** — NodeIndex stable après suppression
-2. **ChatWorkflow wraps StableFlowGraph** — Même structure que FlowGraph
+2. **ChatWorkflow wraps StableDag** — Même structure que Dag
 3. **@N = NodeIndex** — Référence stable, pas position
 4. **5 verbes = 5 TaskBox** — Mapping 1:1
 5. **Export = reconstruction** — Chat → YAML via DAG traversal

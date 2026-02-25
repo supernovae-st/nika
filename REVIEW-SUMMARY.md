@@ -130,7 +130,7 @@ id_to_node: FxHashMap<String, NodeIndex>,
 ```rust
 pub struct ChatWorkflow {
     pub workflow: Workflow,
-    pub dag: FlowGraph,
+    pub dag: Dag,
     pub store: DataStore,
 }
 ```
@@ -263,7 +263,7 @@ After implementing these patterns:
 |-----------|--------|-------|------|
 | Add task to DAG | ❓ | <1µs | parking_lot is fast |
 | Lookup task by ID | ❓ | ~10ns | HashMap lookup |
-| Clone FlowGraph | ❓ | ~1ns | Arc clone only |
+| Clone Dag | ❓ | ~1ns | Arc clone only |
 | Resolve @mention | ❓ | <1µs | HashMap lookup + validation |
 
 All operations remain lock-free for read operations.
@@ -273,7 +273,7 @@ All operations remain lock-free for read operations.
 ## Success Criteria for v0.9.1
 
 - [ ] All error codes in 200-229 range used
-- [ ] FlowGraph uses StableGraph<String, ()>
+- [ ] Dag uses StableGraph<String, ()>
 - [ ] ChatWorkflow wrapped in Arc<Mutex<>>
 - [ ] MentionParser parses @1, @prev, @1-5, @*
 - [ ] ContextLoader has timeout protection

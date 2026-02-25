@@ -464,7 +464,7 @@ pub enum TaskStatus {
 ┌─────────────────────────────────────────┐
 │         APPLICATION LAYER               │
 │  runtime/  → Runner, TaskExecutor       │
-│  dag/      → FlowGraph, validation      │
+│  dag/      → Dag, validation      │
 │  binding/  → UseWiring, templates       │
 └─────────────────────────────────────────┘
                    │

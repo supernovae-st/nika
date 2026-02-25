@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.9.0 | 6-Views Architecture Prep + Chat DAG Widgets (v0.10) + Nika Intro Animation | 2,793 tests | MVP 8 complete | Zero clippy warnings
+**Current version:** v0.8.0 | Edit History (Undo/Redo) + Session Persistence + Solarized Theme + Config System | 1,902 tests | MVP 8 complete | Zero clippy warnings
 
 ## Architecture
 
@@ -96,85 +96,6 @@ yamllint -c .yamllint.yaml **/*.nika.yaml
 - `nika/workflow@0.2`: +invoke, +agent verbs, +mcp config
 - `nika/workflow@0.3`: +for_each parallelism, rig-core integration
 - `nika/workflow@0.5`: +decompose, +lazy bindings, +spawn_agent (MVP 8)
-
-## v0.10.x Changes (Chat DAG Widgets)
-
-### Overview
-
-Complete widget suite for Chat-as-DAG architecture (108 tests, 44% over plan):
-
-| Version | Widget | Tests | Purpose |
-|---------|--------|-------|---------|
-| v0.10.0 | ChatNodeBox | 23 | Individual chat message node |
-| v0.10.1 | ChatEdgeLine | 16 | @N reference edge connections |
-| v0.10.2 | ChatTaskQueue | 23 | Task execution queue panel |
-| v0.10.3 | ChatDagPanel | 27 | Full DAG visualization (nodes + edges) |
-| v0.10.4 | Animation | 19 | AnimationTicker + Easing utilities |
-
-### New Widgets
-
-**ChatNodeBox** (`src/tui/widgets/chat_node_box.rs`):
-- Individual chat message as a graph node
-- 4 node kinds: User, Assistant, System, Tool
-- 4 states: Pending, Active, Complete, Error
-- Builder pattern with `.with_*()` methods
-
-**ChatEdgeLine** (`src/tui/widgets/chat_edge_line.rs`):
-- Renders @N reference edges between nodes
-- Supports active/inactive state for animations
-- Bezier curve calculation for smooth lines
-
-**ChatTaskQueue** (`src/tui/widgets/chat_task_queue.rs`):
-- Task execution queue with 5-verb icons
-- Progress bars and elapsed time display
-- Scrollable with scroll indicators
-
-**ChatDagPanel** (`src/tui/widgets/chat_dag_panel.rs`):
-- Full DAG visualization combining nodes + edges
-- Selection navigation (up/down)
-- Toggle visibility support
-- Integrates ChatNodeBox + ChatEdgeLine
-
-**Animation Utilities** (`src/tui/widgets/animation.rs`):
-- `AnimationTicker`: 60fps frame coordination
-- `AnimationState`: Idle/Pulsing/Flowing/Completed/Error
-- `Easing`: linear, ease_in, ease_out, ease_in_out, bounce
-
-### Exports in mod.rs
-
-```rust
-pub use animation::{AnimationState, AnimationTicker, Easing};
-pub use chat_dag_panel::{ChatDagPanel, DagEdgeData, DagNodeData};
-pub use chat_task_queue::{ChatTaskQueue, ChatTaskQueueItem, ChatTaskState, ChatTaskVerb};
-```
-
----
-
-## v0.9.x Changes (6-Views Architecture Prep)
-
-### v0.9.0 (Current)
-
-- **6-Views Architecture** - Preparation for ChatView → Chat-as-DAG migration
-  - View enum: Home, Chat, Studio, Monitor, Settings, Help
-  - Each view gets dedicated state and render method
-  - Foundation for v0.11 full integration
-
-### v0.8.9x (Nika Intro Animation)
-
-- **Nika Intro Animation** - ASCII art explosion into matrix rain
-  - `NikaIntro` widget with 3 phases: Explosion, Rain, Done
-  - `IntroPhase` state machine for animation control
-  - Smooth ease-out cubic easing for natural deceleration
-  - Wave effect: center butterflies explode first, edges follow
-  - 15 frames (~1.5s duration)
-
-### Statistics Update
-
-- **2,793 tests** (up from 1,902 in v0.8.0)
-- **+891 new tests** across v0.8.9x, v0.9.0, v0.10.x
-- **108 v0.10 widget tests** (44% over 75-test target)
-
----
 
 ## v0.8.0 Changes (Studio DX Complete + Test Count Finalization)
 

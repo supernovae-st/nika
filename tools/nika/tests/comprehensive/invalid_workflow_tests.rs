@@ -10,7 +10,7 @@
 //! - Type mismatches
 
 use nika::ast::Workflow;
-use nika::dag::FlowGraph;
+use nika::dag::Dag;
 
 // ============================================================================
 // CYCLIC DEPENDENCY TESTS
@@ -32,7 +32,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     assert!(
         graph.detect_cycles().is_err(),
         "Should detect self-referential cycle"
@@ -59,7 +59,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     assert!(
         graph.detect_cycles().is_err(),
         "Should detect two-node cycle"
@@ -98,7 +98,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     assert!(graph.detect_cycles().is_err(), "Should detect 5-node cycle");
 }
 
@@ -139,7 +139,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
     assert!(
         graph.detect_cycles().is_err(),
         "Should detect hidden cycle: merge -> sneaky -> branch_a -> merge"
@@ -188,8 +188,8 @@ flows:
 
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
 
-    // FlowGraph should handle or reject orphan reference
-    let result = FlowGraph::from_workflow(&workflow);
+    // Dag should handle or reject orphan reference
+    let result = Dag::from_workflow(&workflow);
     // Implementation-dependent whether this errors or creates orphan node
     let _ = result;
 }
@@ -210,7 +210,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse");
-    let result = FlowGraph::from_workflow(&workflow);
+    let result = Dag::from_workflow(&workflow);
     let _ = result;
 }
 
@@ -534,7 +534,7 @@ tasks:
 
     if let Ok(workflow) = result {
         // If parsing succeeds, DAG building should detect duplicate
-        let result = FlowGraph::from_workflow(&workflow);
+        let result = Dag::from_workflow(&workflow);
         // Implementation-dependent behavior for duplicates
         let _ = result;
     }

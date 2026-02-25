@@ -19,7 +19,7 @@
 ║  ━━━ v0.9 "Chat-as-DAG" ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ║
 ║  Core DAG infrastructure for chat messages                                    ║
 ║                                                                               ║
-║  v0.9.0  🏗️  StableGraph Foundation  │ FlowGraph → StableGraph migration      ║
+║  v0.9.0  🏗️  StableGraph Foundation  │ Dag → StableGraph migration      ║
 ║  v0.9.1  💬 ChatWorkflow Struct      │ DAG wrapper for chat messages          ║
 ║  v0.9.2  🔗 @mention Bindings        │ Parser + WiringSpec generation         ║
 ║  v0.9.3  🛠️  Builtin Tools (6 nika:*) │ sleep, log, emit, assert, prompt, run  ║
@@ -105,10 +105,10 @@
 | 0.2 | Implement `add_node()` with NodeIndex stability | 4 |
 | 0.3 | Implement `remove_node()` preserving other indices | 4 |
 | 0.4 | Implement `add_edge()` with EdgeIndex | 4 |
-| 0.5 | Migrate FlowGraph to use StableGraph | 4 |
-| 0.6 | Update all FlowGraph tests | 4 |
+| 0.5 | Migrate Dag to use StableGraph | 4 |
+| 0.6 | Update all Dag tests | 4 |
 
-**WIRING:** `FlowGraph` → existing DAG validation
+**WIRING:** `Dag` → existing DAG validation
 **Live Test:** `cargo test dag::` must pass
 
 ---
@@ -126,7 +126,7 @@
 | 1.5 | Add message counter for @N references | 3 |
 | 1.6 | Thread-safety with `parking_lot::Mutex` | 3 |
 
-**WIRING:** `ChatWorkflow` → `FlowGraph` internal DAG
+**WIRING:** `ChatWorkflow` → `Dag` internal DAG
 **Live Test:** `cargo run -- chat`, verify messages create nodes
 
 ---

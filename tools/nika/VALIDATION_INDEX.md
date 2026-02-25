@@ -18,7 +18,7 @@ This index guides you through the complete logic validation performed on Nika v0
 **Contents (490 lines):**
 1. Executive Summary (status, score, verdict)
 2. Action Logic Verification (5 verbs)
-3. DAG Semantics Verification (FlowGraph, topological order)
+3. DAG Semantics Verification (Dag, topological order)
 4. Data Flow & Binding Logic (use: block, lazy resolution)
 5. Thread Safety & Concurrency (Arc, DashMap, OnceCell)
 6. MCP Integration (ADR-003: Zero Cypher Rule)

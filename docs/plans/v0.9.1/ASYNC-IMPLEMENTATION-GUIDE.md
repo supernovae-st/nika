@@ -40,7 +40,7 @@ pub struct ChatWorkflow {
     /// Incremental workflow being built
     pub workflow: Workflow,
     /// DAG representation
-    pub dag: FlowGraph,
+    pub dag: Dag,
     /// Result storage
     pub store: DataStore,
     /// Event log for observability
@@ -61,7 +61,7 @@ impl ChatWorkflow {
                 flows: Vec::new(),
                 mcp: None,
             },
-            dag: FlowGraph::new(),
+            dag: Dag::new(),
             store: DataStore::new(),
             log: EventLog::new(),
             message_counter: Arc::new(AtomicU32::new(0)),
@@ -477,7 +477,7 @@ mod tests {
 use tokio::sync::broadcast;
 
 pub struct ChatDagPanel<'a> {
-    dag: &'a FlowGraph,
+    dag: &'a Dag,
     running_task: Option<&'a str>,
     expanded: bool,
 }

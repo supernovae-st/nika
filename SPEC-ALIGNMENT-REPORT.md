@@ -52,7 +52,7 @@ evalexpr = "11.0"       # Safe expression evaluation for nika:assert
 
 | Module | Plan Reference | Expected Purpose | Status | Estimated LOC |
 |--------|----------------|------------------|--------|---------------|
-| `src/dag/stable.rs` | ROADMAP-v09x.md line 127 | StableGraph wrapper for FlowGraph | ❌ NOT CREATED | 400-500 |
+| `src/dag/stable.rs` | ROADMAP-v09x.md line 127 | StableGraph wrapper for Dag | ❌ NOT CREATED | 400-500 |
 | `src/dag/flow.rs` (refactored) | 2026-02-24-stablegraph-migration-spec.md | Migrate from FxHashMap to StableGraph | ⚠️ EXISTS (custom impl) | -150/+200 |
 
 **Current State:** `src/dag/flow.rs` exists (432 lines) but uses `FxHashMap`-based adjacency lists, NOT `StableGraph`. Must be replaced.
@@ -183,13 +183,13 @@ src/dag/
 └── validate.rs
 ```
 
-**Conflict:** Plan example shows `FlowGraph` using `StableGraph` **within** `flow.rs` (line 87 of spec), but current `flow.rs` is incompatible.
+**Conflict:** Plan example shows `Dag` using `StableGraph` **within** `flow.rs` (line 87 of spec), but current `flow.rs` is incompatible.
 
 **Two Options:**
 1. **Replace** `flow.rs` entirely with StableGraph impl (BREAKING for imports)
 2. **Create** `src/dag/stable.rs` alongside `flow.rs` with new name
 
-**Plan Implication:** Spec code examples assume replacement (line 144: `impl FlowGraph`), not parallel implementation.
+**Plan Implication:** Spec code examples assume replacement (line 144: `impl Dag`), not parallel implementation.
 
 ---
 
@@ -280,11 +280,11 @@ pub struct ChatWorkflow {
 
 ## 5. ARCHITECTURAL ASSUMPTIONS
 
-### A. Current FlowGraph Performance vs Plan Requirement
+### A. Current Dag Performance vs Plan Requirement
 
 **Current Implementation** (`src/dag/flow.rs`, lines 1-37):
 ```rust
-pub struct FlowGraph {
+pub struct Dag {
     adjacency: FxHashMap<Arc<str>, DepVec>,  // DepVec = SmallVec[Arc<str>; 4]
     predecessors: FxHashMap<Arc<str>, DepVec>,
     task_ids: Vec<Arc<str>>,
@@ -299,7 +299,7 @@ pub struct FlowGraph {
 
 **Plan Requirement** (2026-02-24-stablegraph-migration-spec.md, line 87):
 ```rust
-pub struct FlowGraph {
+pub struct Dag {
     graph: StableGraph<TaskNode, (), Directed>,
     id_to_node: FxHashMap<Arc<str>, NodeIndex>,
 }
@@ -363,7 +363,7 @@ These must be resolved BEFORE v0.9.0 implementation starts:
 | Verify rig-core v0.31 ToolDyn API | TBD | Check docs / run test | Before starting v0.9.3 |
 | Clarify EventLog thread-safety model | TBD | Review/document | Before starting v0.9.3 |
 | Design @mention system precedence (context vs message) | TBD | Whiteboard / ADR | Before starting v0.9.2 |
-| Decide: replace vs parallel FlowGraph impl | TBD | Architecture decision | Before starting v0.9.0 |
+| Decide: replace vs parallel Dag impl | TBD | Architecture decision | Before starting v0.9.0 |
 
 ---
 
@@ -468,7 +468,7 @@ v0.9.x doesn't bump schema version (mentions/builtin tools are additive via invo
 ### Immediate (Before Development)
 
 1. **Dependency Resolution** - Add petgraph, humantime, evalexpr to Cargo.toml
-2. **Architecture Decision** - Replace vs parallel FlowGraph impl (create ADR-???)
+2. **Architecture Decision** - Replace vs parallel Dag impl (create ADR-???)
 3. **Thread Safety Review** - Document EventLog/DataStore concurrency model
 4. **Mention System Design** - Create precedence rules for @entity vs @message
 

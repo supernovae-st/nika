@@ -23,8 +23,8 @@
 
 | Checkpoint | After Phase | Verifies | Command |
 |------------|-------------|----------|---------|
-| WIRING-0 | v0.9.0 | StableFlowGraph ↔ FlowGraph | `cargo test wiring_checkpoint_0` |
-| WIRING-1 | v0.9.1 | FlowGraph ↔ ChatWorkflow | `cargo test wiring_checkpoint_1` |
+| WIRING-0 | v0.9.0 | StableDag ↔ Dag | `cargo test wiring_checkpoint_0` |
+| WIRING-1 | v0.9.1 | Dag ↔ ChatWorkflow | `cargo test wiring_checkpoint_1` |
 | WIRING-2 | v0.9.2 | ChatWorkflow ↔ @mention Bindings | `cargo test wiring_checkpoint_2` |
 | WIRING-3 | v0.9.3 | BuiltinRouter ↔ Executor | `cargo test wiring_checkpoint_3` |
 | WIRING-4 | v0.9.4 | ChatDagPanel ↔ EventLog | `cargo test wiring_checkpoint_4` |
@@ -32,20 +32,20 @@
 
 ---
 
-## WIRING-0: StableFlowGraph Foundation
+## WIRING-0: StableDag Foundation
 
 **After:** v0.9.0 (StableGraph Migration)
-**Verifies:** StableFlowGraph provides stable NodeIndex after deletion
+**Verifies:** StableDag provides stable NodeIndex after deletion
 
 ```rust
 // tests/wiring_checkpoint_0.rs
 
 #[test]
 fn wiring_checkpoint_0_stable_node_index() {
-    use nika::dag::stable::StableFlowGraph;
+    use nika::dag::stable::StableDag;
 
-    // Test 1: Create StableFlowGraph
-    let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+    // Test 1: Create StableDag
+    let mut graph: StableDag<String> = StableDag::new();
 
     // Test 2: Add nodes and track indices
     let idx1 = graph.add_node("Node 1".to_string());
@@ -68,9 +68,9 @@ fn wiring_checkpoint_0_stable_node_index() {
 
 #[test]
 fn wiring_checkpoint_0_stable_edges() {
-    use nika::dag::stable::StableFlowGraph;
+    use nika::dag::stable::StableDag;
 
-    let mut graph: StableFlowGraph<&str> = StableFlowGraph::new();
+    let mut graph: StableDag<&str> = StableDag::new();
 
     let a = graph.add_node("A");
     let b = graph.add_node("B");
@@ -107,10 +107,10 @@ cargo test wiring_checkpoint_0 --test wiring_checkpoint_0
 
 ---
 
-## WIRING-1: StableFlowGraph ↔ ChatWorkflow
+## WIRING-1: StableDag ↔ ChatWorkflow
 
 **After:** v0.9.1 (ChatWorkflow)
-**Verifies:** ChatWorkflow wraps StableFlowGraph correctly, auto-edges work
+**Verifies:** ChatWorkflow wraps StableDag correctly, auto-edges work
 
 ```rust
 // tests/wiring_checkpoint_1.rs
@@ -119,7 +119,7 @@ cargo test wiring_checkpoint_0 --test wiring_checkpoint_0
 fn wiring_checkpoint_1_flowgraph_to_chatworkflow() {
     use nika::runtime::chat_workflow::{ChatWorkflow, Role};
 
-    // Test 1: ChatWorkflow wraps StableFlowGraph
+    // Test 1: ChatWorkflow wraps StableDag
     let mut chat = ChatWorkflow::new();
 
     // Test 2: add_message updates internal DAG and returns stable NodeIndex

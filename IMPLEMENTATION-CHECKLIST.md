@@ -22,7 +22,7 @@ Quick reference for ensuring spec-code alignment during development.
   - [ ] Document ChatWorkflow locking strategy
 
 - [ ] Architecture decision:
-  - [ ] Decide: Replace FlowGraph (breaking) vs create parallel impl
+  - [ ] Decide: Replace Dag (breaking) vs create parallel impl
   - [ ] If replacing: Update all imports in dag/mod.rs
   - [ ] If parallel: Plan migration strategy for v0.10
 
@@ -220,12 +220,12 @@ Run these integration tests:
 
 **After v0.9.0:**
 ```bash
-cargo test wiring_checkpoint_0  # FlowGraph → DAG validation
+cargo test wiring_checkpoint_0  # Dag → DAG validation
 ```
 
 **After v0.9.1:**
 ```bash
-cargo test wiring_checkpoint_1  # ChatWorkflow → FlowGraph
+cargo test wiring_checkpoint_1  # ChatWorkflow → Dag
 ```
 
 **After v0.9.2:**
@@ -283,7 +283,7 @@ For each new module, verify imports are correct:
 **Common Import Pattern:**
 ```rust
 // src/runtime/chat_workflow.rs
-use crate::dag::FlowGraph;
+use crate::dag::Dag;
 use crate::event::EventLog;
 use crate::store::DataStore;
 use parking_lot::Mutex;

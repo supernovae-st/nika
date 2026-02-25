@@ -1,15 +1,15 @@
-//! WIRING-0: StableFlowGraph Foundation
+//! WIRING-0: StableDag Foundation
 //!
-//! Verifies: StableFlowGraph provides stable NodeIndex after deletion.
+//! Verifies: StableDag provides stable NodeIndex after deletion.
 //! Run after: v0.9.0 (StableGraph Migration)
 
-use nika::dag::StableFlowGraph;
+use nika::dag::StableDag;
 
-/// Test that StableFlowGraph maintains stable NodeIndex after removal.
+/// Test that StableDag maintains stable NodeIndex after removal.
 #[test]
 fn wiring_checkpoint_0_stable_node_index() {
-    // Test 1: Create StableFlowGraph
-    let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+    // Test 1: Create StableDag
+    let mut graph: StableDag<String> = StableDag::new();
 
     // Test 2: Add nodes and track indices
     let idx1 = graph.add_node("Node 1".to_string());
@@ -47,7 +47,7 @@ fn wiring_checkpoint_0_stable_node_index() {
 /// Test that edges work correctly with stable indices.
 #[test]
 fn wiring_checkpoint_0_stable_edges() {
-    let mut graph: StableFlowGraph<&str> = StableFlowGraph::new();
+    let mut graph: StableDag<&str> = StableDag::new();
 
     let a = graph.add_node("A");
     let b = graph.add_node("B");
@@ -85,7 +85,7 @@ fn wiring_checkpoint_0_stable_edges() {
 /// Test new node reuses deleted index slots.
 #[test]
 fn wiring_checkpoint_0_index_reuse() {
-    let mut graph: StableFlowGraph<i32> = StableFlowGraph::new();
+    let mut graph: StableDag<i32> = StableDag::new();
 
     let idx0 = graph.add_node(0);
     let idx1 = graph.add_node(1);

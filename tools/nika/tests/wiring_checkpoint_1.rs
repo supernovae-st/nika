@@ -1,13 +1,13 @@
-//! WIRING-1: StableFlowGraph ↔ ChatWorkflow
+//! WIRING-1: StableDag ↔ ChatWorkflow
 //!
-//! Verifies: ChatWorkflow wraps StableFlowGraph correctly, auto-edges work.
+//! Verifies: ChatWorkflow wraps StableDag correctly, auto-edges work.
 //! Run after: v0.9.1 (ChatWorkflow)
 
 use nika::runtime::chat_workflow::{ChatWorkflow, Role};
 use parking_lot::Mutex;
 use std::sync::Arc;
 
-/// Test that ChatWorkflow correctly wraps StableFlowGraph.
+/// Test that ChatWorkflow correctly wraps StableDag.
 #[test]
 fn wiring_checkpoint_1_chatworkflow_uses_stablegraph() {
     // Test 1: ChatWorkflow creates with empty DAG

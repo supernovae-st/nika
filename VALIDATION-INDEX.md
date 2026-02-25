@@ -50,7 +50,7 @@
 
 1. **Read First:** ALIGNMENT-EXECUTIVE-SUMMARY.md (section "Key Architectural Decisions")
 2. **Review:** SPEC-ALIGNMENT-REPORT.md (sections 4–5)
-3. **Decide:** FlowGraph replacement strategy (create ADR-????)
+3. **Decide:** Dag replacement strategy (create ADR-????)
 4. **Action:** Review pre-implementation blockers (section 6)
 
 ### For Engineers (Implementation Team)
@@ -70,14 +70,14 @@
 
 ## Critical Issues Requiring Decision
 
-### Issue 1: FlowGraph Migration Strategy
+### Issue 1: Dag Migration Strategy
 
 **Location:** SPEC-ALIGNMENT-REPORT.md, Section 3.A
 
 **Decision Needed:** Replace vs Parallel Implementation
 - **Option A (Replace):** Modify src/dag/flow.rs to use StableGraph
   - Pros: Simpler, one source of truth
-  - Cons: Breaking change, affects all existing code using FlowGraph
+  - Cons: Breaking change, affects all existing code using Dag
 - **Option B (Parallel):** Create src/dag/stable.rs alongside flow.rs
   - Pros: Non-breaking, gradual migration
   - Cons: Code duplication, migration complexity later
@@ -167,7 +167,7 @@ pub trait ToolDyn: Send + Sync {
 - [ ] Add 3 dependencies to Cargo.toml (5 min)
 - [ ] Verify rig-core v0.31 API (30 min)
 - [ ] Clarify EventLog thread safety (30 min)
-- [ ] Decide FlowGraph migration strategy (1 hour)
+- [ ] Decide Dag migration strategy (1 hour)
 - [ ] Add error codes to src/error.rs (30 min)
 
 **Effort:** ~3 hours
@@ -191,7 +191,7 @@ pub trait ToolDyn: Send + Sync {
 | Architecture | ✅ High | Plans are well-designed, no conflicts |
 | Feasibility | ✅ High | All required dependencies exist or easily added |
 | Scope | ✅ High | Clear phase breakdown, test counts provided |
-| Risk | ⚠️ Medium | FlowGraph migration + thread safety need decisions |
+| Risk | ⚠️ Medium | Dag migration + thread safety need decisions |
 | Timeline | ⚠️ Medium | Assumes focused 10-day effort, may extend with code review |
 
 ---

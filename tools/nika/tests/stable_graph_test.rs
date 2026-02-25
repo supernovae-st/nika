@@ -1,9 +1,9 @@
-//! Integration test for StableFlowGraph (v0.9.0)
+//! Integration test for StableDag (v0.9.0)
 //!
 //! Tests the core invariant: NodeIndex values remain stable after node deletion.
 //! This is the foundation for @mention references in Chat-as-DAG architecture.
 
-use nika::StableFlowGraph;
+use nika::StableDag;
 
 /// Core invariant: indices remain stable after deletion
 ///
@@ -20,7 +20,7 @@ use nika::StableFlowGraph;
 /// ```
 #[test]
 fn test_stable_index_after_deletion_invariant() {
-    let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+    let mut graph: StableDag<String> = StableDag::new();
 
     // Add 3 nodes
     let idx0 = graph.add_node("msg-001".to_string());
@@ -53,7 +53,7 @@ fn test_stable_index_after_deletion_invariant() {
 /// Test edges survive node deletion for unrelated nodes
 #[test]
 fn test_edges_survive_unrelated_node_deletion() {
-    let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+    let mut graph: StableDag<String> = StableDag::new();
 
     let a = graph.add_node("A".to_string());
     let b = graph.add_node("B".to_string());
@@ -79,7 +79,7 @@ fn test_edges_survive_unrelated_node_deletion() {
 /// Test new nodes fill gaps from deleted nodes
 #[test]
 fn test_new_nodes_reuse_deleted_indices() {
-    let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+    let mut graph: StableDag<String> = StableDag::new();
 
     let idx0 = graph.add_node("first".to_string());
     let idx1 = graph.add_node("second".to_string());
@@ -98,10 +98,10 @@ fn test_new_nodes_reuse_deleted_indices() {
     assert_eq!(graph.node_weight(idx0), Some(&"first".to_string()));
 }
 
-/// Test FlowEdge with labeled edges
+/// Test DagEdge with labeled edges
 #[test]
 fn test_flow_edge_with_label() {
-    let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+    let mut graph: StableDag<String> = StableDag::new();
 
     let parent = graph.add_node("parent".to_string());
     let child = graph.add_node("child".to_string());
@@ -117,7 +117,7 @@ fn test_flow_edge_with_label() {
 /// Test serialization roundtrip
 #[test]
 fn test_stable_graph_serialization_roundtrip() {
-    let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+    let mut graph: StableDag<String> = StableDag::new();
 
     let a = graph.add_node("node-a".to_string());
     let b = graph.add_node("node-b".to_string());
@@ -127,7 +127,7 @@ fn test_stable_graph_serialization_roundtrip() {
     let json = serde_json::to_string(&graph).expect("serialize");
 
     // Deserialize
-    let restored: StableFlowGraph<String> = serde_json::from_str(&json).expect("deserialize");
+    let restored: StableDag<String> = serde_json::from_str(&json).expect("deserialize");
 
     // Verify structure preserved
     assert_eq!(restored.node_count(), 2);
@@ -144,7 +144,7 @@ struct ChatMessage {
 
 #[test]
 fn test_stable_graph_with_struct_weights() {
-    let mut graph: StableFlowGraph<ChatMessage> = StableFlowGraph::new();
+    let mut graph: StableDag<ChatMessage> = StableDag::new();
 
     let msg1 = ChatMessage {
         id: "msg-001".to_string(),

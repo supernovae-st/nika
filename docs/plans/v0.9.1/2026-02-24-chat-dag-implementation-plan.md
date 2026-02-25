@@ -24,13 +24,13 @@ Implementation plan for unifying Chat TUI with Workflow DAG system. Each chat me
 use crate::ast::{Workflow, Task, TaskAction};
 use crate::store::DataStore;
 use crate::event::EventLog;
-use crate::dag::FlowGraph;
+use crate::dag::Dag;
 
 pub struct ChatWorkflow {
     /// Incremental workflow being built
     pub workflow: Workflow,
     /// DAG representation
-    pub dag: FlowGraph,
+    pub dag: Dag,
     /// Result storage
     pub store: DataStore,
     /// Event log for observability
@@ -50,7 +50,7 @@ impl ChatWorkflow {
                 flows: Vec::new(),
                 mcp: None,
             },
-            dag: FlowGraph::new(),
+            dag: Dag::new(),
             store: DataStore::new(),
             log: EventLog::new(),
             message_counter: 0,
@@ -1444,12 +1444,12 @@ use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Widget},
 };
-use crate::dag::FlowGraph;
+use crate::dag::Dag;
 use super::dag_node_box::{NodeBox, NodeBoxMode};
 
 pub struct ChatDagPanel<'a> {
     /// DAG to render
-    dag: &'a FlowGraph,
+    dag: &'a Dag,
     /// Currently running task ID
     running_task: Option<&'a str>,
     /// Width mode
@@ -1457,7 +1457,7 @@ pub struct ChatDagPanel<'a> {
 }
 
 impl<'a> ChatDagPanel<'a> {
-    pub fn new(dag: &'a FlowGraph) -> Self {
+    pub fn new(dag: &'a Dag) -> Self {
         Self {
             dag,
             running_task: None,

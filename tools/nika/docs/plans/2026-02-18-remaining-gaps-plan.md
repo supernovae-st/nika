@@ -403,7 +403,7 @@ flows:
     target: a
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     let result = graph.detect_cycles();
     assert!(result.is_err());
@@ -431,7 +431,7 @@ flows:
     target: c
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_ok());
 }
@@ -453,7 +453,7 @@ DagCycle { path: String },
 **Step 4: Implement detect_cycles using DFS**
 
 ```rust
-// In src/dag/flow.rs, add method to FlowGraph impl
+// In src/dag/flow.rs, add method to Dag impl
 /// Detect cycles in the DAG using DFS with three-color marking
 /// Returns Ok(()) if acyclic, Err with cycle path if cycle found
 pub fn detect_cycles(&self) -> Result<(), NikaError> {
@@ -536,7 +536,7 @@ git commit -m "feat(dag): add cycle detection with DFS three-color algorithm (MV
 
 ```rust
 // tests/dag_test.rs
-use nika::dag::FlowGraph;
+use nika::dag::Dag;
 use nika::ast::Workflow;
 
 #[test]
@@ -561,7 +561,7 @@ flows:
     target: d
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_ok());
     assert_eq!(graph.get_final_tasks().len(), 1);
@@ -582,7 +582,7 @@ flows:
     target: a
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     let result = graph.detect_cycles();
     assert!(result.is_err());
@@ -610,7 +610,7 @@ flows:
     target: d
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_ok());
     assert_eq!(graph.get_final_tasks().len(), 2); // b and d

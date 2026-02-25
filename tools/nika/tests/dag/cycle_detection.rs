@@ -3,7 +3,7 @@
 //! Ensures DAG validation correctly identifies cyclic dependencies.
 
 use nika::ast::Workflow;
-use nika::dag::FlowGraph;
+use nika::dag::Dag;
 
 // ============================================================================
 // SIMPLE CYCLE TESTS
@@ -27,7 +27,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     // Should detect cycle
     assert!(graph.detect_cycles().is_err());
@@ -55,7 +55,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_err());
 }
@@ -86,7 +86,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_err());
 }
@@ -127,7 +127,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_err());
 }
@@ -166,7 +166,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_err());
 }
@@ -203,7 +203,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_err());
 }
@@ -241,7 +241,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_ok());
 }
@@ -286,7 +286,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = FlowGraph::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow);
 
     assert!(graph.detect_cycles().is_ok());
 }
