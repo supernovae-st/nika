@@ -329,9 +329,35 @@ Before implementing, each tool must answer:
 | File | Target | Description |
 |------|--------|-------------|
 | `v010-v012-6-views-design.md` | v0.10-v0.12 | 6-view TUI architecture design |
+| `EXPLORER-UX-PROPOSAL.md` | v0.10.0 | Explorer UX research & recommendations |
+| `2026-02-25-explorer-tree-implementation.md` | v0.10.0 | **Explorer Tree Implementation Plan (TDD)** |
 | `provider-modal-v2.md` | v0.11.0 | Provider modal redesign spec |
 | `provider-modal-v2-implementation.md` | v0.11.0 | Implementation details |
 | `provider-modal-v085-to-v090.md` | v0.11.x | Migration path |
+
+### Explorer Implementation (v0.10.0)
+
+**NEW:** Detailed TDD implementation plan based on broot/yazi/ranger research.
+
+| Task | Component | Tests | Status |
+|------|-----------|-------|--------|
+| 1 | TreeNode data structure | 4 | Pending |
+| 2 | ExplorerTreeState navigation | 4 | Pending |
+| 3 | Keybindings (vim-style) | 4 | Pending |
+| 4 | FuzzySearch (nucleo) | 3 | Pending |
+| 5 | ExplorerTreeWidget renderer | 2 | Pending |
+| 6 | Module integration | 3 | Pending |
+| 7 | ExplorerView full integration | 3 | Pending |
+| 8 | TUI App wiring | — | Pending |
+| **Total** | **8 tasks** | **23 tests** | — |
+
+**Key Features:**
+- vim-style navigation (j/k/h/l)
+- Hidden files toggle (`.` key)
+- Inline fuzzy search (`/` key)
+- Quick jumps: `~` (.nika), `w` (workflows), `t` (traces)
+- Breadcrumb header
+- DAG/YAML preview panels
 
 ---
 

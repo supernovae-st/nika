@@ -233,6 +233,8 @@ Le YAML exporté peut être :
 
 ## Roadmap
 
+See [ROADMAP.md](./ROADMAP.md) for the complete version breakdown.
+
 ```
 ━━━ PHASE 0: DX Preparation ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 v0.8.9 — DX Infrastructure (8 tasks, 56 tests)
@@ -251,29 +253,19 @@ v0.9.2 — @mention Bindings (10 tasks, 40 tests)
     ▼
 v0.9.3 — Builtin Tools (10 tasks, 45 tests)
     │    6 nika:* tools (export, history, etc.)
-    ▼
-v0.9.4 — DAG Panel + TaskBox (8 tasks + 58 widget tasks, 25 + 210 tests)
-    │    TUI visualization, 5 verb widgets
-    ▼
-v0.9.5 — Polish & Export (6 tasks, 18 tests)
-    │    Animations, YAML export from chat
     │
-━━━ PHASE B: 6-Views Architecture ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━ PHASE B: TaskBox & 6-Views → See v0.10/ and v0.11/ ━━━━━━━━━━━━━━━━━━━━━━━━━
     ▼
-v0.10.0 — Explorer + Editor (4 views → 6 views)
-    │    File browser, DAG sync, VS Code style
+v0.10.x — TaskBox widgets, DAG Panel, Animation Polish
+    │    See docs/plans/v0.10/ for full breakdown
     ▼
-v0.10.1 — Chat-as-DAG Integration
-    │    Live DAG, YAML preview, @mentions, // fork syntax
+v0.11.x — Six Views Architecture
+    │    Explorer, Editor, Runner, Scheduler, Settings
+    │    See docs/plans/v0.11/ for full breakdown
     ▼
-v0.11.0 — Runner + Scheduler
-    │    Animated execution, cron management, timeline view
-    ▼
-v0.11.1 — Settings View + Provider Modal v2
-    │    Full Settings view, Ollama client, keyring integration
-    ▼
-v0.12.0 — Polish + Performance
-    │    NovaNet tree effects, minimap, 60fps animations
+v0.12.x — Providers Wiring
+    │    Keyring, Ollama handlers, Provider auto-select
+    │    See docs/plans/v0.12/ for full breakdown
     │
 ━━━ PHASE C+: Future ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     ▼
@@ -292,19 +284,11 @@ v0.14.x — Multi-agent orchestration
 | v0.9.1 ChatWorkflow | 6 | 21 |
 | v0.9.2 @mention Bindings | 10 | 40 |
 | v0.9.3 Builtin Tools | 10 | 45 |
-| v0.9.4 DAG Panel | 8 | 25 |
-| v0.9.5 Polish | 6 | 18 |
-| **v0.9.x Core Subtotal** | **46** | **174** |
-| TaskBox Foundation (v0.9.4a) | 15 | 62 |
-| InferBox (v0.9.4b) | 10 | 35 |
-| ExecBox (v0.9.4c) | 9 | 30 |
-| FetchBox (v0.9.4d) | 8 | 28 |
-| InvokeBox (v0.9.4e) | 8 | 25 |
-| AgentBox (v0.9.4f) | 8 | 30 |
-| **TaskBox Subtotal** | **58** | **210** |
-| **TOTAL NEW** | **112** | **440** |
+| **v0.9.x TOTAL** | **32** | **131** |
 | Existing tests | — | 1,902 |
-| **FINAL** | — | **2,342** |
+| **FINAL (after v0.9.x)** | — | **2,033** |
+
+> **Note:** TaskBox widgets (58 tasks, 210 tests) moved to [v0.10/](../v0.10/) as separate release.
 
 ### Test Specification Approach
 
@@ -338,11 +322,13 @@ v0.14.x — Multi-agent orchestration
 | Document | Purpose |
 |----------|---------|
 | [INDEX.md](./INDEX.md) | Implementation plans index |
-| [ROADMAP-v09x.md](./ROADMAP-v09x.md) | Version-by-version breakdown |
-| [5-VIEWS-DESIGN.md](../v0.10+/2026-02-24-v010-v012-6-views-design.md) | **TUI 6-Views Architecture (v0.10+)** |
+| [ROADMAP.md](./ROADMAP.md) | Version-by-version breakdown |
+| [6-VIEWS-DESIGN.md](../v0.10+/2026-02-24-v010-v012-6-views-design.md) | **TUI 6-Views Architecture (v0.10+)** |
 | [v0.8.9-DX-Preparation.md](./v0.8.9-DX-Preparation.md) | Pre-flight DX tasks |
 | [v0.9.0-StableGraph.md](./v0.9.0-StableGraph.md) | DAG foundation |
-| [v0.9.4a-TaskBoxFoundation.md](./v0.9.4a-TaskBoxFoundation.md) | Widget system |
+| [../v0.10/](../v0.10/) | TaskBox widget plans |
+| [../v0.11/](../v0.11/) | Six Views architecture |
+| [../v0.12/](../v0.12/) | Providers wiring |
 
 ---
 
@@ -362,10 +348,9 @@ v0.14.x — Multi-agent orchestration
 | `ChatWorkflow` | [v0.9.1-ChatWorkflow.md](./v0.9.1-ChatWorkflow.md) → `src/runtime/chat_workflow.rs` | v0.9.1 |
 | `ChatMessage` | [v0.9.1-ChatWorkflow.md](./v0.9.1-ChatWorkflow.md) → `src/runtime/chat_workflow.rs` | v0.9.1 |
 | `Mention` | [v0.9.2-MentionBindings.md](./v0.9.2-MentionBindings.md) → `src/binding/mention.rs` | v0.9.2 |
-| `ChatSession` | [v0.9.5-Polish.md](./v0.9.5-Polish.md) → `src/tui/session.rs` | v0.9.5 |
-| `TaskBox*` | [v0.9.4a-TaskBoxFoundation.md](./v0.9.4a-TaskBoxFoundation.md) → `src/tui/widgets/task_box.rs` | v0.9.4 |
+| `TaskBox*` | [v0.10/archive/](../v0.10/archive/) → `src/tui/widgets/task_box.rs` | v0.10.x |
 
-> **Note:** Other documents may reference older ChatSession definitions. The canonical version is in v0.9.5-Polish.md.
+> **Note:** TaskBox widget specs moved to v0.10/archive/. See [v0.10/INDEX.md](../v0.10/INDEX.md) for navigation.
 
 ---
 

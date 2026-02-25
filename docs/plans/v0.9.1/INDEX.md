@@ -1,6 +1,6 @@
 # Nika v0.9.x Plan Index
 
-> **For Claude:** Start with ROADMAP-v09x.md for overview, then individual version files for implementation.
+> **For Claude:** Start with ROADMAP.md for overview, then individual version files for implementation.
 
 ---
 
@@ -8,10 +8,13 @@
 
 | Document | Purpose | Read When |
 |----------|---------|-----------|
-| [ROADMAP-v09x.md](./ROADMAP-v09x.md) | Version overview, skill mapping | Starting v0.9.x work |
+| [ROADMAP.md](./ROADMAP.md) | Version overview, skill mapping | Starting v0.9.x work |
 | [UX-UI-PRESERVE.md](./UX-UI-PRESERVE.md) | Components to keep | Before TUI changes |
 | [WIRING-CHECKPOINTS.md](./WIRING-CHECKPOINTS.md) | Integration tests | After each version |
 | **[6-VIEWS-DESIGN.md](../v0.10+/2026-02-24-v010-v012-6-views-design.md)** | **TUI 6-Views Architecture** | **Before ANY TUI work** |
+| [v0.10/](../v0.10/) | TaskBox widget plans | After v0.9.3 |
+| [v0.11/](../v0.11/) | Six Views architecture | After v0.10 |
+| [v0.12/](../v0.12/) | Providers wiring | Parallel with v0.10 |
 
 ---
 
@@ -50,53 +53,18 @@
 | **v0.9.1** | [v0.9.1-ChatWorkflow.md](./v0.9.1-ChatWorkflow.md) | ChatWorkflow struct | 6 | 21 |
 | **v0.9.2** | [v0.9.2-MentionBindings.md](./v0.9.2-MentionBindings.md) | @mention parser | 10 | 40 |
 | **v0.9.3** | [v0.9.3-BuiltinTools.md](./v0.9.3-BuiltinTools.md) | 6 nika:* tools | 10 | 45 |
-| **v0.9.4** | [v0.9.4-DagPanel.md](./v0.9.4-DagPanel.md) | TUI DAG widget | 8 | 25 |
-| **v0.9.5** | [v0.9.5-Polish.md](./v0.9.5-Polish.md) | Animations, export | 6 | 18 |
 
-**Totals:** 46 tasks, 174 tests, 9 sessions (+ v0.8.9: 8 tasks, 56 tests)
+**Totals:** 32 tasks, 131 tests, 6 sessions (+ v0.8.9: 8 tasks, 56 tests)
+
+> **Note:** v0.9.4+ (TaskBox, DAG Panel, Polish) moved to [v0.10/](../v0.10/) as "TaskBox" release.
 
 ---
 
-## TaskBox Widget Family (v0.9.4 Sub-Specs)
+## TaskBox Widgets (Moved to v0.10)
 
-The 5 semantic verbs have visual representations as **TaskBox** widgets. These appear in:
-- Chat View (inline compact boxes)
-- DAG Panel (node visualization)
-- Execution Monitor (running workflows)
-- History/Lists (historical traces)
+TaskBox widget specs have been moved to [v0.10/archive/](../v0.10/archive/).
 
-| Spec | Verb | Icon | Color | Tasks | Tests |
-|------|------|------|-------|-------|-------|
-| [v0.9.4a-TaskBoxFoundation](./v0.9.4a-TaskBoxFoundation.md) | — | — | — | 15 | 62 |
-| [v0.9.4b-InferBox](./v0.9.4b-InferBox.md) | `infer:` | ⚡ | Violet #8b5cf6 | 10 | 35 |
-| [v0.9.4c-ExecBox](./v0.9.4c-ExecBox.md) | `exec:` | 📟 | Amber #f59e0b | 9 | 30 |
-| [v0.9.4d-FetchBox](./v0.9.4d-FetchBox.md) | `fetch:` | 🛰️ | Cyan #06b6d4 | 8 | 28 |
-| [v0.9.4e-InvokeBox](./v0.9.4e-InvokeBox.md) | `invoke:` | 🔌 | Emerald #10b981 | 8 | 25 |
-| [v0.9.4f-AgentBox](./v0.9.4f-AgentBox.md) | `agent:` | 🐔/🐤 | Rose #f43f5e | 8 | 30 |
-| **TaskBox Totals** | **5 verbs** | — | — | **58** | **210** |
-
-### TaskBox Implementation Order
-
-```
-v0.9.4a Foundation (FIRST - shared effects, traits, types)
-    │
-    ├──► v0.9.4b InferBox ──┐
-    ├──► v0.9.4c ExecBox ───┤ (can be parallel)
-    ├──► v0.9.4d FetchBox ──┤
-    └──► v0.9.4e InvokeBox ─┘
-                            │
-                            ▼
-                  v0.9.4f AgentBox (LAST - depends on others for children)
-```
-
-### Key Components from Foundation
-
-- **BoxState**: Queued → Running → Success/Failed/Skipped lifecycle
-- **DecryptEffect**: Progressive text reveal `░▒▓█`
-- **ProgressBar/Sparkline**: Visual metrics
-- **TaskBoxBehavior**: Common trait for all widgets
-- **RenderMode**: Compact (4-10 lines), Expanded (15-60), Full (unlimited)
-- **Braille Spinner**: `⣾⣽⣻⢿⡿⣟⣯⣷` for running state
+See [v0.10/INDEX.md](../v0.10/INDEX.md) for the complete TaskBox implementation plan.
 
 ---
 
@@ -119,38 +87,20 @@ v0.9.2 (@mention Bindings)
     ▼
 v0.9.3 (Builtin Tools)
     │
+━━━ PHASE B: TaskBox (v0.10.x) ━━━━━━━━━━━━
     ▼
-v0.9.4 (DAG Panel)
+v0.10.x (TaskBox widgets, DAG Panel, Polish)
+    │    See docs/plans/v0.10/ for breakdown
     │
+━━━ PHASE C: Six Views (v0.11.x) ━━━━━━━━
     ▼
-v0.9.5 (Polish & Export)
+v0.11.x (Explorer, Editor, Runner, Scheduler, Settings)
+    │    See docs/plans/v0.11/ for breakdown
     │
-━━━ PHASE B: 6-Views Architecture (v0.10→v0.12) ━━━
+━━━ PHASE D: Providers (v0.12.x) — PARALLEL with v0.10 ━━━
     ▼
-v0.10.0 (Explorer + Project Structure)
-    │
-    ▼
-v0.10.1 (User Profile)
-    │
-    ▼
-v0.10.2 (Long-term Memory)
-    │
-    ▼
-v0.10.3 (Policies)
-    │
-    ▼
-v0.10.4 (Heartbeat)
-    │
-    ▼
-v0.10.5 (Enriched Agents)
-    │
-━━━ PHASE C: Context System + Settings ━━━━━━━━
-    ▼
-v0.11.x (Context Discovery + Settings view v0.11.1)
-    │
-━━━ PHASE D: Multi-Agent + Scheduler ━━━━━━━━━
-    ▼
-v0.12.x (Full Scheduler view + Multi-Agent)
+v0.12.x (Keyring wiring, Ollama handlers)
+    │    See docs/plans/v0.12/ for breakdown
 ```
 
 **NO v1.0 — We stay in 0.XX versioning.**
@@ -221,34 +171,30 @@ cargo run -- chat
 
 ---
 
-## Files Created in This Planning Session
+## Files in v0.9.1/
 
 ```
 docs/plans/v0.9.1/
 ├── INDEX.md                        ← You are here
-├── ROADMAP-v09x.md                 ← Version overview
+├── ROADMAP.md                      ← Version overview (consolidated)
 ├── UX-UI-PRESERVE.md               ← Component preservation
 ├── WIRING-CHECKPOINTS.md           ← Integration tests
 │
 │   Pre-Flight (EXECUTE FIRST)
 ├── v0.8.9-DX-Preparation.md        ← DX infrastructure readiness
 │
-│   Core Version Plans
+│   Core Version Plans (v0.9.0-v0.9.3)
 ├── v0.9.0-StableGraph.md           ← Version 0.9.0 plan
 ├── v0.9.1-ChatWorkflow.md          ← Version 0.9.1 plan
 ├── v0.9.2-MentionBindings.md       ← Version 0.9.2 plan
 ├── v0.9.3-BuiltinTools.md          ← Version 0.9.3 plan
-├── v0.9.4-DagPanel.md              ← Version 0.9.4 plan
-├── v0.9.5-Polish.md                ← Version 0.9.5 plan
 ├── 2026-02-24-*.md                 ← Design documents
 │
-│   TaskBox Widget Specs (v0.9.4 sub-specs)
-├── v0.9.4a-TaskBoxFoundation.md    ← Effects, traits, shared types
-├── v0.9.4b-InferBox.md             ← LLM generation widget
-├── v0.9.4c-ExecBox.md              ← Shell command widget
-├── v0.9.4d-FetchBox.md             ← HTTP request widget
-├── v0.9.4e-InvokeBox.md            ← MCP tool call widget
-└── v0.9.4f-AgentBox.md             ← Multi-turn agent widget
+│   Archived (superseded)
+└── archive-v0.8/                   ← Historical documents
+    └── ROADMAP-v09x-superseded.md  ← Old roadmap (pre-restructure)
+
+TaskBox specs (v0.9.4+) moved to:  ../v0.10/archive/
 ```
 
 ---
@@ -321,28 +267,26 @@ Step 6: Update CHANGELOG     → Add release notes
 | Metric | Target |
 |--------|--------|
 | New tests (DX prep v0.8.9) | 56 |
-| New tests (core v0.9.x) | 174 |
-| New tests (TaskBox widgets) | 210 |
-| **Total new tests** | **440** |
+| New tests (core v0.9.x) | 131 |
+| **Total new tests (v0.9.x scope)** | **187** |
 | Existing tests | 1,902 unchanged |
-| WIRING checkpoints | 6 passing |
+| WIRING checkpoints | 4 passing |
 | clippy warnings | 0 |
 | Documentation | All files updated |
 | Final verification | /nika-deep-verify passes |
-| **Plans with Comprehensive Testing** | **13 / 13** |
 
 ---
 
 ## Grand Total Summary
 
-| Component | Tasks | Tests | Effort |
-|-----------|-------|-------|--------|
-| **v0.8.9 (DX Prep)** | 8 | 56 | ~4 hours |
-| v0.9.0-v0.9.5 (core) | 46 | 174 | 9 sessions |
-| TaskBox widgets (v0.9.4*) | 58 | 210 | ~14 hours |
-| **Total** | **112** | **440** | — |
+| Component | Tasks | Tests | Location |
+|-----------|-------|-------|----------|
+| **v0.8.9 (DX Prep)** | 8 | 56 | Here |
+| v0.9.0-v0.9.3 (core) | 32 | 131 | Here |
+| **v0.9.x Subtotal** | **40** | **187** | — |
+| v0.10.x (TaskBox) | 22 | 75 | [v0.10/](../v0.10/) |
+| v0.11.x (Six Views) | 30 | 90 | [v0.11/](../v0.11/) |
+| v0.12.x (Providers) | 15 | 45 | [v0.12/](../v0.12/) |
+| **Grand Total** | **107** | **397** | — |
 
-**Enhanced:**
-- Foundation spec: StreamChunk wiring, 5 performance patterns, 5 test patterns, memory bounds
-- ALL 13 plans: Comprehensive Testing Protocol + Phase Completion Checkpoint
-- NEW: v0.8.9 DX Preparation as mandatory pre-flight step
+> **Note:** v0.12.x can run PARALLEL with v0.10.x (no file conflicts).
