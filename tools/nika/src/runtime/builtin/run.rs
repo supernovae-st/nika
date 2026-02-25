@@ -25,10 +25,13 @@
 //! Full execution support will be added in Task 3.9 (Integrate Router with Executor).
 
 use super::BuiltinTool;
+use crate::ast::Workflow;
 use crate::error::NikaError;
+use crate::runtime::Runner;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::future::Future;
+use std::path::Path;
 use std::pin::Pin;
 
 /// Parameters for nika:run tool.
@@ -119,26 +122,53 @@ impl BuiltinTool for RunTool {
                 });
             }
 
-            // TODO: Full workflow execution integration (Task 3.9)
-            // For now, return a placeholder response indicating the tool was called
-            // The actual Runner integration will be done when the Router is connected
-            // to the Executor.
+            // v0.10.0: Full workflow execution via Runner
+            let workflow_path = Path::new(&params.workflow);
+
+            // Check if file exists
+            if !workflow_path.exists() {
+                return Err(NikaError::BuiltinToolError {
+                    tool: "nika:run".into(),
+                    reason: format!("Workflow file not found: '{}'", params.workflow),
+                });
+            }
+
+            // Read and parse workflow YAML
+            let yaml_content = std::fs::read_to_string(workflow_path).map_err(|e| {
+                NikaError::BuiltinToolError {
+                    tool: "nika:run".into(),
+                    reason: format!("Failed to read workflow file: {}", e),
+                }
+            })?;
+
+            let workflow: Workflow =
+                serde_yaml::from_str(&yaml_content).map_err(|e| NikaError::BuiltinToolError {
+                    tool: "nika:run".into(),
+                    reason: format!("Failed to parse workflow YAML: {}", e),
+                })?;
 
             tracing::info!(
                 target: "nika:run",
                 workflow = %params.workflow,
                 has_context = params.context.is_some(),
-                "Workflow execution requested (integration pending)"
+                "Executing nested workflow"
             );
 
-            // Return placeholder response
-            // In production, this will execute the workflow and return its output
+            // Create Runner and execute workflow
+            let runner = Runner::new(workflow).quiet();
+            let result = runner.run().await.map_err(|e| NikaError::BuiltinToolError {
+                tool: "nika:run".into(),
+                reason: format!("Workflow execution failed: {}", e),
+            })?;
+
+            // Build response with workflow output
+            // Runner::run() returns a String (final task output or summary)
             let response = RunResponse {
-                executed: false, // Will be true when integration is complete
+                executed: true,
                 workflow: params.workflow,
                 output: serde_json::json!({
-                    "status": "pending_integration",
-                    "message": "Full workflow execution will be available after Task 3.9"
+                    "status": "completed",
+                    "result": result
                 }),
             };
 
@@ -180,32 +210,76 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_run_valid_workflow_path() {
+    async fn test_run_nonexistent_file_errors() {
         let tool = RunTool::default();
         let result = tool
             .call(r#"{"workflow": "path/to/workflow.nika.yaml"}"#.to_string())
             .await;
 
-        assert!(result.is_ok());
-        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
-        assert_eq!(response["workflow"], "path/to/workflow.nika.yaml");
-        // Currently returns executed: false (pending integration)
-        assert_eq!(response["executed"], false);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("not found"));
     }
 
     #[tokio::test]
-    async fn test_run_with_context() {
+    async fn test_run_executes_real_workflow() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        // Create a minimal workflow file
+        let mut temp_file = NamedTempFile::with_suffix(".nika.yaml").unwrap();
+        writeln!(
+            temp_file,
+            r#"schema: nika/workflow@0.2
+workflow: test-workflow
+tasks:
+  - id: hello
+    exec: "echo hello""#
+        )
+        .unwrap();
+
         let tool = RunTool::default();
         let result = tool
-            .call(
-                r#"{"workflow": "test.nika.yaml", "context": {"key": "value", "count": 42}}"#
-                    .to_string(),
-            )
+            .call(format!(
+                r#"{{"workflow": "{}"}}"#,
+                temp_file.path().display()
+            ))
             .await;
 
         assert!(result.is_ok());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
-        assert_eq!(response["workflow"], "test.nika.yaml");
+        assert_eq!(response["executed"], true);
+    }
+
+    #[tokio::test]
+    async fn test_run_returns_workflow_output() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        // Create a minimal workflow file
+        let mut temp_file = NamedTempFile::with_suffix(".nika.yaml").unwrap();
+        writeln!(
+            temp_file,
+            r#"schema: nika/workflow@0.2
+workflow: test-output
+tasks:
+  - id: greet
+    exec: "echo world""#
+        )
+        .unwrap();
+
+        let tool = RunTool::default();
+        let result = tool
+            .call(format!(
+                r#"{{"workflow": "{}"}}"#,
+                temp_file.path().display()
+            ))
+            .await;
+
+        assert!(result.is_ok());
+        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(response["executed"], true);
+        assert!(response["output"].is_object());
     }
 
     #[tokio::test]
@@ -232,9 +306,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_accepts_yml_extension() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        // Create a minimal workflow file with .yml extension
+        let mut temp_file = NamedTempFile::with_suffix(".nika.yml").unwrap();
+        writeln!(
+            temp_file,
+            r#"schema: nika/workflow@0.2
+workflow: test-yml
+tasks:
+  - id: test
+    exec: "echo yml""#
+        )
+        .unwrap();
+
         let tool = RunTool::default();
         let result = tool
-            .call(r#"{"workflow": "workflow.nika.yml"}"#.to_string())
+            .call(format!(
+                r#"{{"workflow": "{}"}}"#,
+                temp_file.path().display()
+            ))
             .await;
 
         assert!(result.is_ok());

@@ -1,4 +1,4 @@
-//! Runtime Module - Workflow execution (v0.5)
+//! Runtime Module - Workflow execution (v0.10.0)
 //!
 //! Contains the runtime execution components:
 //! - `runner`: DAG execution with tokio concurrency
@@ -9,6 +9,7 @@
 //! - `spawn`: Nested agent spawning (v0.5 MVP 8 Phase 2)
 //! - `chat_workflow`: Chat-as-DAG wrapper (v0.9.1)
 //! - `builtin`: Builtin nika:* tools (v0.9.3)
+//! - `hitl`: Human-In-The-Loop handler trait (v0.10.0)
 //!
 //! This module represents the "how" - runtime execution.
 //! For static structure, see the `ast` module.
@@ -16,6 +17,7 @@
 pub mod builtin;
 pub mod chat_workflow;
 mod executor;
+pub mod hitl;
 mod output;
 mod rig_agent_loop;
 mod runner;
@@ -29,6 +31,7 @@ pub use builtin::{
 };
 pub use chat_workflow::{ChatMessage, ChatWorkflow, Role};
 pub use executor::TaskExecutor;
+pub use hitl::{DefaultHitlHandler, HitlError, HitlHandler, HitlRequest, HitlResponse};
 pub use output::make_task_result;
 pub use rig_agent_loop::{RigAgentLoop, RigAgentLoopResult, RigAgentStatus};
 pub use runner::Runner;

@@ -331,16 +331,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_router_dispatch_run_placeholder() {
+    async fn test_router_dispatch_run_nonexistent_file() {
         let router = BuiltinToolRouter::new();
         let result = router
             .dispatch("nika:run", r#"{"workflow":"test.nika.yaml"}"#.to_string())
             .await;
 
-        assert!(result.is_ok());
-        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
-        assert_eq!(response["workflow"], "test.nika.yaml");
-        // Placeholder returns executed: false until integrated
-        assert_eq!(response["executed"], false);
+        // v0.10.0: Now errors when file doesn't exist (full workflow execution)
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("not found"));
     }
 }

@@ -26,9 +26,11 @@
 
 use super::BuiltinTool;
 use crate::error::NikaError;
+use crate::runtime::hitl::{HitlHandler, HitlRequest};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 
 /// Parameters for nika:prompt tool.
 #[derive(Debug, Clone, Deserialize)]
@@ -59,19 +61,36 @@ pub struct PromptResponse {
 pub struct PromptTool {
     /// Whether running in headless mode (no TUI).
     headless: bool,
+    /// Optional HITL handler for interactive mode (v0.10.0).
+    handler: Option<Arc<dyn HitlHandler>>,
 }
 
 impl PromptTool {
     /// Create a new PromptTool in headless mode.
     /// In headless mode, the tool uses the default value or errors.
     pub fn new_headless() -> Self {
-        Self { headless: true }
+        Self {
+            headless: true,
+            handler: None,
+        }
     }
 
     /// Create a new PromptTool in interactive mode.
     /// Full HITL support requires runtime integration.
     pub fn new_interactive() -> Self {
-        Self { headless: false }
+        Self {
+            headless: false,
+            handler: None,
+        }
+    }
+
+    /// Create a new PromptTool with a custom HITL handler (v0.10.0).
+    /// The handler will be used for all prompt requests.
+    pub fn with_handler(handler: Arc<dyn HitlHandler>) -> Self {
+        Self {
+            headless: false,
+            handler: Some(handler),
+        }
     }
 }
 
@@ -160,16 +179,43 @@ impl BuiltinTool for PromptTool {
                 }
             }
 
-            // TODO: Interactive mode with HITL channel
-            // For now, interactive mode also uses default or errors
-            // Full integration will be done in Task 3.9 (Integrate Router with Executor)
+            // v0.10.0: Use HITL handler if provided
+            if let Some(handler) = &self.handler {
+                let request = HitlRequest::new(&params.message);
+                let request = if let Some(default) = params.default.clone() {
+                    request.with_default(default)
+                } else {
+                    request
+                };
+
+                let hitl_response = handler.prompt(request).await.map_err(|e| {
+                    NikaError::BuiltinToolError {
+                        tool: "nika:prompt".into(),
+                        reason: format!("HITL handler error: {}", e),
+                    }
+                })?;
+
+                let response = PromptResponse {
+                    response: hitl_response.response,
+                    default_used: hitl_response.default_used,
+                };
+
+                return serde_json::to_string(&response).map_err(|e| {
+                    NikaError::BuiltinToolError {
+                        tool: "nika:prompt".into(),
+                        reason: format!("Failed to serialize response: {}", e),
+                    }
+                });
+            }
+
+            // Fallback: interactive mode without handler uses default or errors
             match params.default {
                 Some(default) => {
                     tracing::warn!(
                         target: "nika:prompt",
                         message = %params.message,
                         default = %default,
-                        "HITL channel not configured, using default value"
+                        "HITL handler not configured, using default value"
                     );
                     let response = PromptResponse {
                         response: default,
@@ -183,7 +229,7 @@ impl BuiltinTool for PromptTool {
                 None => Err(NikaError::BuiltinToolError {
                     tool: "nika:prompt".into(),
                     reason: format!(
-                        "HITL channel not configured and no default provided. Prompt: '{}'",
+                        "HITL handler not configured and no default provided. Prompt: '{}'",
                         params.message
                     ),
                 }),
@@ -265,10 +311,10 @@ mod tests {
             .call(r#"{"message": "User input needed"}"#.to_string())
             .await;
 
-        // Currently errors since HITL channel not configured
+        // Currently errors since HITL handler not configured
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.to_string().contains("HITL channel not configured"));
+        assert!(err.to_string().contains("HITL handler not configured"));
     }
 
     #[tokio::test]
@@ -317,5 +363,95 @@ mod tests {
 
         assert_eq!(params.message, "Test prompt");
         assert_eq!(params.default, None);
+    }
+
+    // v0.10.0: Tests for HitlHandler integration
+    #[tokio::test]
+    async fn test_prompt_with_hitl_handler_calls_handler() {
+        use crate::runtime::hitl::{HitlError, HitlResponse};
+        use async_trait::async_trait;
+
+        struct MockHandler {
+            response: String,
+        }
+
+        #[async_trait]
+        impl HitlHandler for MockHandler {
+            async fn prompt(
+                &self,
+                _request: HitlRequest,
+            ) -> Result<HitlResponse, HitlError> {
+                Ok(HitlResponse::new(&self.response))
+            }
+        }
+
+        let handler = Arc::new(MockHandler {
+            response: "user_input".to_string(),
+        });
+        let tool = PromptTool::with_handler(handler);
+        let result = tool
+            .call(r#"{"message": "Enter something"}"#.to_string())
+            .await;
+
+        assert!(result.is_ok());
+        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(response["response"], "user_input");
+        assert_eq!(response["default_used"], false);
+    }
+
+    #[tokio::test]
+    async fn test_prompt_with_hitl_handler_ignores_default() {
+        use crate::runtime::hitl::{HitlError, HitlResponse};
+        use async_trait::async_trait;
+
+        struct MockHandler;
+
+        #[async_trait]
+        impl HitlHandler for MockHandler {
+            async fn prompt(
+                &self,
+                _request: HitlRequest,
+            ) -> Result<HitlResponse, HitlError> {
+                Ok(HitlResponse::new("handler_response"))
+            }
+        }
+
+        let tool = PromptTool::with_handler(Arc::new(MockHandler));
+        let result = tool
+            .call(r#"{"message": "Confirm?", "default": "ignored_default"}"#.to_string())
+            .await;
+
+        assert!(result.is_ok());
+        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        // Handler response takes precedence over default
+        assert_eq!(response["response"], "handler_response");
+        assert_eq!(response["default_used"], false);
+    }
+
+    #[tokio::test]
+    async fn test_prompt_with_hitl_handler_error_propagates() {
+        use crate::runtime::hitl::{HitlError, HitlResponse};
+        use async_trait::async_trait;
+
+        struct ErrorHandler;
+
+        #[async_trait]
+        impl HitlHandler for ErrorHandler {
+            async fn prompt(
+                &self,
+                _request: HitlRequest,
+            ) -> Result<HitlResponse, HitlError> {
+                Err(HitlError::Cancelled)
+            }
+        }
+
+        let tool = PromptTool::with_handler(Arc::new(ErrorHandler));
+        let result = tool
+            .call(r#"{"message": "Confirm?"}"#.to_string())
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("HITL handler error"));
     }
 }
