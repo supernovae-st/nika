@@ -1,0 +1,83 @@
+# 🔒 VERSION LOCK ENFORCEMENT
+# Nika must NEVER be version 1.0.0 or higher - this is by design.
+# See: docs/plans/2025-02-25-nika-fortress-design.md
+
+name: 🔒 Version Lock
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+
+jobs:
+  enforce-zero-version:
+    name: Enforce 0.x.x Forever
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 📦 Extract version from Cargo.toml
+        id: cargo
+        run: |
+          # Find the main Cargo.toml (could be root or tools/nika)
+          if [[ -f "Cargo.toml" ]]; then
+            CARGO_FILE="Cargo.toml"
+          elif [[ -f "tools/nika/Cargo.toml" ]]; then
+            CARGO_FILE="tools/nika/Cargo.toml"
+          else
+            echo "::error::Could not find Cargo.toml"
+            exit 1
+          fi
+
+          VERSION=$(grep '^version = ' "$CARGO_FILE" | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "cargo_file=$CARGO_FILE" >> $GITHUB_OUTPUT
+          echo "📦 Found version: $VERSION in $CARGO_FILE"
+
+      - name: 🔒 Enforce 0.x.x version
+        env:
+          VERSION: ${{ steps.cargo.outputs.version }}
+          CARGO_FILE: ${{ steps.cargo.outputs.cargo_file }}
+        run: |
+          # Extract major version
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+
+          if [ "$MAJOR" != "0" ]; then
+            echo ""
+            echo "╔═══════════════════════════════════════════════════════════════════════════════╗"
+            echo "║  🚫 VERSION LOCK VIOLATION                                                    ║"
+            echo "╠═══════════════════════════════════════════════════════════════════════════════╣"
+            echo "║                                                                               ║"
+            echo "║  Nika must NEVER be version 1.0.0 or higher.                                 ║"
+            echo "║                                                                               ║"
+            echo "║  Found: $VERSION (major=$MAJOR)                                               "
+            echo "║  Expected: 0.x.x                                                              ║"
+            echo "║                                                                               ║"
+            echo "║  This is by design, not a bug.                                               ║"
+            echo "║  See: docs/plans/2025-02-25-nika-fortress-design.md                          ║"
+            echo "║                                                                               ║"
+            echo "╚═══════════════════════════════════════════════════════════════════════════════╝"
+            echo ""
+            echo "::error file=$CARGO_FILE::VERSION LOCK VIOLATION! Nika must remain 0.x.x forever. Found: $VERSION"
+            exit 1
+          fi
+
+          echo "✅ Version $VERSION is valid (0.x.x series)"
+
+      - name: 🏷️ Validate tag matches version (on tag push)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        env:
+          VERSION: ${{ steps.cargo.outputs.version }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          EXPECTED_TAG="v$VERSION"
+
+          if [ "$TAG" != "$EXPECTED_TAG" ]; then
+            echo "::error::Tag $TAG doesn't match Cargo.toml version $EXPECTED_TAG"
+            exit 1
+          fi
+
+          echo "✅ Tag $TAG matches Cargo.toml version"
