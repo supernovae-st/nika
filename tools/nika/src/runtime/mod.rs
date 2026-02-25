@@ -22,7 +22,7 @@ mod runner;
 pub mod spawn;
 
 // Re-export public types
-pub use builtin::{BuiltinTool, BuiltinToolRouter};
+pub use builtin::{BuiltinTool, BuiltinToolRouter, LogLevel, LogTool};
 pub use chat_workflow::{ChatMessage, ChatWorkflow, Role};
 pub use executor::TaskExecutor;
 pub use output::make_task_result;

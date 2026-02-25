@@ -17,10 +17,12 @@
 //!                            └── dispatch to appropriate tool
 //! ```
 
+mod log;
 mod router;
 mod sleep;
 mod r#trait;
 
+pub use log::{LogLevel, LogTool};
 pub use router::BuiltinToolRouter;
 pub use sleep::SleepTool;
 pub use r#trait::BuiltinTool;

@@ -2275,6 +2275,31 @@ impl TuiState {
                 ));
                 self.dirty.status = true;
             }
+
+            // v0.9.3: Handle builtin log events
+            EventKind::Log {
+                level,
+                message,
+                task_id,
+            } => {
+                let prefix = match level.as_str() {
+                    "error" => "🔴",
+                    "warn" => "🟡",
+                    "info" => "🔵",
+                    "debug" => "⚪",
+                    "trace" => "⚫",
+                    _ => "📝",
+                };
+                let task_suffix = task_id
+                    .as_ref()
+                    .map(|t| format!(" [{}]", t))
+                    .unwrap_or_default();
+                self.add_notification(Notification::info(
+                    format!("{} {}{}", prefix, message, task_suffix),
+                    timestamp_ms,
+                ));
+                self.dirty.notifications = true;
+            }
         }
     }
 

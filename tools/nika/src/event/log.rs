@@ -354,6 +354,20 @@ pub enum EventKind {
         /// Current depth level (1 = root agent spawning first child)
         depth: u32,
     },
+
+    // ═══════════════════════════════════════════
+    // BUILTIN TOOL EVENTS (v0.9.3)
+    // ═══════════════════════════════════════════
+    /// Log event emitted by nika:log builtin tool
+    Log {
+        /// Log level: trace, debug, info, warn, error
+        level: String,
+        /// Log message
+        message: String,
+        /// Optional task context
+        #[serde(skip_serializing_if = "Option::is_none")]
+        task_id: Option<Arc<str>>,
+    },
 }
 
 impl EventKind {
@@ -377,6 +391,8 @@ impl EventKind {
             | Self::AgentComplete { task_id, .. } => Some(task_id),
             // AgentSpawned uses parent_task_id as the primary task reference
             Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
+            // Log may optionally have task_id
+            Self::Log { task_id, .. } => task_id.as_ref().map(|s| s.as_ref()),
             Self::WorkflowStarted { .. }
             | Self::WorkflowCompleted { .. }
             | Self::WorkflowFailed { .. }
