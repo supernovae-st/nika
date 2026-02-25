@@ -18,9 +18,11 @@
 //! ```
 
 mod router;
+mod sleep;
 mod r#trait;
 
 pub use router::BuiltinToolRouter;
+pub use sleep::SleepTool;
 pub use r#trait::BuiltinTool;
 
 #[cfg(test)]

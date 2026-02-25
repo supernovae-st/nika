@@ -59,6 +59,7 @@ dirs = "5.0"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 chrono = "0.4"
 rand = "0.8"
+humantime = "2.1"  # Duration parsing for nika:sleep (v0.9.3)
 
 # File System - production-grade crates
 camino = "1.1"     # UTF-8 safe paths (Utf8PathBuf) - no OsStr panics
