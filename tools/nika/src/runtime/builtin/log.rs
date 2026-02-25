@@ -24,6 +24,7 @@ use crate::error::NikaError;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
+use std::str::FromStr;
 use tracing::{debug, error, info, trace, warn};
 
 /// Valid log levels for nika:log tool.
@@ -38,18 +39,6 @@ pub enum LogLevel {
 }
 
 impl LogLevel {
-    /// Parse log level from string (case-insensitive).
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s.to_lowercase().as_str() {
-            "trace" => Some(Self::Trace),
-            "debug" => Some(Self::Debug),
-            "info" => Some(Self::Info),
-            "warn" | "warning" => Some(Self::Warn),
-            "error" => Some(Self::Error),
-            _ => None,
-        }
-    }
-
     /// Get the level name as a string.
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -58,6 +47,22 @@ impl LogLevel {
             Self::Info => "info",
             Self::Warn => "warn",
             Self::Error => "error",
+        }
+    }
+}
+
+impl std::str::FromStr for LogLevel {
+    type Err = ();
+
+    /// Parse log level from string (case-insensitive).
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "trace" => Ok(Self::Trace),
+            "debug" => Ok(Self::Debug),
+            "info" => Ok(Self::Info),
+            "warn" | "warning" => Ok(Self::Warn),
+            "error" => Ok(Self::Error),
+            _ => Err(()),
         }
     }
 }
@@ -127,7 +132,7 @@ impl BuiltinTool for LogTool {
                 })?;
 
             // Parse log level
-            let level = LogLevel::from_str(&params.level).ok_or_else(|| {
+            let level = LogLevel::from_str(&params.level).map_err(|_| {
                 NikaError::BuiltinInvalidParams {
                     tool: "nika:log".into(),
                     reason: format!(
@@ -196,13 +201,13 @@ mod tests {
 
     #[test]
     fn test_log_level_from_str() {
-        assert_eq!(LogLevel::from_str("trace"), Some(LogLevel::Trace));
-        assert_eq!(LogLevel::from_str("DEBUG"), Some(LogLevel::Debug));
-        assert_eq!(LogLevel::from_str("Info"), Some(LogLevel::Info));
-        assert_eq!(LogLevel::from_str("warn"), Some(LogLevel::Warn));
-        assert_eq!(LogLevel::from_str("WARNING"), Some(LogLevel::Warn));
-        assert_eq!(LogLevel::from_str("error"), Some(LogLevel::Error));
-        assert_eq!(LogLevel::from_str("invalid"), None);
+        assert_eq!(LogLevel::from_str("trace"), Ok(LogLevel::Trace));
+        assert_eq!(LogLevel::from_str("DEBUG"), Ok(LogLevel::Debug));
+        assert_eq!(LogLevel::from_str("Info"), Ok(LogLevel::Info));
+        assert_eq!(LogLevel::from_str("warn"), Ok(LogLevel::Warn));
+        assert_eq!(LogLevel::from_str("WARNING"), Ok(LogLevel::Warn));
+        assert_eq!(LogLevel::from_str("error"), Ok(LogLevel::Error));
+        assert_eq!(LogLevel::from_str("invalid"), Err(()));
     }
 
     #[test]

@@ -21,7 +21,7 @@ use crate::error::NikaError;
 use crate::event::{ContextSource, EventKind, EventLog};
 use crate::mcp::{McpClient, McpConfig};
 use crate::provider::rig::{RigProvider, StreamChunk};
-use crate::runtime::RigAgentLoop;
+use crate::runtime::{BuiltinToolRouter, RigAgentLoop};
 use crate::store::DataStore;
 use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
 
@@ -54,6 +54,8 @@ pub struct TaskExecutor {
     default_model: Option<Arc<str>>,
     /// Event log for fine-grained audit trail
     event_log: EventLog,
+    /// Router for builtin nika:* tools (v0.9.3)
+    builtin_router: Arc<BuiltinToolRouter>,
 }
 
 impl TaskExecutor {
@@ -85,6 +87,7 @@ impl TaskExecutor {
             default_provider: provider.into(),
             default_model: model.map(Into::into),
             event_log,
+            builtin_router: Arc::new(BuiltinToolRouter::new()),
         }
     }
 
@@ -721,6 +724,43 @@ impl TaskExecutor {
             resource: invoke.resource.clone(),
             params: invoke.params.clone(),
         });
+
+        // Check for builtin nika:* tools (v0.9.3)
+        if let Some(tool) = &invoke.tool {
+            if BuiltinToolRouter::is_builtin(tool) {
+                // Resolve templates in params
+                let params = if let Some(ref original_params) = invoke.params {
+                    let params_str = serde_json::to_string(original_params).map_err(|e| {
+                        NikaError::Execution(format!("Failed to serialize params: {}", e))
+                    })?;
+                    let resolved_str = template_resolve(&params_str, bindings, datastore)?;
+                    resolved_str.into_owned()
+                } else {
+                    "{}".to_string()
+                };
+
+                // Dispatch to builtin router
+                let result = self.builtin_router.dispatch(tool, params).await?;
+
+                // Parse result as JSON
+                let result_value: serde_json::Value = serde_json::from_str(&result)
+                    .unwrap_or_else(|_| serde_json::Value::String(result.clone()));
+
+                // EMIT: McpResponse event for builtin tool
+                let duration_ms = start_time.elapsed().as_millis() as u64;
+                self.event_log.emit(EventKind::McpResponse {
+                    task_id: Arc::clone(task_id),
+                    call_id,
+                    output_len: result.len(),
+                    duration_ms,
+                    cached: false,
+                    is_error: false,
+                    response: Some(result_value.clone()),
+                });
+
+                return Ok(result_value.to_string());
+            }
+        }
 
         // Get or create MCP client (real or mock depending on config)
         let client = self.get_mcp_client(&invoke.mcp).await?;

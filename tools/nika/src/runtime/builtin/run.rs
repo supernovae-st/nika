@@ -59,13 +59,8 @@ pub struct RunResponse {
 ///
 /// Full execution support requires runtime integration with the
 /// workflow executor, which will be added in Task 3.9.
+#[derive(Default)]
 pub struct RunTool;
-
-impl Default for RunTool {
-    fn default() -> Self {
-        Self
-    }
-}
 
 impl BuiltinTool for RunTool {
     fn name(&self) -> &'static str {

@@ -1,6 +1,6 @@
 //! BuiltinToolRouter for nika:* tool dispatch.
 
-use super::BuiltinTool;
+use super::{AssertTool, BuiltinTool, EmitTool, LogTool, PromptTool, RunTool, SleepTool};
 use crate::error::NikaError;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -27,8 +27,15 @@ pub struct BuiltinToolRouter {
 impl BuiltinToolRouter {
     /// Create a new router with all 6 builtin tools registered.
     pub fn new() -> Self {
-        let tools: HashMap<&'static str, Arc<dyn BuiltinTool>> = HashMap::new();
-        // Tools will be registered in tasks 3.3-3.8
+        let mut tools: HashMap<&'static str, Arc<dyn BuiltinTool>> = HashMap::new();
+
+        // Register all 6 builtin tools
+        tools.insert("sleep", Arc::new(SleepTool));
+        tools.insert("log", Arc::new(LogTool));
+        tools.insert("emit", Arc::new(EmitTool));
+        tools.insert("assert", Arc::new(AssertTool));
+        tools.insert("prompt", Arc::new(PromptTool::default()));
+        tools.insert("run", Arc::new(RunTool));
 
         Self { tools }
     }
@@ -144,10 +151,15 @@ mod tests {
     }
 
     #[test]
-    fn test_router_new_empty() {
+    fn test_router_new_has_all_tools() {
         let router = BuiltinToolRouter::new();
-        assert!(!router.has_tool("sleep"));
-        assert!(router.tool_names().is_empty());
+        assert!(router.has_tool("sleep"));
+        assert!(router.has_tool("log"));
+        assert!(router.has_tool("emit"));
+        assert!(router.has_tool("assert"));
+        assert!(router.has_tool("prompt"));
+        assert!(router.has_tool("run"));
+        assert_eq!(router.tool_names().len(), 6);
     }
 
     #[test]
@@ -235,6 +247,98 @@ mod tests {
     #[test]
     fn test_router_default() {
         let router = BuiltinToolRouter::default();
-        assert!(router.tool_names().is_empty());
+        // Default router has all 6 tools
+        assert_eq!(router.tool_names().len(), 6);
+    }
+
+    #[tokio::test]
+    async fn test_router_dispatch_sleep() {
+        let router = BuiltinToolRouter::new();
+        let result = router
+            .dispatch("nika:sleep", r#"{"duration":"1ms"}"#.to_string())
+            .await;
+
+        assert!(result.is_ok());
+        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(response["slept_for_ms"], 1);
+    }
+
+    #[tokio::test]
+    async fn test_router_dispatch_log() {
+        let router = BuiltinToolRouter::new();
+        let result = router
+            .dispatch("nika:log", r#"{"level":"info","message":"test"}"#.to_string())
+            .await;
+
+        assert!(result.is_ok());
+        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(response["logged"], true);
+    }
+
+    #[tokio::test]
+    async fn test_router_dispatch_emit() {
+        let router = BuiltinToolRouter::new();
+        let result = router
+            .dispatch("nika:emit", r#"{"name":"test_event","payload":{}}"#.to_string())
+            .await;
+
+        assert!(result.is_ok());
+        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(response["emitted"], true);
+    }
+
+    #[tokio::test]
+    async fn test_router_dispatch_assert_true() {
+        let router = BuiltinToolRouter::new();
+        let result = router
+            .dispatch("nika:assert", r#"{"condition":true}"#.to_string())
+            .await;
+
+        assert!(result.is_ok());
+        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(response["passed"], true);
+    }
+
+    #[tokio::test]
+    async fn test_router_dispatch_assert_false() {
+        let router = BuiltinToolRouter::new();
+        let result = router
+            .dispatch("nika:assert", r#"{"condition":false}"#.to_string())
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Assertion failed"));
+    }
+
+    #[tokio::test]
+    async fn test_router_dispatch_prompt_headless() {
+        let router = BuiltinToolRouter::new();
+        // In headless mode with default, should use default
+        let result = router
+            .dispatch(
+                "nika:prompt",
+                r#"{"message":"Test?","default":"yes"}"#.to_string(),
+            )
+            .await;
+
+        assert!(result.is_ok());
+        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(response["response"], "yes");
+        assert_eq!(response["default_used"], true);
+    }
+
+    #[tokio::test]
+    async fn test_router_dispatch_run_placeholder() {
+        let router = BuiltinToolRouter::new();
+        let result = router
+            .dispatch("nika:run", r#"{"workflow":"test.nika.yaml"}"#.to_string())
+            .await;
+
+        assert!(result.is_ok());
+        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(response["workflow"], "test.nika.yaml");
+        // Placeholder returns executed: false until integrated
+        assert_eq!(response["executed"], false);
     }
 }

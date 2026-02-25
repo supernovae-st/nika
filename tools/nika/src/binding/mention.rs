@@ -158,8 +158,8 @@ pub fn has_parallel_marker(text: &str) -> bool {
 /// ```
 pub fn strip_parallel_marker(text: &str) -> &str {
     let trimmed = text.trim_start();
-    if trimmed.starts_with("//") {
-        trimmed[2..].trim_start()
+    if let Some(stripped) = trimmed.strip_prefix("//") {
+        stripped.trim_start()
     } else {
         text
     }

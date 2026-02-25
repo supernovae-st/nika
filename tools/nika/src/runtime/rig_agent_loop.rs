@@ -223,6 +223,21 @@ impl RigAgentLoop {
             tools.push(Box::new(spawn_tool));
         }
 
+        // Add builtin nika:* tools (v0.9.3)
+        // These are always available to agents for workflow control and observability.
+        use super::builtin::{
+            AssertTool, EmitTool, LogTool, NikaBuiltinToolAdapter, PromptTool, RunTool, SleepTool,
+        };
+
+        tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(SleepTool))));
+        tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(LogTool))));
+        tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(EmitTool))));
+        tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(AssertTool))));
+        tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+            PromptTool::default(),
+        ))));
+        tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(RunTool))));
+
         Ok(Self {
             task_id,
             params,
