@@ -3708,7 +3708,65 @@ impl ChatView {
                 ModalAction::DeleteModel { model } => {
                     self.add_system_message(format!("🗑️ Deleting model: {}", model));
                 }
-                _ => {}
+                ModalAction::SaveAndTestApiKey { provider, key } => {
+                    use crate::tui::widgets::provider_modal::{
+                        validate_key_format, NikaKeyring,
+                    };
+                    // Validate format first
+                    if let Err(e) = validate_key_format(provider, key) {
+                        self.add_system_message(format!("❌ Invalid key format: {}", e));
+                        return ViewAction::None;
+                    }
+                    // Save to keyring
+                    match NikaKeyring::set(provider, key) {
+                        Ok(()) => {
+                            self.add_system_message(format!(
+                                "✅ Saved {} API key to keychain",
+                                provider
+                            ));
+                            // Trigger verification
+                            return ViewAction::VerifyProviders;
+                        }
+                        Err(e) => {
+                            self.add_system_message(format!("❌ Failed to save key: {}", e));
+                        }
+                    }
+                }
+                ModalAction::SaveApiKey { provider, key } => {
+                    use crate::tui::widgets::provider_modal::{
+                        validate_key_format, NikaKeyring,
+                    };
+                    // Validate format first
+                    if let Err(e) = validate_key_format(provider, key) {
+                        self.add_system_message(format!("❌ Invalid key format: {}", e));
+                        return ViewAction::None;
+                    }
+                    // Save silently (no verification trigger)
+                    match NikaKeyring::set(provider, key) {
+                        Ok(()) => {
+                            self.add_system_message(format!(
+                                "✅ Saved {} API key to keychain",
+                                provider
+                            ));
+                            self.provider_modal.visible = false;
+                        }
+                        Err(e) => {
+                            self.add_system_message(format!("❌ Failed to save key: {}", e));
+                        }
+                    }
+                }
+                ModalAction::SelectProvider { provider, model } => {
+                    // Update active provider in chat state
+                    self.add_system_message(format!(
+                        "🔄 Switched to {} ({})",
+                        provider, model
+                    ));
+                    self.provider_modal.visible = false;
+                }
+                ModalAction::CheckProvider { provider } => {
+                    self.add_system_message(format!("🔍 Checking {} connection...", provider));
+                    return ViewAction::VerifyProviders;
+                }
             }
         }
 
@@ -4577,27 +4635,49 @@ impl ChatView {
 
                 // v0.8.1 FIX: Wrap message content to fit panel width
                 // v0.9.5: Smart wrap for System message - preserve ASCII art, wrap text
-                let wrapped_lines: Vec<String> = if idx == 0 && matches!(msg.role, MessageRole::System) {
-                    // For System banner: keep ASCII art lines intact, wrap text lines
-                    let mut result = Vec::new();
-                    for line in msg.content.lines() {
-                        // ASCII art detection: contains block chars (█╔╗╚╝║═╭╮╰╯─┌┐└┘│)
-                        let is_ascii_art = line.chars().any(|c| {
-                            matches!(c, '█' | '╔' | '╗' | '╚' | '╝' | '║' | '═' |
-                                       '╭' | '╮' | '╰' | '╯' | '─' | '┌' | '┐' |
-                                       '└' | '┘' | '│' | '▀' | '▄' | '░' | '▒' | '▓')
-                        });
-                        if is_ascii_art || line.len() <= content_width {
-                            result.push(line.to_string());
-                        } else {
-                            // Word-wrap long text lines
-                            result.extend(wrap_text(line, content_width));
+                let wrapped_lines: Vec<String> =
+                    if idx == 0 && matches!(msg.role, MessageRole::System) {
+                        // For System banner: keep ASCII art lines intact, wrap text lines
+                        let mut result = Vec::new();
+                        for line in msg.content.lines() {
+                            // ASCII art detection: contains block chars (█╔╗╚╝║═╭╮╰╯─┌┐└┘│)
+                            let is_ascii_art = line.chars().any(|c| {
+                                matches!(
+                                    c,
+                                    '█' | '╔'
+                                        | '╗'
+                                        | '╚'
+                                        | '╝'
+                                        | '║'
+                                        | '═'
+                                        | '╭'
+                                        | '╮'
+                                        | '╰'
+                                        | '╯'
+                                        | '─'
+                                        | '┌'
+                                        | '┐'
+                                        | '└'
+                                        | '┘'
+                                        | '│'
+                                        | '▀'
+                                        | '▄'
+                                        | '░'
+                                        | '▒'
+                                        | '▓'
+                                )
+                            });
+                            if is_ascii_art || line.len() <= content_width {
+                                result.push(line.to_string());
+                            } else {
+                                // Word-wrap long text lines
+                                result.extend(wrap_text(line, content_width));
+                            }
                         }
-                    }
-                    result
-                } else {
-                    wrap_text(&msg.content, content_width)
-                };
+                        result
+                    } else {
+                        wrap_text(&msg.content, content_width)
+                    };
 
                 // v0.8 Text Selection: Track char offset for selection highlighting
                 let mut char_offset = 0usize;
