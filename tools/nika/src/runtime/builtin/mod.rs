@@ -31,11 +31,11 @@ pub use assert::AssertTool;
 pub use emit::EmitTool;
 pub use log::{LogLevel, LogTool};
 pub use prompt::{PromptParams, PromptResponse, PromptTool};
+pub use r#trait::BuiltinTool;
 pub use rig_adapter::NikaBuiltinToolAdapter;
 pub use router::BuiltinToolRouter;
 pub use run::{RunParams, RunResponse, RunTool};
 pub use sleep::SleepTool;
-pub use r#trait::BuiltinTool;
 
 #[cfg(test)]
 mod tests {

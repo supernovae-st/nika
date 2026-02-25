@@ -120,8 +120,8 @@ mod tests {
             Box<dyn std::future::Future<Output = Result<String, NikaError>> + Send + 'a>,
         > {
             Box::pin(async move {
-                let params: serde_json::Value = serde_json::from_str(&args)
-                    .map_err(|e| NikaError::BuiltinToolError {
+                let params: serde_json::Value =
+                    serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
                         tool: "test".into(),
                         reason: format!("Invalid JSON: {}", e),
                     })?;

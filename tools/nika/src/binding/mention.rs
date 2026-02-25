@@ -344,7 +344,10 @@ pub fn mentions_to_wiring(resolved: &ResolvedMention) -> WiringSpec {
 ///
 /// # Returns
 /// Combined WiringSpec for all mentions in text
-pub fn text_to_wiring(text: &str, message_count: u32) -> Result<WiringSpec, MentionResolutionError> {
+pub fn text_to_wiring(
+    text: &str,
+    message_count: u32,
+) -> Result<WiringSpec, MentionResolutionError> {
     let mut wiring = WiringSpec::default();
 
     for mention in parse_mentions(text) {
@@ -711,7 +714,10 @@ mod tests {
 
     #[test]
     fn test_strip_parallel_marker_with_whitespace() {
-        assert_eq!(strip_parallel_marker("  //  Parallel work"), "Parallel work");
+        assert_eq!(
+            strip_parallel_marker("  //  Parallel work"),
+            "Parallel work"
+        );
         assert_eq!(strip_parallel_marker("\t// Tab"), "Tab");
     }
 

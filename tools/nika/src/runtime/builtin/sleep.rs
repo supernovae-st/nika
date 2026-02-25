@@ -121,7 +121,10 @@ mod tests {
         let schema = tool.parameters_schema();
         assert_eq!(schema["type"], "object");
         assert!(schema["properties"]["duration"].is_object());
-        assert!(schema["required"].as_array().unwrap().contains(&serde_json::json!("duration")));
+        assert!(schema["required"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("duration")));
     }
 
     #[tokio::test]
@@ -161,7 +164,9 @@ mod tests {
     #[tokio::test]
     async fn test_sleep_invalid_duration() {
         let tool = SleepTool;
-        let result = tool.call(r#"{"duration": "not-a-duration"}"#.to_string()).await;
+        let result = tool
+            .call(r#"{"duration": "not-a-duration"}"#.to_string())
+            .await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();

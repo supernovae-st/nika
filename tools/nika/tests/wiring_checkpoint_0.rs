@@ -34,7 +34,11 @@ fn wiring_checkpoint_0_stable_node_index() {
 
     // CRITICAL: idx3 should still have index 2, NOT shift to 1
     // This is the key invariant of StableGraph
-    assert_eq!(idx3.index(), 2, "NodeIndex must remain stable after deletion");
+    assert_eq!(
+        idx3.index(),
+        2,
+        "NodeIndex must remain stable after deletion"
+    );
 
     // Test 4: Node count reflects removal
     assert_eq!(graph.node_count(), 2);
@@ -62,8 +66,14 @@ fn wiring_checkpoint_0_stable_edges() {
     graph.remove_node(b);
 
     // Edges involving B should be gone (cascading delete)
-    assert!(!graph.has_edge(a, b), "Edge A→B should be removed with node B");
-    assert!(!graph.has_edge(b, c), "Edge B→C should be removed with node B");
+    assert!(
+        !graph.has_edge(a, b),
+        "Edge A→B should be removed with node B"
+    );
+    assert!(
+        !graph.has_edge(b, c),
+        "Edge B→C should be removed with node B"
+    );
 
     // But A and C are still valid with original indices
     assert_eq!(graph.node_weight(a), Some(&"A"));

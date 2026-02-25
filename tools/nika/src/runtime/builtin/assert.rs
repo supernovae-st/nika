@@ -148,9 +148,7 @@ mod tests {
     #[tokio::test]
     async fn test_assert_true_passes() {
         let tool = AssertTool;
-        let result = tool
-            .call(r#"{"condition": true}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"condition": true}"#.to_string()).await;
 
         assert!(result.is_ok());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -161,9 +159,7 @@ mod tests {
     #[tokio::test]
     async fn test_assert_false_fails() {
         let tool = AssertTool;
-        let result = tool
-            .call(r#"{"condition": false}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"condition": false}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -205,9 +201,7 @@ mod tests {
     #[tokio::test]
     async fn test_assert_missing_condition() {
         let tool = AssertTool;
-        let result = tool
-            .call(r#"{"message": "test"}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"message": "test"}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -217,9 +211,7 @@ mod tests {
     #[tokio::test]
     async fn test_assert_wrong_condition_type() {
         let tool = AssertTool;
-        let result = tool
-            .call(r#"{"condition": "true"}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"condition": "true"}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -229,9 +221,7 @@ mod tests {
     #[tokio::test]
     async fn test_assert_null_condition() {
         let tool = AssertTool;
-        let result = tool
-            .call(r#"{"condition": null}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"condition": null}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -241,9 +231,7 @@ mod tests {
     #[tokio::test]
     async fn test_assert_error_code() {
         let tool = AssertTool;
-        let result = tool
-            .call(r#"{"condition": false}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"condition": false}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();

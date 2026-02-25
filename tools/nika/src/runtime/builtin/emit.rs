@@ -156,9 +156,7 @@ mod tests {
     #[tokio::test]
     async fn test_emit_simple_event() {
         let tool = EmitTool;
-        let result = tool
-            .call(r#"{"name": "test_event"}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"name": "test_event"}"#.to_string()).await;
 
         assert!(result.is_ok());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -212,9 +210,7 @@ mod tests {
     #[tokio::test]
     async fn test_emit_empty_name() {
         let tool = EmitTool;
-        let result = tool
-            .call(r#"{"name": ""}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"name": ""}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -224,9 +220,7 @@ mod tests {
     #[tokio::test]
     async fn test_emit_missing_name() {
         let tool = EmitTool;
-        let result = tool
-            .call(r#"{"payload": {"test": 1}}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"payload": {"test": 1}}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();

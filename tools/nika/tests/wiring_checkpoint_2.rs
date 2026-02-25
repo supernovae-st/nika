@@ -140,7 +140,10 @@ fn wiring_checkpoint_2_chatworkflow_mentions() {
 
     // Get wiring spec for message 3
     let wiring = chat.get_wiring_for_message(idx3).unwrap();
-    assert!(wiring.contains_key("ref_1"), "Wiring should have ref_1 from @1 mention");
+    assert!(
+        wiring.contains_key("ref_1"),
+        "Wiring should have ref_1 from @1 mention"
+    );
     assert_eq!(wiring["ref_1"].path, "msg-001.output");
 }
 
@@ -198,7 +201,10 @@ fn wiring_checkpoint_2_all_creates_dependencies() {
 
     // Add edges from @all mention
     let edges_added = chat.add_edges_from_mentions(idx4).unwrap();
-    assert_eq!(edges_added, 3, "@all with 4 messages should add 3 edges (1,2,3 -> 4)");
+    assert_eq!(
+        edges_added, 3,
+        "@all with 4 messages should add 3 edges (1,2,3 -> 4)"
+    );
 
     // Verify all edges exist
     for n in 1..=3 {

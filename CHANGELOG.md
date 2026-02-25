@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-02-25
+
+### Added
+- **StableGraph Foundation** (v0.9.0) - Stable NodeIndex for chat DAG
+  - `StableFlowGraph<T>` wrapper using petgraph::StableGraph
+  - Stable NodeIndex preserved after node deletion
+  - Edge cascading on node removal
+  - 17 unit tests for stability guarantees
+- **ChatWorkflow Struct** (v0.9.1) - DAG wrapper for chat messages
+  - `ChatWorkflow` wraps `StableFlowGraph<ChatMessage>`
+  - Auto-edge creation for sequential messages (1→2→3)
+  - `add_message()` and `add_message_parallel()` methods
+  - Thread-safe with `parking_lot::Mutex`
+  - Message counter for @N references
+  - 45 unit tests for workflow operations
+- **@mention Binding System** (v0.9.2) - Reference previous messages
+  - Parse `@N`, `@last`, `@all`, `@N..M` mention syntax
+  - `MentionParser` with regex-based extraction
+  - `resolve_mention()` converts to indices
+  - `mentions_to_wiring()` generates WiringSpec bindings
+  - `//` parallel marker detection
+  - ChatWorkflow integration with auto-edge creation
+  - 58 unit tests for parsing and resolution
+- **Builtin Tools** (v0.9.3) - 6 nika:* prefixed tools
+  - `nika:sleep` - Delay execution with millisecond precision
+  - `nika:log` - Emit log events via tracing (trace/debug/info/warn/error)
+  - `nika:emit` - Custom event emission with payload
+  - `nika:assert` - Condition validation with custom messages
+  - `nika:prompt` - Interactive user prompts (HITL integration)
+  - `nika:run` - Sub-workflow execution with validation
+  - `BuiltinToolRouter` with is_builtin(), dispatch(), extract_name()
+  - All tools implement `BuiltinTool` trait with async dispatch
+  - 96 unit tests (16 per tool)
+- **WIRING Checkpoint Tests** - Integration validation
+  - WIRING-0: StableFlowGraph foundation (3 tests)
+  - WIRING-1: ChatWorkflow ↔ StableFlowGraph (6 tests)
+  - WIRING-2: ChatWorkflow ↔ @mention Bindings (13 tests)
+  - WIRING-3: BuiltinRouter ↔ Executor (13 tests)
+  - 35 integration tests validating component wiring
+
+### Architecture
+- **Chat-as-DAG** - Unified architecture where chat = workflow DAG
+  - Every message is a DAG node with stable index
+  - @mentions create explicit data flow edges
+  - Builtin tools provide workflow primitives
+  - Foundation for TaskBox visualization (v0.10)
+
+### Statistics
+- **2,720+ tests passing** (216 new in v0.9.x + 35 WIRING tests)
+- **Zero clippy warnings**
+- v0.9.x adds 251 tests total (target was 131, exceeded by +120)
+
 ## [0.8.0] - 2026-02-23
 
 ### Added

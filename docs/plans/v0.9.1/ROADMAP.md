@@ -59,10 +59,10 @@
 ## Dependency Graph
 
 ```
-     v0.8.9 (current)
+     v0.8.9 (done)
         │
         ▼
-     v0.9 "Chat-as-DAG"
+     v0.9 "Chat-as-DAG" ✅ COMPLETE (2026-02-25)
         │
         ├──────────────────────────────┐
         ▼                              ▼
@@ -89,14 +89,15 @@
 
 ---
 
-## v0.9 "Chat-as-DAG" — Core DAG Infrastructure
+## v0.9 "Chat-as-DAG" — Core DAG Infrastructure ✅ COMPLETE
 
 **Focus:** DAG infrastructure for chat messages
-**Total:** 32 tasks, 131 tests, 6 sessions (~3 days)
+**Total:** 32 tasks, 131 tests planned → **251 tests actual** (+120 bonus)
+**Status:** ✅ RELEASED 2026-02-25
 
-### v0.9.0 — StableGraph Foundation
+### v0.9.0 — StableGraph Foundation ✅ DONE
 
-**Tasks:** 6 | **Tests:** 25 | **Effort:** 1 session
+**Tasks:** 6 | **Tests:** 25 planned → **17 actual** | **Effort:** 1 session
 
 | Task | Description | Tests |
 |------|-------------|-------|
@@ -112,9 +113,9 @@
 
 ---
 
-### v0.9.1 — ChatWorkflow Struct
+### v0.9.1 — ChatWorkflow Struct ✅ DONE
 
-**Tasks:** 6 | **Tests:** 21 | **Effort:** 1 session
+**Tasks:** 6 | **Tests:** 21 planned → **45 actual** | **Effort:** 1 session
 
 | Task | Description | Tests |
 |------|-------------|-------|
@@ -130,9 +131,9 @@
 
 ---
 
-### v0.9.2 — @mention Binding System
+### v0.9.2 — @mention Binding System ✅ DONE
 
-**Tasks:** 10 | **Tests:** 40 | **Effort:** 2 sessions
+**Tasks:** 10 | **Tests:** 40 planned → **58 actual** | **Effort:** 2 sessions
 
 | Task | Description | Tests |
 |------|-------------|-------|
@@ -152,9 +153,9 @@
 
 ---
 
-### v0.9.3 — Builtin Tools (6 nika:*)
+### v0.9.3 — Builtin Tools (6 nika:*) ✅ DONE
 
-**Tasks:** 10 | **Tests:** 45 | **Effort:** 2 sessions
+**Tasks:** 10 | **Tests:** 45 planned → **96 actual** | **Effort:** 2 sessions
 
 | Task | Description | Tests |
 |------|-------------|-------|

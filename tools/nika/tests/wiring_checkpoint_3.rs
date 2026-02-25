@@ -32,8 +32,14 @@ fn wiring_checkpoint_3_all_tools_registered() {
     assert!(router.has_tool("sleep"), "sleep tool should be registered");
     assert!(router.has_tool("log"), "log tool should be registered");
     assert!(router.has_tool("emit"), "emit tool should be registered");
-    assert!(router.has_tool("assert"), "assert tool should be registered");
-    assert!(router.has_tool("prompt"), "prompt tool should be registered");
+    assert!(
+        router.has_tool("assert"),
+        "assert tool should be registered"
+    );
+    assert!(
+        router.has_tool("prompt"),
+        "prompt tool should be registered"
+    );
     assert!(router.has_tool("run"), "run tool should be registered");
 
     // Verify count
@@ -77,7 +83,10 @@ async fn wiring_checkpoint_3_dispatch_sleep() {
 
     let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
     // Response is {"slept_for_ms": N}
-    assert!(response["slept_for_ms"].is_number(), "Should have slept_for_ms");
+    assert!(
+        response["slept_for_ms"].is_number(),
+        "Should have slept_for_ms"
+    );
 }
 
 /// Test that dispatch works for nika:log.
@@ -167,7 +176,9 @@ async fn wiring_checkpoint_3_dispatch_non_builtin_fails() {
     let router = BuiltinToolRouter::new();
 
     // Dispatch a non-nika tool should fail
-    let result = router.dispatch("novanet:describe", r#"{}"#.to_string()).await;
+    let result = router
+        .dispatch("novanet:describe", r#"{}"#.to_string())
+        .await;
 
     assert!(result.is_err(), "Non-nika tool dispatch should fail");
     let err = result.unwrap_err();
@@ -209,10 +220,7 @@ async fn wiring_checkpoint_3_dispatch_run_validation() {
 
     // Invalid extension should fail
     let result = router
-        .dispatch(
-            "nika:run",
-            r#"{"workflow": "test.yaml"}"#.to_string(),
-        )
+        .dispatch("nika:run", r#"{"workflow": "test.yaml"}"#.to_string())
         .await;
     assert!(
         result.is_err(),

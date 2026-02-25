@@ -132,15 +132,14 @@ impl BuiltinTool for LogTool {
                 })?;
 
             // Parse log level
-            let level = LogLevel::from_str(&params.level).map_err(|_| {
-                NikaError::BuiltinInvalidParams {
+            let level =
+                LogLevel::from_str(&params.level).map_err(|_| NikaError::BuiltinInvalidParams {
                     tool: "nika:log".into(),
                     reason: format!(
                         "Invalid log level '{}'. Valid levels: trace, debug, info, warn, error",
                         params.level
                     ),
-                }
-            })?;
+                })?;
 
             // Emit log via tracing
             match level {
@@ -283,9 +282,7 @@ mod tests {
     #[tokio::test]
     async fn test_log_missing_level() {
         let tool = LogTool;
-        let result = tool
-            .call(r#"{"message": "Test"}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"message": "Test"}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();

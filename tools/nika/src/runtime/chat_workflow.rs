@@ -214,7 +214,10 @@ impl ChatWorkflow {
     }
 
     /// Resolve a mention using this conversation's message count.
-    pub fn resolve_mention(&self, mention: &Mention) -> Result<ResolvedMention, MentionResolutionError> {
+    pub fn resolve_mention(
+        &self,
+        mention: &Mention,
+    ) -> Result<ResolvedMention, MentionResolutionError> {
         resolve_mention(mention, self.message_counter)
     }
 
@@ -253,7 +256,10 @@ impl ChatWorkflow {
     /// dependency graph based on explicit references.
     ///
     /// Returns the number of edges added.
-    pub fn add_edges_from_mentions(&mut self, target_idx: NodeIndex) -> Result<usize, MentionResolutionError> {
+    pub fn add_edges_from_mentions(
+        &mut self,
+        target_idx: NodeIndex,
+    ) -> Result<usize, MentionResolutionError> {
         // Get the target message's content
         let content = match self.get_message_by_index(target_idx) {
             Some(msg) => msg.content.clone(),
@@ -901,7 +907,9 @@ mod tests {
 
         workflow.add_message("First", Role::User);
         workflow.add_message("Second", Role::Assistant);
-        let idx3 = workflow.add_message_with_mentions("Based on @1", Role::User).unwrap();
+        let idx3 = workflow
+            .add_message_with_mentions("Based on @1", Role::User)
+            .unwrap();
 
         // Should have auto-edge (2→3) + mention edge (1→3)
         let deps = workflow.get_dependencies(idx3);
@@ -914,7 +922,9 @@ mod tests {
 
         workflow.add_message("First", Role::User);
         workflow.add_message("Second", Role::Assistant);
-        let idx3 = workflow.add_message_with_mentions("// Based on @1", Role::User).unwrap();
+        let idx3 = workflow
+            .add_message_with_mentions("// Based on @1", Role::User)
+            .unwrap();
 
         // Parallel message: no auto-edge, only mention edge (1→3)
         let deps = workflow.get_dependencies(idx3);
@@ -975,11 +985,21 @@ mod tests {
         // @4 ASSISTANT: Go is a programming language...
         // @5 USER: Compare @2 and @4  (depends on both @2 and @4)
 
-        workflow.add_message_with_mentions("What is Rust?", Role::User).unwrap();
-        workflow.add_message_with_mentions("Rust is a systems programming language...", Role::Assistant).unwrap();
-        workflow.add_message_with_mentions("// What is Go?", Role::User).unwrap();
-        workflow.add_message_with_mentions("Go is a programming language...", Role::Assistant).unwrap();
-        let idx5 = workflow.add_message_with_mentions("Compare @2 and @4", Role::User).unwrap();
+        workflow
+            .add_message_with_mentions("What is Rust?", Role::User)
+            .unwrap();
+        workflow
+            .add_message_with_mentions("Rust is a systems programming language...", Role::Assistant)
+            .unwrap();
+        workflow
+            .add_message_with_mentions("// What is Go?", Role::User)
+            .unwrap();
+        workflow
+            .add_message_with_mentions("Go is a programming language...", Role::Assistant)
+            .unwrap();
+        let idx5 = workflow
+            .add_message_with_mentions("Compare @2 and @4", Role::User)
+            .unwrap();
 
         // Message 5 should depend on messages 2, 4, and 4 (auto-edge)
         let deps = workflow.get_dependencies(idx5);

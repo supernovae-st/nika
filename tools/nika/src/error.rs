@@ -430,10 +430,7 @@ pub enum NikaError {
     BuiltinInvalidParams { tool: String, reason: String },
 
     #[error("[NIKA-213] Assertion failed in nika:assert: {message}")]
-    #[diagnostic(
-        code(nika::assertion_failed),
-        help("The condition evaluated to false")
-    )]
+    #[diagnostic(code(nika::assertion_failed), help("The condition evaluated to false"))]
     AssertionFailed { message: String, condition: String },
 }
 
@@ -715,9 +712,9 @@ impl FixSuggestion for NikaError {
             NikaError::BuiltinToolError { .. } => {
                 Some("Check builtin tool parameters and configuration")
             }
-            NikaError::BuiltinToolNotFound { .. } => {
-                Some("Valid tools: nika:sleep, nika:log, nika:emit, nika:assert, nika:prompt, nika:run")
-            }
+            NikaError::BuiltinToolNotFound { .. } => Some(
+                "Valid tools: nika:sleep, nika:log, nika:emit, nika:assert, nika:prompt, nika:run",
+            ),
             NikaError::BuiltinInvalidParams { .. } => {
                 Some("Check the parameter format matches the expected JSON schema")
             }

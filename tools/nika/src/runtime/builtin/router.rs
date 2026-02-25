@@ -222,9 +222,7 @@ mod tests {
     async fn test_router_dispatch_unknown_tool() {
         let router = BuiltinToolRouter::new();
 
-        let result = router
-            .dispatch("nika:unknown", "{}".to_string())
-            .await;
+        let result = router.dispatch("nika:unknown", "{}".to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -235,9 +233,7 @@ mod tests {
     async fn test_router_dispatch_not_builtin() {
         let router = BuiltinToolRouter::new();
 
-        let result = router
-            .dispatch("novanet:describe", "{}".to_string())
-            .await;
+        let result = router.dispatch("novanet:describe", "{}".to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -267,7 +263,10 @@ mod tests {
     async fn test_router_dispatch_log() {
         let router = BuiltinToolRouter::new();
         let result = router
-            .dispatch("nika:log", r#"{"level":"info","message":"test"}"#.to_string())
+            .dispatch(
+                "nika:log",
+                r#"{"level":"info","message":"test"}"#.to_string(),
+            )
             .await;
 
         assert!(result.is_ok());
@@ -279,7 +278,10 @@ mod tests {
     async fn test_router_dispatch_emit() {
         let router = BuiltinToolRouter::new();
         let result = router
-            .dispatch("nika:emit", r#"{"name":"test_event","payload":{}}"#.to_string())
+            .dispatch(
+                "nika:emit",
+                r#"{"name":"test_event","payload":{}}"#.to_string(),
+            )
             .await;
 
         assert!(result.is_ok());

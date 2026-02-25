@@ -37,7 +37,9 @@ async fn test_executor_invoke_nika_sleep() {
     let bindings = ResolvedBindings::default();
     let datastore = DataStore::new();
 
-    let result = executor.execute(&task_id, &action, &bindings, &datastore).await;
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore)
+        .await;
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
     let output = result.unwrap();
@@ -60,7 +62,9 @@ async fn test_executor_invoke_nika_log() {
     let bindings = ResolvedBindings::default();
     let datastore = DataStore::new();
 
-    let result = executor.execute(&task_id, &action, &bindings, &datastore).await;
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore)
+        .await;
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
     let output = result.unwrap();
@@ -84,7 +88,9 @@ async fn test_executor_invoke_nika_emit() {
     let bindings = ResolvedBindings::default();
     let datastore = DataStore::new();
 
-    let result = executor.execute(&task_id, &action, &bindings, &datastore).await;
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore)
+        .await;
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
     let output = result.unwrap();
@@ -105,7 +111,9 @@ async fn test_executor_invoke_nika_assert_true() {
     let bindings = ResolvedBindings::default();
     let datastore = DataStore::new();
 
-    let result = executor.execute(&task_id, &action, &bindings, &datastore).await;
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore)
+        .await;
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
     let output = result.unwrap();
@@ -124,7 +132,9 @@ async fn test_executor_invoke_nika_assert_false() {
     let bindings = ResolvedBindings::default();
     let datastore = DataStore::new();
 
-    let result = executor.execute(&task_id, &action, &bindings, &datastore).await;
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore)
+        .await;
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -146,7 +156,9 @@ async fn test_executor_invoke_nika_prompt_with_default() {
     let bindings = ResolvedBindings::default();
     let datastore = DataStore::new();
 
-    let result = executor.execute(&task_id, &action, &bindings, &datastore).await;
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore)
+        .await;
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
     let output = result.unwrap();
@@ -163,7 +175,9 @@ async fn test_executor_invoke_nika_prompt_without_default_errors() {
     let bindings = ResolvedBindings::default();
     let datastore = DataStore::new();
 
-    let result = executor.execute(&task_id, &action, &bindings, &datastore).await;
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore)
+        .await;
 
     // In headless mode, prompt without default should error
     assert!(result.is_err());
@@ -183,7 +197,9 @@ async fn test_executor_invoke_nika_run_placeholder() {
     let bindings = ResolvedBindings::default();
     let datastore = DataStore::new();
 
-    let result = executor.execute(&task_id, &action, &bindings, &datastore).await;
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore)
+        .await;
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
     let output = result.unwrap();
@@ -201,7 +217,9 @@ async fn test_executor_invoke_nika_run_invalid_extension() {
     let bindings = ResolvedBindings::default();
     let datastore = DataStore::new();
 
-    let result = executor.execute(&task_id, &action, &bindings, &datastore).await;
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore)
+        .await;
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -233,7 +251,9 @@ async fn test_executor_invoke_builtin_with_template_resolution() {
 
     let datastore = DataStore::new();
 
-    let result = executor.execute(&task_id, &action, &bindings, &datastore).await;
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore)
+        .await;
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
     let output = result.unwrap();
@@ -257,7 +277,9 @@ async fn test_executor_invoke_builtin_emits_events() {
     let bindings = ResolvedBindings::default();
     let datastore = DataStore::new();
 
-    let result = executor.execute(&task_id, &action, &bindings, &datastore).await;
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore)
+        .await;
 
     assert!(result.is_ok());
 

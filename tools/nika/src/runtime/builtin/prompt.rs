@@ -237,9 +237,7 @@ mod tests {
     #[tokio::test]
     async fn test_prompt_headless_without_default_errors() {
         let tool = PromptTool::new_headless();
-        let result = tool
-            .call(r#"{"message": "Approve?"}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"message": "Approve?"}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -276,9 +274,7 @@ mod tests {
     #[tokio::test]
     async fn test_prompt_empty_message_errors() {
         let tool = PromptTool::default();
-        let result = tool
-            .call(r#"{"message": ""}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"message": ""}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -298,9 +294,7 @@ mod tests {
     #[tokio::test]
     async fn test_prompt_missing_message() {
         let tool = PromptTool::default();
-        let result = tool
-            .call(r#"{"default": "test"}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"default": "test"}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();

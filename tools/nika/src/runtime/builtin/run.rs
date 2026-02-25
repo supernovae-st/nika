@@ -211,9 +211,7 @@ mod tests {
     #[tokio::test]
     async fn test_run_empty_path_errors() {
         let tool = RunTool::default();
-        let result = tool
-            .call(r#"{"workflow": ""}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"workflow": ""}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -255,9 +253,7 @@ mod tests {
     #[tokio::test]
     async fn test_run_missing_workflow() {
         let tool = RunTool::default();
-        let result = tool
-            .call(r#"{"context": {"test": 1}}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"context": {"test": 1}}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();

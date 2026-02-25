@@ -29,7 +29,10 @@ fn wiring_checkpoint_1_chatworkflow_uses_stablegraph() {
 
     // Test 5: Index lookup by number
     let idx_lookup = chat.get_index_by_number(1).unwrap();
-    assert_eq!(idx_lookup, idx1, "NodeIndex should be stable and retrievable");
+    assert_eq!(
+        idx_lookup, idx1,
+        "NodeIndex should be stable and retrievable"
+    );
 }
 
 /// Test that sequential edges are auto-created.
@@ -44,10 +47,16 @@ fn wiring_checkpoint_1_auto_edge_creation() {
 
     // Sequential edges should exist (1 → 2 → 3)
     let deps_of_2 = chat.get_dependencies(idx2);
-    assert!(deps_of_2.contains(&idx1), "msg-002 should depend on msg-001");
+    assert!(
+        deps_of_2.contains(&idx1),
+        "msg-002 should depend on msg-001"
+    );
 
     let deps_of_3 = chat.get_dependencies(idx3);
-    assert!(deps_of_3.contains(&idx2), "msg-003 should depend on msg-002");
+    assert!(
+        deps_of_3.contains(&idx2),
+        "msg-003 should depend on msg-002"
+    );
 
     // First message has no dependencies
     let deps_of_1 = chat.get_dependencies(idx1);
