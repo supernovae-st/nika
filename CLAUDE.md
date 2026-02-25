@@ -28,8 +28,8 @@ Cargo workspace for Nika — semantic YAML workflow engine for AI tasks.
 
 Nika is the "body" of the SuperNovae AGI architecture, executing workflows that leverage NovaNet's "brain".
 
-**Current Version**: v0.8.0 — Studio DX (Edit History + Undo/Redo, Session Persistence, Solarized Theme, Config System) + Full Streaming (6 providers) + RLM Enhancements
-**Tests**: 1,902 passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
+**Current Version**: v0.9.0 — 6-Views Architecture Prep + Chat DAG Widgets (v0.10) + Nika Intro Animation + Full Streaming (6 providers)
+**Tests**: 2,793 passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
 **Target Application**: QR Code AI (https://qrcode-ai.com)
 
 ```
@@ -59,7 +59,7 @@ nika-dev/
 │   │   ├── binding/     # Data flow + lazy bindings
 │   │   └── provider/    # rig-core v0.31 wrapper
 │   ├── CLAUDE.md        # Tool-level detailed context
-│   └── Cargo.toml       # v0.8.0
+│   └── Cargo.toml       # v0.9.0
 └── docs/                # Plans + research
 ```
 
@@ -84,7 +84,7 @@ nika trace export <id>        # Export JSON/YAML
 
 # Development
 cd tools/nika
-cargo test                    # Run 2,323 tests
+cargo test                    # Run 2,793 tests
 cargo clippy -- -D warnings   # Lint
 cargo fmt                     # Format
 cargo install --path . --locked # Install binary
@@ -129,6 +129,19 @@ tasks:
       entity: "qr-code"
       locale: "fr-FR"
 ```
+
+**v0.9.0** - 6-Views Architecture Prep + Chat DAG Widgets (v0.10) + Nika Intro Animation
+
+### v0.10.x Chat DAG Widgets (108 tests)
+- **ChatNodeBox** - Individual chat message as graph node (4 kinds, 4 states)
+- **ChatEdgeLine** - @N reference edges between nodes (Bezier curves)
+- **ChatTaskQueue** - Task execution queue with 5-verb icons
+- **ChatDagPanel** - Full DAG visualization (nodes + edges combined)
+- **Animation** - AnimationTicker (60fps), AnimationState, Easing utilities
+
+### v0.9.x 6-Views Architecture
+- View enum: Home, Chat, Studio, Monitor, Settings, Help
+- Nika Intro Animation: ASCII art explosion into matrix rain
 
 **v0.8.0** - Studio DX improvements with Edit History, Session Persistence, Solarized Theme, Config System
 
