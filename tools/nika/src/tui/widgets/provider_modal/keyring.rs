@@ -5,6 +5,7 @@
 //! - Windows: Credential Locker
 //! - Linux: Secret Service (GNOME Keyring, KWallet)
 
+use colored::Colorize;
 use keyring::Entry;
 use thiserror::Error;
 
@@ -131,6 +132,81 @@ pub fn provider_env_var(provider: &str) -> &'static str {
         "ollama" => "OLLAMA_API_BASE_URL",
         _ => "UNKNOWN_API_KEY",
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MIGRATION (v0.12.1)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Providers to migrate (excludes ollama - uses URL not key)
+const MIGRATEABLE_PROVIDERS: &[&str] = &["anthropic", "openai", "mistral", "groq", "deepseek"];
+
+/// Report of migration results
+#[derive(Debug, Default)]
+pub struct MigrationReport {
+    /// Number of keys migrated to keychain
+    pub migrated: usize,
+    /// Number skipped (already in keychain)
+    pub skipped: usize,
+    /// Providers with no env var set
+    pub not_found: Vec<String>,
+    /// Providers that failed (provider, error)
+    pub errors: Vec<(String, String)>,
+}
+
+impl MigrationReport {
+    /// Generate summary string
+    pub fn summary(&self) -> String {
+        format!(
+            "Migration complete: {} migrated, {} skipped, {} not found",
+            self.migrated,
+            self.skipped,
+            self.not_found.len()
+        )
+    }
+}
+
+/// Migrate API keys from environment variables to system keychain
+pub fn migrate_env_to_keyring() -> MigrationReport {
+    let mut report = MigrationReport::default();
+
+    for provider in MIGRATEABLE_PROVIDERS {
+        let env_var = provider_env_var(provider);
+
+        match std::env::var(env_var) {
+            Ok(key) if !key.is_empty() => {
+                // Check if already in keyring
+                if NikaKeyring::exists(provider) {
+                    println!(
+                        "  ├── {}: Found → {} (skipped)",
+                        env_var,
+                        "Already in keychain".yellow()
+                    );
+                    report.skipped += 1;
+                    continue;
+                }
+
+                // Migrate to keyring
+                print!("  ├── {}: Found → Migrating... ", env_var);
+                match NikaKeyring::set(provider, &key) {
+                    Ok(()) => {
+                        println!("{}", "✓".green());
+                        report.migrated += 1;
+                    }
+                    Err(e) => {
+                        println!("{} ({})", "✗".red(), e);
+                        report.errors.push((provider.to_string(), e.to_string()));
+                    }
+                }
+            }
+            _ => {
+                println!("  ├── {}: {}", env_var, "Not found".dimmed());
+                report.not_found.push(provider.to_string());
+            }
+        }
+    }
+
+    report
 }
 
 #[cfg(test)]

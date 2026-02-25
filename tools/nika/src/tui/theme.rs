@@ -1,7 +1,28 @@
-//! TUI Theme - NovaNet Taxonomy Colors
+//! TUI Theme - Cosmic Tailwind Design System (v0.9.1+)
 //!
-//! Color palette derived from NovaNet's visual-encoding.yaml.
+//! Color palette using Tailwind CSS colors with Cosmic accent themes.
 //! Provides consistent styling across all TUI components.
+//!
+//! # Theme Architecture (v0.9.1+)
+//!
+//! ```text
+//! ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+//! │   CosmicTheme    │ ──► │   TokenResolver  │ ──► │  SemanticColors  │
+//! │   (Adapter)      │     │   (v0.9.1+)      │     │  ColorPalette    │
+//! └──────────────────┘     └──────────────────┘     └──────────────────┘
+//!          │
+//!          ▼
+//! ┌──────────────────┐
+//! │      Theme       │ (Legacy API - 306 usages)
+//! │   (Backward)     │
+//! └──────────────────┘
+//! ```
+//!
+//! # Theme Variants
+//!
+//! - **Cosmic Dark**: Slate-900 background, high contrast (default)
+//! - **Cosmic Light**: Slate-50 background, inverted colors
+//! - **Cosmic Violet**: Violet-950 background, accent theme
 //!
 //! # ColorMode Detection (v0.7.0+)
 //!
@@ -16,6 +37,9 @@
 //! ```
 
 use ratatui::style::{Color, Modifier, Style};
+
+use super::icons::verb as icons_verb;
+use super::tokens::TokenResolver;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SOLARIZED PALETTE CONSTANTS (v0.8.0+ for WOW effects)
@@ -300,20 +324,27 @@ impl VerbColor {
         }
     }
 
-    /// Get icon for this verb (matches CLAUDE.md canonical icons)
+    /// Get icon for this verb (delegates to icons module)
+    ///
+    /// Canonical icons from CLAUDE.md:
+    /// - ⚡ Infer (LLM generation)
+    /// - 📟 Exec (Shell command)
+    /// - 🛰️ Fetch (HTTP request)
+    /// - 🔌 Invoke (MCP tool)
+    /// - 🐔 Agent (Agentic loop)
     pub fn icon(&self) -> &'static str {
         match self {
-            Self::Infer => "⚡",  // LLM generation
-            Self::Exec => "📟",   // Shell command
-            Self::Fetch => "🛰️",  // HTTP request
-            Self::Invoke => "🔌", // MCP tool
-            Self::Agent => "🐔",  // Agentic loop (parent)
+            Self::Infer => icons_verb::INFER,
+            Self::Exec => icons_verb::EXEC,
+            Self::Fetch => icons_verb::FETCH,
+            Self::Invoke => icons_verb::INVOKE,
+            Self::Agent => icons_verb::AGENT,
         }
     }
 
     /// Get icon for subagent (spawned via spawn_agent)
     pub fn subagent_icon() -> &'static str {
-        "🐤" // Spawned subagent
+        icons_verb::SUBAGENT
     }
 
     /// Get RGB tuple for gradient interpolation
@@ -350,13 +381,27 @@ impl VerbColor {
     }
 
     /// Get ASCII-safe icon for terminals without emoji support
+    /// (delegates to icons module)
     pub fn icon_ascii(&self) -> &'static str {
         match self {
-            Self::Infer => "[I]",
-            Self::Exec => "[X]",
-            Self::Fetch => "[F]",
-            Self::Invoke => "[V]",
-            Self::Agent => "[A]",
+            Self::Infer => icons_verb::INFER_ASCII,
+            Self::Exec => icons_verb::EXEC_ASCII,
+            Self::Fetch => icons_verb::FETCH_ASCII,
+            Self::Invoke => icons_verb::INVOKE_ASCII,
+            Self::Agent => icons_verb::AGENT_ASCII,
+        }
+    }
+
+    /// Get verb color from TokenResolver
+    ///
+    /// Use this for new code that uses the Cosmic design system.
+    pub fn color_from_resolver(&self, resolver: &TokenResolver) -> Color {
+        match self {
+            Self::Infer => resolver.verb_infer(),
+            Self::Exec => resolver.verb_exec(),
+            Self::Fetch => resolver.verb_fetch(),
+            Self::Invoke => resolver.verb_invoke(),
+            Self::Agent => resolver.verb_agent(),
         }
     }
 
@@ -493,52 +538,12 @@ pub struct Theme {
 }
 
 impl Default for Theme {
+    /// Default theme is Cosmic Dark (v0.9.1+)
+    ///
+    /// Uses Tailwind CSS Slate palette with Cosmic accents.
     fn default() -> Self {
-        Self {
-            // Realms
-            realm_shared: Color::Rgb(59, 130, 246), // #3B82F6 blue
-            realm_org: Color::Rgb(16, 185, 129),    // #10B981 emerald
-
-            // Traits
-            trait_defined: Color::Rgb(107, 114, 128), // #6B7280 gray
-            trait_authored: Color::Rgb(139, 92, 246), // #8B5CF6 violet
-            trait_imported: Color::Rgb(245, 158, 11), // #F59E0B amber
-            trait_generated: Color::Rgb(16, 185, 129), // #10B981 emerald
-            trait_retrieved: Color::Rgb(6, 182, 212), // #06B6D4 cyan
-
-            // Status
-            status_pending: Color::Rgb(107, 114, 128), // #6B7280 gray
-            status_running: Color::Rgb(245, 158, 11),  // #F59E0B amber
-            status_success: Color::Rgb(34, 197, 94),   // #22C55E green
-            status_failed: Color::Rgb(239, 68, 68),    // #EF4444 red
-            status_paused: Color::Rgb(6, 182, 212),    // #06B6D4 cyan
-
-            // Mission Phases (Space Theme)
-            phase_launch: Color::Rgb(236, 72, 153), // #EC4899 pink
-            phase_orbital: Color::Rgb(59, 130, 246), // #3B82F6 blue
-            phase_rendezvous: Color::Rgb(139, 92, 246), // #8B5CF6 violet
-
-            // MCP tools
-            mcp_describe: Color::Rgb(59, 130, 246), // #3B82F6 blue
-            mcp_traverse: Color::Rgb(236, 72, 153), // #EC4899 pink
-            mcp_search: Color::Rgb(245, 158, 11),   // #F59E0B amber
-            mcp_atoms: Color::Rgb(139, 92, 246),    // #8B5CF6 violet
-            mcp_generate: Color::Rgb(16, 185, 129), // #10B981 emerald
-
-            // UI elements
-            border_normal: Color::Rgb(75, 85, 99), // #4B5563 gray-600
-            border_focused: Color::Rgb(99, 102, 241), // #6366F1 indigo
-            text_primary: Color::Rgb(243, 244, 246), // #F3F4F6 gray-100
-            text_secondary: Color::Rgb(156, 163, 175), // #9CA3AF gray-400
-            text_muted: Color::Rgb(107, 114, 128), // #6B7280 gray-500
-            background: Color::Rgb(17, 24, 39),    // #111827 gray-900
-            highlight: Color::Rgb(99, 102, 241),   // #6366F1 indigo
-
-            // Scrollbar (v0.8.1 - Solarized-inspired for dark theme)
-            scrollbar_thumb: Color::Rgb(38, 139, 210), // #268BD2 Solarized blue
-            scrollbar_track: Color::Rgb(55, 65, 81),   // #374151 gray-700 (subtle)
-            scrollbar_arrows: Color::Rgb(147, 161, 161), // #93A1A1 Solarized base1
-        }
+        // Delegate to cosmic_dark() which uses TokenResolver
+        Self::cosmic_dark()
     }
 }
 
@@ -564,125 +569,22 @@ impl Theme {
         }
     }
 
-    /// Create light theme (TIER 2.4)
+    /// Create light theme (v0.9.1+: Cosmic Light)
+    ///
+    /// Uses Tailwind CSS Slate-50 background with adjusted accents.
     pub fn light() -> Self {
-        Self {
-            // Realms
-            realm_shared: Color::Rgb(37, 99, 235), // #2563EB blue-600
-            realm_org: Color::Rgb(5, 150, 105),    // #059669 emerald-600
-
-            // Traits
-            trait_defined: Color::Rgb(75, 85, 99), // #4B5563 gray-600
-            trait_authored: Color::Rgb(124, 58, 237), // #7C3AED violet-600
-            trait_imported: Color::Rgb(217, 119, 6), // #D97706 amber-600
-            trait_generated: Color::Rgb(5, 150, 105), // #059669 emerald-600
-            trait_retrieved: Color::Rgb(8, 145, 178), // #0891B2 cyan-600
-
-            // Status
-            status_pending: Color::Rgb(75, 85, 99), // #4B5563 gray-600
-            status_running: Color::Rgb(217, 119, 6), // #D97706 amber-600
-            status_success: Color::Rgb(22, 163, 74), // #16A34A green-600
-            status_failed: Color::Rgb(220, 38, 38), // #DC2626 red-600
-            status_paused: Color::Rgb(8, 145, 178), // #0891B2 cyan-600
-
-            // Mission Phases (Space Theme) - light mode
-            phase_launch: Color::Rgb(219, 39, 119), // #DB2777 pink-600
-            phase_orbital: Color::Rgb(37, 99, 235), // #2563EB blue-600
-            phase_rendezvous: Color::Rgb(124, 58, 237), // #7C3AED violet-600
-
-            // MCP tools
-            mcp_describe: Color::Rgb(37, 99, 235), // #2563EB blue-600
-            mcp_traverse: Color::Rgb(219, 39, 119), // #DB2777 pink-600
-            mcp_search: Color::Rgb(217, 119, 6),   // #D97706 amber-600
-            mcp_atoms: Color::Rgb(124, 58, 237),   // #7C3AED violet-600
-            mcp_generate: Color::Rgb(5, 150, 105), // #059669 emerald-600
-
-            // UI elements - light theme
-            border_normal: Color::Rgb(209, 213, 219), // #D1D5DB gray-300
-            border_focused: Color::Rgb(79, 70, 229),  // #4F46E5 indigo-600
-            text_primary: Color::Rgb(17, 24, 39),     // #111827 gray-900
-            text_secondary: Color::Rgb(75, 85, 99),   // #4B5563 gray-600
-            text_muted: Color::Rgb(156, 163, 175),    // #9CA3AF gray-400
-            background: Color::Rgb(249, 250, 251),    // #F9FAFB gray-50
-            highlight: Color::Rgb(79, 70, 229),       // #4F46E5 indigo-600
-
-            // Scrollbar (v0.8.1 - Solarized-inspired for light theme)
-            scrollbar_thumb: Color::Rgb(38, 139, 210), // #268BD2 Solarized blue
-            scrollbar_track: Color::Rgb(229, 231, 235), // #E5E7EB gray-200 (subtle)
-            scrollbar_arrows: Color::Rgb(88, 110, 117), // #586E75 Solarized base01
-        }
+        // Delegate to cosmic_light() which uses TokenResolver
+        Self::cosmic_light()
     }
 
-    /// Create Solarized theme (v0.8)
+    /// Create Solarized theme (v0.9.1+: maps to Cosmic Dark)
     ///
-    /// Based on Ethan Schoonover's Solarized palette.
-    /// Uses Solarized Dark as base with accent colors.
+    /// Note: In v0.9.1+, Solarized is mapped to Cosmic Dark as the closest
+    /// visual match. The original Solarized palette is preserved in the
+    /// design system documentation for reference.
     pub fn solarized() -> Self {
-        // Solarized base colors
-        // base03  #002b36  (dark bg)
-        // base02  #073642  (dark bg highlight)
-        // base01  #586e75  (comments)
-        // base00  #657b83  (body text)
-        // base0   #839496  (primary content)
-        // base1   #93a1a1  (optional emphasized content)
-        // base2   #eee8d5  (light bg highlight)
-        // base3   #fdf6e3  (light bg)
-        //
-        // Accent colors:
-        // yellow  #b58900
-        // orange  #cb4b16
-        // red     #dc322f
-        // magenta #d33682
-        // violet  #6c71c4
-        // blue    #268bd2
-        // cyan    #2aa198
-        // green   #859900
-
-        Self {
-            // Realms
-            realm_shared: Color::Rgb(38, 139, 210), // blue
-            realm_org: Color::Rgb(133, 153, 0),     // green
-
-            // Traits
-            trait_defined: Color::Rgb(88, 110, 117), // base01 (comments)
-            trait_authored: Color::Rgb(108, 113, 196), // violet
-            trait_imported: Color::Rgb(181, 137, 0), // yellow
-            trait_generated: Color::Rgb(133, 153, 0), // green
-            trait_retrieved: Color::Rgb(42, 161, 152), // cyan
-
-            // Status
-            status_pending: Color::Rgb(88, 110, 117), // base01
-            status_running: Color::Rgb(181, 137, 0),  // yellow
-            status_success: Color::Rgb(133, 153, 0),  // green
-            status_failed: Color::Rgb(220, 50, 47),   // red
-            status_paused: Color::Rgb(42, 161, 152),  // cyan
-
-            // Mission Phases (Space Theme) - solarized
-            phase_launch: Color::Rgb(211, 54, 130),  // magenta
-            phase_orbital: Color::Rgb(38, 139, 210), // blue
-            phase_rendezvous: Color::Rgb(108, 113, 196), // violet
-
-            // MCP tools
-            mcp_describe: Color::Rgb(38, 139, 210), // blue
-            mcp_traverse: Color::Rgb(211, 54, 130), // magenta
-            mcp_search: Color::Rgb(181, 137, 0),    // yellow
-            mcp_atoms: Color::Rgb(108, 113, 196),   // violet
-            mcp_generate: Color::Rgb(133, 153, 0),  // green
-
-            // UI elements - solarized dark
-            border_normal: Color::Rgb(7, 54, 66),      // base02
-            border_focused: Color::Rgb(38, 139, 210),  // blue
-            text_primary: Color::Rgb(131, 148, 150),   // base0
-            text_secondary: Color::Rgb(101, 123, 131), // base00
-            text_muted: Color::Rgb(88, 110, 117),      // base01
-            background: Color::Rgb(0, 43, 54),         // base03
-            highlight: Color::Rgb(38, 139, 210),       // blue
-
-            // Scrollbar (v0.8.1 - True Solarized)
-            scrollbar_thumb: Color::Rgb(42, 161, 152), // #2AA198 Solarized cyan
-            scrollbar_track: Color::Rgb(7, 54, 66),    // #073642 base02 (subtle)
-            scrollbar_arrows: Color::Rgb(147, 161, 161), // #93A1A1 base1
-        }
+        // Delegate to cosmic_dark() as closest match
+        Self::cosmic_dark()
     }
 
     /// Get color for MCP tool by name
@@ -959,11 +861,11 @@ mod tests {
         let dark_theme = ThemeMode::Dark.theme();
         let light_theme = ThemeMode::Light.theme();
 
-        // Dark has dark background
-        assert_eq!(dark_theme.background, Color::Rgb(17, 24, 39));
+        // Dark has Cosmic Dark background (Slate-900)
+        assert_eq!(dark_theme.background, Color::Rgb(15, 23, 42)); // #0f172a
 
-        // Light has light background
-        assert_eq!(light_theme.background, Color::Rgb(249, 250, 251));
+        // Light has Cosmic Light background (Slate-50)
+        assert_eq!(light_theme.background, Color::Rgb(248, 250, 252)); // #f8fafc
     }
 
     #[test]
@@ -1281,44 +1183,42 @@ mod tests {
     fn test_theme_light_has_inverted_colors() {
         let light = Theme::light();
 
-        // Light theme should have bright background
-        assert_eq!(light.background, Color::Rgb(249, 250, 251));
+        // Light theme should have Cosmic Light background (Slate-50)
+        assert_eq!(light.background, Color::Rgb(248, 250, 252)); // #f8fafc
 
-        // Light theme should have dark text
-        assert_eq!(light.text_primary, Color::Rgb(17, 24, 39));
+        // Light theme should have dark text (Slate-900)
+        assert_eq!(light.text_primary, Color::Rgb(15, 23, 42)); // #0f172a
     }
 
     // ═══ SOLARIZED THEME TESTS (v0.8) ═══
 
     #[test]
-    fn test_theme_solarized_creates_valid_theme() {
+    fn test_theme_solarized_maps_to_cosmic_dark() {
         let theme = Theme::solarized();
 
-        // Verify Solarized specific colors
-        assert_eq!(theme.background, Color::Rgb(0, 43, 54)); // base03
-        assert_eq!(theme.text_primary, Color::Rgb(131, 148, 150)); // base0
-        assert_eq!(theme.highlight, Color::Rgb(38, 139, 210)); // blue
+        // v0.9.1+: Solarized maps to Cosmic Dark
+        assert_eq!(theme.background, Color::Rgb(15, 23, 42)); // Slate-900
+        assert_eq!(theme.text_primary, Color::Rgb(248, 250, 252)); // Slate-50
     }
 
     #[test]
-    fn test_theme_solarized_accent_colors() {
+    fn test_theme_solarized_has_cosmic_status_colors() {
         let theme = Theme::solarized();
 
-        // Verify accent colors
-        assert_eq!(theme.status_running, Color::Rgb(181, 137, 0)); // yellow
-        assert_eq!(theme.status_success, Color::Rgb(133, 153, 0)); // green
-        assert_eq!(theme.status_failed, Color::Rgb(220, 50, 47)); // red
+        // v0.9.1+: Uses Cosmic status colors
+        assert_eq!(theme.status_running, Color::Rgb(245, 158, 11)); // Amber-500
+        assert_eq!(theme.status_success, Color::Rgb(16, 185, 129)); // Emerald-500
+        assert_eq!(theme.status_failed, Color::Rgb(239, 68, 68)); // Red-500
     }
 
     #[test]
-    fn test_theme_solarized_differs_from_dark() {
+    fn test_theme_solarized_equals_dark() {
         let dark = Theme::dark();
         let solarized = Theme::solarized();
 
-        // Backgrounds should differ
-        assert_ne!(dark.background, solarized.background);
-        // Text primary should differ
-        assert_ne!(dark.text_primary, solarized.text_primary);
+        // v0.9.1+: Solarized maps to Dark
+        assert_eq!(dark.background, solarized.background);
+        assert_eq!(dark.text_primary, solarized.text_primary);
     }
 
     #[test]
@@ -1326,7 +1226,7 @@ mod tests {
         let light = Theme::light();
         let solarized = Theme::solarized();
 
-        // Backgrounds should differ
+        // Backgrounds should differ (Solarized=Dark, Light=Light)
         assert_ne!(light.background, solarized.background);
         // Text primary should differ
         assert_ne!(light.text_primary, solarized.text_primary);
@@ -1664,10 +1564,10 @@ mod tests {
     }
 
     #[test]
-    fn test_theme_mode_solarized_theme_returns_solarized() {
+    fn test_theme_mode_solarized_theme_returns_cosmic_dark() {
         let solarized_theme = ThemeMode::Solarized.theme();
-        // Solarized background is #002b36
-        assert_eq!(solarized_theme.background, Color::Rgb(0, 43, 54));
+        // v0.9.1+: Solarized maps to Cosmic Dark (Slate-900)
+        assert_eq!(solarized_theme.background, Color::Rgb(15, 23, 42)); // #0f172a
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

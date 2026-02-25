@@ -2224,7 +2224,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.8.96"
+version = "0.8.97"
 dependencies = [
  "arboard",
  "async-trait",

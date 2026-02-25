@@ -3345,8 +3345,11 @@ impl View for ChatView {
             // Use Ctrl+C (double-tap) instead
             // 's' when empty opens Settings view (consistent with other views)
             KeyCode::Char('s') if self.input.value().is_empty() => ViewAction::OpenSettings,
-            // Shift+T toggles theme (v0.8.1 - consistent with app.rs)
+            // Shift+T or Ctrl+t toggles theme (v0.8.1 - consistent with app.rs)
             KeyCode::Char('T') => ViewAction::ToggleTheme,
+            KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                ViewAction::ToggleTheme
+            }
             // "/" at start of empty input triggers command palette with verbs
             KeyCode::Char('/') if self.input.value().is_empty() => {
                 self.toggle_command_palette();

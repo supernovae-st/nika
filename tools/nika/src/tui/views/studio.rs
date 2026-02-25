@@ -547,8 +547,11 @@ impl StudioView {
             }
             // 's' opens Settings view
             KeyCode::Char('s') => ViewAction::OpenSettings,
-            // Shift+T toggles theme (v0.8.1 - consistent across all views)
+            // Shift+T or Ctrl+t toggles theme (v0.8.1 - consistent across all views)
             KeyCode::Char('T') => ViewAction::ToggleTheme,
+            KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                ViewAction::ToggleTheme
+            }
             KeyCode::Char('i') => {
                 self.mode = EditorMode::Insert;
                 ViewAction::None

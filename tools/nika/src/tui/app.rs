@@ -50,6 +50,7 @@ use crate::tui::command::ModelProvider;
 use rustc_hash::FxHashMap;
 use std::path::PathBuf;
 
+use super::cosmic_theme::CosmicTheme;
 use super::focus::{FocusState, PanelId as NavPanelId};
 use super::mode::InputMode;
 use super::panels::{ContextPanel, GraphPanel, ProgressPanel, ReasoningPanel};
@@ -203,7 +204,9 @@ pub struct App {
     /// Note: Used during construction for HomeView initialization
     #[allow(dead_code)]
     standalone_state: Option<StandaloneState>,
-    /// Color theme
+    /// Cosmic theme (v0.9.1+)
+    cosmic_theme: CosmicTheme,
+    /// Color theme (derived from cosmic_theme for backward compat)
     theme: Theme,
     /// Event receiver from runtime (mpsc - legacy)
     event_rx: Option<mpsc::Receiver<NikaEvent>>,
@@ -295,12 +298,17 @@ impl App {
         // Initialize ChatAgent (may fail if no API keys are set, but that's OK)
         let chat_agent = ChatAgent::new().ok();
 
+        // Initialize cosmic theme (default: CosmicDark)
+        let cosmic_theme = CosmicTheme::default();
+        let theme = cosmic_theme.as_theme();
+
         Ok(Self {
             workflow_path: workflow_path.to_path_buf(),
             terminal: None,
             state,
             standalone_state: None,
-            theme: Theme::novanet(),
+            cosmic_theme,
+            theme,
             event_rx: None,
             broadcast_rx: None,
             should_quit: false,
@@ -348,12 +356,17 @@ impl App {
         // Initialize ChatAgent (may fail if no API keys are set, but that's OK)
         let chat_agent = ChatAgent::new().ok();
 
+        // Initialize cosmic theme (default: CosmicDark)
+        let cosmic_theme = CosmicTheme::default();
+        let theme = cosmic_theme.as_theme();
+
         Ok(Self {
             workflow_path,
             terminal: None,
             state,
             standalone_state: Some(standalone_state),
-            theme: Theme::novanet(),
+            cosmic_theme,
+            theme,
             event_rx: None,
             broadcast_rx: None,
             should_quit: false,
@@ -2246,15 +2259,17 @@ impl App {
         Action::Continue
     }
 
-    /// Toggle theme between dark, light, and solarized (TIER 2.4)
+    /// Toggle theme (cycles: CosmicDark → CosmicLight → CosmicViolet)
+    ///
+    /// v0.9.1: Uses CosmicTheme for unified design system.
     fn toggle_theme(&mut self) {
-        self.state.theme_mode = self.state.theme_mode.toggle();
-        let mode_name = match self.state.theme_mode {
-            super::theme::ThemeMode::Dark => "Dark",
-            super::theme::ThemeMode::Light => "Light",
-            super::theme::ThemeMode::Solarized => "Solarized",
-        };
-        self.set_status(&format!("🎨 Theme: {}", mode_name));
+        self.cosmic_theme.cycle();
+        self.theme = self.cosmic_theme.as_theme();
+
+        // Also update legacy theme_mode for backward compat
+        self.state.theme_mode = self.cosmic_theme.variant().into();
+
+        self.set_status(&format!("🎨 Theme: {}", self.cosmic_theme.label()));
     }
 
     /// Set status message with auto-clear timer

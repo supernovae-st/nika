@@ -123,21 +123,21 @@ impl SemanticColors {
             bg_active: palette.violet_900,   // #4c1d95 - Active (violet tint)
 
             // Text - High contrast for readability
-            text_primary: palette.slate_50,   // #f8fafc - Bright white
+            text_primary: palette.slate_50, // #f8fafc - Bright white
             text_secondary: palette.slate_300, // #cbd5e1 - Muted
-            text_muted: palette.slate_500,    // #64748b - Hints
+            text_muted: palette.slate_500,  // #64748b - Hints
             text_disabled: palette.slate_600, // #475569 - Disabled
-            text_inverse: palette.slate_900,  // #0f172a - On light
+            text_inverse: palette.slate_900, // #0f172a - On light
 
             // Borders - Subtle definition
-            border_default: palette.slate_700, // #334155
+            border_default: palette.slate_700,  // #334155
             border_focused: palette.violet_500, // #8b5cf6 - Violet focus
-            border_subtle: palette.slate_800,  // #1e293b
+            border_subtle: palette.slate_800,   // #1e293b
 
             // Accents - Cosmic palette
-            accent_primary: palette.violet_500,   // #8b5cf6 - 🦋 Brand
-            accent_secondary: palette.cyan_400,   // #22d3ee - 🌌 Glow
-            accent_tertiary: palette.pink_500,    // #ec4899 - Nebula
+            accent_primary: palette.violet_500, // #8b5cf6 - 🦋 Brand
+            accent_secondary: palette.cyan_400, // #22d3ee - 🌌 Glow
+            accent_tertiary: palette.pink_500,  // #ec4899 - Nebula
 
             // Status - Clear semantics
             status_success: palette.emerald_500, // #10b981
@@ -146,16 +146,16 @@ impl SemanticColors {
             status_info: palette.blue_500,       // #3b82f6
 
             // Verbs - Distinct colors per action
-            verb_infer: palette.violet_500,  // #8b5cf6 - LLM
-            verb_exec: palette.amber_500,    // #f59e0b - Shell
-            verb_fetch: palette.cyan_500,    // #06b6d4 - HTTP
+            verb_infer: palette.violet_500,   // #8b5cf6 - LLM
+            verb_exec: palette.amber_500,     // #f59e0b - Shell
+            verb_fetch: palette.cyan_500,     // #06b6d4 - HTTP
             verb_invoke: palette.emerald_500, // #10b981 - MCP
-            verb_agent: palette.rose_500,    // #f43f5e - Agent
+            verb_agent: palette.rose_500,     // #f43f5e - Agent
 
             // Scrollbar - Accent-colored
-            scrollbar_thumb: palette.violet_600,  // #7c3aed
-            scrollbar_track: palette.slate_800,   // #1e293b
-            scrollbar_arrows: palette.slate_400,  // #94a3b8
+            scrollbar_thumb: palette.violet_600, // #7c3aed
+            scrollbar_track: palette.slate_800,  // #1e293b
+            scrollbar_arrows: palette.slate_400, // #94a3b8
         }
     }
 
@@ -172,21 +172,21 @@ impl SemanticColors {
             bg_active: palette.violet_100,   // #ede9fe - Active (violet tint)
 
             // Text - Dark for contrast
-            text_primary: palette.slate_900,  // #0f172a - Dark
+            text_primary: palette.slate_900,   // #0f172a - Dark
             text_secondary: palette.slate_600, // #475569 - Muted
-            text_muted: palette.slate_400,    // #94a3b8 - Hints
-            text_disabled: palette.slate_300, // #cbd5e1 - Disabled
-            text_inverse: palette.slate_50,   // #f8fafc - On dark
+            text_muted: palette.slate_400,     // #94a3b8 - Hints
+            text_disabled: palette.slate_300,  // #cbd5e1 - Disabled
+            text_inverse: palette.slate_50,    // #f8fafc - On dark
 
             // Borders - Visible definition
-            border_default: palette.slate_300, // #cbd5e1
+            border_default: palette.slate_300,  // #cbd5e1
             border_focused: palette.violet_600, // #7c3aed - Violet focus
-            border_subtle: palette.slate_200,  // #e2e8f0
+            border_subtle: palette.slate_200,   // #e2e8f0
 
             // Accents - Deeper for contrast
-            accent_primary: palette.violet_600,   // #7c3aed - 🦋 Brand
-            accent_secondary: palette.cyan_600,   // #0891b2 - 🌌 Glow
-            accent_tertiary: palette.pink_600,    // #db2777 - Nebula
+            accent_primary: palette.violet_600, // #7c3aed - 🦋 Brand
+            accent_secondary: palette.cyan_600, // #0891b2 - 🌌 Glow
+            accent_tertiary: palette.pink_600,  // #db2777 - Nebula
 
             // Status - Darker for light mode
             status_success: palette.emerald_600, // #059669
@@ -195,11 +195,11 @@ impl SemanticColors {
             status_info: palette.blue_600,       // #2563eb
 
             // Verbs - Slightly darker for readability
-            verb_infer: palette.violet_600,  // #7c3aed
-            verb_exec: palette.amber_600,    // #d97706
-            verb_fetch: palette.cyan_600,    // #0891b2
+            verb_infer: palette.violet_600,   // #7c3aed
+            verb_exec: palette.amber_600,     // #d97706
+            verb_fetch: palette.cyan_600,     // #0891b2
             verb_invoke: palette.emerald_600, // #059669
-            verb_agent: palette.rose_600,    // #e11d48
+            verb_agent: palette.rose_600,     // #e11d48
 
             // Scrollbar - Subtle
             scrollbar_thumb: palette.slate_400,  // #94a3b8
@@ -214,18 +214,18 @@ impl SemanticColors {
     pub fn cosmic_violet(palette: &ColorPalette) -> Self {
         Self {
             // Backgrounds - Violet-tinted
-            bg_primary: palette.violet_950,  // #2e1065 - Deep violet
+            bg_primary: palette.violet_950,   // #2e1065 - Deep violet
             bg_secondary: palette.violet_900, // #4c1d95 - Elevated
-            bg_tertiary: palette.violet_800, // #5b21b6 - Cards
-            bg_hover: palette.violet_800,    // #5b21b6 - Hover
-            bg_active: palette.cyan_900,     // #164e63 - Active (cyan pop)
+            bg_tertiary: palette.violet_800,  // #5b21b6 - Cards
+            bg_hover: palette.violet_800,     // #5b21b6 - Hover
+            bg_active: palette.cyan_900,      // #164e63 - Active (cyan pop)
 
             // Text - Light for contrast
-            text_primary: palette.violet_50,   // #f5f3ff - Bright
+            text_primary: palette.violet_50,    // #f5f3ff - Bright
             text_secondary: palette.violet_200, // #ddd6fe - Muted
-            text_muted: palette.violet_400,    // #a78bfa - Hints
-            text_disabled: palette.violet_600, // #7c3aed - Disabled
-            text_inverse: palette.violet_950,  // #2e1065 - On light
+            text_muted: palette.violet_400,     // #a78bfa - Hints
+            text_disabled: palette.violet_600,  // #7c3aed - Disabled
+            text_inverse: palette.violet_950,   // #2e1065 - On light
 
             // Borders - Violet spectrum
             border_default: palette.violet_700, // #6d28d9
@@ -233,9 +233,9 @@ impl SemanticColors {
             border_subtle: palette.violet_800,  // #5b21b6
 
             // Accents - Complementary
-            accent_primary: palette.cyan_400,     // #22d3ee - Inverse accent
-            accent_secondary: palette.pink_400,   // #f472b6 - Warm
-            accent_tertiary: palette.violet_300,  // #c4b5fd - Soft
+            accent_primary: palette.cyan_400, // #22d3ee - Inverse accent
+            accent_secondary: palette.pink_400, // #f472b6 - Warm
+            accent_tertiary: palette.violet_300, // #c4b5fd - Soft
 
             // Status - Adjusted for violet bg
             status_success: palette.emerald_400, // #34d399 - Brighter
@@ -244,15 +244,15 @@ impl SemanticColors {
             status_info: palette.cyan_400,       // #22d3ee - Brighter
 
             // Verbs - High contrast on violet
-            verb_infer: palette.violet_300,  // #c4b5fd - Lighter violet
-            verb_exec: palette.amber_400,    // #fbbf24
-            verb_fetch: palette.cyan_400,    // #22d3ee
+            verb_infer: palette.violet_300, // #c4b5fd - Lighter violet
+            verb_exec: palette.amber_400,   // #fbbf24
+            verb_fetch: palette.cyan_400,   // #22d3ee
             verb_invoke: palette.emerald_400, // #34d399
-            verb_agent: palette.rose_400,    // #fb7185
+            verb_agent: palette.rose_400,   // #fb7185
 
             // Scrollbar - Cyan accent
-            scrollbar_thumb: palette.cyan_500,   // #06b6d4
-            scrollbar_track: palette.violet_800, // #5b21b6
+            scrollbar_thumb: palette.cyan_500,    // #06b6d4
+            scrollbar_track: palette.violet_800,  // #5b21b6
             scrollbar_arrows: palette.violet_200, // #ddd6fe
         }
     }

@@ -14,6 +14,7 @@ use nika::mcp::validation::{McpValidator, ValidationConfig};
 use nika::mcp::{McpClient, McpConfig};
 use nika::runtime::Runner;
 use nika::tools::PermissionMode;
+use nika::tui::widgets::provider_modal::migrate_env_to_keyring;
 use nika::Event;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -128,6 +129,10 @@ enum Commands {
         /// Skip creating example workflow
         #[arg(long)]
         no_example: bool,
+
+        /// Migrate API keys from environment variables to system keychain
+        #[arg(long)]
+        migrate_keys: bool,
     },
 
     /// Manage execution traces
@@ -269,7 +274,8 @@ async fn main() {
         Some(Commands::Init {
             permission,
             no_example,
-        }) => init_project(&permission, no_example),
+            migrate_keys,
+        }) => init_project(&permission, no_example, migrate_keys),
 
         // Trace commands
         Some(Commands::Trace { action }) => handle_trace_command(action),
@@ -685,7 +691,8 @@ fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
 /// - `.nika/` directory
 /// - `.nika/config.toml` with permission settings
 /// - Example workflow (unless --no-example)
-fn init_project(permission: &str, no_example: bool) -> Result<(), NikaError> {
+/// - Migrate env vars to keychain (if --migrate-keys)
+fn init_project(permission: &str, no_example: bool, migrate_keys: bool) -> Result<(), NikaError> {
     let cwd = std::env::current_dir()?;
     let nika_dir = cwd.join(".nika");
 
@@ -793,6 +800,31 @@ flows:
         println!();
         println!("  {} Run example workflow:", "→".cyan());
         println!("    nika run hello.nika.yaml");
+    }
+
+    // Migrate API keys from env vars to keychain if requested
+    if migrate_keys {
+        println!();
+        println!("{}", "Migrating API keys from environment variables...".cyan());
+        let report = migrate_env_to_keyring();
+        println!();
+        println!("{}", report.summary());
+
+        if !report.errors.is_empty() {
+            println!();
+            println!("{}:", "Errors".red());
+            for (provider, error) in &report.errors {
+                println!("  {} - {}", provider, error);
+            }
+        }
+
+        if report.migrated > 0 {
+            println!();
+            println!(
+                "{}",
+                "NOTE: You can now remove these env vars from your shell config.".yellow()
+            );
+        }
     }
 
     Ok(())

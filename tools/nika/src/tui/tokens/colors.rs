@@ -180,17 +180,17 @@ impl ColorPalette {
             // ═══════════════════════════════════════════════════════════════════
             // SLATE - Blue-tinted neutrals
             // ═══════════════════════════════════════════════════════════════════
-            slate_50: Color::Rgb(248, 250, 252),   // #f8fafc
-            slate_100: Color::Rgb(241, 245, 249),  // #f1f5f9
-            slate_200: Color::Rgb(226, 232, 240),  // #e2e8f0
-            slate_300: Color::Rgb(203, 213, 225),  // #cbd5e1
-            slate_400: Color::Rgb(148, 163, 184),  // #94a3b8
-            slate_500: Color::Rgb(100, 116, 139),  // #64748b
-            slate_600: Color::Rgb(71, 85, 105),    // #475569
-            slate_700: Color::Rgb(51, 65, 85),     // #334155
-            slate_800: Color::Rgb(30, 41, 59),     // #1e293b
-            slate_900: Color::Rgb(15, 23, 42),     // #0f172a
-            slate_950: Color::Rgb(2, 6, 23),       // #020617
+            slate_50: Color::Rgb(248, 250, 252),  // #f8fafc
+            slate_100: Color::Rgb(241, 245, 249), // #f1f5f9
+            slate_200: Color::Rgb(226, 232, 240), // #e2e8f0
+            slate_300: Color::Rgb(203, 213, 225), // #cbd5e1
+            slate_400: Color::Rgb(148, 163, 184), // #94a3b8
+            slate_500: Color::Rgb(100, 116, 139), // #64748b
+            slate_600: Color::Rgb(71, 85, 105),   // #475569
+            slate_700: Color::Rgb(51, 65, 85),    // #334155
+            slate_800: Color::Rgb(30, 41, 59),    // #1e293b
+            slate_900: Color::Rgb(15, 23, 42),    // #0f172a
+            slate_950: Color::Rgb(2, 6, 23),      // #020617
 
             // ═══════════════════════════════════════════════════════════════════
             // VIOLET - Primary brand (🦋 Nika)
@@ -210,32 +210,32 @@ impl ColorPalette {
             // ═══════════════════════════════════════════════════════════════════
             // CYAN - Secondary accent (🌌 Cosmic glow)
             // ═══════════════════════════════════════════════════════════════════
-            cyan_50: Color::Rgb(236, 254, 255),   // #ecfeff
-            cyan_100: Color::Rgb(207, 250, 254),  // #cffafe
-            cyan_200: Color::Rgb(165, 243, 252),  // #a5f3fc
-            cyan_300: Color::Rgb(103, 232, 249),  // #67e8f9
-            cyan_400: Color::Rgb(34, 211, 238),   // #22d3ee
-            cyan_500: Color::Rgb(6, 182, 212),    // #06b6d4
-            cyan_600: Color::Rgb(8, 145, 178),    // #0891b2
-            cyan_700: Color::Rgb(14, 116, 144),   // #0e7490
-            cyan_800: Color::Rgb(21, 94, 117),    // #155e75
-            cyan_900: Color::Rgb(22, 78, 99),     // #164e63
-            cyan_950: Color::Rgb(8, 51, 68),      // #083344
+            cyan_50: Color::Rgb(236, 254, 255),  // #ecfeff
+            cyan_100: Color::Rgb(207, 250, 254), // #cffafe
+            cyan_200: Color::Rgb(165, 243, 252), // #a5f3fc
+            cyan_300: Color::Rgb(103, 232, 249), // #67e8f9
+            cyan_400: Color::Rgb(34, 211, 238),  // #22d3ee
+            cyan_500: Color::Rgb(6, 182, 212),   // #06b6d4
+            cyan_600: Color::Rgb(8, 145, 178),   // #0891b2
+            cyan_700: Color::Rgb(14, 116, 144),  // #0e7490
+            cyan_800: Color::Rgb(21, 94, 117),   // #155e75
+            cyan_900: Color::Rgb(22, 78, 99),    // #164e63
+            cyan_950: Color::Rgb(8, 51, 68),     // #083344
 
             // ═══════════════════════════════════════════════════════════════════
             // PINK - Tertiary accent (Nebula highlights)
             // ═══════════════════════════════════════════════════════════════════
-            pink_50: Color::Rgb(253, 242, 248),   // #fdf2f8
-            pink_100: Color::Rgb(252, 231, 243),  // #fce7f3
-            pink_200: Color::Rgb(251, 207, 232),  // #fbcfe8
-            pink_300: Color::Rgb(249, 168, 212),  // #f9a8d4
-            pink_400: Color::Rgb(244, 114, 182),  // #f472b6
-            pink_500: Color::Rgb(236, 72, 153),   // #ec4899
-            pink_600: Color::Rgb(219, 39, 119),   // #db2777
-            pink_700: Color::Rgb(190, 24, 93),    // #be185d
-            pink_800: Color::Rgb(157, 23, 77),    // #9d174d
-            pink_900: Color::Rgb(131, 24, 67),    // #831843
-            pink_950: Color::Rgb(80, 7, 36),      // #500724
+            pink_50: Color::Rgb(253, 242, 248),  // #fdf2f8
+            pink_100: Color::Rgb(252, 231, 243), // #fce7f3
+            pink_200: Color::Rgb(251, 207, 232), // #fbcfe8
+            pink_300: Color::Rgb(249, 168, 212), // #f9a8d4
+            pink_400: Color::Rgb(244, 114, 182), // #f472b6
+            pink_500: Color::Rgb(236, 72, 153),  // #ec4899
+            pink_600: Color::Rgb(219, 39, 119),  // #db2777
+            pink_700: Color::Rgb(190, 24, 93),   // #be185d
+            pink_800: Color::Rgb(157, 23, 77),   // #9d174d
+            pink_900: Color::Rgb(131, 24, 67),   // #831843
+            pink_950: Color::Rgb(80, 7, 36),     // #500724
 
             // ═══════════════════════════════════════════════════════════════════
             // EMERALD - Success, invoke verb
@@ -270,47 +270,47 @@ impl ColorPalette {
             // ═══════════════════════════════════════════════════════════════════
             // ROSE - Agent verb
             // ═══════════════════════════════════════════════════════════════════
-            rose_50: Color::Rgb(255, 241, 242),   // #fff1f2
-            rose_100: Color::Rgb(255, 228, 230),  // #ffe4e6
-            rose_200: Color::Rgb(254, 205, 211),  // #fecdd3
-            rose_300: Color::Rgb(253, 164, 175),  // #fda4af
-            rose_400: Color::Rgb(251, 113, 133),  // #fb7185
-            rose_500: Color::Rgb(244, 63, 94),    // #f43f5e
-            rose_600: Color::Rgb(225, 29, 72),    // #e11d48
-            rose_700: Color::Rgb(190, 18, 60),    // #be123c
-            rose_800: Color::Rgb(159, 18, 57),    // #9f1239
-            rose_900: Color::Rgb(136, 19, 55),    // #881337
-            rose_950: Color::Rgb(76, 5, 25),      // #4c0519
+            rose_50: Color::Rgb(255, 241, 242),  // #fff1f2
+            rose_100: Color::Rgb(255, 228, 230), // #ffe4e6
+            rose_200: Color::Rgb(254, 205, 211), // #fecdd3
+            rose_300: Color::Rgb(253, 164, 175), // #fda4af
+            rose_400: Color::Rgb(251, 113, 133), // #fb7185
+            rose_500: Color::Rgb(244, 63, 94),   // #f43f5e
+            rose_600: Color::Rgb(225, 29, 72),   // #e11d48
+            rose_700: Color::Rgb(190, 18, 60),   // #be123c
+            rose_800: Color::Rgb(159, 18, 57),   // #9f1239
+            rose_900: Color::Rgb(136, 19, 55),   // #881337
+            rose_950: Color::Rgb(76, 5, 25),     // #4c0519
 
             // ═══════════════════════════════════════════════════════════════════
             // RED - Error states
             // ═══════════════════════════════════════════════════════════════════
-            red_50: Color::Rgb(254, 242, 242),   // #fef2f2
-            red_100: Color::Rgb(254, 226, 226),  // #fee2e2
-            red_200: Color::Rgb(254, 202, 202),  // #fecaca
-            red_300: Color::Rgb(252, 165, 165),  // #fca5a5
-            red_400: Color::Rgb(248, 113, 113),  // #f87171
-            red_500: Color::Rgb(239, 68, 68),    // #ef4444
-            red_600: Color::Rgb(220, 38, 38),    // #dc2626
-            red_700: Color::Rgb(185, 28, 28),    // #b91c1c
-            red_800: Color::Rgb(153, 27, 27),    // #991b1b
-            red_900: Color::Rgb(127, 29, 29),    // #7f1d1d
-            red_950: Color::Rgb(69, 10, 10),     // #450a0a
+            red_50: Color::Rgb(254, 242, 242),  // #fef2f2
+            red_100: Color::Rgb(254, 226, 226), // #fee2e2
+            red_200: Color::Rgb(254, 202, 202), // #fecaca
+            red_300: Color::Rgb(252, 165, 165), // #fca5a5
+            red_400: Color::Rgb(248, 113, 113), // #f87171
+            red_500: Color::Rgb(239, 68, 68),   // #ef4444
+            red_600: Color::Rgb(220, 38, 38),   // #dc2626
+            red_700: Color::Rgb(185, 28, 28),   // #b91c1c
+            red_800: Color::Rgb(153, 27, 27),   // #991b1b
+            red_900: Color::Rgb(127, 29, 29),   // #7f1d1d
+            red_950: Color::Rgb(69, 10, 10),    // #450a0a
 
             // ═══════════════════════════════════════════════════════════════════
             // BLUE - Info states
             // ═══════════════════════════════════════════════════════════════════
-            blue_50: Color::Rgb(239, 246, 255),   // #eff6ff
-            blue_100: Color::Rgb(219, 234, 254),  // #dbeafe
-            blue_200: Color::Rgb(191, 219, 254),  // #bfdbfe
-            blue_300: Color::Rgb(147, 197, 253),  // #93c5fd
-            blue_400: Color::Rgb(96, 165, 250),   // #60a5fa
-            blue_500: Color::Rgb(59, 130, 246),   // #3b82f6
-            blue_600: Color::Rgb(37, 99, 235),    // #2563eb
-            blue_700: Color::Rgb(29, 78, 216),    // #1d4ed8
-            blue_800: Color::Rgb(30, 64, 175),    // #1e40af
-            blue_900: Color::Rgb(30, 58, 138),    // #1e3a8a
-            blue_950: Color::Rgb(23, 37, 84),     // #172554
+            blue_50: Color::Rgb(239, 246, 255),  // #eff6ff
+            blue_100: Color::Rgb(219, 234, 254), // #dbeafe
+            blue_200: Color::Rgb(191, 219, 254), // #bfdbfe
+            blue_300: Color::Rgb(147, 197, 253), // #93c5fd
+            blue_400: Color::Rgb(96, 165, 250),  // #60a5fa
+            blue_500: Color::Rgb(59, 130, 246),  // #3b82f6
+            blue_600: Color::Rgb(37, 99, 235),   // #2563eb
+            blue_700: Color::Rgb(29, 78, 216),   // #1d4ed8
+            blue_800: Color::Rgb(30, 64, 175),   // #1e40af
+            blue_900: Color::Rgb(30, 58, 138),   // #1e3a8a
+            blue_950: Color::Rgb(23, 37, 84),    // #172554
         }
     }
 

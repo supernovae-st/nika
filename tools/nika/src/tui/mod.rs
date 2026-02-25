@@ -46,11 +46,15 @@ pub mod command;
 #[cfg(feature = "tui")]
 pub mod config;
 #[cfg(feature = "tui")]
+mod cosmic_theme;
+#[cfg(feature = "tui")]
 mod edit_history;
 #[cfg(feature = "tui")]
 pub mod file_resolve;
 #[cfg(feature = "tui")]
 mod focus;
+#[cfg(feature = "tui")]
+pub mod icons;
 #[cfg(feature = "tui")]
 mod keybindings;
 #[cfg(feature = "tui")]
@@ -72,11 +76,7 @@ mod theme;
 #[cfg(feature = "tui")]
 pub mod tokens;
 #[cfg(feature = "tui")]
-mod cosmic_theme;
-#[cfg(feature = "tui")]
 mod unicode;
-#[cfg(feature = "tui")]
-pub mod icons;
 #[cfg(feature = "tui")]
 mod utils;
 #[cfg(feature = "tui")]
@@ -99,11 +99,15 @@ pub use config::{
     ChatSettings, ConfigError, PathSettings, StudioSettings, ThemeName, TuiConfig, TuiSettings,
 };
 #[cfg(feature = "tui")]
+pub use cosmic_theme::CosmicTheme;
+#[cfg(feature = "tui")]
 pub use edit_history::EditHistory;
 #[cfg(feature = "tui")]
 pub use file_resolve::FileResolver;
 #[cfg(feature = "tui")]
 pub use focus::{FocusState, PanelId as NavPanelId};
+#[cfg(feature = "tui")]
+pub use icons::{IconMode, IconSet};
 #[cfg(feature = "tui")]
 pub use keybindings::{format_key, keybindings_for_context, KeyCategory, Keybinding};
 #[cfg(feature = "tui")]
@@ -120,17 +124,20 @@ pub use standalone::{BrowserEntry, HistoryEntry, StandalonePanel, StandaloneStat
 #[cfg(feature = "tui")]
 pub use state::{
     // Animation frame constants (v0.9.x standard)
-    AgentTurnState, PanelId, PanelScrollState, TuiMode, TuiState, FRAME_CYCLE, FRAME_DIV_GLACIAL,
-    FRAME_DIV_NORMAL, TARGET_FPS,
+    AgentTurnState,
+    PanelId,
+    PanelScrollState,
+    TuiMode,
+    TuiState,
+    FRAME_CYCLE,
+    FRAME_DIV_GLACIAL,
+    FRAME_DIV_NORMAL,
+    TARGET_FPS,
 };
 #[cfg(feature = "tui")]
 pub use theme::{ColorMode, MissionPhase, TaskStatus, Theme, VerbColor};
 #[cfg(feature = "tui")]
 pub use tokens::{ColorPalette, CosmicVariant, SemanticColors, TokenResolver};
-#[cfg(feature = "tui")]
-pub use cosmic_theme::CosmicTheme;
-#[cfg(feature = "tui")]
-pub use icons::{IconMode, IconSet};
 #[cfg(feature = "tui")]
 pub use unicode::{display_width, truncate_to_width};
 #[cfg(feature = "tui")]
