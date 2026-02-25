@@ -17,12 +17,14 @@
 //!                            └── dispatch to appropriate tool
 //! ```
 
+mod assert;
 mod emit;
 mod log;
 mod router;
 mod sleep;
 mod r#trait;
 
+pub use assert::AssertTool;
 pub use emit::EmitTool;
 pub use log::{LogLevel, LogTool};
 pub use router::BuiltinToolRouter;
