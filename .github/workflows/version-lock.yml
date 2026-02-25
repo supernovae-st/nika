@@ -1,8 +1,8 @@
-# 🔒 VERSION LOCK ENFORCEMENT
+# 🏴‍☠️ CAPTAIN'S ORDERS: VERSION LOCK
 # Nika must NEVER be version 1.0.0 or higher - this is by design.
-# See: docs/plans/2025-02-25-nika-fortress-design.md
+# Part of ARMADA quality checkpoints
 
-name: 🔒 Version Lock
+name: 🏴‍☠️ Captain's Orders
 
 on:
   push:

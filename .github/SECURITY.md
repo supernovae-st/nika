@@ -37,7 +37,7 @@ Nika implements the following security measures:
 - **cargo-deny**: License and advisory checks
 - **Secret scanning**: Enabled via GitHub
 - **SAST**: Static analysis security testing
-- **FORTRESS mode**: 10 quality gates for all PRs
+- **ARMADA mode**: 10 quality checkpoints for all PRs
 
 ## Version Lock Policy
 

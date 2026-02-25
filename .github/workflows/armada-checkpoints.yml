@@ -1,15 +1,15 @@
-# 🏰 FORTRESS Quality Gates
-# 10 gates that must pass before merge
-# See: docs/plans/2025-02-25-nika-fortress-design.md
+# 🏴‍☠️ ARMADA Quality Checkpoints
+# 10 checkpoints that must clear before merge
+# "The pirate fleet protecting the code treasure"
 
-name: 🏰 FORTRESS Gates
+name: 🏴‍☠️ ARMADA Checkpoints
 
 on:
   pull_request:
     branches: [main]
 
 concurrency:
-  group: fortress-${{ github.head_ref }}
+  group: armada-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
@@ -19,10 +19,10 @@ env:
 
 jobs:
   # ═══════════════════════════════════════════════════════════════════════════
-  # GATE 1-2: Format & Lint (Fast, parallel)
+  # STATION 1-2: Format & Lint (Fast, parallel)
   # ═══════════════════════════════════════════════════════════════════════════
-  gate-1-format:
-    name: "🔧 Gate 1: Format"
+  station-1-format:
+    name: "🔧 Station 1: Format"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,8 +32,8 @@ jobs:
           components: rustfmt
       - run: cargo fmt --all --check
 
-  gate-2-lint:
-    name: "📎 Gate 2: Lint"
+  station-2-lint:
+    name: "📎 Station 2: Lint"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,10 +45,10 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # GATE 3-4: Tests & Coverage (Medium, parallel)
+  # STATION 3-4: Tests & Coverage (Medium, parallel)
   # ═══════════════════════════════════════════════════════════════════════════
-  gate-3-tests:
-    name: "🧪 Gate 3: Tests"
+  station-3-tests:
+    name: "🧪 Station 3: Tests"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,8 +61,8 @@ jobs:
         env:
           NEXTEST_RETRIES: 2
 
-  gate-4-coverage:
-    name: "📊 Gate 4: Coverage"
+  station-4-coverage:
+    name: "📊 Station 4: Coverage"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -83,10 +83,10 @@ jobs:
           fi
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # GATE 5-6: Docs & Security (Medium, parallel)
+  # STATION 5-6: Docs & Security (Medium, parallel)
   # ═══════════════════════════════════════════════════════════════════════════
-  gate-5-docs:
-    name: "📖 Gate 5: Docs"
+  station-5-docs:
+    name: "📖 Station 5: Docs"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -98,8 +98,8 @@ jobs:
         env:
           RUSTDOCFLAGS: "-D warnings"
 
-  gate-6-security:
-    name: "🔒 Gate 6: Security"
+  station-6-security:
+    name: "⚓ Station 6: Security"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -117,21 +117,20 @@ jobs:
         run: cargo deny check 2>/dev/null || echo "::warning::cargo-deny found issues (deny.toml may be missing)"
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # GATE 7-8: AI Reviews (Slow, parallel)
+  # STATION 7-8: AI Reviews (Slow, parallel)
   # ═══════════════════════════════════════════════════════════════════════════
-  gate-7-coderabbit:
-    name: "🤖 Gate 7: CodeRabbit"
+  station-7-coderabbit:
+    name: "🤖 Station 7: CodeRabbit"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # CodeRabbit runs automatically via GitHub App if installed
       - run: |
           echo "CodeRabbit AI review"
           echo "If CodeRabbit GitHub App is installed, it reviews automatically."
-          echo "Otherwise, this gate passes without AI review."
+          echo "Otherwise, this station passes without AI review."
 
-  gate-8-claude:
-    name: "🧠 Gate 8: Claude AI"
+  station-8-claude:
+    name: "🧠 Station 8: Claude AI"
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     steps:
@@ -141,22 +140,22 @@ jobs:
       - name: Claude AI Review (placeholder)
         run: |
           echo "Claude AI Review"
-          echo "This gate is a placeholder for future Claude API integration."
+          echo "This station is a placeholder for future Claude API integration."
           echo "For now, manual review suffices."
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # GATE 9-10: Process Gates (Fast, parallel)
+  # STATION 9-10: Process Checkpoints (Fast, parallel)
   # ═══════════════════════════════════════════════════════════════════════════
-  gate-9-commits:
-    name: "📝 Gate 9: Conventional Commits"
+  station-9-commits:
+    name: "📝 Station 9: Ship's Log"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Check commit messages
+      - name: Check commit messages (conventional)
         run: |
-          echo "Checking conventional commits..."
+          echo "Checking ship's log entries (conventional commits)..."
           PATTERN="^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .+"
           FAILED=0
           for commit in $(git log --format="%H" origin/main..HEAD 2>/dev/null || git log --format="%H" -10); do
@@ -169,17 +168,16 @@ jobs:
             fi
           done
           if [ "$FAILED" = "1" ]; then
-            echo "::warning::Some commits don't follow conventional commits format"
+            echo "::warning::Some log entries don't follow conventional commits format"
           fi
 
-  gate-10-version-lock:
-    name: "🔒 Gate 10: Version Lock"
+  station-10-version:
+    name: "🏴‍☠️ Station 10: Captain's Orders"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Enforce 0.x.x version
+      - name: Enforce 0.x.x version (Captain's Orders)
         run: |
-          # Find the main Cargo.toml
           if [[ -f "tools/nika/Cargo.toml" ]]; then
             CARGO_FILE="tools/nika/Cargo.toml"
           elif [[ -f "Cargo.toml" ]]; then
@@ -193,45 +191,45 @@ jobs:
           MAJOR=$(echo "$VERSION" | cut -d. -f1)
 
           if [ "$MAJOR" != "0" ]; then
-            echo "VERSION LOCK VIOLATION"
-            echo "Nika must NEVER be version 1.0.0 or higher."
-            echo "Found: $VERSION"
-            echo "Expected: 0.x.x"
+            echo "CAPTAIN'S ORDERS VIOLATION!"
+            echo "The Captain has decreed: Nika shall NEVER be version 1.0.0 or higher."
+            echo "Found: $VERSION | Expected: 0.x.x (forever)"
             exit 1
           fi
 
-          echo "Version $VERSION is valid (0.x.x series)"
+          echo "Version $VERSION cleared by Captain's Orders (0.x.x forever)"
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # FINAL: All Gates Must Pass
+  # FINAL: Fleet Cleared for Launch
   # ═══════════════════════════════════════════════════════════════════════════
-  all-gates-passed:
-    name: "🏰 All FORTRESS Gates"
+  fleet-cleared:
+    name: "🚀 Fleet Cleared for Launch"
     runs-on: ubuntu-latest
     needs:
-      - gate-1-format
-      - gate-2-lint
-      - gate-3-tests
-      - gate-4-coverage
-      - gate-5-docs
-      - gate-6-security
-      - gate-7-coderabbit
-      - gate-8-claude
-      - gate-9-commits
-      - gate-10-version-lock
+      - station-1-format
+      - station-2-lint
+      - station-3-tests
+      - station-4-coverage
+      - station-5-docs
+      - station-6-security
+      - station-7-coderabbit
+      - station-8-claude
+      - station-9-commits
+      - station-10-version
     steps:
       - run: |
-          echo "ALL FORTRESS GATES PASSED"
           echo ""
-          echo "Gate 1: Format       - PASSED"
-          echo "Gate 2: Lint         - PASSED"
-          echo "Gate 3: Tests        - PASSED"
-          echo "Gate 4: Coverage     - PASSED"
-          echo "Gate 5: Docs         - PASSED"
-          echo "Gate 6: Security     - PASSED"
-          echo "Gate 7: CodeRabbit   - PASSED"
-          echo "Gate 8: Claude AI    - PASSED"
-          echo "Gate 9: Commits      - PASSED"
-          echo "Gate 10: Version     - PASSED"
+          echo "ARMADA FLEET CLEARED FOR LAUNCH"
           echo ""
-          echo "This PR is ready for merge!"
+          echo "Station 1:  Format        - CLEARED"
+          echo "Station 2:  Lint          - CLEARED"
+          echo "Station 3:  Tests         - CLEARED"
+          echo "Station 4:  Coverage      - CLEARED"
+          echo "Station 5:  Docs          - CLEARED"
+          echo "Station 6:  Security      - CLEARED"
+          echo "Station 7:  CodeRabbit    - CLEARED"
+          echo "Station 8:  Claude AI     - CLEARED"
+          echo "Station 9:  Ship's Log    - CLEARED"
+          echo "Station 10: Captain       - CLEARED"
+          echo ""
+          echo "All hands on deck! This PR is ready for merge!"

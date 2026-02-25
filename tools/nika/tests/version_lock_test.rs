@@ -1,9 +1,8 @@
-//! 🔒 Version Lock Enforcement Tests
+//! 🏴‍☠️ Captain's Orders: Version Lock Tests
 //!
 //! These tests ensure Nika NEVER reaches version 1.0.0.
 //! This is a deliberate design decision, not a bug.
-//!
-//! See: docs/plans/2025-02-25-nika-fortress-design.md
+//! Part of ARMADA quality checkpoints.
 
 use std::fs;
 use std::path::Path;
@@ -56,16 +55,14 @@ fn version_must_be_zero_major() {
         version.starts_with("0."),
         "\n\
         ╔═══════════════════════════════════════════════════════════════════════════════╗\n\
-        ║  🔒 VERSION LOCK VIOLATION!                                                   ║\n\
+        ║  🏴‍☠️ CAPTAIN'S ORDERS VIOLATION!                                               ║\n\
         ╠═══════════════════════════════════════════════════════════════════════════════╣\n\
         ║                                                                               ║\n\
-        ║  Nika must NEVER be version 1.0.0 or higher.                                 ║\n\
+        ║  The Captain has decreed: Nika shall NEVER be version 1.0.0 or higher.       ║\n\
+        ║  This is the way of the cosmic pirates.                                      ║\n\
         ║                                                                               ║\n\
         ║  Found: {}                                                                     \n\
-        ║  Expected: 0.x.x                                                              ║\n\
-        ║                                                                               ║\n\
-        ║  This is by design, not a bug.                                               ║\n\
-        ║  See: docs/plans/2025-02-25-nika-fortress-design.md                          ║\n\
+        ║  Expected: 0.x.x (forever)                                                   ║\n\
         ║                                                                               ║\n\
         ╚═══════════════════════════════════════════════════════════════════════════════╝\n",
         version
