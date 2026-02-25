@@ -19,13 +19,13 @@
 
 | Version | File | Focus | Tasks | Tests |
 |---------|------|-------|-------|-------|
-| **v0.10.0** | *To be created* | NodeBox Widget | 5 | 15 |
-| **v0.10.1** | *To be created* | EdgeLine Widget | 4 | 12 |
-| **v0.10.2** | *To be created* | TaskQueue Widget | 4 | 12 |
+| **v0.10.0** | [v0.10.0-TaskBoxCore.md](./v0.10.0-TaskBoxCore.md) | NodeBox Widget | 5 | 20 |
+| **v0.10.1** | [v0.10.1-EdgeLine.md](./v0.10.1-EdgeLine.md) | EdgeLine Widget | 4 | 15 |
+| **v0.10.2** | [v0.10.2-TaskQueue.md](./v0.10.2-TaskQueue.md) | TaskQueue Widget | 5 | 15 |
 | **v0.10.3** | [v0.10.3-ChatDagPanel.md](./v0.10.3-ChatDagPanel.md) | ChatDagPanel Integration | 5 | 20 |
 | **v0.10.4** | [v0.10.4-AnimationPolish.md](./v0.10.4-AnimationPolish.md) | Animation Polish | 4 | 16 |
 
-**Totals:** 22 tasks, 75 tests, ~4 sessions (~2 days)
+**Totals:** 23 tasks, 86 tests, ~4 sessions (~2 days)
 
 ---
 

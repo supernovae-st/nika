@@ -17,34 +17,33 @@
 
 | Version | File | Focus | Tasks | Tests |
 |---------|------|-------|-------|-------|
-| **v0.11.0** | *To be created* | Explorer View (refactor Home) | 5 | 15 |
-| **v0.11.1** | *To be created* | Editor View (refactor Studio) | 5 | 15 |
-| **v0.11.2** | *To be created* | Runner View (new) | 5 | 15 |
-| **v0.11.3** | *To be created* | Scheduler View (NEW) | 6 | 18 |
-| **v0.11.4** | *To be created* | Settings View (NEW, 74% reuse) | 6 | 18 |
-| **v0.11.5** | *To be created* | Navigation Update | 3 | 9 |
+| **v0.11.0** | [v0.11.0-ViewNavigation.md](./v0.11.0-ViewNavigation.md) | View Navigation (TuiView enum → 6) | 4 | 15 |
+| **v0.11.1** | [v0.11.1-ExplorerView.md](./v0.11.1-ExplorerView.md) | Explorer View (refactor Home) | 5 | 20 |
+| **v0.11.2** | [v0.11.2-EditorView.md](./v0.11.2-EditorView.md) | Editor View (refactor Studio) | 5 | 15 |
+| **v0.11.3** | [v0.11.3-RunnerView.md](./v0.11.3-RunnerView.md) | Runner View (new) | 5 | 15 |
+| **v0.11.4** | [v0.11.4-SchedulerView.md](./v0.11.4-SchedulerView.md) | Scheduler View (NEW) | 6 | 20 |
+| **v0.11.5** | [v0.11.5-SettingsView.md](./v0.11.5-SettingsView.md) | Settings View (NEW, 74% reuse) | 6 | 15 |
 
-**Totals:** 30 tasks, 90 tests, ~5.5 sessions (~3 days)
+**Totals:** 31 tasks, 100 tests, ~6 sessions (~3 days)
 
 ---
 
 ## Implementation Order
 
 ```
-v0.11.0 Explorer (refactor Home)
+v0.11.0 ViewNavigation (TuiView enum → 6 variants) ─ FOUNDATION
     │
-    ├──▶ v0.11.1 Editor (refactor Studio) ─ parallel possible
+    ├──▶ v0.11.1 Explorer (refactor Home)
+    │         │
+    ├──▶ v0.11.2 Editor (refactor Studio) ─ parallel with 0.11.1
     │
-    └──▶ v0.11.2 Runner (new view)
+    └──▶ v0.11.3 Runner (new view) ─ depends on 0.11.1-2
               │
               ▼
-         v0.11.3 Scheduler (NEW)
+         v0.11.4 Scheduler (NEW)
               │
               ▼
-         v0.11.4 Settings (NEW, 74% Provider Modal reuse)
-              │
-              ▼
-         v0.11.5 Navigation Update (TuiView enum → 6 variants)
+         v0.11.5 Settings (NEW, 74% Provider Modal reuse)
 ```
 
 ---
@@ -94,7 +93,7 @@ The Settings view embeds 74% of existing Provider Modal components:
 
 ---
 
-## New TuiView Enum (v0.11.5)
+## New TuiView Enum (v0.11.0)
 
 ```rust
 pub enum TuiView {

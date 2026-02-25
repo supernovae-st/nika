@@ -17,10 +17,10 @@
 
 | Version | File | Focus | Tasks | Tests |
 |---------|------|-------|-------|-------|
-| **v0.12.0** | *To be created* | Keyring Wiring | 4 | 12 |
-| **v0.12.1** | *To be created* | Env Migration | 4 | 12 |
-| **v0.12.2** | *To be created* | Provider Auto-Select | 3 | 9 |
-| **v0.12.3** | *To be created* | Ollama Enhancement | 4 | 12 |
+| **v0.12.0** | [v0.12.0-KeyringWiring.md](./v0.12.0-KeyringWiring.md) | Keyring Wiring | 4 | 12 |
+| **v0.12.1** | [v0.12.1-EnvMigration.md](./v0.12.1-EnvMigration.md) | Env Migration | 4 | 12 |
+| **v0.12.2** | [v0.12.2-ProviderAutoSelect.md](./v0.12.2-ProviderAutoSelect.md) | Provider Auto-Select | 3 | 9 |
+| **v0.12.3** | [v0.12.3-OllamaEnhancement.md](./v0.12.3-OllamaEnhancement.md) | Ollama Enhancement | 4 | 12 |
 
 **Totals:** 15 tasks, 45 tests, ~1.5 sessions (~1 day)
 
