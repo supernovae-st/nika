@@ -18,6 +18,7 @@
 mod activity_stack;
 mod agent_steps;
 mod agent_turns;
+mod chat_node_box;
 mod command_palette;
 mod dag;
 mod dag_ascii;
@@ -50,6 +51,8 @@ mod timeline;
 mod verb_input;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
+// Chat DAG node box widget (v0.10.0)
+pub use chat_node_box::{ChatNodeBox, ChatNodeKind, ChatNodeState};
 pub use provider_modal::*;
 // Ollama health check (v0.8.2) + Verification status + MCP display
 // Note: ProviderSelector/ProviderSelectorState removed in v0.8.8 (replaced by Provider Modal)
