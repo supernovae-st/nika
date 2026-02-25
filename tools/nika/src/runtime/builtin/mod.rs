@@ -20,6 +20,7 @@
 mod assert;
 mod emit;
 mod log;
+mod prompt;
 mod router;
 mod sleep;
 mod r#trait;
@@ -27,6 +28,7 @@ mod r#trait;
 pub use assert::AssertTool;
 pub use emit::EmitTool;
 pub use log::{LogLevel, LogTool};
+pub use prompt::{PromptParams, PromptResponse, PromptTool};
 pub use router::BuiltinToolRouter;
 pub use sleep::SleepTool;
 pub use r#trait::BuiltinTool;
