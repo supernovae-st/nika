@@ -45,12 +45,14 @@
 //! ```
 
 mod entry;
+pub mod mention;
 mod resolve;
 mod template;
 mod validate;
 
 // Re-export public types
 pub use entry::{parse_use_entry, UseEntry, WiringSpec};
+pub use mention::Mention;
 pub use resolve::{LazyBinding, ResolvedBindings};
 pub use template::{
     detect_deprecated_dollar_syntax, extract_refs, resolve as template_resolve, validate_refs,
