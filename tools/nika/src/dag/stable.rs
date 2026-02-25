@@ -177,6 +177,32 @@ impl<N> StableFlowGraph<N> {
             false
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Task 2.10: Neighbor traversal for mention edges
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Get neighbors in a specific direction.
+    ///
+    /// - `Incoming`: nodes that have edges TO this node (dependencies)
+    /// - `Outgoing`: nodes that have edges FROM this node (dependents)
+    pub fn neighbors_directed(
+        &self,
+        idx: NodeIndex,
+        direction: petgraph::Direction,
+    ) -> impl Iterator<Item = NodeIndex> + '_ {
+        self.inner.neighbors_directed(idx, direction)
+    }
+
+    /// Get incoming neighbors (dependencies).
+    pub fn incoming_neighbors(&self, idx: NodeIndex) -> impl Iterator<Item = NodeIndex> + '_ {
+        self.neighbors_directed(idx, petgraph::Direction::Incoming)
+    }
+
+    /// Get outgoing neighbors (dependents).
+    pub fn outgoing_neighbors(&self, idx: NodeIndex) -> impl Iterator<Item = NodeIndex> + '_ {
+        self.neighbors_directed(idx, petgraph::Direction::Outgoing)
+    }
 }
 
 impl<N> Default for StableFlowGraph<N> {

@@ -241,6 +241,91 @@ impl ChatWorkflow {
             None => false,
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 2.10: Edge Creation from @mentions
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Add edges from mentioned messages to the target message.
+    ///
+    /// For each @mention in the target message's content, creates an edge
+    /// from the mentioned message(s) to the target. This forms the DAG
+    /// dependency graph based on explicit references.
+    ///
+    /// Returns the number of edges added.
+    pub fn add_edges_from_mentions(&mut self, target_idx: NodeIndex) -> Result<usize, MentionResolutionError> {
+        // Get the target message's content
+        let content = match self.get_message_by_index(target_idx) {
+            Some(msg) => msg.content.clone(),
+            None => return Ok(0),
+        };
+
+        // Parse mentions from content
+        let mentions = parse_mentions(&content);
+        let mut edges_added = 0;
+
+        for mention in mentions {
+            // Resolve the mention to message indices
+            let resolved = resolve_mention(&mention, self.message_counter)?;
+
+            match resolved {
+                ResolvedMention::Single(n) => {
+                    if let Some(source_idx) = self.get_index_by_number(n) {
+                        // Don't add self-loops
+                        if source_idx != target_idx {
+                            self.dag.add_edge(source_idx, target_idx);
+                            edges_added += 1;
+                        }
+                    }
+                }
+                ResolvedMention::Multiple(indices) => {
+                    for n in indices {
+                        if let Some(source_idx) = self.get_index_by_number(n) {
+                            // Don't add self-loops
+                            if source_idx != target_idx {
+                                self.dag.add_edge(source_idx, target_idx);
+                                edges_added += 1;
+                            }
+                        }
+                    }
+                }
+                ResolvedMention::Empty => {}
+            }
+        }
+
+        Ok(edges_added)
+    }
+
+    /// Add a message and create edges from any @mentions in its content.
+    ///
+    /// This combines `add_message_auto()` with `add_edges_from_mentions()`:
+    /// 1. Adds the message (parallel if `//`, sequential otherwise)
+    /// 2. Creates edges from all @mentioned messages
+    ///
+    /// Returns the NodeIndex of the new message.
+    pub fn add_message_with_mentions(
+        &mut self,
+        content: &str,
+        role: Role,
+    ) -> Result<NodeIndex, MentionResolutionError> {
+        let idx = self.add_message_auto(content, role);
+        self.add_edges_from_mentions(idx)?;
+        Ok(idx)
+    }
+
+    /// Get all incoming edges (dependencies) for a message.
+    ///
+    /// Returns the NodeIndices of messages that this message depends on.
+    pub fn get_dependencies(&self, idx: NodeIndex) -> Vec<NodeIndex> {
+        self.dag.incoming_neighbors(idx).collect()
+    }
+
+    /// Get all outgoing edges (dependents) for a message.
+    ///
+    /// Returns the NodeIndices of messages that depend on this message.
+    pub fn get_dependents(&self, idx: NodeIndex) -> Vec<NodeIndex> {
+        self.dag.outgoing_neighbors(idx).collect()
+    }
 }
 
 impl Default for ChatWorkflow {
@@ -735,5 +820,174 @@ mod tests {
 
         assert!(!workflow.is_parallel_message(idx1));
         assert!(workflow.is_parallel_message(idx2));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 2.10: Edge Creation from @mentions Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_add_edges_from_mentions_single() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+        workflow.add_message("Second", Role::Assistant);
+        let idx3 = workflow.add_message("Based on @1", Role::User);
+
+        let edges_added = workflow.add_edges_from_mentions(idx3).unwrap();
+        assert_eq!(edges_added, 1);
+
+        // Should have edge from msg-001 to msg-003
+        let deps = workflow.get_dependencies(idx3);
+        assert_eq!(deps.len(), 2); // 1 from auto-edge + 1 from mention
+    }
+
+    #[test]
+    fn test_add_edges_from_mentions_multiple() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+        workflow.add_message("Second", Role::Assistant);
+        let idx3 = workflow.add_message("Based on @1 and @2", Role::User);
+
+        let edges_added = workflow.add_edges_from_mentions(idx3).unwrap();
+        assert_eq!(edges_added, 2);
+    }
+
+    #[test]
+    fn test_add_edges_from_mentions_range() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+        workflow.add_message("Second", Role::Assistant);
+        workflow.add_message("Third", Role::User);
+        let idx4 = workflow.add_message("Summarize @1..3", Role::User);
+
+        let edges_added = workflow.add_edges_from_mentions(idx4).unwrap();
+        assert_eq!(edges_added, 3); // Edges from @1, @2, @3
+    }
+
+    #[test]
+    fn test_add_edges_from_mentions_no_self_loop() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+        workflow.add_message("Second", Role::Assistant);
+        // @3 references itself (message count is 3 after adding this)
+        let idx3 = workflow.add_message("Self reference @3", Role::User);
+
+        // Note: @3 resolves to 3, but idx3 IS message 3, so it would be a self-loop
+        // However, the message says "@3" which means it wants to reference message 3
+        // At the time of resolution, message_counter is 3, so @3 is valid
+        // But we prevent self-loops
+        let edges_added = workflow.add_edges_from_mentions(idx3).unwrap();
+        assert_eq!(edges_added, 0); // Self-loop prevented
+    }
+
+    #[test]
+    fn test_add_edges_from_mentions_no_mentions() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+        let idx2 = workflow.add_message("No mentions here", Role::User);
+
+        let edges_added = workflow.add_edges_from_mentions(idx2).unwrap();
+        assert_eq!(edges_added, 0);
+    }
+
+    #[test]
+    fn test_add_message_with_mentions() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+        workflow.add_message("Second", Role::Assistant);
+        let idx3 = workflow.add_message_with_mentions("Based on @1", Role::User).unwrap();
+
+        // Should have auto-edge (2→3) + mention edge (1→3)
+        let deps = workflow.get_dependencies(idx3);
+        assert_eq!(deps.len(), 2);
+    }
+
+    #[test]
+    fn test_add_message_with_mentions_parallel() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+        workflow.add_message("Second", Role::Assistant);
+        let idx3 = workflow.add_message_with_mentions("// Based on @1", Role::User).unwrap();
+
+        // Parallel message: no auto-edge, only mention edge (1→3)
+        let deps = workflow.get_dependencies(idx3);
+        assert_eq!(deps.len(), 1);
+    }
+
+    #[test]
+    fn test_add_message_with_mentions_error() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+
+        // @10 doesn't exist
+        let result = workflow.add_message_with_mentions("Reference @10", Role::User);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_dependencies() {
+        let mut workflow = ChatWorkflow::new();
+
+        let idx1 = workflow.add_message("First", Role::User);
+        let idx2 = workflow.add_message("Second", Role::Assistant);
+        let idx3 = workflow.add_message("Third", Role::User);
+
+        // idx3 depends on idx2 (auto-edge)
+        let deps = workflow.get_dependencies(idx3);
+        assert_eq!(deps.len(), 1);
+        assert_eq!(deps[0], idx2);
+
+        // idx1 has no dependencies (first message)
+        let deps = workflow.get_dependencies(idx1);
+        assert!(deps.is_empty());
+    }
+
+    #[test]
+    fn test_get_dependents() {
+        let mut workflow = ChatWorkflow::new();
+
+        let idx1 = workflow.add_message("First", Role::User);
+        let idx2 = workflow.add_message("Second", Role::Assistant);
+        workflow.add_message("Third", Role::User);
+
+        // idx1 has idx2 as dependent (auto-edge 1→2)
+        let dependents = workflow.get_dependents(idx1);
+        assert_eq!(dependents.len(), 1);
+        assert_eq!(dependents[0], idx2);
+    }
+
+    #[test]
+    fn test_complex_mention_dag() {
+        let mut workflow = ChatWorkflow::new();
+
+        // Build a DAG:
+        // @1 USER: What is Rust?
+        // @2 ASSISTANT: Rust is a systems programming language...
+        // @3 USER: // What is Go?  (parallel, no edge from @2)
+        // @4 ASSISTANT: Go is a programming language...
+        // @5 USER: Compare @2 and @4  (depends on both @2 and @4)
+
+        workflow.add_message_with_mentions("What is Rust?", Role::User).unwrap();
+        workflow.add_message_with_mentions("Rust is a systems programming language...", Role::Assistant).unwrap();
+        workflow.add_message_with_mentions("// What is Go?", Role::User).unwrap();
+        workflow.add_message_with_mentions("Go is a programming language...", Role::Assistant).unwrap();
+        let idx5 = workflow.add_message_with_mentions("Compare @2 and @4", Role::User).unwrap();
+
+        // Message 5 should depend on messages 2, 4, and 4 (auto-edge)
+        let deps = workflow.get_dependencies(idx5);
+        assert_eq!(deps.len(), 3); // auto-edge from @4 + mention edges from @2 and @4
+
+        // Total edges: 1→2, 3→4, 4→5, 2→5, 4→5 (duplicate)
+        // Actually: 1→2, 3→4, 4→5 (auto), 2→5 (mention), 4→5 (mention but duplicate)
+        // StableGraph allows parallel edges, so we might have 5 edges
+        assert!(workflow.dag.edge_count() >= 4);
     }
 }
