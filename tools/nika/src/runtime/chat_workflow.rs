@@ -97,6 +97,28 @@ impl ChatWorkflow {
             .get(id)
             .and_then(|idx| self.dag.node_weight(*idx))
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 1.3: get_message_by_index() and get_message_by_number()
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Get a message by its NodeIndex.
+    pub fn get_message_by_index(&self, idx: NodeIndex) -> Option<&ChatMessage> {
+        self.dag.node_weight(idx)
+    }
+
+    /// Get a message by its number (for @N references).
+    /// @1 returns the first message (msg-001).
+    pub fn get_message_by_number(&self, n: u32) -> Option<&ChatMessage> {
+        let id = format!("msg-{:03}", n);
+        self.get_message_by_id(&id)
+    }
+
+    /// Get the NodeIndex by message number.
+    pub fn get_index_by_number(&self, n: u32) -> Option<NodeIndex> {
+        let id = format!("msg-{:03}", n);
+        self.id_to_index.get(&id).copied()
+    }
 }
 
 impl Default for ChatWorkflow {
@@ -230,5 +252,56 @@ mod tests {
     fn test_get_message_by_id_nonexistent() {
         let workflow = ChatWorkflow::new();
         assert!(workflow.get_message_by_id("msg-999").is_none());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 1.3: get_message_by_index() and get_message_by_number() tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_get_message_by_index() {
+        let mut workflow = ChatWorkflow::new();
+
+        let idx = workflow.add_message("Test message", Role::User);
+        let msg = workflow.get_message_by_index(idx);
+
+        assert!(msg.is_some());
+        assert_eq!(msg.unwrap().content, "Test message");
+    }
+
+    #[test]
+    fn test_get_message_by_number() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+        workflow.add_message("Second", Role::Assistant);
+
+        // @1 → msg-001, @2 → msg-002
+        let msg1 = workflow.get_message_by_number(1);
+        let msg2 = workflow.get_message_by_number(2);
+        let msg3 = workflow.get_message_by_number(3);
+
+        assert_eq!(msg1.unwrap().content, "First");
+        assert_eq!(msg2.unwrap().content, "Second");
+        assert!(msg3.is_none());
+    }
+
+    #[test]
+    fn test_get_index_by_number() {
+        let mut workflow = ChatWorkflow::new();
+
+        let idx1 = workflow.add_message("First", Role::User);
+        let idx2 = workflow.add_message("Second", Role::Assistant);
+
+        assert_eq!(workflow.get_index_by_number(1), Some(idx1));
+        assert_eq!(workflow.get_index_by_number(2), Some(idx2));
+        assert_eq!(workflow.get_index_by_number(3), None);
+    }
+
+    #[test]
+    fn test_get_message_by_invalid_index() {
+        let workflow = ChatWorkflow::new();
+        let invalid_idx = NodeIndex::new(999);
+        assert!(workflow.get_message_by_index(invalid_idx).is_none());
     }
 }
