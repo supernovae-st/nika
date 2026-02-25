@@ -3698,6 +3698,7 @@ impl ChatView {
                 }
                 ModalAction::TestApiKey { provider } => {
                     self.add_system_message(format!("🔑 Testing {} API key...", provider));
+                    return ViewAction::VerifyProviders;
                 }
                 ModalAction::PullModel { model } => {
                     self.add_system_message(format!("📥 Pulling model: {}...", model));
