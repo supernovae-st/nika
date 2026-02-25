@@ -70,7 +70,13 @@ mod state;
 #[cfg(feature = "tui")]
 mod theme;
 #[cfg(feature = "tui")]
+pub mod tokens;
+#[cfg(feature = "tui")]
+mod cosmic_theme;
+#[cfg(feature = "tui")]
 mod unicode;
+#[cfg(feature = "tui")]
+pub mod icons;
 #[cfg(feature = "tui")]
 mod utils;
 #[cfg(feature = "tui")]
@@ -119,6 +125,12 @@ pub use state::{
 };
 #[cfg(feature = "tui")]
 pub use theme::{ColorMode, MissionPhase, TaskStatus, Theme, VerbColor};
+#[cfg(feature = "tui")]
+pub use tokens::{ColorPalette, CosmicVariant, SemanticColors, TokenResolver};
+#[cfg(feature = "tui")]
+pub use cosmic_theme::CosmicTheme;
+#[cfg(feature = "tui")]
+pub use icons::{IconMode, IconSet};
 #[cfg(feature = "tui")]
 pub use unicode::{display_width, truncate_to_width};
 #[cfg(feature = "tui")]
