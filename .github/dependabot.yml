@@ -1,26 +1,38 @@
+# 🏴‍☠️ ARMADA: Dependabot Configuration
+# Automated dependency updates for Nika
+# Part of ARMADA quality checkpoint system
+
 version: 2
 updates:
-  # Rust dependencies
+  # Rust dependencies (tools/nika/)
   - package-ecosystem: cargo
-    directory: /
+    directory: /tools/nika
     schedule:
       interval: weekly
       day: monday
       time: '09:00'
+      timezone: Europe/Paris
     open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "armada"
+      - "rust"
+    commit-message:
+      prefix: "chore(deps)"
     groups:
-      rust-minor:
+      # Group minor and patch updates together
+      rust-minor-patch:
         update-types:
           - minor
           - patch
-        exclude-patterns:
-          - '*'
         patterns:
-          - '*'
+          - "*"
     ignore:
-      # Ignore major version bumps (review manually)
-      - dependency-name: '*'
-        update-types: ['version-update:semver-major']
+      # Review major version bumps manually
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    reviewers:
+      - "ThibautMelen"
 
   # GitHub Actions
   - package-ecosystem: github-actions
@@ -29,8 +41,17 @@ updates:
       interval: weekly
       day: monday
       time: '09:00'
+      timezone: Europe/Paris
     open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "armada"
+      - "ci"
+    commit-message:
+      prefix: "chore(ci)"
     groups:
       actions:
         patterns:
-          - '*'
+          - "*"
+    reviewers:
+      - "ThibautMelen"

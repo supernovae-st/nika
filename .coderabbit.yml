@@ -1,4 +1,5 @@
-# 🏰 FORTRESS: CodeRabbit AI Review configuration
+# 🏴‍☠️ ARMADA: CodeRabbit AI Review Configuration
+# Station 7 of 10-station quality checkpoint system
 # https://docs.coderabbit.ai/guides/configure-coderabbit
 
 language: en-US
@@ -11,57 +12,96 @@ reviews:
     base_branches:
       - main
 
-  # Review profile (chill = less strict, assertive = more strict)
+  # Review profile (assertive = strict, as befits ARMADA)
   profile: assertive
 
   # Request changes on high severity issues
   request_changes_workflow: true
 
-  # Focus areas for Nika
+  # ARMADA-specific review instructions
   path_instructions:
     - path: "**/*.rs"
       instructions: |
-        Focus on:
-        - Rust idioms and best practices
-        - Error handling with NikaError
-        - Unsafe code justification
-        - Performance in hot paths (TUI render loops)
-        - tokio async patterns
+        ARMADA Station 7 Review Rules:
 
-    - path: "src/tui/**"
+        VERSION LOCK (CRITICAL):
+        - If Cargo.toml is modified, VERIFY version stays 0.x.x
+        - REJECT any version >= 1.0.0 (Captain's Orders)
+
+        Code Quality:
+        - Rust idioms and best practices
+        - Error handling with NikaError (not anyhow)
+        - Unsafe code requires justification
+        - Performance in hot paths (TUI render loops)
+        - tokio async patterns (no blocking in async)
+
+        Architecture:
+        - 5 semantic verbs ONLY: infer, exec, fetch, invoke, agent
+        - MCP-only integration (no direct Neo4j)
+        - Proper module boundaries
+
+    - path: "**/Cargo.toml"
       instructions: |
-        Additional focus for TUI code:
-        - No allocations in render loops
+        VERSION LOCK ENFORCEMENT:
+        - Version MUST be 0.x.x (NEVER 1.0.0 or higher)
+        - This is Captain's Orders - non-negotiable
+        - If version >= 1.0.0, REQUEST CHANGES immediately
+
+    - path: "tools/nika/src/tui/**"
+      instructions: |
+        TUI Performance Rules:
+        - NO allocations in render loops (use Cow<str>, cache strings)
+        - NO blocking operations (spawn async)
+        - Use parking_lot::Mutex (not std::sync::Mutex)
         - Proper state management
         - Keyboard shortcut consistency
         - Accessibility considerations
 
-    - path: "src/mcp/**"
+    - path: "tools/nika/src/mcp/**"
       instructions: |
-        Additional focus for MCP code:
-        - Timeout handling (30s default)
-        - Error code preservation
-        - Connection lifecycle
+        MCP Integration Rules:
+        - Timeout handling (30s default for all operations)
+        - Error code preservation (JSON-RPC codes)
+        - Connection lifecycle management
+        - Proper cleanup on disconnect
+
+    - path: "tools/nika/src/runtime/**"
+      instructions: |
+        Runtime Rules:
+        - 5 verbs only: infer, exec, fetch, invoke, agent
+        - spawn_agent depth protection (max 10)
+        - Proper DAG execution order
+        - Event emission for observability
 
     - path: "**/*.yaml"
       instructions: |
-        For YAML workflow files:
+        YAML Workflow Rules:
         - Schema compliance (nika/workflow@0.5)
         - 5 semantic verbs only
-        - Binding syntax ({{use.alias}})
+        - Binding syntax: {{use.alias}} or $alias
+        - for_each with concurrency limits
 
-  # High priority issues
+    - path: "**/*.md"
+      instructions: |
+        Documentation Rules:
+        - Keep ARMADA terminology consistent
+        - Version references must be 0.x.x
+        - ASCII diagrams for terminal display
+        - Mermaid only in .md files
+
+  # Summary options
   high_level_summary: true
   poem: false
 
 chat:
-  # Allow PR authors to chat with CodeRabbit
+  # Allow PR authors to interact with CodeRabbit
   auto_reply: true
 
-# Ignore patterns
+# Ignore patterns (don't review these)
 path_filters:
   excluded_paths:
     - "target/**"
     - "**/*.lock"
     - "**/*.snap"
     - ".github/workflows/**"
+    - "*.generated.*"

@@ -1,8 +1,10 @@
 # Nika
 
-[![ARMADA](https://img.shields.io/badge/ARMADA-10%20Stations-blue?logo=rust&logoColor=white)](CONTRIBUTING.md)
-[![Version Lock](https://img.shields.io/badge/Version-0.x.x%20Forever-orange)](docs/plans/2025-02-25-nika-fortress-design.md)
-[![License](https://img.shields.io/badge/License-AGPL--3.0-green)](LICENSE)
+[![ARMADA](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml)
+[![Version](https://img.shields.io/badge/version-0.10.5-blue?logo=rust&logoColor=white)](Cargo.toml)
+[![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](../../docs/plans/2025-02-25-nika-fortress-design.md)
+[![Tests](https://img.shields.io/badge/tests-2793%20passing-brightgreen)](src/)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-green)](../../LICENSE)
 
 DAG workflow runner for AI tasks with MCP integration.
 
