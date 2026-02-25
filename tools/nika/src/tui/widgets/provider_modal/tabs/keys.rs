@@ -10,7 +10,7 @@ use ratatui::{
     widgets::Widget,
 };
 
-use super::super::keyring::{mask_api_key, provider_env_var};
+use super::super::keyring::{mask_api_key, provider_env_var, NikaKeyring};
 use super::super::state::ApiKeyState;
 
 /// Provider key entry for display
@@ -65,8 +65,18 @@ impl ProviderKeyEntry {
         ]
     }
 
-    /// Detect key state from environment
+    /// Detect key state from keyring (priority) or environment
+    ///
+    /// v0.12.2: Keyring is checked FIRST, env var is fallback
     fn detect_state(provider: &str) -> ApiKeyState {
+        // Priority 1: Check keyring (v0.12.2)
+        if let Ok(key) = NikaKeyring::get(provider) {
+            return ApiKeyState::Configured {
+                masked: mask_api_key(&key),
+            };
+        }
+
+        // Priority 2: Check env var fallback
         let env_var = provider_env_var(provider);
         match std::env::var(env_var) {
             Ok(key) if !key.is_empty() => ApiKeyState::Configured {
