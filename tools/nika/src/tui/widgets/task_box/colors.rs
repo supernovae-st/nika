@@ -1,108 +1,14 @@
 //! Verb Color Taxonomy
 //!
-//! Tailwind-based color palette for the 5 semantic verbs.
-//! Each verb has a distinct color for visual differentiation.
+//! Re-exports VerbColor from theme.rs (single source of truth).
+//! Provides domain-specific color utilities for HTTP and exit codes.
 
-use ratatui::style::Color;
-
-/// Verb types with associated colors
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum VerbColor {
-    /// ⚡ infer: LLM generation (Violet 500)
-    Infer,
-    /// 📟 exec: Shell command (Amber 500)
-    Exec,
-    /// 🛰️ fetch: HTTP request (Cyan 500)
-    Fetch,
-    /// 🔌 invoke: MCP tool call (Emerald 500)
-    Invoke,
-    /// 🐔 agent: Multi-turn agentic loop (Rose 500)
-    Agent,
-    /// 🐤 spawn: Spawned sub-agent (Rose 300)
-    Spawn,
-}
-
-impl VerbColor {
-    /// Get the RGB color for this verb
-    pub fn rgb(&self) -> Color {
-        match self {
-            Self::Infer => Color::Rgb(139, 92, 246), // Violet 500 #8b5cf6
-            Self::Exec => Color::Rgb(245, 158, 11),  // Amber 500 #f59e0b
-            Self::Fetch => Color::Rgb(6, 182, 212),  // Cyan 500 #06b6d4
-            Self::Invoke => Color::Rgb(16, 185, 129), // Emerald 500 #10b981
-            Self::Agent => Color::Rgb(244, 63, 94),  // Rose 500 #f43f5e
-            Self::Spawn => Color::Rgb(253, 164, 175), // Rose 300 #fda4af
-        }
-    }
-
-    /// Get the hex color string for this verb
-    pub fn hex(&self) -> &'static str {
-        match self {
-            Self::Infer => "#8b5cf6",
-            Self::Exec => "#f59e0b",
-            Self::Fetch => "#06b6d4",
-            Self::Invoke => "#10b981",
-            Self::Agent => "#f43f5e",
-            Self::Spawn => "#fda4af",
-        }
-    }
-
-    /// Get the icon for this verb
-    pub fn icon(&self) -> &'static str {
-        match self {
-            Self::Infer => "⚡",
-            Self::Exec => "📟",
-            Self::Fetch => "🛰️",
-            Self::Invoke => "🔌",
-            Self::Agent => "🐔",
-            Self::Spawn => "🐤",
-        }
-    }
-
-    /// Get the label for this verb
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Infer => "INFER",
-            Self::Exec => "EXEC",
-            Self::Fetch => "FETCH",
-            Self::Invoke => "INVOKE",
-            Self::Agent => "AGENT",
-            Self::Spawn => "SPAWN",
-        }
-    }
-
-    /// Get icon and label combined
-    pub fn icon_label(&self) -> String {
-        format!("{} {}", self.icon(), self.label())
-    }
-
-    /// Darker variant for borders (subtract ~20 from RGB)
-    pub fn border_rgb(&self) -> Color {
-        match self {
-            Self::Infer => Color::Rgb(124, 58, 237), // Violet 600 #7c3aed
-            Self::Exec => Color::Rgb(217, 119, 6),   // Amber 600 #d97706
-            Self::Fetch => Color::Rgb(8, 145, 178),  // Cyan 600 #0891b2
-            Self::Invoke => Color::Rgb(5, 150, 105), // Emerald 600 #059669
-            Self::Agent => Color::Rgb(225, 29, 72),  // Rose 600 #e11d48
-            Self::Spawn => Color::Rgb(251, 113, 133), // Rose 400 #fb7185
-        }
-    }
-
-    /// Light variant for backgrounds
-    pub fn light_rgb(&self) -> Color {
-        match self {
-            Self::Infer => Color::Rgb(167, 139, 250), // Violet 400 #a78bfa
-            Self::Exec => Color::Rgb(251, 191, 36),   // Amber 400 #fbbf24
-            Self::Fetch => Color::Rgb(34, 211, 238),  // Cyan 400 #22d3ee
-            Self::Invoke => Color::Rgb(52, 211, 153), // Emerald 400 #34d399
-            Self::Agent => Color::Rgb(251, 113, 133), // Rose 400 #fb7185
-            Self::Spawn => Color::Rgb(254, 205, 211), // Rose 200 #fecdd3
-        }
-    }
-}
+// Re-export canonical VerbColor from theme
+pub use crate::tui::theme::VerbColor;
 
 /// Status colors (shared across all verbs)
 pub mod status {
+    use crate::tui::theme::Theme;
     use ratatui::style::Color;
 
     /// Success green (Tailwind Green 500)
@@ -122,6 +28,26 @@ pub mod status {
 
     /// Info blue (Tailwind Blue 500)
     pub const INFO: Color = Color::Rgb(59, 130, 246); // #3b82f6
+
+    /// Get status color with theme support (fallback to constant)
+    pub fn success(theme: Option<&Theme>) -> Color {
+        theme.map(|t| t.status_success).unwrap_or(SUCCESS)
+    }
+
+    /// Get error color with theme support
+    pub fn error(theme: Option<&Theme>) -> Color {
+        theme.map(|t| t.status_failed).unwrap_or(ERROR)
+    }
+
+    /// Get warning color with theme support
+    pub fn warning(theme: Option<&Theme>) -> Color {
+        theme.map(|t| t.status_running).unwrap_or(WARNING)
+    }
+
+    /// Get muted color with theme support
+    pub fn muted(theme: Option<&Theme>) -> Color {
+        theme.map(|t| t.text_muted).unwrap_or(MUTED)
+    }
 }
 
 /// HTTP status code colors
@@ -182,6 +108,32 @@ pub mod exit {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tui::theme::Theme;
+    use ratatui::style::Color;
+
+    #[test]
+    fn test_verbcolor_reexport_matches_theme() {
+        use crate::tui::theme::VerbColor as ThemeVerbColor;
+
+        // Both should be the same type after consolidation
+        let theme_infer: ThemeVerbColor = ThemeVerbColor::Infer;
+        let taskbox_infer: VerbColor = VerbColor::Infer;
+
+        // They're the same type, so this compiles
+        assert_eq!(theme_infer.rgb(), taskbox_infer.rgb());
+        assert_eq!(theme_infer.hex(), taskbox_infer.hex());
+        assert_eq!(theme_infer.icon(), taskbox_infer.icon());
+        assert_eq!(theme_infer.label(), taskbox_infer.label());
+    }
+
+    #[test]
+    fn test_verbcolor_spawn_via_reexport() {
+        // Spawn should be accessible via re-export
+        let spawn = VerbColor::Spawn;
+        assert_eq!(spawn.hex(), "#fda4af");
+        assert_eq!(spawn.icon(), "🐤");
+        assert_eq!(spawn.label(), "SPAWN");
+    }
 
     #[test]
     fn test_verb_colors() {
@@ -207,18 +159,14 @@ mod tests {
     fn test_verb_labels() {
         assert_eq!(VerbColor::Infer.label(), "INFER");
         assert_eq!(VerbColor::Agent.label(), "AGENT");
-    }
-
-    #[test]
-    fn test_icon_label() {
-        assert_eq!(VerbColor::Infer.icon_label(), "⚡ INFER");
-        assert_eq!(VerbColor::Agent.icon_label(), "🐔 AGENT");
+        assert_eq!(VerbColor::Spawn.label(), "SPAWN");
     }
 
     #[test]
     fn test_rgb_colors() {
         assert_eq!(VerbColor::Infer.rgb(), Color::Rgb(139, 92, 246));
         assert_eq!(VerbColor::Agent.rgb(), Color::Rgb(244, 63, 94));
+        assert_eq!(VerbColor::Spawn.rgb(), Color::Rgb(253, 164, 175));
     }
 
     #[test]
@@ -272,5 +220,19 @@ mod tests {
         assert_eq!(status::SUCCESS, Color::Rgb(34, 197, 94));
         assert_eq!(status::ERROR, Color::Rgb(239, 68, 68));
         assert_eq!(status::WARNING, Color::Rgb(245, 158, 11));
+    }
+
+    #[test]
+    fn test_status_with_theme() {
+        let dark = Theme::dark();
+        let light = Theme::light();
+
+        // With theme, uses theme colors
+        assert_eq!(status::success(Some(&dark)), dark.status_success);
+        assert_eq!(status::error(Some(&light)), light.status_failed);
+
+        // Without theme, uses fallback constants
+        assert_eq!(status::success(None), status::SUCCESS);
+        assert_eq!(status::error(None), status::ERROR);
     }
 }

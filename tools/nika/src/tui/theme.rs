@@ -427,6 +427,11 @@ impl VerbColor {
         }
     }
 
+    /// Get icon and label combined (e.g., "⚡ INFER")
+    pub fn icon_label(&self) -> String {
+        format!("{} {}", self.icon(), self.label())
+    }
+
     /// Get border color (darker variant for outlines)
     pub fn border_rgb(&self) -> Color {
         match self {
