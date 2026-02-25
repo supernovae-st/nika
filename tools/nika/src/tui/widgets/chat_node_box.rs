@@ -372,8 +372,8 @@ mod tests {
 
     #[test]
     fn test_chat_node_box_tick() {
-        let mut node = ChatNodeBox::new("msg-001", ChatNodeKind::User)
-            .with_state(ChatNodeState::Running);
+        let mut node =
+            ChatNodeBox::new("msg-001", ChatNodeKind::User).with_state(ChatNodeState::Running);
 
         let initial = node.animation_tick;
         node.tick();
@@ -382,8 +382,8 @@ mod tests {
 
     #[test]
     fn test_chat_node_box_tick_only_when_running() {
-        let mut node = ChatNodeBox::new("msg-001", ChatNodeKind::User)
-            .with_state(ChatNodeState::Idle);
+        let mut node =
+            ChatNodeBox::new("msg-001", ChatNodeKind::User).with_state(ChatNodeState::Idle);
 
         let initial = node.animation_tick;
         node.tick();
@@ -393,8 +393,8 @@ mod tests {
 
     #[test]
     fn test_chat_node_box_pulse_intensity() {
-        let node = ChatNodeBox::new("msg-001", ChatNodeKind::User)
-            .with_state(ChatNodeState::Running);
+        let node =
+            ChatNodeBox::new("msg-001", ChatNodeKind::User).with_state(ChatNodeState::Running);
 
         let intensity = node.pulse_intensity();
         assert!(intensity >= 0.0 && intensity <= 1.0);
@@ -402,8 +402,7 @@ mod tests {
 
     #[test]
     fn test_no_pulse_when_idle() {
-        let node = ChatNodeBox::new("msg-001", ChatNodeKind::User)
-            .with_state(ChatNodeState::Idle);
+        let node = ChatNodeBox::new("msg-001", ChatNodeKind::User).with_state(ChatNodeState::Idle);
 
         assert_eq!(node.pulse_intensity(), 0.0);
     }

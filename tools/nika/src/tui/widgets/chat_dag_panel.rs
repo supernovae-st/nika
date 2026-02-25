@@ -298,7 +298,9 @@ impl ChatDagPanel {
         let center_x = area.x + (area.width.saturating_sub(node_width)) / 2;
 
         // Calculate vertical positions with scroll
-        let mut y = area.y.saturating_sub(self.scroll_offset * (node_height + vertical_gap));
+        let mut y = area
+            .y
+            .saturating_sub(self.scroll_offset * (node_height + vertical_gap));
 
         for node in &self.nodes {
             positions.insert(node.id.clone(), (center_x, y));
@@ -321,9 +323,11 @@ impl Widget for ChatDagPanel {
         }
 
         // Draw border
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .title(format!(" {} ({}) ", self.title, self.nodes.len()));
+        let block = Block::default().borders(Borders::ALL).title(format!(
+            " {} ({}) ",
+            self.title,
+            self.nodes.len()
+        ));
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -682,9 +686,7 @@ mod tests {
     fn test_chat_dag_panel_render_with_nodes() {
         let mut panel = ChatDagPanel::new();
         panel.add_node(DagNodeData::new("msg-001", ChatNodeKind::User, 1).with_label("Hello"));
-        panel.add_node(
-            DagNodeData::new("msg-002", ChatNodeKind::Assistant, 2).with_label("Hi!"),
-        );
+        panel.add_node(DagNodeData::new("msg-002", ChatNodeKind::Assistant, 2).with_label("Hi!"));
         panel.add_edge(DagEdgeData::new("msg-001", "msg-002"));
 
         let mut buf = Buffer::empty(Rect::new(0, 0, 40, 15));

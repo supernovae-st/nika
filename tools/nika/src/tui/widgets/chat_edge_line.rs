@@ -155,7 +155,11 @@ impl ChatEdgeLine {
         }
 
         let offset = self.animation_tick as u16 % cycle_len;
-        let offset = if offset > len { cycle_len - offset } else { offset };
+        let offset = if offset > len {
+            cycle_len - offset
+        } else {
+            offset
+        };
 
         if self.is_vertical() {
             let y = if self.from.y < self.to.y {
@@ -207,15 +211,19 @@ impl Widget for ChatEdgeLine {
             // Draw vertical line
             for y in start_y..end_y {
                 if in_bounds(ChatPosition::new(x, y)) {
-                    buf.get_mut(x, y).set_symbol("│").set_style(style);
+                    buf[(x, y)].set_symbol("│").set_style(style);
                 }
             }
 
             // Draw arrow at end
             let arrow_pos = ChatPosition::new(x, end_y);
             if in_bounds(arrow_pos) {
-                let arrow = if self.from.y < self.to.y { "▼" } else { "▲" };
-                buf.get_mut(x, end_y).set_symbol(arrow).set_style(style);
+                let arrow = if self.from.y < self.to.y {
+                    "▼"
+                } else {
+                    "▲"
+                };
+                buf[(x, end_y)].set_symbol(arrow).set_style(style);
             }
         } else if self.is_horizontal() {
             let y = self.from.y;
@@ -228,15 +236,19 @@ impl Widget for ChatEdgeLine {
             // Draw horizontal line
             for x in start_x..end_x {
                 if in_bounds(ChatPosition::new(x, y)) {
-                    buf.get_mut(x, y).set_symbol("─").set_style(style);
+                    buf[(x, y)].set_symbol("─").set_style(style);
                 }
             }
 
             // Draw arrow at end
             let arrow_pos = ChatPosition::new(end_x, y);
             if in_bounds(arrow_pos) {
-                let arrow = if self.from.x < self.to.x { "▶" } else { "◀" };
-                buf.get_mut(end_x, y).set_symbol(arrow).set_style(style);
+                let arrow = if self.from.x < self.to.x {
+                    "▶"
+                } else {
+                    "◀"
+                };
+                buf[(end_x, y)].set_symbol(arrow).set_style(style);
             }
         } else {
             // Diagonal - draw L-shape (vertical then horizontal)
@@ -250,7 +262,7 @@ impl Widget for ChatEdgeLine {
             };
             for y in v_start..=v_end {
                 if in_bounds(ChatPosition::new(self.from.x, y)) {
-                    buf.get_mut(self.from.x, y).set_symbol("│").set_style(style);
+                    buf[(self.from.x, y)].set_symbol("│").set_style(style);
                 }
             }
 
@@ -265,7 +277,7 @@ impl Widget for ChatEdgeLine {
                 } else {
                     "┐"
                 };
-                buf.get_mut(self.from.x, mid_y)
+                buf[(self.from.x, mid_y)]
                     .set_symbol(corner)
                     .set_style(style);
             }
@@ -278,16 +290,18 @@ impl Widget for ChatEdgeLine {
             };
             for x in h_start..h_end {
                 if x != self.from.x && in_bounds(ChatPosition::new(x, mid_y)) {
-                    buf.get_mut(x, mid_y).set_symbol("─").set_style(style);
+                    buf[(x, mid_y)].set_symbol("─").set_style(style);
                 }
             }
 
             // Arrow at end
             if in_bounds(ChatPosition::new(self.to.x, mid_y)) {
-                let arrow = if self.from.x < self.to.x { "▶" } else { "◀" };
-                buf.get_mut(self.to.x, mid_y)
-                    .set_symbol(arrow)
-                    .set_style(style);
+                let arrow = if self.from.x < self.to.x {
+                    "▶"
+                } else {
+                    "◀"
+                };
+                buf[(self.to.x, mid_y)].set_symbol(arrow).set_style(style);
             }
         }
 
@@ -322,9 +336,7 @@ impl Widget for ChatEdgeLine {
                 let flow_style = Style::default()
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD);
-                buf.get_mut(pos.x, pos.y)
-                    .set_symbol("●")
-                    .set_style(flow_style);
+                buf[(pos.x, pos.y)].set_symbol("●").set_style(flow_style);
             }
         }
     }
@@ -342,10 +354,7 @@ mod tests {
 
     #[test]
     fn test_chat_edge_line_creation() {
-        let edge = ChatEdgeLine::new(
-            ChatPosition::new(10, 5),
-            ChatPosition::new(10, 10),
-        );
+        let edge = ChatEdgeLine::new(ChatPosition::new(10, 5), ChatPosition::new(10, 10));
 
         assert_eq!(edge.from().x, 10);
         assert_eq!(edge.to().y, 10);
@@ -354,10 +363,7 @@ mod tests {
 
     #[test]
     fn test_chat_edge_line_horizontal() {
-        let edge = ChatEdgeLine::new(
-            ChatPosition::new(5, 10),
-            ChatPosition::new(15, 10),
-        );
+        let edge = ChatEdgeLine::new(ChatPosition::new(5, 10), ChatPosition::new(15, 10));
 
         assert!(edge.is_horizontal());
         assert!(!edge.is_vertical());
@@ -365,11 +371,8 @@ mod tests {
 
     #[test]
     fn test_chat_edge_line_with_label() {
-        let edge = ChatEdgeLine::new(
-            ChatPosition::new(10, 5),
-            ChatPosition::new(10, 10),
-        )
-        .with_label("use.ctx");
+        let edge = ChatEdgeLine::new(ChatPosition::new(10, 5), ChatPosition::new(10, 10))
+            .with_label("use.ctx");
 
         assert_eq!(edge.label(), Some("use.ctx"));
     }
@@ -378,30 +381,21 @@ mod tests {
 
     #[test]
     fn test_chat_edge_line_length_vertical() {
-        let edge = ChatEdgeLine::new(
-            ChatPosition::new(10, 0),
-            ChatPosition::new(10, 10),
-        );
+        let edge = ChatEdgeLine::new(ChatPosition::new(10, 0), ChatPosition::new(10, 10));
 
         assert_eq!(edge.length(), 10);
     }
 
     #[test]
     fn test_chat_edge_line_length_horizontal() {
-        let edge = ChatEdgeLine::new(
-            ChatPosition::new(0, 5),
-            ChatPosition::new(20, 5),
-        );
+        let edge = ChatEdgeLine::new(ChatPosition::new(0, 5), ChatPosition::new(20, 5));
 
         assert_eq!(edge.length(), 20);
     }
 
     #[test]
     fn test_chat_edge_line_diagonal() {
-        let edge = ChatEdgeLine::new(
-            ChatPosition::new(0, 0),
-            ChatPosition::new(5, 5),
-        );
+        let edge = ChatEdgeLine::new(ChatPosition::new(0, 0), ChatPosition::new(5, 5));
 
         assert!(!edge.is_vertical());
         assert!(!edge.is_horizontal());
@@ -413,11 +407,8 @@ mod tests {
 
     #[test]
     fn test_chat_edge_line_flow_position() {
-        let mut edge = ChatEdgeLine::new(
-            ChatPosition::new(10, 0),
-            ChatPosition::new(10, 10),
-        )
-        .with_active(true);
+        let mut edge = ChatEdgeLine::new(ChatPosition::new(10, 0), ChatPosition::new(10, 10))
+            .with_active(true);
 
         // Initial position at start
         let pos0 = edge.flow_position().unwrap();
@@ -433,10 +424,7 @@ mod tests {
 
     #[test]
     fn test_chat_edge_line_no_flow_when_inactive() {
-        let edge = ChatEdgeLine::new(
-            ChatPosition::new(10, 0),
-            ChatPosition::new(10, 10),
-        );
+        let edge = ChatEdgeLine::new(ChatPosition::new(10, 0), ChatPosition::new(10, 10));
 
         // Inactive edges have no flow position
         assert!(edge.flow_position().is_none());
@@ -444,11 +432,8 @@ mod tests {
 
     #[test]
     fn test_chat_edge_line_tick() {
-        let mut edge = ChatEdgeLine::new(
-            ChatPosition::new(10, 0),
-            ChatPosition::new(10, 10),
-        )
-        .with_active(true);
+        let mut edge = ChatEdgeLine::new(ChatPosition::new(10, 0), ChatPosition::new(10, 10))
+            .with_active(true);
 
         let initial = edge.animation_tick;
         edge.tick();
@@ -457,10 +442,7 @@ mod tests {
 
     #[test]
     fn test_chat_edge_line_tick_only_when_active() {
-        let mut edge = ChatEdgeLine::new(
-            ChatPosition::new(10, 0),
-            ChatPosition::new(10, 10),
-        );
+        let mut edge = ChatEdgeLine::new(ChatPosition::new(10, 0), ChatPosition::new(10, 10));
 
         let initial = edge.animation_tick;
         edge.tick();
@@ -472,10 +454,7 @@ mod tests {
 
     #[test]
     fn test_chat_edge_line_render_vertical() {
-        let edge = ChatEdgeLine::new(
-            ChatPosition::new(5, 1),
-            ChatPosition::new(5, 5),
-        );
+        let edge = ChatEdgeLine::new(ChatPosition::new(5, 1), ChatPosition::new(5, 5));
 
         let mut buf = Buffer::empty(Rect::new(0, 0, 20, 10));
         edge.render(buf.area, &mut buf);
@@ -490,10 +469,7 @@ mod tests {
 
     #[test]
     fn test_chat_edge_line_render_horizontal() {
-        let edge = ChatEdgeLine::new(
-            ChatPosition::new(1, 5),
-            ChatPosition::new(8, 5),
-        );
+        let edge = ChatEdgeLine::new(ChatPosition::new(1, 5), ChatPosition::new(8, 5));
 
         let mut buf = Buffer::empty(Rect::new(0, 0, 20, 10));
         edge.render(buf.area, &mut buf);
@@ -507,46 +483,37 @@ mod tests {
 
     #[test]
     fn test_chat_edge_line_render_with_label() {
-        let edge = ChatEdgeLine::new(
-            ChatPosition::new(5, 1),
-            ChatPosition::new(5, 10),
-        )
-        .with_label("ctx");
+        let edge =
+            ChatEdgeLine::new(ChatPosition::new(5, 1), ChatPosition::new(5, 10)).with_label("ctx");
 
         let mut buf = Buffer::empty(Rect::new(0, 0, 20, 15));
         edge.render(buf.area, &mut buf);
 
         let content = buffer_to_string(&buf);
-        assert!(content.contains("ctx"), "Label 'ctx' should appear in output");
+        assert!(
+            content.contains("ctx"),
+            "Label 'ctx' should appear in output"
+        );
     }
 
     #[test]
     fn test_chat_edge_line_render_active() {
-        let edge = ChatEdgeLine::new(
-            ChatPosition::new(5, 1),
-            ChatPosition::new(5, 5),
-        )
-        .with_active(true);
+        let edge =
+            ChatEdgeLine::new(ChatPosition::new(5, 1), ChatPosition::new(5, 5)).with_active(true);
 
         let mut buf = Buffer::empty(Rect::new(0, 0, 20, 10));
         edge.render(buf.area, &mut buf);
 
         // Should have the flow dot somewhere
         let content = buffer_to_string(&buf);
-        assert!(
-            content.contains("●"),
-            "Flow dot should appear when active"
-        );
+        assert!(content.contains("●"), "Flow dot should appear when active");
     }
 
     // --- Integration tests ---
 
     #[test]
     fn test_chat_edge_line_exported() {
-        let _ = ChatEdgeLine::new(
-            ChatPosition::new(0, 0),
-            ChatPosition::new(0, 5),
-        );
+        let _ = ChatEdgeLine::new(ChatPosition::new(0, 0), ChatPosition::new(0, 5));
     }
 
     #[test]

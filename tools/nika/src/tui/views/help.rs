@@ -46,8 +46,10 @@ pub struct HelpView {
     /// Total lines in content
     pub total_lines: u16,
     /// Search query (for future use)
+    #[allow(dead_code)]
     pub search_query: String,
-    /// Is in search mode
+    /// Is in search mode (for future use)
+    #[allow(dead_code)]
     pub searching: bool,
 }
 
@@ -86,8 +88,8 @@ impl HelpView {
 
     /// Page down
     pub fn page_down(&mut self, visible_lines: u16) {
-        self.scroll_offset = (self.scroll_offset + visible_lines)
-            .min(self.total_lines.saturating_sub(1));
+        self.scroll_offset =
+            (self.scroll_offset + visible_lines).min(self.total_lines.saturating_sub(1));
     }
 
     /// Page up
@@ -139,10 +141,7 @@ impl HelpView {
                         .fg(theme.highlight)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(
-                    "─".repeat(50),
-                    Style::default().fg(theme.border_normal),
-                ),
+                Span::styled("─".repeat(50), Style::default().fg(theme.border_normal)),
             ]));
             lines.push(Line::from(""));
 
@@ -174,18 +173,12 @@ impl HelpView {
                     .fg(theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled(
-                "─".repeat(50),
-                Style::default().fg(theme.border_normal),
-            ),
+            Span::styled("─".repeat(50), Style::default().fg(theme.border_normal)),
         ]));
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
             Span::styled("    ", Style::default()),
-            Span::styled(
-                "Press ".to_string(),
-                Style::default().fg(theme.text_muted),
-            ),
+            Span::styled("Press ".to_string(), Style::default().fg(theme.text_muted)),
             Span::styled("i".to_string(), Style::default().fg(theme.highlight)),
             Span::styled(
                 " to enter Insert mode for typing".to_string(),
@@ -194,10 +187,7 @@ impl HelpView {
         ]));
         lines.push(Line::from(vec![
             Span::styled("    ", Style::default()),
-            Span::styled(
-                "Press ".to_string(),
-                Style::default().fg(theme.text_muted),
-            ),
+            Span::styled("Press ".to_string(), Style::default().fg(theme.text_muted)),
             Span::styled("Esc".to_string(), Style::default().fg(theme.highlight)),
             Span::styled(
                 " to return to Normal mode".to_string(),

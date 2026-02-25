@@ -514,8 +514,7 @@ mod tests {
                 .with_state(ChatTaskState::Complete),
         );
         queue.add(
-            ChatTaskQueueItem::new("task2", ChatTaskVerb::Exec)
-                .with_state(ChatTaskState::Running),
+            ChatTaskQueueItem::new("task2", ChatTaskVerb::Exec).with_state(ChatTaskState::Running),
         );
         queue.add(
             ChatTaskQueueItem::new("task3", ChatTaskVerb::Fetch)
@@ -546,7 +545,10 @@ mod tests {
     fn test_chat_task_queue_scroll_down() {
         let mut queue = ChatTaskQueue::new();
         for i in 0..10 {
-            queue.add(ChatTaskQueueItem::new(&format!("task{}", i), ChatTaskVerb::Infer));
+            queue.add(ChatTaskQueueItem::new(
+                &format!("task{}", i),
+                ChatTaskVerb::Infer,
+            ));
         }
 
         queue.scroll_down(5); // visible height = 5

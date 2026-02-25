@@ -47,7 +47,7 @@ pub use studio::{EditorMode, StudioView};
 
 // Auxiliary view exports (v0.11)
 pub use help::HelpView;
-pub use settings::{SettingsSection, SettingsView};
+pub use settings::SettingsView;
 
 // Trait export
 pub use trait_view::View;

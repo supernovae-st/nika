@@ -60,7 +60,9 @@ use super::state::{PanelId, SettingsField, TuiMode, TuiState};
 use super::theme::Theme;
 use super::utils::truncate_str;
 use super::verification::{VerificationCache, VerificationEntry};
-use super::views::{ChatView, HomeView, McpAction, StudioView, TuiView, View, ViewAction};
+use super::views::{
+    ChatView, HelpView, HomeView, McpAction, SettingsView, StudioView, TuiView, View, ViewAction,
+};
 use super::widgets::task_box::{
     AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,
 };
@@ -235,6 +237,10 @@ pub struct App {
     home_view: Option<HomeView>,
     /// Studio view state (YAML editor)
     studio_view: StudioView,
+    /// Settings view state (v0.11 auxiliary)
+    settings_view: SettingsView,
+    /// Help view state (v0.11 auxiliary)
+    help_view: HelpView,
     // ═══ LLM Integration for ChatOverlay ═══
     /// Channel for receiving LLM responses (complete responses)
     llm_response_rx: mpsc::Receiver<String>,
@@ -289,6 +295,8 @@ impl App {
         let mut studio_view = StudioView::new();
         // Load workflow file into studio view
         let _ = studio_view.load_file(workflow_path.to_path_buf());
+        let settings_view = SettingsView::new();
+        let help_view = HelpView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -323,6 +331,8 @@ impl App {
             chat_view,
             home_view: None, // No home view in execution mode
             studio_view,
+            settings_view,
+            help_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -347,6 +357,8 @@ impl App {
         let chat_view = ChatView::new();
         let home_view = HomeView::new(standalone_state.root.clone());
         let studio_view = StudioView::new();
+        let settings_view = SettingsView::new();
+        let help_view = HelpView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -381,6 +393,8 @@ impl App {
             chat_view,
             home_view: Some(home_view),
             studio_view,
+            settings_view,
+            help_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -1235,6 +1249,8 @@ impl App {
             let chat_view = &mut self.chat_view;
             let home_view = &mut self.home_view;
             let studio_view = &mut self.studio_view;
+            let settings_view = &mut self.settings_view;
+            let help_view = &mut self.help_view;
             let workflow_path = &self.state.workflow.path;
             // P0 Fix: Use is_paused() accessor for unified pause state
             let paused = self.state.is_paused();
@@ -1256,8 +1272,8 @@ impl App {
                 TuiView::Studio => studio_status,
                 TuiView::Monitor => monitor_status,
                 // Auxiliary views use their own status (v0.11)
-                TuiView::Settings => "Settings".to_string(),
-                TuiView::Help => "Help".to_string(),
+                TuiView::Settings => settings_view.status_line(state),
+                TuiView::Help => help_view.status_line(state),
             };
 
             terminal
@@ -1317,16 +1333,12 @@ impl App {
                             // Render Monitor's 4-panel layout within the content area
                             render_monitor_content(frame, state, theme, chunks[1]);
                         }
-                        // v0.11: Auxiliary views (Settings, Help) - placeholder for now
+                        // v0.11: Auxiliary views (Settings, Help)
                         TuiView::Settings => {
-                            let placeholder = Paragraph::new("Settings view - coming soon")
-                                .block(Block::default().borders(Borders::ALL).title(" SETTINGS "));
-                            frame.render_widget(placeholder, chunks[1]);
+                            settings_view.render(frame, chunks[1], state, theme);
                         }
                         TuiView::Help => {
-                            let placeholder = Paragraph::new("Help view - coming soon")
-                                .block(Block::default().borders(Borders::ALL).title(" HELP "));
-                            frame.render_widget(placeholder, chunks[1]);
+                            help_view.render(frame, chunks[1], state, theme);
                         }
                     }
 
@@ -1475,12 +1487,14 @@ impl App {
                 let view_action = self.studio_view.handle_key(key_event, &mut self.state);
                 self.convert_view_action(view_action)
             }
-            // v0.11: Auxiliary views - Esc returns to Home
-            TuiView::Settings | TuiView::Help => {
-                if code == KeyCode::Esc {
-                    self.current_view = TuiView::Home;
-                }
-                Action::Continue
+            // v0.11: Auxiliary views - delegate to view handlers
+            TuiView::Settings => {
+                let view_action = self.settings_view.handle_key(key_event, &mut self.state);
+                self.convert_view_action(view_action)
+            }
+            TuiView::Help => {
+                let view_action = self.help_view.handle_key(key_event, &mut self.state);
+                self.convert_view_action(view_action)
             }
         }
     }

@@ -146,10 +146,7 @@ pub enum AnimationState {
 impl AnimationState {
     /// Check if this state requires animation updates
     pub fn needs_tick(&self) -> bool {
-        matches!(
-            self,
-            AnimationState::Pulsing | AnimationState::Flowing
-        )
+        matches!(self, AnimationState::Pulsing | AnimationState::Flowing)
     }
 
     /// Check if this is a transient state (will return to idle)

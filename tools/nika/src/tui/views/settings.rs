@@ -99,12 +99,16 @@ impl SettingsView {
     }
 
     /// Update provider info from state
+    /// (Called externally when provider changes - will be wired in full state sync)
+    #[allow(dead_code)]
     pub fn update_provider(&mut self, provider: &str, model: &str) {
         self.provider_name = provider.to_string();
         self.model_name = model.to_string();
     }
 
     /// Update theme name from theme mode
+    /// (Called externally when theme changes - will be wired in full state sync)
+    #[allow(dead_code)]
     pub fn update_theme_name(&mut self, name: &str) {
         self.theme_name = name.to_string();
     }
@@ -154,7 +158,7 @@ impl Default for SettingsView {
 }
 
 impl View for SettingsView {
-    fn render(&mut self, frame: &mut Frame, area: Rect, state: &TuiState, theme: &Theme) {
+    fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
         // Layout: 3 sections with equal height
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -192,7 +196,13 @@ impl View for SettingsView {
                 Span::styled(" Configure provider", Style::default().fg(theme.text_muted)),
             ]),
         ];
-        self.render_section(frame, chunks[0], SettingsSection::Provider, provider_content, theme);
+        self.render_section(
+            frame,
+            chunks[0],
+            SettingsSection::Provider,
+            provider_content,
+            theme,
+        );
 
         // Theme section
         let theme_content = vec![
@@ -215,7 +225,13 @@ impl View for SettingsView {
                 Span::styled(" Solarized", Style::default().fg(theme.text_muted)),
             ]),
         ];
-        self.render_section(frame, chunks[1], SettingsSection::Theme, theme_content, theme);
+        self.render_section(
+            frame,
+            chunks[1],
+            SettingsSection::Theme,
+            theme_content,
+            theme,
+        );
 
         // Shortcuts section
         let shortcuts_content = vec![
@@ -230,10 +246,19 @@ impl View for SettingsView {
             Line::from(vec![
                 Span::styled("  Press ", Style::default().fg(theme.text_muted)),
                 Span::styled("[Esc]", Style::default().fg(theme.highlight)),
-                Span::styled(" to return to previous view", Style::default().fg(theme.text_muted)),
+                Span::styled(
+                    " to return to previous view",
+                    Style::default().fg(theme.text_muted),
+                ),
             ]),
         ];
-        self.render_section(frame, chunks[2], SettingsSection::Shortcuts, shortcuts_content, theme);
+        self.render_section(
+            frame,
+            chunks[2],
+            SettingsSection::Shortcuts,
+            shortcuts_content,
+            theme,
+        );
 
         // Footer with navigation hints
         if chunks[3].height > 0 {
