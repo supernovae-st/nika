@@ -120,15 +120,55 @@ v0.12.x (Keyring wiring, Ollama handlers)
 
 ## Skill References
 
+> **Full inventory:** See [SKILLS-INVENTORY.md](../SKILLS-INVENTORY.md) for all 40+ skills
+
+### 🔴 Obligatoires
+
+| Skill | When to Use |
+|-------|-------------|
+| `@test-driven-development` | **EVERY** task (RED-GREEN-REFACTOR) |
+| `@verification-before-completion` | **BEFORE** any commit |
+| `@using-superpowers` | Start of conversation |
+
+### 🦀 Rust (v0.9.x Core)
+
 | Skill | When to Use |
 |-------|-------------|
 | `@rust-core` | All Rust implementation |
-| `@rust-async` | Tokio, async patterns |
-| `@test-driven-development` | Every task |
+| `@rust-async` | Tokio, StableGraph, DAG |
+| `@rust-agentic` | Agent patterns, DAG workflows |
+
+### 📝 Planning & Workflow
+
+| Skill | When to Use |
+|-------|-------------|
+| `@brainstorming` | New ideas, design |
+| `@writing-plans` | Before implementation |
+| `@executing-plans` | Executing any plan |
+| `@subagent-driven-development` | Per-task subagents |
+| `@dispatching-parallel-agents` | Multiple independent tasks |
+
+### 🔍 Debug & Review
+
+| Skill | When to Use |
+|-------|-------------|
+| `@systematic-debugging` | Bug investigation |
+| `@requesting-code-review` | After feature complete |
+| `@root-cause-tracing` | Deep error tracing |
+
+### ✍️ Documentation
+
+| Skill | When to Use |
+|-------|-------------|
+| `@writing` | README, CLAUDE.md updates |
+| `@mermaid` | Diagrams in docs |
 | `@frontend-design` | TUI widgets |
-| `@verification-before-completion` | Before marking complete |
-| `@superpowers:executing-plans` | Executing any plan |
-| `@superpowers:subagent-driven-development` | Per-task subagents |
+
+---
+
+## DX Checklist
+
+See [DX-CHECKLIST.md](../DX-CHECKLIST.md) for complete developer experience audit.
 
 ---
 

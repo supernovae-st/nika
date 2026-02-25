@@ -507,35 +507,181 @@ echo "✅ All checks passed!"
 
 ## 9. Skills Claude Code à utiliser
 
-### Skills obligatoires
+> **Inventaire complet:** 40+ skills disponibles dans l'environnement
 
-| Skill | Quand | Usage |
-|-------|-------|-------|
-| `@test-driven-development` | Nouvelle feature | TDD workflow |
-| `@verification-before-completion` | Avant commit | Vérifier le travail |
-| `@systematic-debugging` | Bug/erreur | Debug méthodique |
-| `@requesting-code-review` | Après feature | Demander review |
-| `@brainstorming` | Nouvelle idée | Raffiner le design |
-| `@writing-plans` | Avant implémentation | Plan détaillé |
+### 9.1 🔴 Skills OBLIGATOIRES (utiliser toujours)
+
+| Skill | Quand | Path |
+|-------|-------|------|
+| `@test-driven-development` | **TOUTE** nouvelle feature | spn-powers |
+| `@verification-before-completion` | **AVANT** tout commit | spn-powers |
+| `@using-superpowers` | Début de conversation | spn-powers |
+
+### 9.2 🧪 Skills TDD & Testing
+
+| Skill | Description | Quand utiliser |
+|-------|-------------|----------------|
+| `@test-driven-development` | RED-GREEN-REFACTOR workflow | Nouvelle feature |
+| `@testing-anti-patterns` | Éviter les mauvais tests | Review de tests |
+| `@testing-skills-with-subagents` | Tester les skills | Création de skill |
+| `@condition-based-waiting` | Éviter les race conditions | Tests async |
+| `@bats-testing-patterns` | Tests de scripts shell | CI/CD scripts |
+
+### 9.3 🔍 Skills Debug & Review
+
+| Skill | Description | Quand utiliser |
+|-------|-------------|----------------|
+| `@systematic-debugging` | Debug en 4 phases | Bug/erreur |
+| `@root-cause-tracing` | Trouver la source | Erreur profonde |
+| `@requesting-code-review` | Demander review | Après feature |
+| `@receiving-code-review` | Recevoir feedback | Avant merge |
+| `@defense-in-depth` | Validation multi-couche | Sécurité |
+
+### 9.4 📝 Skills Planning & Workflow
+
+| Skill | Description | Quand utiliser |
+|-------|-------------|----------------|
+| `@brainstorming` | Raffiner idées en designs | Nouvelle idée |
+| `@writing-plans` | Plan détaillé bite-sized | Avant implémentation |
+| `@executing-plans` | Exécuter par batch | Implémentation |
+| `@subagent-driven-development` | 1 subagent par tâche | Plusieurs tâches |
+| `@dispatching-parallel-agents` | Agents en parallèle | Tâches indépendantes |
+| `@using-git-worktrees` | Isolation du travail | Feature branches |
+| `@finishing-a-development-branch` | Finaliser branche | Avant merge |
+| `@file-organizer` | Organisation fichiers | Structure projet |
+
+### 9.5 🦀 Skills Rust (spn-rust)
+
+| Skill | Description | Quand utiliser |
+|-------|-------------|----------------|
+| `@rust` | Master skill Rust | Tout code Rust |
+| `@rust-core` | Ownership, error handling | Patterns fondamentaux |
+| `@rust-async` | Tokio, JoinSet, channels | Code async |
+| `@rust-agentic` | Multi-agent, DAG, LLM | Architecture agentic |
+| `@rust-ai` | MCP, Candle, ONNX | Intégration AI |
+| `@rust-tauri` | Desktop apps | TUI/Desktop |
+
+### 9.6 ✍️ Skills Documentation (spn-writing)
+
+| Skill | Description | Quand utiliser |
+|-------|-------------|----------------|
+| `@writing` | Master skill docs | Toute documentation |
+| `@markdown` | Syntax MD avancée | README, docs |
+| `@mermaid` | 22 types de diagrammes | Visualisation |
+| `@color-system` | Tailwind-Solarized | Thèmes cohérents |
+
+### 9.7 🔧 Skills DevOps & Shell
+
+| Skill | Description | Quand utiliser |
+|-------|-------------|----------------|
+| `@bash-defensive-patterns` | Scripts robustes | CI/CD scripts |
+| `@shellcheck-configuration` | Lint shell scripts | Qualité scripts |
+| `@git-advanced-workflows` | Git avancé | Workflow git |
+
+### 9.8 📚 Skills Documentation Generation
+
+| Skill | Description | Quand utiliser |
+|-------|-------------|----------------|
+| `@architecture-decision-records` | ADRs | Décisions architecture |
+| `@changelog-automation` | Générer CHANGELOG | Releases |
+| `@openapi-spec-generation` | API docs | API Nika |
+
+### 9.9 🤖 Skills Agentic (spn-agentic)
+
+| Skill | Description | Quand utiliser |
+|-------|-------------|----------------|
+| `@agentic-engine` | Moteur agentic | Agent workflows |
+| `@agentic-generate` | Génération agentic | Templates |
+| `@agentic-evaluate` | Évaluation agents | Tests agents |
+
+### 9.10 💡 Skills Avancés
+
+| Skill | Description | Quand utiliser |
+|-------|-------------|----------------|
+| `@prompt-engineering-patterns` | Optimisation prompts | Améliorer inférence |
+| `@claude-code-docs` | 270 docs officielles | Questions Claude |
+| `@frontend-design` | Design UI production | TUI widgets |
+| `@sharing-skills` | Contribuer skills | Upstream PR |
+| `@writing-skills` | Créer nouveaux skills | Plugin dev |
+
+---
 
 ### Agents à utiliser
 
-| Agent | Quand | Usage |
-|-------|-------|-------|
-| `rust-pro` | Code Rust | Implémentation |
-| `rust-async-expert` | Async/Tokio | Patterns async |
-| `feature-dev:code-reviewer` | Après code | Review |
-| `feature-dev:code-architect` | Architecture | Design |
-| `nika-deep-verify` | Fin de version | Vérification complète |
+| Agent | Type | Quand | Usage |
+|-------|------|-------|-------|
+| `rust-pro` | spn-rust | Code Rust | Implémentation générale |
+| `rust-async-expert` | spn-rust | Async/Tokio | Patterns concurrents |
+| `rust-perf` | spn-rust | Performance | Optimisation |
+| `rust-security` | spn-rust | Sécurité | Audit sécurité |
+| `rust-architect` | spn-rust | Architecture | Design système |
+| `rust-ml` | spn-rust | ML/AI | Intégration ML |
+| `feature-dev:code-reviewer` | feature-dev | Après code | Review qualité |
+| `feature-dev:code-architect` | feature-dev | Architecture | Design features |
+| `feature-dev:code-explorer` | feature-dev | Exploration | Comprendre codebase |
+| `nika-deep-verify` | nika | Fin de version | 6 agents vérification |
+| `nika-sync` | nika | Alignement | Spec/code/docs sync |
+
+---
 
 ### Commands à utiliser
 
-| Command | Usage |
-|---------|-------|
+| Command | Description |
+|---------|-------------|
 | `/nika-sync` | Vérifier alignement spec/code/docs |
 | `/nika-deep-verify` | 6 agents parallèles de vérification |
-| `/spn-powers:commit` | Commit avec checks |
-| `/spn-powers:push` | Push avec validation |
+| `/nika-run` | Exécuter workflow |
+| `/nika-debug` | Debug workflow |
+| `/nika-spec` | Questions spec Nika |
+| `/nika-yaml` | Guide YAML workflows |
+| `/workflow-validate` | Valider syntax YAML |
+| `/spn-powers:git:commit` | Commit avec checks |
+| `/spn-powers:git:push` | Push avec validation |
+| `/spn-powers:yo` | Inventaire superpowers |
+| `/spn-rust:rust` | Master Rust skill |
+| `/spn-writing:writing` | Master docs skill |
+
+---
+
+### Workflow recommandé avec skills
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  WORKFLOW AVEC SKILLS                                                          ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  1. DÉMARRAGE                                                                 ║
+║     → @using-superpowers (chargé automatiquement)                             ║
+║     → Identifier les skills pertinents                                        ║
+║                                                                               ║
+║  2. IDÉATION                                                                  ║
+║     → @brainstorming (raffiner l'idée)                                        ║
+║     → @writing-plans (créer plan détaillé)                                    ║
+║                                                                               ║
+║  3. IMPLÉMENTATION                                                            ║
+║     → @test-driven-development (RED-GREEN-REFACTOR)                           ║
+║     → @rust-core / @rust-async (patterns Rust)                                ║
+║     → @subagent-driven-development (si plusieurs tâches)                      ║
+║                                                                               ║
+║  4. DEBUG (si erreurs)                                                        ║
+║     → @systematic-debugging (4 phases)                                        ║
+║     → @root-cause-tracing (trouver source)                                    ║
+║                                                                               ║
+║  5. REVIEW                                                                    ║
+║     → @verification-before-completion (OBLIGATOIRE)                           ║
+║     → @requesting-code-review (demander feedback)                             ║
+║                                                                               ║
+║  6. DOCUMENTATION                                                             ║
+║     → @writing / @markdown (docs)                                             ║
+║     → @mermaid (diagrammes)                                                   ║
+║     → @changelog-automation (release notes)                                   ║
+║                                                                               ║
+║  7. FINALISATION                                                              ║
+║     → @finishing-a-development-branch                                         ║
+║     → /nika-deep-verify                                                       ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
 
 ---
 
