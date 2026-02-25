@@ -1,4 +1,6 @@
-# release-plz configuration for Nika
+# 🏴‍☠️ ARMADA: Release-plz Configuration
+# Automated release management for Nika
+# Part of ARMADA quality checkpoints
 # https://release-plz.ieni.dev/docs/config
 
 [workspace]
@@ -6,16 +8,20 @@
 allow_dirty = false
 # Path to changelog
 changelog_path = "CHANGELOG.md"
-# Update dependencies in Cargo.toml (but don't publish to crates.io)
+# Update dependencies in Cargo.toml
 dependencies_update = true
-# Generate changelog using git-cliff
-git_cliff_config = "../cliff.toml"
+# Generate changelog using git-cliff (in tools/nika/)
+git_cliff_config = "tools/nika/cliff.toml"
 # Create GitHub releases
 git_release_enable = true
 # Draft releases for review before publishing
 git_release_draft = false
 # Use release type based on conventional commits
 release_commits = "^(feat|fix|docs|perf|refactor|style|test|chore)(\\([a-z-]+\\))?!?:"
+# PR labels for release PRs
+pr_labels = ["release", "automated", "armada"]
+# Repo URL for links
+repo_url = "https://github.com/SuperNovae-studio/nika"
 
 [changelog]
 # Use Keep a Changelog format
@@ -36,7 +42,7 @@ body = """
 protect_breaking_commits = true
 # Link to commits
 commit_preprocessors = [
-    { pattern = "\\(#([0-9]+)\\)", replace = "([#$1](https://github.com/supernovae-st/nika-dev/pull/$1))" },
+    { pattern = "\\(#([0-9]+)\\)", replace = "([#$1](https://github.com/SuperNovae-studio/nika/pull/$1))" },
 ]
 
 # Main Nika CLI package
@@ -51,9 +57,12 @@ semver_check = true
 # Git tag format
 git_tag_name = "v{{ version }}"
 # Git tag message
-git_tag_message = "Nika {{ version }}"
+git_tag_message = "🏴‍☠️ Nika {{ version }} - Captain's Release"
 
-# Version compatibility requirements
-[package.version_requirements]
-# Minimum NovaNet MCP version required
-novanet_mcp = ">=0.13.0"
+# 🏴‍☠️ CAPTAIN'S ORDERS: Version Lock
+# Nika must NEVER be version 1.0.0 or higher
+# This is enforced by:
+# - tests/version_lock_test.rs (Rust tests)
+# - .github/workflows/version-lock.yml (CI)
+# - .github/workflows/armada-checkpoints.yml (Station 10)
+# See: docs/plans/2025-02-25-nika-fortress-design.md
