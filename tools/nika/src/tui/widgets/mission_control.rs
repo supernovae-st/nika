@@ -33,8 +33,12 @@ use ratatui::{
 };
 
 use super::{ActivityItem, ActivityTemp, McpServerInfo, McpStatus};
+use crate::tui::theme::{Theme, VerbColor};
 
-// Solarized-inspired colors
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks when no theme provided)
+// ═══════════════════════════════════════════════════════════════════════════
+
 const COLOR_HEADER: Color = Color::Rgb(250, 204, 21); // Gold
 const COLOR_SECTION: Color = Color::Rgb(147, 161, 161); // Gray
 const COLOR_SUCCESS: Color = Color::Rgb(133, 153, 0); // Green
@@ -43,6 +47,7 @@ const COLOR_ERROR: Color = Color::Rgb(220, 50, 47); // Red
 const COLOR_MUTED: Color = Color::Rgb(88, 110, 117); // Muted
 const COLOR_CYAN: Color = Color::Rgb(42, 161, 152); // Cyan
 const COLOR_VIOLET: Color = Color::Rgb(108, 113, 196); // Violet
+const COLOR_ORANGE: Color = Color::Rgb(251, 146, 60); // Orange
 
 /// Verb type for runtime display
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -82,15 +87,24 @@ impl CurrentVerb {
         }
     }
 
+    /// Get color for this verb (delegates to VerbColor for consistency)
     pub fn color(&self) -> Color {
         match self {
             CurrentVerb::None => COLOR_MUTED,
-            CurrentVerb::Infer => COLOR_VIOLET,
-            CurrentVerb::Exec => COLOR_WARNING,
-            CurrentVerb::Fetch => COLOR_CYAN,
-            CurrentVerb::Invoke => COLOR_SUCCESS,
-            CurrentVerb::Agent => Color::Rgb(236, 72, 153), // Pink
-            CurrentVerb::Spawn => Color::Rgb(253, 164, 175), // Rose 300
+            CurrentVerb::Infer => VerbColor::Infer.rgb(),
+            CurrentVerb::Exec => VerbColor::Exec.rgb(),
+            CurrentVerb::Fetch => VerbColor::Fetch.rgb(),
+            CurrentVerb::Invoke => VerbColor::Invoke.rgb(),
+            CurrentVerb::Agent => VerbColor::Agent.rgb(),
+            CurrentVerb::Spawn => VerbColor::Spawn.rgb(),
+        }
+    }
+
+    /// Get color using theme (for None, uses theme muted color)
+    pub fn color_with_theme(&self, theme: Option<&Theme>) -> Color {
+        match self {
+            CurrentVerb::None => theme.map(|t| t.text_muted).unwrap_or(COLOR_MUTED),
+            _ => self.color(), // VerbColor already provides consistent colors
         }
     }
 }
@@ -211,6 +225,8 @@ pub struct MissionControlPanel<'a> {
     activities: &'a [ActivityItem],
     /// Animation frame for spinners
     frame: u8,
+    /// Optional theme for colors
+    theme: Option<&'a Theme>,
 }
 
 impl<'a> MissionControlPanel<'a> {
@@ -225,7 +241,14 @@ impl<'a> MissionControlPanel<'a> {
             focused: false,
             activities: &[],
             frame: 0,
+            theme: None,
         }
+    }
+
+    /// Set the theme for colors
+    pub fn with_theme(mut self, theme: &'a Theme) -> Self {
+        self.theme = Some(theme);
+        self
     }
 
     pub fn context(mut self, items: &'a [ContextItem]) -> Self {
@@ -270,13 +293,64 @@ impl<'a> MissionControlPanel<'a> {
         self
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // THEME-AWARE COLOR HELPERS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    fn color_header(&self) -> Color {
+        self.theme.map(|t| t.status_running).unwrap_or(COLOR_HEADER)
+    }
+
+    fn color_section(&self) -> Color {
+        self.theme.map(|t| t.border_normal).unwrap_or(COLOR_SECTION)
+    }
+
+    fn color_success(&self) -> Color {
+        self.theme.map(|t| t.status_success).unwrap_or(COLOR_SUCCESS)
+    }
+
+    fn color_warning(&self) -> Color {
+        self.theme.map(|t| t.status_running).unwrap_or(COLOR_WARNING)
+    }
+
+    fn color_error(&self) -> Color {
+        self.theme.map(|t| t.status_failed).unwrap_or(COLOR_ERROR)
+    }
+
+    fn color_muted(&self) -> Color {
+        self.theme.map(|t| t.text_muted).unwrap_or(COLOR_MUTED)
+    }
+
+    fn color_cyan(&self) -> Color {
+        self.theme.map(|t| t.highlight).unwrap_or(COLOR_CYAN)
+    }
+
+    fn color_violet(&self) -> Color {
+        self.theme.map(|_| VerbColor::Infer.rgb()).unwrap_or(COLOR_VIOLET)
+    }
+
+    fn color_orange(&self) -> Color {
+        self.theme.map(|t| t.status_running).unwrap_or(COLOR_ORANGE)
+    }
+
+    fn color_text(&self) -> Color {
+        self.theme.map(|t| t.text_primary).unwrap_or(Color::White)
+    }
+
     fn render_mcp_section(&self, area: Rect, buf: &mut Buffer) {
+        let header = self.color_header();
+        let muted = self.color_muted();
+        let success = self.color_success();
+        let warning = self.color_warning();
+        let error = self.color_error();
+        let text = self.color_text();
+
         let mut lines = vec![Line::from(vec![
             Span::styled("🔌 ", Style::default()),
             Span::styled(
                 "MCP SERVERS",
                 Style::default()
-                    .fg(COLOR_HEADER)
+                    .fg(header)
                     .add_modifier(Modifier::BOLD),
             ),
         ])];
@@ -284,17 +358,17 @@ impl<'a> MissionControlPanel<'a> {
         if self.mcp_servers.is_empty() {
             lines.push(Line::from(Span::styled(
                 "  No servers connected",
-                Style::default().fg(COLOR_MUTED),
+                Style::default().fg(muted),
             )));
         } else {
             for server in self.mcp_servers {
                 // Map McpStatus to icon and color
                 let (icon, color) = match server.status {
-                    McpStatus::Hot => ("●", COLOR_SUCCESS),       // Active
-                    McpStatus::Warm => ("◐", COLOR_WARNING),      // Idle
-                    McpStatus::Connected => ("●", COLOR_SUCCESS), // Connected
-                    McpStatus::Cold => ("○", COLOR_MUTED),        // Not used recently
-                    McpStatus::Error => ("✗", COLOR_ERROR),       // Error
+                    McpStatus::Hot => ("●", success),       // Active
+                    McpStatus::Warm => ("◐", warning),      // Idle
+                    McpStatus::Connected => ("●", success), // Connected
+                    McpStatus::Cold => ("○", muted),        // Not used recently
+                    McpStatus::Error => ("✗", error),       // Error
                 };
 
                 // Show call count as activity indicator
@@ -308,8 +382,8 @@ impl<'a> MissionControlPanel<'a> {
                     Span::raw("  "),
                     Span::styled(icon, Style::default().fg(color)),
                     Span::raw(" "),
-                    Span::styled(&server.name, Style::default().fg(Color::White)),
-                    Span::styled(activity_text, Style::default().fg(COLOR_MUTED)),
+                    Span::styled(&server.name, Style::default().fg(text)),
+                    Span::styled(activity_text, Style::default().fg(muted)),
                 ]));
             }
         }
@@ -319,12 +393,19 @@ impl<'a> MissionControlPanel<'a> {
     }
 
     fn render_context_section(&self, area: Rect, buf: &mut Buffer) {
+        let header = self.color_header();
+        let muted = self.color_muted();
+        let success = self.color_success();
+        let warning = self.color_warning();
+        let error = self.color_error();
+        let cyan = self.color_cyan();
+
         let mut lines = vec![Line::from(vec![
             Span::styled("📁 ", Style::default()),
             Span::styled(
                 "CONTEXT",
                 Style::default()
-                    .fg(COLOR_HEADER)
+                    .fg(header)
                     .add_modifier(Modifier::BOLD),
             ),
         ])];
@@ -332,15 +413,15 @@ impl<'a> MissionControlPanel<'a> {
         if self.context_items.is_empty() {
             lines.push(Line::from(Span::styled(
                 "  No context loaded",
-                Style::default().fg(COLOR_MUTED),
+                Style::default().fg(muted),
             )));
         } else {
             for item in self.context_items {
                 let (icon, color) = match &item.status {
-                    ContextStatus::Pending => ("○", COLOR_MUTED),
-                    ContextStatus::Loading => ("◐", COLOR_WARNING),
-                    ContextStatus::Loaded => ("✓", COLOR_SUCCESS),
-                    ContextStatus::Error(_) => ("✗", COLOR_ERROR),
+                    ContextStatus::Pending => ("○", muted),
+                    ContextStatus::Loading => ("◐", warning),
+                    ContextStatus::Loaded => ("✓", success),
+                    ContextStatus::Error(_) => ("✗", error),
                 };
 
                 let token_text = item
@@ -352,8 +433,8 @@ impl<'a> MissionControlPanel<'a> {
                     Span::raw("  "),
                     Span::styled(icon, Style::default().fg(color)),
                     Span::raw(" "),
-                    Span::styled(&item.mention, Style::default().fg(COLOR_CYAN)),
-                    Span::styled(token_text, Style::default().fg(COLOR_MUTED)),
+                    Span::styled(&item.mention, Style::default().fg(cyan)),
+                    Span::styled(token_text, Style::default().fg(muted)),
                 ]));
             }
         }
@@ -363,12 +444,16 @@ impl<'a> MissionControlPanel<'a> {
     }
 
     fn render_memory_section(&self, area: Rect, buf: &mut Buffer) {
+        let header = self.color_header();
+        let muted = self.color_muted();
+        let text = self.color_text();
+
         let mut lines = vec![Line::from(vec![
             Span::styled("💾 ", Style::default()),
             Span::styled(
                 "MEMORY",
                 Style::default()
-                    .fg(COLOR_HEADER)
+                    .fg(header)
                     .add_modifier(Modifier::BOLD),
             ),
         ])];
@@ -382,9 +467,9 @@ impl<'a> MissionControlPanel<'a> {
 
             lines.push(Line::from(vec![
                 Span::raw("  • "),
-                Span::styled(&file.name, Style::default().fg(Color::White)),
+                Span::styled(&file.name, Style::default().fg(text)),
                 Span::raw(" "),
-                Span::styled(kind_label, Style::default().fg(COLOR_MUTED)),
+                Span::styled(kind_label, Style::default().fg(muted)),
             ]));
         }
 
@@ -393,7 +478,7 @@ impl<'a> MissionControlPanel<'a> {
                 Span::raw("  • "),
                 Span::styled(
                     format!("{} conversation turns", self.conversation_turns),
-                    Style::default().fg(Color::White),
+                    Style::default().fg(text),
                 ),
             ]));
         }
@@ -401,7 +486,7 @@ impl<'a> MissionControlPanel<'a> {
         if self.memory_files.is_empty() && self.conversation_turns == 0 {
             lines.push(Line::from(Span::styled(
                 "  No memory loaded",
-                Style::default().fg(COLOR_MUTED),
+                Style::default().fg(muted),
             )));
         }
 
@@ -410,24 +495,29 @@ impl<'a> MissionControlPanel<'a> {
     }
 
     fn render_runtime_section(&self, area: Rect, buf: &mut Buffer) {
+        let header = self.color_header();
+        let cyan = self.color_cyan();
+        let violet = self.color_violet();
+        let warning = self.color_warning();
+
         let mut lines = vec![Line::from(vec![
             Span::styled("⚡ ", Style::default()),
             Span::styled(
                 "RUNTIME",
                 Style::default()
-                    .fg(COLOR_HEADER)
+                    .fg(header)
                     .add_modifier(Modifier::BOLD),
             ),
         ])];
 
-        // Current verb
+        // Current verb (uses VerbColor via CurrentVerb.color_with_theme())
         lines.push(Line::from(vec![
             Span::raw("  Current: "),
             Span::raw(self.current_verb.icon()),
             Span::raw(" "),
             Span::styled(
                 self.current_verb.label(),
-                Style::default().fg(self.current_verb.color()),
+                Style::default().fg(self.current_verb.color_with_theme(self.theme)),
             ),
         ]));
 
@@ -436,16 +526,16 @@ impl<'a> MissionControlPanel<'a> {
         let out_tokens = format_tokens(self.turn_metrics.output_tokens);
         lines.push(Line::from(vec![
             Span::raw("  In: "),
-            Span::styled(in_tokens, Style::default().fg(COLOR_CYAN)),
+            Span::styled(in_tokens, Style::default().fg(cyan)),
             Span::raw(" │ Out: "),
-            Span::styled(out_tokens, Style::default().fg(COLOR_VIOLET)),
+            Span::styled(out_tokens, Style::default().fg(violet)),
         ]));
 
         // Cost
         let cost = format_cost(self.turn_metrics.cost_usd);
         lines.push(Line::from(vec![
             Span::raw("  Cost: "),
-            Span::styled(cost, Style::default().fg(COLOR_WARNING)),
+            Span::styled(cost, Style::default().fg(warning)),
         ]));
 
         let para = Paragraph::new(lines);
@@ -454,6 +544,12 @@ impl<'a> MissionControlPanel<'a> {
 
     /// v0.8.1: Render activity section (hot/warm/queued tasks)
     fn render_activity_section(&self, area: Rect, buf: &mut Buffer) {
+        let header = self.color_header();
+        let muted = self.color_muted();
+        let orange = self.color_orange();
+        let warning = self.color_warning();
+        let text = self.color_text();
+
         // Group activities by temperature
         let hot: Vec<_> = self
             .activities
@@ -475,16 +571,14 @@ impl<'a> MissionControlPanel<'a> {
             Span::styled("🎯 ", Style::default()),
             Span::styled(
                 "ACTIVITY",
-                Style::default()
-                    .fg(COLOR_HEADER)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(header).add_modifier(Modifier::BOLD),
             ),
         ])];
 
         if self.activities.is_empty() {
             lines.push(Line::from(Span::styled(
                 "  No active tasks",
-                Style::default().fg(COLOR_MUTED),
+                Style::default().fg(muted),
             )));
         } else {
             // Hot (executing) - orange spinner
@@ -497,14 +591,14 @@ impl<'a> MissionControlPanel<'a> {
                     .unwrap_or_default();
                 lines.push(Line::from(vec![
                     Span::raw("  "),
-                    Span::styled(spinner, Style::default().fg(Color::Rgb(251, 146, 60))), // orange
+                    Span::styled(spinner, Style::default().fg(orange)),
                     Span::raw(" "),
-                    Span::styled(&item.verb, Style::default().fg(Color::White)),
-                    Span::styled(duration, Style::default().fg(COLOR_MUTED)),
+                    Span::styled(&item.verb, Style::default().fg(text)),
+                    Span::styled(duration, Style::default().fg(muted)),
                 ]));
             }
 
-            // Warm (recent) - yellow checkmark
+            // Warm (recent) - yellow/warning checkmark
             for item in warm.iter().take(2) {
                 let duration = item
                     .duration
@@ -512,14 +606,14 @@ impl<'a> MissionControlPanel<'a> {
                     .unwrap_or_default();
                 lines.push(Line::from(vec![
                     Span::raw("  "),
-                    Span::styled("✓", Style::default().fg(Color::Rgb(250, 204, 21))), // yellow
+                    Span::styled("✓", Style::default().fg(warning)),
                     Span::raw(" "),
-                    Span::styled(&item.verb, Style::default().fg(COLOR_MUTED)),
-                    Span::styled(duration, Style::default().fg(COLOR_MUTED)),
+                    Span::styled(&item.verb, Style::default().fg(muted)),
+                    Span::styled(duration, Style::default().fg(muted)),
                 ]));
             }
 
-            // Queued (waiting) - gray
+            // Queued (waiting) - muted gray
             for item in queued.iter().take(2) {
                 let waiting = item
                     .waiting_on
@@ -528,10 +622,10 @@ impl<'a> MissionControlPanel<'a> {
                     .unwrap_or_default();
                 lines.push(Line::from(vec![
                     Span::raw("  "),
-                    Span::styled("○", Style::default().fg(COLOR_MUTED)),
+                    Span::styled("○", Style::default().fg(muted)),
                     Span::raw(" "),
-                    Span::styled(&item.verb, Style::default().fg(COLOR_MUTED)),
-                    Span::styled(waiting, Style::default().fg(COLOR_MUTED)),
+                    Span::styled(&item.verb, Style::default().fg(muted)),
+                    Span::styled(waiting, Style::default().fg(muted)),
                 ]));
             }
 
@@ -540,7 +634,7 @@ impl<'a> MissionControlPanel<'a> {
             if remaining > 0 {
                 lines.push(Line::from(Span::styled(
                     format!("  +{} more", remaining),
-                    Style::default().fg(COLOR_MUTED),
+                    Style::default().fg(muted),
                 )));
             }
         }
@@ -572,20 +666,21 @@ fn format_cost(cost: f64) -> String {
 
 impl Widget for MissionControlPanel<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        // Get theme-aware colors
+        let header = self.color_header();
+        let cyan = self.color_cyan();
+        let section = self.color_section();
+
         // Border with title
         let border_style = if self.focused {
-            Style::default().fg(COLOR_CYAN)
+            Style::default().fg(cyan)
         } else {
-            Style::default().fg(COLOR_SECTION)
+            Style::default().fg(section)
         };
 
         let block = Block::default()
             .title(" 📊 MISSION CONTROL ")
-            .title_style(
-                Style::default()
-                    .fg(COLOR_HEADER)
-                    .add_modifier(Modifier::BOLD),
-            )
+            .title_style(Style::default().fg(header).add_modifier(Modifier::BOLD))
             .borders(Borders::ALL)
             .border_style(border_style);
 

@@ -18,9 +18,13 @@ use ratatui::{
 use std::time::{Duration, Instant};
 
 use super::{McpServerInfo, McpStatus, Provider};
+use crate::tui::theme::{Theme, VerbColor};
 
-// Colors - Solarized-inspired palette
-const COLOR_GOLD: Color = Color::Rgb(250, 204, 21); // #facc15 - Headers
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT COLORS (fallbacks when no theme provided)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const COLOR_GOLD: Color = Color::Rgb(250, 204, 21); // #facc15 - Headers/cost
 const COLOR_CYAN: Color = Color::Rgb(34, 211, 238); // #22d3ee - Model name
 const COLOR_LIME: Color = Color::Rgb(132, 204, 22); // #84cc16 - Positive/success
 const COLOR_CORAL: Color = Color::Rgb(251, 113, 133); // #fb7185 - Negative/error
@@ -28,7 +32,8 @@ const COLOR_PINK: Color = Color::Rgb(236, 72, 153); // #ec4899 - Tokens highligh
 const COLOR_GRAY: Color = Color::Rgb(107, 114, 128); // #6b7280 - Muted
 const COLOR_TURQUOISE: Color = Color::Rgb(45, 212, 191); // #2dd4bf - Accents
 const COLOR_VIOLET: Color = Color::Rgb(139, 92, 246); // #8b5cf6 - Agent mode
-const COLOR_AMBER: Color = Color::Rgb(245, 158, 11); // #f59e0b - Thinking
+const COLOR_AMBER: Color = Color::Rgb(245, 158, 11); // #f59e0b - Thinking/warning
+const COLOR_ORANGE: Color = Color::Rgb(251, 146, 60); // #fb923c - Warning level
 
 /// Chat mode indicator
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -53,10 +58,23 @@ impl ChatModeIndicator {
         }
     }
 
+    /// Get color for this mode (theme-aware with fallback)
     pub fn color(&self) -> Color {
         match self {
             ChatModeIndicator::Infer => COLOR_LIME,
             ChatModeIndicator::Agent => COLOR_VIOLET,
+        }
+    }
+
+    /// Get color using theme (delegates to VerbColor for consistency)
+    pub fn color_with_theme(&self, theme: Option<&Theme>) -> Color {
+        match self {
+            ChatModeIndicator::Infer => theme
+                .map(|_| VerbColor::Infer.rgb())
+                .unwrap_or(COLOR_LIME),
+            ChatModeIndicator::Agent => theme
+                .map(|_| VerbColor::Agent.rgb())
+                .unwrap_or(COLOR_VIOLET),
         }
     }
 }
@@ -140,6 +158,8 @@ pub struct ProStatusBar<'a> {
     metrics: &'a SessionMetrics,
     /// Is currently streaming
     is_streaming: bool,
+    /// Optional theme for colors
+    theme: Option<&'a Theme>,
 }
 
 impl<'a> ProStatusBar<'a> {
@@ -151,7 +171,14 @@ impl<'a> ProStatusBar<'a> {
             thinking_enabled: false,
             metrics,
             is_streaming: false,
+            theme: None,
         }
+    }
+
+    /// Set the theme for colors
+    pub fn with_theme(mut self, theme: &'a Theme) -> Self {
+        self.theme = Some(theme);
+        self
     }
 
     pub fn mode(mut self, mode: ChatModeIndicator) -> Self {
@@ -204,38 +231,79 @@ impl<'a> ProStatusBar<'a> {
         format!("{}{}", "▓".repeat(filled), "░".repeat(empty))
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // THEME-AWARE COLOR HELPERS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    fn color_cyan(&self) -> Color {
+        self.theme.map(|t| t.highlight).unwrap_or(COLOR_CYAN)
+    }
+
+    fn color_muted(&self) -> Color {
+        self.theme.map(|t| t.text_muted).unwrap_or(COLOR_GRAY)
+    }
+
+    fn color_gold(&self) -> Color {
+        self.theme.map(|t| t.status_running).unwrap_or(COLOR_GOLD)
+    }
+
+    fn color_lime(&self) -> Color {
+        self.theme.map(|t| t.status_success).unwrap_or(COLOR_LIME)
+    }
+
+    fn color_coral(&self) -> Color {
+        self.theme.map(|t| t.status_failed).unwrap_or(COLOR_CORAL)
+    }
+
+    fn color_pink(&self) -> Color {
+        self.theme.map(|t| t.highlight).unwrap_or(COLOR_PINK)
+    }
+
+    fn color_turquoise(&self) -> Color {
+        self.theme.map(|t| t.highlight).unwrap_or(COLOR_TURQUOISE)
+    }
+
+    fn color_orange(&self) -> Color {
+        self.theme.map(|t| t.status_running).unwrap_or(COLOR_ORANGE)
+    }
+
     #[allow(clippy::vec_init_then_push)]
     fn render_line1(&self, area: Rect, buf: &mut Buffer) {
         let mut spans = vec![];
+
+        // Extract colors once
+        let cyan = self.color_cyan();
+        let muted = self.color_muted();
+        let lime = self.color_lime();
 
         // Provider icon and model name
         spans.push(Span::raw(self.provider.icon()));
         spans.push(Span::raw(" "));
         spans.push(Span::styled(
             self.model,
-            Style::default().fg(COLOR_CYAN).add_modifier(Modifier::BOLD),
+            Style::default().fg(cyan).add_modifier(Modifier::BOLD),
         ));
 
         // Separator
-        spans.push(Span::styled(" │ ", Style::default().fg(COLOR_GRAY)));
+        spans.push(Span::styled(" │ ", Style::default().fg(muted)));
 
         // Mode indicator
         spans.push(Span::raw(self.mode.icon()));
         spans.push(Span::raw(" "));
         spans.push(Span::styled(
             self.mode.label(),
-            Style::default().fg(self.mode.color()),
+            Style::default().fg(self.mode.color_with_theme(self.theme)),
         ));
 
         // Thinking indicator
         if self.thinking_enabled || self.mode == ChatModeIndicator::Agent {
-            spans.push(Span::styled(" │ ", Style::default().fg(COLOR_GRAY)));
+            spans.push(Span::styled(" │ ", Style::default().fg(muted)));
             spans.push(Span::raw("🧠 "));
-            spans.push(Span::styled("Thinking: ", Style::default().fg(COLOR_GRAY)));
+            spans.push(Span::styled("Thinking: ", Style::default().fg(muted)));
             let (status, color) = if self.thinking_enabled {
-                ("ON", COLOR_LIME)
+                ("ON", lime)
             } else {
-                ("OFF", COLOR_GRAY)
+                ("OFF", muted)
             };
             spans.push(Span::styled(
                 status,
@@ -245,16 +313,16 @@ impl<'a> ProStatusBar<'a> {
 
         // Streaming indicator
         if self.is_streaming {
-            spans.push(Span::styled(" │ ", Style::default().fg(COLOR_GRAY)));
+            spans.push(Span::styled(" │ ", Style::default().fg(muted)));
             spans.push(Span::styled(
                 "●",
                 Style::default()
-                    .fg(COLOR_LIME)
+                    .fg(lime)
                     .add_modifier(Modifier::SLOW_BLINK),
             ));
             spans.push(Span::styled(
                 " Streaming...",
-                Style::default().fg(COLOR_LIME),
+                Style::default().fg(lime),
             ));
         }
 
@@ -267,15 +335,24 @@ impl<'a> ProStatusBar<'a> {
     fn render_line2(&self, area: Rect, buf: &mut Buffer) {
         let mut spans = vec![];
 
+        // Extract colors once
+        let gold = self.color_gold();
+        let muted = self.color_muted();
+        let pink = self.color_pink();
+        let lime = self.color_lime();
+        let coral = self.color_coral();
+        let turquoise = self.color_turquoise();
+        let orange = self.color_orange();
+
         // Cost
         spans.push(Span::raw("💰 "));
         spans.push(Span::styled(
             Self::format_cost(self.metrics.cost_usd),
-            Style::default().fg(COLOR_GOLD),
+            Style::default().fg(gold),
         ));
 
         // Separator
-        spans.push(Span::styled(" │ ", Style::default().fg(COLOR_GRAY)));
+        spans.push(Span::styled(" │ ", Style::default().fg(muted)));
 
         // Tokens
         spans.push(Span::raw("🔢 "));
@@ -284,53 +361,53 @@ impl<'a> ProStatusBar<'a> {
         let pct = self.metrics.context_percentage();
         spans.push(Span::styled(
             total,
-            Style::default().fg(COLOR_PINK).add_modifier(Modifier::BOLD),
+            Style::default().fg(pink).add_modifier(Modifier::BOLD),
         ));
         spans.push(Span::styled(
             format!("/{}", max),
             Style::default()
-                .fg(COLOR_GRAY)
+                .fg(muted)
                 .add_modifier(Modifier::ITALIC),
         ));
         spans.push(Span::styled(
             format!(" ({:.1}%) ", pct),
-            Style::default().fg(COLOR_GRAY),
+            Style::default().fg(muted),
         ));
 
         // Progress bar
         let progress = Self::create_progress_bar(pct, 10);
         let bar_color = if pct < 50.0 {
-            COLOR_LIME
+            lime
         } else if pct < 75.0 {
-            COLOR_GOLD
+            gold
         } else if pct < 90.0 {
-            Color::Rgb(251, 146, 60) // Orange
+            orange
         } else {
-            COLOR_CORAL
+            coral
         };
         spans.push(Span::styled(progress, Style::default().fg(bar_color)));
 
         // Separator
-        spans.push(Span::styled(" │ ", Style::default().fg(COLOR_GRAY)));
+        spans.push(Span::styled(" │ ", Style::default().fg(muted)));
 
         // Duration
         spans.push(Span::raw("⏱ "));
         spans.push(Span::styled(
             Self::format_duration(self.metrics.session_duration()),
-            Style::default().fg(COLOR_TURQUOISE),
+            Style::default().fg(turquoise),
         ));
 
         // Lines changed (if any)
         if self.metrics.lines_added > 0 || self.metrics.lines_removed > 0 {
-            spans.push(Span::styled(" │ ", Style::default().fg(COLOR_GRAY)));
+            spans.push(Span::styled(" │ ", Style::default().fg(muted)));
             spans.push(Span::raw("📝 "));
             spans.push(Span::styled(
                 format!("+{}", self.metrics.lines_added),
-                Style::default().fg(COLOR_LIME),
+                Style::default().fg(lime),
             ));
             spans.push(Span::styled(
                 format!("/-{}", self.metrics.lines_removed),
-                Style::default().fg(COLOR_CORAL),
+                Style::default().fg(coral),
             ));
         }
 
@@ -338,14 +415,14 @@ impl<'a> ProStatusBar<'a> {
         let mcp_connected = self.metrics.mcp_connected_count();
         let mcp_total = self.metrics.mcp_servers.len();
         if mcp_total > 0 {
-            spans.push(Span::styled(" │ ", Style::default().fg(COLOR_GRAY)));
+            spans.push(Span::styled(" │ ", Style::default().fg(muted)));
             spans.push(Span::raw("MCP:"));
             let mcp_color = if mcp_connected == mcp_total {
-                COLOR_LIME
+                lime
             } else if mcp_connected > 0 {
-                COLOR_GOLD
+                gold
             } else {
-                COLOR_GRAY
+                muted
             };
             spans.push(Span::styled(
                 if mcp_connected > 0 { "●" } else { "○" },
@@ -354,7 +431,7 @@ impl<'a> ProStatusBar<'a> {
             if mcp_total > 1 {
                 spans.push(Span::styled(
                     format!(" {}/{}", mcp_connected, mcp_total),
-                    Style::default().fg(COLOR_GRAY),
+                    Style::default().fg(muted),
                 ));
             }
         }
