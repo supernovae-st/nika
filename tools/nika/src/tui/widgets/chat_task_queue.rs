@@ -156,6 +156,22 @@ impl ChatTaskQueueItem {
     pub fn elapsed(&self) -> Option<Duration> {
         self.elapsed
     }
+
+    // v0.10.0: Mutable setters for ChatView integration
+    /// Set the task state (mutable)
+    pub fn set_state(&mut self, state: ChatTaskState) {
+        self.state = state;
+    }
+
+    /// Set the elapsed time (mutable)
+    pub fn set_elapsed(&mut self, elapsed: Duration) {
+        self.elapsed = Some(elapsed);
+    }
+
+    /// Set the progress (mutable)
+    pub fn set_progress(&mut self, progress: f32) {
+        self.progress = progress.clamp(0.0, 1.0);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

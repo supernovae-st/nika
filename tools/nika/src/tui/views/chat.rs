@@ -61,6 +61,16 @@ use crate::tui::views::TuiView;
 use crate::tui::widgets::{
     // Task Box widgets (v0.8.1 - visual verb containers)
     task_box::{BoxState, TaskBox},
+    // v0.10.0: Chat DAG Widgets (node-as-graph visualization)
+    ChatDagPanel,
+    ChatNodeKind,
+    ChatNodeState,
+    ChatTaskQueue,
+    ChatTaskQueueItem,
+    ChatTaskState,
+    ChatTaskVerb,
+    DagEdgeData,
+    DagNodeData,
     ActivityItem,
     ActivityTemp,
     AgentPhase,
@@ -450,6 +460,18 @@ pub struct ChatView {
     pub scroll_accumulator: f32,
     /// Whether smooth scrolling animation is active
     pub scroll_animating: bool,
+
+    // === v0.10.0: Chat DAG Visualization ===
+    /// Whether DAG panel is visible (toggle with Ctrl+D)
+    pub show_dag_panel: bool,
+    /// DAG nodes (chat messages as graph nodes)
+    pub dag_nodes: Vec<DagNodeData>,
+    /// DAG edges (@ references between messages)
+    pub dag_edges: Vec<DagEdgeData>,
+    /// Task queue items (running/pending/completed tasks)
+    pub task_queue: Vec<ChatTaskQueueItem>,
+    /// Selected DAG node index (for navigation)
+    pub dag_selected: Option<usize>,
 }
 
 /// Stores info about a failed MCP call for retry (v0.9 Phase 2)
@@ -722,6 +744,13 @@ impl ChatView {
             scroll_velocity: 0.0,
             scroll_accumulator: 0.0,
             scroll_animating: false,
+
+            // v0.10.0: Chat DAG Visualization
+            show_dag_panel: false,
+            dag_nodes: Vec::new(),
+            dag_edges: Vec::new(),
+            task_queue: Vec::new(),
+            dag_selected: None,
         }
     }
 
@@ -2977,23 +3006,29 @@ impl View for ChatView {
         // Messages panel with inline MCP/Infer boxes
         self.render_messages_v2(frame, main_chunks[0], theme);
 
-        // Mission Control panel (v0.7.3 - replaces Activity Stack)
-        // v0.8.1: Now includes Activity section with hot/warm/queued tasks
-        MissionControlPanel::new(&self.session_context.mcp_servers)
-            .context(&self.context_items)
-            .memory(&self.memory_files)
-            .turns(
-                self.messages
-                    .iter()
-                    .filter(|m| m.role == MessageRole::User)
-                    .count(),
-            )
-            .verb(self.current_verb)
-            .metrics(self.turn_metrics.clone())
-            .activities(&self.activity_items) // v0.8.1: Activity items
-            .frame(self.frame) // v0.8.1: Animation frame for spinners
-            .focused(self.focused_panel == ChatPanel::Activity)
-            .render(main_chunks[1], frame.buffer_mut());
+        // v0.10.0: Right panel - DAG Panel or Mission Control (toggle with Ctrl+D)
+        if self.show_dag_panel {
+            // DAG visualization panel
+            self.render_dag_panel(frame, main_chunks[1], theme);
+        } else {
+            // Mission Control panel (v0.7.3 - replaces Activity Stack)
+            // v0.8.1: Now includes Activity section with hot/warm/queued tasks
+            MissionControlPanel::new(&self.session_context.mcp_servers)
+                .context(&self.context_items)
+                .memory(&self.memory_files)
+                .turns(
+                    self.messages
+                        .iter()
+                        .filter(|m| m.role == MessageRole::User)
+                        .count(),
+                )
+                .verb(self.current_verb)
+                .metrics(self.turn_metrics.clone())
+                .activities(&self.activity_items) // v0.8.1: Activity items
+                .frame(self.frame) // v0.8.1: Animation frame for spinners
+                .focused(self.focused_panel == ChatPanel::Activity)
+                .render(main_chunks[1], frame.buffer_mut());
+        }
 
         // 3. Input panel
         self.render_input(frame, chunks[2], theme);
@@ -3124,6 +3159,14 @@ impl View for ChatView {
         // v0.9 Phase 3: Cmd/Ctrl+F = Start conversation search
         if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('f') {
             self.start_search();
+            return ViewAction::None;
+        }
+
+        // v0.10.0: Cmd/Ctrl+D = Toggle DAG panel
+        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('d') {
+            self.toggle_dag_panel();
+            let status = if self.show_dag_panel { "visible" } else { "hidden" };
+            self.add_system_message(format!("🔀 DAG panel {}", status));
             return ViewAction::None;
         }
 
@@ -4465,6 +4508,102 @@ impl ChatView {
         );
 
         frame.render_widget(paragraph, area);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.10.0: Chat DAG Visualization
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Render the DAG panel showing chat as a graph + task queue
+    fn render_dag_panel(&mut self, frame: &mut Frame, area: Rect, _theme: &Theme) {
+        // Split into: DAG graph (top 60%) | Task queue (bottom 40%)
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+            .split(area);
+
+        // 1. DAG Graph Panel (nodes + edges)
+        let mut dag_panel = ChatDagPanel::new().with_title("CHAT DAG");
+        for node in &self.dag_nodes {
+            dag_panel.add_node(node.clone());
+        }
+        for edge in &self.dag_edges {
+            dag_panel.add_edge(edge.clone());
+        }
+        if let Some(idx) = self.dag_selected {
+            if let Some(node) = self.dag_nodes.get(idx) {
+                dag_panel.select(&node.id);
+            }
+        }
+        dag_panel.set_animation_tick(self.frame);
+        dag_panel.render(chunks[0], frame.buffer_mut());
+
+        // 2. Task Queue Panel (pending/running/completed)
+        let mut task_queue = ChatTaskQueue::new().with_title("TASK QUEUE");
+        for item in &self.task_queue {
+            task_queue.add(item.clone());
+        }
+        task_queue.render(chunks[1], frame.buffer_mut());
+    }
+
+    /// Sync DAG state from chat messages (call when messages change)
+    pub fn sync_dag_from_messages(&mut self) {
+        self.dag_nodes.clear();
+        self.dag_edges.clear();
+
+        for (i, msg) in self.messages.iter().enumerate() {
+            let kind = match msg.role {
+                MessageRole::User => ChatNodeKind::User,
+                MessageRole::Nika => ChatNodeKind::Assistant,
+                MessageRole::System => ChatNodeKind::System,
+                MessageRole::Tool => ChatNodeKind::ToolCall,
+            };
+
+            // Create node with truncated label
+            let label = if msg.content.len() > 30 {
+                format!("{}...", &msg.content[..27])
+            } else {
+                msg.content.clone()
+            };
+
+            let node = DagNodeData::new(&format!("msg_{}", msg.id), kind, i as u32)
+                .with_label(&label)
+                .with_state(ChatNodeState::Complete);
+
+            self.dag_nodes.push(node);
+
+            // Create edge from previous message (simple chain for now)
+            if i > 0 {
+                let prev_id = format!("msg_{}", self.messages[i - 1].id);
+                let curr_id = format!("msg_{}", msg.id);
+                self.dag_edges.push(DagEdgeData::new(&prev_id, &curr_id));
+            }
+        }
+    }
+
+    /// Add a task to the queue (call when task execution starts)
+    pub fn add_task_to_queue(&mut self, id: &str, verb: ChatTaskVerb) {
+        let item = ChatTaskQueueItem::new(id, verb);
+        self.task_queue.push(item);
+    }
+
+    /// Update task state in queue
+    pub fn update_task_state(&mut self, id: &str, state: ChatTaskState, elapsed: Option<std::time::Duration>) {
+        if let Some(task) = self.task_queue.iter_mut().find(|t| t.id() == id) {
+            task.set_state(state);
+            if let Some(e) = elapsed {
+                task.set_elapsed(e);
+            }
+        }
+    }
+
+    /// Toggle DAG panel visibility (Ctrl+D)
+    pub fn toggle_dag_panel(&mut self) {
+        self.show_dag_panel = !self.show_dag_panel;
+        if self.show_dag_panel {
+            // Sync DAG state when showing
+            self.sync_dag_from_messages();
+        }
     }
 
     /// Render messages v2 with inline MCP/Infer boxes
@@ -7861,5 +8000,126 @@ mod tests {
             iterations < 100,
             "Animation should converge within 100 iterations"
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.10.0: Chat DAG Panel Integration Tests (WIRING-6)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_dag_panel_default_hidden() {
+        let view = ChatView::new();
+        assert!(!view.show_dag_panel);
+        assert!(view.dag_nodes.is_empty());
+        assert!(view.dag_edges.is_empty());
+        assert!(view.task_queue.is_empty());
+    }
+
+    #[test]
+    fn test_dag_panel_toggle() {
+        let mut view = ChatView::new();
+        assert!(!view.show_dag_panel);
+
+        view.toggle_dag_panel();
+        assert!(view.show_dag_panel);
+        // Should have synced DAG state from messages (1 welcome message)
+        assert_eq!(view.dag_nodes.len(), 1);
+
+        view.toggle_dag_panel();
+        assert!(!view.show_dag_panel);
+    }
+
+    #[test]
+    fn test_dag_panel_sync_from_messages() {
+        let mut view = ChatView::new();
+        view.add_user_message("Hello".to_string());
+        view.add_nika_message("Hi there!".to_string(), None);
+        view.add_user_message("How are you?".to_string());
+
+        view.sync_dag_from_messages();
+
+        // Should have 4 nodes: welcome + 3 messages
+        assert_eq!(view.dag_nodes.len(), 4);
+        // Should have 3 edges: each message links to previous
+        assert_eq!(view.dag_edges.len(), 3);
+
+        // Check node kinds
+        assert_eq!(view.dag_nodes[0].kind, ChatNodeKind::System);
+        assert_eq!(view.dag_nodes[1].kind, ChatNodeKind::User);
+        assert_eq!(view.dag_nodes[2].kind, ChatNodeKind::Assistant);
+        assert_eq!(view.dag_nodes[3].kind, ChatNodeKind::User);
+    }
+
+    #[test]
+    fn test_dag_panel_node_label_truncation() {
+        let mut view = ChatView::new();
+        view.add_user_message("This is a very long message that should be truncated".to_string());
+
+        view.sync_dag_from_messages();
+
+        // The user message is the second node (after welcome)
+        let user_node = &view.dag_nodes[1];
+        assert!(user_node.label.len() <= 30);
+        assert!(user_node.label.ends_with("..."));
+    }
+
+    #[test]
+    fn test_task_queue_add_and_update() {
+        let mut view = ChatView::new();
+
+        view.add_task_to_queue("task-1", ChatTaskVerb::Infer);
+        assert_eq!(view.task_queue.len(), 1);
+        assert_eq!(view.task_queue[0].id(), "task-1");
+        assert_eq!(view.task_queue[0].state(), ChatTaskState::Pending);
+
+        view.update_task_state(
+            "task-1",
+            ChatTaskState::Running,
+            Some(std::time::Duration::from_millis(100)),
+        );
+        assert_eq!(view.task_queue[0].state(), ChatTaskState::Running);
+
+        view.update_task_state("task-1", ChatTaskState::Complete, None);
+        assert_eq!(view.task_queue[0].state(), ChatTaskState::Complete);
+    }
+
+    #[test]
+    fn test_dag_panel_selected_index() {
+        let mut view = ChatView::new();
+        view.add_user_message("Hello".to_string());
+        view.sync_dag_from_messages();
+
+        assert!(view.dag_selected.is_none());
+
+        view.dag_selected = Some(0);
+        assert_eq!(view.dag_selected, Some(0));
+
+        // Selected should be within bounds
+        view.dag_selected = Some(100); // Out of bounds
+        // The render logic handles this gracefully
+    }
+
+    #[test]
+    fn test_dag_panel_toggle_syncs_state() {
+        let mut view = ChatView::new();
+        view.add_user_message("First".to_string());
+        view.add_nika_message("Response".to_string(), None);
+
+        // Nodes should be empty before toggle
+        assert!(view.dag_nodes.is_empty());
+
+        // Toggle opens panel and syncs
+        view.toggle_dag_panel();
+        assert!(view.show_dag_panel);
+        assert_eq!(view.dag_nodes.len(), 3); // welcome + 2 messages
+
+        // Add more messages while panel is open
+        view.add_user_message("Second".to_string());
+        // Nodes NOT auto-synced (requires explicit sync or toggle)
+
+        // Close and reopen to resync
+        view.toggle_dag_panel(); // Close
+        view.toggle_dag_panel(); // Reopen
+        assert_eq!(view.dag_nodes.len(), 4); // welcome + 3 messages
     }
 }

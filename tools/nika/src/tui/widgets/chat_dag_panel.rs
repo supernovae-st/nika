@@ -267,6 +267,11 @@ impl ChatDagPanel {
         self.animation_tick = self.animation_tick.wrapping_add(1);
     }
 
+    /// Set animation tick directly (v0.10.0 - for sync with ChatView.frame)
+    pub fn set_animation_tick(&mut self, tick: u8) {
+        self.animation_tick = tick;
+    }
+
     /// Update node state by ID
     pub fn update_node_state(&mut self, id: &str, state: ChatNodeState) {
         if let Some(node) = self.nodes.iter_mut().find(|n| n.id == id) {
