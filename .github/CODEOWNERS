@@ -1,0 +1,18 @@
+# Nika FORTRESS - Code Ownership Rules
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything
+* @ThibautMelen
+
+# Critical paths require explicit review
+/Cargo.toml @ThibautMelen
+/Cargo.lock @ThibautMelen
+/.github/ @ThibautMelen
+/tools/nika/src/runtime/ @ThibautMelen
+/tools/nika/src/provider/ @ThibautMelen
+/tools/nika/src/mcp/ @ThibautMelen
+
+# Documentation can have broader ownership
+/docs/ @ThibautMelen
+/README.md @ThibautMelen
+/CHANGELOG.md @ThibautMelen
