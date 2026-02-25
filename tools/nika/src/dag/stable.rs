@@ -22,10 +22,6 @@ use petgraph::stable_graph::{EdgeIndex, NodeIndex, StableGraph};
 use petgraph::Directed;
 use serde::{Deserialize, Serialize};
 
-// Re-export NodeIndex and EdgeIndex for callers
-pub use petgraph::stable_graph::EdgeIndex as StableEdgeIndex;
-pub use petgraph::stable_graph::NodeIndex as StableNodeIndex;
-
 /// Edge weight for flow dependencies.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FlowEdge {

@@ -100,6 +100,10 @@ pub use runtime::{Runner, TaskExecutor};
 // DAG types
 pub use dag::{validate_use_wiring, FlowGraph};
 
+// StableGraph types (v0.9.0) - Stable NodeIndex after deletion
+pub use dag::{FlowEdge, StableFlowGraph};
+pub use petgraph::stable_graph::{EdgeIndex as StableEdgeIndex, NodeIndex as StableNodeIndex};
+
 // Binding types
 pub use binding::{validate_task_id, ResolvedBindings, UseEntry, WiringSpec};
 
