@@ -53,8 +53,8 @@ mod validate;
 // Re-export public types
 pub use entry::{parse_use_entry, UseEntry, WiringSpec};
 pub use mention::{
-    has_parallel_marker, parse_mentions, resolve_mention, strip_parallel_marker, Mention,
-    MentionResolutionError, ResolvedMention,
+    has_parallel_marker, mentions_to_wiring, parse_mentions, resolve_mention,
+    strip_parallel_marker, text_to_wiring, Mention, MentionResolutionError, ResolvedMention,
 };
 pub use resolve::{LazyBinding, ResolvedBindings};
 pub use template::{
