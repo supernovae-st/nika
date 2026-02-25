@@ -16,14 +16,11 @@
 .DS_Store
 Thumbs.db
 
-# Claude Code (private DX - settings are local, skills are shared)
-.claude/settings.local.json
-.claude.local
+# Claude Code - PRIVATE DX (symlinked to dx/.claude/nika/)
+# All DX content is in private supernovae-agi/dx/ repo
+.claude/
 
-# Track skills and shared DX (team conventions)
-!.claude/
-!.claude/skills/
-!.claude/CLAUDE.md
+# Only CLAUDE.md is public (project context for contributors)
 !CLAUDE.md
 
 # Local dev

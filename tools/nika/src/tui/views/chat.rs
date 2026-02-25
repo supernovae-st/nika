@@ -61,25 +61,25 @@ use crate::tui::views::TuiView;
 use crate::tui::widgets::{
     // Task Box widgets (v0.8.1 - visual verb containers)
     task_box::{BoxState, TaskBox},
+    ActivityItem,
+    ActivityTemp,
+    AgentPhase,
+    AgentPhaseIndicator,
     // v0.10.0: Chat DAG Widgets (node-as-graph visualization)
     ChatDagPanel,
+    ChatModeIndicator,
     ChatNodeKind,
     ChatNodeState,
     ChatTaskQueue,
     ChatTaskQueueItem,
     ChatTaskState,
     ChatTaskVerb,
-    DagEdgeData,
-    DagNodeData,
-    ActivityItem,
-    ActivityTemp,
-    AgentPhase,
-    AgentPhaseIndicator,
-    ChatModeIndicator,
     CommandPalette,
     CommandPaletteState,
     ContextItem,
     CurrentVerb,
+    DagEdgeData,
+    DagNodeData,
     DecryptVerb,
     HelpOverlay,
     HelpOverlayState,
@@ -3165,7 +3165,11 @@ impl View for ChatView {
         // v0.10.0: Cmd/Ctrl+D = Toggle DAG panel
         if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('d') {
             self.toggle_dag_panel();
-            let status = if self.show_dag_panel { "visible" } else { "hidden" };
+            let status = if self.show_dag_panel {
+                "visible"
+            } else {
+                "hidden"
+            };
             self.add_system_message(format!("🔀 DAG panel {}", status));
             return ViewAction::None;
         }
@@ -4588,7 +4592,12 @@ impl ChatView {
     }
 
     /// Update task state in queue
-    pub fn update_task_state(&mut self, id: &str, state: ChatTaskState, elapsed: Option<std::time::Duration>) {
+    pub fn update_task_state(
+        &mut self,
+        id: &str,
+        state: ChatTaskState,
+        elapsed: Option<std::time::Duration>,
+    ) {
         if let Some(task) = self.task_queue.iter_mut().find(|t| t.id() == id) {
             task.set_state(state);
             if let Some(e) = elapsed {
@@ -8096,7 +8105,7 @@ mod tests {
 
         // Selected should be within bounds
         view.dag_selected = Some(100); // Out of bounds
-        // The render logic handles this gracefully
+                                       // The render logic handles this gracefully
     }
 
     #[test]

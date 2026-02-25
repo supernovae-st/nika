@@ -427,12 +427,7 @@ impl CloudTab<'_> {
             // Context window on the right
             let context_x = overlay_x + overlay_width - context_str.len() as u16;
             if context_x > overlay_x + 2 {
-                buf.set_string(
-                    context_x,
-                    y,
-                    &context_str,
-                    Style::default().fg(COLOR_MUTED),
-                );
+                buf.set_string(context_x, y, &context_str, Style::default().fg(COLOR_MUTED));
             }
         }
 
@@ -441,12 +436,7 @@ impl CloudTab<'_> {
         let hint_y = overlay_y + overlay_height.saturating_sub(1);
         if hint_y < buf.area.height && hint_y > overlay_y + 1 {
             let hint_x = overlay_x + (overlay_width.saturating_sub(hint.len() as u16)) / 2;
-            buf.set_string(
-                hint_x,
-                hint_y,
-                hint,
-                Style::default().fg(COLOR_HINT),
-            );
+            buf.set_string(hint_x, hint_y, hint, Style::default().fg(COLOR_HINT));
         }
     }
 }

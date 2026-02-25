@@ -1348,7 +1348,10 @@ impl<'a> AgentStepsWidget<'a> {
 
         // Tree continuation
         let tree_char = if is_last_detail { "└─ " } else { "├─ " };
-        spans.push(Span::styled(tree_char, Style::default().fg(self.color_muted())));
+        spans.push(Span::styled(
+            tree_char,
+            Style::default().fg(self.color_muted()),
+        ));
 
         // Content
         spans.extend(content);
@@ -1502,12 +1505,7 @@ impl<'a> AgentStepsWidget<'a> {
                     Style::default().fg(COLOR_DIMMED),
                 ));
             }
-            lines.push(self.render_detail_line(
-                detail_depth,
-                detail_verb,
-                false,
-                content,
-            ));
+            lines.push(self.render_detail_line(detail_depth, detail_verb, false, content));
         }
 
         // Token usage for infer:/agent:
@@ -1520,12 +1518,7 @@ impl<'a> AgentStepsWidget<'a> {
                     Style::default().fg(COLOR_COST),
                 ),
             ];
-            lines.push(self.render_detail_line(
-                detail_depth,
-                detail_verb,
-                false,
-                content,
-            ));
+            lines.push(self.render_detail_line(detail_depth, detail_verb, false, content));
         }
 
         // Streaming progress for running infer:
@@ -1538,12 +1531,7 @@ impl<'a> AgentStepsWidget<'a> {
                         Style::default().fg(COLOR_RUNNING),
                     ),
                 ];
-                lines.push(self.render_detail_line(
-                    detail_depth,
-                    detail_verb,
-                    false,
-                    content,
-                ));
+                lines.push(self.render_detail_line(detail_depth, detail_verb, false, content));
             }
         }
 
@@ -1559,12 +1547,7 @@ impl<'a> AgentStepsWidget<'a> {
                     Style::default().fg(COLOR_DIMMED),
                 ));
             }
-            lines.push(self.render_detail_line(
-                detail_depth,
-                detail_verb,
-                false,
-                content,
-            ));
+            lines.push(self.render_detail_line(detail_depth, detail_verb, false, content));
 
             // Params preview
             if let Some(ref params) = tool.params_preview {
@@ -1572,12 +1555,7 @@ impl<'a> AgentStepsWidget<'a> {
                     Span::styled("params: ", Style::default().fg(COLOR_DIMMED)),
                     Span::styled(params.clone(), Style::default().fg(COLOR_MUTED)),
                 ];
-                lines.push(self.render_detail_line(
-                    detail_depth,
-                    detail_verb,
-                    false,
-                    content,
-                ));
+                lines.push(self.render_detail_line(detail_depth, detail_verb, false, content));
             }
 
             // Result preview
@@ -1592,12 +1570,7 @@ impl<'a> AgentStepsWidget<'a> {
                         Style::default().fg(COLOR_DIMMED),
                     ));
                 }
-                lines.push(self.render_detail_line(
-                    detail_depth,
-                    detail_verb,
-                    false,
-                    content,
-                ));
+                lines.push(self.render_detail_line(detail_depth, detail_verb, false, content));
             }
         }
 
@@ -1607,12 +1580,7 @@ impl<'a> AgentStepsWidget<'a> {
                 Span::styled("$ ", Style::default().fg(COLOR_DIMMED)),
                 Span::styled(command.clone(), Style::default().fg(COLOR_CONTENT)),
             ];
-            lines.push(self.render_detail_line(
-                detail_depth,
-                detail_verb,
-                false,
-                content,
-            ));
+            lines.push(self.render_detail_line(detail_depth, detail_verb, false, content));
 
             // Exit code
             if let Some(code) = step.exit_code {
@@ -1625,12 +1593,7 @@ impl<'a> AgentStepsWidget<'a> {
                     Span::styled(format!("{}: ", prefix), Style::default().fg(COLOR_DIMMED)),
                     Span::styled(format!("{}", code), Style::default().fg(color)),
                 ];
-                lines.push(self.render_detail_line(
-                    detail_depth,
-                    detail_verb,
-                    false,
-                    content,
-                ));
+                lines.push(self.render_detail_line(detail_depth, detail_verb, false, content));
             }
         }
 
@@ -1640,12 +1603,7 @@ impl<'a> AgentStepsWidget<'a> {
                 Span::styled("url: ", Style::default().fg(COLOR_DIMMED)),
                 Span::styled(url.clone(), Style::default().fg(COLOR_CONTENT)),
             ];
-            lines.push(self.render_detail_line(
-                detail_depth,
-                detail_verb,
-                false,
-                content,
-            ));
+            lines.push(self.render_detail_line(detail_depth, detail_verb, false, content));
         }
 
         // Error details
@@ -1660,12 +1618,7 @@ impl<'a> AgentStepsWidget<'a> {
                     Style::default().fg(COLOR_DIMMED),
                 ));
             }
-            lines.push(self.render_detail_line(
-                detail_depth,
-                detail_verb,
-                false,
-                content,
-            ));
+            lines.push(self.render_detail_line(detail_depth, detail_verb, false, content));
 
             // Suggestion
             if let Some(ref suggestion) = error.suggestion {
@@ -1673,12 +1626,7 @@ impl<'a> AgentStepsWidget<'a> {
                     Span::styled("💡 ", Style::default().fg(COLOR_RUNNING)),
                     Span::styled(suggestion.clone(), Style::default().fg(COLOR_CONTENT)),
                 ];
-                lines.push(self.render_detail_line(
-                    detail_depth,
-                    detail_verb,
-                    true,
-                    content,
-                ));
+                lines.push(self.render_detail_line(detail_depth, detail_verb, true, content));
             }
         }
 
@@ -1761,12 +1709,7 @@ impl<'a> AgentStepsWidget<'a> {
                 Span::styled("→ ", Style::default().fg(COLOR_DIMMED)),
                 Span::styled(&tool.tool_name, Style::default().fg(COLOR_MUTED)),
             ];
-            lines.push(self.render_detail_line(
-                parent_depth + 1,
-                step.verb,
-                true,
-                content,
-            ));
+            lines.push(self.render_detail_line(parent_depth + 1, step.verb, true, content));
         }
 
         lines

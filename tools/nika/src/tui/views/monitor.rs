@@ -42,6 +42,10 @@ use crate::tui::theme::{MissionPhase, TaskStatus, Theme};
 /// - Panel 2: DAG Execution (dependency graph)
 /// - Panel 3: NovaNet Station (MCP calls)
 /// - Panel 4: Agent Reasoning (agent turns)
+///
+/// NOTE: This view is tested via wiring_checkpoint_8.rs but not yet fully
+/// integrated into App (v0.11.0 work-in-progress). Allow dead_code temporarily.
+#[allow(dead_code)]
 pub struct MonitorView {
     /// Currently focused panel
     pub focus: PanelId,
@@ -51,6 +55,7 @@ pub struct MonitorView {
     pub frame: u8,
 }
 
+#[allow(dead_code)]
 impl MonitorView {
     /// Create a new MonitorView
     pub fn new() -> Self {
@@ -153,12 +158,7 @@ impl MonitorView {
                         TaskStatus::Success => "[■■■■■■■■■■] 100%".to_string(),
                         TaskStatus::Running => {
                             let pct = ((self.frame as usize * 10 / 60) % 10) + 1;
-                            format!(
-                                "[{}{}] {}0%",
-                                "■".repeat(pct),
-                                "░".repeat(10 - pct),
-                                pct
-                            )
+                            format!("[{}{}] {}0%", "■".repeat(pct), "░".repeat(10 - pct), pct)
                         }
                         TaskStatus::Failed => "[✗✗✗✗✗✗✗✗✗✗] ERR".to_string(),
                         _ => "[░░░░░░░░░░]   0%".to_string(),
@@ -173,14 +173,19 @@ impl MonitorView {
 
                     ListItem::new(Line::from(vec![
                         Span::styled(format!("{} ", icon), style),
-                        Span::styled(format!("{:<12} ", task_id), Style::default().fg(theme.text_primary)),
+                        Span::styled(
+                            format!("{:<12} ", task_id),
+                            Style::default().fg(theme.text_primary),
+                        ),
                         Span::styled(progress, style),
                     ]))
-                    .style(if i == self.scroll_offset(PanelId::Progress) && focused {
-                        Style::default().bg(theme.highlight)
-                    } else {
-                        Style::default()
-                    })
+                    .style(
+                        if i == self.scroll_offset(PanelId::Progress) && focused {
+                            Style::default().bg(theme.highlight)
+                        } else {
+                            Style::default()
+                        },
+                    )
                 })
             })
             .collect();
@@ -219,7 +224,12 @@ impl MonitorView {
         lines.push(Line::from(vec![
             Span::styled("  ", Style::default()),
             Span::styled(
-                state.workflow.path.split('/').last().unwrap_or("workflow"),
+                state
+                    .workflow
+                    .path
+                    .split('/')
+                    .next_back()
+                    .unwrap_or("workflow"),
                 Style::default()
                     .fg(theme.text_primary)
                     .add_modifier(Modifier::BOLD),
@@ -423,13 +433,41 @@ impl MonitorView {
 
         let footer = Paragraph::new(Line::from(vec![
             Span::styled("[1]", Style::default().fg(theme.highlight)),
-            Span::styled(" Progress ", Style::default().fg(if self.focus == PanelId::Progress { theme.text_primary } else { theme.text_muted })),
+            Span::styled(
+                " Progress ",
+                Style::default().fg(if self.focus == PanelId::Progress {
+                    theme.text_primary
+                } else {
+                    theme.text_muted
+                }),
+            ),
             Span::styled("[2]", Style::default().fg(theme.highlight)),
-            Span::styled(" DAG ", Style::default().fg(if self.focus == PanelId::Dag { theme.text_primary } else { theme.text_muted })),
+            Span::styled(
+                " DAG ",
+                Style::default().fg(if self.focus == PanelId::Dag {
+                    theme.text_primary
+                } else {
+                    theme.text_muted
+                }),
+            ),
             Span::styled("[3]", Style::default().fg(theme.highlight)),
-            Span::styled(" NovaNet ", Style::default().fg(if self.focus == PanelId::NovaNet { theme.text_primary } else { theme.text_muted })),
+            Span::styled(
+                " NovaNet ",
+                Style::default().fg(if self.focus == PanelId::NovaNet {
+                    theme.text_primary
+                } else {
+                    theme.text_muted
+                }),
+            ),
             Span::styled("[4]", Style::default().fg(theme.highlight)),
-            Span::styled(" Reasoning ", Style::default().fg(if self.focus == PanelId::Agent { theme.text_primary } else { theme.text_muted })),
+            Span::styled(
+                " Reasoning ",
+                Style::default().fg(if self.focus == PanelId::Agent {
+                    theme.text_primary
+                } else {
+                    theme.text_muted
+                }),
+            ),
             Span::styled("  │  ", Style::default().fg(theme.border_normal)),
             Span::styled("Tokens: ", Style::default().fg(theme.text_muted)),
             Span::styled(&tokens, Style::default().fg(theme.highlight)),
@@ -733,16 +771,28 @@ mod tests {
         let mut view = MonitorView::new();
         let mut state = TuiState::new("test");
 
-        view.handle_key(KeyEvent::new(KeyCode::Char('2'), KeyModifiers::NONE), &mut state);
+        view.handle_key(
+            KeyEvent::new(KeyCode::Char('2'), KeyModifiers::NONE),
+            &mut state,
+        );
         assert_eq!(view.focus, PanelId::Dag);
 
-        view.handle_key(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::NONE), &mut state);
+        view.handle_key(
+            KeyEvent::new(KeyCode::Char('3'), KeyModifiers::NONE),
+            &mut state,
+        );
         assert_eq!(view.focus, PanelId::NovaNet);
 
-        view.handle_key(KeyEvent::new(KeyCode::Char('4'), KeyModifiers::NONE), &mut state);
+        view.handle_key(
+            KeyEvent::new(KeyCode::Char('4'), KeyModifiers::NONE),
+            &mut state,
+        );
         assert_eq!(view.focus, PanelId::Agent);
 
-        view.handle_key(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE), &mut state);
+        view.handle_key(
+            KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE),
+            &mut state,
+        );
         assert_eq!(view.focus, PanelId::Progress);
     }
 

@@ -69,9 +69,7 @@ impl ChatModeIndicator {
     /// Get color using theme (delegates to VerbColor for consistency)
     pub fn color_with_theme(&self, theme: Option<&Theme>) -> Color {
         match self {
-            ChatModeIndicator::Infer => theme
-                .map(|_| VerbColor::Infer.rgb())
-                .unwrap_or(COLOR_LIME),
+            ChatModeIndicator::Infer => theme.map(|_| VerbColor::Infer.rgb()).unwrap_or(COLOR_LIME),
             ChatModeIndicator::Agent => theme
                 .map(|_| VerbColor::Agent.rgb())
                 .unwrap_or(COLOR_VIOLET),
@@ -316,14 +314,9 @@ impl<'a> ProStatusBar<'a> {
             spans.push(Span::styled(" │ ", Style::default().fg(muted)));
             spans.push(Span::styled(
                 "●",
-                Style::default()
-                    .fg(lime)
-                    .add_modifier(Modifier::SLOW_BLINK),
+                Style::default().fg(lime).add_modifier(Modifier::SLOW_BLINK),
             ));
-            spans.push(Span::styled(
-                " Streaming...",
-                Style::default().fg(lime),
-            ));
+            spans.push(Span::styled(" Streaming...", Style::default().fg(lime)));
         }
 
         let line = Line::from(spans);
@@ -365,9 +358,7 @@ impl<'a> ProStatusBar<'a> {
         ));
         spans.push(Span::styled(
             format!("/{}", max),
-            Style::default()
-                .fg(muted)
-                .add_modifier(Modifier::ITALIC),
+            Style::default().fg(muted).add_modifier(Modifier::ITALIC),
         ));
         spans.push(Span::styled(
             format!(" ({:.1}%) ", pct),

@@ -164,7 +164,10 @@ impl<'a> ContextPanel<'a> {
                 Style::default().fg(VerbColor::Infer.rgb()),
             ),
             if ctx.truncated {
-                Span::styled(" (truncated)", Style::default().fg(self.theme.status_failed))
+                Span::styled(
+                    " (truncated)",
+                    Style::default().fg(self.theme.status_failed),
+                )
             } else {
                 Span::styled("", Style::default())
             },

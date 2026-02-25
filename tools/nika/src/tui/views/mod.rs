@@ -44,6 +44,7 @@ mod trait_view;
 #[allow(unused_imports)]
 pub use chat::{ChatMode, ChatView, MessageRole};
 pub use home::HomeView;
+#[allow(unused_imports)] // v0.11 WIP: tested via wiring_checkpoint_8.rs, not yet in App
 pub use monitor::MonitorView;
 pub use studio::{EditorMode, StudioView};
 

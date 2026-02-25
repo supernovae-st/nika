@@ -7,6 +7,11 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/nika-health-check.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "echo '🏰 FORTRESS Mode Active | Version Lock: 0.x.x Forever | /fortress to check'",
+            "timeout": 2
           }
         ]
       }
@@ -43,6 +48,17 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "pattern": "Cargo\\.toml$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/version-lock-check.sh",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PreToolUse": [
@@ -53,6 +69,17 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-git-commit.sh",
             "timeout": 120
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "pattern": "git\\s+(push|tag).*v[1-9]",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '🚫 BLOCKED: Cannot push/tag version ≥1.0.0 - Nika uses 0.x.x forever' && exit 1",
+            "timeout": 2
           }
         ]
       }

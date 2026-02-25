@@ -1,12 +1,13 @@
 # Nika Skills Index
 
-**Nika Version:** v0.7.2 | **5 verbs** | Full streaming + VS Code TUI | rig-core v0.31 | 6 LLM providers
+**Nika Version:** v0.9.0 | **5 verbs** | Full streaming + VS Code TUI | rig-core v0.31 | 6 LLM providers
 
 ## Available Skills
 
 | Skill | Command | Purpose |
 |-------|---------|---------|
-| **nika-yaml** | `/nika-yaml` | **NEW** Complete YAML authoring guide (verbs, for_each, bindings) |
+| **fortress** | `/fortress` | **NEW** FORTRESS mode - quality gates, releases, version lock |
+| **nika-yaml** | `/nika-yaml` | Complete YAML authoring guide (verbs, for_each, bindings) |
 | **nika-arch** | `/nika-arch` | Architecture diagram and module structure |
 | **nika-run** | `/nika-run` | Run workflows with validation |
 | **nika-diagnose** | `/nika-diagnose` | Systematic workflow diagnosis |
@@ -79,6 +80,12 @@ cargo run -- check workflow.nika.yaml
 ```
 
 ## Skill Categories
+
+### Quality & Release (FORTRESS)
+- `/fortress` — Quality gates, releases, version lock enforcement
+- `/fortress check` — Run all 10 gates locally
+- `/fortress release` — Prepare release with full validation
+- `/fortress worktree` — Create isolated git worktree
 
 ### Development
 - `/nika-arch` — Understand the codebase

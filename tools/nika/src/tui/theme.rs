@@ -284,24 +284,24 @@ impl VerbColor {
     /// Get the RGB color for this verb
     pub fn rgb(&self) -> Color {
         match self {
-            Self::Infer => Color::Rgb(139, 92, 246),   // Violet 500
-            Self::Exec => Color::Rgb(245, 158, 11),    // Amber 500
-            Self::Fetch => Color::Rgb(6, 182, 212),    // Cyan 500
-            Self::Invoke => Color::Rgb(16, 185, 129),  // Emerald 500
-            Self::Agent => Color::Rgb(244, 63, 94),    // Rose 500
-            Self::Spawn => Color::Rgb(253, 164, 175),  // Rose 300
+            Self::Infer => Color::Rgb(139, 92, 246),  // Violet 500
+            Self::Exec => Color::Rgb(245, 158, 11),   // Amber 500
+            Self::Fetch => Color::Rgb(6, 182, 212),   // Cyan 500
+            Self::Invoke => Color::Rgb(16, 185, 129), // Emerald 500
+            Self::Agent => Color::Rgb(244, 63, 94),   // Rose 500
+            Self::Spawn => Color::Rgb(253, 164, 175), // Rose 300
         }
     }
 
     /// Get glow version (brighter for active/hover states)
     pub fn glow(&self) -> Color {
         match self {
-            Self::Infer => Color::Rgb(167, 139, 250),  // Violet 400
-            Self::Exec => Color::Rgb(251, 191, 36),    // Amber 400
-            Self::Fetch => Color::Rgb(34, 211, 238),   // Cyan 400
-            Self::Invoke => Color::Rgb(52, 211, 153),  // Emerald 400
-            Self::Agent => Color::Rgb(251, 113, 133),  // Rose 400
-            Self::Spawn => Color::Rgb(254, 205, 211),  // Rose 200
+            Self::Infer => Color::Rgb(167, 139, 250), // Violet 400
+            Self::Exec => Color::Rgb(251, 191, 36),   // Amber 400
+            Self::Fetch => Color::Rgb(34, 211, 238),  // Cyan 400
+            Self::Invoke => Color::Rgb(52, 211, 153), // Emerald 400
+            Self::Agent => Color::Rgb(251, 113, 133), // Rose 400
+            Self::Spawn => Color::Rgb(254, 205, 211), // Rose 200
         }
     }
 
@@ -357,36 +357,36 @@ impl VerbColor {
     /// Get RGB tuple for gradient interpolation
     pub fn rgb_tuple(&self) -> (u8, u8, u8) {
         match self {
-            Self::Infer => (139, 92, 246),   // Violet 500
-            Self::Exec => (245, 158, 11),    // Amber 500
-            Self::Fetch => (6, 182, 212),    // Cyan 500
-            Self::Invoke => (16, 185, 129),  // Emerald 500
-            Self::Agent => (244, 63, 94),    // Rose 500
-            Self::Spawn => (253, 164, 175),  // Rose 300
+            Self::Infer => (139, 92, 246),  // Violet 500
+            Self::Exec => (245, 158, 11),   // Amber 500
+            Self::Fetch => (6, 182, 212),   // Cyan 500
+            Self::Invoke => (16, 185, 129), // Emerald 500
+            Self::Agent => (244, 63, 94),   // Rose 500
+            Self::Spawn => (253, 164, 175), // Rose 300
         }
     }
 
     /// Get glow RGB tuple for gradient interpolation
     pub fn glow_tuple(&self) -> (u8, u8, u8) {
         match self {
-            Self::Infer => (167, 139, 250),  // Violet 400
-            Self::Exec => (251, 191, 36),    // Amber 400
-            Self::Fetch => (34, 211, 238),   // Cyan 400
-            Self::Invoke => (52, 211, 153),  // Emerald 400
-            Self::Agent => (251, 113, 133),  // Rose 400
-            Self::Spawn => (254, 205, 211),  // Rose 200
+            Self::Infer => (167, 139, 250), // Violet 400
+            Self::Exec => (251, 191, 36),   // Amber 400
+            Self::Fetch => (34, 211, 238),  // Cyan 400
+            Self::Invoke => (52, 211, 153), // Emerald 400
+            Self::Agent => (251, 113, 133), // Rose 400
+            Self::Spawn => (254, 205, 211), // Rose 200
         }
     }
 
     /// Get muted RGB tuple for gradient interpolation (v0.8.2)
     pub fn muted_tuple(&self) -> (u8, u8, u8) {
         match self {
-            Self::Infer => (97, 64, 171),    // Muted violet
-            Self::Exec => (171, 110, 8),     // Muted amber
-            Self::Fetch => (4, 127, 148),    // Muted cyan
-            Self::Invoke => (11, 129, 90),   // Muted emerald
-            Self::Agent => (170, 44, 66),    // Muted rose
-            Self::Spawn => (177, 115, 122),  // Muted rose 300
+            Self::Infer => (97, 64, 171),   // Muted violet
+            Self::Exec => (171, 110, 8),    // Muted amber
+            Self::Fetch => (4, 127, 148),   // Muted cyan
+            Self::Invoke => (11, 129, 90),  // Muted emerald
+            Self::Agent => (170, 44, 66),   // Muted rose
+            Self::Spawn => (177, 115, 122), // Muted rose 300
         }
     }
 
@@ -435,12 +435,12 @@ impl VerbColor {
     /// Get border color (darker variant for outlines)
     pub fn border_rgb(&self) -> Color {
         match self {
-            Self::Infer => Color::Rgb(124, 58, 237),   // Violet 600
-            Self::Exec => Color::Rgb(217, 119, 6),     // Amber 600
-            Self::Fetch => Color::Rgb(8, 145, 178),    // Cyan 600
-            Self::Invoke => Color::Rgb(5, 150, 105),   // Emerald 600
-            Self::Agent => Color::Rgb(225, 29, 72),    // Rose 600
-            Self::Spawn => Color::Rgb(251, 113, 133),  // Rose 400
+            Self::Infer => Color::Rgb(124, 58, 237),  // Violet 600
+            Self::Exec => Color::Rgb(217, 119, 6),    // Amber 600
+            Self::Fetch => Color::Rgb(8, 145, 178),   // Cyan 600
+            Self::Invoke => Color::Rgb(5, 150, 105),  // Emerald 600
+            Self::Agent => Color::Rgb(225, 29, 72),   // Rose 600
+            Self::Spawn => Color::Rgb(251, 113, 133), // Rose 400
         }
     }
 

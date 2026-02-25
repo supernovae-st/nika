@@ -100,11 +100,7 @@ impl Widget for DownloadGauge<'_> {
         let percentage = (self.progress * 100.0) as u16;
         let gauge = Gauge::default()
             .percent(percentage)
-            .gauge_style(
-                Style::default()
-                    .fg(COLOR_PROGRESS)
-                    .bg(COLOR_PROGRESS_BG),
-            )
+            .gauge_style(Style::default().fg(COLOR_PROGRESS).bg(COLOR_PROGRESS_BG))
             .use_unicode(true);
 
         gauge.render(gauge_area, buf);

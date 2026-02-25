@@ -145,7 +145,10 @@ pub use utils::{format_number, format_number_compact, format_number_u64};
 #[cfg(feature = "tui")]
 pub use verification::{VerificationCache, VerificationEntry};
 #[cfg(feature = "tui")]
-pub use views::{ChatView, DagTab, MissionTab, NovanetTab, ReasoningTab, TuiView, ViewAction};
+pub use views::{
+    ChatView, DagTab, HelpView, HomeView, MissionTab, MonitorView, NovanetTab, ReasoningTab,
+    SettingsView, StudioView, TuiView, View, ViewAction,
+};
 
 /// Install panic hook to restore terminal state on crashes.
 ///

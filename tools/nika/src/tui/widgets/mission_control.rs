@@ -306,11 +306,15 @@ impl<'a> MissionControlPanel<'a> {
     }
 
     fn color_success(&self) -> Color {
-        self.theme.map(|t| t.status_success).unwrap_or(COLOR_SUCCESS)
+        self.theme
+            .map(|t| t.status_success)
+            .unwrap_or(COLOR_SUCCESS)
     }
 
     fn color_warning(&self) -> Color {
-        self.theme.map(|t| t.status_running).unwrap_or(COLOR_WARNING)
+        self.theme
+            .map(|t| t.status_running)
+            .unwrap_or(COLOR_WARNING)
     }
 
     fn color_error(&self) -> Color {
@@ -326,7 +330,9 @@ impl<'a> MissionControlPanel<'a> {
     }
 
     fn color_violet(&self) -> Color {
-        self.theme.map(|_| VerbColor::Infer.rgb()).unwrap_or(COLOR_VIOLET)
+        self.theme
+            .map(|_| VerbColor::Infer.rgb())
+            .unwrap_or(COLOR_VIOLET)
     }
 
     fn color_orange(&self) -> Color {
@@ -349,9 +355,7 @@ impl<'a> MissionControlPanel<'a> {
             Span::styled("🔌 ", Style::default()),
             Span::styled(
                 "MCP SERVERS",
-                Style::default()
-                    .fg(header)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(header).add_modifier(Modifier::BOLD),
             ),
         ])];
 
@@ -404,9 +408,7 @@ impl<'a> MissionControlPanel<'a> {
             Span::styled("📁 ", Style::default()),
             Span::styled(
                 "CONTEXT",
-                Style::default()
-                    .fg(header)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(header).add_modifier(Modifier::BOLD),
             ),
         ])];
 
@@ -452,9 +454,7 @@ impl<'a> MissionControlPanel<'a> {
             Span::styled("💾 ", Style::default()),
             Span::styled(
                 "MEMORY",
-                Style::default()
-                    .fg(header)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(header).add_modifier(Modifier::BOLD),
             ),
         ])];
 
@@ -504,9 +504,7 @@ impl<'a> MissionControlPanel<'a> {
             Span::styled("⚡ ", Style::default()),
             Span::styled(
                 "RUNTIME",
-                Style::default()
-                    .fg(header)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(header).add_modifier(Modifier::BOLD),
             ),
         ])];
 

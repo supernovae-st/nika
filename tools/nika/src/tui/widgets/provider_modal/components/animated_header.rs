@@ -27,11 +27,11 @@ const STAR_FRAMES: &[&[&str]] = &[
 
 /// Colors for gradient effect (indigo -> purple -> pink)
 const GRADIENT_COLORS: &[Color] = &[
-    Color::Rgb(99, 102, 241),  // Indigo-500
-    Color::Rgb(139, 92, 246),  // Violet-500
-    Color::Rgb(236, 72, 153),  // Pink-500
-    Color::Rgb(139, 92, 246),  // Violet-500
-    Color::Rgb(99, 102, 241),  // Indigo-500
+    Color::Rgb(99, 102, 241), // Indigo-500
+    Color::Rgb(139, 92, 246), // Violet-500
+    Color::Rgb(236, 72, 153), // Pink-500
+    Color::Rgb(139, 92, 246), // Violet-500
+    Color::Rgb(99, 102, 241), // Indigo-500
 ];
 
 /// Animated cosmic header widget
