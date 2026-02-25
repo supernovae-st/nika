@@ -24,7 +24,7 @@ pub mod spawn;
 // Re-export public types
 pub use builtin::{
     AssertTool, BuiltinTool, BuiltinToolRouter, EmitTool, LogLevel, LogTool, PromptParams,
-    PromptResponse, PromptTool,
+    PromptResponse, PromptTool, RunParams, RunResponse, RunTool,
 };
 pub use chat_workflow::{ChatMessage, ChatWorkflow, Role};
 pub use executor::TaskExecutor;

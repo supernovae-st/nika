@@ -22,6 +22,7 @@ mod emit;
 mod log;
 mod prompt;
 mod router;
+mod run;
 mod sleep;
 mod r#trait;
 
@@ -30,6 +31,7 @@ pub use emit::EmitTool;
 pub use log::{LogLevel, LogTool};
 pub use prompt::{PromptParams, PromptResponse, PromptTool};
 pub use router::BuiltinToolRouter;
+pub use run::{RunParams, RunResponse, RunTool};
 pub use sleep::SleepTool;
 pub use r#trait::BuiltinTool;
 
