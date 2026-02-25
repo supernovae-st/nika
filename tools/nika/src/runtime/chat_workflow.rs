@@ -280,10 +280,22 @@ mod tests {
         workflow.add_message("System msg", Role::System);
         workflow.add_message("Tool msg", Role::Tool);
 
-        assert_eq!(workflow.get_message_by_id("msg-001").unwrap().role, Role::User);
-        assert_eq!(workflow.get_message_by_id("msg-002").unwrap().role, Role::Assistant);
-        assert_eq!(workflow.get_message_by_id("msg-003").unwrap().role, Role::System);
-        assert_eq!(workflow.get_message_by_id("msg-004").unwrap().role, Role::Tool);
+        assert_eq!(
+            workflow.get_message_by_id("msg-001").unwrap().role,
+            Role::User
+        );
+        assert_eq!(
+            workflow.get_message_by_id("msg-002").unwrap().role,
+            Role::Assistant
+        );
+        assert_eq!(
+            workflow.get_message_by_id("msg-003").unwrap().role,
+            Role::System
+        );
+        assert_eq!(
+            workflow.get_message_by_id("msg-004").unwrap().role,
+            Role::Tool
+        );
     }
 
     #[test]
@@ -360,8 +372,14 @@ mod tests {
         assert!(workflow.dag.has_edge(idx2, idx3), "Should have edge 2 → 3");
 
         // No reverse edges
-        assert!(!workflow.dag.has_edge(idx2, idx1), "Should NOT have edge 2 → 1");
-        assert!(!workflow.dag.has_edge(idx3, idx2), "Should NOT have edge 3 → 2");
+        assert!(
+            !workflow.dag.has_edge(idx2, idx1),
+            "Should NOT have edge 2 → 1"
+        );
+        assert!(
+            !workflow.dag.has_edge(idx3, idx2),
+            "Should NOT have edge 3 → 2"
+        );
     }
 
     #[test]
@@ -371,11 +389,19 @@ mod tests {
         let idx1 = workflow.add_message("First message", Role::User);
 
         // First message should have no incoming edges
-        assert_eq!(workflow.dag.edge_count(), 0, "First message should have no edges");
+        assert_eq!(
+            workflow.dag.edge_count(),
+            0,
+            "First message should have no edges"
+        );
 
         // Add second message - now we should have exactly one edge
         let _idx2 = workflow.add_message("Second message", Role::Assistant);
-        assert_eq!(workflow.dag.edge_count(), 1, "Should have exactly 1 edge after 2 messages");
+        assert_eq!(
+            workflow.dag.edge_count(),
+            1,
+            "Should have exactly 1 edge after 2 messages"
+        );
 
         // The first message still has no incoming edge (it's the source)
         assert!(workflow.dag.node_weight(idx1).is_some());
@@ -436,5 +462,62 @@ mod tests {
 
         let idx2 = workflow.add_message("Second", Role::Assistant);
         assert_eq!(workflow.last_message_index(), Some(idx2));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 1.6: Thread-Safety with parking_lot::Mutex tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_concurrent_access_with_mutex() {
+        use parking_lot::Mutex;
+        use std::sync::Arc;
+        use std::thread;
+
+        let workflow = Arc::new(Mutex::new(ChatWorkflow::new()));
+        let mut handles = vec![];
+
+        // Spawn 4 threads, each adding messages
+        for i in 0..4 {
+            let wf = Arc::clone(&workflow);
+            handles.push(thread::spawn(move || {
+                for j in 0..5 {
+                    let mut guard = wf.lock();
+                    let role = if (i + j) % 2 == 0 {
+                        Role::User
+                    } else {
+                        Role::Assistant
+                    };
+                    guard.add_message(&format!("Thread {} msg {}", i, j), role);
+                }
+            }));
+        }
+
+        // Wait for all threads
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        // Verify total messages: 4 threads × 5 messages = 20
+        let guard = workflow.lock();
+        assert_eq!(guard.message_count(), 20);
+        assert_eq!(guard.current_message_number(), 20);
+
+        // Verify sequential edges exist (linear flow maintained)
+        // Due to mutex, messages are added sequentially, so edges are 1→2, 2→3, etc.
+        assert_eq!(guard.dag.edge_count(), 19); // 20 nodes, 19 edges
+    }
+
+    #[test]
+    fn test_send_sync_bounds_with_arc() {
+        use std::sync::Arc;
+
+        // ChatWorkflow can be wrapped in Arc for sharing across threads
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Arc<parking_lot::Mutex<ChatWorkflow>>>();
+
+        // Create and share
+        let workflow = Arc::new(parking_lot::Mutex::new(ChatWorkflow::new()));
+        let _cloned = Arc::clone(&workflow);
     }
 }
