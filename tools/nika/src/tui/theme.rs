@@ -270,35 +270,38 @@ impl ColorMode {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Verb-specific colors for DAG visualization
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VerbColor {
     Infer,  // Violet #8B5CF6
     Exec,   // Amber #F59E0B
     Fetch,  // Cyan #06B6D4
     Invoke, // Emerald #10B981
     Agent,  // Rose #F43F5E
+    Spawn,  // Rose 300 #FDA4AF (spawned sub-agent)
 }
 
 impl VerbColor {
     /// Get the RGB color for this verb
     pub fn rgb(&self) -> Color {
         match self {
-            Self::Infer => Color::Rgb(139, 92, 246),  // Violet
-            Self::Exec => Color::Rgb(245, 158, 11),   // Amber
-            Self::Fetch => Color::Rgb(6, 182, 212),   // Cyan
-            Self::Invoke => Color::Rgb(16, 185, 129), // Emerald
-            Self::Agent => Color::Rgb(244, 63, 94),   // Rose
+            Self::Infer => Color::Rgb(139, 92, 246),   // Violet 500
+            Self::Exec => Color::Rgb(245, 158, 11),    // Amber 500
+            Self::Fetch => Color::Rgb(6, 182, 212),    // Cyan 500
+            Self::Invoke => Color::Rgb(16, 185, 129),  // Emerald 500
+            Self::Agent => Color::Rgb(244, 63, 94),    // Rose 500
+            Self::Spawn => Color::Rgb(253, 164, 175),  // Rose 300
         }
     }
 
     /// Get glow version (brighter for active/hover states)
     pub fn glow(&self) -> Color {
         match self {
-            Self::Infer => Color::Rgb(167, 139, 250), // Violet-400
-            Self::Exec => Color::Rgb(251, 191, 36),   // Amber-400
-            Self::Fetch => Color::Rgb(34, 211, 238),  // Cyan-400
-            Self::Invoke => Color::Rgb(52, 211, 153), // Emerald-400
-            Self::Agent => Color::Rgb(251, 113, 133), // Rose-400
+            Self::Infer => Color::Rgb(167, 139, 250),  // Violet 400
+            Self::Exec => Color::Rgb(251, 191, 36),    // Amber 400
+            Self::Fetch => Color::Rgb(34, 211, 238),   // Cyan 400
+            Self::Invoke => Color::Rgb(52, 211, 153),  // Emerald 400
+            Self::Agent => Color::Rgb(251, 113, 133),  // Rose 400
+            Self::Spawn => Color::Rgb(254, 205, 211),  // Rose 200
         }
     }
 
@@ -310,17 +313,19 @@ impl VerbColor {
             Self::Fetch => Color::Rgb(4, 127, 148),
             Self::Invoke => Color::Rgb(11, 129, 90),
             Self::Agent => Color::Rgb(170, 44, 66),
+            Self::Spawn => Color::Rgb(177, 115, 122), // ~0.7x Rose 300
         }
     }
 
     /// Get subtle version (very muted for backgrounds)
     pub fn subtle(&self) -> Color {
         match self {
-            Self::Infer => Color::Rgb(55, 48, 83),  // Violet-950/50
-            Self::Exec => Color::Rgb(69, 53, 18),   // Amber-950/50
-            Self::Fetch => Color::Rgb(22, 57, 67),  // Cyan-950/50
-            Self::Invoke => Color::Rgb(20, 61, 47), // Emerald-950/50
-            Self::Agent => Color::Rgb(68, 32, 41),  // Rose-950/50
+            Self::Infer => Color::Rgb(55, 48, 83),  // Violet 950/50
+            Self::Exec => Color::Rgb(69, 53, 18),   // Amber 950/50
+            Self::Fetch => Color::Rgb(22, 57, 67),  // Cyan 950/50
+            Self::Invoke => Color::Rgb(20, 61, 47), // Emerald 950/50
+            Self::Agent => Color::Rgb(68, 32, 41),  // Rose 950/50
+            Self::Spawn => Color::Rgb(70, 45, 48),  // Rose 950/50 (lighter)
         }
     }
 
@@ -332,6 +337,7 @@ impl VerbColor {
     /// - 🛰️ Fetch (HTTP request)
     /// - 🔌 Invoke (MCP tool)
     /// - 🐔 Agent (Agentic loop)
+    /// - 🐤 Spawn (Spawned sub-agent)
     pub fn icon(&self) -> &'static str {
         match self {
             Self::Infer => icons_verb::INFER,
@@ -339,6 +345,7 @@ impl VerbColor {
             Self::Fetch => icons_verb::FETCH,
             Self::Invoke => icons_verb::INVOKE,
             Self::Agent => icons_verb::AGENT,
+            Self::Spawn => icons_verb::SUBAGENT,
         }
     }
 
@@ -350,33 +357,36 @@ impl VerbColor {
     /// Get RGB tuple for gradient interpolation
     pub fn rgb_tuple(&self) -> (u8, u8, u8) {
         match self {
-            Self::Infer => (139, 92, 246),  // Violet
-            Self::Exec => (245, 158, 11),   // Amber
-            Self::Fetch => (6, 182, 212),   // Cyan
-            Self::Invoke => (16, 185, 129), // Emerald
-            Self::Agent => (244, 63, 94),   // Rose
+            Self::Infer => (139, 92, 246),   // Violet 500
+            Self::Exec => (245, 158, 11),    // Amber 500
+            Self::Fetch => (6, 182, 212),    // Cyan 500
+            Self::Invoke => (16, 185, 129),  // Emerald 500
+            Self::Agent => (244, 63, 94),    // Rose 500
+            Self::Spawn => (253, 164, 175),  // Rose 300
         }
     }
 
     /// Get glow RGB tuple for gradient interpolation
     pub fn glow_tuple(&self) -> (u8, u8, u8) {
         match self {
-            Self::Infer => (167, 139, 250), // Violet-400
-            Self::Exec => (251, 191, 36),   // Amber-400
-            Self::Fetch => (34, 211, 238),  // Cyan-400
-            Self::Invoke => (52, 211, 153), // Emerald-400
-            Self::Agent => (251, 113, 133), // Rose-400
+            Self::Infer => (167, 139, 250),  // Violet 400
+            Self::Exec => (251, 191, 36),    // Amber 400
+            Self::Fetch => (34, 211, 238),   // Cyan 400
+            Self::Invoke => (52, 211, 153),  // Emerald 400
+            Self::Agent => (251, 113, 133),  // Rose 400
+            Self::Spawn => (254, 205, 211),  // Rose 200
         }
     }
 
     /// Get muted RGB tuple for gradient interpolation (v0.8.2)
     pub fn muted_tuple(&self) -> (u8, u8, u8) {
         match self {
-            Self::Infer => (97, 64, 171),  // Muted violet
-            Self::Exec => (171, 110, 8),   // Muted amber
-            Self::Fetch => (4, 127, 148),  // Muted cyan
-            Self::Invoke => (11, 129, 90), // Muted emerald
-            Self::Agent => (170, 44, 66),  // Muted rose
+            Self::Infer => (97, 64, 171),    // Muted violet
+            Self::Exec => (171, 110, 8),     // Muted amber
+            Self::Fetch => (4, 127, 148),    // Muted cyan
+            Self::Invoke => (11, 129, 90),   // Muted emerald
+            Self::Agent => (170, 44, 66),    // Muted rose
+            Self::Spawn => (177, 115, 122),  // Muted rose 300
         }
     }
 
@@ -389,6 +399,43 @@ impl VerbColor {
             Self::Fetch => icons_verb::FETCH_ASCII,
             Self::Invoke => icons_verb::INVOKE_ASCII,
             Self::Agent => icons_verb::AGENT_ASCII,
+            Self::Spawn => icons_verb::SUBAGENT_ASCII,
+        }
+    }
+
+    /// Get hex color string for CSS/HTML
+    pub fn hex(&self) -> &'static str {
+        match self {
+            Self::Infer => "#8b5cf6",
+            Self::Exec => "#f59e0b",
+            Self::Fetch => "#06b6d4",
+            Self::Invoke => "#10b981",
+            Self::Agent => "#f43f5e",
+            Self::Spawn => "#fda4af",
+        }
+    }
+
+    /// Get uppercase label for this verb
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Infer => "INFER",
+            Self::Exec => "EXEC",
+            Self::Fetch => "FETCH",
+            Self::Invoke => "INVOKE",
+            Self::Agent => "AGENT",
+            Self::Spawn => "SPAWN",
+        }
+    }
+
+    /// Get border color (darker variant for outlines)
+    pub fn border_rgb(&self) -> Color {
+        match self {
+            Self::Infer => Color::Rgb(124, 58, 237),   // Violet 600
+            Self::Exec => Color::Rgb(217, 119, 6),     // Amber 600
+            Self::Fetch => Color::Rgb(8, 145, 178),    // Cyan 600
+            Self::Invoke => Color::Rgb(5, 150, 105),   // Emerald 600
+            Self::Agent => Color::Rgb(225, 29, 72),    // Rose 600
+            Self::Spawn => Color::Rgb(251, 113, 133),  // Rose 400
         }
     }
 
@@ -402,6 +449,8 @@ impl VerbColor {
             Self::Fetch => resolver.verb_fetch(),
             Self::Invoke => resolver.verb_invoke(),
             Self::Agent => resolver.verb_agent(),
+            // Spawn uses direct RGB (Rose 300) - lighter than Agent
+            Self::Spawn => self.rgb(),
         }
     }
 
@@ -413,6 +462,7 @@ impl VerbColor {
             "fetch" => Self::Fetch,
             "invoke" => Self::Invoke,
             "agent" => Self::Agent,
+            "spawn" | "subagent" => Self::Spawn,
             _ => Self::Infer, // default
         }
     }
@@ -1615,6 +1665,92 @@ mod tests {
         let mode1 = ColorMode::detect();
         let mode2 = ColorMode::detect();
         assert_eq!(mode1, mode2);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // VERBCOLOR SPAWN VARIANT TESTS (v0.9.1 Consolidation)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_verbcolor_spawn_variant_rgb() {
+        let color = VerbColor::Spawn;
+        assert_eq!(color.rgb(), Color::Rgb(253, 164, 175)); // Rose 300
+    }
+
+    #[test]
+    fn test_verbcolor_spawn_variant_glow() {
+        let color = VerbColor::Spawn;
+        assert_eq!(color.glow(), Color::Rgb(254, 205, 211)); // Rose 200
+    }
+
+    #[test]
+    fn test_verbcolor_spawn_hex() {
+        assert_eq!(VerbColor::Spawn.hex(), "#fda4af");
+    }
+
+    #[test]
+    fn test_verbcolor_spawn_label() {
+        assert_eq!(VerbColor::Spawn.label(), "SPAWN");
+    }
+
+    #[test]
+    fn test_verbcolor_spawn_border_rgb() {
+        let color = VerbColor::Spawn;
+        assert_eq!(color.border_rgb(), Color::Rgb(251, 113, 133)); // Rose 400
+    }
+
+    #[test]
+    fn test_verbcolor_spawn_icon() {
+        assert_eq!(VerbColor::Spawn.icon(), "🐤"); // Subagent chick
+    }
+
+    #[test]
+    fn test_verbcolor_has_all_methods_for_spawn() {
+        let spawn = VerbColor::Spawn;
+        // Verify all methods work
+        let _ = spawn.rgb();
+        let _ = spawn.glow();
+        let _ = spawn.muted();
+        let _ = spawn.subtle();
+        let _ = spawn.hex();
+        let _ = spawn.icon();
+        let _ = spawn.label();
+        let _ = spawn.border_rgb();
+        let _ = spawn.rgb_tuple();
+        let _ = spawn.glow_tuple();
+        let _ = spawn.muted_tuple();
+        let _ = spawn.icon_ascii();
+        let _ = spawn.animated(0);
+    }
+
+    #[test]
+    fn test_verbcolor_from_verb_spawn() {
+        assert_eq!(VerbColor::from_verb("spawn"), VerbColor::Spawn);
+        assert_eq!(VerbColor::from_verb("SPAWN"), VerbColor::Spawn);
+        assert_eq!(VerbColor::from_verb("Spawn"), VerbColor::Spawn);
+    }
+
+    #[test]
+    fn test_verbcolor_all_six_variants_distinct() {
+        let colors = [
+            VerbColor::Infer.rgb(),
+            VerbColor::Exec.rgb(),
+            VerbColor::Fetch.rgb(),
+            VerbColor::Invoke.rgb(),
+            VerbColor::Agent.rgb(),
+            VerbColor::Spawn.rgb(),
+        ];
+
+        // All colors should be unique
+        for i in 0..colors.len() {
+            for j in (i + 1)..colors.len() {
+                assert_ne!(
+                    colors[i], colors[j],
+                    "Verb colors {} and {} are identical",
+                    i, j
+                );
+            }
+        }
     }
 
     #[test]

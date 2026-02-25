@@ -54,6 +54,7 @@ pub enum CurrentVerb {
     Fetch,
     Invoke,
     Agent,
+    Spawn,
 }
 
 impl CurrentVerb {
@@ -65,6 +66,7 @@ impl CurrentVerb {
             CurrentVerb::Fetch => "🛰️",
             CurrentVerb::Invoke => "🔌",
             CurrentVerb::Agent => "🐔",
+            CurrentVerb::Spawn => "🐤",
         }
     }
 
@@ -76,6 +78,7 @@ impl CurrentVerb {
             CurrentVerb::Fetch => "fetch",
             CurrentVerb::Invoke => "invoke",
             CurrentVerb::Agent => "agent",
+            CurrentVerb::Spawn => "spawn",
         }
     }
 
@@ -87,6 +90,7 @@ impl CurrentVerb {
             CurrentVerb::Fetch => COLOR_CYAN,
             CurrentVerb::Invoke => COLOR_SUCCESS,
             CurrentVerb::Agent => Color::Rgb(236, 72, 153), // Pink
+            CurrentVerb::Spawn => Color::Rgb(253, 164, 175), // Rose 300
         }
     }
 }

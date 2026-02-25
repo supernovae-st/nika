@@ -2828,6 +2828,7 @@ impl ChatView {
                     VerbColor::Fetch => CurrentVerb::Fetch,
                     VerbColor::Invoke => CurrentVerb::Invoke,
                     VerbColor::Agent => CurrentVerb::Agent,
+                    VerbColor::Spawn => CurrentVerb::Spawn,
                 };
             }
         } else if input.is_empty() || !input.starts_with('/') {
@@ -4132,6 +4133,20 @@ impl ChatView {
                     "Optimize database queries for better performance",
                     "Create test fixtures for integration tests",
                     "Design a caching strategy for this endpoint",
+                ];
+                HINTS[idx % HINTS.len()]
+            }
+            VerbColor::Spawn => {
+                // v0.9.1: Spawned sub-agent task hints
+                const HINTS: &[&str] = &[
+                    "Delegate: research this topic in depth",
+                    "Spawn: handle this subtask independently",
+                    "Delegate: write tests for this module",
+                    "Spawn: analyze and summarize these files",
+                    "Delegate: generate documentation for API",
+                    "Spawn: refactor this function for clarity",
+                    "Delegate: investigate this bug in isolation",
+                    "Spawn: create sample data for testing",
                 ];
                 HINTS[idx % HINTS.len()]
             }
