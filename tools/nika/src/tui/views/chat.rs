@@ -3012,7 +3012,8 @@ impl View for ChatView {
         // 6. Provider Modal overlay (if visible) - ⌘P
         if self.provider_modal.visible {
             // v0.8.9: Pass &mut for cloud_tab_label caching
-            ProviderModal::new(&mut self.provider_modal).render(area, frame.buffer_mut());
+            // v0.9.1: Pass theme for consistent styling
+            ProviderModal::new(&mut self.provider_modal, theme).render(area, frame.buffer_mut());
         }
 
         // 7. Help overlay (if visible) - ? or F1

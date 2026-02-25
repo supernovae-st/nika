@@ -3,8 +3,31 @@
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
+    style::Color,
     widgets::Widget,
 };
+
+// =============================================================================
+// SEMANTIC COLOR CONSTANTS (v0.9.1 - aligned with Theme)
+// =============================================================================
+
+/// Dark background for overlay
+const COLOR_BG_DARK: Color = Color::Rgb(17, 24, 39); // Gray-900
+
+/// Header text (light blue)
+const COLOR_HEADER: Color = Color::Rgb(147, 197, 253); // Blue-300
+
+/// Selected model (amber)
+const COLOR_SELECTED: Color = Color::Rgb(251, 191, 36); // Amber-400
+
+/// Normal model text
+const COLOR_TEXT: Color = Color::Rgb(209, 213, 219); // Gray-300
+
+/// Context window size
+const COLOR_MUTED: Color = Color::Rgb(107, 114, 128); // Gray-500
+
+/// Hint text
+const COLOR_HINT: Color = Color::Rgb(75, 85, 99); // Gray-600
 
 use super::super::components::{CardStyle, ProviderCard};
 use super::super::state::{ConnectionStatus, ProviderModalState};
@@ -340,7 +363,7 @@ impl Widget for CloudTab<'_> {
 impl CloudTab<'_> {
     /// v0.8.95: Render model list overlay on top of provider card
     fn render_model_list(buf: &mut Buffer, area: Rect, models: &[ModelInfo], selected_idx: usize) {
-        use ratatui::style::{Color, Modifier, Style};
+        use ratatui::style::{Modifier, Style};
 
         // Calculate overlay area (inside the card, below header)
         let overlay_y = area.y + 1;
@@ -349,11 +372,10 @@ impl CloudTab<'_> {
         let overlay_x = area.x + 1;
 
         // Semi-transparent background
-        let bg_color = Color::Rgb(17, 24, 39); // Dark slate
         for y in overlay_y..overlay_y + overlay_height {
             for x in overlay_x..overlay_x + overlay_width {
                 if y < buf.area.height && x < buf.area.width {
-                    buf[(x, y)].set_bg(bg_color);
+                    buf[(x, y)].set_bg(COLOR_BG_DARK);
                     buf[(x, y)].set_symbol(" ");
                 }
             }
@@ -367,7 +389,7 @@ impl CloudTab<'_> {
                 overlay_y,
                 header,
                 Style::default()
-                    .fg(Color::Rgb(147, 197, 253)) // Light blue
+                    .fg(COLOR_HEADER)
                     .add_modifier(Modifier::BOLD),
             );
         }
@@ -385,10 +407,10 @@ impl CloudTab<'_> {
 
             let style = if is_selected {
                 Style::default()
-                    .fg(Color::Rgb(251, 191, 36)) // Amber
+                    .fg(COLOR_SELECTED)
                     .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(Color::Rgb(209, 213, 219)) // Gray-300
+                Style::default().fg(COLOR_TEXT)
             };
 
             // Render prefix and model name
@@ -409,7 +431,7 @@ impl CloudTab<'_> {
                     context_x,
                     y,
                     &context_str,
-                    Style::default().fg(Color::Rgb(107, 114, 128)), // Gray-500
+                    Style::default().fg(COLOR_MUTED),
                 );
             }
         }
@@ -423,7 +445,7 @@ impl CloudTab<'_> {
                 hint_x,
                 hint_y,
                 hint,
-                Style::default().fg(Color::Rgb(75, 85, 99)), // Gray-600
+                Style::default().fg(COLOR_HINT),
             );
         }
     }

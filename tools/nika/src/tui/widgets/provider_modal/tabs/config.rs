@@ -9,6 +9,28 @@ use ratatui::{
     widgets::Widget,
 };
 
+// =============================================================================
+// SEMANTIC COLOR CONSTANTS (v0.9.1 - aligned with Theme)
+// =============================================================================
+
+/// Label text
+const COLOR_LABEL: Color = Color::Rgb(156, 163, 175); // Gray-400
+
+/// Editable value
+const COLOR_VALUE: Color = Color::Rgb(129, 140, 248); // Indigo-400
+
+/// Read-only value
+const COLOR_VALUE_READONLY: Color = Color::Rgb(107, 114, 128); // Gray-500
+
+/// Selected row background
+const COLOR_BG_SELECTED: Color = Color::Rgb(55, 65, 81); // Gray-700
+
+/// Selected label text
+const COLOR_LABEL_SELECTED: Color = Color::Rgb(229, 231, 235); // Gray-200
+
+/// Description text
+const COLOR_DESCRIPTION: Color = Color::Rgb(107, 114, 128); // Gray-500
+
 /// Configuration entry for display
 #[derive(Debug, Clone)]
 pub struct ConfigEntry {
@@ -109,16 +131,16 @@ impl Widget for ConfigTab {
         }
 
         // Styles
-        let label_style = Style::default().fg(Color::Rgb(156, 163, 175));
+        let label_style = Style::default().fg(COLOR_LABEL);
         let value_style = Style::default()
-            .fg(Color::Rgb(129, 140, 248))
+            .fg(COLOR_VALUE)
             .add_modifier(Modifier::BOLD);
-        let readonly_value_style = Style::default().fg(Color::Rgb(107, 114, 128));
-        let selected_bg = Style::default().bg(Color::Rgb(55, 65, 81));
+        let readonly_value_style = Style::default().fg(COLOR_VALUE_READONLY);
+        let selected_bg = Style::default().bg(COLOR_BG_SELECTED);
         let selected_label = Style::default()
-            .fg(Color::Rgb(229, 231, 235))
-            .bg(Color::Rgb(55, 65, 81));
-        let desc_style = Style::default().fg(Color::Rgb(107, 114, 128));
+            .fg(COLOR_LABEL_SELECTED)
+            .bg(COLOR_BG_SELECTED);
+        let desc_style = Style::default().fg(COLOR_DESCRIPTION);
 
         let mut y = area.y;
         let value_col = area.x + 22; // Column where values start

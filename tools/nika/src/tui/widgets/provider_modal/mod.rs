@@ -27,19 +27,22 @@ pub use tabs::*;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::Span,
     widgets::{Block, BorderType, Borders, Clear, Tabs, Widget},
 };
 
+use super::super::theme::Theme;
+
 /// Main provider modal widget
 pub struct ProviderModal<'a> {
     state: &'a mut ProviderModalState,
+    theme: &'a Theme,
 }
 
 impl<'a> ProviderModal<'a> {
-    pub fn new(state: &'a mut ProviderModalState) -> Self {
-        Self { state }
+    pub fn new(state: &'a mut ProviderModalState, theme: &'a Theme) -> Self {
+        Self { state, theme }
     }
 
     fn render_tabs(&mut self, area: Rect, buf: &mut Buffer) {
@@ -57,10 +60,10 @@ impl<'a> ProviderModal<'a> {
 
         let tabs = Tabs::new(tab_titles)
             .select(self.state.active_tab as usize)
-            .style(Style::default().fg(Color::Rgb(156, 163, 175)))
+            .style(Style::default().fg(self.theme.text_secondary))
             .highlight_style(
                 Style::default()
-                    .fg(Color::Rgb(99, 102, 241))
+                    .fg(self.theme.highlight)
                     .add_modifier(Modifier::BOLD),
             )
             .divider(Span::raw("│"));
@@ -83,7 +86,7 @@ impl<'a> ProviderModal<'a> {
             area.x + 1,
             area.y,
             hints,
-            Style::default().fg(Color::Rgb(107, 114, 128)),
+            Style::default().fg(self.theme.text_muted),
         );
 
         // v0.8.9: Render session stats on the right
@@ -113,8 +116,8 @@ impl Widget for ProviderModal<'_> {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(Color::Rgb(99, 102, 241)))
-            .style(Style::default().bg(Color::Rgb(17, 24, 39)));
+            .border_style(Style::default().fg(self.theme.highlight))
+            .style(Style::default().bg(self.theme.background));
 
         let inner = block.inner(modal_area);
         block.render(modal_area, buf);
@@ -183,7 +186,8 @@ mod tests {
     #[test]
     fn test_modal_hidden_does_not_render() {
         let mut state = ProviderModalState::default(); // visible: false
-        let modal = ProviderModal::new(&mut state);
+        let theme = Theme::default();
+        let modal = ProviderModal::new(&mut state, &theme);
 
         let mut buf = Buffer::empty(Rect::new(0, 0, 80, 24));
         modal.render(Rect::new(0, 0, 80, 24), &mut buf);
@@ -196,7 +200,8 @@ mod tests {
     fn test_modal_visible_renders_border() {
         let mut state = ProviderModalState::default();
         state.visible = true;
-        let modal = ProviderModal::new(&mut state);
+        let theme = Theme::default();
+        let modal = ProviderModal::new(&mut state, &theme);
 
         let mut buf = Buffer::empty(Rect::new(0, 0, 80, 24));
         modal.render(Rect::new(0, 0, 80, 24), &mut buf);

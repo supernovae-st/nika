@@ -13,6 +13,34 @@ use ratatui::{
     widgets::Widget,
 };
 
+// =============================================================================
+// SEMANTIC COLOR CONSTANTS (v0.9.1 - aligned with Theme)
+// =============================================================================
+
+/// Status: checking (in progress)
+const COLOR_STATUS_CHECKING: Color = Color::Rgb(99, 102, 241); // Indigo-500
+
+/// Status: connected (success)
+const COLOR_STATUS_CONNECTED: Color = Color::Rgb(34, 197, 94); // Emerald-500
+
+/// Status: failed (error)
+const COLOR_STATUS_FAILED: Color = Color::Rgb(239, 68, 68); // Red-500
+
+/// Status: not configured
+const COLOR_STATUS_UNCONFIGURED: Color = Color::Rgb(107, 114, 128); // Gray-500
+
+/// Matrix effect: primary green
+const COLOR_MATRIX_GREEN: Color = Color::Rgb(34, 197, 94); // Emerald-500
+
+/// Matrix effect: light green
+const COLOR_MATRIX_GREEN_LIGHT: Color = Color::Rgb(74, 222, 128); // Emerald-400
+
+/// Matrix effect: dark green
+const COLOR_MATRIX_GREEN_DARK: Color = Color::Rgb(22, 163, 74); // Emerald-600
+
+/// Matrix effect: accent indigo
+const COLOR_MATRIX_INDIGO: Color = Color::Rgb(99, 102, 241); // Indigo-500
+
 /// Half-width Katakana for Matrix effect (single-cell width)
 const MATRIX_KATAKANA: &[char] = &[
     'ｱ', 'ｲ', 'ｳ', 'ｴ', 'ｵ', 'ｶ', 'ｷ', 'ｸ', 'ｹ', 'ｺ', 'ｻ', 'ｼ', 'ｽ', 'ｾ', 'ｿ', 'ﾀ', 'ﾁ', 'ﾂ', 'ﾃ',
@@ -44,10 +72,10 @@ impl VerifyStatus {
     /// Get color for this status
     pub fn color(&self) -> Color {
         match self {
-            VerifyStatus::Checking => Color::Rgb(99, 102, 241), // Indigo (checking)
-            VerifyStatus::Connected => Color::Rgb(34, 197, 94), // Green (success)
-            VerifyStatus::Failed => Color::Rgb(239, 68, 68),    // Red (error)
-            VerifyStatus::NotConfigured => Color::Rgb(107, 114, 128), // Gray (not set)
+            VerifyStatus::Checking => COLOR_STATUS_CHECKING,
+            VerifyStatus::Connected => COLOR_STATUS_CONNECTED,
+            VerifyStatus::Failed => COLOR_STATUS_FAILED,
+            VerifyStatus::NotConfigured => COLOR_STATUS_UNCONFIGURED,
         }
     }
 
@@ -146,10 +174,10 @@ impl VerifyEntry {
                 // Scrambled - show matrix character with flickering color
                 let scrambled = self.scramble_char(i, &mut rng);
                 let colors = [
-                    Color::Rgb(34, 197, 94),  // Green
-                    Color::Rgb(74, 222, 128), // Light green
-                    Color::Rgb(22, 163, 74),  // Dark green
-                    Color::Rgb(99, 102, 241), // Indigo
+                    COLOR_MATRIX_GREEN,
+                    COLOR_MATRIX_GREEN_LIGHT,
+                    COLOR_MATRIX_GREEN_DARK,
+                    COLOR_MATRIX_INDIGO,
                 ];
                 let color = colors[rng.gen_range(0..colors.len())];
                 result.push((scrambled, color));
@@ -342,13 +370,13 @@ mod tests {
 
     #[test]
     fn test_verify_status_colors() {
-        assert_eq!(VerifyStatus::Connected.color(), Color::Rgb(34, 197, 94));
-        assert_eq!(VerifyStatus::Failed.color(), Color::Rgb(239, 68, 68));
+        assert_eq!(VerifyStatus::Connected.color(), COLOR_STATUS_CONNECTED);
+        assert_eq!(VerifyStatus::Failed.color(), COLOR_STATUS_FAILED);
         assert_eq!(
             VerifyStatus::NotConfigured.color(),
-            Color::Rgb(107, 114, 128)
+            COLOR_STATUS_UNCONFIGURED
         );
-        assert_eq!(VerifyStatus::Checking.color(), Color::Rgb(99, 102, 241));
+        assert_eq!(VerifyStatus::Checking.color(), COLOR_STATUS_CHECKING);
     }
 
     #[test]

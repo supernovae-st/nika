@@ -10,6 +10,28 @@ use ratatui::{
     widgets::Widget,
 };
 
+// =============================================================================
+// SEMANTIC COLOR CONSTANTS (v0.9.1 - aligned with Theme)
+// =============================================================================
+
+/// Status: all connected (success)
+const COLOR_STATUS_SUCCESS: Color = Color::Rgb(34, 197, 94); // Emerald-500
+
+/// Status: partial (warning)
+const COLOR_STATUS_PARTIAL: Color = Color::Rgb(251, 191, 36); // Amber-400
+
+/// Status: none connected (error)
+const COLOR_STATUS_ERROR: Color = Color::Rgb(239, 68, 68); // Red-500
+
+/// Token usage indicator
+const COLOR_TOKENS: Color = Color::Rgb(99, 102, 241); // Indigo-500
+
+/// MCP indicator
+const COLOR_MCP: Color = Color::Rgb(59, 130, 246); // Blue-500
+
+/// Separator
+const COLOR_SEPARATOR: Color = Color::Rgb(75, 85, 99); // Gray-600
+
 /// Session statistics for footer display
 #[derive(Debug, Clone, Default)]
 pub struct SessionStats {
@@ -60,11 +82,11 @@ impl Widget for FooterStatsBar<'_> {
 
         // Provider status
         let provider_color = if self.stats.connected_providers == self.stats.total_providers {
-            Color::Rgb(34, 197, 94) // Green - all connected
+            COLOR_STATUS_SUCCESS
         } else if self.stats.connected_providers > 0 {
-            Color::Rgb(251, 191, 36) // Yellow - partial
+            COLOR_STATUS_PARTIAL
         } else {
-            Color::Rgb(239, 68, 68) // Red - none connected
+            COLOR_STATUS_ERROR
         };
         parts.push((
             format!(
@@ -77,30 +99,30 @@ impl Widget for FooterStatsBar<'_> {
         // Token usage
         if self.stats.tokens_used > 0 {
             let tokens_str = format!("🔤 {}", self.stats.format_tokens());
-            parts.push((tokens_str, Color::Rgb(99, 102, 241))); // Indigo
+            parts.push((tokens_str, COLOR_TOKENS));
         }
 
         // MCP connections
         if self.stats.mcp_connections > 0 {
             let mcp_str = format!("🔌 {} MCP", self.stats.mcp_connections);
-            parts.push((mcp_str, Color::Rgb(59, 130, 246))); // Blue
+            parts.push((mcp_str, COLOR_MCP));
         }
 
         // Average latency
         if let Some(avg) = self.stats.avg_latency_ms {
             let latency_color = if avg < 200 {
-                Color::Rgb(34, 197, 94) // Green - fast
+                COLOR_STATUS_SUCCESS
             } else if avg < 500 {
-                Color::Rgb(251, 191, 36) // Yellow - medium
+                COLOR_STATUS_PARTIAL
             } else {
-                Color::Rgb(239, 68, 68) // Red - slow
+                COLOR_STATUS_ERROR
             };
             parts.push((format!("⏱ {}ms", avg), latency_color));
         }
 
         // Render from right side
         let separator = " │ ";
-        let separator_style = Style::default().fg(Color::Rgb(75, 85, 99));
+        let separator_style = Style::default().fg(COLOR_SEPARATOR);
 
         // Calculate total width needed
         let total_width: usize = parts.iter().map(|(s, _)| s.chars().count()).sum::<usize>()

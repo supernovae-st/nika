@@ -10,6 +10,37 @@ use ratatui::{
     widgets::Widget,
 };
 
+// =============================================================================
+// SEMANTIC COLOR CONSTANTS (v0.9.1 - aligned with Theme)
+// =============================================================================
+
+/// Header text - high contrast
+const COLOR_TEXT_PRIMARY: Color = Color::Rgb(229, 231, 235); // Gray-200
+
+/// Secondary text - labels, hints
+const COLOR_TEXT_SECONDARY: Color = Color::Rgb(156, 163, 175); // Gray-400
+
+/// Muted text - shortcuts, hints
+const COLOR_TEXT_MUTED: Color = Color::Rgb(107, 114, 128); // Gray-500
+
+/// Selected row background
+const COLOR_BG_SELECTED: Color = Color::Rgb(30, 41, 59); // Slate-800
+
+/// Status: not configured
+const COLOR_STATUS_UNCONFIGURED: Color = Color::Rgb(107, 114, 128); // Gray-500
+
+/// Status: saving (in progress)
+const COLOR_STATUS_SAVING: Color = Color::Rgb(250, 204, 21); // Yellow-400
+
+/// Status: testing (in progress)
+const COLOR_STATUS_TESTING: Color = Color::Rgb(96, 165, 250); // Blue-400
+
+/// Status: configured / verified (success)
+const COLOR_STATUS_SUCCESS: Color = Color::Rgb(34, 197, 94); // Emerald-500
+
+/// Status: invalid (error)
+const COLOR_STATUS_ERROR: Color = Color::Rgb(239, 68, 68); // Red-500
+
 use super::super::keyring::{mask_api_key, provider_env_var, NikaKeyring};
 use super::super::state::ApiKeyState;
 
@@ -157,7 +188,7 @@ impl Widget for KeysTab<'_> {
             area.y,
             header,
             Style::default()
-                .fg(Color::Rgb(229, 231, 235))
+                .fg(COLOR_TEXT_PRIMARY)
                 .add_modifier(Modifier::BOLD),
         );
 
@@ -168,7 +199,7 @@ impl Widget for KeysTab<'_> {
             shortcuts_x,
             area.y,
             shortcuts,
-            Style::default().fg(Color::Rgb(107, 114, 128)),
+            Style::default().fg(COLOR_TEXT_MUTED),
         );
 
         // Calculate list area
@@ -188,10 +219,10 @@ impl Widget for KeysTab<'_> {
             let is_selected = i == self.selected_idx;
             let style = if is_selected {
                 Style::default()
-                    .fg(Color::Rgb(229, 231, 235))
-                    .bg(Color::Rgb(30, 41, 59))
+                    .fg(COLOR_TEXT_PRIMARY)
+                    .bg(COLOR_BG_SELECTED)
             } else {
-                Style::default().fg(Color::Rgb(156, 163, 175))
+                Style::default().fg(COLOR_TEXT_SECONDARY)
             };
 
             // Selection indicator
@@ -199,12 +230,12 @@ impl Widget for KeysTab<'_> {
 
             // Status indicator and color
             let (status_icon, status_color) = match &entry.state {
-                ApiKeyState::NotConfigured => ("○", Color::Rgb(107, 114, 128)),
-                ApiKeyState::Saving { .. } => ("⏳", Color::Rgb(250, 204, 21)), // Yellow
-                ApiKeyState::Testing { .. } => ("⠹", Color::Rgb(96, 165, 250)), // Blue
-                ApiKeyState::Configured { .. } => ("●", Color::Rgb(34, 197, 94)),
-                ApiKeyState::Verified { .. } => ("✓", Color::Rgb(34, 197, 94)),
-                ApiKeyState::Invalid { .. } => ("✗", Color::Rgb(239, 68, 68)),
+                ApiKeyState::NotConfigured => ("○", COLOR_STATUS_UNCONFIGURED),
+                ApiKeyState::Saving { .. } => ("⏳", COLOR_STATUS_SAVING),
+                ApiKeyState::Testing { .. } => ("⠹", COLOR_STATUS_TESTING),
+                ApiKeyState::Configured { .. } => ("●", COLOR_STATUS_SUCCESS),
+                ApiKeyState::Verified { .. } => ("✓", COLOR_STATUS_SUCCESS),
+                ApiKeyState::Invalid { .. } => ("✗", COLOR_STATUS_ERROR),
             };
 
             // Key display
@@ -255,7 +286,7 @@ impl Widget for KeysTab<'_> {
                 area.x + 1,
                 input_y,
                 &label,
-                Style::default().fg(Color::Rgb(156, 163, 175)),
+                Style::default().fg(COLOR_TEXT_SECONDARY),
             );
 
             // Input field (masked with asterisks)
@@ -276,7 +307,7 @@ impl Widget for KeysTab<'_> {
                 input_y,
                 &input_display,
                 Style::default()
-                    .fg(Color::Rgb(229, 231, 235))
+                    .fg(COLOR_TEXT_PRIMARY)
                     .add_modifier(Modifier::BOLD),
             );
 
@@ -285,7 +316,7 @@ impl Widget for KeysTab<'_> {
                 area.x + 1 + input_display.len() as u16 + 2,
                 input_y,
                 hint,
-                Style::default().fg(Color::Rgb(107, 114, 128)),
+                Style::default().fg(COLOR_TEXT_MUTED),
             );
         }
     }

@@ -10,6 +10,13 @@ use ratatui::{
     widgets::Widget,
 };
 
+// =============================================================================
+// SEMANTIC COLOR CONSTANTS (v0.9.1 - aligned with Theme)
+// =============================================================================
+
+/// Title text
+const COLOR_TITLE: Color = Color::Rgb(229, 231, 235); // Gray-200
+
 /// Star animation frames for cosmic effect
 const STAR_FRAMES: &[&[&str]] = &[
     &["✧", "･", "ﾟ", ":", "*", "✧", "･", "ﾟ", ":", "*"],
@@ -18,13 +25,13 @@ const STAR_FRAMES: &[&[&str]] = &[
     &["✵", ":", "*", "･", "ﾟ", "✵", ":", "*", "･", "ﾟ"],
 ];
 
-/// Colors for gradient effect (indigo → purple → pink)
+/// Colors for gradient effect (indigo -> purple -> pink)
 const GRADIENT_COLORS: &[Color] = &[
-    Color::Rgb(99, 102, 241), // Indigo
-    Color::Rgb(139, 92, 246), // Purple
-    Color::Rgb(236, 72, 153), // Pink
-    Color::Rgb(139, 92, 246), // Purple
-    Color::Rgb(99, 102, 241), // Indigo
+    Color::Rgb(99, 102, 241),  // Indigo-500
+    Color::Rgb(139, 92, 246),  // Violet-500
+    Color::Rgb(236, 72, 153),  // Pink-500
+    Color::Rgb(139, 92, 246),  // Violet-500
+    Color::Rgb(99, 102, 241),  // Indigo-500
 ];
 
 /// Animated cosmic header widget
@@ -125,7 +132,7 @@ impl Widget for AnimatedHeader {
             area.y,
             &title_with_diamond,
             Style::default()
-                .fg(Color::Rgb(229, 231, 235))
+                .fg(COLOR_TITLE)
                 .add_modifier(Modifier::BOLD),
         );
 

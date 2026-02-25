@@ -10,6 +10,28 @@ use ratatui::{
     widgets::Widget,
 };
 
+// =============================================================================
+// SEMANTIC COLOR CONSTANTS (v0.9.1 - aligned with Theme)
+// =============================================================================
+
+/// Header text - high contrast
+const COLOR_TEXT_PRIMARY: Color = Color::Rgb(229, 231, 235); // Gray-200
+
+/// Secondary text - hints, instructions
+const COLOR_TEXT_SECONDARY: Color = Color::Rgb(156, 163, 175); // Gray-400
+
+/// Muted text - shortcuts
+const COLOR_TEXT_MUTED: Color = Color::Rgb(107, 114, 128); // Gray-500
+
+/// Selected row background
+const COLOR_BG_SELECTED: Color = Color::Rgb(30, 41, 59); // Slate-800
+
+/// Status: success
+const COLOR_STATUS_SUCCESS: Color = Color::Rgb(34, 197, 94); // Emerald-500
+
+/// Status: error
+const COLOR_STATUS_ERROR: Color = Color::Rgb(239, 68, 68); // Red-500
+
 use super::super::components::DownloadGauge;
 use super::super::ollama_client::OllamaModelInfo;
 use super::super::state::DownloadState;
@@ -68,14 +90,14 @@ impl Widget for OllamaTab<'_> {
                 area.y + 1,
                 msg,
                 Style::default()
-                    .fg(Color::Rgb(239, 68, 68))
+                    .fg(COLOR_STATUS_ERROR)
                     .add_modifier(Modifier::BOLD),
             );
             buf.set_string(
                 area.x + 2,
                 area.y + 2,
                 hint,
-                Style::default().fg(Color::Rgb(107, 114, 128)),
+                Style::default().fg(COLOR_TEXT_MUTED),
             );
             return;
         }
@@ -87,7 +109,7 @@ impl Widget for OllamaTab<'_> {
             area.y,
             &header,
             Style::default()
-                .fg(Color::Rgb(229, 231, 235))
+                .fg(COLOR_TEXT_PRIMARY)
                 .add_modifier(Modifier::BOLD),
         );
 
@@ -98,7 +120,7 @@ impl Widget for OllamaTab<'_> {
             shortcuts_x,
             area.y,
             shortcuts,
-            Style::default().fg(Color::Rgb(107, 114, 128)),
+            Style::default().fg(COLOR_TEXT_MUTED),
         );
 
         // Calculate list area (leave space for download gauge at bottom)
@@ -119,10 +141,10 @@ impl Widget for OllamaTab<'_> {
             let is_selected = i == self.selected_idx;
             let style = if is_selected {
                 Style::default()
-                    .fg(Color::Rgb(229, 231, 235))
-                    .bg(Color::Rgb(30, 41, 59))
+                    .fg(COLOR_TEXT_PRIMARY)
+                    .bg(COLOR_BG_SELECTED)
             } else {
-                Style::default().fg(Color::Rgb(156, 163, 175))
+                Style::default().fg(COLOR_TEXT_SECONDARY)
             };
 
             // Selection indicator + Model name
@@ -144,13 +166,13 @@ impl Widget for OllamaTab<'_> {
                 area.x + 2,
                 area.y + 2,
                 "No models installed",
-                Style::default().fg(Color::Rgb(107, 114, 128)),
+                Style::default().fg(COLOR_TEXT_MUTED),
             );
             buf.set_string(
                 area.x + 2,
                 area.y + 3,
                 "Press [p] to pull a model (e.g., llama3.2)",
-                Style::default().fg(Color::Rgb(156, 163, 175)),
+                Style::default().fg(COLOR_TEXT_SECONDARY),
             );
         }
 
@@ -180,7 +202,7 @@ impl Widget for OllamaTab<'_> {
                     area.x + 2,
                     area.bottom().saturating_sub(2),
                     &msg,
-                    Style::default().fg(Color::Rgb(34, 197, 94)),
+                    Style::default().fg(COLOR_STATUS_SUCCESS),
                 );
             }
             DownloadState::Failed { model, error } => {
@@ -194,7 +216,7 @@ impl Widget for OllamaTab<'_> {
                     area.x + 2,
                     area.bottom().saturating_sub(2),
                     &truncated,
-                    Style::default().fg(Color::Rgb(239, 68, 68)),
+                    Style::default().fg(COLOR_STATUS_ERROR),
                 );
             }
             _ => {}

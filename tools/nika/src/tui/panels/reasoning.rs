@@ -406,7 +406,7 @@ impl<'a> ReasoningPanel<'a> {
             height: area.height,
         };
 
-        let widget = AgentStepsWidget::new(&group);
+        let widget = AgentStepsWidget::new(&group, self.theme);
         widget.render(steps_area, buf);
     }
 

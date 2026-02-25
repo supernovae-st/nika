@@ -7,6 +7,25 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Gauge, Widget},
 };
 
+// =============================================================================
+// SEMANTIC COLOR CONSTANTS (v0.9.1 - aligned with Theme)
+// =============================================================================
+
+/// Border color (blue)
+const COLOR_BORDER: Color = Color::Rgb(59, 130, 246); // Blue-500
+
+/// Progress bar (green)
+const COLOR_PROGRESS: Color = Color::Rgb(34, 197, 94); // Emerald-500
+
+/// Progress bar background
+const COLOR_PROGRESS_BG: Color = Color::Rgb(31, 41, 55); // Gray-800
+
+/// Size info text
+const COLOR_SIZE_INFO: Color = Color::Rgb(156, 163, 175); // Gray-400
+
+/// Speed info text
+const COLOR_SPEED_INFO: Color = Color::Rgb(107, 114, 128); // Gray-500
+
 /// Download progress gauge with model name and size
 pub struct DownloadGauge<'a> {
     model_name: &'a str,
@@ -64,7 +83,7 @@ impl Widget for DownloadGauge<'_> {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(Color::Rgb(59, 130, 246)))
+            .border_style(Style::default().fg(COLOR_BORDER))
             .title(format!(" Pulling {} ", self.model_name));
 
         let inner = block.inner(area);
@@ -83,8 +102,8 @@ impl Widget for DownloadGauge<'_> {
             .percent(percentage)
             .gauge_style(
                 Style::default()
-                    .fg(Color::Rgb(34, 197, 94))
-                    .bg(Color::Rgb(31, 41, 55)),
+                    .fg(COLOR_PROGRESS)
+                    .bg(COLOR_PROGRESS_BG),
             )
             .use_unicode(true);
 
@@ -101,7 +120,7 @@ impl Widget for DownloadGauge<'_> {
                 inner.x,
                 inner.y + 1,
                 &size_info,
-                Style::default().fg(Color::Rgb(156, 163, 175)),
+                Style::default().fg(COLOR_SIZE_INFO),
             );
 
             if let Some(speed) = self.speed_bps {
@@ -111,7 +130,7 @@ impl Widget for DownloadGauge<'_> {
                     speed_x,
                     inner.y + 1,
                     &speed_str,
-                    Style::default().fg(Color::Rgb(107, 114, 128)),
+                    Style::default().fg(COLOR_SPEED_INFO),
                 );
             }
         }

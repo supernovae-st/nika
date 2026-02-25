@@ -2,6 +2,7 @@
 //!
 //! v0.8.9: Added latency sparkline visualization
 //! v0.8.91: Fixed overflow - truncate error messages to fit card width
+//! v0.9.1: Migrated to semantic color constants (Theme alignment)
 
 use ratatui::{
     buffer::Buffer,
@@ -12,6 +13,39 @@ use ratatui::{
 };
 
 use super::super::state::ConnectionStatus;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SEMANTIC COLOR CONSTANTS (v0.9.1 - aligned with Theme)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Status colors (aligned with Theme status_*)
+const COLOR_SUCCESS: Color = Color::Rgb(34, 197, 94); // Emerald-500 (status_success)
+const COLOR_ERROR: Color = Color::Rgb(239, 68, 68); // Red-500 (status_failed)
+const COLOR_CHECKING: Color = Color::Rgb(59, 130, 246); // Blue-500 (status_running)
+const COLOR_MUTED: Color = Color::Rgb(107, 114, 128); // Gray-500 (text_muted)
+
+/// Text colors
+const COLOR_TEXT_PRIMARY: Color = Color::Rgb(229, 231, 235); // Gray-200 (text_primary)
+const COLOR_TEXT_SECONDARY: Color = Color::Rgb(156, 163, 175); // Gray-400 (text_secondary)
+
+/// Background colors
+const COLOR_BG_DARK: Color = Color::Rgb(17, 24, 39); // Gray-900 (background)
+const COLOR_BG_SELECTED: Color = Color::Rgb(30, 41, 59); // Slate-800
+const COLOR_BG_ACTIVE: Color = Color::Rgb(22, 78, 48); // Green tint
+const COLOR_BG_SELECTED_ACTIVE: Color = Color::Rgb(30, 60, 50); // Selected + green tint
+
+/// Border colors (aligned with Theme border_*)
+const COLOR_BORDER_NORMAL: Color = Color::Rgb(55, 65, 81); // Gray-700 (border_normal)
+const COLOR_BORDER_FOCUSED: Color = Color::Rgb(99, 102, 241); // Indigo-500 (highlight)
+const COLOR_BORDER_DISABLED: Color = Color::Rgb(31, 41, 55); // Gray-800
+
+/// Feature/accent colors
+const COLOR_FEATURES: Color = Color::Rgb(59, 130, 246); // Blue-500
+
+/// Sparkline threshold colors
+const COLOR_LATENCY_GOOD: Color = Color::Rgb(34, 197, 94); // Green (< 200ms)
+const COLOR_LATENCY_WARN: Color = Color::Rgb(251, 191, 36); // Yellow (200-500ms)
+const COLOR_LATENCY_BAD: Color = Color::Rgb(239, 68, 68); // Red (> 500ms)
 
 /// Maximum width for status text to prevent overflow (chars)
 const MAX_STATUS_WIDTH: usize = 12;
@@ -89,21 +123,21 @@ pub enum CardStyle {
 impl CardStyle {
     pub fn border_color(&self) -> Color {
         match self {
-            Self::Selected => Color::Rgb(99, 102, 241),      // indigo
-            Self::Active => Color::Rgb(34, 197, 94),         // green (in use!)
-            Self::SelectedActive => Color::Rgb(34, 197, 94), // green + bold
-            Self::Normal => Color::Rgb(55, 65, 81),          // gray
-            Self::Disabled => Color::Rgb(31, 41, 55),        // dark gray
+            Self::Selected => COLOR_BORDER_FOCUSED,
+            Self::Active => COLOR_SUCCESS,
+            Self::SelectedActive => COLOR_SUCCESS,
+            Self::Normal => COLOR_BORDER_NORMAL,
+            Self::Disabled => COLOR_BORDER_DISABLED,
         }
     }
 
     pub fn bg_color(&self) -> Color {
         match self {
-            Self::Selected => Color::Rgb(30, 41, 59),       // slate-800
-            Self::Active => Color::Rgb(22, 78, 48),         // green tint
-            Self::SelectedActive => Color::Rgb(30, 60, 50), // selected + green
-            Self::Normal => Color::Rgb(17, 24, 39),         // gray-900
-            Self::Disabled => Color::Rgb(17, 24, 39),
+            Self::Selected => COLOR_BG_SELECTED,
+            Self::Active => COLOR_BG_ACTIVE,
+            Self::SelectedActive => COLOR_BG_SELECTED_ACTIVE,
+            Self::Normal => COLOR_BG_DARK,
+            Self::Disabled => COLOR_BG_DARK,
         }
     }
 
@@ -197,9 +231,9 @@ impl Widget for ProviderCard<'_> {
         };
 
         let title_color = if self.style.is_active() {
-            Color::Rgb(34, 197, 94) // Green for active
+            COLOR_SUCCESS
         } else {
-            Color::Rgb(229, 231, 235) // Default white
+            COLOR_TEXT_PRIMARY
         };
 
         // Card border with rounded corners
@@ -219,7 +253,7 @@ impl Widget for ProviderCard<'_> {
         block.render(area, buf);
 
         // Row 1: Model name
-        let model_style = Style::default().fg(Color::Rgb(156, 163, 175));
+        let model_style = Style::default().fg(COLOR_TEXT_SECONDARY);
         buf.set_string(inner.x + 1, inner.y, self.model, model_style);
 
         // Status on the right - v0.8.9: Use Matrix effect during verification
@@ -263,20 +297,15 @@ impl Widget for ProviderCard<'_> {
             // v0.8.92: Use short text for Failed, full latency for Connected
             let (status_text, status_color) = match self.status {
                 ConnectionStatus::Connected { latency_ms } => {
-                    (format!("● {}ms", latency_ms), Color::Rgb(34, 197, 94))
+                    (format!("● {}ms", latency_ms), COLOR_SUCCESS)
                 }
-                ConnectionStatus::Failed { .. } => (
-                    short_status_text(self.status).to_string(),
-                    Color::Rgb(239, 68, 68),
-                ),
-                ConnectionStatus::Checking => (
-                    short_status_text(self.status).to_string(),
-                    Color::Rgb(59, 130, 246),
-                ),
-                _ => (
-                    short_status_text(self.status).to_string(),
-                    Color::Rgb(107, 114, 128),
-                ),
+                ConnectionStatus::Failed { .. } => {
+                    (short_status_text(self.status).to_string(), COLOR_ERROR)
+                }
+                ConnectionStatus::Checking => {
+                    (short_status_text(self.status).to_string(), COLOR_CHECKING)
+                }
+                _ => (short_status_text(self.status).to_string(), COLOR_MUTED),
             };
             let status_x = inner.right().saturating_sub(status_text.len() as u16 + 1);
             buf.set_string(
@@ -304,7 +333,7 @@ impl Widget for ProviderCard<'_> {
                     inner.x + 1,
                     inner.y + 1,
                     &truncated_error,
-                    Style::default().fg(Color::Rgb(239, 68, 68)), // Red for error
+                    Style::default().fg(COLOR_ERROR),
                 );
             } else {
                 // Normal: features + sparkline
@@ -313,7 +342,7 @@ impl Widget for ProviderCard<'_> {
                     inner.x + 1,
                     inner.y + 1,
                     &features_str,
-                    Style::default().fg(Color::Rgb(59, 130, 246)),
+                    Style::default().fg(COLOR_FEATURES),
                 );
 
                 // v0.8.9: Sparkline visualization (center) - only when not error
@@ -328,11 +357,11 @@ impl Widget for ProviderCard<'_> {
                         features_end
                     };
                     let sparkline_color = if self.latency_history.iter().all(|&l| l < 200) {
-                        Color::Rgb(34, 197, 94)
+                        COLOR_LATENCY_GOOD
                     } else if self.latency_history.iter().any(|&l| l > 500) {
-                        Color::Rgb(239, 68, 68)
+                        COLOR_LATENCY_BAD
                     } else {
-                        Color::Rgb(251, 191, 36)
+                        COLOR_LATENCY_WARN
                     };
                     buf.set_string(
                         sparkline_x,
@@ -351,7 +380,7 @@ impl Widget for ProviderCard<'_> {
                     ctx_x,
                     inner.y + 1,
                     &ctx_str,
-                    Style::default().fg(Color::Rgb(107, 114, 128)),
+                    Style::default().fg(COLOR_MUTED),
                 );
             }
         }
@@ -366,9 +395,9 @@ mod tests {
 
     #[test]
     fn test_card_style_colors() {
-        assert_eq!(CardStyle::Selected.border_color(), Color::Rgb(99, 102, 241));
-        assert_eq!(CardStyle::Normal.border_color(), Color::Rgb(55, 65, 81));
-        assert_eq!(CardStyle::Disabled.border_color(), Color::Rgb(31, 41, 55));
+        assert_eq!(CardStyle::Selected.border_color(), COLOR_BORDER_FOCUSED);
+        assert_eq!(CardStyle::Normal.border_color(), COLOR_BORDER_NORMAL);
+        assert_eq!(CardStyle::Disabled.border_color(), COLOR_BORDER_DISABLED);
     }
 
     #[test]
