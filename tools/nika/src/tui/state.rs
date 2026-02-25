@@ -2300,6 +2300,34 @@ impl TuiState {
                 ));
                 self.dirty.notifications = true;
             }
+
+            // v0.9.3: Handle custom events from nika:emit
+            EventKind::Custom {
+                name,
+                payload,
+                task_id,
+            } => {
+                let task_suffix = task_id
+                    .as_ref()
+                    .map(|t| format!(" [{}]", t))
+                    .unwrap_or_default();
+                // Compact payload display (first 50 chars)
+                let payload_preview = if payload.is_null() {
+                    String::new()
+                } else {
+                    let s = payload.to_string();
+                    if s.len() > 50 {
+                        format!(": {}...", &s[..47])
+                    } else {
+                        format!(": {}", s)
+                    }
+                };
+                self.add_notification(Notification::info(
+                    format!("📦 {}{}{}", name, payload_preview, task_suffix),
+                    timestamp_ms,
+                ));
+                self.dirty.notifications = true;
+            }
         }
     }
 

@@ -368,6 +368,17 @@ pub enum EventKind {
         #[serde(skip_serializing_if = "Option::is_none")]
         task_id: Option<Arc<str>>,
     },
+
+    /// Custom event emitted by nika:emit builtin tool
+    Custom {
+        /// Event name/type
+        name: String,
+        /// Event payload (arbitrary JSON)
+        payload: Value,
+        /// Optional task context
+        #[serde(skip_serializing_if = "Option::is_none")]
+        task_id: Option<Arc<str>>,
+    },
 }
 
 impl EventKind {
@@ -391,8 +402,10 @@ impl EventKind {
             | Self::AgentComplete { task_id, .. } => Some(task_id),
             // AgentSpawned uses parent_task_id as the primary task reference
             Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
-            // Log may optionally have task_id
-            Self::Log { task_id, .. } => task_id.as_ref().map(|s| s.as_ref()),
+            // Log and Custom may optionally have task_id
+            Self::Log { task_id, .. } | Self::Custom { task_id, .. } => {
+                task_id.as_ref().map(|s| s.as_ref())
+            }
             Self::WorkflowStarted { .. }
             | Self::WorkflowCompleted { .. }
             | Self::WorkflowFailed { .. }
