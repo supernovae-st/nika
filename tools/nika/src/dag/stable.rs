@@ -18,11 +18,12 @@
 //! └── Node 2: "msg-003" (index=2)  ← STAYS index=2 ✅
 //! ```
 
-use petgraph::stable_graph::{NodeIndex, StableGraph};
+use petgraph::stable_graph::{EdgeIndex, NodeIndex, StableGraph};
 use petgraph::Directed;
 use serde::{Deserialize, Serialize};
 
-// Re-export NodeIndex for callers
+// Re-export NodeIndex and EdgeIndex for callers
+pub use petgraph::stable_graph::EdgeIndex as StableEdgeIndex;
 pub use petgraph::stable_graph::NodeIndex as StableNodeIndex;
 
 /// Edge weight for flow dependencies.
@@ -131,6 +132,54 @@ impl<N> StableFlowGraph<N> {
     /// Check if a node exists.
     pub fn contains_node(&self, idx: NodeIndex) -> bool {
         self.inner.contains_node(idx)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Edge operations (Task 0.4)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Add a directed edge from `a` to `b`.
+    /// Returns None if either node doesn't exist.
+    pub fn add_edge(&mut self, a: NodeIndex, b: NodeIndex) -> Option<EdgeIndex> {
+        if !self.contains_node(a) || !self.contains_node(b) {
+            return None;
+        }
+        Some(self.inner.add_edge(a, b, FlowEdge::default()))
+    }
+
+    /// Add a directed edge with a label.
+    pub fn add_edge_with_label(
+        &mut self,
+        a: NodeIndex,
+        b: NodeIndex,
+        label: impl Into<String>,
+    ) -> Option<EdgeIndex> {
+        if !self.contains_node(a) || !self.contains_node(b) {
+            return None;
+        }
+        Some(self.inner.add_edge(
+            a,
+            b,
+            FlowEdge {
+                label: Some(label.into()),
+            },
+        ))
+    }
+
+    /// Check if an edge exists from `a` to `b`.
+    pub fn has_edge(&self, a: NodeIndex, b: NodeIndex) -> bool {
+        self.inner.find_edge(a, b).is_some()
+    }
+
+    /// Remove an edge between nodes.
+    /// Returns true if an edge was removed.
+    pub fn remove_edge(&mut self, a: NodeIndex, b: NodeIndex) -> bool {
+        if let Some(edge) = self.inner.find_edge(a, b) {
+            self.inner.remove_edge(edge);
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -276,5 +325,78 @@ mod tests {
         assert!(graph.contains_node(idx));
         graph.remove_node(idx);
         assert!(!graph.contains_node(idx));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Task 0.4: Edge operations tests
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_add_edge_creates_directed_edge() {
+        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+
+        let a = graph.add_node("a".to_string());
+        let b = graph.add_node("b".to_string());
+
+        let edge = graph.add_edge(a, b);
+        assert!(edge.is_some());
+        assert_eq!(graph.edge_count(), 1);
+    }
+
+    #[test]
+    fn test_add_edge_invalid_node_returns_none() {
+        use petgraph::stable_graph::NodeIndex;
+
+        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+
+        let a = graph.add_node("a".to_string());
+        let invalid = NodeIndex::new(999);
+
+        let edge = graph.add_edge(a, invalid);
+        assert!(edge.is_none());
+        assert_eq!(graph.edge_count(), 0);
+    }
+
+    #[test]
+    fn test_has_edge_checks_existence() {
+        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+
+        let a = graph.add_node("a".to_string());
+        let b = graph.add_node("b".to_string());
+        let c = graph.add_node("c".to_string());
+
+        graph.add_edge(a, b);
+
+        assert!(graph.has_edge(a, b));
+        assert!(!graph.has_edge(b, a)); // Directed - no reverse
+        assert!(!graph.has_edge(a, c)); // No edge exists
+    }
+
+    #[test]
+    fn test_remove_edge_works() {
+        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+
+        let a = graph.add_node("a".to_string());
+        let b = graph.add_node("b".to_string());
+
+        graph.add_edge(a, b);
+        assert!(graph.has_edge(a, b));
+        assert_eq!(graph.edge_count(), 1);
+
+        let removed = graph.remove_edge(a, b);
+        assert!(removed);
+        assert!(!graph.has_edge(a, b));
+        assert_eq!(graph.edge_count(), 0);
+    }
+
+    #[test]
+    fn test_remove_edge_nonexistent_returns_false() {
+        let mut graph: StableFlowGraph<String> = StableFlowGraph::new();
+
+        let a = graph.add_node("a".to_string());
+        let b = graph.add_node("b".to_string());
+
+        let removed = graph.remove_edge(a, b);
+        assert!(!removed);
     }
 }
