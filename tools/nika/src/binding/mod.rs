@@ -52,7 +52,9 @@ mod validate;
 
 // Re-export public types
 pub use entry::{parse_use_entry, UseEntry, WiringSpec};
-pub use mention::Mention;
+pub use mention::{
+    parse_mentions, resolve_mention, Mention, MentionResolutionError, ResolvedMention,
+};
 pub use resolve::{LazyBinding, ResolvedBindings};
 pub use template::{
     detect_deprecated_dollar_syntax, extract_refs, resolve as template_resolve, validate_refs,

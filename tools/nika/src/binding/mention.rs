@@ -117,6 +117,120 @@ pub fn parse_mentions(text: &str) -> Vec<Mention> {
     mentions
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// Task 2.4-2.6: resolve_mention() - Mention → Message Indices
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Resolved message indices from a mention.
+///
+/// All indices are 1-indexed (matching @N syntax).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResolvedMention {
+    /// Single message index
+    Single(u32),
+    /// Multiple message indices (for @all and ranges)
+    Multiple(Vec<u32>),
+    /// Empty resolution (no messages to reference)
+    Empty,
+}
+
+/// Error when resolving a mention.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MentionResolutionError {
+    /// Referenced message doesn't exist
+    MessageNotFound { index: u32, max: u32 },
+    /// Invalid range (start > end)
+    InvalidRange { start: u32, end: u32 },
+    /// No messages to reference for @last/@all
+    NoMessages,
+}
+
+impl std::fmt::Display for MentionResolutionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MessageNotFound { index, max } => {
+                write!(f, "Message @{} not found (max: @{})", index, max)
+            }
+            Self::InvalidRange { start, end } => {
+                write!(f, "Invalid range @{}..{} (start > end)", start, end)
+            }
+            Self::NoMessages => write!(f, "No messages to reference"),
+        }
+    }
+}
+
+impl std::error::Error for MentionResolutionError {}
+
+/// Resolve a mention to message indices.
+///
+/// # Arguments
+/// * `mention` - The mention to resolve
+/// * `message_count` - Total number of messages in the chat
+///
+/// # Returns
+/// * `Ok(ResolvedMention)` - Resolved indices (1-indexed)
+/// * `Err(MentionResolutionError)` - Resolution failed
+///
+/// # Examples
+///
+/// ```
+/// use nika::binding::mention::{resolve_mention, Mention, ResolvedMention};
+///
+/// // @last with 3 messages → @3
+/// let result = resolve_mention(&Mention::Last, 3);
+/// assert_eq!(result, Ok(ResolvedMention::Single(3)));
+///
+/// // @2 with 3 messages → @2
+/// let result = resolve_mention(&Mention::Number(2), 3);
+/// assert_eq!(result, Ok(ResolvedMention::Single(2)));
+/// ```
+pub fn resolve_mention(
+    mention: &Mention,
+    message_count: u32,
+) -> Result<ResolvedMention, MentionResolutionError> {
+    match mention {
+        Mention::Last => {
+            if message_count == 0 {
+                Err(MentionResolutionError::NoMessages)
+            } else {
+                Ok(ResolvedMention::Single(message_count))
+            }
+        }
+        Mention::Number(n) => {
+            if *n == 0 || *n > message_count {
+                Err(MentionResolutionError::MessageNotFound {
+                    index: *n,
+                    max: message_count,
+                })
+            } else {
+                Ok(ResolvedMention::Single(*n))
+            }
+        }
+        Mention::All => {
+            if message_count == 0 {
+                Ok(ResolvedMention::Empty)
+            } else {
+                Ok(ResolvedMention::Multiple((1..=message_count).collect()))
+            }
+        }
+        Mention::Range { start, end } => {
+            if start > end {
+                return Err(MentionResolutionError::InvalidRange {
+                    start: *start,
+                    end: *end,
+                });
+            }
+            if *start == 0 || *end > message_count {
+                return Err(MentionResolutionError::MessageNotFound {
+                    index: if *start == 0 { 0 } else { *end },
+                    max: message_count,
+                });
+            }
+            Ok(ResolvedMention::Multiple((*start..=*end).collect()))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,5 +395,156 @@ mod tests {
         let text = "Check @123 after emailing user@456.com";
         let mentions = parse_mentions(text);
         assert_eq!(mentions, vec![Mention::Number(123)]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 2.4: resolve_mention() for @last
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_resolve_last_with_messages() {
+        // @last with 3 messages → @3
+        let result = resolve_mention(&Mention::Last, 3);
+        assert_eq!(result, Ok(ResolvedMention::Single(3)));
+    }
+
+    #[test]
+    fn test_resolve_last_with_one_message() {
+        // @last with 1 message → @1
+        let result = resolve_mention(&Mention::Last, 1);
+        assert_eq!(result, Ok(ResolvedMention::Single(1)));
+    }
+
+    #[test]
+    fn test_resolve_last_with_no_messages() {
+        // @last with 0 messages → error
+        let result = resolve_mention(&Mention::Last, 0);
+        assert_eq!(result, Err(MentionResolutionError::NoMessages));
+    }
+
+    #[test]
+    fn test_resolve_number_valid() {
+        // @2 with 3 messages → @2
+        let result = resolve_mention(&Mention::Number(2), 3);
+        assert_eq!(result, Ok(ResolvedMention::Single(2)));
+    }
+
+    #[test]
+    fn test_resolve_number_first_message() {
+        // @1 with 5 messages → @1
+        let result = resolve_mention(&Mention::Number(1), 5);
+        assert_eq!(result, Ok(ResolvedMention::Single(1)));
+    }
+
+    #[test]
+    fn test_resolve_number_out_of_bounds() {
+        // @5 with 3 messages → error
+        let result = resolve_mention(&Mention::Number(5), 3);
+        assert_eq!(
+            result,
+            Err(MentionResolutionError::MessageNotFound { index: 5, max: 3 })
+        );
+    }
+
+    #[test]
+    fn test_resolve_number_zero() {
+        // @0 is invalid (1-indexed)
+        let result = resolve_mention(&Mention::Number(0), 3);
+        assert_eq!(
+            result,
+            Err(MentionResolutionError::MessageNotFound { index: 0, max: 3 })
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 2.5: resolve_mention() for @all
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_resolve_all_with_messages() {
+        // @all with 3 messages → [1, 2, 3]
+        let result = resolve_mention(&Mention::All, 3);
+        assert_eq!(result, Ok(ResolvedMention::Multiple(vec![1, 2, 3])));
+    }
+
+    #[test]
+    fn test_resolve_all_with_one_message() {
+        // @all with 1 message → [1]
+        let result = resolve_mention(&Mention::All, 1);
+        assert_eq!(result, Ok(ResolvedMention::Multiple(vec![1])));
+    }
+
+    #[test]
+    fn test_resolve_all_with_no_messages() {
+        // @all with 0 messages → Empty (not error)
+        let result = resolve_mention(&Mention::All, 0);
+        assert_eq!(result, Ok(ResolvedMention::Empty));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 2.6: resolve_mention() for @N..M range
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_resolve_range_valid() {
+        // @1..3 with 5 messages → [1, 2, 3]
+        let result = resolve_mention(&Mention::Range { start: 1, end: 3 }, 5);
+        assert_eq!(result, Ok(ResolvedMention::Multiple(vec![1, 2, 3])));
+    }
+
+    #[test]
+    fn test_resolve_range_single() {
+        // @2..2 with 3 messages → [2]
+        let result = resolve_mention(&Mention::Range { start: 2, end: 2 }, 3);
+        assert_eq!(result, Ok(ResolvedMention::Multiple(vec![2])));
+    }
+
+    #[test]
+    fn test_resolve_range_full() {
+        // @1..3 with 3 messages → [1, 2, 3]
+        let result = resolve_mention(&Mention::Range { start: 1, end: 3 }, 3);
+        assert_eq!(result, Ok(ResolvedMention::Multiple(vec![1, 2, 3])));
+    }
+
+    #[test]
+    fn test_resolve_range_out_of_bounds() {
+        // @1..5 with 3 messages → error
+        let result = resolve_mention(&Mention::Range { start: 1, end: 5 }, 3);
+        assert_eq!(
+            result,
+            Err(MentionResolutionError::MessageNotFound { index: 5, max: 3 })
+        );
+    }
+
+    #[test]
+    fn test_resolve_range_invalid_order() {
+        // @3..1 → error (start > end)
+        let result = resolve_mention(&Mention::Range { start: 3, end: 1 }, 5);
+        assert_eq!(
+            result,
+            Err(MentionResolutionError::InvalidRange { start: 3, end: 1 })
+        );
+    }
+
+    #[test]
+    fn test_resolve_range_zero_start() {
+        // @0..3 → error (0 is invalid)
+        let result = resolve_mention(&Mention::Range { start: 0, end: 3 }, 5);
+        assert_eq!(
+            result,
+            Err(MentionResolutionError::MessageNotFound { index: 0, max: 5 })
+        );
+    }
+
+    #[test]
+    fn test_error_display() {
+        let err = MentionResolutionError::MessageNotFound { index: 5, max: 3 };
+        assert_eq!(format!("{}", err), "Message @5 not found (max: @3)");
+
+        let err = MentionResolutionError::InvalidRange { start: 3, end: 1 };
+        assert_eq!(format!("{}", err), "Invalid range @3..1 (start > end)");
+
+        let err = MentionResolutionError::NoMessages;
+        assert_eq!(format!("{}", err), "No messages to reference");
     }
 }
