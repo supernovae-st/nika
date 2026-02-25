@@ -156,10 +156,13 @@ impl BuiltinTool for RunTool {
 
             // Create Runner and execute workflow
             let runner = Runner::new(workflow).quiet();
-            let result = runner.run().await.map_err(|e| NikaError::BuiltinToolError {
-                tool: "nika:run".into(),
-                reason: format!("Workflow execution failed: {}", e),
-            })?;
+            let result = runner
+                .run()
+                .await
+                .map_err(|e| NikaError::BuiltinToolError {
+                    tool: "nika:run".into(),
+                    reason: format!("Workflow execution failed: {}", e),
+                })?;
 
             // Build response with workflow output
             // Runner::run() returns a String (final task output or summary)

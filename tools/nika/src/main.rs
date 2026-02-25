@@ -742,12 +742,13 @@ permission = "{}"
 # working_dir = "."
 
 [provider]
-# Default LLM provider (claude, openai)
-# Can be overridden with NIKA_PROVIDER env var or --provider flag
+# Default LLM provider (claude, openai, mistral, groq, deepseek, ollama)
+# Provider auto-detection checks env vars: ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.
+# Can also override with: nika chat --provider <name>
 default = "claude"
 
 # Default model (provider-specific)
-# Can be overridden with NIKA_MODEL env var or --model flag
+# Can also override with: nika chat --model <name>
 # model = "claude-sonnet-4-6"
 "#,
         permission_mode

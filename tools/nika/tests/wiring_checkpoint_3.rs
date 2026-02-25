@@ -207,16 +207,49 @@ async fn wiring_checkpoint_3_dispatch_unknown_builtin_fails() {
 /// Test nika:run validation (workflow path).
 #[tokio::test]
 async fn wiring_checkpoint_3_dispatch_run_validation() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
     let router = BuiltinToolRouter::new();
 
-    // Valid workflow path
+    // v0.10.0: nika:run now executes real workflows
+    // Create a valid temp workflow file for testing success case
+    let mut temp_file = NamedTempFile::with_suffix(".nika.yaml").unwrap();
+    writeln!(
+        temp_file,
+        r#"schema: nika/workflow@0.2
+workflow: wiring-test
+tasks:
+  - id: hello
+    exec: "echo wiring""#
+    )
+    .unwrap();
+
     let result = router
         .dispatch(
             "nika:run",
-            r#"{"workflow": "path/to/test.nika.yaml"}"#.to_string(),
+            format!(
+                r#"{{"workflow": "{}"}}"#,
+                temp_file.path().to_str().unwrap()
+            ),
         )
         .await;
-    assert!(result.is_ok(), "nika:run with valid path should succeed");
+    assert!(
+        result.is_ok(),
+        "nika:run with valid workflow should succeed"
+    );
+
+    // Non-existent file should fail
+    let result = router
+        .dispatch(
+            "nika:run",
+            r#"{"workflow": "path/to/nonexistent.nika.yaml"}"#.to_string(),
+        )
+        .await;
+    assert!(
+        result.is_err(),
+        "nika:run with non-existent file should fail"
+    );
 
     // Invalid extension should fail
     let result = router

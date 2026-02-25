@@ -188,23 +188,23 @@ impl BuiltinTool for PromptTool {
                     request
                 };
 
-                let hitl_response = handler.prompt(request).await.map_err(|e| {
-                    NikaError::BuiltinToolError {
-                        tool: "nika:prompt".into(),
-                        reason: format!("HITL handler error: {}", e),
-                    }
-                })?;
+                let hitl_response =
+                    handler
+                        .prompt(request)
+                        .await
+                        .map_err(|e| NikaError::BuiltinToolError {
+                            tool: "nika:prompt".into(),
+                            reason: format!("HITL handler error: {}", e),
+                        })?;
 
                 let response = PromptResponse {
                     response: hitl_response.response,
                     default_used: hitl_response.default_used,
                 };
 
-                return serde_json::to_string(&response).map_err(|e| {
-                    NikaError::BuiltinToolError {
-                        tool: "nika:prompt".into(),
-                        reason: format!("Failed to serialize response: {}", e),
-                    }
+                return serde_json::to_string(&response).map_err(|e| NikaError::BuiltinToolError {
+                    tool: "nika:prompt".into(),
+                    reason: format!("Failed to serialize response: {}", e),
                 });
             }
 
@@ -377,10 +377,7 @@ mod tests {
 
         #[async_trait]
         impl HitlHandler for MockHandler {
-            async fn prompt(
-                &self,
-                _request: HitlRequest,
-            ) -> Result<HitlResponse, HitlError> {
+            async fn prompt(&self, _request: HitlRequest) -> Result<HitlResponse, HitlError> {
                 Ok(HitlResponse::new(&self.response))
             }
         }
@@ -408,10 +405,7 @@ mod tests {
 
         #[async_trait]
         impl HitlHandler for MockHandler {
-            async fn prompt(
-                &self,
-                _request: HitlRequest,
-            ) -> Result<HitlResponse, HitlError> {
+            async fn prompt(&self, _request: HitlRequest) -> Result<HitlResponse, HitlError> {
                 Ok(HitlResponse::new("handler_response"))
             }
         }
@@ -437,18 +431,13 @@ mod tests {
 
         #[async_trait]
         impl HitlHandler for ErrorHandler {
-            async fn prompt(
-                &self,
-                _request: HitlRequest,
-            ) -> Result<HitlResponse, HitlError> {
+            async fn prompt(&self, _request: HitlRequest) -> Result<HitlResponse, HitlError> {
                 Err(HitlError::Cancelled)
             }
         }
 
         let tool = PromptTool::with_handler(Arc::new(ErrorHandler));
-        let result = tool
-            .call(r#"{"message": "Confirm?"}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"message": "Confirm?"}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();

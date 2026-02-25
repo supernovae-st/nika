@@ -190,7 +190,8 @@ async fn test_executor_invoke_nika_prompt_without_default_errors() {
 // ═══════════════════════════════════════════
 
 #[tokio::test]
-async fn test_executor_invoke_nika_run_placeholder() {
+async fn test_executor_invoke_nika_run_nonexistent_errors() {
+    // v0.10.0: nika:run now executes real workflows, so missing files error
     let executor = create_executor();
     let task_id: Arc<str> = "test-run".into();
     let action = create_invoke_action("nika:run", json!({"workflow": "test.nika.yaml"}));
@@ -201,12 +202,45 @@ async fn test_executor_invoke_nika_run_placeholder() {
         .execute(&task_id, &action, &bindings, &datastore)
         .await;
 
+    assert!(result.is_err(), "Expected Err for non-existent workflow");
+    let err = result.unwrap_err();
+    assert!(err.to_string().contains("not found"));
+}
+
+#[tokio::test]
+async fn test_executor_invoke_nika_run_executes_workflow() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    // Create a minimal workflow file
+    let mut temp_file = NamedTempFile::with_suffix(".nika.yaml").unwrap();
+    writeln!(
+        temp_file,
+        r#"schema: nika/workflow@0.2
+workflow: integration-test
+tasks:
+  - id: hello
+    exec: "echo integration""#
+    )
+    .unwrap();
+
+    let executor = create_executor();
+    let task_id: Arc<str> = "test-run".into();
+    let action = create_invoke_action(
+        "nika:run",
+        json!({"workflow": temp_file.path().to_str().unwrap()}),
+    );
+    let bindings = ResolvedBindings::default();
+    let datastore = DataStore::new();
+
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore)
+        .await;
+
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
     let output = result.unwrap();
     let value: serde_json::Value = serde_json::from_str(&output).unwrap();
-    assert_eq!(value["workflow"], "test.nika.yaml");
-    // Currently placeholder - executed: false until full integration
-    assert_eq!(value["executed"], false);
+    assert_eq!(value["executed"], true);
 }
 
 #[tokio::test]
