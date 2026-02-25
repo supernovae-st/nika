@@ -35,6 +35,7 @@
 mod chat;
 mod help;
 mod home;
+mod monitor;
 mod settings;
 mod studio;
 mod trait_view;
@@ -43,6 +44,7 @@ mod trait_view;
 #[allow(unused_imports)]
 pub use chat::{ChatMode, ChatView, MessageRole};
 pub use home::HomeView;
+pub use monitor::MonitorView;
 pub use studio::{EditorMode, StudioView};
 
 // Auxiliary view exports (v0.11)
