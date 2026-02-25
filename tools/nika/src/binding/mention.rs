@@ -118,6 +118,52 @@ pub fn parse_mentions(text: &str) -> Vec<Mention> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Task 2.7: Parallel Marker Detection
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Check if text starts with the parallel marker `//`.
+///
+/// A message starting with `//` indicates it has no dependency on the previous message
+/// (parallel execution). The marker can have leading whitespace.
+///
+/// # Examples
+///
+/// ```
+/// use nika::binding::mention::has_parallel_marker;
+///
+/// assert!(has_parallel_marker("// Independent task"));
+/// assert!(has_parallel_marker("  // Also parallel"));
+/// assert!(!has_parallel_marker("Normal message"));
+/// assert!(!has_parallel_marker("@1 Reference")); // mentions, not parallel
+/// ```
+pub fn has_parallel_marker(text: &str) -> bool {
+    text.trim_start().starts_with("//")
+}
+
+/// Strip the parallel marker from text if present.
+///
+/// Returns the text content after the `//` marker, trimmed.
+/// If no marker, returns the original text unchanged.
+///
+/// # Examples
+///
+/// ```
+/// use nika::binding::mention::strip_parallel_marker;
+///
+/// assert_eq!(strip_parallel_marker("// Task"), "Task");
+/// assert_eq!(strip_parallel_marker("  //  Parallel work"), "Parallel work");
+/// assert_eq!(strip_parallel_marker("Normal message"), "Normal message");
+/// ```
+pub fn strip_parallel_marker(text: &str) -> &str {
+    let trimmed = text.trim_start();
+    if trimmed.starts_with("//") {
+        trimmed[2..].trim_start()
+    } else {
+        text
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Task 2.4-2.6: resolve_mention() - Mention → Message Indices
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -546,5 +592,60 @@ mod tests {
 
         let err = MentionResolutionError::NoMessages;
         assert_eq!(format!("{}", err), "No messages to reference");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 2.7: Parallel marker tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_has_parallel_marker_basic() {
+        assert!(has_parallel_marker("// Independent task"));
+        assert!(has_parallel_marker("//Task"));
+    }
+
+    #[test]
+    fn test_has_parallel_marker_with_whitespace() {
+        assert!(has_parallel_marker("  // Also parallel"));
+        assert!(has_parallel_marker("\t// Tab prefixed"));
+    }
+
+    #[test]
+    fn test_has_parallel_marker_false() {
+        assert!(!has_parallel_marker("Normal message"));
+        assert!(!has_parallel_marker("@1 Reference"));
+        assert!(!has_parallel_marker("/ Single slash"));
+        assert!(!has_parallel_marker(""));
+    }
+
+    #[test]
+    fn test_has_parallel_marker_not_url() {
+        // URLs start with protocol://, not just //
+        assert!(!has_parallel_marker("https://example.com"));
+        assert!(!has_parallel_marker("http://localhost"));
+    }
+
+    #[test]
+    fn test_strip_parallel_marker_basic() {
+        assert_eq!(strip_parallel_marker("// Task"), "Task");
+        assert_eq!(strip_parallel_marker("//Task"), "Task");
+    }
+
+    #[test]
+    fn test_strip_parallel_marker_with_whitespace() {
+        assert_eq!(strip_parallel_marker("  //  Parallel work"), "Parallel work");
+        assert_eq!(strip_parallel_marker("\t// Tab"), "Tab");
+    }
+
+    #[test]
+    fn test_strip_parallel_marker_no_marker() {
+        assert_eq!(strip_parallel_marker("Normal message"), "Normal message");
+        assert_eq!(strip_parallel_marker("@1 Reference"), "@1 Reference");
+    }
+
+    #[test]
+    fn test_strip_parallel_marker_empty() {
+        assert_eq!(strip_parallel_marker("//"), "");
+        assert_eq!(strip_parallel_marker("//  "), "");
     }
 }
