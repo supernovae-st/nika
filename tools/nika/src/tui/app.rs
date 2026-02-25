@@ -1648,6 +1648,51 @@ impl App {
                 self.set_status(&format!("✓ Switched to {} ({})", provider_id, model));
                 Action::Continue
             }
+            ViewAction::PullOllamaModel(model) => {
+                // v0.12.3: Pull Ollama model asynchronously
+                use super::widgets::provider_modal::OllamaClient;
+                let model_clone = model.clone();
+                self.spawn_tracked(async move {
+                    let client = OllamaClient::new();
+                    let mut rx = client.pull_model(&model_clone).await;
+                    while let Some(progress) = rx.recv().await {
+                        tracing::debug!(model = %model_clone, ?progress, "Pull progress");
+                    }
+                });
+                self.set_status(&format!("📥 Pulling {}...", model));
+                Action::Continue
+            }
+            ViewAction::DeleteOllamaModel(model) => {
+                // v0.12.3: Delete Ollama model asynchronously
+                use super::widgets::provider_modal::OllamaClient;
+                let model_clone = model.clone();
+                self.spawn_tracked(async move {
+                    let client = OllamaClient::new();
+                    match client.delete_model(&model_clone).await {
+                        Ok(()) => tracing::info!(model = %model_clone, "Model deleted"),
+                        Err(e) => {
+                            tracing::error!(model = %model_clone, error = %e, "Delete failed")
+                        }
+                    }
+                });
+                self.set_status(&format!("🗑️ Deleting {}...", model));
+                Action::Continue
+            }
+            ViewAction::RefreshOllamaModels => {
+                // v0.12.3: Refresh Ollama models list asynchronously
+                use super::widgets::provider_modal::OllamaClient;
+                self.spawn_tracked(async move {
+                    let client = OllamaClient::new();
+                    match client.list_models().await {
+                        Ok(models) => {
+                            tracing::info!(count = models.len(), "Refreshed Ollama models")
+                        }
+                        Err(e) => tracing::error!(error = %e, "Failed to refresh models"),
+                    }
+                });
+                self.set_status("🔄 Refreshing Ollama models...");
+                Action::Continue
+            }
         }
     }
 

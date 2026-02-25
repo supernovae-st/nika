@@ -805,7 +805,10 @@ flows:
     // Migrate API keys from env vars to keychain if requested
     if migrate_keys {
         println!();
-        println!("{}", "Migrating API keys from environment variables...".cyan());
+        println!(
+            "{}",
+            "Migrating API keys from environment variables...".cyan()
+        );
         let report = migrate_env_to_keyring();
         println!();
         println!("{}", report.summary());

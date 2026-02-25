@@ -275,6 +275,12 @@ pub enum ViewAction {
     /// Provider selector confirmed a change (v0.8.3 - BUG #2 fix)
     /// Signals app.rs to invalidate/recreate chat_agent with new provider
     ProviderSelectorConfirm { provider_id: String, model: String },
+    /// Pull Ollama model (v0.12.3)
+    PullOllamaModel(String),
+    /// Delete Ollama model (v0.12.3)
+    DeleteOllamaModel(String),
+    /// Refresh Ollama model list (v0.12.3)
+    RefreshOllamaModels,
 }
 
 #[cfg(test)]

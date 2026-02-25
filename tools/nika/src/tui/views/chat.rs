@@ -3700,21 +3700,22 @@ impl ChatView {
                     return ViewAction::VerifyProviders;
                 }
                 ModalAction::RefreshOllamaModels => {
-                    // TODO: Trigger Ollama model refresh
+                    self.add_system_message("🔄 Refreshing Ollama models...".to_string());
+                    return ViewAction::RefreshOllamaModels;
                 }
                 ModalAction::TestApiKey { provider } => {
                     self.add_system_message(format!("🔑 Testing {} API key...", provider));
                 }
                 ModalAction::PullModel { model } => {
-                    self.add_system_message(format!("📥 Pulling model: {}", model));
+                    self.add_system_message(format!("📥 Pulling model: {}...", model));
+                    return ViewAction::PullOllamaModel(model.clone());
                 }
                 ModalAction::DeleteModel { model } => {
-                    self.add_system_message(format!("🗑️ Deleting model: {}", model));
+                    self.add_system_message(format!("🗑️ Deleting model: {}...", model));
+                    return ViewAction::DeleteOllamaModel(model.clone());
                 }
                 ModalAction::SaveAndTestApiKey { provider, key } => {
-                    use crate::tui::widgets::provider_modal::{
-                        validate_key_format, NikaKeyring,
-                    };
+                    use crate::tui::widgets::provider_modal::{validate_key_format, NikaKeyring};
                     // Validate format first
                     if let Err(e) = validate_key_format(provider, key) {
                         self.add_system_message(format!("❌ Invalid key format: {}", e));
@@ -3736,9 +3737,7 @@ impl ChatView {
                     }
                 }
                 ModalAction::SaveApiKey { provider, key } => {
-                    use crate::tui::widgets::provider_modal::{
-                        validate_key_format, NikaKeyring,
-                    };
+                    use crate::tui::widgets::provider_modal::{validate_key_format, NikaKeyring};
                     // Validate format first
                     if let Err(e) = validate_key_format(provider, key) {
                         self.add_system_message(format!("❌ Invalid key format: {}", e));
@@ -3760,10 +3759,7 @@ impl ChatView {
                 }
                 ModalAction::SelectProvider { provider, model } => {
                     // Update active provider in chat state
-                    self.add_system_message(format!(
-                        "🔄 Switched to {} ({})",
-                        provider, model
-                    ));
+                    self.add_system_message(format!("🔄 Switched to {} ({})", provider, model));
                     self.provider_modal.visible = false;
                 }
                 ModalAction::CheckProvider { provider } => {
