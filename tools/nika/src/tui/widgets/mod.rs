@@ -18,6 +18,7 @@
 mod activity_stack;
 mod agent_steps;
 mod agent_turns;
+mod animation;
 mod chat_dag_panel;
 mod chat_edge_line;
 mod chat_node_box;
@@ -54,7 +55,9 @@ mod timeline;
 mod verb_input;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
-// Chat DAG widgets (v0.10.0-v0.10.3)
+// Animation utilities (v0.10.4)
+pub use animation::{AnimationState, AnimationTicker, Easing};
+// Chat DAG widgets (v0.10.0-v0.10.4)
 pub use chat_dag_panel::{ChatDagPanel, DagEdgeData, DagNodeData};
 pub use chat_edge_line::{ChatEdgeLine, ChatPosition};
 pub use chat_node_box::{ChatNodeBox, ChatNodeKind, ChatNodeState};
