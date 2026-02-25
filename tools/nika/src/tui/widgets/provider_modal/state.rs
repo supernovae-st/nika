@@ -230,6 +230,10 @@ pub struct ProviderModalState {
     pub expanded_provider_idx: Option<usize>,
     /// v0.8.95: Selected model index within expanded provider
     pub model_selection_idx: usize,
+    /// v0.9.5: Session token count (wired from ChatView)
+    session_tokens: u64,
+    /// v0.9.5: MCP connection count (wired from ChatView)
+    mcp_connections: usize,
 }
 
 impl Default for ProviderModalState {
@@ -254,6 +258,8 @@ impl Default for ProviderModalState {
             verification_active: false,
             expanded_provider_idx: None,
             model_selection_idx: 0,
+            session_tokens: 0,
+            mcp_connections: 0,
         }
     }
 }
@@ -693,8 +699,8 @@ impl ProviderModalState {
         SessionStats {
             connected_providers,
             total_providers: 6,
-            tokens_used: 0,     // TODO: Wire to actual session token tracking
-            mcp_connections: 0, // TODO: Wire to MCP client status
+            tokens_used: self.session_tokens,
+            mcp_connections: self.mcp_connections,
             avg_latency_ms,
         }
     }
@@ -702,6 +708,20 @@ impl ProviderModalState {
     /// Set Ollama models
     pub fn set_ollama_models(&mut self, models: Vec<super::ollama_client::OllamaModelInfo>) {
         self.ollama_models = models;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.9.5: Session Stats Wiring Methods
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Set session token count (wired from ChatView.total_tokens())
+    pub fn set_session_tokens(&mut self, tokens: u64) {
+        self.session_tokens = tokens;
+    }
+
+    /// Set MCP connection count (wired from ChatView.session_context.mcp_servers)
+    pub fn set_mcp_connections(&mut self, count: usize) {
+        self.mcp_connections = count;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1627,5 +1647,73 @@ mod tests {
             state.verification_state.entries[5].status,
             VerifyStatus::Connected
         );
+    }
+
+    // ═══ TODO 2: Session Token Tracking Tests ═══
+
+    #[test]
+    fn test_set_session_tokens_updates_stats() {
+        let mut state = ProviderModalState::default();
+
+        // Initially tokens should be 0
+        assert_eq!(state.get_session_stats().tokens_used, 0);
+
+        // Set session tokens
+        state.set_session_tokens(12345);
+
+        // Stats should now reflect the tokens
+        let stats = state.get_session_stats();
+        assert_eq!(
+            stats.tokens_used, 12345,
+            "Session stats should reflect set tokens"
+        );
+    }
+
+    #[test]
+    fn test_session_tokens_update_multiple_times() {
+        let mut state = ProviderModalState::default();
+
+        state.set_session_tokens(100);
+        assert_eq!(state.get_session_stats().tokens_used, 100);
+
+        state.set_session_tokens(500);
+        assert_eq!(state.get_session_stats().tokens_used, 500);
+
+        state.set_session_tokens(0);
+        assert_eq!(state.get_session_stats().tokens_used, 0);
+    }
+
+    // ═══ TODO 3: MCP Connection Status Tests ═══
+
+    #[test]
+    fn test_set_mcp_connections_updates_stats() {
+        let mut state = ProviderModalState::default();
+
+        // Initially MCP connections should be 0
+        assert_eq!(state.get_session_stats().mcp_connections, 0);
+
+        // Set MCP connection count
+        state.set_mcp_connections(3);
+
+        // Stats should now reflect the connections
+        let stats = state.get_session_stats();
+        assert_eq!(
+            stats.mcp_connections, 3,
+            "Session stats should reflect MCP connections"
+        );
+    }
+
+    #[test]
+    fn test_mcp_connections_update_multiple_times() {
+        let mut state = ProviderModalState::default();
+
+        state.set_mcp_connections(2);
+        assert_eq!(state.get_session_stats().mcp_connections, 2);
+
+        state.set_mcp_connections(5);
+        assert_eq!(state.get_session_stats().mcp_connections, 5);
+
+        state.set_mcp_connections(0);
+        assert_eq!(state.get_session_stats().mcp_connections, 0);
     }
 }

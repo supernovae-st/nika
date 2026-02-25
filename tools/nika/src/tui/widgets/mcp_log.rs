@@ -361,8 +361,7 @@ mod tests {
             McpEntry::new(1, "novanet")
                 .with_tool("novanet_describe")
                 .completed(512),
-            McpEntry::new(2, "novanet")
-                .with_tool("novanet_generate"),
+            McpEntry::new(2, "novanet").with_tool("novanet_generate"),
         ];
         let log = McpLog::new(&entries);
 

@@ -1947,9 +1947,20 @@ impl App {
 
     /// Compute the view area for the current frame (excluding status bar etc.)
     fn compute_view_area(&self, terminal_size: Rect) -> Rect {
-        // Simple layout: just use full terminal for now
-        // TODO: Subtract status bar height if needed
-        terminal_size
+        // Status bar takes 1 line at the bottom
+        const STATUS_BAR_HEIGHT: u16 = 1;
+
+        if terminal_size.height > STATUS_BAR_HEIGHT {
+            Rect {
+                x: terminal_size.x,
+                y: terminal_size.y,
+                width: terminal_size.width,
+                height: terminal_size.height - STATUS_BAR_HEIGHT,
+            }
+        } else {
+            // Don't subtract from tiny terminals
+            terminal_size
+        }
     }
 
     /// Determine which panel is at the given screen position (TIER 3.1)
@@ -5300,5 +5311,51 @@ mod tests {
 
         // Should not panic when called with no tasks
         app.cancel_background_tasks();
+    }
+
+    // ═══ TODO 1: Status Bar Height Calculation Tests ═══
+
+    #[test]
+    fn test_compute_view_area_subtracts_status_bar() {
+        use ratatui::layout::Rect;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let app = App::new(&workflow_path).unwrap();
+
+        // Terminal size: 100x50
+        let terminal_size = Rect::new(0, 0, 100, 50);
+
+        // View area should be terminal size minus status bar (1 line)
+        let view_area = app.compute_view_area(terminal_size);
+
+        assert_eq!(view_area.x, 0, "x should be unchanged");
+        assert_eq!(view_area.y, 0, "y should be unchanged");
+        assert_eq!(view_area.width, 100, "width should be unchanged");
+        assert_eq!(
+            view_area.height, 49,
+            "height should be terminal height minus STATUS_BAR_HEIGHT (1)"
+        );
+    }
+
+    #[test]
+    fn test_compute_view_area_handles_small_terminal() {
+        use ratatui::layout::Rect;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+        let app = App::new(&workflow_path).unwrap();
+
+        // Very small terminal (only 1 line - edge case)
+        let tiny_terminal = Rect::new(0, 0, 80, 1);
+        let view_area = app.compute_view_area(tiny_terminal);
+
+        // Should not go negative - return original size
+        assert_eq!(
+            view_area.height, 1,
+            "Should not subtract from tiny terminal"
+        );
     }
 }

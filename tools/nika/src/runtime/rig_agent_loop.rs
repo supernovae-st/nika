@@ -915,7 +915,9 @@ impl RigAgentLoop {
     /// - No tools: Use `model.stream()` for pure streaming with full token tracking
     /// - With tools: Fall back to `agent.prompt()` (tokens will be 0)
     ///
-    /// **TODO:** When rig-core adds a streaming agent API, migrate to full streaming.
+    /// **NOTE:** Waiting on rig-core streaming agent API (upstream limitation).
+    /// Tracking: https://github.com/0xPlaygrounds/rig/issues (check for streaming agent RFC)
+    /// When available, migrate from `agent.prompt()` to streaming agent API for full token tracking with tools.
     ///
     /// # Type Parameters
     /// - `M`: A rig completion model that supports streaming
