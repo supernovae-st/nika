@@ -1733,6 +1733,29 @@ impl App {
                 self.set_status("🔄 Refreshing Ollama models...");
                 Action::Continue
             }
+            ViewAction::ValidateWorkflow(path) => {
+                // v0.11.0: Validate workflow YAML from Home view
+                match std::fs::read_to_string(&path) {
+                    Ok(content) => {
+                        use crate::ast::Workflow;
+                        match serde_yaml::from_str::<Workflow>(&content) {
+                            Ok(_workflow) => {
+                                let name = path.file_name()
+                                    .and_then(|n| n.to_str())
+                                    .unwrap_or("workflow");
+                                self.set_status(&format!("✅ {} is valid", name));
+                            }
+                            Err(e) => {
+                                self.set_status(&format!("❌ Validation failed: {}", e));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        self.set_status(&format!("❌ Cannot read file: {}", e));
+                    }
+                }
+                Action::Continue
+            }
         }
     }
 

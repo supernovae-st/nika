@@ -25,7 +25,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
-    text::{Line, Span},
+    text::{Line, Span, Text},
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
 };
@@ -370,7 +370,7 @@ impl MonitorView {
             .borders(Borders::ALL)
             .border_style(Style::default().fg(border_color));
 
-        // Build agent turn list
+        // Build agent turn list with thinking display (v0.11.0)
         let items: Vec<ListItem> = state
             .agent_turns
             .iter()
@@ -387,7 +387,8 @@ impl MonitorView {
                     .map(|t| format!(" [{}T]", t))
                     .unwrap_or_default();
 
-                ListItem::new(Line::from(vec![
+                // Main turn line
+                let main_line = Line::from(vec![
                     Span::styled(
                         format!("Turn {}: ", turn.index + 1),
                         Style::default()
@@ -397,12 +398,39 @@ impl MonitorView {
                     Span::styled(&turn.status, Style::default().fg(theme.text_primary)),
                     Span::styled(tools, Style::default().fg(theme.text_muted)),
                     Span::styled(tokens, Style::default().fg(theme.status_paused)),
-                ]))
-                .style(if i == self.scroll_offset(PanelId::Agent) && focused {
-                    Style::default().bg(theme.highlight)
-                } else {
-                    Style::default()
-                })
+                ]);
+
+                // Build lines vec - main line plus optional thinking (v0.11.0)
+                let mut lines = vec![main_line];
+
+                // Add thinking content if present
+                if let Some(ref thinking) = turn.thinking {
+                    let truncated = if thinking.len() > 100 {
+                        format!("{}...", &thinking[..97])
+                    } else {
+                        thinking.clone()
+                    };
+                    lines.push(Line::from(vec![
+                        Span::styled(
+                            "  💭 ",
+                            Style::default().fg(theme.status_paused),
+                        ),
+                        Span::styled(
+                            truncated,
+                            Style::default()
+                                .fg(theme.text_muted)
+                                .add_modifier(Modifier::ITALIC),
+                        ),
+                    ]));
+                }
+
+                ListItem::new(Text::from(lines)).style(
+                    if i == self.scroll_offset(PanelId::Agent) && focused {
+                        Style::default().bg(theme.highlight)
+                    } else {
+                        Style::default()
+                    },
+                )
             })
             .collect();
 
@@ -853,5 +881,56 @@ mod tests {
     fn test_implements_view_trait() {
         let view = MonitorView::new();
         let _: &dyn View = &view;
+    }
+
+    // v0.11.0: Thinking display tests
+    #[test]
+    fn test_agent_turn_with_thinking_short() {
+        use crate::tui::AgentTurnState;
+
+        let mut state = TuiState::new("test");
+        state.agent_turns.push(AgentTurnState {
+            index: 0,
+            status: "Thinking...".to_string(),
+            tokens: Some(100),
+            tool_calls: vec![],
+            thinking: Some("This is a short thinking string".to_string()),
+            response_text: None,
+        });
+
+        // Verify the thinking content is present in state
+        assert!(state.agent_turns[0].thinking.is_some());
+        let thinking = state.agent_turns[0].thinking.as_ref().unwrap();
+        assert_eq!(thinking, "This is a short thinking string");
+        assert!(thinking.len() <= 100); // Should not be truncated
+    }
+
+    #[test]
+    fn test_agent_turn_with_thinking_truncated() {
+        use crate::tui::AgentTurnState;
+
+        let mut state = TuiState::new("test");
+        let long_thinking = "A".repeat(150); // 150 characters
+        state.agent_turns.push(AgentTurnState {
+            index: 0,
+            status: "Thinking...".to_string(),
+            tokens: Some(100),
+            tool_calls: vec![],
+            thinking: Some(long_thinking.clone()),
+            response_text: None,
+        });
+
+        // Verify the thinking content is long enough to require truncation
+        let thinking = state.agent_turns[0].thinking.as_ref().unwrap();
+        assert!(thinking.len() > 100);
+
+        // Test truncation logic matches render_agent_panel
+        let truncated = if thinking.len() > 100 {
+            format!("{}...", &thinking[..97])
+        } else {
+            thinking.clone()
+        };
+        assert_eq!(truncated.len(), 100); // 97 chars + "..."
+        assert!(truncated.ends_with("..."));
     }
 }

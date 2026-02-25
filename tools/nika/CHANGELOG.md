@@ -7,40 +7,139 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-## [0.8.93] - 2026-02-24
+## [0.11.0] - 2026-02-25
+
+### Added
+- **EditHistory Wiring** - Full undo/redo support in Studio view
+  - Ctrl+Z for undo, Ctrl+Y for redo
+  - Intelligent 500ms coalescing for character groups
+  - Per-file undo stacks with memory-bounded snapshots
+- **Thinking Display** - Monitor view renders agent reasoning
+  - 💭 icon for thinking content in Agent panel
+  - Truncation at 100 chars with ellipsis
+  - Italic styling for visual distinction
+- **McpRetry Event Emission** - Observability for MCP retries
+  - `call_tool_with_retry_events()` method on McpClient
+  - Emits EventKind::McpRetry with attempt counts
+  - Full context: server name, operation, error message
+- **Home View Validation** - Quick workflow validation with 'v' key
+  - ValidateWorkflow ViewAction for routing
+  - Status bar feedback for valid/invalid workflows
 
 ### Changed
-- **Stylish System Message** - Enhanced welcome banner with decorations
+- Executor uses `call_tool_with_retry_events` for better observability
+- Monitor Agent panel now shows multi-line ListItems for thinking
+
+### Statistics
+- **2,876 tests passing** (comprehensive coverage)
+- **Zero clippy warnings**
+
+## [0.10.5] - 2026-02-25
+
+### Added
+- **ARMADA CI Pipeline** - 10-gate quality enforcement
+  - Step 6: Intelligence - audit findings, technical debt tracking
+  - Step 7: Badges - README badges for test count, coverage, version
+  - Steps 1-5: Formatting, linting, testing, security, docs
+- **Wiring Checkpoint Tests** - WIRING-7 through WIRING-10 (80 tests)
+  - Comprehensive integration testing for all view wiring
+  - Ensures all handlers properly connected
+
+### Changed
+- Renamed FORTRESS → ARMADA (cosmic pirate theme)
+- Removed deprecated render functions and dead panels
+- Cleaned up unused TUI code paths
+
+### Fixed
+- Complete v0.9.5 TODO remediation with TDD
+- Wire MonitorView, OllamaClient, ApiKeyState handlers
+- Expand mcp_log tests for edge cases
+
+### Statistics
+- **3,968 tests passing** (comprehensive coverage)
+- **Zero clippy warnings**
+
+## [0.10.0] - 2026-02-25
+
+### Added
+- **Chat DAG Widgets** - Visual workflow components
+  - `ChatNodeBox`: Individual chat message as graph node (4 kinds, 4 states)
+  - `ChatEdgeLine`: @N reference edges between nodes (Bezier curves)
+  - `ChatTaskQueue`: Task execution queue with 5-verb icons
+  - `ChatDagPanel`: Full DAG visualization (nodes + edges combined)
+- **Animation System** - Coordinated animations
+  - `AnimationTicker`: 60fps frame coordination
+  - `AnimationState`, `Easing` utilities
+- **Full Workflow Execution** - `nika:run` builtin tool executes real workflows
+- **HITL Handler** - Human-in-the-loop for `nika:prompt`
+
+### Changed
+- Chat view now displays messages as interactive DAG nodes
+- DAG edges visualize @N references between messages
+
+### Statistics
+- **108 new tests** for Chat DAG Widgets
+
+## [0.9.5] - 2026-02-24
+
+### Fixed
+- **TODO Remediation** - Resolved all v0.9.x TODOs with TDD
+  - 6 TODOs converted to tested implementations
+  - Each fix verified with failing test first
+
+### Added
+- Additional test coverage for edge cases
+- Documentation updates for resolved items
+
+## [0.9.3] - 2026-02-24
+
+### Added
+- **Builtin Tools** - 6 `nika:*` tools for workflow utilities
+  - `nika:sleep`: Configurable delay (duration parsing via humantime)
+  - `nika:log`: Structured logging (info/warn/error levels)
+  - `nika:emit`: Custom event emission
+  - `nika:assert`: Runtime assertions with messages
+  - `nika:prompt`: Human-in-the-loop input (with default fallback)
+  - `nika:run`: Execute nested workflows
+- **BuiltinToolRouter** - Dispatches `nika:*` tools via prefix matching
+- **Wiring Checkpoint 3** - Tests for BuiltinRouter <-> Executor
+
+### Statistics
+- **40+ tests** for builtin tools
+
+## [0.9.0] - 2026-02-24
+
+### Added
+- **6-Views Architecture** - View enum: Home, Chat, Studio, Monitor, Settings, Help
+- **Nika Intro Animation** - ASCII art explosion into matrix rain (15 frames, 1.5s)
+- **Stylish System Message** - Enhanced welcome banner
   - Decorative borders with ✨ sparkles
   - 🦋 butterflies around ASCII NIKA art
   - 🦀 Workflow Engine · 💫 Semantic AI tagline
   - 5 verb icons: ⚡ infer · 📟 exec · 🛰️ fetch · 🔌 invoke · 🐔 agent
-- **Faster Animation** - Reduced intro duration from 2.5s to 1.5s
-  - 15 frames instead of 25 frames
-  - Quicker fade-in (2 frames instead of 3)
-  - Lower density (0.015) for cleaner visuals
-  - More subtle rain opacity (0.2) after explosion
-
-## [0.8.92] - 2026-02-24
+- **Smooth Butterfly Animation** - Complete rewrite of explosion effect
+  - Ease-out cubic easing for natural deceleration
+  - Wave effect: center butterflies explode first
 
 ### Changed
-- **Smooth NIKA Butterfly Animation** - Complete rewrite of explosion effect
-  - Ease-out cubic easing for natural deceleration
-  - Wave effect: center butterflies explode first, edges follow
-  - Soft fade-in at startup (first 3 frames)
-  - Shorter duration: 25 frames (~2.5s) instead of 40 frames (~4s)
-  - Cleaner sparkle arrangement (8 positions instead of 12)
-  - Lower density (0.02/0.05) for cleaner visual
+- TUI refactored to support 6 independent views
+- Animation system with performance optimizations
+
+### Statistics
+- **2,793 tests passing**
+- Matrix rain animation tests for easing and wave patterns
+
+## [0.8.0] - 2026-02-23
 
 ### Added
-- **Performance Tests** - 3 new matrix_rain tests
-  - `test_ease_out_function` - Validates easing curve properties
-  - `test_smooth_explosion_progression` - 30-frame stress test
-  - `test_wave_pattern_center_first` - Wave effect validation
+- **Studio DX Enhancements** - Unified editor experience
+  - Edit History (Undo/Redo): Ctrl+Z/Ctrl+Y with 500ms coalescing
+  - Session Persistence: `.nika/sessions/*.json` autosave
+  - Solarized Theme: Light/Dark unified across TUI
+  - Config System: `.nika/config.toml` for user preferences
 
-### Fixed
-- Reduced visual noise during butterfly explosion
-- Smoother transition to regular matrix rain after explosion
+### Statistics
+- **1,902 tests passing**
 
 ## [0.7.2] - 2026-02-23
 
@@ -289,7 +388,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **TUI** - Terminal UI with ratatui (feature-gated)
 - **Schema v0.1** - `nika/workflow@0.1`
 
-[Unreleased]: https://github.com/supernovae-st/nika-dev/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/supernovae-st/nika-dev/compare/v0.10.5...HEAD
+[0.10.5]: https://github.com/supernovae-st/nika-dev/compare/v0.10.0...v0.10.5
+[0.10.0]: https://github.com/supernovae-st/nika-dev/compare/v0.9.5...v0.10.0
+[0.9.5]: https://github.com/supernovae-st/nika-dev/compare/v0.9.3...v0.9.5
+[0.9.3]: https://github.com/supernovae-st/nika-dev/compare/v0.9.0...v0.9.3
+[0.9.0]: https://github.com/supernovae-st/nika-dev/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/supernovae-st/nika-dev/compare/v0.7.2...v0.8.0
+[0.7.2]: https://github.com/supernovae-st/nika-dev/compare/v0.7.0...v0.7.2
+[0.7.0]: https://github.com/supernovae-st/nika-dev/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/supernovae-st/nika-dev/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/supernovae-st/nika-dev/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/supernovae-st/nika-dev/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/supernovae-st/nika-dev/compare/v0.4.1...v0.5.0

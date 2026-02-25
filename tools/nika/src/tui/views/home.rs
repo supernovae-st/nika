@@ -928,6 +928,16 @@ impl View for HomeView {
             KeyCode::Char('3') => ViewAction::SwitchView(TuiView::Studio),
             KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Monitor),
 
+            // v0.11.0: Validate selected workflow
+            KeyCode::Char('v') => {
+                if let Some(entry) = self.selected_entry() {
+                    if !entry.is_dir {
+                        return ViewAction::ValidateWorkflow(entry.path.clone());
+                    }
+                }
+                ViewAction::None
+            }
+
             // Tab: handled at app level for view cycling
             KeyCode::Tab => ViewAction::None,
 

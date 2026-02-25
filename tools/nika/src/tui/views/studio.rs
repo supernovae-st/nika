@@ -35,6 +35,7 @@ use super::ViewAction;
 use crate::ast::schema_validator::WorkflowSchemaValidator;
 use crate::ast::Workflow;
 use crate::error::NikaError;
+use crate::tui::edit_history::EditHistory;
 use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
@@ -275,6 +276,44 @@ impl TextBuffer {
     pub fn scroll_offset(&self) -> usize {
         self.scroll_offset
     }
+
+    // === v0.11.0: Edit History Support ===
+
+    /// Get cursor position as linear index (for EditHistory)
+    pub fn cursor_position(&self) -> usize {
+        let mut pos = 0;
+        for (i, line) in self.lines.iter().enumerate() {
+            if i == self.cursor_row {
+                return pos + self.cursor_col.min(line.len());
+            }
+            pos += line.len() + 1; // +1 for newline
+        }
+        pos
+    }
+
+    /// Set content from string (clears buffer and reloads)
+    pub fn set_content(&mut self, content: &str) {
+        *self = Self::from_content(content);
+    }
+
+    /// Set cursor to linear position
+    pub fn set_cursor_position(&mut self, pos: usize) {
+        let mut remaining = pos;
+        for (row, line) in self.lines.iter().enumerate() {
+            let line_len = line.len() + 1; // +1 for newline
+            if remaining < line_len || row == self.lines.len() - 1 {
+                self.cursor_row = row;
+                self.cursor_col = remaining.min(line.len());
+                self.adjust_scroll();
+                return;
+            }
+            remaining -= line_len;
+        }
+        // Fallback: end of document
+        self.cursor_row = self.lines.len().saturating_sub(1);
+        self.cursor_col = self.lines.last().map(|l| l.len()).unwrap_or(0);
+        self.adjust_scroll();
+    }
 }
 
 /// Studio view state
@@ -313,6 +352,9 @@ pub struct StudioView {
     pub rain_fading: bool,
     /// Whether matrix effect is enabled
     pub matrix_effect_enabled: bool,
+    // === v0.11.0: Edit History (Undo/Redo) ===
+    /// Edit history for undo/redo support (Ctrl+Z/Ctrl+Y)
+    edit_history: EditHistory,
 }
 
 impl StudioView {
@@ -334,6 +376,8 @@ impl StudioView {
             rain_opacity: 1.0,
             rain_fading: true,
             matrix_effect_enabled: true,
+            // v0.11.0: Edit History (Undo/Redo)
+            edit_history: EditHistory::new(100),
         }
     }
 
@@ -358,6 +402,10 @@ impl StudioView {
         self.modified = true;
         self.validation_pending = true;
         self.last_edit_time = Some(Instant::now());
+        // v0.11.0: Push state to edit history for undo/redo
+        let content = self.buffer.content();
+        let cursor = self.buffer.cursor_position();
+        self.edit_history.push(&content, cursor);
     }
 
     /// Simple hash for cache invalidation
@@ -393,6 +441,8 @@ impl StudioView {
         self.path = Some(path);
         self.modified = false;
         self.validate();
+        // v0.11.0: Initialize edit history with loaded content
+        self.edit_history.init(&content, 0);
         Ok(())
     }
 
@@ -404,6 +454,30 @@ impl StudioView {
             self.modified = false;
         }
         Ok(())
+    }
+
+    // === v0.11.0: Edit History (Undo/Redo) ===
+
+    /// Undo the last edit (Ctrl+Z)
+    fn undo(&mut self) {
+        if let Some((text, cursor)) = self.edit_history.undo() {
+            self.buffer.set_content(&text);
+            self.buffer.set_cursor_position(cursor);
+            self.modified = true;
+            self.validation_pending = true;
+            self.last_edit_time = Some(Instant::now());
+        }
+    }
+
+    /// Redo the last undone edit (Ctrl+Y or Ctrl+Shift+Z)
+    fn redo(&mut self) {
+        if let Some((text, cursor)) = self.edit_history.redo() {
+            self.buffer.set_content(&text);
+            self.buffer.set_cursor_position(cursor);
+            self.modified = true;
+            self.validation_pending = true;
+            self.last_edit_time = Some(Instant::now());
+        }
     }
 
     /// Validate the YAML content
@@ -545,6 +619,24 @@ impl StudioView {
                     ViewAction::None
                 }
             }
+            // v0.11.0: Ctrl+Z for undo
+            KeyCode::Char('z') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.undo();
+                ViewAction::None
+            }
+            // v0.11.0: Ctrl+Y or Ctrl+Shift+Z for redo
+            KeyCode::Char('y') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.redo();
+                ViewAction::None
+            }
+            KeyCode::Char('Z')
+                if key
+                    .modifiers
+                    .contains(KeyModifiers::CONTROL | KeyModifiers::SHIFT) =>
+            {
+                self.redo();
+                ViewAction::None
+            }
             // 's' opens Settings view
             KeyCode::Char('s') => ViewAction::OpenSettings,
             // Shift+T or Ctrl+t toggles theme (v0.8.1 - consistent across all views)
@@ -594,6 +686,31 @@ impl StudioView {
     }
 
     fn handle_insert_mode(&mut self, key: KeyEvent) -> ViewAction {
+        // v0.11.0: Handle Ctrl+Z and Ctrl+Y before other key handlers
+        if key.modifiers.contains(KeyModifiers::CONTROL) {
+            match key.code {
+                KeyCode::Char('z') => {
+                    self.undo();
+                    return ViewAction::None;
+                }
+                KeyCode::Char('y') => {
+                    self.redo();
+                    return ViewAction::None;
+                }
+                _ => {}
+            }
+        }
+        // Ctrl+Shift+Z for redo
+        if key
+            .modifiers
+            .contains(KeyModifiers::CONTROL | KeyModifiers::SHIFT)
+        {
+            if matches!(key.code, KeyCode::Char('Z')) {
+                self.redo();
+                return ViewAction::None;
+            }
+        }
+
         match key.code {
             KeyCode::Esc => {
                 self.mode = EditorMode::Normal;

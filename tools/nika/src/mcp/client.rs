@@ -57,7 +57,10 @@ use dashmap::DashMap;
 use rustc_hash::FxHasher;
 use serde_json::Value;
 
+use std::sync::Arc;
+
 use crate::error::{NikaError, Result};
+use crate::event::{EventKind, EventLog};
 use crate::mcp::rmcp_adapter::RmcpClientAdapter;
 use crate::mcp::types::{ContentBlock, McpConfig, ResourceContent, ToolCallResult, ToolDefinition};
 use crate::mcp::validation::{ErrorEnhancer, McpValidator, ValidationConfig, ValidationErrorKind};
@@ -934,6 +937,193 @@ impl McpClient {
         }))
     }
 
+    /// Call an MCP tool with retry event emission (v0.11.0).
+    ///
+    /// This method is similar to `call_tool()` but emits `McpRetry` events
+    /// through the provided EventLog when connection errors trigger retries.
+    /// This enables TUI observability of MCP retry attempts.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Tool name (e.g., "novanet_generate")
+    /// * `params` - Tool parameters as JSON
+    /// * `task_id` - Task ID for event correlation
+    /// * `event_log` - EventLog for emitting McpRetry events
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let result = client.call_tool_with_retry_events(
+    ///     "novanet_generate",
+    ///     json!({"entity": "qr-code"}),
+    ///     &task_id,
+    ///     &event_log,
+    /// ).await?;
+    /// ```
+    pub async fn call_tool_with_retry_events(
+        &self,
+        name: &str,
+        params: Value,
+        task_id: &Arc<str>,
+        event_log: &EventLog,
+    ) -> Result<ToolCallResult> {
+        // Pre-call validation (if enabled) - same as call_tool()
+        if let Some(ref validator) = self.validator {
+            if validator.config().pre_validate {
+                let result = validator.validate(&self.name, name, &params);
+                if !result.is_valid {
+                    let missing: Vec<String> = result
+                        .errors
+                        .iter()
+                        .filter_map(|e| {
+                            if let ValidationErrorKind::MissingRequired { field } = &e.kind {
+                                Some(field.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    let suggestions: Vec<String> = result
+                        .errors
+                        .iter()
+                        .filter_map(|e| {
+                            if let ValidationErrorKind::UnknownField { suggestions, .. } = &e.kind {
+                                Some(suggestions.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .flatten()
+                        .collect();
+
+                    let details = result
+                        .errors
+                        .iter()
+                        .map(|e| e.message.clone())
+                        .collect::<Vec<_>>()
+                        .join("; ");
+
+                    return Err(NikaError::McpValidationFailed {
+                        tool: name.to_string(),
+                        details,
+                        missing,
+                        suggestions,
+                    });
+                }
+            }
+        }
+
+        // Check cache for a hit
+        if let Some(ref cache) = self.cache {
+            if let Some(cached_result) = cache.get(name, &params) {
+                self.last_cache_hit.store(true, Ordering::SeqCst);
+                tracing::debug!(
+                    mcp_server = %self.name,
+                    tool = %name,
+                    "Cache hit for MCP tool call"
+                );
+                return Ok(cached_result);
+            }
+        }
+
+        self.last_cache_hit.store(false, Ordering::SeqCst);
+
+        if self.is_mock {
+            if !self.connected.load(Ordering::SeqCst) {
+                return Err(NikaError::McpNotConnected {
+                    name: self.name.clone(),
+                });
+            }
+            let result = self.mock_tool_call(name, &params);
+            if let Some(ref cache) = self.cache {
+                cache.put(name, &params, &result);
+            }
+            return Ok(result);
+        }
+
+        // Real mode: use rmcp adapter with retry logic and event emission
+        let adapter = self
+            .adapter
+            .as_ref()
+            .ok_or_else(|| NikaError::McpNotConnected {
+                name: self.name.clone(),
+            })?;
+
+        let max_retries = 3;
+        let mut last_error: Option<NikaError> = None;
+
+        for attempt in 0..=max_retries {
+            match adapter.call_tool(name, params.clone()).await {
+                Ok(result) => {
+                    if let Some(ref cache) = self.cache {
+                        cache.put(name, &params, &result);
+                        tracing::debug!(
+                            mcp_server = %self.name,
+                            tool = %name,
+                            "Cached MCP tool response"
+                        );
+                    }
+                    return Ok(result);
+                }
+                Err(e) => {
+                    let enhanced_error = if let Some(ref validator) = self.validator {
+                        if validator.config().enhance_errors {
+                            let enhancer = ErrorEnhancer::new(validator.cache());
+                            enhancer.enhance(&self.name, name, e)
+                        } else {
+                            e
+                        }
+                    } else {
+                        e
+                    };
+
+                    if Self::is_connection_error(&enhanced_error) && attempt < max_retries {
+                        // v0.11.0: Emit McpRetry event
+                        event_log.emit(EventKind::McpRetry {
+                            task_id: Arc::clone(task_id),
+                            server_name: self.name.clone(),
+                            operation: name.to_string(),
+                            attempt: attempt + 1, // 1-based
+                            max_attempts: max_retries + 1,
+                            error: enhanced_error.to_string(),
+                        });
+
+                        tracing::warn!(
+                            mcp_server = %self.name,
+                            tool = %name,
+                            attempt = attempt + 1,
+                            error = %enhanced_error,
+                            "Connection error, attempting reconnect (McpRetry event emitted)"
+                        );
+
+                        if let Err(reconnect_err) = adapter.reconnect().await {
+                            tracing::error!(
+                                mcp_server = %self.name,
+                                error = %reconnect_err,
+                                "Failed to reconnect"
+                            );
+                            last_error = Some(enhanced_error);
+                            break;
+                        }
+
+                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                        last_error = Some(enhanced_error);
+                        continue;
+                    }
+
+                    return Err(enhanced_error);
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| NikaError::McpToolError {
+            tool: name.to_string(),
+            reason: "Connection failed after reconnection attempts".to_string(),
+            error_code: None,
+        }))
+    }
+
     /// Read a resource from the MCP server.
     ///
     /// # Arguments
@@ -1722,5 +1912,94 @@ mod tests {
         let config = McpConfig::new("test", "echo");
         let client = McpClient::new(config).unwrap();
         assert!(client.is_configured());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // v0.11.0: McpRetry Event Emission Tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_call_tool_with_retry_events_mock_success() {
+        use crate::event::EventLog;
+
+        let client = McpClient::mock("novanet");
+        let event_log = EventLog::new();
+        let task_id: Arc<str> = Arc::from("test_retry_events");
+
+        // Mock client should succeed immediately (no retries)
+        let result = client
+            .call_tool_with_retry_events(
+                "novanet_generate",
+                serde_json::json!({"entity": "qr-code"}),
+                &task_id,
+                &event_log,
+            )
+            .await;
+
+        assert!(result.is_ok(), "Mock call should succeed: {:?}", result.err());
+
+        // No McpRetry events should be emitted for successful mock calls
+        let events = event_log.filter_task("test_retry_events");
+        let retry_events: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e.kind, EventKind::McpRetry { .. }))
+            .collect();
+        assert!(retry_events.is_empty(), "No retry events for successful calls");
+    }
+
+    #[tokio::test]
+    async fn test_call_tool_with_retry_events_uses_cache() {
+        use crate::event::EventLog;
+        use std::time::Duration;
+
+        // Create client with cache enabled
+        let client = McpClient::mock("novanet").with_cache(CacheConfig {
+            ttl: Duration::from_secs(60),
+            max_entries: 100,
+        });
+        let event_log = EventLog::new();
+        let task_id: Arc<str> = Arc::from("test_cache_hit");
+
+        let params = serde_json::json!({"entity": "qr-code"});
+
+        // First call - cache miss
+        let _result1 = client
+            .call_tool_with_retry_events("novanet_generate", params.clone(), &task_id, &event_log)
+            .await
+            .unwrap();
+        assert!(!client.was_last_call_cached());
+
+        // Second call - should hit cache
+        let _result2 = client
+            .call_tool_with_retry_events("novanet_generate", params.clone(), &task_id, &event_log)
+            .await
+            .unwrap();
+        assert!(client.was_last_call_cached());
+    }
+
+    #[tokio::test]
+    async fn test_call_tool_with_retry_events_not_connected_fails() {
+        use crate::event::EventLog;
+
+        // Create a real (not mock) client that isn't connected
+        let config = McpConfig::new("test", "nonexistent_command");
+        let client = McpClient::new(config).unwrap();
+        let event_log = EventLog::new();
+        let task_id: Arc<str> = Arc::from("test_not_connected");
+
+        let result = client
+            .call_tool_with_retry_events(
+                "some_tool",
+                serde_json::json!({}),
+                &task_id,
+                &event_log,
+            )
+            .await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            NikaError::McpNotConnected { .. } => {} // Expected
+            err => panic!("Expected McpNotConnected, got: {err:?}"),
+        }
     }
 }

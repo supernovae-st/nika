@@ -333,6 +333,8 @@ pub enum ViewAction {
     DeleteOllamaModel(String),
     /// Refresh Ollama model list (v0.12.3)
     RefreshOllamaModels,
+    /// Validate workflow in Home view (v0.11.0)
+    ValidateWorkflow(std::path::PathBuf),
 }
 
 #[cfg(test)]

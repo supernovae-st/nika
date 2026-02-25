@@ -783,7 +783,10 @@ impl TaskExecutor {
             } else {
                 serde_json::Value::Null
             };
-            let tool_result = client.call_tool(tool, params).await?;
+            // v0.11.0: Use call_tool_with_retry_events for McpRetry event emission
+            let tool_result = client
+                .call_tool_with_retry_events(tool, params, task_id, &self.event_log)
+                .await?;
 
             // Check if tool returned an error
             if tool_result.is_error {
