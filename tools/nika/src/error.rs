@@ -400,10 +400,41 @@ pub enum NikaError {
     StartupError { phase: String, reason: String },
 
     // ═══════════════════════════════════════════
-    // TOOL ERRORS (200-219) - NEW v0.6
+    // TOOL ERRORS (200-209) - NEW v0.6
     // ═══════════════════════════════════════════
     #[error("[{code}] {message}")]
     ToolError { code: String, message: String },
+
+    // ═══════════════════════════════════════════
+    // BUILTIN TOOL ERRORS (210-219) - NEW v0.9.3
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-210] Builtin tool '{tool}' error: {reason}")]
+    #[diagnostic(
+        code(nika::builtin_tool_error),
+        help("Check builtin tool parameters and configuration")
+    )]
+    BuiltinToolError { tool: String, reason: String },
+
+    #[error("[NIKA-211] Builtin tool '{tool}' not found")]
+    #[diagnostic(
+        code(nika::builtin_tool_not_found),
+        help("Valid builtin tools: nika:sleep, nika:log, nika:emit, nika:assert, nika:prompt, nika:run")
+    )]
+    BuiltinToolNotFound { tool: String },
+
+    #[error("[NIKA-212] Builtin tool '{tool}' invalid parameters: {reason}")]
+    #[diagnostic(
+        code(nika::builtin_invalid_params),
+        help("Check the parameter format matches the expected JSON schema")
+    )]
+    BuiltinInvalidParams { tool: String, reason: String },
+
+    #[error("[NIKA-213] Assertion failed in nika:assert: {message}")]
+    #[diagnostic(
+        code(nika::assertion_failed),
+        help("The condition evaluated to false")
+    )]
+    AssertionFailed { message: String, condition: String },
 }
 
 impl NikaError {
@@ -495,6 +526,11 @@ impl NikaError {
             Self::StartupError { .. } => "NIKA-150",
             // Tool errors (code is dynamic)
             Self::ToolError { .. } => "NIKA-2XX",
+            // Builtin tool errors (v0.9.3)
+            Self::BuiltinToolError { .. } => "NIKA-210",
+            Self::BuiltinToolNotFound { .. } => "NIKA-211",
+            Self::BuiltinInvalidParams { .. } => "NIKA-212",
+            Self::AssertionFailed { .. } => "NIKA-213",
         }
     }
 
@@ -675,6 +711,17 @@ impl FixSuggestion for NikaError {
             NikaError::ToolError { .. } => {
                 Some("Check file path and permissions. Use Read before Edit.")
             }
+            // Builtin tool errors (v0.9.3)
+            NikaError::BuiltinToolError { .. } => {
+                Some("Check builtin tool parameters and configuration")
+            }
+            NikaError::BuiltinToolNotFound { .. } => {
+                Some("Valid tools: nika:sleep, nika:log, nika:emit, nika:assert, nika:prompt, nika:run")
+            }
+            NikaError::BuiltinInvalidParams { .. } => {
+                Some("Check the parameter format matches the expected JSON schema")
+            }
+            NikaError::AssertionFailed { .. } => Some("The condition evaluated to false"),
         }
     }
 }

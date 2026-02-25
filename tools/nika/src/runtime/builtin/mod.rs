@@ -17,8 +17,10 @@
 //!                            └── dispatch to appropriate tool
 //! ```
 
+mod router;
 mod r#trait;
 
+pub use router::BuiltinToolRouter;
 pub use r#trait::BuiltinTool;
 
 #[cfg(test)]
