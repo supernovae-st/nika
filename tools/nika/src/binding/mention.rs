@@ -22,6 +22,7 @@
 //! ```
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// A reference to a previous chat message.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -34,6 +35,17 @@ pub enum Mention {
     All,
     /// @N..M - range of messages (inclusive)
     Range { start: u32, end: u32 },
+}
+
+impl fmt::Display for Mention {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Mention::Number(n) => write!(f, "@{}", n),
+            Mention::Last => write!(f, "@last"),
+            Mention::All => write!(f, "@all"),
+            Mention::Range { start, end } => write!(f, "@{}..{}", start, end),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -91,5 +103,35 @@ mod tests {
         let json = serde_json::to_string(&m).unwrap();
         let restored: Mention = serde_json::from_str(&json).unwrap();
         assert_eq!(m, restored);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 2.2: Display implementation tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_mention_display_number() {
+        assert_eq!(format!("{}", Mention::Number(1)), "@1");
+        assert_eq!(format!("{}", Mention::Number(42)), "@42");
+        assert_eq!(format!("{}", Mention::Number(999)), "@999");
+    }
+
+    #[test]
+    fn test_mention_display_last() {
+        assert_eq!(format!("{}", Mention::Last), "@last");
+    }
+
+    #[test]
+    fn test_mention_display_all() {
+        assert_eq!(format!("{}", Mention::All), "@all");
+    }
+
+    #[test]
+    fn test_mention_display_range() {
+        assert_eq!(format!("{}", Mention::Range { start: 1, end: 3 }), "@1..3");
+        assert_eq!(
+            format!("{}", Mention::Range { start: 10, end: 20 }),
+            "@10..20"
+        );
     }
 }
