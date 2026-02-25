@@ -131,6 +131,32 @@ impl ChatWorkflow {
         let id = format!("msg-{:03}", n);
         self.id_to_index.get(&id).copied()
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 1.5: Message Counter for @N References
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Get the current message number (for @N references).
+    /// Returns 0 if no messages have been added.
+    pub fn current_message_number(&self) -> u32 {
+        self.message_counter
+    }
+
+    /// Get the most recent message (last added).
+    pub fn last_message(&self) -> Option<&ChatMessage> {
+        if self.message_counter == 0 {
+            return None;
+        }
+        self.get_message_by_number(self.message_counter)
+    }
+
+    /// Get the NodeIndex of the most recent message.
+    pub fn last_message_index(&self) -> Option<NodeIndex> {
+        if self.message_counter == 0 {
+            return None;
+        }
+        self.get_index_by_number(self.message_counter)
+    }
 }
 
 impl Default for ChatWorkflow {
@@ -353,5 +379,62 @@ mod tests {
 
         // The first message still has no incoming edge (it's the source)
         assert!(workflow.dag.node_weight(idx1).is_some());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 1.5: Message Counter for @N References tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_current_message_number_empty() {
+        let workflow = ChatWorkflow::new();
+        assert_eq!(workflow.current_message_number(), 0);
+    }
+
+    #[test]
+    fn test_current_message_number_increments() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+        assert_eq!(workflow.current_message_number(), 1);
+
+        workflow.add_message("Second", Role::Assistant);
+        assert_eq!(workflow.current_message_number(), 2);
+
+        workflow.add_message("Third", Role::User);
+        assert_eq!(workflow.current_message_number(), 3);
+    }
+
+    #[test]
+    fn test_last_message_empty() {
+        let workflow = ChatWorkflow::new();
+        assert!(workflow.last_message().is_none());
+    }
+
+    #[test]
+    fn test_last_message_returns_most_recent() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+        assert_eq!(workflow.last_message().unwrap().content, "First");
+
+        workflow.add_message("Second", Role::Assistant);
+        assert_eq!(workflow.last_message().unwrap().content, "Second");
+
+        workflow.add_message("Third", Role::User);
+        assert_eq!(workflow.last_message().unwrap().content, "Third");
+    }
+
+    #[test]
+    fn test_last_message_index() {
+        let mut workflow = ChatWorkflow::new();
+
+        assert!(workflow.last_message_index().is_none());
+
+        let idx1 = workflow.add_message("First", Role::User);
+        assert_eq!(workflow.last_message_index(), Some(idx1));
+
+        let idx2 = workflow.add_message("Second", Role::Assistant);
+        assert_eq!(workflow.last_message_index(), Some(idx2));
     }
 }
