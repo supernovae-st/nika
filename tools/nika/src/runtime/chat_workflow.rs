@@ -17,6 +17,10 @@
 //!    User        Assistant      User        Assistant
 //! ```
 
+use crate::binding::{
+    has_parallel_marker, parse_mentions, resolve_mention, strip_parallel_marker, text_to_wiring,
+    Mention, MentionResolutionError, ResolvedMention, WiringSpec,
+};
 use crate::dag::StableFlowGraph;
 use chrono::{DateTime, Utc};
 use petgraph::stable_graph::NodeIndex;
@@ -156,6 +160,86 @@ impl ChatWorkflow {
             return None;
         }
         self.get_index_by_number(self.message_counter)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 2.9: @mention Integration
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Add a message that is parallel (independent of previous message).
+    ///
+    /// Unlike `add_message()`, this does NOT create an auto-edge from the
+    /// previous message. Used for messages starting with `//` parallel marker.
+    pub fn add_message_parallel(&mut self, content: &str, role: Role) -> NodeIndex {
+        self.message_counter += 1;
+        let id = format!("msg-{:03}", self.message_counter);
+
+        // Strip the parallel marker from content if present
+        let clean_content = strip_parallel_marker(content);
+
+        let message = ChatMessage {
+            id: id.clone(),
+            content: clean_content.to_string(),
+            role,
+            timestamp: Utc::now(),
+        };
+
+        let idx = self.dag.add_node(message);
+        self.id_to_index.insert(id, idx);
+
+        // NO auto-edge for parallel messages
+        idx
+    }
+
+    /// Add a message, automatically detecting if it's parallel or sequential.
+    ///
+    /// Messages starting with `//` are parallel (no edge from previous).
+    /// All other messages get the standard sequential edge.
+    pub fn add_message_auto(&mut self, content: &str, role: Role) -> NodeIndex {
+        if has_parallel_marker(content) {
+            self.add_message_parallel(content, role)
+        } else {
+            self.add_message(content, role)
+        }
+    }
+
+    /// Parse @mentions from a message's content.
+    ///
+    /// Returns all mentions found in the message content.
+    pub fn get_mentions(&self, idx: NodeIndex) -> Vec<Mention> {
+        match self.get_message_by_index(idx) {
+            Some(msg) => parse_mentions(&msg.content),
+            None => vec![],
+        }
+    }
+
+    /// Resolve a mention using this conversation's message count.
+    pub fn resolve_mention(&self, mention: &Mention) -> Result<ResolvedMention, MentionResolutionError> {
+        resolve_mention(mention, self.message_counter)
+    }
+
+    /// Get WiringSpec for all mentions in a message.
+    ///
+    /// Parses mentions from the message content and converts them to
+    /// WiringSpec bindings that can be used for DAG edges.
+    pub fn get_wiring_for_message(
+        &self,
+        idx: NodeIndex,
+    ) -> Result<WiringSpec, MentionResolutionError> {
+        match self.get_message_by_index(idx) {
+            Some(msg) => text_to_wiring(&msg.content, self.message_counter),
+            None => Ok(WiringSpec::default()),
+        }
+    }
+
+    /// Check if a message has the parallel marker.
+    ///
+    /// Returns true if the message content starts with `//`.
+    pub fn is_parallel_message(&self, idx: NodeIndex) -> bool {
+        match self.get_message_by_index(idx) {
+            Some(msg) => has_parallel_marker(&msg.content),
+            None => false,
+        }
     }
 }
 
@@ -519,5 +603,137 @@ mod tests {
         // Create and share
         let workflow = Arc::new(parking_lot::Mutex::new(ChatWorkflow::new()));
         let _cloned = Arc::clone(&workflow);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 2.9: @mention Integration Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_add_message_parallel_no_auto_edge() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+        workflow.add_message_parallel("// Independent task", Role::User);
+
+        // 2 messages, but only 0 edges (parallel message has no edge)
+        assert_eq!(workflow.message_count(), 2);
+        assert_eq!(workflow.dag.edge_count(), 0);
+    }
+
+    #[test]
+    fn test_add_message_parallel_strips_marker() {
+        let mut workflow = ChatWorkflow::new();
+
+        let idx = workflow.add_message_parallel("// Independent task", Role::User);
+
+        // Content should have marker stripped
+        let msg = workflow.get_message_by_index(idx).unwrap();
+        assert_eq!(msg.content, "Independent task");
+    }
+
+    #[test]
+    fn test_add_message_auto_detects_parallel() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message_auto("First", Role::User);
+        workflow.add_message_auto("Second", Role::Assistant);
+        workflow.add_message_auto("// Parallel", Role::User);
+
+        // 3 messages: 2 sequential (1 edge), 1 parallel (0 edge)
+        assert_eq!(workflow.message_count(), 3);
+        assert_eq!(workflow.dag.edge_count(), 1); // Only 1→2 edge
+    }
+
+    #[test]
+    fn test_add_message_auto_sequential() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message_auto("First", Role::User);
+        workflow.add_message_auto("Second", Role::Assistant);
+
+        // 2 messages with 1 edge (sequential)
+        assert_eq!(workflow.message_count(), 2);
+        assert_eq!(workflow.dag.edge_count(), 1);
+    }
+
+    #[test]
+    fn test_get_mentions_parses_content() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First message", Role::User);
+        workflow.add_message("Second message", Role::Assistant);
+        let idx = workflow.add_message("Based on @1 and @2", Role::User);
+
+        let mentions = workflow.get_mentions(idx);
+        assert_eq!(mentions.len(), 2);
+        assert_eq!(mentions[0], Mention::Number(1));
+        assert_eq!(mentions[1], Mention::Number(2));
+    }
+
+    #[test]
+    fn test_get_mentions_empty_for_no_mentions() {
+        let mut workflow = ChatWorkflow::new();
+
+        let idx = workflow.add_message("No mentions here", Role::User);
+
+        let mentions = workflow.get_mentions(idx);
+        assert!(mentions.is_empty());
+    }
+
+    #[test]
+    fn test_resolve_mention_uses_message_count() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+        workflow.add_message("Second", Role::Assistant);
+        workflow.add_message("Third", Role::User);
+
+        // @last should resolve to 3
+        let result = workflow.resolve_mention(&Mention::Last);
+        assert_eq!(result, Ok(ResolvedMention::Single(3)));
+
+        // @all should resolve to [1, 2, 3]
+        let result = workflow.resolve_mention(&Mention::All);
+        assert_eq!(result, Ok(ResolvedMention::Multiple(vec![1, 2, 3])));
+    }
+
+    #[test]
+    fn test_get_wiring_for_message() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+        workflow.add_message("Second", Role::Assistant);
+        let idx = workflow.add_message("Based on @1", Role::User);
+
+        let wiring = workflow.get_wiring_for_message(idx).unwrap();
+        assert_eq!(wiring.len(), 1);
+        assert!(wiring.contains_key("ref_1"));
+        assert_eq!(wiring["ref_1"].path, "msg-001.output");
+    }
+
+    #[test]
+    fn test_get_wiring_for_message_with_last() {
+        let mut workflow = ChatWorkflow::new();
+
+        workflow.add_message("First", Role::User);
+        workflow.add_message("Second", Role::Assistant);
+        let idx = workflow.add_message("Continue from @last", Role::User);
+
+        // @last resolves to current message count (3) at resolution time
+        let wiring = workflow.get_wiring_for_message(idx).unwrap();
+        assert_eq!(wiring.len(), 1);
+        assert!(wiring.contains_key("ref_3")); // @last = message 3 (current count)
+    }
+
+    #[test]
+    fn test_is_parallel_message() {
+        let mut workflow = ChatWorkflow::new();
+
+        let idx1 = workflow.add_message("Normal", Role::User);
+        let idx2 = workflow.add_message("// Parallel", Role::User);
+
+        assert!(!workflow.is_parallel_message(idx1));
+        assert!(workflow.is_parallel_message(idx2));
     }
 }
