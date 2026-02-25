@@ -2,90 +2,169 @@
 
 Thank you for your interest in contributing to Nika! This document provides guidelines and workflows for contributing.
 
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🏴‍☠️ ARMADA — Nika Contribution Guide                                         ║
+║  ───────────────────────────────────────────────────────────────────────────  ║
+║  "All ships must pass the checkpoint"                                         ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
 ## Table of Contents
 
-- [Code of Conduct](#code-of-conduct)
 - [Version Lock Policy](#version-lock-policy)
-- [Getting Started](#getting-started)
+- [ARMADA Quality System](#armada-quality-system)
 - [Development Workflow](#development-workflow)
 - [Commit Convention](#commit-convention)
 - [Pull Request Process](#pull-request-process)
-- [Quality Gates](#quality-gates)
 - [Testing](#testing)
 - [Documentation](#documentation)
 
-## Code of Conduct
-
-Be respectful, inclusive, and constructive. We're building something great together.
-
 ## Version Lock Policy
 
-**⚠️ CRITICAL:** Nika will **NEVER** be version 1.0.0 or higher.
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  ⚓ CAPTAIN'S ORDERS: VERSION LOCK                                            ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  Nika will NEVER be version 1.0.0 or higher.                                  ║
+║                                                                               ║
+║  Valid versions: 0.0.1 through 0.99.99                                        ║
+║                                                                               ║
+║  Why?                                                                         ║
+║  - Perpetual 0.x.x enables continuous evolution                               ║
+║  - SemVer 0.x allows breaking changes without drama                           ║
+║  - Follows Rust ecosystem norms (many crates stay 0.x forever)                ║
+║                                                                               ║
+║  PRs that bump the version to 1.0.0+ will be automatically rejected.          ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
 
-This is intentional, not a bug:
-- Perpetual 0.x.x enables continuous evolution
-- SemVer 0.x allows breaking changes without drama
-- See [FORTRESS Design](docs/plans/2025-02-25-nika-fortress-design.md)
+See [ARMADA Design](docs/plans/2025-02-25-nika-fortress-design.md) for details.
 
-PRs that bump the version to 1.0.0+ will be automatically rejected.
+## ARMADA Quality System
 
-## Getting Started
+Every contribution passes through the **10-station ARMADA checkpoint**:
 
-### Prerequisites
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🏴‍☠️ ARMADA — 10 QUALITY STATIONS                                             ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║   Station 1: 🔧 Format         cargo fmt --check                              ║
+║   Station 2: 📎 Lint           cargo clippy -- -D warnings                    ║
+║   Station 3: 🧪 Tests          cargo nextest run                              ║
+║   Station 4: 📊 Coverage       cargo llvm-cov (>80%)                          ║
+║   Station 5: 📖 Docs           cargo doc --no-deps                            ║
+║   Station 6: 🔒 Security       cargo audit + cargo deny                       ║
+║   Station 7: 🤖 CodeRabbit     AI review (general patterns)                   ║
+║   Station 8: 🧠 Claude AI      AI review (Nika-specific)                      ║
+║   Station 9: 📝 Conventional   commitlint validation                          ║
+║   Station 10: ⚓ Version Lock  0.x.x enforcement (NEVER 1.0.0)                ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
 
-- Rust 1.75+ (rustup recommended)
-- Git 2.40+
-
-### Setup
+### Running Locally
 
 ```bash
-# Clone the repository
-git clone https://github.com/SuperNovae-studio/nika.git
-cd nika
+# Quick check (minimum before push)
+cargo fmt --check && cargo clippy -- -D warnings && cargo nextest run
 
-# Build
-cargo build
-
-# Run tests
-cargo test
-
-# Run the TUI
-cargo run
+# Full ARMADA check
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo nextest run --all-features
+cargo llvm-cov --all-features
+cargo doc --no-deps --all-features
+cargo audit && cargo deny check
 ```
 
 ## Development Workflow
 
-### Git Worktree (Recommended)
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🏴‍☠️ ARMADA — DEVELOPER FLOW                                                  ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  ┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐ ║
+║  │WORKTREE │────▶│ DEVELOP │────▶│ COMMIT  │────▶│  PUSH   │────▶│   PR    │ ║
+║  └─────────┘     └─────────┘     └─────────┘     └─────────┘     └─────────┘ ║
+║       │               │               │               │               │      ║
+║       ▼               ▼               ▼               ▼               ▼      ║
+║  git worktree    cargo test     Conventional    Feature branch   ARMADA CI   ║
+║  add             cargo clippy   Commits         created          10 stations ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
 
-For isolated feature development, we recommend git worktrees:
+### Step 1: Create Worktree (Recommended)
 
 ```bash
 # Create a worktree for your feature
-git worktree add -b feature/my-feature ../nika-my-feature main
+git worktree add ../.worktrees/nika-my-feature -b feat/my-feature
 
 # Work in isolation
-cd ../nika-my-feature
+cd ../.worktrees/nika-my-feature
+```
 
-# When done, clean up
-cd ../nika
-git worktree remove ../nika-my-feature
+### Step 2: Develop
+
+```bash
+# Run tests continuously
+cargo test
+
+# Check lints
+cargo clippy -- -D warnings
+
+# Validate before commit
+cargo fmt --check && cargo clippy -- -D warnings && cargo nextest run
+```
+
+### Step 3: Commit (Conventional)
+
+```bash
+git add .
+git commit -m "feat(tui): add new widget"
+```
+
+### Step 4: Push & PR
+
+```bash
+git push -u origin feat/my-feature
+gh pr create --title "feat(tui): add new widget" --body "..."
+```
+
+### Step 5: Wait for ARMADA
+
+- All 10 stations must pass
+- CodeRabbit + Claude AI review automatically
+- Human review required
+
+### Step 6: Merge
+
+- Squash merge to main
+- release-plz auto-creates Release PR
+- Merge Release PR -> auto-tag v0.x.x
+
+### Step 7: Cleanup
+
+```bash
+cd /path/to/nika
+git worktree remove ../.worktrees/nika-my-feature
 ```
 
 ### Branch Naming
 
 ```
-feature/  → New functionality
-fix/      → Bug fixes
-docs/     → Documentation only
-refactor/ → Code refactoring
-test/     → Test improvements
-chore/    → Tooling, CI, dependencies
+feat/     -> New functionality
+fix/      -> Bug fixes
+docs/     -> Documentation only
+refactor/ -> Code refactoring
+test/     -> Test improvements
+chore/    -> Tooling, CI, dependencies
 ```
-
-Examples:
-- `feature/lazy-bindings`
-- `fix/mcp-timeout`
-- `docs/update-readme`
 
 ## Commit Convention
 
@@ -96,7 +175,8 @@ type(scope): description
 
 [optional body]
 
-[optional footer]
+Co-Authored-By: Claude <noreply@anthropic.com>
+Co-Authored-By: Nika <agent@nika.sh>
 ```
 
 ### Types
@@ -111,6 +191,7 @@ type(scope): description
 | `test` | Adding/updating tests |
 | `chore` | Tooling, CI, dependencies |
 | `perf` | Performance improvement |
+| `ci` | CI/CD changes |
 
 ### Examples
 
@@ -123,29 +204,24 @@ test(binding): add lazy resolution tests
 chore(ci): update rust version to 1.75
 ```
 
-### Co-Authors
-
-Include AI assistants in commits:
-
-```
-feat(tui): add dark mode support
-
-Implemented theme switching with system detection.
-
-Co-Authored-By: Claude <noreply@anthropic.com>
-Co-Authored-By: Nika <agent@nika.sh>
-```
-
 ## Pull Request Process
 
-1. **Create a feature branch** from `main`
-2. **Make your changes** with appropriate commits
-3. **Run quality gates** locally (see below)
-4. **Push your branch** and open a PR
-5. **Fill out the PR template** completely
-6. **Wait for CI** to pass all checks
-7. **Address review feedback** if any
-8. **Merge** once approved
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🏴‍☠️ PR LIFECYCLE                                                             ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║   1. Create feature branch from main                                          ║
+║   2. Make changes with conventional commits                                   ║
+║   3. Run quality gates locally                                                ║
+║   4. Push and open PR                                                         ║
+║   5. Fill out PR template completely                                          ║
+║   6. Wait for ARMADA CI (all 10 stations)                                     ║
+║   7. Address review feedback                                                  ║
+║   8. Squash merge when approved                                               ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
 
 ### PR Title Format
 
@@ -156,32 +232,13 @@ feat(tui): add streaming inference widget
 fix(runtime): prevent infinite recursion in spawn_agent
 ```
 
-## Quality Gates
+### PR Checklist
 
-All PRs must pass these checks (enforced by CI):
-
-### Required Checks
-
-```bash
-# Format check
-cargo fmt --check
-
-# Lint check (must be warning-free)
-cargo clippy -- -D warnings
-
-# All tests must pass
-cargo test
-
-# Version must remain 0.x.x
-# (Automatically enforced)
-```
-
-### Running Locally
-
-```bash
-# Run all quality gates
-cargo fmt --check && cargo clippy -- -D warnings && cargo test
-```
+- [ ] Code follows project style guidelines
+- [ ] Tests added for new functionality
+- [ ] Documentation updated if needed
+- [ ] CHANGELOG.md updated for significant changes
+- [ ] All ARMADA stations pass locally
 
 ## Testing
 
@@ -226,10 +283,10 @@ Examples:
 
 ### When to Update
 
-- New features → Update CLAUDE.md and README
-- API changes → Update docstrings
-- Bug fixes → Add test documenting the fix
-- Breaking changes → Update CHANGELOG.md
+- New features -> Update CLAUDE.md and README
+- API changes -> Update docstrings
+- Bug fixes -> Add test documenting the fix
+- Breaking changes -> Update CHANGELOG.md
 
 ### Docstring Style
 
@@ -261,6 +318,31 @@ pub fn my_function(param: &str) -> Result<Output, Error> {
 }
 ```
 
+## Getting Started
+
+### Prerequisites
+
+- Rust 1.75+ (rustup recommended)
+- Git 2.40+
+- cargo-nextest (for testing)
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/SuperNovae-studio/nika.git
+cd nika/tools/nika
+
+# Build
+cargo build
+
+# Run tests
+cargo nextest run
+
+# Run the TUI
+cargo run
+```
+
 ## Questions?
 
 - Open an issue for bugs or feature requests
@@ -269,4 +351,4 @@ pub fn my_function(param: &str) -> Result<Output, Error> {
 
 ---
 
-**Thank you for contributing to Nika!** 🚀
+**Thank you for contributing to Nika!** 🏴‍☠️

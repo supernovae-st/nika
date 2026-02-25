@@ -1,5 +1,9 @@
 # Nika
 
+[![ARMADA](https://img.shields.io/badge/ARMADA-10%20Stations-blue?logo=rust&logoColor=white)](CONTRIBUTING.md)
+[![Version Lock](https://img.shields.io/badge/Version-0.x.x%20Forever-orange)](docs/plans/2025-02-25-nika-fortress-design.md)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-green)](LICENSE)
+
 DAG workflow runner for AI tasks with MCP integration.
 
 ```
@@ -169,6 +173,24 @@ cargo test tui                # TUI widget tests (806 tests)
 - **nika-runtime**: 177 tests (executor, runner, agent loop)
 - **nika-tui**: 806 tests (UI components, widgets, views)
 - **nika-cli**: 241 tests (CLI integration, history, session, config)
+
+## ARMADA Quality System
+
+Every contribution passes through the 10-station ARMADA checkpoint:
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🏴‍☠️ ARMADA — 10 QUALITY STATIONS                                             ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║   Station 1: 🔧 Format       | Station 6: 🔒 Security                          ║
+║   Station 2: 📎 Lint         | Station 7: 🤖 CodeRabbit                        ║
+║   Station 3: 🧪 Tests        | Station 8: 🧠 Claude AI                         ║
+║   Station 4: 📊 Coverage     | Station 9: 📝 Conventional                      ║
+║   Station 5: 📖 Docs         | Station 10: ⚓ Version Lock                     ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+**Captain's Orders:** Nika will NEVER be version 1.0.0. See [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ## License
 

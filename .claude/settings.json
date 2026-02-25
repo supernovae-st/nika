@@ -10,7 +10,7 @@
           },
           {
             "type": "command",
-            "command": "echo '🏰 FORTRESS Mode Active | Version Lock: 0.x.x Forever | /fortress to check'",
+            "command": "echo '🏴‍☠️ ARMADA Active | 10 Stations | Version Lock: 0.x.x Forever | /armada to check'",
             "timeout": 2
           }
         ]
