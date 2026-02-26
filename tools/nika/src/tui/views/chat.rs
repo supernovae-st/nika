@@ -3847,7 +3847,10 @@ impl ChatView {
                     use crate::tui::command::ModelProvider;
                     self.provider_modal.visible = false;
                     if let Some(model_provider) = ModelProvider::from_name(provider) {
-                        self.add_system_message(format!("🔄 Switching to {} ({})", provider, model));
+                        self.add_system_message(format!(
+                            "🔄 Switching to {} ({})",
+                            provider, model
+                        ));
                         return ViewAction::ChatModelSwitch(model_provider);
                     } else {
                         self.add_system_message(format!(

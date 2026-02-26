@@ -2480,7 +2480,8 @@ impl App {
         self.state.theme_mode = self.cosmic_theme.variant().into();
 
         // v0.12: Sync SettingsView display
-        self.settings_view.update_theme_name(self.cosmic_theme.label());
+        self.settings_view
+            .update_theme_name(self.cosmic_theme.label());
 
         self.set_status(&format!("🎨 Theme: {}", self.cosmic_theme.label()));
     }
@@ -2496,7 +2497,8 @@ impl App {
         self.state.theme_mode = self.cosmic_theme.variant().into();
 
         // v0.12: Sync SettingsView display
-        self.settings_view.update_theme_name(self.cosmic_theme.label());
+        self.settings_view
+            .update_theme_name(self.cosmic_theme.label());
 
         self.set_status(&format!("🎨 Theme: {}", self.cosmic_theme.label()));
     }
