@@ -83,6 +83,11 @@ filter = "test(/^agent::/)"
 slow-timeout = "60s"
 
 [[profile.ci.overrides]]
+# Exec timeout test needs more time (tests 60s timeout behavior)
+filter = "test(test_error_handling_exec_timeout)"
+slow-timeout = { period = "90s", terminate-after = 2 }
+
+[[profile.ci.overrides]]
 # Provider tests are fast and deterministic
 filter = "test(/^provider::/)"
 slow-timeout = "15s"
