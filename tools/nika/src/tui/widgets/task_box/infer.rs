@@ -170,7 +170,9 @@ impl Widget for InferBox {
         }
 
         let verb = VerbColor::Infer;
-        let border_color = self.state.border_color_with_pulse(verb.rgb(), self.pulse_intensity);
+        let border_color = self
+            .state
+            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
         let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
         let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
@@ -414,8 +416,8 @@ mod tests {
 
     #[test]
     fn test_infer_box_with_pulse() {
-        let box_ = InferBox::new("claude-sonnet-4-6", "Generate a summary")
-            .with_pulse_intensity(0.8);
+        let box_ =
+            InferBox::new("claude-sonnet-4-6", "Generate a summary").with_pulse_intensity(0.8);
         assert!((box_.pulse_intensity - 0.8).abs() < 0.001);
     }
 
