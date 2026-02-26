@@ -237,10 +237,7 @@ impl Widget for AgentBox {
         };
         let title = format!(
             "╭─ {} {} {} {} ─╮",
-            header_label,
-            prompt_truncated,
-            status_icon,
-            status_suffix
+            header_label, prompt_truncated, status_icon, status_suffix
         );
         // Pad with dashes to fill width
         let title_chars = title.chars().count();
