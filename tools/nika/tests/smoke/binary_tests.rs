@@ -211,6 +211,7 @@ fn test_format_check() {
 // ============================================================================
 
 #[test]
+#[ignore = "Recursive: runs cargo test as subprocess, causes timeout in CI"]
 fn test_unit_tests_pass() {
     let output = Command::new("cargo")
         .current_dir(env!("CARGO_MANIFEST_DIR"))
