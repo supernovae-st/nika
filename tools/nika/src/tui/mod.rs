@@ -372,10 +372,10 @@ pub async fn run_tui_studio(workflow: Option<std::path::PathBuf>) -> crate::erro
     // Create standalone state
     let state = StandaloneState::new(root.clone());
 
-    // Create app and set initial view to Studio
-    let mut app = App::new_standalone(state)?.with_initial_view(TuiView::Studio);
+    // Create app and set initial view to Editor
+    let mut app = App::new_standalone(state)?.with_initial_view(TuiView::Editor);
 
-    // If workflow provided, load it into Studio view
+    // If workflow provided, load it into Editor view
     if let Some(path) = workflow {
         let full_path = if path.is_absolute() {
             path

@@ -411,10 +411,7 @@ impl MonitorView {
                         thinking.clone()
                     };
                     lines.push(Line::from(vec![
-                        Span::styled(
-                            "  💭 ",
-                            Style::default().fg(theme.status_paused),
-                        ),
+                        Span::styled("  💭 ", Style::default().fg(theme.status_paused)),
                         Span::styled(
                             truncated,
                             Style::default()
@@ -575,8 +572,8 @@ impl View for MonitorView {
 
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
         match key.code {
-            // Escape returns to Home
-            KeyCode::Esc | KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Home),
+            // Escape returns to Explorer
+            KeyCode::Esc | KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Explorer),
 
             // Tab cycles panels
             KeyCode::Tab => {
@@ -616,8 +613,8 @@ impl View for MonitorView {
                 ViewAction::None
             }
 
-            // ? opens Help
-            KeyCode::Char('?') => ViewAction::SwitchView(TuiView::Help),
+            // ? opens Settings (includes help - v0.12)
+            KeyCode::Char('?') => ViewAction::SwitchView(TuiView::Settings),
 
             _ => ViewAction::None,
         }
@@ -757,21 +754,21 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_key_escape_returns_home() {
+    fn test_handle_key_escape_returns_explorer() {
         let mut view = MonitorView::new();
         let mut state = TuiState::new("test");
         let key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
         let action = view.handle_key(key, &mut state);
-        assert!(matches!(action, ViewAction::SwitchView(TuiView::Home)));
+        assert!(matches!(action, ViewAction::SwitchView(TuiView::Explorer)));
     }
 
     #[test]
-    fn test_handle_key_q_returns_home() {
+    fn test_handle_key_q_returns_explorer() {
         let mut view = MonitorView::new();
         let mut state = TuiState::new("test");
         let key = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE);
         let action = view.handle_key(key, &mut state);
-        assert!(matches!(action, ViewAction::SwitchView(TuiView::Home)));
+        assert!(matches!(action, ViewAction::SwitchView(TuiView::Explorer)));
     }
 
     #[test]
@@ -842,12 +839,12 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_key_question_opens_help() {
+    fn test_handle_key_question_opens_settings() {
         let mut view = MonitorView::new();
         let mut state = TuiState::new("test");
         let key = KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE);
         let action = view.handle_key(key, &mut state);
-        assert!(matches!(action, ViewAction::SwitchView(TuiView::Help)));
+        assert!(matches!(action, ViewAction::SwitchView(TuiView::Settings)));
     }
 
     #[test]

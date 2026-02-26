@@ -45,7 +45,8 @@ use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
-    DagAscii, MatrixRain, NodeBoxData, NodeBoxMode, Timeline, TimelineEntry,
+    AnimatedLatencySparkline, DagAscii, MatrixRain, NodeBoxData, NodeBoxMode, SparklineAnimation,
+    Timeline, TimelineEntry,
 };
 
 /// Home view state
@@ -259,19 +260,19 @@ impl HomeView {
             frame.render_widget(search_bar, search_area);
         }
 
-        // Use filtered entries
+        // Use filtered entries with v0.12 icons (📁 folder, 📄 file)
         let items: Vec<ListItem> = self
             .filtered_entries()
             .iter()
             .map(|entry| {
                 let icon = if entry.is_dir {
                     if entry.expanded {
-                        "v "
+                        "📂 " // Open folder
                     } else {
-                        "> "
+                        "📁 " // Closed folder
                     }
                 } else {
-                    "  "
+                    "📄 " // Workflow file
                 };
                 let indent = "  ".repeat(entry.depth);
                 let name = entry
@@ -731,21 +732,41 @@ impl HomeView {
             })
             .collect();
 
-        // Calculate total elapsed time from all runs
-        let total_ms: u64 = self
+        // Collect latency data for sparkline (v0.12: AnimatedLatencySparkline)
+        let latency_data: Vec<u64> = self
             .standalone
             .history
             .iter()
+            .rev()
             .take(max_items)
             .map(|h| h.duration_ms)
-            .sum();
+            .collect();
 
+        // Calculate total elapsed time from all runs
+        let total_ms: u64 = latency_data.iter().sum();
+
+        // v0.12: Split inner area - Timeline (70%) | Sparkline (30%)
+        let history_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+            .split(inner);
+
+        // Left: Timeline
         let timeline = Timeline::new(&entries)
             .elapsed(total_ms)
             .with_theme(theme)
             .with_frame(self.frame);
+        frame.render_widget(timeline, history_chunks[0]);
 
-        frame.render_widget(timeline, inner);
+        // Right: Latency sparkline (v0.12)
+        if !latency_data.is_empty() {
+            let sparkline = AnimatedLatencySparkline::new(&latency_data)
+                .frame(self.frame)
+                .animation(SparklineAnimation::Pulse)
+                .warn_threshold(1000) // 1s warning
+                .error_threshold(5000); // 5s error
+            frame.render_widget(sparkline, history_chunks[1]);
+        }
     }
 }
 
@@ -923,10 +944,12 @@ impl View for HomeView {
             // Chat overlay toggle
             KeyCode::Char('c') => ViewAction::ToggleChatOverlay,
 
-            // View switching: number keys only (v0.7.1 - Option B navigation)
-            KeyCode::Char('1') => ViewAction::SwitchView(TuiView::Chat),
-            KeyCode::Char('3') => ViewAction::SwitchView(TuiView::Studio),
-            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Monitor),
+            // View switching: number keys (v0.12 6-Views)
+            KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Chat),
+            KeyCode::Char('3') => ViewAction::SwitchView(TuiView::Editor),
+            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Runner),
+            KeyCode::Char('5') => ViewAction::SwitchView(TuiView::Scheduler),
+            KeyCode::Char('6') => ViewAction::SwitchView(TuiView::Settings),
 
             // v0.11.0: Validate selected workflow
             KeyCode::Char('v') => {

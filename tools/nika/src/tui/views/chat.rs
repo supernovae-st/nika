@@ -49,7 +49,10 @@ fn is_cmd_pressed(modifiers: KeyModifiers) -> bool {
     modifiers.contains(KeyModifiers::CONTROL) || modifiers.contains(KeyModifiers::SUPER)
 }
 use crate::tui::file_resolve::FileResolver;
-use crate::tui::state::{ChatPanel, PanelScrollState, TuiState};
+use crate::tui::state::{
+    ChatOverlayMessage, ChatOverlayMessageRole, ChatOverlayState, ChatPanel, PanelScrollState,
+    TuiState,
+};
 use crate::tui::theme::{Theme, VerbColor};
 use crate::util::atomic_write;
 
@@ -752,8 +755,8 @@ impl ChatView {
             scroll_accumulator: 0.0,
             scroll_animating: false,
 
-            // v0.10.0: Chat DAG Visualization
-            show_dag_panel: false,
+            // v0.10.0: Chat DAG Visualization (enabled by default, toggle with Ctrl+D)
+            show_dag_panel: true,
             dag_nodes: Vec::new(),
             dag_edges: Vec::new(),
             task_queue: Vec::new(),
@@ -1046,6 +1049,40 @@ impl ChatView {
     /// Check if smooth scroll animation is active
     pub fn is_scroll_animating(&self) -> bool {
         self.scroll_animating
+    }
+
+    /// Convert ChatView state to ChatOverlayState for session persistence (v0.12.0)
+    ///
+    /// Maps ChatMessage (with full metadata) to ChatOverlayMessage (role + content only)
+    /// for saving to .nika/sessions/
+    pub fn get_chat_state(&self) -> ChatOverlayState {
+        // Convert messages to overlay format (role + content only)
+        let messages = self
+            .messages
+            .iter()
+            .map(|msg| {
+                let role = match msg.role {
+                    MessageRole::User => ChatOverlayMessageRole::User,
+                    MessageRole::Nika => ChatOverlayMessageRole::Nika,
+                    MessageRole::System => ChatOverlayMessageRole::System,
+                    MessageRole::Tool => ChatOverlayMessageRole::Tool,
+                };
+                ChatOverlayMessage::new(role, &msg.content)
+            })
+            .collect();
+
+        ChatOverlayState {
+            messages,
+            input: self.input.value().to_string(),
+            cursor: self.input.cursor(),
+            scroll: self.scroll,
+            history: self.history.clone(),
+            history_index: self.history_index,
+            is_streaming: self.is_streaming,
+            partial_response: self.partial_response.clone(),
+            current_model: self.current_model.clone(),
+            edit_history: Default::default(), // Session doesn't persist edit history
+        }
     }
 
     /// Copy the currently selected message to clipboard
@@ -3571,8 +3608,8 @@ impl View for ChatView {
                 ViewAction::None
             }
             // Tab/Shift+Tab handled above for panel navigation
-            // Esc switches to Home view (when in Input panel)
-            KeyCode::Esc => ViewAction::SwitchView(TuiView::Home),
+            // Esc switches to Explorer view (when in Input panel)
+            KeyCode::Esc => ViewAction::SwitchView(TuiView::Explorer),
             _ => ViewAction::None,
         }
     }
@@ -8023,26 +8060,27 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
-    fn test_dag_panel_default_hidden() {
+    fn test_dag_panel_default_shown() {
+        // v0.12: DAG panel is shown by default (toggle with Ctrl+D)
         let view = ChatView::new();
-        assert!(!view.show_dag_panel);
-        assert!(view.dag_nodes.is_empty());
-        assert!(view.dag_edges.is_empty());
-        assert!(view.task_queue.is_empty());
+        assert!(view.show_dag_panel);
+        // DAG nodes/edges are synced on toggle, so initially empty is OK
+        // The sync happens when the panel is first shown
     }
 
     #[test]
     fn test_dag_panel_toggle() {
         let mut view = ChatView::new();
+        // v0.12: DAG panel starts visible by default
+        assert!(view.show_dag_panel);
+
+        view.toggle_dag_panel();
         assert!(!view.show_dag_panel);
 
         view.toggle_dag_panel();
         assert!(view.show_dag_panel);
         // Should have synced DAG state from messages (1 welcome message)
         assert_eq!(view.dag_nodes.len(), 1);
-
-        view.toggle_dag_panel();
-        assert!(!view.show_dag_panel);
     }
 
     #[test]
@@ -8118,13 +8156,17 @@ mod tests {
     #[test]
     fn test_dag_panel_toggle_syncs_state() {
         let mut view = ChatView::new();
+        // v0.12: DAG panel starts visible by default
+        assert!(view.show_dag_panel);
+
         view.add_user_message("First".to_string());
         view.add_nika_message("Response".to_string(), None);
 
-        // Nodes should be empty before toggle
-        assert!(view.dag_nodes.is_empty());
+        // Close the panel
+        view.toggle_dag_panel();
+        assert!(!view.show_dag_panel);
 
-        // Toggle opens panel and syncs
+        // Reopen - this should sync the DAG state
         view.toggle_dag_panel();
         assert!(view.show_dag_panel);
         assert_eq!(view.dag_nodes.len(), 3); // welcome + 2 messages
@@ -8137,5 +8179,64 @@ mod tests {
         view.toggle_dag_panel(); // Close
         view.toggle_dag_panel(); // Reopen
         assert_eq!(view.dag_nodes.len(), 4); // welcome + 3 messages
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // SESSION PERSISTENCE TESTS (v0.12.0)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_get_chat_state_converts_messages() {
+        let mut view = ChatView::new();
+        view.add_user_message("Hello Nika".to_string());
+        view.add_nika_message("Hi! How can I help?".to_string(), None);
+
+        let state = view.get_chat_state();
+
+        // Should have 3 messages: welcome + user + nika
+        assert_eq!(state.messages.len(), 3);
+
+        // Check role conversion
+        assert_eq!(state.messages[0].role, ChatOverlayMessageRole::System);
+        assert_eq!(state.messages[1].role, ChatOverlayMessageRole::User);
+        assert_eq!(state.messages[2].role, ChatOverlayMessageRole::Nika);
+
+        // Check content preservation
+        assert_eq!(state.messages[1].content, "Hello Nika");
+        assert_eq!(state.messages[2].content, "Hi! How can I help?");
+    }
+
+    #[test]
+    fn test_get_chat_state_preserves_input_state() {
+        let mut view = ChatView::new();
+        view.input = Input::new("partial input".to_string());
+        view.input.handle(InputRequest::GoToEnd);
+
+        let state = view.get_chat_state();
+
+        assert_eq!(state.input, "partial input");
+        assert_eq!(state.cursor, 13); // Length of "partial input"
+    }
+
+    #[test]
+    fn test_get_chat_state_preserves_history() {
+        let mut view = ChatView::new();
+        view.add_user_message("First".to_string());
+        view.add_user_message("Second".to_string());
+
+        let state = view.get_chat_state();
+
+        assert_eq!(state.history.len(), 2);
+        assert_eq!(state.history[0], "First");
+        assert_eq!(state.history[1], "Second");
+    }
+
+    #[test]
+    fn test_get_chat_state_preserves_model() {
+        let view = ChatView::new();
+        let state = view.get_chat_state();
+
+        // Model should be set based on env (or default)
+        assert!(!state.current_model.is_empty());
     }
 }

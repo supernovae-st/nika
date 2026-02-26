@@ -7,6 +7,33 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-02-25
+
+### Added
+- **Event Emission for Builtin Tools** - Full observability for `nika:log` and `nika:emit`
+  - `NikaBuiltinToolAdapter.with_event_log()` builder method for event context
+  - `nika:log` tool now emits `EventKind::Log` to EventLog
+  - `nika:emit` tool now emits `EventKind::Custom` to EventLog
+  - Task ID propagation for trace correlation
+  - 4 new tests for event emission
+- **Theme Selection API** - Direct theme switching via index
+  - `CosmicVariant::from_index(u8)` for Settings view [1][2][3] keys
+  - Returns `Option<Self>` for type-safe selection
+  - 2 new tests for index conversion
+
+### Fixed
+- **P0 Wiring Issues** - Complete audit and remediation of v0.9-v0.11 gaps
+  - Session Persistence wired to app.rs (was code-only)
+  - TUI Config wired to app.rs initialization
+  - McpRetry documentation clarified (always wired via `emit()`)
+  - Log/Custom events now flow through EventLog system
+- **Settings View Theme Selection** - [1][2][3] keys now switch themes directly
+
+### Statistics
+- **2,893 tests passing** (comprehensive coverage)
+- **Zero clippy warnings**
+- **P0 wiring gaps: 0** (all critical paths verified)
+
 ## [0.11.0] - 2026-02-25
 
 ### Added
@@ -388,7 +415,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **TUI** - Terminal UI with ratatui (feature-gated)
 - **Schema v0.1** - `nika/workflow@0.1`
 
-[Unreleased]: https://github.com/supernovae-st/nika-dev/compare/v0.10.5...HEAD
+[Unreleased]: https://github.com/supernovae-st/nika-dev/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/supernovae-st/nika-dev/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/supernovae-st/nika-dev/compare/v0.10.5...v0.11.0
 [0.10.5]: https://github.com/supernovae-st/nika-dev/compare/v0.10.0...v0.10.5
 [0.10.0]: https://github.com/supernovae-st/nika-dev/compare/v0.9.5...v0.10.0
 [0.9.5]: https://github.com/supernovae-st/nika-dev/compare/v0.9.3...v0.9.5

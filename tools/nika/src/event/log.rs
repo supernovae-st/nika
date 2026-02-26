@@ -294,12 +294,11 @@ pub enum EventKind {
         /// Error description
         error: String,
     },
-    /// P2: MCP operation retry attempt (v0.7.3)
+    /// MCP operation retry attempt (v0.11.0: now emitted)
     ///
-    /// NOTE: This event is defined for observability but not currently emitted.
-    /// The retry logic in McpClient operates at a lower level without EventLog access.
-    /// TUI handlers are ready to display this event when higher-level retry observability
-    /// is implemented (e.g., via callback or channel-based retry notification).
+    /// Emitted when MCP tool calls fail with connection errors and are retried.
+    /// Use `McpClient::call_tool_with_retry_events()` for observable retry tracking.
+    /// TUI handlers display this event with attempt count and error details.
     McpRetry {
         /// Task ID initiating the retry
         task_id: Arc<str>,

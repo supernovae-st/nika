@@ -4,12 +4,13 @@
 //! Run after: v0.12.0 (6-Views complete)
 //!
 //! Tests validate:
-//! - All 6 views construct properly (Chat, Home, Studio, Monitor, Settings, Help)
-//! - TuiView enum navigation (next/prev, cycling)
+//! - All 6 views construct properly (Explorer, Chat, Editor, Runner, Scheduler, Settings)
+//! - TuiView enum navigation (next/prev, cycling through all 6)
 //! - ViewAction variants for navigation
 //! - View trait polymorphism
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+#[allow(deprecated)]
 use nika::tui::{
     ChatView, HelpView, HomeView, MonitorView, SettingsView, StudioView, TuiState, TuiView, View,
     ViewAction,
@@ -21,9 +22,10 @@ use std::path::PathBuf;
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
+#[allow(deprecated)]
 fn wiring_10_home_view_constructs() {
     let _view = HomeView::new(PathBuf::from("."));
-    assert!(true, "HomeView should construct");
+    assert!(true, "HomeView (ExplorerView) should construct");
 }
 
 #[test]
@@ -33,15 +35,17 @@ fn wiring_10_chat_view_constructs() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn wiring_10_studio_view_constructs() {
     let _view = StudioView::new();
-    assert!(true, "StudioView should construct");
+    assert!(true, "StudioView (EditorView) should construct");
 }
 
 #[test]
+#[allow(deprecated)]
 fn wiring_10_monitor_view_constructs() {
     let _view = MonitorView::new();
-    assert!(true, "MonitorView should construct");
+    assert!(true, "MonitorView (RunnerView) should construct");
 }
 
 #[test]
@@ -51,118 +55,132 @@ fn wiring_10_settings_view_constructs() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn wiring_10_help_view_constructs() {
+    // Help view still exists for backwards compat but is merged into Settings in v0.12
     let _view = HelpView::new();
-    assert!(true, "HelpView should construct");
+    assert!(true, "HelpView should construct (merged into Settings)");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TEST 2: TuiView enum variants
+// TEST 2: TuiView enum variants (v0.12 6-Views)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-fn wiring_10_tui_view_default_is_home() {
+fn wiring_10_tui_view_default_is_explorer() {
     let view = TuiView::default();
-    assert_eq!(view, TuiView::Home, "Default view should be Home");
+    assert_eq!(view, TuiView::Explorer, "Default view should be Explorer");
 }
 
 #[test]
-fn wiring_10_tui_view_all_main_four() {
+fn wiring_10_tui_view_all_six() {
     let all = TuiView::all();
-    assert_eq!(all.len(), 4, "Main views should be 4");
-    assert_eq!(all[0], TuiView::Chat);
-    assert_eq!(all[1], TuiView::Home);
-    assert_eq!(all[2], TuiView::Studio);
-    assert_eq!(all[3], TuiView::Monitor);
+    assert_eq!(all.len(), 6, "All views should be 6 (v0.12 6-Views)");
+    assert_eq!(all[0], TuiView::Explorer);
+    assert_eq!(all[1], TuiView::Chat);
+    assert_eq!(all[2], TuiView::Editor);
+    assert_eq!(all[3], TuiView::Runner);
+    assert_eq!(all[4], TuiView::Scheduler);
+    assert_eq!(all[5], TuiView::Settings);
 }
 
 #[test]
 fn wiring_10_tui_view_all_including_auxiliary() {
     let all = TuiView::all_including_auxiliary();
     assert_eq!(all.len(), 6, "All views should be 6");
-    assert_eq!(all[4], TuiView::Settings);
-    assert_eq!(all[5], TuiView::Help);
+    // v0.12: all_including_auxiliary() is same as all()
+    assert_eq!(all, TuiView::all());
 }
 
 #[test]
 fn wiring_10_tui_view_is_auxiliary() {
+    // v0.12: Only Settings is auxiliary
+    assert!(!TuiView::Explorer.is_auxiliary());
     assert!(!TuiView::Chat.is_auxiliary());
-    assert!(!TuiView::Home.is_auxiliary());
-    assert!(!TuiView::Studio.is_auxiliary());
-    assert!(!TuiView::Monitor.is_auxiliary());
+    assert!(!TuiView::Editor.is_auxiliary());
+    assert!(!TuiView::Runner.is_auxiliary());
+    assert!(!TuiView::Scheduler.is_auxiliary());
     assert!(TuiView::Settings.is_auxiliary());
-    assert!(TuiView::Help.is_auxiliary());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TEST 3: TuiView navigation
+// TEST 3: TuiView navigation (cycles through all 6)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-fn wiring_10_tui_view_next_cycles_main_four() {
-    assert_eq!(TuiView::Chat.next(), TuiView::Home);
-    assert_eq!(TuiView::Home.next(), TuiView::Studio);
-    assert_eq!(TuiView::Studio.next(), TuiView::Monitor);
-    assert_eq!(TuiView::Monitor.next(), TuiView::Chat, "Should cycle back");
+fn wiring_10_tui_view_next_cycles_all_six() {
+    assert_eq!(TuiView::Explorer.next(), TuiView::Chat);
+    assert_eq!(TuiView::Chat.next(), TuiView::Editor);
+    assert_eq!(TuiView::Editor.next(), TuiView::Runner);
+    assert_eq!(TuiView::Runner.next(), TuiView::Scheduler);
+    assert_eq!(TuiView::Scheduler.next(), TuiView::Settings);
+    assert_eq!(
+        TuiView::Settings.next(),
+        TuiView::Explorer,
+        "Should cycle back"
+    );
 }
 
 #[test]
-fn wiring_10_tui_view_prev_cycles_main_four() {
-    assert_eq!(TuiView::Chat.prev(), TuiView::Monitor);
-    assert_eq!(TuiView::Home.prev(), TuiView::Chat);
-    assert_eq!(TuiView::Studio.prev(), TuiView::Home);
-    assert_eq!(TuiView::Monitor.prev(), TuiView::Studio);
-}
-
-#[test]
-fn wiring_10_auxiliary_views_return_to_home() {
-    // Auxiliary views (Settings, Help) return to Home on next/prev
-    assert_eq!(TuiView::Settings.next(), TuiView::Home);
-    assert_eq!(TuiView::Settings.prev(), TuiView::Home);
-    assert_eq!(TuiView::Help.next(), TuiView::Home);
-    assert_eq!(TuiView::Help.prev(), TuiView::Home);
+fn wiring_10_tui_view_prev_cycles_all_six() {
+    assert_eq!(TuiView::Explorer.prev(), TuiView::Settings);
+    assert_eq!(TuiView::Chat.prev(), TuiView::Explorer);
+    assert_eq!(TuiView::Editor.prev(), TuiView::Chat);
+    assert_eq!(TuiView::Runner.prev(), TuiView::Editor);
+    assert_eq!(TuiView::Scheduler.prev(), TuiView::Runner);
+    assert_eq!(TuiView::Settings.prev(), TuiView::Scheduler);
 }
 
 #[test]
 fn wiring_10_tui_view_toggle_is_next() {
     assert_eq!(TuiView::Chat.toggle(), TuiView::Chat.next());
-    assert_eq!(TuiView::Home.toggle(), TuiView::Home.next());
+    assert_eq!(TuiView::Explorer.toggle(), TuiView::Explorer.next());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TEST 4: TuiView metadata
+// TEST 4: TuiView metadata (v0.12 values)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn wiring_10_tui_view_numbers() {
-    assert_eq!(TuiView::Chat.number(), 1);
-    assert_eq!(TuiView::Home.number(), 2);
-    assert_eq!(TuiView::Studio.number(), 3);
-    assert_eq!(TuiView::Monitor.number(), 4);
-    assert_eq!(TuiView::Settings.number(), 5);
-    assert_eq!(TuiView::Help.number(), 6);
+    assert_eq!(TuiView::Explorer.number(), 1);
+    assert_eq!(TuiView::Chat.number(), 2);
+    assert_eq!(TuiView::Editor.number(), 3);
+    assert_eq!(TuiView::Runner.number(), 4);
+    assert_eq!(TuiView::Scheduler.number(), 5);
+    assert_eq!(TuiView::Settings.number(), 6);
 }
 
 #[test]
 fn wiring_10_tui_view_titles() {
-    assert_eq!(TuiView::Chat.title(), "NIKA AGENT");
-    assert_eq!(TuiView::Home.title(), "NIKA HOME");
-    assert_eq!(TuiView::Studio.title(), "NIKA STUDIO");
-    assert_eq!(TuiView::Monitor.title(), "NIKA MONITOR");
+    assert_eq!(TuiView::Explorer.title(), "NIKA EXPLORER");
+    assert_eq!(TuiView::Chat.title(), "NIKA CHAT");
+    assert_eq!(TuiView::Editor.title(), "NIKA EDITOR");
+    assert_eq!(TuiView::Runner.title(), "NIKA RUNNER");
+    assert_eq!(TuiView::Scheduler.title(), "NIKA SCHEDULER");
     assert_eq!(TuiView::Settings.title(), "NIKA SETTINGS");
-    assert_eq!(TuiView::Help.title(), "NIKA HELP");
 }
 
 #[test]
 fn wiring_10_tui_view_icons() {
-    // All main views use diamond
-    assert_eq!(TuiView::Chat.icon(), "◆");
-    assert_eq!(TuiView::Home.icon(), "◆");
-    assert_eq!(TuiView::Studio.icon(), "◆");
-    assert_eq!(TuiView::Monitor.icon(), "◆");
-    // Auxiliary views have special icons
+    // v0.12: Each view has a unique icon
+    assert_eq!(TuiView::Explorer.icon(), "📁");
+    assert_eq!(TuiView::Chat.icon(), "💬");
+    assert_eq!(TuiView::Editor.icon(), "✏");
+    assert_eq!(TuiView::Runner.icon(), "▶");
+    assert_eq!(TuiView::Scheduler.icon(), "📅");
     assert_eq!(TuiView::Settings.icon(), "⚙");
-    assert_eq!(TuiView::Help.icon(), "?");
+}
+
+#[test]
+fn wiring_10_tui_view_shortcuts() {
+    // v0.12: Letter shortcuts for each view
+    assert_eq!(TuiView::Explorer.shortcut(), 'e');
+    assert_eq!(TuiView::Chat.shortcut(), 'c');
+    assert_eq!(TuiView::Editor.shortcut(), 'd');
+    assert_eq!(TuiView::Runner.shortcut(), 'r');
+    assert_eq!(TuiView::Scheduler.shortcut(), 's');
+    assert_eq!(TuiView::Settings.shortcut(), ',');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -215,6 +233,7 @@ fn wiring_10_view_action_open_in_studio() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
+#[allow(deprecated)]
 fn wiring_10_views_implement_trait() {
     fn assert_view<V: View>(_v: &V) {}
 
@@ -227,6 +246,7 @@ fn wiring_10_views_implement_trait() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn wiring_10_views_status_line_not_empty() {
     let state = TuiState::new("test.nika.yaml");
 
@@ -247,6 +267,7 @@ fn wiring_10_views_status_line_not_empty() {
 // Views return ViewAction::None for unhandled keys, App intercepts quit keys
 
 #[test]
+#[allow(deprecated)]
 fn wiring_10_home_view_search_key() {
     let mut view = HomeView::new(PathBuf::from("."));
     let mut state = TuiState::new("test.nika.yaml");
@@ -262,16 +283,17 @@ fn wiring_10_home_view_search_key() {
 }
 
 #[test]
-fn wiring_10_home_view_switch_to_studio() {
+#[allow(deprecated)]
+fn wiring_10_home_view_switch_to_editor() {
     let mut view = HomeView::new(PathBuf::from("."));
     let mut state = TuiState::new("test.nika.yaml");
 
-    // '3' switches to Studio view
+    // '3' switches to Editor view (v0.12)
     let key_3 = KeyEvent::new(KeyCode::Char('3'), KeyModifiers::NONE);
     let action = view.handle_key(key_3, &mut state);
 
     assert!(
-        matches!(action, ViewAction::SwitchView(TuiView::Studio)),
-        "3 should switch to Studio"
+        matches!(action, ViewAction::SwitchView(TuiView::Editor)),
+        "3 should switch to Editor"
     );
 }

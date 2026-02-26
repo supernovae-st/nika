@@ -82,6 +82,18 @@ impl CosmicVariant {
             Self::CosmicViolet => "🦋 Cosmic Violet",
         }
     }
+
+    /// Create variant from index (0=Dark, 1=Light, 2=Violet)
+    ///
+    /// Used by Settings view for direct theme selection via [1][2][3] keys.
+    pub fn from_index(index: u8) -> Option<Self> {
+        match index {
+            0 => Some(Self::CosmicDark),
+            1 => Some(Self::CosmicLight),
+            2 => Some(Self::CosmicViolet),
+            _ => None,
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -372,5 +384,27 @@ mod tests {
         assert_eq!(CosmicVariant::CosmicDark.label(), "🌌 Cosmic Dark");
         assert_eq!(CosmicVariant::CosmicLight.label(), "🌅 Cosmic Light");
         assert_eq!(CosmicVariant::CosmicViolet.label(), "🦋 Cosmic Violet");
+    }
+
+    #[test]
+    fn test_variant_from_index_valid() {
+        assert_eq!(
+            CosmicVariant::from_index(0),
+            Some(CosmicVariant::CosmicDark)
+        );
+        assert_eq!(
+            CosmicVariant::from_index(1),
+            Some(CosmicVariant::CosmicLight)
+        );
+        assert_eq!(
+            CosmicVariant::from_index(2),
+            Some(CosmicVariant::CosmicViolet)
+        );
+    }
+
+    #[test]
+    fn test_variant_from_index_invalid() {
+        assert_eq!(CosmicVariant::from_index(3), None);
+        assert_eq!(CosmicVariant::from_index(255), None);
     }
 }

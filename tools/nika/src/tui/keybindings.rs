@@ -77,30 +77,42 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
         category: KeyCategory::Global,
     });
 
-    // View navigation (in Normal mode)
+    // View navigation (in Normal mode) - 6-Views Architecture v0.12
     if mode == InputMode::Normal {
         bindings.push(Keybinding {
             code: KeyCode::Char('1'),
             modifiers: KeyModifiers::NONE,
-            description: "Chat view",
+            description: "Explorer view",
             category: KeyCategory::ViewNav,
         });
         bindings.push(Keybinding {
             code: KeyCode::Char('2'),
             modifiers: KeyModifiers::NONE,
-            description: "Home view",
+            description: "Chat view",
             category: KeyCategory::ViewNav,
         });
         bindings.push(Keybinding {
             code: KeyCode::Char('3'),
             modifiers: KeyModifiers::NONE,
-            description: "Studio view",
+            description: "Editor view",
             category: KeyCategory::ViewNav,
         });
         bindings.push(Keybinding {
             code: KeyCode::Char('4'),
             modifiers: KeyModifiers::NONE,
-            description: "Monitor view",
+            description: "Runner view",
+            category: KeyCategory::ViewNav,
+        });
+        bindings.push(Keybinding {
+            code: KeyCode::Char('5'),
+            modifiers: KeyModifiers::NONE,
+            description: "Scheduler view",
+            category: KeyCategory::ViewNav,
+        });
+        bindings.push(Keybinding {
+            code: KeyCode::Char('6'),
+            modifiers: KeyModifiers::NONE,
+            description: "Settings view",
             category: KeyCategory::ViewNav,
         });
     }
@@ -165,7 +177,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
         });
     }
 
-    // View-specific bindings
+    // View-specific bindings (v0.12 6-Views)
     match view {
         TuiView::Chat => {
             if mode == InputMode::Insert {
@@ -268,7 +280,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 category: KeyCategory::Chat,
             });
         }
-        TuiView::Monitor => {
+        TuiView::Runner => {
             if mode == InputMode::Normal {
                 bindings.push(Keybinding {
                     code: KeyCode::Char(' '),
@@ -296,7 +308,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 });
             }
         }
-        TuiView::Home => {
+        TuiView::Explorer => {
             if mode == InputMode::Normal {
                 bindings.push(Keybinding {
                     code: KeyCode::Enter,
@@ -318,7 +330,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 });
             }
         }
-        TuiView::Studio => {
+        TuiView::Editor => {
             if mode == InputMode::Normal {
                 bindings.push(Keybinding {
                     code: KeyCode::Char('s'),
@@ -328,9 +340,25 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 });
             }
         }
-        // v0.11: Settings and Help are auxiliary views with minimal keybindings
-        TuiView::Settings | TuiView::Help => {
-            // Settings and Help use default navigation (Tab, Esc, arrows)
+        TuiView::Scheduler => {
+            if mode == InputMode::Normal {
+                bindings.push(Keybinding {
+                    code: KeyCode::Enter,
+                    modifiers: KeyModifiers::NONE,
+                    description: "Edit schedule",
+                    category: KeyCategory::Action,
+                });
+                bindings.push(Keybinding {
+                    code: KeyCode::Char('n'),
+                    modifiers: KeyModifiers::NONE,
+                    description: "New schedule",
+                    category: KeyCategory::Action,
+                });
+            }
+        }
+        // v0.12: Settings is auxiliary view with minimal keybindings
+        TuiView::Settings => {
+            // Settings uses default navigation (Tab, Esc, arrows)
             // No additional view-specific bindings needed
         }
     }
