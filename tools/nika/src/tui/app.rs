@@ -696,6 +696,7 @@ impl App {
             }
             self.studio_view.tick(); // v0.9.1: Matrix Rain animation
             self.studio_view.maybe_validate(); // Debounced validation (300ms after last edit)
+            self.monitor_view.tick(&mut self.state); // v0.12.1: Runner panel animations
 
             // v0.12: Tick intro animation (if active)
             if let Some(ref mut intro) = self.intro_state {
@@ -989,11 +990,12 @@ impl App {
                 }
                 StreamChunk::InferStart {
                     model,
+                    prompt,
                     prompt_tokens,
                     max_tokens,
                 } => {
-                    // v0.8.4: Create TaskBox::Infer for inline rendering
-                    let infer_box = InferBox::new(&model, "(streaming...)")
+                    // v0.12.1: Create TaskBox::Infer with actual prompt for inline rendering
+                    let infer_box = InferBox::new(&model, &prompt)
                         .with_state(BoxState::running())
                         .with_tokens(prompt_tokens, 0)
                         .with_streaming_cursor(true);
@@ -1635,13 +1637,17 @@ impl App {
                     let prompt_tokens = (prompt_with_context.len() / 4) as u32;
                     let max_tokens = 4096u32;
 
+                    // v0.12.1: Capture user prompt for TaskBox display
+                    let user_prompt = msg.clone();
+
                     // Spawn tracked task to call ChatAgent.infer() with TaskBox events
                     if self.ensure_chat_agent().is_some() {
                         self.spawn_tracked(async move {
-                            // v0.12.1: Send InferStart to create TaskBox::Infer
+                            // v0.12.1: Send InferStart to create TaskBox::Infer with actual prompt
                             let _ = stream_tx
                                 .send(StreamChunk::InferStart {
                                     model: model_name.clone(),
+                                    prompt: user_prompt.clone(),
                                     prompt_tokens,
                                     max_tokens,
                                 })
@@ -2287,8 +2293,41 @@ impl App {
             }
             // View navigation actions (with Navigation 2.0 focus sync)
             Action::SwitchView(view) => {
+                // v0.12.1: Call lifecycle hooks on view transition
+                let old_view = self.current_view;
+                if old_view != view {
+                    // Call on_leave for the old view
+                    match old_view {
+                        TuiView::Chat => self.chat_view.on_leave(&mut self.state),
+                        TuiView::Explorer => {
+                            if let Some(ref mut home) = self.home_view {
+                                home.on_leave(&mut self.state);
+                            }
+                        }
+                        TuiView::Editor => self.studio_view.on_leave(&mut self.state),
+                        TuiView::Runner => self.monitor_view.on_leave(&mut self.state),
+                        _ => {} // Scheduler, Settings - no special handling yet
+                    }
+                }
+
                 self.current_view = view;
                 self.focus_state.reset_to_view(view);
+
+                // v0.12.1: Call on_enter for the new view
+                if old_view != view {
+                    match view {
+                        TuiView::Chat => self.chat_view.on_enter(&mut self.state),
+                        TuiView::Explorer => {
+                            if let Some(ref mut home) = self.home_view {
+                                home.on_enter(&mut self.state);
+                            }
+                        }
+                        TuiView::Editor => self.studio_view.on_enter(&mut self.state),
+                        TuiView::Runner => self.monitor_view.on_enter(&mut self.state),
+                        _ => {} // Scheduler, Settings - no special handling yet
+                    }
+                }
+
                 // Auto-enter Insert mode for Chat view so users can type immediately
                 self.input_mode = if view == TuiView::Chat {
                     InputMode::Insert
@@ -2640,13 +2679,17 @@ impl App {
         // v0.8.2: Capture selected provider ID for correct routing
         let provider_id = self.chat_view.current_provider_id.clone();
 
+        // v0.12.1: Capture user prompt for TaskBox display
+        let user_prompt = prompt.clone();
+
         // Check if agent exists or can be created
         if self.ensure_chat_agent().is_some() {
             self.spawn_tracked(async move {
-                // v0.8.0: Send InferStart for inline visualization
+                // v0.12.1: Send InferStart for inline visualization with actual prompt
                 let _ = stream_tx
                     .send(StreamChunk::InferStart {
                         model: model_name.clone(),
+                        prompt: user_prompt.clone(),
                         prompt_tokens,
                         max_tokens,
                     })

@@ -501,6 +501,8 @@ pub enum StreamChunk {
     /// Infer stream started (for inline visualization)
     InferStart {
         model: String,
+        /// The user prompt text (for TaskBox::Infer display)
+        prompt: String,
         prompt_tokens: u32,
         max_tokens: u32,
     },

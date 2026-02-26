@@ -5205,54 +5205,120 @@ impl ChatView {
                     // Render based on TaskBox variant
                     match task_box {
                         TaskBox::Invoke(invoke) => {
-                            // Top border: ╭─ 🔌 INVOKE: tool_name ─── status ─╮
+                            // v0.12.1: Full InvokeBox rendering matching design spec
+                            let content_color = Color::Rgb(226, 232, 240); // slate-200
+
+                            // 1. Top border with status
                             items.push(ListItem::new(Line::from(vec![
                                 Span::styled(
-                                    format!("╭─ 🔌 INVOKE: {} ", invoke.tool),
-                                    Style::default().fg(border_color),
-                                ),
-                                Span::styled(
-                                    format!("{} {} ─╮", state_icon, state_suffix),
+                                    format!("╭─ 🔌 INVOKE ────────────────────────────── {} {} ─╮", state_icon, state_suffix),
                                     Style::default().fg(border_color),
                                 ),
                             ])));
-                            // Server line
+
+                            // 2. Tool + Server line
                             items.push(ListItem::new(Line::from(vec![
                                 Span::styled("│ ", Style::default().fg(border_color)),
                                 Span::styled(
-                                    format!("server: {}", invoke.server),
-                                    Style::default().fg(muted_color),
+                                    truncate_str(&invoke.tool, 25),
+                                    Style::default().fg(content_color),
+                                ),
+                                Span::styled(" @ ", Style::default().fg(muted_color)),
+                                Span::styled(
+                                    truncate_str(&invoke.server, 18),
+                                    Style::default().fg(Color::Rgb(52, 211, 153)), // emerald-400
                                 ),
                             ])));
-                            // Params (if any)
+
+                            // 3. Separator
+                            items.push(ListItem::new(Line::from(vec![Span::styled(
+                                "├──────────────────────────────────────────────────┤",
+                                Style::default().fg(border_color),
+                            )])));
+
+                            // 4. INPUT section header
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled("📥 INPUT", Style::default().fg(muted_color)),
+                            ])));
+
+                            // 5. Params preview (truncated JSON)
                             if !invoke.params.is_null() {
                                 let params_str = serde_json::to_string(&invoke.params)
                                     .unwrap_or_else(|_| "{}".to_string());
                                 items.push(ListItem::new(Line::from(vec![
                                     Span::styled("│ ", Style::default().fg(border_color)),
-                                    Span::styled("📥 ", Style::default().fg(muted_color)),
-                                    Span::raw(truncate_str(&params_str, 40)),
+                                    Span::styled("┊ ", Style::default().fg(muted_color)),
+                                    Span::styled(
+                                        truncate_str(&params_str, 44),
+                                        Style::default().fg(content_color),
+                                    ),
+                                ])));
+                            } else {
+                                items.push(ListItem::new(Line::from(vec![
+                                    Span::styled("│ ", Style::default().fg(border_color)),
+                                    Span::styled("┊ ", Style::default().fg(muted_color)),
+                                    Span::styled("(no params)", Style::default().fg(muted_color)),
                                 ])));
                             }
-                            // Result or error
+
+                            // 6. OUTPUT section header
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled("📤 OUTPUT", Style::default().fg(muted_color)),
+                            ])));
+
+                            // 7. Result or error preview
                             if let Some(ref result) = invoke.result {
                                 let result_str = serde_json::to_string(result)
                                     .unwrap_or_else(|_| "null".to_string());
-                                items.push(ListItem::new(Line::from(vec![
-                                    Span::styled("│ ", Style::default().fg(border_color)),
-                                    Span::styled("📤 ", Style::default().fg(success_color)),
-                                    Span::raw(truncate_str(&result_str, 40)),
-                                ])));
+                                // Show first 2 lines of result
+                                let result_lines: Vec<&str> = result_str.lines().take(2).collect();
+                                if result_lines.is_empty() {
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled("┊ ", Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            truncate_str(&result_str, 44),
+                                            Style::default().fg(success_color),
+                                        ),
+                                    ])));
+                                } else {
+                                    for line in result_lines {
+                                        items.push(ListItem::new(Line::from(vec![
+                                            Span::styled("│ ", Style::default().fg(border_color)),
+                                            Span::styled("┊ ", Style::default().fg(muted_color)),
+                                            Span::styled(
+                                                truncate_str(line, 44),
+                                                Style::default().fg(success_color),
+                                            ),
+                                        ])));
+                                    }
+                                }
                             } else if let Some(ref err) = invoke.error {
                                 items.push(ListItem::new(Line::from(vec![
                                     Span::styled("│ ", Style::default().fg(border_color)),
+                                    Span::styled("┊ ", Style::default().fg(muted_color)),
                                     Span::styled("❌ ", Style::default().fg(error_color)),
-                                    Span::raw(truncate_str(err, 40)),
+                                    Span::styled(
+                                        truncate_str(err, 40),
+                                        Style::default().fg(error_color),
+                                    ),
+                                ])));
+                            } else if task_box.state().is_running() {
+                                // Streaming cursor for running invoke
+                                let cursor = if self.frame % 2 == 0 { "▌" } else { " " };
+                                items.push(ListItem::new(Line::from(vec![
+                                    Span::styled("│ ", Style::default().fg(border_color)),
+                                    Span::styled("┊ ", Style::default().fg(muted_color)),
+                                    Span::styled("(calling MCP server)", Style::default().fg(muted_color)),
+                                    Span::styled(cursor, Style::default().fg(success_color)),
                                 ])));
                             }
-                            // Bottom border
+
+                            // 8. Bottom border
                             items.push(ListItem::new(Line::from(vec![Span::styled(
-                                SEPARATOR_52,
+                                "╰──────────────────────────────────────────────────╯",
                                 Style::default().fg(border_color),
                             )])));
                             items.push(ListItem::new("")); // spacing
@@ -5397,109 +5463,270 @@ impl ChatView {
                             items.push(ListItem::new("")); // spacing
                         }
                         TaskBox::Exec(exec) => {
-                            // Top border: ╭─ 📟 EXEC ─── status ─╮
+                            // v0.12.1: Full ExecBox rendering matching design spec
+                            let content_color = Color::Rgb(226, 232, 240); // slate-200
+
+                            // 1. Top border: ╭─ 📟 EXEC ─────────────────── ✅ 0.5s ───╮
                             items.push(ListItem::new(Line::from(vec![
                                 Span::styled(
-                                    format!("╭─ 📟 EXEC: {} ", truncate_str(&exec.command, 30)),
-                                    Style::default().fg(border_color),
-                                ),
-                                Span::styled(
-                                    format!("{} {} ─╮", state_icon, state_suffix),
+                                    format!("╭─ 📟 EXEC ─────────────────────────────── {} {} ─╮", state_icon, state_suffix),
                                     Style::default().fg(border_color),
                                 ),
                             ])));
-                            // Exit code or output
-                            if let Some(code) = exec.exit_code {
-                                items.push(ListItem::new(Line::from(vec![
-                                    Span::styled("│ ", Style::default().fg(border_color)),
-                                    Span::styled(
-                                        format!("exit: {}", code),
-                                        Style::default().fg(if code == 0 {
-                                            success_color
-                                        } else {
-                                            error_color
-                                        }),
-                                    ),
-                                ])));
-                            }
-                            // Output (last 2 lines)
-                            let output_lines: Vec<&str> = exec.stdout.lines().collect();
-                            for line in output_lines.iter().rev().take(2).rev() {
-                                items.push(ListItem::new(Line::from(vec![
-                                    Span::styled("│ ", Style::default().fg(border_color)),
-                                    Span::raw(truncate_str(line, 50)),
-                                ])));
-                            }
-                            // Bottom border
+
+                            // 2. Command line
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled(
+                                    format!("$ {}", truncate_str(&exec.command, 45)),
+                                    Style::default().fg(content_color),
+                                ),
+                            ])));
+
+                            // 3. Separator
                             items.push(ListItem::new(Line::from(vec![Span::styled(
-                                SEPARATOR_52,
+                                "├──────────────────────────────────────────────────┤",
+                                Style::default().fg(border_color),
+                            )])));
+
+                            // 4. OUTPUT section header
+                            let output_indicator = if !exec.stdout.is_empty() {
+                                format!("▼ {} lines", exec.stdout.lines().count())
+                            } else {
+                                String::new()
+                            };
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled("OUTPUT", Style::default().fg(muted_color)),
+                                Span::styled(
+                                    format!("                                  {}", output_indicator),
+                                    Style::default().fg(muted_color),
+                                ),
+                            ])));
+
+                            // 5. Output content (last 3 lines)
+                            if exec.stdout.is_empty() && exec.state.is_running() {
+                                items.push(ListItem::new(Line::from(vec![
+                                    Span::styled("│ ", Style::default().fg(border_color)),
+                                    Span::styled("┊ ...", Style::default().fg(content_color)),
+                                ])));
+                            } else if exec.stdout.is_empty() {
+                                items.push(ListItem::new(Line::from(vec![
+                                    Span::styled("│ ", Style::default().fg(border_color)),
+                                    Span::styled("┊ (no output)", Style::default().fg(muted_color)),
+                                ])));
+                            } else {
+                                let output_lines: Vec<&str> = exec.stdout.lines().collect();
+                                let start = output_lines.len().saturating_sub(3);
+                                for line in output_lines.iter().skip(start) {
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            format!("┊ {}", truncate_str(line, 44)),
+                                            Style::default().fg(content_color),
+                                        ),
+                                    ])));
+                                }
+                            }
+
+                            // 6. Footer with exit code
+                            let exit_display = exec.exit_code.map(|c| format!("exit: {}", c)).unwrap_or_else(|| "running...".to_string());
+                            let exit_color = exec.exit_code.map(|c| if c == 0 { success_color } else { error_color }).unwrap_or(muted_color);
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled(exit_display, Style::default().fg(exit_color)),
+                            ])));
+
+                            // 7. Bottom border
+                            items.push(ListItem::new(Line::from(vec![Span::styled(
+                                "╰──────────────────────────────────────────────────╯",
                                 Style::default().fg(border_color),
                             )])));
                             items.push(ListItem::new("")); // spacing
                         }
                         TaskBox::Fetch(fetch) => {
-                            // Top border: ╭─ 🛰️ FETCH ─── status ─╮
+                            // v0.12.1: Full FetchBox rendering matching design spec
+                            let content_color = Color::Rgb(226, 232, 240); // slate-200
+
+                            // 1. Top border with status
                             items.push(ListItem::new(Line::from(vec![
                                 Span::styled(
-                                    format!(
-                                        "╭─ 🛰️ FETCH: {} {} ",
-                                        fetch.method,
-                                        truncate_str(&fetch.url, 25)
-                                    ),
-                                    Style::default().fg(border_color),
-                                ),
-                                Span::styled(
-                                    format!("{} {} ─╮", state_icon, state_suffix),
+                                    format!("╭─ 🛰️ FETCH ─────────────────────────────── {} {} ─╮", state_icon, state_suffix),
                                     Style::default().fg(border_color),
                                 ),
                             ])));
-                            // Status code
-                            if let Some(status) = fetch.status_code {
+
+                            // 2. Method + URL line
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled(
+                                    format!("{} ", fetch.method),
+                                    Style::default().fg(Color::Rgb(251, 191, 36)), // amber-400 for method
+                                ),
+                                Span::styled(
+                                    truncate_str(&fetch.url, 42),
+                                    Style::default().fg(content_color),
+                                ),
+                            ])));
+
+                            // 3. Separator
+                            items.push(ListItem::new(Line::from(vec![Span::styled(
+                                "├──────────────────────────────────────────────────┤",
+                                Style::default().fg(border_color),
+                            )])));
+
+                            // 4. RESPONSE section header
+                            let size_str = if fetch.response_size > 0 {
+                                format!(" ({:.1}KB)", fetch.response_size as f64 / 1024.0)
+                            } else {
+                                String::new()
+                            };
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled(
+                                    format!("💬 RESPONSE{}", size_str),
+                                    Style::default().fg(muted_color),
+                                ),
+                            ])));
+
+                            // 5. Response body preview (first 2 lines or status)
+                            if let Some(body) = &fetch.response_body {
+                                let preview_lines: Vec<&str> = body.lines().take(2).collect();
+                                for line in preview_lines {
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled("┊ ", Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            truncate_str(line, 44),
+                                            Style::default().fg(content_color),
+                                        ),
+                                    ])));
+                                }
+                            } else if task_box.state().is_running() {
+                                // Streaming cursor for running fetch
+                                let cursor = if self.frame % 2 == 0 { "▌" } else { " " };
                                 items.push(ListItem::new(Line::from(vec![
                                     Span::styled("│ ", Style::default().fg(border_color)),
-                                    Span::styled(
-                                        format!("status: {}", status),
-                                        Style::default().fg(if (200..300).contains(&status) {
-                                            success_color
-                                        } else {
-                                            error_color
-                                        }),
-                                    ),
+                                    Span::styled("┊ ", Style::default().fg(muted_color)),
+                                    Span::styled("(awaiting response)", Style::default().fg(muted_color)),
+                                    Span::styled(cursor, Style::default().fg(success_color)),
                                 ])));
                             }
-                            // Bottom border
+
+                            // 6. Footer with metrics
+                            let status_str = fetch.status_code.map(|s| format!("{}", s)).unwrap_or_else(|| "---".to_string());
+                            let status_color = fetch.status_code.map(|s| {
+                                if (200..300).contains(&s) { success_color } else { error_color }
+                            }).unwrap_or(muted_color);
+
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled(format!("Status: "), Style::default().fg(muted_color)),
+                                Span::styled(status_str, Style::default().fg(status_color)),
+                                Span::styled(format!(" │ TTFB: {}ms", fetch.ttfb_ms), Style::default().fg(muted_color)),
+                                Span::styled(format!(" │ Retries: {}", fetch.retries), Style::default().fg(muted_color)),
+                            ])));
+
+                            // 7. Bottom border
                             items.push(ListItem::new(Line::from(vec![Span::styled(
-                                SEPARATOR_52,
+                                "╰──────────────────────────────────────────────────╯",
                                 Style::default().fg(border_color),
                             )])));
                             items.push(ListItem::new("")); // spacing
                         }
                         TaskBox::Agent(agent) => {
-                            // Top border: ╭─ 🐔 AGENT ─── status ─╮
+                            // v0.12.1: Full AgentBox rendering matching design spec
+                            let content_color = Color::Rgb(226, 232, 240); // slate-200
+
+                            // 1. Top border with status
+                            let agent_icon = if agent.is_subagent { "🐤" } else { "🐔" };
                             items.push(ListItem::new(Line::from(vec![
                                 Span::styled(
-                                    format!("╭─ 🐔 AGENT: {} ", truncate_str(&agent.prompt, 25)),
-                                    Style::default().fg(border_color),
-                                ),
-                                Span::styled(
-                                    format!("{} {} ─╮", state_icon, state_suffix),
+                                    format!("╭─ {} AGENT ─────────────────────────────── {} {} ─╮", agent_icon, state_icon, state_suffix),
                                     Style::default().fg(border_color),
                                 ),
                             ])));
-                            // Turn/cost info
+
+                            // 2. Goal/prompt line
                             items.push(ListItem::new(Line::from(vec![
                                 Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled("🎯 ", Style::default().fg(Color::Rgb(251, 191, 36))), // amber-400
                                 Span::styled(
-                                    format!(
-                                        "Turn {}/{} │ 💰 ${:.2} │ 🔌 {} tools",
-                                        agent.turn, agent.max_turns, agent.cost, agent.tool_calls
-                                    ),
-                                    Style::default().fg(muted_color),
+                                    truncate_str(&agent.prompt, 45),
+                                    Style::default().fg(content_color),
                                 ),
                             ])));
-                            // Bottom border
+
+                            // 3. Separator
                             items.push(ListItem::new(Line::from(vec![Span::styled(
-                                SEPARATOR_52,
+                                "├──────────────────────────────────────────────────┤",
+                                Style::default().fg(border_color),
+                            )])));
+
+                            // 4. RESPONSE section header
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled("💬 RESPONSE", Style::default().fg(muted_color)),
+                            ])));
+
+                            // 5. Final response content (first 3 lines or streaming indicator)
+                            if let Some(response) = &agent.final_response {
+                                let response_lines: Vec<&str> = response.lines().take(3).collect();
+                                for line in response_lines {
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled("┊ ", Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            truncate_str(line, 44),
+                                            Style::default().fg(content_color),
+                                        ),
+                                    ])));
+                                }
+                                if response.lines().count() > 3 {
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled("┊ ", Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            format!("... ({} more lines)", response.lines().count() - 3),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                    ])));
+                                }
+                            } else if task_box.state().is_running() {
+                                // Streaming cursor for running agent
+                                let cursor = if self.frame % 2 == 0 { "▌" } else { " " };
+                                items.push(ListItem::new(Line::from(vec![
+                                    Span::styled("│ ", Style::default().fg(border_color)),
+                                    Span::styled("┊ ", Style::default().fg(muted_color)),
+                                    Span::styled(
+                                        format!("(turn {}/{} in progress)", agent.turn, agent.max_turns),
+                                        Style::default().fg(muted_color),
+                                    ),
+                                    Span::styled(cursor, Style::default().fg(success_color)),
+                                ])));
+                            }
+
+                            // 6. Footer with turn count, tokens, cost, tool calls
+                            let total_tokens = agent.tokens_in + agent.tokens_out;
+                            let token_str = if total_tokens > 1000 {
+                                format!("{:.1}K", total_tokens as f64 / 1000.0)
+                            } else {
+                                format!("{}", total_tokens)
+                            };
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled(format!("Turn {}/{}", agent.turn, agent.max_turns), Style::default().fg(muted_color)),
+                                Span::styled(" │ ", Style::default().fg(muted_color)),
+                                Span::styled(format!("🎫 {} tokens", token_str), Style::default().fg(muted_color)),
+                                Span::styled(" │ ", Style::default().fg(muted_color)),
+                                Span::styled(format!("💰 ${:.2}", agent.cost), Style::default().fg(muted_color)),
+                                Span::styled(" │ ", Style::default().fg(muted_color)),
+                                Span::styled(format!("🔌 {} calls", agent.tool_calls), Style::default().fg(muted_color)),
+                            ])));
+
+                            // 7. Bottom border
+                            items.push(ListItem::new(Line::from(vec![Span::styled(
+                                "╰──────────────────────────────────────────────────╯",
                                 Style::default().fg(border_color),
                             )])));
                             items.push(ListItem::new("")); // spacing
