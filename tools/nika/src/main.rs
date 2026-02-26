@@ -43,6 +43,17 @@ const AFTER_HELP: &str = r#"EXAMPLES:
     nika init                         Initialize a new project
     nika trace list                   View execution traces
 
+PROVIDER MANAGEMENT:
+    nika provider list                List all LLM providers and their status
+    nika provider set anthropic       Set API key for a provider
+    nika provider test openai         Test connection to a provider
+    nika provider migrate             Migrate env vars to system keychain
+
+MCP SERVER MANAGEMENT:
+    nika mcp list -w flow.yaml        List MCP servers defined in workflow
+    nika mcp test flow.yaml server    Test connection to an MCP server
+    nika mcp tools flow.yaml server   List tools from an MCP server
+
 VIEWS (in TUI):
     [a] Chat     Conversational agent interface
     [h] Home     Browse and select workflows
@@ -147,6 +158,12 @@ enum Commands {
         action: ProviderAction,
     },
 
+    /// Manage MCP server connections (v0.12.1)
+    Mcp {
+        #[command(subcommand)]
+        action: McpAction,
+    },
+
     /// [deprecated] Use 'nika' instead
     #[cfg(feature = "tui")]
     #[command(hide = true)]
@@ -228,6 +245,33 @@ enum ProviderAction {
     Test {
         /// Provider name
         provider: String,
+    },
+}
+
+/// MCP server management actions (v0.12.1)
+#[derive(Subcommand)]
+enum McpAction {
+    /// List MCP servers defined in a workflow
+    List {
+        /// Workflow file with MCP definitions
+        #[arg(short, long)]
+        workflow: Option<String>,
+    },
+
+    /// Test connection to an MCP server
+    Test {
+        /// Workflow file with MCP definitions
+        workflow: String,
+        /// MCP server name (from workflow's mcp: section)
+        server: String,
+    },
+
+    /// List tools available from an MCP server
+    Tools {
+        /// Workflow file with MCP definitions
+        workflow: String,
+        /// MCP server name
+        server: String,
     },
 }
 
@@ -329,6 +373,9 @@ async fn main() {
         // Provider management (v0.12.1)
         #[cfg(feature = "tui")]
         Some(Commands::Provider { action }) => handle_provider_command(action).await,
+
+        // MCP server management (v0.12.1)
+        Some(Commands::Mcp { action }) => handle_mcp_command(action).await,
 
         // Legacy TUI command (hidden, backward compat)
         #[cfg(feature = "tui")]
@@ -1113,4 +1160,178 @@ flows:
     }
 
     Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MCP COMMAND (v0.12.1)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Handle MCP server management commands
+async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
+    use colored::Colorize;
+
+    match action {
+        McpAction::List { workflow } => {
+            // If workflow provided, load its MCP config
+            match workflow {
+                Some(file) => {
+                    let yaml = tokio::fs::read_to_string(&file).await?;
+                    let wf: Workflow = serde_yaml::from_str(&yaml)?;
+
+                    match wf.mcp {
+                        Some(ref mcp_servers) if !mcp_servers.is_empty() => {
+                            println!("{}", "MCP Servers".bold());
+                            println!("{}", "─".repeat(60));
+
+                            for (name, config) in mcp_servers {
+                                println!(
+                                    "  {:12} {} {}",
+                                    name.cyan(),
+                                    config.command.dimmed(),
+                                    config.args.join(" ").dimmed()
+                                );
+                                if !config.env.is_empty() {
+                                    for key in config.env.keys() {
+                                        println!("               env: {}", key.yellow());
+                                    }
+                                }
+                            }
+                            println!();
+                            println!(
+                                "{}",
+                                format!("Use 'nika mcp test {} <server>' to test connection", file)
+                                    .dimmed()
+                            );
+                        }
+                        _ => {
+                            println!("{} No MCP servers defined in {}", "ℹ".cyan(), file);
+                        }
+                    }
+                }
+                None => {
+                    println!("{} Specify a workflow file with --workflow", "ℹ".cyan());
+                    println!(
+                        "{}",
+                        "Example: nika mcp list --workflow my-flow.nika.yaml".dimmed()
+                    );
+                }
+            }
+            Ok(())
+        }
+
+        McpAction::Test { workflow, server } => {
+            println!("Testing connection to MCP server '{}'...", server.bold());
+
+            // Load workflow
+            let yaml = tokio::fs::read_to_string(&workflow).await?;
+            let wf: Workflow = serde_yaml::from_str(&yaml)?;
+
+            // Get MCP config
+            let mcp_servers = wf.mcp.as_ref().ok_or_else(|| NikaError::ValidationError {
+                reason: format!("No mcp: section in {}", workflow),
+            })?;
+
+            let inline_config =
+                mcp_servers
+                    .get(&server)
+                    .ok_or_else(|| NikaError::McpNotConnected {
+                        name: server.clone(),
+                    })?;
+
+            // Build McpConfig
+            let mut config = McpConfig::new(&server, &inline_config.command)
+                .with_args(inline_config.args.iter().cloned());
+            for (key, value) in &inline_config.env {
+                config = config.with_env(key, value);
+            }
+            if let Some(ref cwd) = inline_config.cwd {
+                config = config.with_cwd(cwd);
+            }
+
+            // Connect
+            let client = McpClient::new(config)?;
+
+            match client.connect().await {
+                Ok(()) => {
+                    println!("{} Connection successful!", "✓".green());
+
+                    // List tools
+                    match client.list_tools().await {
+                        Ok(tools) => {
+                            println!("  Found {} tools", tools.len());
+                        }
+                        Err(e) => {
+                            println!("  {} Failed to list tools: {}", "⚠".yellow(), e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("{} Connection failed: {}", "✗".red(), e);
+                }
+            }
+            Ok(())
+        }
+
+        McpAction::Tools { workflow, server } => {
+            // Load workflow
+            let yaml = tokio::fs::read_to_string(&workflow).await?;
+            let wf: Workflow = serde_yaml::from_str(&yaml)?;
+
+            // Get MCP config
+            let mcp_servers = wf.mcp.as_ref().ok_or_else(|| NikaError::ValidationError {
+                reason: format!("No mcp: section in {}", workflow),
+            })?;
+
+            let inline_config =
+                mcp_servers
+                    .get(&server)
+                    .ok_or_else(|| NikaError::McpNotConnected {
+                        name: server.clone(),
+                    })?;
+
+            // Build McpConfig
+            let mut config = McpConfig::new(&server, &inline_config.command)
+                .with_args(inline_config.args.iter().cloned());
+            for (key, value) in &inline_config.env {
+                config = config.with_env(key, value);
+            }
+            if let Some(ref cwd) = inline_config.cwd {
+                config = config.with_cwd(cwd);
+            }
+
+            println!("Connecting to MCP server '{}'...", server.bold());
+
+            // Connect
+            let client = McpClient::new(config)?;
+            client.connect().await?;
+
+            // List tools
+            let tools = client.list_tools().await?;
+
+            println!();
+            println!("{}", format!("Tools from '{}'", server).bold());
+            println!("{}", "─".repeat(60));
+
+            if tools.is_empty() {
+                println!("  {} No tools available", "ℹ".cyan());
+            } else {
+                for tool in &tools {
+                    println!("  {} {}", "•".cyan(), tool.name.bold());
+                    if let Some(ref desc) = tool.description {
+                        // Truncate long descriptions
+                        let desc_truncated: String = desc.chars().take(80).collect();
+                        if desc.len() > 80 {
+                            println!("    {}", format!("{}...", desc_truncated).dimmed());
+                        } else {
+                            println!("    {}", desc_truncated.dimmed());
+                        }
+                    }
+                }
+            }
+
+            println!();
+            println!("{} tools available", tools.len());
+            Ok(())
+        }
+    }
 }
