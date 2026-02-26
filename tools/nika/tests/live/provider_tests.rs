@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Live provider tests - real API calls to validate provider functionality.
 //!
 //! These tests are marked #[ignore] by default and require API keys.
@@ -313,7 +314,7 @@ async fn test_claude_concurrent_requests() {
         return;
     }
 
-    let provider = RigProvider::claude();
+    let _provider = RigProvider::claude();
     let start = Instant::now();
 
     // Launch 3 concurrent requests
