@@ -269,14 +269,26 @@ impl Widget for AgentBox {
             buf.set_string(area.x, y, "│", border_style);
             buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
+            // Build velocity sparkline if running and has samples
+            let velocity_str = if self.state.is_running() && !self.velocity.is_empty() {
+                format!(
+                    " │ {} {:.0} tok/s",
+                    self.velocity.sparkline_chars(),
+                    self.velocity.average()
+                )
+            } else {
+                String::new()
+            };
+
             let metrics = format!(
-                "Turn {}/{} │ 📊 {} in / {} out │ 💰 ${:.2} │ 🔌 {} tools",
+                "Turn {}/{} │ 📊 {} in / {} out │ 💰 ${:.2} │ 🔌 {} tools{}",
                 self.turn,
                 self.max_turns,
                 Self::format_tokens(self.tokens_in),
                 Self::format_tokens(self.tokens_out),
                 self.cost,
-                self.tool_calls
+                self.tool_calls,
+                velocity_str
             );
             let metrics_truncated = Self::truncate(&metrics, inner_width - 2);
             buf.set_string(area.x + 2, y, &metrics_truncated, metric_style);
