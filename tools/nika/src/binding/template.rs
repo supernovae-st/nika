@@ -1,7 +1,7 @@
 //! Template Resolution - `{{use.alias}}` substitution (v0.5)
 //!
 //! Single syntax: {{use.alias}} or {{use.alias.field}}
-//! True single-pass resolution with Cow<str> for zero-alloc when no templates.
+//! True single-pass resolution with `Cow<str>` for zero-alloc when no templates.
 //!
 //! Performance optimizations:
 //! - Zero-clone traversal (references until final value)

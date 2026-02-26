@@ -28,13 +28,13 @@ pub enum McpAction {
 /// Parsed chat command
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
-    /// /infer <prompt> - Direct LLM inference
+    /// `/infer <prompt>` - Direct LLM inference
     Infer { prompt: String },
 
-    /// /exec <command> - Shell execution
+    /// `/exec <command>` - Shell execution
     Exec { command: String },
 
-    /// /fetch <url> [method] - HTTP request
+    /// `/fetch <url> [method]` - HTTP request
     Fetch { url: String, method: String },
 
     /// /fetch error - user made a common mistake (v0.8.2)
@@ -44,14 +44,14 @@ pub enum Command {
         example: String,
     },
 
-    /// /invoke [server:]tool [json_params] - MCP tool call
+    /// `/invoke [server:]tool [json_params]` - MCP tool call
     Invoke {
         tool: String,
         server: Option<String>,
         params: serde_json::Value,
     },
 
-    /// /agent <goal> [--max-turns N] [--mcp server1,server2] - Multi-turn agentic loop
+    /// `/agent <goal> [--max-turns N] [--mcp server1,server2]` - Multi-turn agentic loop
     Agent {
         goal: String,
         max_turns: Option<u32>,
@@ -65,7 +65,7 @@ pub enum Command {
     /// /help or /? - Show help
     Help,
 
-    /// /model <provider> - Switch LLM provider (openai, claude)
+    /// `/model <provider>` - Switch LLM provider (openai, claude)
     Model { provider: ModelProvider },
 
     /// /clear - Clear chat history
@@ -74,7 +74,7 @@ pub enum Command {
     /// /mcp [list|select|toggle] - MCP server management (v0.5.2)
     Mcp { action: McpAction },
 
-    /// /export [path] - Export chat session to JSON file (v0.9)
+    /// `/export [path]` - Export chat session to JSON file (v0.9)
     Export { path: Option<String> },
 }
 
@@ -482,7 +482,7 @@ impl ModelProvider {
         }
     }
 
-    /// Get the short command name for the provider (used with /model <name>)
+    /// Get the short command name for the provider (used with `/model <name>`)
     pub fn command_name(&self) -> &'static str {
         match self {
             ModelProvider::OpenAI => "openai",

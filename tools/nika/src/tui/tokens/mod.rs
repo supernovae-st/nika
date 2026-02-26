@@ -85,7 +85,7 @@ impl CosmicVariant {
 
     /// Create variant from index (0=Dark, 1=Light, 2=Violet)
     ///
-    /// Used by Settings view for direct theme selection via [1][2][3] keys.
+    /// Used by Settings view for direct theme selection via `[1][2][3]` keys.
     pub fn from_index(index: u8) -> Option<Self> {
         match index {
             0 => Some(Self::CosmicDark),

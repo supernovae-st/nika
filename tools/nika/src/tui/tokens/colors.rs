@@ -174,7 +174,7 @@ impl ColorPalette {
     /// Create standard Tailwind CSS v3.4 color palette
     ///
     /// All colors are official Tailwind values.
-    /// Source: https://tailwindcss.com/docs/customizing-colors
+    /// Source: <https://tailwindcss.com/docs/customizing-colors>
     pub fn tailwind() -> Self {
         Self {
             // ═══════════════════════════════════════════════════════════════════

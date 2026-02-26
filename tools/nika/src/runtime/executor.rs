@@ -34,15 +34,15 @@ pub struct TaskExecutor {
     rig_provider_cache: Arc<DashMap<String, RigProvider>>,
     /// Cached MCP clients with async-safe initialization (prevents race conditions in for_each)
     ///
-    /// ## Why Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>?
+    /// ## Why `Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>`?
     ///
     /// The triple-Arc structure is intentional:
     ///
-    /// 1. **Outer Arc<DashMap>**: TaskExecutor derives Clone; Arc ensures clones share the cache.
-    /// 2. **Middle Arc<OnceCell>**: DashMap entry() returns RefMut that cannot be held across await.
-    ///    We clone Arc<OnceCell> to release the guard before calling get_or_try_init().await.
+    /// 1. **Outer `Arc<DashMap>`**: TaskExecutor derives Clone; Arc ensures clones share the cache.
+    /// 2. **Middle `Arc<OnceCell>`**: DashMap entry() returns RefMut that cannot be held across await.
+    ///    We clone `Arc<OnceCell>` to release the guard before calling get_or_try_init().await.
     ///    Without this, we'd have the "lock-across-await" footgun causing shard starvation.
-    /// 3. **Inner Arc<McpClient>**: McpClient is shared across tasks; Arc enables cheap cloning.
+    /// 3. **Inner `Arc<McpClient>`**: McpClient is shared across tasks; Arc enables cheap cloning.
     ///
     /// See tests/mcp_race_conditions_test.rs for validation.
     mcp_client_cache: Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>,

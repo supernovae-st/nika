@@ -2,13 +2,13 @@
 //!
 //! Supports:
 //! - $.a.b.c (dot notation)
-//! - $.a[0].b (array index)
+//! - `$.a[0].b` (array index)
 //! - a.b.c (without $ prefix)
 //!
 //! Does NOT support:
-//! - Filters: $.a[?(@.x==1)]
-//! - Wildcards: $.a[*]
-//! - Slices: $.a[0:5]
+//! - Filters: `$.a[?(@.x==1)]`
+//! - Wildcards: `$.a[*]`
+//! - Slices: `$.a[0:5]`
 
 use serde_json::Value;
 
@@ -19,15 +19,15 @@ use crate::error::NikaError;
 pub enum Segment {
     /// Object field access: .field
     Field(String),
-    /// Array index access: [0]
+    /// Array index access: `[0]`
     Index(usize),
 }
 
 /// Parse a JSONPath string into segments
 ///
 /// Examples:
-/// - "$.price.currency" → [Field("price"), Field("currency")]
-/// - "items[0].name" → [Field("items"), Index(0), Field("name")]
+/// - `"$.price.currency"` → `[Field("price"), Field("currency")]`
+/// - `"items[0].name"` → `[Field("items"), Index(0), Field("name")]`
 pub fn parse(path: &str) -> Result<Vec<Segment>, NikaError> {
     // Remove $. prefix if present
     let path = if let Some(stripped) = path.strip_prefix("$.") {

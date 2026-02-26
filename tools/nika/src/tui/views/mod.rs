@@ -348,7 +348,7 @@ pub enum ViewAction {
     OpenSettings,
     /// Toggle theme (v0.8.1)
     ToggleTheme,
-    /// Set specific theme by variant (v0.12.0 - fix for [1][2][3] selection)
+    /// Set specific theme by variant (v0.12.0 - fix for `[1][2][3]` selection)
     SetTheme(CosmicVariant),
     /// Verify all configured providers (v0.8.2)
     VerifyProviders,

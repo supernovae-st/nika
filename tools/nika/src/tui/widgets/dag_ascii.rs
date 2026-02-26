@@ -75,7 +75,7 @@ impl<'a> DagAscii<'a> {
         self
     }
 
-    /// Set dependencies map (node_id -> [dep_ids])
+    /// Set dependencies map (node_id -> `[dep_ids]`)
     ///
     /// Dependencies indicate which tasks a node depends on (its predecessors).
     pub fn with_dependencies(mut self, deps: HashMap<String, Vec<String>>) -> Self {

@@ -14,7 +14,7 @@
 //! Full text editor integration is planned via `ratatui-textarea` (the ratatui org's
 //! hard fork of tui-textarea with ratatui 0.30 support).
 //!
-//! See: https://github.com/ratatui/ratatui-textarea (replaces rhysd/tui-textarea)
+//! See: <https://github.com/ratatui/ratatui-textarea> (replaces rhysd/tui-textarea)
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;

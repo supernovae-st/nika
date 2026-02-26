@@ -137,7 +137,7 @@ pub struct Event {
 
 /// All possible event types (3 levels)
 ///
-/// Uses Arc<str> for task_id fields to enable zero-cost cloning.
+/// Uses `Arc<str>` for task_id fields to enable zero-cost cloning.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum EventKind {
