@@ -88,9 +88,78 @@ impl Default for TokenVelocity {
     }
 }
 
+/// Braille sparkline characters ordered by fill level
+const SPARKLINE_CHARS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+
+impl TokenVelocity {
+    /// Generate sparkline character string
+    pub fn sparkline_chars(&self) -> String {
+        if self.samples.is_empty() {
+            return String::new();
+        }
+
+        let peak = self.peak().max(1.0); // Avoid division by zero
+        self.samples
+            .iter()
+            .map(|&v| {
+                let idx = ((v / peak) * (SPARKLINE_CHARS.len() - 1) as f32).round() as usize;
+                SPARKLINE_CHARS[idx.min(SPARKLINE_CHARS.len() - 1)]
+            })
+            .collect()
+    }
+
+    /// Minimum velocity
+    pub fn min(&self) -> f32 {
+        self.samples.iter().copied().fold(f32::INFINITY, f32::min)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_token_velocity_sparkline_chars() {
+        let mut vel = TokenVelocity::new(8);
+        // Push values: 0 (min), 40, 80 (peak)
+        vel.push(0.0); // Should be ▁
+        vel.push(40.0); // 50% -> ▄
+        vel.push(80.0); // Peak -> █
+
+        let sparkline = vel.sparkline_chars();
+        assert_eq!(sparkline.chars().count(), 3);
+        assert!(sparkline.starts_with('▁')); // Zero value
+        assert!(sparkline.ends_with('█')); // Peak value
+    }
+
+    #[test]
+    fn test_token_velocity_sparkline_ascending() {
+        let mut vel = TokenVelocity::new(8);
+        // Push ascending values
+        for i in 0..8 {
+            vel.push(i as f32 * 10.0);
+        }
+        let sparkline = vel.sparkline_chars();
+        assert_eq!(sparkline.chars().count(), 8);
+        // Last char should be peak
+        assert!(sparkline.ends_with('█'));
+    }
+
+    #[test]
+    fn test_token_velocity_sparkline_empty() {
+        let vel = TokenVelocity::new(8);
+        assert_eq!(vel.sparkline_chars(), "");
+    }
+
+    #[test]
+    fn test_token_velocity_min() {
+        let mut vel = TokenVelocity::new(10);
+        vel.push(50.0);
+        vel.push(10.0);
+        vel.push(30.0);
+
+        assert!((vel.min() - 10.0).abs() < 0.01);
+    }
 
     #[test]
     fn test_token_velocity_new() {

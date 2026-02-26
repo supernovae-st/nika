@@ -817,8 +817,7 @@ mod tests {
         match agent {
             Ok(a) => {
                 // Verify the agent has a valid provider
-                let valid_providers =
-                    ["claude", "openai", "mistral", "groq", "deepseek", "ollama"];
+                let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "ollama"];
                 assert!(
                     valid_providers.contains(&a.provider_name()),
                     "Expected valid provider, got: {}",
