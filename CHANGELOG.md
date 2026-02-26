@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-02-26
+
+### Added
+- **TaskBox v0.11 Implementation Plan** - Comprehensive 22-phase development roadmap
+  - ASCII design specification for all 5 verbs (InferBox, ExecBox, FetchBox, InvokeBox, AgentBox)
+  - Gap analysis report (12 major + 8 minor gaps identified)
+  - Detailed Rust implementation code for phases 18-22
+  - 115 new tests planned (3104 total after implementation)
+- **TaskBox Visual Enhancements**
+  - `AgentBox` compact mode with turn counter and tool count
+  - `BorderPulse` animation integration for all widgets
+  - `TokenVelocity` sparkline widget
+  - `RenderMode` enum (Compact/Expanded/Full)
+  - `KeyAction` enum for keyboard shortcuts
+  - Subagent visual distinction (🐤 vs 🐔)
+
+### Fixed
+- CI checkout step in fleet-cleared job
+- Test timeout configuration for exec tests
+- API key handling in integration tests (graceful degradation)
+- Rustdoc HTML-like tags escaping
+- Clippy and lint warnings across TUI modules
+
+### Documentation
+- `2026-02-26-taskbox-ascii-design-spec.md` - Visual reference for all widgets
+- `2026-02-26-taskbox-gap-analysis.md` - Implementation audit report
+- `2026-02-26-taskbox-v0.11-implementation-plan.md` - Full 22-phase plan (4671 lines)
+- `v0.11-taskbox-event-wiring.md` - Event system documentation
+
 ## [0.12.0] - 2026-02-26
 
 ### Added
