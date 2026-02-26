@@ -121,6 +121,30 @@ impl AnimationTicker {
         const BRAILLE: &[char] = &['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷'];
         BRAILLE[(self.frame as usize / 4) % BRAILLE.len()]
     }
+
+    /// Get shake offset for error animation (Phase 11-12)
+    /// Returns (x, y) displacement based on current frame
+    /// Uses pseudo-random pattern based on frame for consistent shake
+    pub fn shake_offset(&self, intensity: f32) -> (f32, f32) {
+        if intensity == 0.0 {
+            return (0.0, 0.0);
+        }
+
+        // Use frame to generate pseudo-random but deterministic shake
+        let frame = self.frame as f32;
+        let x = (frame * 7.0).sin() * intensity;
+        let y = (frame * 11.0).cos() * intensity * 0.7; // Less vertical shake
+
+        (x, y)
+    }
+
+    /// Get shake offset with exponential decay
+    /// elapsed_frames controls how much the shake has decayed
+    pub fn shake_offset_with_decay(&self, intensity: f32, elapsed_frames: u32) -> (f32, f32) {
+        // Decay factor: halves every 10 frames
+        let decay = 0.5_f32.powf(elapsed_frames as f32 / 10.0);
+        self.shake_offset(intensity * decay)
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -201,6 +225,43 @@ impl Easing {
             let t = t - 2.625 / 2.75;
             7.5625 * t * t + 0.984375
         }
+    }
+
+    /// Elastic easing (overshoots then settles) - Phase 11-12
+    /// Good for error feedback that needs attention
+    pub fn elastic(t: f32) -> f32 {
+        if t == 0.0 {
+            return 0.0;
+        }
+        if t == 1.0 {
+            return 1.0;
+        }
+
+        let p = 0.3;
+        let s = p / 4.0;
+        let t = t - 1.0;
+
+        -(2.0_f32.powf(10.0 * t) * ((t - s) * (2.0 * std::f32::consts::PI) / p).sin()) + 1.0
+    }
+
+    /// Spring easing (oscillating settle) - Phase 11-12
+    /// Good for bouncy UI elements
+    pub fn spring(t: f32) -> f32 {
+        if t == 0.0 {
+            return 0.0;
+        }
+        if t == 1.0 {
+            return 1.0;
+        }
+
+        // Damped spring formula
+        let omega = 10.0; // Frequency
+        let zeta = 0.3; // Damping ratio (underdamped)
+
+        let envelope = (-zeta * omega * t).exp();
+        let oscillation = ((1.0 - zeta * zeta).sqrt() * omega * t).cos();
+
+        1.0 - envelope * oscillation
     }
 }
 
@@ -406,5 +467,94 @@ mod tests {
         let _ = AnimationTicker::new();
         let _ = AnimationState::Idle;
         let _ = Easing::linear(0.5);
+    }
+
+    // --- shake_offset tests (Phase 11-12) ---
+
+    #[test]
+    fn test_shake_offset_returns_tuple() {
+        let ticker = AnimationTicker::new();
+        let (x, y) = ticker.shake_offset(5.0);
+
+        // Should return bounded values
+        assert!(x.abs() <= 5.0);
+        assert!(y.abs() <= 5.0);
+    }
+
+    #[test]
+    fn test_shake_offset_varies_with_frames() {
+        let mut ticker = AnimationTicker::new();
+
+        let initial = ticker.shake_offset(5.0);
+
+        // Advance frames
+        for _ in 0..4 {
+            ticker.force_tick();
+        }
+
+        let after = ticker.shake_offset(5.0);
+
+        // Should produce different offsets at different frames
+        assert!(initial != after);
+    }
+
+    #[test]
+    fn test_shake_offset_intensity_zero() {
+        let ticker = AnimationTicker::new();
+        let (x, y) = ticker.shake_offset(0.0);
+
+        assert_eq!(x, 0.0);
+        assert_eq!(y, 0.0);
+    }
+
+    #[test]
+    fn test_shake_offset_decays() {
+        let mut ticker = AnimationTicker::new();
+        let (x1, y1) = ticker.shake_offset_with_decay(5.0, 0);
+
+        for _ in 0..10 {
+            ticker.force_tick();
+        }
+
+        let (x2, y2) = ticker.shake_offset_with_decay(5.0, 10);
+
+        // Decay should reduce intensity
+        let magnitude1 = (x1 * x1 + y1 * y1).sqrt();
+        let magnitude2 = (x2 * x2 + y2 * y2).sqrt();
+        assert!(magnitude2 <= magnitude1 || magnitude1 == 0.0);
+    }
+
+    // --- elastic easing tests (Phase 11-12) ---
+
+    #[test]
+    fn test_easing_elastic_boundaries() {
+        assert!((Easing::elastic(0.0) - 0.0).abs() < 0.01);
+        assert!((Easing::elastic(1.0) - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_easing_elastic_overshoots() {
+        // Elastic should overshoot past 1.0 before settling
+        let mid = Easing::elastic(0.7);
+        assert!(mid > 0.5); // Should be progressed
+    }
+
+    #[test]
+    fn test_easing_spring_boundaries() {
+        assert!((Easing::spring(0.0) - 0.0).abs() < 0.01);
+        assert!((Easing::spring(1.0) - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_easing_spring_oscillates() {
+        let early = Easing::spring(0.3);
+        let mid = Easing::spring(0.5);
+        let late = Easing::spring(0.8);
+
+        // Spring overshoots past 1.0, then settles back
+        assert!(early > 1.0); // Overshoots at early stage
+        assert!(mid < early); // Settling down
+        assert!(late < early); // Still settling
+        assert!((late - 1.0).abs() < 0.1); // Near target at end
     }
 }

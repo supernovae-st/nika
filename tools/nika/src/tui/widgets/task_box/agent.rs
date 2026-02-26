@@ -128,6 +128,87 @@ impl AgentBox {
         self.velocity.push(tokens_per_sec);
     }
 
+    /// Get turn progress as ratio (0.0 to 1.0)
+    pub fn turn_progress_ratio(&self) -> f32 {
+        if self.max_turns == 0 {
+            return 0.0;
+        }
+        (self.turn as f32 / self.max_turns as f32).min(1.0)
+    }
+
+    /// Generate a progress bar string for turn progress
+    /// Format: "[████████████░░░░░░░░] 60% (turn 3/5)"
+    pub fn turn_progress_bar(&self, width: usize) -> String {
+        let ratio = self.turn_progress_ratio();
+        let percent = (ratio * 100.0).round() as u32;
+        let filled = (ratio * width as f32).round() as usize;
+        let empty = width.saturating_sub(filled);
+
+        format!(
+            "[{}{}] {}% (turn {}/{})",
+            "█".repeat(filled),
+            "░".repeat(empty),
+            percent,
+            self.turn,
+            self.max_turns
+        )
+    }
+
+    /// Get status icons for all children (compact display)
+    /// Returns icons like "✅✅✅⣾❌" where each icon represents a child's state
+    pub fn children_status_icons(&self) -> String {
+        const MAX_ICONS: usize = 10;
+
+        if self.children.is_empty() {
+            return String::new();
+        }
+
+        let mut icons = String::new();
+        let display_count = self.children.len().min(MAX_ICONS);
+
+        for child in self.children.iter().take(display_count) {
+            icons.push_str(child.state().icon());
+        }
+
+        // Add overflow indicator if more children than displayed
+        if self.children.len() > MAX_ICONS {
+            icons.push_str(&format!("+{}", self.children.len() - MAX_ICONS));
+        }
+
+        icons
+    }
+
+    /// Generate a compact single-line representation for collapsed view
+    /// Format: "🐔 turn 3/5 [✅✅⣾] Research competitors..."
+    pub fn compact_line(&self, max_width: usize) -> String {
+        let icon = self.icon();
+        let state_icon = self.state.icon();
+        let turn_info = format!("{}/{}", self.turn, self.max_turns);
+        let children_icons = self.children_status_icons();
+
+        // Build fixed prefix: "🐔 ⣾ 3/5"
+        let prefix = format!("{} {} {}", icon, state_icon, turn_info);
+
+        // Add children icons if present: "[✅✅]"
+        let children_part = if children_icons.is_empty() {
+            String::new()
+        } else {
+            format!(" [{}]", children_icons)
+        };
+
+        // Add response preview or prompt
+        let text = if let Some(ref response) = self.final_response {
+            Self::truncate(response.lines().next().unwrap_or(""), 30)
+        } else {
+            Self::truncate(&self.prompt, 30)
+        };
+
+        let full_line = format!("{}{} {}", prefix, children_part, text);
+
+        // Truncate to max width
+        Self::truncate(&full_line, max_width)
+    }
+
     /// Get the display icon based on agent type
     pub fn icon(&self) -> &'static str {
         if self.is_subagent {
@@ -613,5 +694,168 @@ mod tests {
 
         let sparkline = box_.velocity.sparkline_chars();
         assert_eq!(sparkline.chars().count(), 8);
+    }
+
+    // === Plan A Phase 10: Compact Mode Tests ===
+
+    #[test]
+    fn test_agent_box_turn_progress_ratio() {
+        let box_ = AgentBox::new("task-1", "prompt").with_turn(3, 5);
+        assert!((box_.turn_progress_ratio() - 0.6).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_agent_box_turn_progress_ratio_zero() {
+        let box_ = AgentBox::new("task-1", "prompt").with_turn(0, 10);
+        assert!((box_.turn_progress_ratio() - 0.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_agent_box_turn_progress_ratio_full() {
+        let box_ = AgentBox::new("task-1", "prompt").with_turn(5, 5);
+        assert!((box_.turn_progress_ratio() - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_agent_box_turn_progress_ratio_max_zero() {
+        // Edge case: max_turns = 0 should return 0.0 (avoid division by zero)
+        let box_ = AgentBox::new("task-1", "prompt").with_turn(0, 0);
+        assert!((box_.turn_progress_ratio() - 0.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_agent_box_turn_progress_bar() {
+        let box_ = AgentBox::new("task-1", "prompt").with_turn(3, 5);
+        let bar = box_.turn_progress_bar(20);
+        // Expected: "[████████████░░░░░░░░] 60% (turn 3/5)"
+        assert!(bar.contains("████"));
+        assert!(bar.contains("░░"));
+        assert!(bar.contains("60%"));
+        assert!(bar.contains("turn 3/5"));
+    }
+
+    #[test]
+    fn test_agent_box_turn_progress_bar_zero() {
+        let box_ = AgentBox::new("task-1", "prompt").with_turn(0, 10);
+        let bar = box_.turn_progress_bar(10);
+        assert!(bar.contains("░░░░░░░░░░"));
+        assert!(bar.contains("0%"));
+        assert!(bar.contains("turn 0/10"));
+    }
+
+    #[test]
+    fn test_agent_box_turn_progress_bar_full() {
+        let box_ = AgentBox::new("task-1", "prompt").with_turn(5, 5);
+        let bar = box_.turn_progress_bar(10);
+        assert!(bar.contains("██████████"));
+        assert!(bar.contains("100%"));
+        assert!(bar.contains("turn 5/5"));
+    }
+
+    #[test]
+    fn test_agent_box_children_status_icons_empty() {
+        let box_ = AgentBox::new("task-1", "prompt");
+        assert_eq!(box_.children_status_icons(), "");
+    }
+
+    #[test]
+    fn test_agent_box_children_status_icons_single() {
+        let mut box_ = AgentBox::new("task-1", "prompt");
+        let child = TaskBox::Invoke(InvokeBox::new("tool", "server").with_state(BoxState::success(100)));
+        box_.add_child(child);
+        assert_eq!(box_.children_status_icons(), "✅");
+    }
+
+    #[test]
+    fn test_agent_box_children_status_icons_multiple() {
+        use crate::tui::widgets::task_box::ExecBox;
+
+        let mut box_ = AgentBox::new("task-1", "prompt");
+
+        // Add completed child
+        let child1 = TaskBox::Invoke(InvokeBox::new("tool1", "server").with_state(BoxState::success(100)));
+        box_.add_child(child1);
+
+        // Add running child
+        let child2 = TaskBox::Exec(ExecBox::new("ls -la").with_state(BoxState::running()));
+        box_.add_child(child2);
+
+        // Add failed child
+        let child3 = TaskBox::Invoke(InvokeBox::new("tool2", "server").with_state(BoxState::failed("error".to_string(), 100)));
+        box_.add_child(child3);
+
+        let icons = box_.children_status_icons();
+        assert!(icons.contains("✅")); // success
+        assert!(icons.contains("❌")); // failed
+        // Running icon is a spinner character
+    }
+
+    #[test]
+    fn test_agent_box_children_status_icons_max_display() {
+        let mut box_ = AgentBox::new("task-1", "prompt");
+
+        // Add 12 children
+        for i in 0..12 {
+            let child = TaskBox::Invoke(
+                InvokeBox::new(format!("tool{}", i), "server")
+                    .with_state(BoxState::success(100))
+            );
+            box_.add_child(child);
+        }
+
+        let icons = box_.children_status_icons();
+        // Should show 10 icons + "+2" overflow
+        assert!(icons.contains("+2"));
+    }
+
+    #[test]
+    fn test_agent_box_compact_line() {
+        let mut box_ = AgentBox::new("task-1", "Research competitors")
+            .with_turn(3, 5)
+            .with_state(BoxState::running());
+
+        // Add some children
+        let child1 = TaskBox::Invoke(InvokeBox::new("tool1", "server").with_state(BoxState::success(100)));
+        box_.add_child(child1);
+        let child2 = TaskBox::Invoke(InvokeBox::new("tool2", "server").with_state(BoxState::success(100)));
+        box_.add_child(child2);
+
+        let compact = box_.compact_line(60);
+
+        // Should contain:
+        // - Icon
+        // - Turn progress
+        // - Children status icons
+        assert!(compact.contains("🐔")); // Agent icon
+        assert!(compact.contains("3/5")); // Turn progress
+        assert!(compact.contains("✅")); // Child status
+    }
+
+    #[test]
+    fn test_agent_box_compact_line_subagent() {
+        let box_ = AgentBox::new("task-1", "Sub-task")
+            .with_turn(1, 3)
+            .as_subagent(2)
+            .with_state(BoxState::running());
+
+        let compact = box_.compact_line(50);
+
+        assert!(compact.contains("🐤")); // Subagent icon
+        assert!(compact.contains("1/3")); // Turn progress
+    }
+
+    #[test]
+    fn test_agent_box_compact_line_with_final_response() {
+        let box_ = AgentBox::new("task-1", "Research")
+            .with_turn(5, 5)
+            .with_final_response("The analysis shows...")
+            .with_state(BoxState::success(1000));
+
+        let compact = box_.compact_line(60);
+
+        assert!(compact.contains("✅")); // Success state
+        assert!(compact.contains("5/5")); // Turn progress
+        // Should show truncated response preview
+        assert!(compact.contains("The analysis"));
     }
 }
