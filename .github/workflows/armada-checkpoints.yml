@@ -222,6 +222,7 @@ jobs:
       - station-9-commits
       - station-10-version
     steps:
+      - uses: actions/checkout@v4
       - run: |
           echo ""
           echo "ARMADA FLEET CLEARED FOR LAUNCH"
