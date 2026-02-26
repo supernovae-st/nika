@@ -1,0 +1,569 @@
+schema: nika/workflow@0.5
+workflow: personal-finance-tracker
+description: |
+  Comprehensive personal finance analysis and recommendations workflow.
+
+  Analyzes multiple bank accounts, categorizes transactions, fetches real-time
+  market data and exchange rates, researches financial trends, and generates
+  personalized budget recommendations and savings strategies.
+
+  Use case: Individuals managing personal finances across multiple accounts,
+  currencies, and investment portfolios.
+
+  Requires: ANTHROPIC_API_KEY, PERPLEXITY_API_KEY
+
+provider: claude
+model: claude-sonnet-4-6
+
+mcp:
+  perplexity:
+    command: node
+    args:
+      - /path/to/perplexity-mcp/dist/index.js
+    env:
+      PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY}
+
+tasks:
+  # ============================================================================
+  # PHASE 1: DATA INGESTION - Read local transaction files
+  # ============================================================================
+
+  # STEP 1: Read primary checking account CSV
+  - id: read_checking_account
+    exec: |
+      ls -la bank_exports/checking_*.csv 2>/dev/null | head -1 | awk '{print $NF}' | xargs cat 2>/dev/null || \
+      echo "date,description,category,amount
+2026-02-20,Grocery Store - Whole Foods,groceries,-125.43
+2026-02-19,Gas Station - Shell,transportation,-55.00
+2026-02-18,Netflix Subscription,entertainment,-15.99
+2026-02-17,Salary Deposit,income,5000.00
+2026-02-16,Electric Bill,utilities,-95.50"
+
+  # STEP 2: Read savings account CSV
+  - id: read_savings_account
+    exec: |
+      ls -la bank_exports/savings_*.csv 2>/dev/null | head -1 | awk '{print $NF}' | xargs cat 2>/dev/null || \
+      echo "date,description,amount,interest_rate
+2026-02-20,Monthly Interest,12.50,0.045
+2026-02-10,Transfer In,1000.00,0.045
+2026-02-01,Transfer In,2000.00,0.045"
+
+  # STEP 3: Read credit card transactions
+  - id: read_credit_card
+    exec: |
+      ls -la bank_exports/credit_card_*.csv 2>/dev/null | head -1 | awk '{print $NF}' | xargs cat 2>/dev/null || \
+      echo "transaction_date,merchant,category,amount,currency
+2026-02-20,Amazon Prime,shopping,-49.99,USD
+2026-02-18,Coffee Shop,dining,-8.75,USD
+2026-02-17,Hotel Booking,travel,-350.00,USD
+2026-02-16,Restaurant,dining,-65.50,USD"
+
+  # ============================================================================
+  # PHASE 2: MARKET DATA ACQUISITION - Fetch current rates and prices
+  # ============================================================================
+
+  # STEP 4: Fetch current exchange rates
+  - id: fetch_exchange_rates
+    fetch:
+      url: "https://api.exchangerate-api.com/v4/latest/USD"
+      method: GET
+      headers:
+        Accept: "application/json"
+    output:
+      format: json
+
+  # STEP 5: Fetch stock market indices
+  - id: fetch_market_indices
+    fetch:
+      url: "https://query1.finance.yahoo.com/v10/finance/quoteSummary/^GSPC?modules=price"
+      method: GET
+    output:
+      format: json
+
+  # STEP 6: Fetch cryptocurrency prices
+  - id: fetch_crypto_prices
+    fetch:
+      url: "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_market_cap=true"
+      method: GET
+    output:
+      format: json
+
+  # ============================================================================
+  # PHASE 3: FINANCIAL RESEARCH - Fetch market trends and insights
+  # ============================================================================
+
+  # STEP 7: Research personal finance and budgeting trends
+  - id: research_finance_trends
+    invoke:
+      server: perplexity
+      tool: perplexity_search_web
+      params:
+        query: "personal finance budgeting trends 2026 inflation savings strategies"
+        max_results: 5
+    output:
+      format: json
+
+  # STEP 8: Research investment opportunities
+  - id: research_investments
+    invoke:
+      server: perplexity
+      tool: perplexity_search_web
+      params:
+        query: "2026 investment opportunities stocks ETFs diversification strategies"
+        max_results: 5
+    output:
+      format: json
+
+  # STEP 9: Research debt reduction strategies
+  - id: research_debt_strategies
+    invoke:
+      server: perplexity
+      tool: perplexity_search_web
+      params:
+        query: "credit card debt payoff strategies 2026 interest rates"
+        max_results: 3
+    output:
+      format: json
+
+  # ============================================================================
+  # PHASE 4: TRANSACTION ANALYSIS - Categorize and analyze spending patterns
+  # ============================================================================
+
+  # STEP 10: Extract account list for parallel analysis
+  - id: prepare_account_list
+    use:
+      checking: read_checking_account
+      savings: read_savings_account
+      credit_card: read_credit_card
+    infer:
+      prompt: |
+        Parse these three bank account statements and create a JSON array of account objects.
+
+        Checking Account:
+        {{use.checking}}
+
+        Savings Account:
+        {{use.savings}}
+
+        Credit Card:
+        {{use.credit_card}}
+
+        Return ONLY a valid JSON array with objects like:
+        {
+          "account_id": "checking" | "savings" | "credit_card",
+          "account_type": "checking" | "savings" | "credit_card",
+          "balance": <number>,
+          "transactions": [...]
+        }
+
+        No other text.
+      model: claude-sonnet-4-6
+    output:
+      format: json
+
+  # STEP 11: Analyze multiple accounts in parallel (fan-out pattern)
+  - id: analyze_accounts
+    use:
+      accounts: prepare_account_list
+    for_each: "{{use.accounts}}"
+    as: account
+    concurrency: 3
+    fail_fast: false
+    infer:
+      prompt: |
+        Analyze this bank account and provide spending insights:
+
+        Account Type: {{use.account.account_type}}
+        Balance: {{use.account.balance}}
+        Transactions:
+        {{use.account.transactions | to_json}}
+
+        Provide:
+        1. Total income and expenses
+        2. Spending breakdown by category
+        3. Monthly trend (if available)
+        4. Anomalies or unusual transactions
+        5. Account health score (0-100)
+
+        Return as JSON object.
+      model: claude-sonnet-4-6
+    output:
+      format: json
+
+  # ============================================================================
+  # PHASE 5: CONSOLIDATED ANALYSIS - Merge and synthesize findings
+  # ============================================================================
+
+  # STEP 12: Synthesize all account analyses
+  - id: synthesize_financial_picture
+    use:
+      all_accounts: analyze_accounts
+      exchange_rates: fetch_exchange_rates
+      market_indices: fetch_market_indices
+      trends: research_finance_trends
+    infer:
+      prompt: |
+        You are a financial analyst. Synthesize the complete financial picture from multiple accounts.
+
+        All Account Analyses:
+        {{use.all_accounts | to_json}}
+
+        Exchange Rates:
+        {{use.exchange_rates | to_json}}
+
+        Market Indices:
+        {{use.market_indices | to_json}}
+
+        Financial Trends:
+        {{use.trends}}
+
+        Provide:
+        1. Total net worth across all accounts
+        2. Overall spending patterns and trends
+        3. Cash flow analysis (income vs expenses)
+        4. Budget allocation effectiveness
+        5. Currency exposure analysis
+        6. Investment portfolio health (if applicable)
+
+        Return as JSON with structured insights.
+      model: claude-sonnet-4-6
+    output:
+      format: json
+
+  # ============================================================================
+  # PHASE 6: INTELLIGENT RECOMMENDATIONS - Agent-driven analysis
+  # ============================================================================
+
+  # STEP 13: Generate budget and savings recommendations via agent
+  - id: budget_recommendations_agent
+    use:
+      financial_summary: synthesize_financial_picture
+      account_analyses: analyze_accounts
+      finance_trends: research_finance_trends
+      investment_research: research_investments
+      debt_strategies: research_debt_strategies
+      crypto_prices: fetch_crypto_prices
+    agent:
+      prompt: |
+        You are an expert financial advisor specializing in personal finance and budgeting.
+
+        You have analyzed the client's complete financial picture across multiple accounts.
+        Your task is to generate comprehensive, actionable budget recommendations and
+        personalized savings strategies.
+
+        CLIENT FINANCIAL DATA:
+
+        Overall Financial Summary:
+        {{use.financial_summary | to_json}}
+
+        Individual Account Analyses:
+        {{use.account_analyses | to_json}}
+
+        MARKET CONTEXT:
+
+        Current Finance Trends:
+        {{use.finance_trends}}
+
+        Investment Opportunities:
+        {{use.investment_research}}
+
+        Debt Reduction Strategies:
+        {{use.debt_strategies}}
+
+        Cryptocurrency Market:
+        {{use.crypto_prices | to_json}}
+
+        GENERATE A COMPREHENSIVE FINANCIAL RECOMMENDATION REPORT including:
+
+        1. FINANCIAL HEALTH ASSESSMENT
+           - Overall score and rating
+           - Strengths in current financial position
+           - Areas of concern or risk
+           - Comparison to industry benchmarks
+
+        2. BUDGET OPTIMIZATION
+           - Recommended budget allocation by category
+           - Specific spending reductions (with impact analysis)
+           - Realistic targets for next 3/6/12 months
+           - Expected savings potential (monthly and annual)
+
+        3. SAVINGS STRATEGY
+           - Monthly savings target (% of income and $ amount)
+           - Emergency fund recommendation (current vs target)
+           - Timeline for building 3-6 month emergency buffer
+           - Automatic savings account setup recommendations
+
+        4. DEBT MANAGEMENT
+           - Current debt review (credit cards, loans)
+           - Recommended payoff strategy (avalanche vs snowball)
+           - Interest savings projection
+           - Timeline for debt freedom
+
+        5. INVESTMENT RECOMMENDATIONS
+           - Suggested asset allocation
+           - Specific funds/ETFs to consider (based on research)
+           - Diversification strategy
+           - Risk tolerance assessment
+           - Quarterly rebalancing plan
+
+        6. INCOME OPTIMIZATION
+           - Ways to increase income or reduce expenses
+           - Side income opportunities
+           - Cost reduction tactics (insurance, subscriptions, etc.)
+           - Potential savings: X amount per month
+
+        7. RISK MANAGEMENT
+           - Insurance needs assessment
+           - Emergency fund gaps
+           - Currency/forex exposure management
+           - Protection against market volatility
+
+        8. QUARTERLY ACTION ITEMS
+           - Week 1 priorities
+           - Week 2-4 implementation steps
+           - Monthly check-in checklist
+           - Tools and apps recommended
+
+        9. LONG-TERM GOALS
+           - Retirement readiness assessment
+           - Education savings strategy
+           - Major purchase planning (home, car, etc.)
+           - Wealth building milestones
+
+        10. PERSONALIZED TIPS
+            - 3-5 quick wins (implement this week)
+            - Budget hacks specific to spending patterns
+            - Time-saving automations
+            - Motivation strategies
+
+        Format the entire report as professional markdown with:
+        - Clear section headers
+        - Bullet points for lists
+        - Tables for comparisons
+        - **bold** for key metrics
+        - Code blocks for JSON/data
+        - Links to recommended resources
+
+        Make it actionable, not theoretical. Every recommendation should have
+        a specific implementation step and expected outcome.
+
+      mcp: []
+      depth_limit: 3
+      max_turns: 12
+    output:
+      format: text
+
+  # ============================================================================
+  # PHASE 7: GENERATE WEEKLY REPORT - Save markdown file
+  # ============================================================================
+
+  # STEP 14: Create spending patterns summary
+  - id: spending_patterns_summary
+    use:
+      account_analyses: analyze_accounts
+      recommendations: budget_recommendations_agent
+    infer:
+      prompt: |
+        Based on the account analyses and budget recommendations, create a concise
+        SPENDING PATTERNS summary in markdown format.
+
+        Account Analyses:
+        {{use.account_analyses | to_json}}
+
+        Budget Recommendations:
+        {{use.recommendations}}
+
+        Create a markdown section with:
+        - **Weekly Spending Breakdown** (pie chart in text form)
+        - **Top 5 Spending Categories** with averages
+        - **Patterns Identified** (recurring, unusual, seasonal)
+        - **Opportunities to Cut** (specific, quantified)
+        - **Month-over-Month Trends**
+
+        Use markdown formatting with tables and code blocks.
+      model: claude-sonnet-4-6
+    output:
+      format: text
+
+  # STEP 15: Assemble complete weekly report
+  - id: assemble_weekly_report
+    use:
+      summary: synthesize_financial_picture
+      recommendations: budget_recommendations_agent
+      patterns: spending_patterns_summary
+      trends: research_finance_trends
+      market: fetch_market_indices
+    infer:
+      prompt: |
+        Assemble a professional weekly financial report in markdown format.
+
+        Use these sections:
+
+        ---
+
+        # Weekly Personal Finance Report
+
+        **Generated:** {{now}}
+        **Period:** Week of {{week_start}} - {{week_end}}
+
+        ## Executive Summary
+        {{use.summary | to_json | first 500 chars}}
+
+        ## Financial Overview
+        {{use.summary}}
+
+        ## Spending Patterns Analysis
+        {{use.patterns}}
+
+        ## Budget & Savings Recommendations
+
+        {{use.recommendations}}
+
+        ## Market Context
+        {{use.trends}}
+
+        ### Market Indices Today
+        {{use.market | to_json}}
+
+        ---
+
+        **Next Steps:**
+        1. Review budget recommendations
+        2. Set up savings automation
+        3. Schedule portfolio review (monthly)
+        4. Adjust subscriptions as needed
+
+        ---
+
+        *Report generated by Personal Finance Tracker v1.0*
+      model: claude-sonnet-4-6
+    output:
+      format: text
+
+  # STEP 16: Save weekly report to markdown file
+  - id: save_weekly_report
+    use:
+      report: assemble_weekly_report
+    exec: |
+      mkdir -p finance_reports/weekly
+      TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+      WEEK_NUM=$(date +%V)
+      OUTPUT_FILE="finance_reports/weekly/report_week_${WEEK_NUM}_${TIMESTAMP}.md"
+      echo "{{use.report}}" > "$OUTPUT_FILE"
+      echo "=== Weekly Finance Report Generated ==="
+      echo "Saved to: $OUTPUT_FILE"
+      echo "File size: $(wc -c < "$OUTPUT_FILE") bytes"
+      echo "Report includes:"
+      echo "  - Financial overview across all accounts"
+      echo "  - Spending pattern analysis"
+      echo "  - Budget optimization recommendations"
+      echo "  - Personalized savings strategies"
+      echo "  - Investment insights"
+
+  # ============================================================================
+  # PHASE 8: EXPORT AND NOTIFICATIONS
+  # ============================================================================
+
+  # STEP 17: Generate summary statistics for notifications
+  - id: generate_notification_summary
+    use:
+      summary: synthesize_financial_picture
+      recommendations: budget_recommendations_agent
+    infer:
+      prompt: |
+        Create a brief notification-friendly summary (max 200 words) suitable for
+        email or mobile notification.
+
+        Financial Summary:
+        {{use.summary | to_json}}
+
+        Recommendations:
+        {{use.recommendations | slice 0 1000}}
+
+        Include:
+        - Net worth (total)
+        - This week's spending
+        - Top savings opportunity
+        - #1 action item to take today
+
+        Format as plain text, no markdown.
+      model: claude-sonnet-4-6
+    output:
+      format: text
+
+  # STEP 18: Save notification summary
+  - id: save_notification
+    use:
+      notification: generate_notification_summary
+    exec: |
+      mkdir -p finance_reports/notifications
+      TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+      OUTPUT_FILE="finance_reports/notifications/summary_${TIMESTAMP}.txt"
+      echo "{{use.notification}}" > "$OUTPUT_FILE"
+      echo "=== Notification Summary Saved ==="
+      echo "Location: $OUTPUT_FILE"
+
+flows:
+  # Read phase
+  - source: read_checking_account
+    target: prepare_account_list
+  - source: read_savings_account
+    target: prepare_account_list
+  - source: read_credit_card
+    target: prepare_account_list
+
+  # Market data phase (parallel)
+  - source: fetch_exchange_rates
+    target: synthesize_financial_picture
+  - source: fetch_market_indices
+    target: synthesize_financial_picture
+  - source: fetch_crypto_prices
+    target: budget_recommendations_agent
+
+  # Research phase (parallel)
+  - source: research_finance_trends
+    target: synthesize_financial_picture
+  - source: research_finance_trends
+    target: budget_recommendations_agent
+  - source: research_investments
+    target: budget_recommendations_agent
+  - source: research_debt_strategies
+    target: budget_recommendations_agent
+
+  # Analysis phase
+  - source: prepare_account_list
+    target: analyze_accounts
+  - source: analyze_accounts
+    target: synthesize_financial_picture
+  - source: analyze_accounts
+    target: spending_patterns_summary
+
+  # Synthesis phase
+  - source: synthesize_financial_picture
+    target: budget_recommendations_agent
+  - source: synthesize_financial_picture
+    target: spending_patterns_summary
+
+  # Agent recommendation phase
+  - source: budget_recommendations_agent
+    target: spending_patterns_summary
+  - source: budget_recommendations_agent
+    target: assemble_weekly_report
+
+  # Report generation phase
+  - source: spending_patterns_summary
+    target: assemble_weekly_report
+  - source: research_finance_trends
+    target: assemble_weekly_report
+  - source: fetch_market_indices
+    target: assemble_weekly_report
+  - source: synthesize_financial_picture
+    target: assemble_weekly_report
+
+  # Output phase
+  - source: assemble_weekly_report
+    target: save_weekly_report
+  - source: assemble_weekly_report
+    target: generate_notification_summary
+  - source: generate_notification_summary
+    target: save_notification

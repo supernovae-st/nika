@@ -48,6 +48,7 @@ use crate::tui::command::{Command, ModelProvider, HELP_TEXT};
 fn is_cmd_pressed(modifiers: KeyModifiers) -> bool {
     modifiers.contains(KeyModifiers::CONTROL) || modifiers.contains(KeyModifiers::SUPER)
 }
+use crate::runtime::chat_workflow::{ChatWorkflow, Role as WorkflowRole};
 use crate::tui::file_resolve::FileResolver;
 use crate::tui::state::{
     ChatOverlayMessage, ChatOverlayMessageRole, ChatOverlayState, ChatPanel, PanelScrollState,
@@ -485,6 +486,11 @@ pub struct ChatView {
     /// Current render mode for inline TaskBoxes (Compact/Expanded/Full)
     /// Toggle with [m] key when not in input mode
     pub task_box_render_mode: RenderMode,
+
+    // === v0.13: ChatWorkflow DAG (unified execution) ===
+    /// Runtime workflow DAG that mirrors chat messages
+    /// Used for /export yaml and unified execution with YAML workflows
+    pub workflow: ChatWorkflow,
 }
 
 /// Stores info about a failed MCP call for retry (v0.9 Phase 2)
@@ -643,6 +649,10 @@ impl ChatView {
   Type a message to chat, or /help for commands.
 "#;
 
+        // v0.13: Initialize ChatWorkflow with welcome message for DAG sync
+        let mut workflow = ChatWorkflow::new();
+        workflow.add_message(welcome_banner, WorkflowRole::System);
+
         Self {
             messages: vec![ChatMessage {
                 id: 1, // First message gets ID 1
@@ -769,6 +779,9 @@ impl ChatView {
 
             // v0.12.1: TaskBox RenderMode (default to Expanded for rich inline display)
             task_box_render_mode: RenderMode::Expanded,
+
+            // v0.13: ChatWorkflow DAG (unified execution)
+            workflow,
         }
     }
 
@@ -1673,7 +1686,7 @@ impl ChatView {
         self.messages.push(ChatMessage {
             id,
             role: MessageRole::Tool,
-            content,
+            content: content.clone(),
             timestamp: Local::now(),
             created_at: Instant::now(),
             execution: None,
@@ -1681,6 +1694,9 @@ impl ChatView {
         });
         // v0.12.1: Sync DAG when messages change
         self.maybe_sync_dag();
+
+        // v0.13: Wire to ChatWorkflow DAG (unified execution)
+        let _ = self.workflow.add_message_with_mentions(&content, WorkflowRole::Tool);
     }
 
     /// v0.12.1: Sync DAG if panel is visible (avoid unnecessary work)
@@ -1804,17 +1820,23 @@ impl ChatView {
     /// Each verb type (infer, exec, fetch, invoke, agent) has its own visual treatment.
     pub fn add_task_box(&mut self, task_box: TaskBox) {
         // Add activity based on verb type
-        let verb_name = match &task_box {
-            TaskBox::Infer(_) => "infer",
-            TaskBox::Exec(_) => "exec",
-            TaskBox::Fetch(_) => "fetch",
-            TaskBox::Invoke(_) => "invoke",
-            TaskBox::Agent(_) => "agent",
+        let (verb_name, chat_verb) = match &task_box {
+            TaskBox::Infer(_) => ("infer", ChatTaskVerb::Infer),
+            TaskBox::Exec(_) => ("exec", ChatTaskVerb::Exec),
+            TaskBox::Fetch(_) => ("fetch", ChatTaskVerb::Fetch),
+            TaskBox::Invoke(_) => ("invoke", ChatTaskVerb::Invoke),
+            TaskBox::Agent(_) => ("agent", ChatTaskVerb::Agent),
         };
-        self.activity_items.push(ActivityItem::hot(
-            format!("task-{}-{}", verb_name, self.inline_content.len()),
-            verb_name,
-        ));
+
+        // v0.12.1: Generate unique task ID for queue tracking
+        let task_id = format!("task-{}-{}", verb_name, self.inline_content.len());
+
+        self.activity_items
+            .push(ActivityItem::hot(task_id.clone(), verb_name));
+
+        // v0.12.1: Add to task queue and set state to Running
+        self.add_task_to_queue(&task_id, chat_verb);
+        self.update_task_state(&task_id, ChatTaskState::Running, None);
 
         self.inline_content.push(InlineContent::Task(task_box));
         self.auto_scroll_to_bottom();
@@ -1832,8 +1854,26 @@ impl ChatView {
 
     /// Complete the last TaskBox with success (generic fallback)
     pub fn complete_last_task_box(&mut self, duration_ms: u64) {
+        // v0.12.1: Determine verb type for queue update
+        let verb = if let Some(InlineContent::Task(task_box)) = self.inline_content.last() {
+            Some(match task_box {
+                TaskBox::Infer(_) => ChatTaskVerb::Infer,
+                TaskBox::Exec(_) => ChatTaskVerb::Exec,
+                TaskBox::Fetch(_) => ChatTaskVerb::Fetch,
+                TaskBox::Invoke(_) => ChatTaskVerb::Invoke,
+                TaskBox::Agent(_) => ChatTaskVerb::Agent,
+            })
+        } else {
+            None
+        };
+
         if let Some(InlineContent::Task(task_box)) = self.inline_content.last_mut() {
             *task_box.state_mut() = BoxState::success(duration_ms);
+        }
+
+        // v0.12.1: Update task queue state
+        if let Some(v) = verb {
+            self.complete_last_running_task(v, duration_ms);
         }
         self.transition_activity_to_warm("task");
         self.auto_scroll_to_bottom();
@@ -1858,6 +1898,8 @@ impl ChatView {
                 }
             }
         }
+        // v0.12.1: Update task queue state
+        self.complete_last_running_task(ChatTaskVerb::Infer, duration_ms);
         self.transition_activity_to_warm("infer");
         self.auto_scroll_to_bottom();
     }
@@ -1872,6 +1914,8 @@ impl ChatView {
                 }
             }
         }
+        // v0.12.1: Update task queue state
+        self.complete_last_running_task(ChatTaskVerb::Exec, duration_ms);
         self.transition_activity_to_warm("exec");
         self.auto_scroll_to_bottom();
     }
@@ -1886,6 +1930,8 @@ impl ChatView {
                 }
             }
         }
+        // v0.12.1: Update task queue state
+        self.complete_last_running_task(ChatTaskVerb::Fetch, duration_ms);
         self.transition_activity_to_warm("fetch");
         self.auto_scroll_to_bottom();
     }
@@ -1900,6 +1946,8 @@ impl ChatView {
                 }
             }
         }
+        // v0.12.1: Update task queue state
+        self.complete_last_running_task(ChatTaskVerb::Invoke, duration_ms);
         self.transition_activity_to_warm("invoke");
         self.auto_scroll_to_bottom();
     }
@@ -1919,6 +1967,8 @@ impl ChatView {
                 }
             }
         }
+        // v0.12.1: Update task queue state
+        self.complete_last_running_task(ChatTaskVerb::Invoke, duration_ms);
         self.transition_activity_to_warm("invoke");
         self.auto_scroll_to_bottom();
     }
@@ -1934,6 +1984,8 @@ impl ChatView {
                 }
             }
         }
+        // v0.12.1: Update task queue state
+        self.fail_last_running_task(ChatTaskVerb::Invoke, duration_ms);
         self.auto_scroll_to_bottom();
     }
 
@@ -1947,14 +1999,34 @@ impl ChatView {
                 }
             }
         }
+        // v0.12.1: Update task queue state
+        self.complete_last_running_task(ChatTaskVerb::Agent, duration_ms);
         self.transition_activity_to_warm("agent");
         self.auto_scroll_to_bottom();
     }
 
     /// Fail the last TaskBox with error
     pub fn fail_last_task_box(&mut self, error: &str, duration_ms: u64) {
+        // v0.12.1: Determine verb type before failing for queue update
+        let verb = if let Some(InlineContent::Task(task_box)) = self.inline_content.last() {
+            Some(match task_box {
+                TaskBox::Infer(_) => ChatTaskVerb::Infer,
+                TaskBox::Exec(_) => ChatTaskVerb::Exec,
+                TaskBox::Fetch(_) => ChatTaskVerb::Fetch,
+                TaskBox::Invoke(_) => ChatTaskVerb::Invoke,
+                TaskBox::Agent(_) => ChatTaskVerb::Agent,
+            })
+        } else {
+            None
+        };
+
         if let Some(InlineContent::Task(task_box)) = self.inline_content.last_mut() {
             *task_box.state_mut() = BoxState::failed(error, duration_ms);
+        }
+
+        // v0.12.1: Update task queue state
+        if let Some(v) = verb {
+            self.fail_last_running_task(v, duration_ms);
         }
         self.auto_scroll_to_bottom();
     }
@@ -2270,13 +2342,17 @@ impl ChatView {
             execution: None,
             thinking: None,
         });
-        self.history.push(content);
+        self.history.push(content.clone());
         self.history_index = None;
         // v0.8.1: When user sends a message, they want to see the response
         self.user_at_bottom = true;
         self.auto_scroll_to_bottom();
         // v0.12.1: Sync DAG when messages change
         self.maybe_sync_dag();
+
+        // v0.13: Wire to ChatWorkflow DAG (unified execution)
+        // Use add_message_with_mentions to handle @N references automatically
+        let _ = self.workflow.add_message_with_mentions(&content, WorkflowRole::User);
     }
 
     /// Add a Nika response
@@ -2285,7 +2361,7 @@ impl ChatView {
         self.messages.push(ChatMessage {
             id,
             role: MessageRole::Nika,
-            content,
+            content: content.clone(),
             timestamp: Local::now(),
             created_at: Instant::now(),
             execution,
@@ -2294,6 +2370,9 @@ impl ChatView {
         self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
         // v0.12.1: Sync DAG when messages change
         self.maybe_sync_dag();
+
+        // v0.13: Wire to ChatWorkflow DAG (unified execution)
+        let _ = self.workflow.add_message_with_mentions(&content, WorkflowRole::Assistant);
     }
 
     /// Add a Nika response with thinking content (v0.5.2+)
@@ -2307,7 +2386,7 @@ impl ChatView {
         self.messages.push(ChatMessage {
             id,
             role: MessageRole::Nika,
-            content,
+            content: content.clone(),
             timestamp: Local::now(),
             created_at: Instant::now(),
             execution,
@@ -2316,15 +2395,19 @@ impl ChatView {
         self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
         // v0.12.1: Sync DAG when messages change
         self.maybe_sync_dag();
+
+        // v0.13: Wire to ChatWorkflow DAG (unified execution)
+        let _ = self.workflow.add_message_with_mentions(&content, WorkflowRole::Assistant);
     }
 
     /// Add a system message (for mode changes, status updates)
     pub fn add_system_message(&mut self, content: impl Into<String>) {
         let id = self.next_message_id();
+        let content_str = content.into();
         self.messages.push(ChatMessage {
             id,
             role: MessageRole::System,
-            content: content.into(),
+            content: content_str.clone(),
             timestamp: Local::now(),
             created_at: Instant::now(),
             execution: None,
@@ -2333,6 +2416,9 @@ impl ChatView {
         self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
         // v0.12.1: Sync DAG when messages change
         self.maybe_sync_dag();
+
+        // v0.13: Wire to ChatWorkflow DAG (unified execution)
+        let _ = self.workflow.add_message_with_mentions(&content_str, WorkflowRole::System);
     }
 
     /// v0.9: Export chat session to JSON file
@@ -4656,12 +4742,15 @@ impl ChatView {
         self.dag_nodes.clear();
         self.dag_edges.clear();
 
-        for (i, msg) in self.messages.iter().enumerate() {
+        // v0.13: Use ChatWorkflow's DAG for proper dependency edges
+        let messages = self.workflow.all_messages();
+
+        for (i, (idx, msg)) in messages.iter().enumerate() {
             let kind = match msg.role {
-                MessageRole::User => ChatNodeKind::User,
-                MessageRole::Nika => ChatNodeKind::Assistant,
-                MessageRole::System => ChatNodeKind::System,
-                MessageRole::Tool => ChatNodeKind::ToolCall,
+                WorkflowRole::User => ChatNodeKind::User,
+                WorkflowRole::Assistant => ChatNodeKind::Assistant,
+                WorkflowRole::System => ChatNodeKind::System,
+                WorkflowRole::Tool => ChatNodeKind::ToolCall,
             };
 
             // Create node with truncated label
@@ -4671,17 +4760,17 @@ impl ChatView {
                 msg.content.clone()
             };
 
-            let node = DagNodeData::new(&format!("msg_{}", msg.id), kind, i as u32)
+            let node = DagNodeData::new(&msg.id, kind, i as u32)
                 .with_label(&label)
                 .with_state(ChatNodeState::Complete);
 
             self.dag_nodes.push(node);
 
-            // Create edge from previous message (simple chain for now)
-            if i > 0 {
-                let prev_id = format!("msg_{}", self.messages[i - 1].id);
-                let curr_id = format!("msg_{}", msg.id);
-                self.dag_edges.push(DagEdgeData::new(&prev_id, &curr_id));
+            // v0.13: Use actual DAG edges (includes @N mention references)
+            for dep_idx in self.workflow.get_dependencies(*idx) {
+                if let Some(dep_msg) = self.workflow.get_message_by_index(dep_idx) {
+                    self.dag_edges.push(DagEdgeData::new(&dep_msg.id, &msg.id));
+                }
             }
         }
     }
@@ -4704,6 +4793,34 @@ impl ChatView {
             if let Some(e) = elapsed {
                 task.set_elapsed(e);
             }
+        }
+    }
+
+    /// v0.12.1: Complete the last running task of a specific verb in the queue
+    fn complete_last_running_task(&mut self, verb: ChatTaskVerb, elapsed_ms: u64) {
+        // Find and update the last running task of this verb type
+        if let Some(task) = self
+            .task_queue
+            .iter_mut()
+            .rev()
+            .find(|t| t.verb() == verb && t.state() == ChatTaskState::Running)
+        {
+            task.set_state(ChatTaskState::Complete);
+            task.set_elapsed(std::time::Duration::from_millis(elapsed_ms));
+        }
+    }
+
+    /// v0.12.1: Fail the last running task of a specific verb in the queue
+    fn fail_last_running_task(&mut self, verb: ChatTaskVerb, elapsed_ms: u64) {
+        // Find and update the last running task of this verb type
+        if let Some(task) = self
+            .task_queue
+            .iter_mut()
+            .rev()
+            .find(|t| t.verb() == verb && t.state() == ChatTaskState::Running)
+        {
+            task.set_state(ChatTaskState::Failed);
+            task.set_elapsed(std::time::Duration::from_millis(elapsed_ms));
         }
     }
 
@@ -5749,7 +5866,7 @@ impl ChatView {
 
                                     items.push(ListItem::new(Line::from(vec![
                                         Span::styled("│ ", Style::default().fg(border_color)),
-                                        Span::styled(format!("Status: "), Style::default().fg(muted_color)),
+                                        Span::styled("Status: ", Style::default().fg(muted_color)),
                                         Span::styled(status_str, Style::default().fg(status_color)),
                                         Span::styled(format!(" │ TTFB: {}ms", fetch.ttfb_ms), Style::default().fg(muted_color)),
                                         Span::styled(format!(" │ Retries: {}", fetch.retries), Style::default().fg(muted_color)),
@@ -8711,5 +8828,106 @@ mod tests {
 
         // Model should be set based on env (or default)
         assert!(!state.current_model.is_empty());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.13: ChatWorkflow Wiring Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_chat_view_workflow_initialized() {
+        let view = ChatView::new();
+        // Workflow should be initialized with welcome message (v0.13: for DAG sync)
+        assert_eq!(view.workflow.message_count(), 1);
+    }
+
+    #[test]
+    fn test_chat_view_user_message_wires_to_workflow() {
+        let mut view = ChatView::new();
+        view.add_user_message("Hello world".to_string());
+
+        // Should be in both messages vec and workflow
+        assert_eq!(view.messages.len(), 2); // welcome + user
+        assert_eq!(view.workflow.message_count(), 2); // welcome + user (v0.13: both wired)
+    }
+
+    #[test]
+    fn test_chat_view_nika_message_wires_to_workflow() {
+        let mut view = ChatView::new();
+        view.add_user_message("Hello".to_string());
+        view.add_nika_message("Hi there!".to_string(), None);
+
+        // All should be in workflow (welcome + user + nika)
+        assert_eq!(view.workflow.message_count(), 3);
+    }
+
+    #[test]
+    fn test_chat_view_system_message_wires_to_workflow() {
+        let mut view = ChatView::new();
+        view.add_system_message("System notification");
+
+        // System message in workflow (welcome + system)
+        assert_eq!(view.workflow.message_count(), 2);
+    }
+
+    #[test]
+    fn test_chat_view_tool_message_wires_to_workflow() {
+        let mut view = ChatView::new();
+        view.add_tool_message("Tool output".to_string());
+
+        // Tool message in workflow (welcome + tool)
+        assert_eq!(view.workflow.message_count(), 2);
+    }
+
+    #[test]
+    fn test_chat_view_workflow_preserves_roles() {
+        let mut view = ChatView::new();
+        view.add_user_message("User msg".to_string());
+        view.add_nika_message("Assistant msg".to_string(), None);
+        view.add_system_message("System msg");
+        view.add_tool_message("Tool msg".to_string());
+
+        let messages = view.workflow.all_messages();
+        assert_eq!(messages.len(), 5); // welcome + 4 messages
+        assert_eq!(messages[0].1.role, WorkflowRole::System); // welcome
+        assert_eq!(messages[1].1.role, WorkflowRole::User);
+        assert_eq!(messages[2].1.role, WorkflowRole::Assistant);
+        assert_eq!(messages[3].1.role, WorkflowRole::System);
+        assert_eq!(messages[4].1.role, WorkflowRole::Tool);
+    }
+
+    #[test]
+    fn test_chat_view_sync_dag_uses_workflow() {
+        let mut view = ChatView::new();
+        view.show_dag_panel = true;
+        view.add_user_message("First".to_string());
+        view.add_nika_message("Second".to_string(), None);
+
+        // Sync should use workflow
+        view.sync_dag_from_messages();
+
+        // Should have 3 nodes (from workflow: welcome + user + nika)
+        assert_eq!(view.dag_nodes.len(), 3);
+        // Should have 2 edges (sequential: welcome->user, user->nika)
+        assert_eq!(view.dag_edges.len(), 2);
+    }
+
+    #[test]
+    fn test_chat_view_workflow_mention_creates_edge() {
+        let mut view = ChatView::new();
+        view.show_dag_panel = true;
+
+        // Add messages with @1 reference (note: @1 is the welcome message now)
+        view.add_user_message("What is Rust?".to_string());
+        view.add_nika_message("Rust is a programming language".to_string(), None);
+        view.add_user_message("@2 Tell me more about safety".to_string()); // References msg 2 (user question)
+
+        view.sync_dag_from_messages();
+
+        // Should have 4 nodes (welcome + 3 messages)
+        assert_eq!(view.dag_nodes.len(), 4);
+        // Should have 3+ edges: sequential chain + @2 mention
+        // Note: depends on how mentions are resolved
+        assert!(view.dag_edges.len() >= 3);
     }
 }

@@ -321,6 +321,13 @@ impl<'a> StatusBar<'a> {
                 KeyHint::new("Esc", "Back"),
                 KeyHint::new("q", "Close"),
             ],
+            // v0.13: Split view (Editor + Runner)
+            TuiView::Split => vec![
+                KeyHint::new("Tab", "Switch"),
+                KeyHint::new("Ctrl+]", "Ratio"),
+                KeyHint::new("Esc", "Exit"),
+                KeyHint::new("F9", "Exit"),
+            ],
         }
     }
 

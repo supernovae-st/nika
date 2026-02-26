@@ -1,0 +1,637 @@
+# Blog Content Pipeline
+#
+# Comprehensive workflow for multi-platform blog content generation.
+# Demonstrates all 5 verbs + for_each + agent orchestration.
+#
+# DAG:
+#   check_calendar → (parallel) [get_trends + scrape_competitors]
+#     → research_topics → generate_outline → generate_metadata
+#       → write_article (agent) → (parallel) [render_blog, render_twitter, render_linkedin]
+#         → validate_content → publish
+#
+# Verbs used:
+#   - exec: check content calendar (shell)
+#   - fetch: get trending topics from APIs
+#   - invoke: research via perplexity MCP, scrape with firecrawl MCP
+#   - infer: generate outlines, titles, meta descriptions
+#   - agent: multi-turn article writing + refinement with tool use
+#   - for_each: publish to 3 platforms in parallel
+#
+# Target: Content creators, marketing teams, SEO specialists
+# Prerequisites: ANTHROPIC_API_KEY, PERPLEXITY_API_KEY, FIRECRAWL_API_KEY
+#
+schema: "nika/workflow@0.5"
+workflow: blog-content-pipeline
+description: |
+  Enterprise blog content generation pipeline with multi-platform support.
+  Checks content calendar, researches trending topics, analyzes competitors,
+  writes optimized articles via agent loop, and publishes to blog/social.
+
+provider: claude
+
+mcp:
+  perplexity:
+    command: npx
+    args: ["-y", "perplexity-mcp"]
+    env:
+      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
+
+  firecrawl:
+    command: npx
+    args: ["-y", "firecrawl-mcp"]
+    env:
+      FIRECRAWL_API_KEY: "${FIRECRAWL_API_KEY}"
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────────────
+  # PHASE 1: Content Planning & Discovery
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: check_calendar
+    description: "Check content calendar and list available draft slots"
+    exec:
+      command: |
+        # Check for content calendar file
+        if [ -f "./content-calendar.json" ]; then
+          cat ./content-calendar.json
+        else
+          echo '{"status":"no_calendar","available_slots":5,"next_deadline":"2026-03-15"}'
+        fi
+
+  - id: list_drafts
+    description: "List existing draft files in content directory"
+    exec:
+      command: |
+        # List draft content files
+        find ./content/drafts -name "*.md" 2>/dev/null | head -10 || \
+        echo "No draft directory found. Creating structure..."
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PHASE 2: Parallel Research & Competitive Analysis (Parallel)
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: get_trends
+    description: "Fetch trending topics from APIs and web search"
+    fetch:
+      url: "https://newsapi.org/v2/top-headlines?category=technology&pageSize=10"
+      method: GET
+      headers:
+        Authorization: "Bearer ${NEWSAPI_KEY}"
+    output:
+      format: json
+
+  - id: web_search
+    description: "Search web for current AI and content trends"
+    agent:
+      prompt: |
+        Search the web for the latest trends in AI, machine learning, and
+        content marketing for 2026. Use perplexity_search_web to find:
+
+        1. Emerging AI technologies relevant to content creators
+        2. Content formats gaining popularity
+        3. SEO trends for 2026
+
+        Return a structured summary with trend name, relevance, and description.
+      mcp:
+        - perplexity
+      max_turns: 3
+      model: claude-sonnet-4-6
+
+  - id: scrape_competitors
+    description: "Analyze competitor blog posts for insights and patterns"
+    agent:
+      prompt: |
+        Using firecrawl_scrape, analyze top 3 competitor blog posts on AI content.
+        Visit these sites and extract:
+        1. Article structure and sections
+        2. Content length and tone
+        3. Use of keywords and CTAs
+        4. Engagement metrics (if visible)
+
+        Use URLs:
+        - https://www.example-ai-blog-1.com/latest-ai-trends
+        - https://www.example-ai-blog-2.com/machine-learning-guide
+
+        Return analysis as structured JSON.
+      mcp:
+        - firecrawl
+      max_turns: 4
+      model: claude-sonnet-4-6
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PHASE 3: Topic Research & Synthesis
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: research_topics
+    description: "Deep research on selected topic using perplexity + synthesis"
+    use:
+      calendar: check_calendar
+      trends: get_trends
+      web_trends: web_search
+      competitor_insights: scrape_competitors
+    agent:
+      prompt: |
+        Based on these inputs:
+
+        CALENDAR INSIGHTS:
+        {{use.calendar}}
+
+        TRENDING TOPICS:
+        {{use.trends}}
+
+        WEB RESEARCH:
+        {{use.web_trends}}
+
+        COMPETITOR ANALYSIS:
+        {{use.competitor_insights}}
+
+        Select the BEST blog topic (must be:
+        - Currently trending
+        - Underserved by competitors
+        - Relevant to our audience
+        - SEO-friendly
+
+        Use perplexity_search_web to research this topic deeply:
+        1. Technical depth (expert sources)
+        2. Real-world applications
+        3. Common misconceptions
+        4. Future trajectory
+
+        Output JSON with:
+        {
+          "topic": "string",
+          "why_trending": "string",
+          "seo_keywords": ["array", "of", "keywords"],
+          "competitor_gap": "string",
+          "research_summary": "string",
+          "sections": ["section1", "section2", "section3", "section4"]
+        }
+      mcp:
+        - perplexity
+      max_turns: 5
+      model: claude-sonnet-4-6
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PHASE 4: Content Structure & Metadata
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: generate_outline
+    description: "Generate detailed article outline from research"
+    use:
+      research: research_topics
+    infer:
+      prompt: |
+        Create a detailed blog post outline based on this research:
+        {{use.research}}
+
+        The outline should have:
+        - Compelling introduction hook
+        - 4-5 main sections with subsections
+        - Real-world examples for each section
+        - Practical takeaways
+        - Strong conclusion with CTA
+
+        Format as Markdown with ## and ### headers.
+        Include estimated word count per section (target: 2000-2500 words total).
+
+        Output ONLY the outline, no additional text.
+      model: claude-sonnet-4-6
+    output:
+      format: text
+
+  - id: generate_title
+    description: "Generate SEO-optimized headline variants"
+    use:
+      research: research_topics
+      outline: generate_outline
+    infer:
+      prompt: |
+        Based on this research and outline:
+
+        RESEARCH:
+        {{use.research}}
+
+        OUTLINE:
+        {{use.outline}}
+
+        Generate 5 headline variants:
+        1. SEO-optimized (include primary keyword)
+        2. Curiosity-driven (emotional appeal)
+        3. How-to format (practical value)
+        4. List-based format (scannable)
+        5. Authority format (expert positioning)
+
+        For each, include:
+        - Headline text
+        - Reasoning
+        - Estimated CTR
+        - Primary keyword inclusion
+
+        Return JSON array of objects.
+      model: claude-sonnet-4-6
+    output:
+      format: json
+
+  - id: generate_metadata
+    description: "Generate SEO metadata and social descriptions"
+    use:
+      research: research_topics
+      title: generate_title
+    infer:
+      prompt: |
+        Based on research and selected title:
+
+        RESEARCH:
+        {{use.research}}
+
+        SELECTED TITLE:
+        {{use.title}}
+
+        Generate:
+        1. Meta description (155-160 chars) with primary keyword
+        2. Meta keywords (5-7 terms)
+        3. OG image description (for social preview)
+        4. Twitter card description
+        5. Internal link suggestions (3-5 related posts)
+
+        Return JSON:
+        {
+          "meta_description": "string",
+          "meta_keywords": ["array"],
+          "og_description": "string",
+          "twitter_description": "string",
+          "internal_links": [{"title": "string", "url": "string"}]
+        }
+      model: claude-sonnet-4-6
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PHASE 5: Article Writing via Agent Loop
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: write_article
+    description: "Multi-turn agent orchestrates article writing with refinement"
+    use:
+      research: research_topics
+      outline: generate_outline
+      title: generate_title
+      metadata: generate_metadata
+    agent:
+      prompt: |
+        You are an expert technical content writer specializing in AI and technology.
+
+        Write a comprehensive blog post following this outline:
+
+        {{use.outline}}
+
+        TITLE: {{use.title}}
+
+        RESEARCH CONTEXT:
+        {{use.research}}
+
+        REQUIREMENTS:
+        1. Follow outline structure exactly (H2 for sections, H3 for subsections)
+        2. Use active voice, conversational tone with expert depth
+        3. Include:
+           - Compelling opening paragraph (hook + value prop)
+           - Real-world examples/case studies
+           - Data/statistics where relevant
+           - Actionable takeaways in each section
+           - Practical code snippets if applicable
+        4. Word count: 2000-2500 words
+        5. Link to external sources (max 5)
+        6. End with strong CTA encouraging readers to action
+
+        After writing, review your draft:
+        - Is the tone consistent?
+        - Are examples relevant and helpful?
+        - Does it flow logically?
+        - Are takeaways actionable?
+        - Does it match the outline?
+
+        Provide the final article in Markdown format.
+      mcp: []
+      max_turns: 3
+      model: claude-sonnet-4-6
+    output:
+      format: text
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PHASE 6: Multi-Platform Content Adaptation (Parallel)
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: render_platforms
+    description: "Adapt article for different platforms with optimized formats"
+    use:
+      article: write_article
+      metadata: generate_metadata
+    for_each:
+      - name: blog
+        format: markdown
+        style: professional
+      - name: twitter
+        format: threads
+        style: engaging
+      - name: linkedin
+        format: article
+        style: thought-leadership
+    as: platform
+    infer:
+      prompt: |
+        Adapt this blog article for {{use.platform.name}} platform:
+
+        ORIGINAL ARTICLE:
+        {{use.article}}
+
+        METADATA:
+        {{use.metadata}}
+
+        PLATFORM REQUIREMENTS:
+        Format: {{use.platform.format}}
+        Style: {{use.platform.style}}
+
+        SPECIFIC INSTRUCTIONS:
+
+        {% if platform.name == "blog" %}
+        - Keep full Markdown article format
+        - Ensure all sections preserved
+        - Add front matter with metadata:
+          - title, description, keywords, published_date
+          - internal_links from metadata
+          - featured image placeholder
+        - Optimize code blocks (syntax highlighting)
+        {% endif %}
+
+        {% if platform.name == "twitter" %}
+        - Break into Twitter thread (8-12 tweets)
+        - Each tweet: max 280 chars, standalone value
+        - Start with main insight/hook
+        - Include relevant emoji sparingly
+        - Add hashtags in last tweet
+        - Make each tweet actionable or thought-provoking
+        {% endif %}
+
+        {% if platform.name == "linkedin" %}
+        - LinkedIn article format (longer-form native)
+        - Include personal perspective/story hook
+        - Add 2-3 key insights as bullet points
+        - More formal tone than Twitter, less than academic
+        - Include call-to-action (engagement/sharing)
+        - Optimize for LinkedIn algorithm (start strong, clear value)
+        {% endif %}
+
+        Return ONLY the adapted content for this platform, properly formatted.
+      model: claude-sonnet-4-6
+    output:
+      format: text
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PHASE 7: Quality Assurance & Validation
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: validate_content
+    description: "Validate content quality, SEO, tone, and completeness"
+    use:
+      article: write_article
+      platforms: render_platforms
+      metadata: generate_metadata
+    infer:
+      prompt: |
+        Perform comprehensive quality check on blog content:
+
+        ARTICLE:
+        {{use.article}}
+
+        PLATFORM VERSIONS:
+        {{use.platforms}}
+
+        METADATA:
+        {{use.metadata}}
+
+        VALIDATION CHECKLIST:
+
+        Blog Article:
+        - [ ] Word count: 2000-2500 words
+        - [ ] All outline sections covered
+        - [ ] Examples are relevant and useful
+        - [ ] Grammar/spelling correct
+        - [ ] Tone consistent throughout
+        - [ ] Has clear CTA at end
+        - [ ] Links are properly formatted
+        - [ ] Structure uses proper Markdown headers
+
+        SEO Quality:
+        - [ ] Primary keyword in title
+        - [ ] Primary keyword in intro (first 100 words)
+        - [ ] Meta description under 160 chars
+        - [ ] Alt text needed for images
+        - [ ] Internal links (3+ recommended)
+        - [ ] Readability: short paragraphs, subheadings
+
+        Platform Adaptations:
+        - [ ] Twitter thread complete and logical
+        - [ ] LinkedIn article engaging
+        - [ ] All platforms maintain core message
+
+        Final Score (0-100):
+        - SEO Quality: __/25
+        - Content Quality: __/25
+        - Platform Fit: __/25
+        - Engagement Potential: __/25
+        - Total: __/100
+
+        Issues found (critical/high/medium/low): [list]
+        Recommendations: [list]
+
+        Return JSON:
+        {
+          "overall_score": number,
+          "seo_score": number,
+          "content_score": number,
+          "ready_to_publish": boolean,
+          "critical_issues": [strings],
+          "recommendations": [strings],
+          "validation_timestamp": "ISO8601"
+        }
+      model: claude-sonnet-4-6
+    output:
+      format: json
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PHASE 8: Publishing & Storage
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: prepare_publication
+    description: "Prepare final publication package with all versions"
+    use:
+      article: write_article
+      platforms: render_platforms
+      metadata: generate_metadata
+      validation: validate_content
+    infer:
+      prompt: |
+        Create final publication package JSON from:
+
+        ARTICLE:
+        {{use.article}}
+
+        PLATFORMS:
+        {{use.platforms}}
+
+        METADATA:
+        {{use.metadata}}
+
+        VALIDATION:
+        {{use.validation}}
+
+        Return comprehensive JSON:
+        {
+          "publication": {
+            "version": "1.0",
+            "created_at": "ISO8601",
+            "status": "ready_to_publish",
+            "quality_score": number,
+            "critical_issues": number
+          },
+          "blog": {
+            "title": "string",
+            "content": "string (full markdown)",
+            "metadata": { ... },
+            "wordcount": number,
+            "estimated_read_time_minutes": number
+          },
+          "social": {
+            "twitter": {
+              "format": "thread",
+              "tweets": ["string", "string", ...],
+              "hashtags": ["string"]
+            },
+            "linkedin": {
+              "format": "article",
+              "content": "string"
+            }
+          },
+          "seo": {
+            "meta_description": "string",
+            "keywords": ["array"],
+            "og_image_desc": "string"
+          },
+          "ready_to_publish": boolean,
+          "publication_checklist": {
+            "content_reviewed": boolean,
+            "seo_optimized": boolean,
+            "images_prepared": boolean,
+            "social_scheduled": boolean
+          }
+        }
+      model: claude-sonnet-4-6
+    output:
+      format: json
+
+  - id: save_and_notify
+    description: "Save content to filesystem and notify team"
+    use:
+      package: prepare_publication
+      validation: validate_content
+    exec:
+      command: |
+        # Save publication package
+        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+        CONTENT_DIR="./content/published/${TIMESTAMP}"
+        mkdir -p "$CONTENT_DIR"
+
+        # Save article
+        echo '{{use.package}}' > "$CONTENT_DIR/article.json"
+
+        # Create publication report
+        cat > "$CONTENT_DIR/report.md" << 'EOF'
+        # Content Publication Report
+
+        Generated: {{use.validation.validation_timestamp}}
+        Quality Score: {{use.validation.overall_score}}/100
+        Ready to Publish: {{use.validation.ready_to_publish}}
+
+        ## Critical Issues
+        {{use.validation.critical_issues}}
+
+        ## Recommendations
+        {{use.validation.recommendations}}
+
+        ## Publication Checklist
+        - [ ] Review blog article
+        - [ ] Schedule Twitter thread
+        - [ ] Publish LinkedIn article
+        - [ ] Update internal links
+        - [ ] Monitor analytics
+        EOF
+
+        echo "Content saved to $CONTENT_DIR"
+        echo "Report: $CONTENT_DIR/report.md"
+
+# ─────────────────────────────────────────────────────────────────────────
+# DAG: Task Dependencies
+# ─────────────────────────────────────────────────────────────────────────
+
+flows:
+  # Phase 1: Calendar & planning
+  - source: check_calendar
+    target: research_topics
+
+  # Phase 2: Parallel research
+  - source: check_calendar
+    target: get_trends
+  - source: check_calendar
+    target: web_search
+  - source: check_calendar
+    target: scrape_competitors
+
+  # Converge research paths
+  - source: get_trends
+    target: research_topics
+  - source: web_search
+    target: research_topics
+  - source: scrape_competitors
+    target: research_topics
+
+  # Phase 3: Structure & metadata chain
+  - source: research_topics
+    target: generate_outline
+  - source: research_topics
+    target: generate_title
+  - source: generate_title
+    target: generate_metadata
+
+  # Phase 4: Article writing
+  - source: generate_outline
+    target: write_article
+  - source: generate_title
+    target: write_article
+  - source: generate_metadata
+    target: write_article
+
+  # Phase 5: Platform adaptation
+  - source: write_article
+    target: render_platforms
+  - source: generate_metadata
+    target: render_platforms
+
+  # Phase 6: Quality assurance
+  - source: render_platforms
+    target: validate_content
+  - source: generate_metadata
+    target: validate_content
+
+  # Phase 7: Publication preparation
+  - source: write_article
+    target: prepare_publication
+  - source: render_platforms
+    target: prepare_publication
+  - source: generate_metadata
+    target: prepare_publication
+  - source: validate_content
+    target: prepare_publication
+
+  # Phase 8: Publishing
+  - source: prepare_publication
+    target: save_and_notify

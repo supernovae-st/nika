@@ -1,0 +1,508 @@
+schema: nika/workflow@0.5
+workflow: social-media-brand-monitor
+description: |
+  Real-time brand monitoring across social platforms using all 5 semantic verbs.
+
+  Workflow:
+  1. exec: Check local mention database for recent activity
+  2. fetch: Retrieve social platform metrics (Twitter, LinkedIn, Reddit APIs)
+  3. invoke: Query Perplexity MCP for brand mentions + Firecrawl to scrape posts
+  4. infer: Analyze sentiment, identify influencers, detect crises
+  5. agent: Generate response recommendations and engagement strategy
+  6. for_each: Monitor multiple platforms with parallelism
+
+  Output: Structured JSON report for PR teams and social managers
+
+  Target Audience: Social media managers, PR teams, brand stakeholders
+  Requires: ANTHROPIC_API_KEY, Twitter/LinkedIn/Reddit API keys, Firecrawl API key
+
+provider: claude
+model: claude-sonnet-4-20250514
+
+mcp:
+  perplexity:
+    command: npx
+    args: ["-y", "perplexity-mcp"]
+    env:
+      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
+
+  firecrawl:
+    command: npx
+    args: ["-y", "firecrawl-mcp"]
+    env:
+      FIRECRAWL_API_KEY: "${FIRECRAWL_API_KEY}"
+
+tasks:
+  # ========== PHASE 1: LOCAL DATABASE CHECK ==========
+
+  - id: check_mention_db
+    exec: |
+      #!/bin/bash
+      # Query local mention database for mentions from last 24 hours
+      # In production, this connects to your DB: PostgreSQL, MongoDB, etc.
+
+      DB_FILE="${HOME}/.brand_monitor/mentions.json"
+      TIMESTAMP=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+      YESTERDAY=$(date -u -v-1d '+%Y-%m-%d')
+
+      if [ ! -f "$DB_FILE" ]; then
+        echo '{"mentions": [], "last_sync": null, "platform_count": 0}'
+        exit 0
+      fi
+
+      # Extract mentions from last 24 hours
+      jq --arg yesterday "$YESTERDAY" '
+        .mentions |= map(
+          select(.timestamp >= ($yesterday + "T00:00:00Z"))
+        ) |
+        . + {
+          last_sync: "'$TIMESTAMP'",
+          platform_count: (
+            .mentions | map(.platform) | unique | length
+          ),
+          total_mentions: (.mentions | length)
+        }
+      ' "$DB_FILE"
+    output:
+      format: json
+
+  # ========== PHASE 2: FETCH PLATFORM METRICS ==========
+
+  - id: fetch_platform_metrics
+    use:
+      db_state: check_mention_db
+    fetch:
+      url: "https://api.twitter.com/2/tweets/search/recent?query=@yourbrand%20-is:retweet"
+      method: GET
+      headers:
+        Authorization: "Bearer ${TWITTER_API_TOKEN}"
+        User-Agent: "BrandMonitor/1.0"
+      timeout: 30
+    output:
+      format: json
+
+  # ========== PHASE 3A: MCP SEARCH - PERPLEXITY WEB MENTIONS ==========
+
+  - id: search_brand_mentions
+    agent:
+      prompt: |
+        You are a brand monitoring analyst. Use perplexity_search_web to find:
+
+        1. Recent brand mentions across social media (Twitter, LinkedIn, Reddit, TikTok)
+        2. Industry discussions mentioning our company
+        3. Competitor mentions in the same context
+        4. Trending hashtags related to our space
+
+        Search query: "yourbrand social media mentions" OR "company reviews 2025"
+
+        Return ONLY a JSON object with:
+        {
+          "mentions_found": number,
+          "key_themes": ["theme1", "theme2"],
+          "sentiment_distribution": {"positive": %, "neutral": %, "negative": %},
+          "search_summary": "brief summary",
+          "data_freshness": "timestamp"
+        }
+      mcp:
+        - perplexity
+      max_turns: 3
+      stop_conditions:
+        - "SEARCH_COMPLETE"
+    output:
+      format: json
+
+  # ========== PHASE 3B: MCP SCRAPE - FIRECRAWL POST COLLECTION ==========
+
+  - id: scrape_twitter_posts
+    agent:
+      prompt: |
+        Your goal: Use firecrawl_scrape or firecrawl_search to find and extract
+        recent Twitter/X posts mentioning @yourbrand or our product keywords.
+
+        1. Search for posts with engagement > 10 interactions
+        2. Extract: author, text, engagement metrics, timestamp, URL
+        3. Identify if post is positive/critical/neutral
+        4. Note if author is influencer (>10K followers)
+
+        Return JSON array of posts with structure:
+        {
+          "posts": [
+            {
+              "author": "handle",
+              "followers": number,
+              "text": "post content",
+              "engagement": {"likes": n, "retweets": n, "replies": n},
+              "sentiment": "positive|neutral|negative",
+              "is_influencer": boolean,
+              "url": "post_url",
+              "timestamp": "ISO8601"
+            }
+          ],
+          "total_posts_found": number
+        }
+
+        End with: "SCRAPE_COMPLETE"
+      mcp:
+        - firecrawl
+      max_turns: 4
+      stop_conditions:
+        - "SCRAPE_COMPLETE"
+    output:
+      format: json
+
+  # ========== PHASE 4: SENTIMENT & INFLUENCER ANALYSIS ==========
+
+  - id: analyze_sentiment
+    use:
+      search_results: search_brand_mentions
+      posts_data: scrape_twitter_posts
+      metrics: fetch_platform_metrics
+    infer:
+      prompt: |
+        Analyze brand sentiment and identify key influencers from this data:
+
+        Search Results: {{use.search_results}}
+
+        Posts Data: {{use.posts_data}}
+
+        Platform Metrics: {{use.metrics}}
+
+        Perform:
+        1. Overall sentiment score (-100 to +100)
+        2. Identify top 5 influencers by reach × engagement
+        3. Detect any crisis signals (negative posts with high engagement)
+        4. Categorize mentions: product, pricing, support, competitors
+        5. Emerging opportunities (positive sentiment with low engagement)
+
+        Return strict JSON:
+        {
+          "sentiment_score": number,
+          "sentiment_label": "very_negative|negative|neutral|positive|very_positive",
+          "crisis_alert": {"detected": boolean, "severity": "critical|high|medium|low"},
+          "top_influencers": [
+            {"handle": "", "followers": number, "engagement_rate": %, "sentiment": ""}
+          ],
+          "mention_categories": {"product": n, "pricing": n, "support": n, "competitors": n},
+          "opportunities": ["opportunity1", "opportunity2"],
+          "analysis_timestamp": "ISO8601"
+        }
+
+  # ========== PHASE 5: CRISIS & ENGAGEMENT DETECTION ==========
+
+  - id: detect_crisis
+    use:
+      sentiment: analyze_sentiment
+    infer:
+      prompt: |
+        Crisis Detection Analysis:
+
+        Sentiment Analysis: {{use.sentiment}}
+
+        Determine if immediate action is needed:
+        1. Is sentiment_score < -60?
+        2. Are there coordinated negative posts (>5 in 1 hour)?
+        3. Are key influencers amplifying negative sentiment?
+        4. Has media picked up negative story?
+
+        If any true, specify:
+        - Crisis type (product issue, pricing backlash, customer service, competitive attack, misinformation)
+        - Recommended response priority (urgent, high, medium, low)
+        - Key stakeholders to notify
+        - Initial talking points
+
+        Return JSON:
+        {
+          "crisis_active": boolean,
+          "type": "string or null",
+          "priority": "urgent|high|medium|low",
+          "stakeholders": ["ceo", "pr_lead", "product_lead"],
+          "talking_points": ["point1", "point2"],
+          "suggested_actions": ["action1", "action2"],
+          "estimated_reach": number
+        }
+
+  # ========== PHASE 6: AGENT - ENGAGEMENT STRATEGY ==========
+
+  - id: generate_engagement_strategy
+    use:
+      sentiment: analyze_sentiment
+      crisis: detect_crisis
+      search_results: search_brand_mentions
+    agent:
+      prompt: |
+        You are a social media strategist. Based on brand monitoring data,
+        generate an actionable engagement strategy for the next 24 hours.
+
+        Sentiment Analysis: {{use.sentiment}}
+        Crisis Detection: {{use.crisis}}
+        Search Results: {{use.search_results}}
+
+        Create a JSON strategy with:
+        1. Engagement Opportunities
+           - Which posts/influencers to engage with
+           - Suggested response tone and talking points
+           - Hashtags to leverage
+
+        2. Crisis Response Plan (if crisis_active)
+           - Initial statement template
+           - Who should respond and when
+           - Escalation triggers
+
+        3. Content Strategy
+           - Posts to schedule in response to sentiment
+           - Themes to emphasize
+           - Hashtags to monitor
+
+        4. Influencer Outreach
+           - Top 3 accounts to reach out to
+           - Collaboration opportunities
+           - Partnership value prop
+
+        5. Metrics to Track
+           - KPIs for engagement success
+           - Sentiment shift targets
+           - Reach and impression goals
+
+        Return JSON with structure:
+        {
+          "strategy_id": "uuid",
+          "created_at": "ISO8601",
+          "engagement_opportunities": [
+            {
+              "post_url": "...",
+              "author": "...",
+              "priority": "high|medium|low",
+              "suggested_response": "...",
+              "tone": "supportive|humorous|professional",
+              "cta": "..."
+            }
+          ],
+          "crisis_response": {
+            "active": boolean,
+            "statement_template": "...",
+            "escalation_trigger": "..."
+          },
+          "content_strategy": {
+            "posts_to_schedule": [...],
+            "themes": [...],
+            "hashtags_to_monitor": [...]
+          },
+          "influencer_outreach": [
+            {
+              "handle": "...",
+              "reach": number,
+              "collaboration_idea": "...",
+              "priority": "high|medium|low"
+            }
+          ],
+          "success_metrics": {
+            "target_sentiment_shift": number,
+            "reach_goal": number,
+            "engagement_goal": number
+          }
+        }
+
+      mcp:
+        - perplexity
+      max_turns: 5
+      stop_conditions:
+        - "STRATEGY_COMPLETE"
+    output:
+      format: json
+
+  # ========== PHASE 7: FOR_EACH - PLATFORM-SPECIFIC MONITORING ==========
+
+  - id: monitor_platforms
+    for_each: ["twitter", "linkedin", "reddit"]
+    as: platform
+    concurrency: 3
+    fail_fast: false
+    use:
+      strategy: generate_engagement_strategy
+    infer:
+      prompt: |
+        Platform: {{use.platform}}
+
+        Strategy: {{use.strategy}}
+
+        Generate platform-specific actions for {{use.platform}}:
+
+        If platform == twitter:
+          - Best time to post for max engagement (based on audience timezone)
+          - Thread structure for longer posts
+          - Media recommendations (video vs image)
+          - Retweet/Quote strategy for trending topics
+
+        If platform == linkedin:
+          - Professional tone talking points
+          - Document/article recommendations to share
+          - Thought leadership positioning
+          - Employee advocacy opportunities
+
+        If platform == reddit:
+          - Subreddits to monitor (r/startup, r/technology, r/yourindustry)
+          - AMA (Ask Me Anything) strategy if interest is high
+          - Comment guidelines to avoid appearing promotional
+          - Top threads mentioning brand/competitors
+
+        Return JSON:
+        {
+          "platform": "{{use.platform}}",
+          "current_sentiment": "positive|neutral|negative",
+          "audience_size": number,
+          "engagement_rate": number,
+          "recommended_posts": [
+            {
+              "content": "post text",
+              "media": "image|video|link",
+              "best_time": "HH:MM UTC",
+              "priority": "high|medium|low",
+              "expected_reach": number
+            }
+          ],
+          "threads_to_monitor": ["url1", "url2"],
+          "accounts_to_follow": ["handle1", "handle2"],
+          "avoid_topics": ["topic1", "topic2"],
+          "platform_insights": "platform-specific advice"
+        }
+
+  # ========== PHASE 8: CONSOLIDATE & REPORT ==========
+
+  - id: consolidate_report
+    use:
+      db_check: check_mention_db
+      sentiment: analyze_sentiment
+      crisis: detect_crisis
+      strategy: generate_engagement_strategy
+      twitter_actions: "monitor_platforms_twitter"
+      linkedin_actions: "monitor_platforms_linkedin"
+      reddit_actions: "monitor_platforms_reddit"
+    infer:
+      prompt: |
+        Consolidate all brand monitoring data into a comprehensive JSON report.
+
+        Database State: {{use.db_check}}
+        Sentiment Analysis: {{use.sentiment}}
+        Crisis Detection: {{use.crisis}}
+        Engagement Strategy: {{use.strategy}}
+        Twitter Actions: {{use.twitter_actions}}
+        LinkedIn Actions: {{use.linkedin_actions}}
+        Reddit Actions: {{use.reddit_actions}}
+
+        Create final report structure:
+        {
+          "report_metadata": {
+            "generated_at": "ISO8601",
+            "report_period": "24h|7d|30d",
+            "data_sources": ["twitter", "linkedin", "reddit", "web"],
+            "status": "healthy|warning|critical"
+          },
+          "executive_summary": {
+            "overall_sentiment": number,
+            "brand_health": "excellent|good|fair|poor|critical",
+            "key_findings": ["finding1", "finding2"],
+            "immediate_actions": ["action1", "action2"],
+            "estimated_reach_24h": number,
+            "engagement_rate": number
+          },
+          "sentiment_analysis": {{use.sentiment}},
+          "crisis_status": {{use.crisis}},
+          "platform_breakdown": {
+            "twitter": {{use.twitter_actions}},
+            "linkedin": {{use.linkedin_actions}},
+            "reddit": {{use.reddit_actions}}
+          },
+          "engagement_strategy": {{use.strategy}},
+          "team_assignments": {
+            "social_media_manager": "primary_action_owner",
+            "community_manager": "engagement_owner",
+            "pr_lead": "if_crisis_active",
+            "product_team": "if_product_issues_detected"
+          },
+          "follow_up_schedule": {
+            "next_check": "in 4 hours if crisis",
+            "daily_report": "09:00 UTC",
+            "weekly_deep_dive": "Monday 10:00 UTC"
+          },
+          "success_metrics_baseline": {
+            "sentiment_score_start": number,
+            "reach_goal": number,
+            "engagement_goal": number,
+            "influencer_partnerships_target": number
+          }
+        }
+
+  # ========== PHASE 9: OUTPUT & ARCHIVE ==========
+
+  - id: save_report
+    use:
+      report: consolidate_report
+    exec: |
+      #!/bin/bash
+      REPORT_DIR="${HOME}/.brand_monitor/reports"
+      mkdir -p "$REPORT_DIR"
+
+      TIMESTAMP=$(date -u '+%Y%m%d_%H%M%S')
+      REPORT_FILE="${REPORT_DIR}/brand_monitor_${TIMESTAMP}.json"
+
+      # Save report
+      echo '{{use.report}}' | jq '.' > "$REPORT_FILE"
+
+      # Create symbolic link to latest
+      ln -sf "$REPORT_FILE" "${REPORT_DIR}/latest.json"
+
+      echo "Report saved to: $REPORT_FILE"
+      echo "Latest report: ${REPORT_DIR}/latest.json"
+
+      # Print success
+      echo '{"status": "success", "report_path": "'$REPORT_FILE'", "timestamp": "'$TIMESTAMP'"}'
+    output:
+      format: json
+
+# ========== DAG FLOWS ==========
+
+flows:
+  # Phase 1: Check local database
+  - source: check_mention_db
+    target: fetch_platform_metrics
+
+  # Phase 2: Fetch metrics
+  - source: fetch_platform_metrics
+    target: search_brand_mentions
+
+  # Phase 3: Parallel MCP calls
+  - source: search_brand_mentions
+    target: analyze_sentiment
+
+  - source: scrape_twitter_posts
+    target: analyze_sentiment
+
+  - source: fetch_platform_metrics
+    target: analyze_sentiment
+
+  # Phase 4: Sentiment analysis
+  - source: analyze_sentiment
+    target: detect_crisis
+
+  # Phase 5: Crisis detection
+  - source: detect_crisis
+    target: generate_engagement_strategy
+
+  # Phase 6: Agent strategy generation
+  - source: generate_engagement_strategy
+    target: monitor_platforms
+
+  # Phase 7: Platform-specific actions (for_each)
+  - source: monitor_platforms
+    target: consolidate_report
+
+  # Phase 8: Consolidation
+  - source: consolidate_report
+    target: save_report
+
+# ========== OUTPUT ==========
+
+output:
+  format: json
+  filename: "brand_monitor_report.json"
+  pretty: true

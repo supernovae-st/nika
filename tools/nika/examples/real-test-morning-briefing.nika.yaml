@@ -1,0 +1,288 @@
+# Morning Tech Briefing - Complete Integration Test
+# Tests ALL 5 verbs, multiple MCPs, parallelism, complex DAG patterns
+#
+# Real-world use case: Daily tech briefing that:
+# 1. Gathers system info (exec)
+# 2. Fetches GitHub notifications (fetch)
+# 3. Researches tech news (invoke/Perplexity)
+# 4. Scrapes trending repos (invoke/Firecrawl)
+# 5. Generates summaries in parallel (infer + for_each)
+# 6. Orchestrates final briefing (agent)
+
+schema: "nika/workflow@0.5"
+provider: claude
+model: claude-sonnet-4-6
+
+mcp:
+  perplexity:
+    command: npx
+    args: ["-y", "@anthropics/perplexity-mcp"]
+    env:
+      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
+  firecrawl:
+    command: npx
+    args: ["-y", "firecrawl-mcp"]
+    env:
+      FIRECRAWL_API_KEY: "${FIRECRAWL_API_KEY}"
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAYER 0: Foundation - System Info & Time Check
+  # Verbs: exec, fetch
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: system_context
+    exec: |
+      echo '{
+        "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+        "local_time": "'$(date +%H:%M)'",
+        "timezone": "'$(date +%Z)'",
+        "hostname": "'$(hostname)'",
+        "user": "'$(whoami)'",
+        "day_of_week": "'$(date +%A)'"
+      }'
+    output:
+      format: json
+
+  - id: fetch_github_status
+    fetch:
+      url: "https://www.githubstatus.com/api/v2/status.json"
+      method: GET
+    output:
+      format: json
+
+  - id: fetch_hacker_news_top
+    fetch:
+      url: "https://hacker-news.firebaseio.com/v0/topstories.json?print=pretty"
+      method: GET
+    output:
+      format: json
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAYER 1: Parallel Research (Fan-Out Pattern)
+  # Verbs: invoke (Perplexity MCP)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: research_ai_news
+    invoke:
+      mcp: perplexity
+      tool: perplexity_search
+      params:
+        query: "AI and LLM news today February 2025"
+
+  - id: research_rust_news
+    invoke:
+      mcp: perplexity
+      tool: perplexity_search
+      params:
+        query: "Rust programming language news February 2025"
+
+  - id: research_startup_news
+    invoke:
+      mcp: perplexity
+      tool: perplexity_search
+      params:
+        query: "Tech startup funding news this week February 2025"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAYER 2: Web Scraping (Firecrawl MCP)
+  # Verb: invoke
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: scrape_hn_frontpage
+    invoke:
+      mcp: firecrawl
+      tool: firecrawl_scrape
+      params:
+        url: "https://news.ycombinator.com/"
+        formats: ["markdown"]
+        onlyMainContent: true
+
+  - id: scrape_techcrunch
+    invoke:
+      mcp: firecrawl
+      tool: firecrawl_scrape
+      params:
+        url: "https://techcrunch.com/"
+        formats: ["markdown"]
+        onlyMainContent: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAYER 3: Parallel Summary Generation (for_each)
+  # Verb: infer with for_each parallelism
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: generate_topic_summaries
+    for_each: ["AI/LLM", "Rust", "Startups"]
+    as: topic
+    concurrency: 3
+    fail_fast: false
+    use:
+      ai: research_ai_news
+      rust: research_rust_news
+      startup: research_startup_news
+    infer:
+      prompt: |
+        Generate a brief 2-3 bullet point summary for the topic: {{use.topic}}
+
+        Based on this research data:
+        - AI News: {{use.ai}}
+        - Rust News: {{use.rust}}
+        - Startup News: {{use.startup}}
+
+        Focus ONLY on {{use.topic}}. Be concise and actionable.
+        Format as bullet points.
+      model: claude-sonnet-4-6
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAYER 4: Synthesis Tasks (Diamond Join Pattern)
+  # Verb: infer
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: synthesize_scraped_content
+    use:
+      hn: scrape_hn_frontpage
+      tc: scrape_techcrunch
+    infer: |
+      Analyze these scraped tech news sources and extract the TOP 5 stories:
+
+      **Hacker News Front Page:**
+      {{use.hn}}
+
+      **TechCrunch:**
+      {{use.tc}}
+
+      Output format:
+      1. [Source] Story title - one sentence summary
+      2. ...
+
+  - id: check_system_health
+    use:
+      system: system_context
+      github: fetch_github_status
+    infer: |
+      Provide a quick system status check:
+
+      System Context: {{use.system}}
+      GitHub Status: {{use.github}}
+
+      Format:
+      - Local time: [time]
+      - GitHub: [operational/degraded/outage]
+      - Quick note if anything needs attention
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAYER 5: Final Orchestration (Agent with Multi-Turn)
+  # Verb: agent
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: morning_briefing_agent
+    use:
+      system_health: check_system_health
+      top_stories: synthesize_scraped_content
+      topic_summaries: generate_topic_summaries
+      hn_ids: fetch_hacker_news_top
+    agent:
+      prompt: |
+        You are Thibaut's Morning Tech Briefing Assistant.
+
+        Create a personalized morning briefing using this data:
+
+        **SYSTEM STATUS:**
+        {{use.system_health}}
+
+        **TOP STORIES TODAY:**
+        {{use.top_stories}}
+
+        **TOPIC SUMMARIES:**
+        {{use.topic_summaries}}
+
+        **HN Top Story IDs (for reference):**
+        {{use.hn_ids}}
+
+        Your tasks:
+        1. If you need more details on any topic, use perplexity_search
+        2. Structure the briefing with these sections:
+           - Quick Status (1 line)
+           - Must-Read Stories (top 3)
+           - AI/LLM Highlights
+           - Rust Community
+           - Startup Watch
+           - Action Items (if any)
+
+        3. Keep it concise - this is a MORNING BRIEFING, not a novel
+        4. End with "BRIEFING_COMPLETE" when done
+
+        Be direct, no fluff. Thibaut values efficiency.
+      mcp: ["perplexity"]
+      model: claude-sonnet-4-6
+      max_turns: 5
+      stop_conditions:
+        - "BRIEFING_COMPLETE"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAYER 6: Output & Archive
+  # Verb: exec
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: save_briefing
+    use:
+      briefing: morning_briefing_agent
+      timestamp: system_context
+    exec: |
+      mkdir -p ~/.nika/briefings
+      FILENAME="$HOME/.nika/briefings/briefing-$(date +%Y%m%d-%H%M%S).md"
+      cat > "$FILENAME" << 'BRIEFING_EOF'
+      # Morning Tech Briefing
+      Generated: {{use.timestamp}}
+
+      {{use.briefing}}
+      BRIEFING_EOF
+      echo "Briefing saved to: $FILENAME"
+      echo '{"saved_to": "'$FILENAME'", "success": true}'
+    output:
+      format: json
+
+flows:
+  # Layer 0 runs independently (no deps)
+
+  # Layer 1 (research) can start immediately
+  # No explicit flows needed - they start in parallel
+
+  # Layer 2 (scraping) can start immediately too
+  # No explicit flows needed
+
+  # Layer 3 depends on Layer 1 research
+  - source: research_ai_news
+    target: generate_topic_summaries
+  - source: research_rust_news
+    target: generate_topic_summaries
+  - source: research_startup_news
+    target: generate_topic_summaries
+
+  # Layer 4 synthesis
+  - source: scrape_hn_frontpage
+    target: synthesize_scraped_content
+  - source: scrape_techcrunch
+    target: synthesize_scraped_content
+
+  - source: system_context
+    target: check_system_health
+  - source: fetch_github_status
+    target: check_system_health
+
+  # Layer 5 agent depends on all synthesis
+  - source: check_system_health
+    target: morning_briefing_agent
+  - source: synthesize_scraped_content
+    target: morning_briefing_agent
+  - source: generate_topic_summaries
+    target: morning_briefing_agent
+  - source: fetch_hacker_news_top
+    target: morning_briefing_agent
+
+  # Layer 6 depends on agent output
+  - source: morning_briefing_agent
+    target: save_briefing
+  - source: system_context
+    target: save_briefing

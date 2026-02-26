@@ -1,0 +1,520 @@
+schema: nika/workflow@0.5
+workflow: job-search-assistant
+description: "Comprehensive job search assistant that analyzes local resume/cover letter templates, fetches job listings from APIs, researches companies via Perplexity, scrapes job boards with Firecrawl, scores job fit, and generates customized applications"
+
+provider: claude
+model: claude-sonnet-4-6
+
+mcp:
+  perplexity:
+    command: node
+    args:
+      - /path/to/perplexity-mcp/dist/index.js
+    env:
+      PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY}
+
+  firecrawl:
+    command: node
+    args:
+      - /path/to/firecrawl-mcp/dist/index.js
+    env:
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY}
+
+tasks:
+  # STEP 1: Read local resume file
+  - id: read_resume
+    exec: |
+      cat resume.md 2>/dev/null || cat resume.txt 2>/dev/null || echo "# Professional Resume
+Skills: Software Engineering, Product Management, Leadership
+Experience: 10 years in tech industry
+Education: BS Computer Science"
+
+  # STEP 2: Read local cover letter template
+  - id: read_cover_letter_template
+    exec: |
+      cat cover_letter_template.md 2>/dev/null || echo "Dear Hiring Manager,
+
+I am writing to express my strong interest in the [POSITION] role at [COMPANY].
+
+With [YEARS] years of experience in [FIELD], I have developed expertise in [KEY_SKILLS].
+
+My proven track record includes [ACCOMPLISHMENTS].
+
+I am excited about the opportunity to [CONTRIBUTION].
+
+Best regards,
+[NAME]"
+
+  # STEP 3: Read local application tracking document
+  - id: read_tracking_template
+    exec: |
+      cat job_tracking.csv 2>/dev/null || echo "Company,Position,URL,Status,Applied Date,Interview Date,Notes"
+
+  # STEP 4: Fetch job listings from job API (LinkedIn Jobs API, Indeed, etc.)
+  - id: fetch_job_listings
+    fetch:
+      url: "https://api.example.com/jobs?keywords=software+engineer&location=remote&limit=20"
+      method: GET
+      headers:
+        Authorization: "Bearer ${JOB_API_TOKEN}"
+        Accept: "application/json"
+    output:
+      format: json
+
+  # STEP 5: Parse job listings and extract structured data
+  - id: extract_job_listings
+    use:
+      jobs_raw: fetch_job_listings
+    infer:
+      prompt: |
+        Extract job listings from this API response and return a JSON array.
+        Each job object should have: {id, company, title, location, url, description, salary_range, job_type, posted_date, required_skills}
+
+        API Response:
+        {{use.jobs_raw | to_json}}
+
+        Return ONLY valid JSON array, no other text.
+      model: claude-sonnet-4-6
+    output:
+      format: json
+
+  # STEP 6: For each job listing, scrape additional details from job board
+  - id: scrape_job_details
+    use:
+      job_list: extract_job_listings
+    for_each: "{{use.job_list}}"
+    as: job
+    concurrency: 5
+    fail_fast: false
+    invoke:
+      server: firecrawl
+      tool: firecrawl_scrape
+      params:
+        url: "{{use.job.url}}"
+        formats: ["markdown"]
+    output:
+      format: text
+
+  # STEP 7: Research companies in parallel (fan-out)
+  - id: research_companies
+    use:
+      job_list: extract_job_listings
+    for_each: "{{use.job_list}}"
+    as: job
+    concurrency: 5
+    fail_fast: false
+    invoke:
+      server: perplexity
+      tool: perplexity_research
+      params:
+        query: "{{use.job.company}} company culture mission values recent news 2025 2026"
+        max_results: 5
+    output:
+      format: json
+
+  # STEP 8: Research job market trends and required skills
+  - id: research_market_trends
+    invoke:
+      server: perplexity
+      tool: perplexity_research
+      params:
+        query: "software engineer job market trends 2026 in-demand skills compensation packages remote work"
+        max_results: 10
+    output:
+      format: json
+
+  # STEP 9: Analyze user resume and extract skills
+  - id: extract_resume_skills
+    use:
+      resume: read_resume
+    infer:
+      prompt: |
+        Analyze this resume and extract all mentioned skills, experiences, and accomplishments.
+        Return a JSON object with:
+        {
+          "technical_skills": ["skill1", "skill2", ...],
+          "soft_skills": ["leadership", "communication", ...],
+          "years_of_experience": number,
+          "key_accomplishments": ["achievement1", ...],
+          "industries": ["industry1", ...],
+          "job_titles_held": ["title1", ...]
+        }
+
+        Resume:
+        {{use.resume}}
+
+        Return ONLY valid JSON, no other text.
+      model: claude-sonnet-4-6
+    output:
+      format: json
+
+  # STEP 10: Score job fit for each job listing (parallel analysis)
+  - id: score_job_fit
+    use:
+      job_list: extract_job_listings
+      user_skills: extract_resume_skills
+      market_trends: research_market_trends
+      company_research: research_companies
+      scraped_details: scrape_job_details
+    for_each: "{{use.job_list}}"
+    as: job
+    concurrency: 4
+    fail_fast: false
+    infer:
+      prompt: |
+        Score the job fit for this position based on the candidate's skills and the job requirements.
+        Provide a comprehensive job analysis in JSON format.
+
+        User Skills Profile:
+        {{use.user_skills | to_json}}
+
+        Job Position:
+        Title: {{use.job.title}}
+        Company: {{use.job.company}}
+        Description: {{use.job.description}}
+        Required Skills: {{use.job.required_skills | to_json}}
+
+        Job Market Context:
+        {{use.market_trends | to_json}}
+
+        Company Research:
+        {{use.company_research | to_json}}
+
+        Scraped Job Details:
+        {{use.scraped_details}}
+
+        Return ONLY this JSON structure:
+        {
+          "job_id": "...",
+          "company": "...",
+          "position": "...",
+          "overall_fit_score": 0-100,
+          "skill_match_score": 0-100,
+          "culture_fit_score": 0-100,
+          "growth_opportunity_score": 0-100,
+          "compensation_competitiveness": "low|medium|high",
+          "matched_skills": ["skill1", "skill2", ...],
+          "missing_skills": ["skill1", "skill2", ...],
+          "key_strengths_for_role": ["strength1", ...],
+          "potential_challenges": ["challenge1", ...],
+          "recommendation": "strong_match|moderate_match|weak_match",
+          "reasoning": "brief explanation"
+        }
+      model: claude-sonnet-4-6
+    output:
+      format: json
+
+  # STEP 11: Aggregate and rank job opportunities
+  - id: rank_opportunities
+    use:
+      job_scores: score_job_fit
+      job_list: extract_job_listings
+    infer:
+      prompt: |
+        Rank these job opportunities by fit score and create a prioritized opportunity list.
+        Include actionable next steps for top 3 matches.
+
+        Job Scores:
+        {{use.job_scores | to_json}}
+
+        Original Job Data:
+        {{use.job_list | to_json}}
+
+        Create a JSON object with:
+        {
+          "ranked_opportunities": [
+            {
+              "rank": 1,
+              "company": "...",
+              "position": "...",
+              "overall_fit_score": 0-100,
+              "why_recommended": "...",
+              "apply_by_date": "...",
+              "salary_estimate": "...",
+              "next_steps": ["step1", "step2", ...]
+            }
+          ],
+          "summary": "Brief market analysis and recommendation"
+        }
+
+        Return ONLY valid JSON, no other text.
+      model: claude-sonnet-4-6
+    output:
+      format: json
+
+  # STEP 12: Generate customized cover letters for top opportunities (agent-driven)
+  - id: generate_cover_letters
+    use:
+      resume: read_resume
+      cover_letter_template: read_cover_letter_template
+      ranked_jobs: rank_opportunities
+      user_skills: extract_resume_skills
+    agent:
+      prompt: |
+        You are a professional career coach and cover letter expert. Your task is to generate customized cover letters
+        for the top job opportunities identified by the recruiter.
+
+        You have access to:
+        - Candidate's resume and professional background
+        - Cover letter template as starting point
+        - Top ranked job opportunities with fit scores
+        - Candidate's skills and accomplishments
+
+        For each of the top 3 opportunities:
+
+        1. Analyze the job description and company culture
+        2. Identify 2-3 specific ways the candidate's experience matches the role
+        3. Create a customized, compelling cover letter that:
+           - Opens with genuine interest in the specific role and company
+           - Highlights 2-3 key accomplishments that directly relate to job requirements
+           - Addresses any skill gaps with enthusiasm to learn
+           - Shows understanding of company culture and mission
+           - Closes with clear call-to-action
+
+        Candidate Resume:
+        {{use.resume}}
+
+        Cover Letter Template:
+        {{use.cover_letter_template}}
+
+        Top Job Opportunities:
+        {{use.ranked_jobs | to_json}}
+
+        Candidate Skills Profile:
+        {{use.user_skills | to_json}}
+
+        For each opportunity, output a markdown section with:
+        ### Cover Letter for [Company] - [Position]
+        [Full customized cover letter]
+        ---
+
+        Also include a "CUSTOMIZATION NOTES" section explaining key changes made for each letter.
+
+      mcp: []
+      depth_limit: 2
+      max_turns: 10
+    output:
+      format: text
+
+  # STEP 13: Generate interview preparation guide for top opportunities
+  - id: generate_interview_prep
+    use:
+      ranked_jobs: rank_opportunities
+      user_skills: extract_resume_skills
+      company_research: research_companies
+      market_trends: research_market_trends
+    infer:
+      prompt: |
+        Create a comprehensive interview preparation guide for the top 3 job opportunities.
+        For each opportunity, provide:
+
+        1. COMPANY BACKGROUND
+           - Mission and recent news
+           - Key products/services
+           - Company culture insights
+
+        2. ROLE INSIGHTS
+           - Key responsibilities
+           - Success metrics
+           - Team dynamics
+
+        3. LIKELY INTERVIEW QUESTIONS (10-12 questions specific to role and company)
+           - Technical questions (if applicable)
+           - Behavioral questions
+           - Company-specific questions
+
+        4. SAMPLE ANSWERS
+           - 3-4 STAR method answers to behavioral questions
+           - How to position candidate's skills
+
+        5. COUNTER-QUESTIONS
+           - Smart questions to ask about the role
+           - Culture fit evaluation questions
+           - Growth and development questions
+
+        6. SALARY NEGOTIATION STRATEGY
+           - Market rate research
+           - Negotiation talking points
+           - Benefits to prioritize
+
+        Top Job Opportunities:
+        {{use.ranked_jobs | to_json}}
+
+        Candidate Profile:
+        {{use.user_skills | to_json}}
+
+        Company Research:
+        {{use.company_research | to_json}}
+
+        Market Data:
+        {{use.market_trends | to_json}}
+
+        Format as professional markdown with clear sections.
+      model: claude-sonnet-4-6
+    output:
+      format: text
+
+  # STEP 14: Create comprehensive application tracker
+  - id: create_application_tracker
+    use:
+      ranked_jobs: rank_opportunities
+      cover_letters: generate_cover_letters
+      interview_prep: generate_interview_prep
+      tracking_template: read_tracking_template
+    infer:
+      prompt: |
+        Create a comprehensive CSV-based application tracking spreadsheet and application status summary.
+
+        Include columns:
+        Company, Position, Job URL, Fit Score, Status (To Apply/Applied/Interviewing/Rejected/Offer),
+        Application Date, Interview Date, Salary Range, Notes, Next Action, Follow-up Date
+
+        Also include a summary section with:
+        - Total jobs analyzed
+        - Top 3 opportunities with fit scores
+        - Application timeline (suggested dates)
+        - Interview calendar (anticipated dates)
+        - Success metrics tracking
+
+        Ranked Opportunities:
+        {{use.ranked_jobs | to_json}}
+
+        Cover Letters Generated:
+        {{use.cover_letters}}
+
+        Interview Preparation:
+        {{use.interview_prep}}
+
+        Tracking Template Reference:
+        {{use.tracking_template}}
+
+        Output should be:
+        1. CSV data (copy-paste into spreadsheet)
+        2. Application strategy summary (markdown)
+        3. Timeline and milestones (markdown)
+
+        Format with clear sections separated by ---
+      model: claude-sonnet-4-6
+    output:
+      format: text
+
+  # STEP 15: Save all outputs to files
+  - id: save_all_outputs
+    use:
+      ranked_jobs: rank_opportunities
+      cover_letters: generate_cover_letters
+      interview_prep: generate_interview_prep
+      tracker: create_application_tracker
+      job_scores: score_job_fit
+    exec: |
+      mkdir -p job_search_output
+
+      TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+      # Save ranked opportunities
+      echo "{{use.ranked_jobs | to_json}}" > "job_search_output/ranked_opportunities_${TIMESTAMP}.json"
+
+      # Save cover letters
+      echo "{{use.cover_letters}}" > "job_search_output/cover_letters_${TIMESTAMP}.md"
+
+      # Save interview prep
+      echo "{{use.interview_prep}}" > "job_search_output/interview_prep_${TIMESTAMP}.md"
+
+      # Save application tracker
+      echo "{{use.tracker}}" > "job_search_output/application_tracker_${TIMESTAMP}.csv"
+
+      # Create summary report
+      cat > "job_search_output/summary_${TIMESTAMP}.txt" <<'EOF'
+      ======================================
+      JOB SEARCH ASSISTANT - EXECUTION SUMMARY
+      ======================================
+      Generated: ${TIMESTAMP}
+
+      Files Created:
+      - ranked_opportunities_${TIMESTAMP}.json
+      - cover_letters_${TIMESTAMP}.md
+      - interview_prep_${TIMESTAMP}.md
+      - application_tracker_${TIMESTAMP}.csv
+      - summary_${TIMESTAMP}.txt (this file)
+
+      Next Steps:
+      1. Review ranked_opportunities.json to see top matches
+      2. Customize and send cover letters from cover_letters.md
+      3. Use interview_prep.md to prepare for interviews
+      4. Track applications in application_tracker.csv
+      5. Monitor and update status as you progress
+
+      Good luck with your job search!
+      EOF
+
+      echo "=== Job Search Files Generated Successfully ==="
+      echo "Output directory: job_search_output/"
+      echo "Timestamp: ${TIMESTAMP}"
+      ls -lh job_search_output/
+
+flows:
+  # Reading phase
+  - source: read_resume
+    target: extract_resume_skills
+  - source: read_cover_letter_template
+    target: generate_cover_letters
+
+  # Job fetching phase
+  - source: fetch_job_listings
+    target: extract_job_listings
+
+  # Parallel job details and company research (fan-out)
+  - source: extract_job_listings
+    target: scrape_job_details
+  - source: extract_job_listings
+    target: research_companies
+  - source: extract_job_listings
+    target: score_job_fit
+
+  # Market research
+  - source: research_market_trends
+    target: score_job_fit
+
+  # Skill analysis
+  - source: extract_resume_skills
+    target: score_job_fit
+
+  # Ranking phase (convergence)
+  - source: score_job_fit
+    target: rank_opportunities
+
+  # Cover letter generation (uses ranked opportunities)
+  - source: rank_opportunities
+    target: generate_cover_letters
+  - source: extract_resume_skills
+    target: generate_cover_letters
+
+  # Interview preparation (uses ranked opportunities and research)
+  - source: rank_opportunities
+    target: generate_interview_prep
+  - source: research_companies
+    target: generate_interview_prep
+  - source: research_market_trends
+    target: generate_interview_prep
+  - source: extract_resume_skills
+    target: generate_interview_prep
+
+  # Application tracker creation (convergence point)
+  - source: rank_opportunities
+    target: create_application_tracker
+  - source: generate_cover_letters
+    target: create_application_tracker
+  - source: generate_interview_prep
+    target: create_application_tracker
+
+  # Final output phase
+  - source: rank_opportunities
+    target: save_all_outputs
+  - source: create_application_tracker
+    target: save_all_outputs
+  - source: generate_cover_letters
+    target: save_all_outputs
+  - source: generate_interview_prep
+    target: save_all_outputs
+  - source: score_job_fit
+    target: save_all_outputs

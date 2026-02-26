@@ -332,6 +332,28 @@ impl ChatWorkflow {
     pub fn get_dependents(&self, idx: NodeIndex) -> Vec<NodeIndex> {
         self.dag.outgoing_neighbors(idx).collect()
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.13: Iteration support for TUI sync
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Iterate over all messages in the workflow.
+    ///
+    /// Returns messages in insertion order (by message number).
+    pub fn all_messages(&self) -> Vec<(NodeIndex, &ChatMessage)> {
+        (1..=self.message_counter)
+            .filter_map(|n| {
+                let idx = self.get_index_by_number(n)?;
+                let msg = self.get_message_by_index(idx)?;
+                Some((idx, msg))
+            })
+            .collect()
+    }
+
+    /// Get the total message count (for iteration bounds).
+    pub fn total_messages(&self) -> u32 {
+        self.message_counter
+    }
 }
 
 impl Default for ChatWorkflow {

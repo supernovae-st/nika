@@ -61,8 +61,8 @@ use super::theme::Theme;
 use super::utils::truncate_str;
 use super::verification::{VerificationCache, VerificationEntry};
 use super::views::{
-    ChatView, HelpView, HomeView, McpAction, MonitorView, SchedulerView, SettingsView, StudioView,
-    TuiView, View, ViewAction,
+    ChatView, HelpView, HomeView, McpAction, MonitorView, SchedulerView, SettingsView, SplitView,
+    StudioView, TuiView, View, ViewAction,
 };
 use super::widgets::task_box::{
     AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,
@@ -248,6 +248,8 @@ pub struct App {
     monitor_view: MonitorView,
     /// Scheduler view state (v0.12 - cron/queue management)
     scheduler_view: SchedulerView,
+    /// Split view state (v0.13 - side-by-side Editor + Runner)
+    split_view: SplitView,
     // ═══ LLM Integration for ChatOverlay ═══
     /// Channel for receiving LLM responses (complete responses)
     llm_response_rx: mpsc::Receiver<String>,
@@ -317,6 +319,7 @@ impl App {
         let help_view = HelpView::new();
         let monitor_view = MonitorView::new();
         let scheduler_view = SchedulerView::new();
+        let split_view = SplitView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -363,6 +366,7 @@ impl App {
             help_view,
             monitor_view,
             scheduler_view,
+            split_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -394,6 +398,7 @@ impl App {
         let help_view = HelpView::new();
         let monitor_view = MonitorView::new();
         let scheduler_view = SchedulerView::new();
+        let split_view = SplitView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -440,6 +445,7 @@ impl App {
             help_view,
             monitor_view,
             scheduler_view,
+            split_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -1305,6 +1311,7 @@ impl App {
                 format!("Tasks: {}/{}", completed, task_count)
             };
             let scheduler_status = self.scheduler_view.status_line(&self.state);
+            let split_status = self.split_view.status_line(&self.state); // v0.13: Split view
 
             // Extract references to avoid borrow issues with the closure
             let theme = &self.theme;
@@ -1316,6 +1323,7 @@ impl App {
             let _help_view = &mut self.help_view; // v0.12: Help merged into Settings, kept for backwards compat
             let monitor_view = &mut self.monitor_view;
             let scheduler_view = &mut self.scheduler_view;
+            let split_view = &mut self.split_view; // v0.13: Split view
             let workflow_path = &self.state.workflow.path;
             let intro_state = &self.intro_state; // v0.12: Intro animation state
                                                  // P0 Fix: Use is_paused() accessor for unified pause state
@@ -1338,6 +1346,8 @@ impl App {
                 TuiView::Editor => studio_status,
                 TuiView::Runner => monitor_status,
                 TuiView::Scheduler => scheduler_status,
+                // v0.13: Split view (Editor + Runner side by side)
+                TuiView::Split => split_status,
                 // Auxiliary views use their own status (v0.11)
                 TuiView::Settings => settings_view.status_line(state),
             };
@@ -1411,6 +1421,10 @@ impl App {
                         TuiView::Scheduler => {
                             // v0.12: Scheduler view (cron/queue management)
                             scheduler_view.render(frame, chunks[1], state, theme);
+                        }
+                        TuiView::Split => {
+                            // v0.13: Split view (Editor + Runner side by side)
+                            split_view.render(frame, chunks[1], state, theme);
                         }
                         // v0.11: Auxiliary views (Settings)
                         TuiView::Settings => {
@@ -1572,6 +1586,11 @@ impl App {
             TuiView::Scheduler => {
                 // v0.12: Scheduler view
                 let view_action = self.scheduler_view.handle_key(key_event, &mut self.state);
+                self.convert_view_action(view_action)
+            }
+            TuiView::Split => {
+                // v0.13: Split view (Editor + Runner side by side)
+                let view_action = self.split_view.handle_key(key_event, &mut self.state);
                 self.convert_view_action(view_action)
             }
             // v0.11: Auxiliary views - delegate to view handlers
