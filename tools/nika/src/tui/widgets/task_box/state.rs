@@ -294,14 +294,14 @@ mod tests {
         // With pulse_intensity 0.5 → brightened color
         let pulsed = running.border_color_with_pulse(verb_color, 0.5);
         if let Color::Rgb(r, g, b) = pulsed {
-            // Should be brighter than base
-            assert!(r >= 139 || g >= 92 || b >= 246);
+            // Should be brighter than base (all components >= original)
+            assert!(r >= 139 && g >= 92 && b >= 246);
         }
 
         // With pulse_intensity 1.0 → maximum brightness
         let max_pulsed = running.border_color_with_pulse(verb_color, 1.0);
         if let Color::Rgb(r, g, b) = max_pulsed {
-            // Should be significantly brighter
+            // Should be significantly brighter (at least one component > original)
             assert!(r > 139 || g > 92 || b > 246);
         }
     }
