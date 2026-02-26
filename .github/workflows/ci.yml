@@ -40,6 +40,10 @@ env:
   # Minimum coverage threshold (%)
   COVERAGE_THRESHOLD: 70
 
+defaults:
+  run:
+    working-directory: tools/nika
+
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   # Quick Check (runs first, fast feedback)
