@@ -110,9 +110,8 @@ fn wiring_8_view_trait_tick_no_panic() {
     let mut view = MonitorView::new();
     let mut state = TuiState::new("test.nika.yaml");
 
-    // tick() should not panic
+    // tick() should not panic - reaching here means success
     view.tick(&mut state);
-    assert!(true, "tick() completed without panic");
 }
 
 #[test]

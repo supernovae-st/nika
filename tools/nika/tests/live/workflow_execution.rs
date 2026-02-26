@@ -3,7 +3,6 @@
 //! These tests execute real workflow files with actual API calls.
 
 use nika::ast::Workflow;
-use nika::runtime::Runner;
 use std::env;
 use std::path::PathBuf;
 

@@ -130,8 +130,7 @@ fn wiring_9_auto_returns_option() {
             );
         }
         None => {
-            // No API keys configured - this is also valid
-            assert!(true, "No provider available is a valid state");
+            // No API keys configured - this is also valid (reaching here means success)
         }
     }
 }

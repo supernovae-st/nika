@@ -25,33 +25,33 @@ use std::path::PathBuf;
 #[allow(deprecated)]
 fn wiring_10_home_view_constructs() {
     let _view = HomeView::new(PathBuf::from("."));
-    assert!(true, "HomeView (ExplorerView) should construct");
+    // HomeView (ExplorerView) constructed successfully
 }
 
 #[test]
 fn wiring_10_chat_view_constructs() {
     let _view = ChatView::new();
-    assert!(true, "ChatView should construct");
+    // ChatView constructed successfully
 }
 
 #[test]
 #[allow(deprecated)]
 fn wiring_10_studio_view_constructs() {
     let _view = StudioView::new();
-    assert!(true, "StudioView (EditorView) should construct");
+    // StudioView (EditorView) constructed successfully
 }
 
 #[test]
 #[allow(deprecated)]
 fn wiring_10_monitor_view_constructs() {
     let _view = MonitorView::new();
-    assert!(true, "MonitorView (RunnerView) should construct");
+    // MonitorView (RunnerView) constructed successfully
 }
 
 #[test]
 fn wiring_10_settings_view_constructs() {
     let _view = SettingsView::new();
-    assert!(true, "SettingsView should construct");
+    // SettingsView constructed successfully
 }
 
 #[test]
@@ -59,7 +59,7 @@ fn wiring_10_settings_view_constructs() {
 fn wiring_10_help_view_constructs() {
     // Help view still exists for backwards compat but is merged into Settings in v0.12
     let _view = HelpView::new();
-    assert!(true, "HelpView should construct (merged into Settings)");
+    // HelpView constructed successfully (merged into Settings)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

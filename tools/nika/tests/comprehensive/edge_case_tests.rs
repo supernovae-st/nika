@@ -271,7 +271,7 @@ tasks:
     infer: "Translate to Japanese: Hello World"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse unicode");
+    let _workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse unicode");
 }
 
 #[test]
@@ -284,7 +284,7 @@ tasks:
     exec: "echo 'rocket emoji here'"
 "#;
 
-    let workflow: Workflow =
+    let _workflow: Workflow =
         serde_yaml::from_str(yaml).expect("Should parse with emoji references");
 }
 
@@ -297,7 +297,7 @@ tasks:
     exec: "echo 'quotes inside and vars'"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse special chars");
+    let _workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse special chars");
 }
 
 // ============================================================================
@@ -331,7 +331,7 @@ tasks:
       format: json
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse null");
+    let _workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse null");
 }
 
 // ============================================================================
@@ -489,7 +489,7 @@ flows:
     target: iterate
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse binding for_each");
+    let _workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse binding for_each");
 }
 
 #[test]
@@ -514,7 +514,7 @@ flows:
     target: process
 "#;
 
-    let workflow: Workflow =
+    let _workflow: Workflow =
         serde_yaml::from_str(yaml).expect("Should parse dollar binding for_each");
 }
 

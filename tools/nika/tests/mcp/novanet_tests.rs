@@ -4,10 +4,8 @@
 //! Start with: cd novanet && cargo run --bin novanet-mcp
 
 use nika::ast::Workflow;
-use nika::mcp::McpClient;
 use std::env;
 use std::path::PathBuf;
-use std::time::Duration;
 
 /// Check if NovaNet MCP is available
 fn has_novanet() -> bool {

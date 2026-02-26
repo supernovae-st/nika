@@ -89,6 +89,7 @@ impl SchedulerPanel {
 
 /// A scheduled workflow entry
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ScheduleEntry {
     pub name: String,
     pub cron: String,
