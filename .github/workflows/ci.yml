@@ -36,7 +36,8 @@ env:
   RUSTFLAGS: -Dwarnings
   NIKA_VERSION: v0.8.0
   # Minimum Rust version (matches Cargo.toml rust-version)
-  RUST_VERSION: '1.85'
+  # Note: Using stable to get latest; deps require 1.88+ (time crate)
+  RUST_VERSION: stable
   # Minimum coverage threshold (%)
   COVERAGE_THRESHOLD: 70
 

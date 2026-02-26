@@ -15,7 +15,8 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
-  RUST_VERSION: '1.85'
+  # Using stable; deps require 1.88+ (time crate)
+  RUST_VERSION: stable
 
 defaults:
   run:
