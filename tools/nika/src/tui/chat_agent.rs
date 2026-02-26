@@ -229,10 +229,10 @@ impl ChatAgent {
     /// 6. OLLAMA_API_BASE_URL → Ollama
     pub fn new() -> Result<Self, NikaError> {
         // Use RigProvider::auto() for consistent detection (v0.6)
-        let provider = RigProvider::auto().unwrap_or_else(|| {
-            // Fallback to OpenAI (will error on use if no key)
-            RigProvider::openai()
-        });
+        // Return error if no API keys are set (instead of panicking on fallback)
+        let provider = RigProvider::auto().ok_or_else(|| NikaError::MissingApiKey {
+            provider: "any (ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or OLLAMA_API_BASE_URL)".to_string(),
+        })?;
 
         Ok(Self {
             provider,
