@@ -123,6 +123,12 @@ impl InvokeBox {
         self
     }
 
+    /// Set render mode
+    pub fn with_render_mode(mut self, mode: RenderMode) -> Self {
+        self.render_mode = mode;
+        self
+    }
+
     /// Toggle params expansion
     pub fn toggle_params(&mut self) {
         self.expanded_params = !self.expanded_params;
@@ -136,6 +142,11 @@ impl InvokeBox {
     /// Calculate required height
     /// PERF: Uses cached JSON strings to avoid serde in layout calculation
     pub fn required_height(&self) -> u16 {
+        // Compact mode is always 1 line
+        if self.render_mode == RenderMode::Compact {
+            return 1;
+        }
+
         let mut height: u16 = 5; // Header + server + params header + result header + bottom
 
         // Params section - PERF: use cached pretty JSON
@@ -177,10 +188,45 @@ impl InvokeBox {
         let json_str = serde_json::to_string(value).unwrap_or_else(|_| "null".to_string());
         Self::truncate(&json_str, max_len)
     }
+
+    /// Render in compact mode (single line)
+    fn render_compact(&self, area: Rect, buf: &mut Buffer) {
+        let verb = VerbColor::Invoke;
+        let border_color = self
+            .state
+            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
+        let line_style = Style::default().fg(border_color);
+        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
+
+        let status_icon = self.state.icon();
+        let server_info = format!("server: {}", self.server);
+
+        // Format: 🔌 INVOKE: novanet_describe  ✅ server: novanet
+        let prefix = format!("{}: {} ", verb.icon_label(), self.tool);
+        let suffix = format!("  {} {}", status_icon, server_info);
+        let available = (area.width as usize)
+            .saturating_sub(prefix.chars().count())
+            .saturating_sub(suffix.chars().count());
+
+        // Build line with proper spacing
+        let padding = " ".repeat(available);
+        let line = format!("{}{}{}", prefix, padding, suffix);
+        buf.set_string(area.x, area.y, &line, line_style);
+
+        // Dim the server info portion
+        let suffix_x = area.x + (line.chars().count() - suffix.chars().count()) as u16;
+        buf.set_string(suffix_x, area.y, &suffix, dim_style);
+    }
 }
 
 impl Widget for InvokeBox {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        // Check for compact mode first
+        if self.render_mode == RenderMode::Compact {
+            self.render_compact(area, buf);
+            return;
+        }
+
         if area.width < 30 || area.height < 5 {
             return;
         }
@@ -555,5 +601,44 @@ mod tests {
 
         let box_low = InvokeBox::new("tool", "server").with_pulse_intensity(-0.5);
         assert!((box_low.pulse_intensity - 0.0).abs() < 0.001);
+    }
+
+    // === Compact Mode Tests (v0.11 Phase 2) ===
+
+    #[test]
+    fn test_invoke_box_with_render_mode() {
+        let box_ =
+            InvokeBox::new("novanet_describe", "novanet").with_render_mode(RenderMode::Compact);
+        assert_eq!(box_.render_mode, RenderMode::Compact);
+    }
+
+    #[test]
+    fn test_invoke_box_compact_required_height() {
+        let box_ =
+            InvokeBox::new("novanet_describe", "novanet").with_render_mode(RenderMode::Compact);
+        assert_eq!(box_.required_height(), 1);
+    }
+
+    #[test]
+    fn test_invoke_box_compact_render() {
+        let box_ = InvokeBox::new("novanet_describe", "novanet")
+            .with_state(BoxState::Success { duration_ms: 150 })
+            .with_render_mode(RenderMode::Compact);
+
+        let mut buf = Buffer::empty(Rect::new(0, 0, 60, 1));
+        box_.render(Rect::new(0, 0, 60, 1), &mut buf);
+
+        let content: String = buf
+            .content
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<String>()
+            .trim_end()
+            .to_string();
+
+        // Should contain verb icon/label, tool name, and status
+        assert!(content.contains("INVOKE"));
+        assert!(content.contains("novanet_describe"));
+        assert!(content.contains("✅"));
     }
 }

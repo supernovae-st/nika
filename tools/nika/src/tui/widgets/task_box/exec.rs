@@ -505,7 +505,16 @@ mod tests {
         box_.render(Rect::new(0, 0, 60, 1), &mut buf);
 
         // Check the buffer has content on the first line
-        let line: String = (0..60).map(|x| buf.cell((x, 0)).unwrap().symbol().chars().next().unwrap_or(' ')).collect();
+        let line: String = (0..60)
+            .map(|x| {
+                buf.cell((x, 0))
+                    .unwrap()
+                    .symbol()
+                    .chars()
+                    .next()
+                    .unwrap_or(' ')
+            })
+            .collect();
         assert!(line.contains("EXEC"));
         assert!(line.contains("ls"));
     }
