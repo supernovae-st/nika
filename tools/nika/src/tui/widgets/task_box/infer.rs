@@ -349,15 +349,30 @@ impl Widget for InferBox {
         }
 
         // Footer with metrics
+        let cost_str = self
+            .cost
+            .map(|c| format!(" │ 💰 ${:.4}", c))
+            .unwrap_or_default();
+        let velocity_str = if self.state.is_running() && !self.velocity.is_empty() {
+            format!(
+                " │ {} {:.0} tok/s",
+                self.velocity.sparkline_chars(),
+                self.velocity.average()
+            )
+        } else {
+            String::new()
+        };
         let metrics = format!(
-            "│ 📊 {} in │ {} out │ {} {}{}│",
+            "│ 📊 {} in │ {} out │ {} {}{}{}{}│",
             self.tokens_in,
             self.tokens_out,
             Self::provider_icon(&self.model),
             Self::truncate(&self.model, 10),
             self.thinking_tokens
                 .map(|t| format!(" │ 💭 thinking: {} ", t))
-                .unwrap_or_default()
+                .unwrap_or_default(),
+            cost_str,
+            velocity_str
         );
         let metrics_truncated = Self::truncate(&metrics, inner_width + 2);
         buf.set_string(
