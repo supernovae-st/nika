@@ -1,9 +1,9 @@
+#![allow(dead_code, unused_variables)]
 //! Live workflow execution tests - run actual .nika.yaml workflows.
 //!
 //! These tests execute real workflow files with actual API calls.
 
 use nika::ast::Workflow;
-use nika::runtime::Runner;
 use std::env;
 use std::path::PathBuf;
 

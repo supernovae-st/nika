@@ -282,7 +282,7 @@ impl<'a> StatusBar<'a> {
                 KeyHint::new("Ctrl+L", "Clear"),
                 KeyHint::new("q", "Quit"),
             ],
-            TuiView::Home => vec![
+            TuiView::Explorer => vec![
                 KeyHint::new("Up/Down", "Navigate"),
                 KeyHint::new("Enter", "Run"),
                 KeyHint::new("e", "Edit"),
@@ -291,7 +291,7 @@ impl<'a> StatusBar<'a> {
                 KeyHint::new("c", "Chat"),
                 KeyHint::new("q", "Quit"),
             ],
-            TuiView::Studio => vec![
+            TuiView::Editor => vec![
                 KeyHint::new("i", "Insert"),
                 KeyHint::new("Esc", "Normal"),
                 KeyHint::new("F5", "Run"),
@@ -299,7 +299,7 @@ impl<'a> StatusBar<'a> {
                 KeyHint::new("c", "Chat"),
                 KeyHint::new("q", "Back"),
             ],
-            TuiView::Monitor => vec![
+            TuiView::Runner => vec![
                 KeyHint::new("1-4", "Focus"),
                 KeyHint::new("Tab", "Cycle"),
                 KeyHint::new("Space", "Pause"),
@@ -307,16 +307,17 @@ impl<'a> StatusBar<'a> {
                 KeyHint::new("c", "Chat"),
                 KeyHint::new("q", "Stop"),
             ],
-            // v0.11: Settings and Help are auxiliary views
+            TuiView::Scheduler => vec![
+                KeyHint::new("Tab", "Panels"),
+                KeyHint::new("Enter", "Edit"),
+                KeyHint::new("n", "New"),
+                KeyHint::new("d", "Delete"),
+                KeyHint::new("q", "Back"),
+            ],
+            // v0.12: Settings is auxiliary view
             TuiView::Settings => vec![
                 KeyHint::new("Tab", "Next"),
                 KeyHint::new("Enter", "Select"),
-                KeyHint::new("Esc", "Back"),
-                KeyHint::new("q", "Close"),
-            ],
-            TuiView::Help => vec![
-                KeyHint::new("j/k", "Scroll"),
-                KeyHint::new("/", "Search"),
                 KeyHint::new("Esc", "Back"),
                 KeyHint::new("q", "Close"),
             ],
@@ -526,9 +527,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_status_bar_default_hints_home() {
+    fn test_status_bar_default_hints_explorer() {
         let theme = Theme::dark();
-        let bar = StatusBar::new(TuiView::Home, &theme);
+        let bar = StatusBar::new(TuiView::Explorer, &theme);
         let hints = bar.default_hints();
         assert!(hints
             .iter()
@@ -539,9 +540,9 @@ mod tests {
     }
 
     #[test]
-    fn test_status_bar_default_hints_studio() {
+    fn test_status_bar_default_hints_editor() {
         let theme = Theme::dark();
-        let bar = StatusBar::new(TuiView::Studio, &theme);
+        let bar = StatusBar::new(TuiView::Editor, &theme);
         let hints = bar.default_hints();
         assert!(hints
             .iter()
@@ -626,7 +627,7 @@ mod tests {
     fn test_status_bar_with_metrics() {
         let theme = Theme::dark();
         let metrics = StatusMetrics::new().provider(Provider::Claude).tokens(5000);
-        let bar = StatusBar::new(TuiView::Monitor, &theme).metrics(metrics);
+        let bar = StatusBar::new(TuiView::Runner, &theme).metrics(metrics);
         assert!(bar.metrics.is_some());
     }
 }

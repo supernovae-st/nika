@@ -676,7 +676,7 @@ impl StreamingDecrypt {
                 spans.push(Span::styled(ch.to_string(), style));
             } else {
                 // Not revealed - show chaos glyph
-                let glyph = Self::random_glyph_static(self.verb, &mut char_rng);
+                let glyph = Self::random_glyph_static(&mut char_rng);
 
                 // Chaos color (varies by frame for flickering)
                 let colors = [
@@ -835,7 +835,7 @@ impl StreamingDecrypt {
                 let style = Style::default().fg(base_color);
                 spans.push(Span::styled(ch.to_string(), style));
             } else {
-                let glyph = Self::random_glyph_static(self.verb, &mut char_rng);
+                let glyph = Self::random_glyph_static(&mut char_rng);
                 let colors = [
                     solarized::CYAN,
                     solarized::GREEN,
@@ -858,8 +858,7 @@ impl StreamingDecrypt {
 
     /// Generate a random chaos glyph (static version for build_line)
     /// v0.8.1: TRUE Matrix-style - katakana-dominant, Nika mascots only
-    #[allow(unused_variables)]
-    fn random_glyph_static(verb: DecryptVerb, rng: &mut SmallRng) -> String {
+    fn random_glyph_static(rng: &mut SmallRng) -> String {
         let roll: f32 = rng.gen();
 
         if roll < 0.35 {

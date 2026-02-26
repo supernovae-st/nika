@@ -1,56 +1,66 @@
 //! TUI Views Module
 //!
-//! Six-view architecture for Nika TUI (v0.11):
+//! Six-view architecture for Nika TUI (v0.12):
 //!
-//! **Main Views (Tab cycling):**
-//! 1. **Chat View** - AI agent conversation interface
-//! 2. **Home View** - Workflow browser (default)
-//! 3. **Studio View** - YAML editor with validation
-//! 4. **Monitor View** - Real-time execution monitoring
-//!
-//! **Auxiliary Views (accessed via shortcuts):**
-//! 5. **Settings View** - Provider config, theme, preferences
-//! 6. **Help View** - Keyboard shortcuts reference
+//! **Views (Tab cycling through all 6):**
+//! 1. **Explorer View** - File browser + DAG preview (default) [e]
+//! 2. **Chat View** - AI agent conversation interface [c]
+//! 3. **Editor View** - YAML editor with validation [d]
+//! 4. **Runner View** - Real-time execution monitoring [r]
+//! 5. **Scheduler View** - Cron/queue management [s]
+//! 6. **Settings View** - Provider config, theme, preferences [,]
 //!
 //! # Navigation
 //!
 //! ```text
-//!     [1/a]          [2/h]           [3/s]          [4/m]
-//!  ┌─────────┐   ┌─────────┐    ┌─────────┐    ┌─────────┐
-//!  │  CHAT   │◄─►│  HOME   │◄──►│ STUDIO  │◄──►│ MONITOR │
-//!  │  Agent  │   │ Browser │    │  Editor │    │ Execute │
-//!  └─────────┘   └─────────┘    └─────────┘    └─────────┘
-//!                     ▲              ▲              ▲
-//!                     │              │              │
-//!                     ▼              ▼              ▼
-//!              ┌───────────┐  ┌───────────┐
-//!              │ SETTINGS  │  │   HELP    │
-//!              │  [Ctrl+,] │  │    [?]    │
-//!              └───────────┘  └───────────┘
+//!     [1/e]          [2/c]           [3/d]          [4/r]          [5/s]          [6/,]
+//!  ┌─────────┐   ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
+//!  │EXPLORER │◄─►│  CHAT   │◄──►│ EDITOR  │◄──►│ RUNNER  │◄──►│SCHEDULER│◄──►│SETTINGS │
+//!  │ Browser │   │  Agent  │    │  YAML   │    │ Execute │    │  Cron   │    │ Config  │
+//!  └─────────┘   └─────────┘    └─────────┘    └─────────┘    └─────────┘    └─────────┘
+//!    DEFAULT
 //! ```
 //!
-//! Navigation: [Tab] cycles main 4 views, [Shift+Tab] cycles backward.
-//! Shortcuts: [1-4] jump to main views, [?] opens Help, [Ctrl+,] opens Settings.
+//! Navigation: [Tab] cycles all 6 views, [Shift+Tab] cycles backward.
+//! Shortcuts: [1-6] jump directly, [e/c/d/r/s/,] letter shortcuts.
 
 mod chat;
 mod help;
 mod home;
 mod monitor;
+mod scheduler;
 mod settings;
 mod studio;
 mod trait_view;
 
-// Main view exports
+// Main view exports (v0.12 names)
 #[allow(unused_imports)]
 pub use chat::{ChatMode, ChatView, MessageRole};
-pub use home::HomeView;
-#[allow(unused_imports)] // v0.11 WIP: tested via wiring_checkpoint_8.rs, not yet in App
-pub use monitor::MonitorView;
-pub use studio::{EditorMode, StudioView};
-
-// Auxiliary view exports (v0.11)
-pub use help::HelpView;
+// Explorer = Home (renamed in v0.12)
+#[allow(unused_imports)]
+pub use home::HomeView as ExplorerView;
+// Editor = Studio (renamed in v0.12)
+#[allow(unused_imports)]
+pub use studio::{EditorMode, StudioView as EditorView};
+// Runner = Monitor (renamed in v0.12)
+#[allow(unused_imports)]
+pub use monitor::MonitorView as RunnerView;
+// Scheduler = NEW in v0.12
+#[allow(unused_imports)]
+pub use scheduler::SchedulerView;
+// Settings stays the same
 pub use settings::SettingsView;
+
+// Legacy aliases for backwards compatibility (deprecated in v0.12)
+#[deprecated(since = "0.12.0", note = "Use ExplorerView instead")]
+pub use home::HomeView;
+#[deprecated(since = "0.12.0", note = "Use RunnerView instead")]
+pub use monitor::MonitorView;
+#[deprecated(since = "0.12.0", note = "Use EditorView instead")]
+pub use studio::StudioView;
+// Help view still exists but is no longer a main TuiView (merged into Settings)
+#[allow(unused_imports)]
+pub use help::HelpView;
 
 // Trait export
 pub use trait_view::View;
@@ -163,109 +173,125 @@ impl ReasoningTab {
     }
 }
 
-/// Active view in the TUI - 6 views navigation (v0.11)
+/// Active view in the TUI - 6 views navigation (v0.12)
+///
+/// v0.12 renames and reorders views per the 6-Views Design spec:
+/// - Home → Explorer (1, default)
+/// - Chat stays Chat (2)
+/// - Studio → Editor (3)
+/// - Monitor → Runner (4)
+/// - NEW: Scheduler (5)
+/// - Settings stays (6)
+/// - Help merged into Settings (no longer a TuiView)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TuiView {
-    /// Chat agent - command Nika conversationally
-    Chat,
-    /// Home browser - browse and select workflows (default)
+    /// Explorer - file browser + DAG preview (default) [1/e]
     #[default]
-    Home,
-    /// Studio editor - edit YAML with validation
-    Studio,
-    /// Monitor execution - real-time 4-panel display
-    Monitor,
-    /// Settings - provider config, theme, preferences (v0.11.1)
+    Explorer,
+    /// Chat agent - command Nika conversationally [2/c]
+    Chat,
+    /// Editor - edit YAML with validation [3/d]
+    Editor,
+    /// Runner - real-time execution monitoring [4/r]
+    Runner,
+    /// Scheduler - cron/queue management [5/s]
+    Scheduler,
+    /// Settings - provider config, theme, preferences [6/,]
     Settings,
-    /// Help - keyboard shortcuts reference (v0.11.2)
-    Help,
 }
 
 impl TuiView {
-    /// Get all views in order (main 4 views for Tab cycling)
+    /// Get all 6 views in order (Tab cycles through all)
     pub fn all() -> &'static [TuiView] {
         &[
+            TuiView::Explorer,
             TuiView::Chat,
-            TuiView::Home,
-            TuiView::Studio,
-            TuiView::Monitor,
-        ]
-    }
-
-    /// Get all 6 views including auxiliary (v0.11)
-    pub fn all_including_auxiliary() -> &'static [TuiView] {
-        &[
-            TuiView::Chat,
-            TuiView::Home,
-            TuiView::Studio,
-            TuiView::Monitor,
+            TuiView::Editor,
+            TuiView::Runner,
+            TuiView::Scheduler,
             TuiView::Settings,
-            TuiView::Help,
         ]
     }
 
-    /// Check if this is an auxiliary view (Settings/Help)
-    pub fn is_auxiliary(&self) -> bool {
-        matches!(self, TuiView::Settings | TuiView::Help)
+    /// Alias for all() - all 6 views (v0.12: no auxiliary distinction)
+    pub fn all_including_auxiliary() -> &'static [TuiView] {
+        Self::all()
     }
 
-    /// Get next view (cycling through main 4 views only)
+    /// Check if this is an auxiliary view (v0.12: only Settings is auxiliary)
+    pub fn is_auxiliary(&self) -> bool {
+        matches!(self, TuiView::Settings)
+    }
+
+    /// Get next view (cycling through all 6 views)
     pub fn next(&self) -> Self {
         match self {
-            TuiView::Chat => TuiView::Home,
-            TuiView::Home => TuiView::Studio,
-            TuiView::Studio => TuiView::Monitor,
-            TuiView::Monitor => TuiView::Chat,
-            // Auxiliary views return to Home on next
-            TuiView::Settings | TuiView::Help => TuiView::Home,
+            TuiView::Explorer => TuiView::Chat,
+            TuiView::Chat => TuiView::Editor,
+            TuiView::Editor => TuiView::Runner,
+            TuiView::Runner => TuiView::Scheduler,
+            TuiView::Scheduler => TuiView::Settings,
+            TuiView::Settings => TuiView::Explorer,
         }
     }
 
-    /// Get previous view (cycling through main 4 views only)
+    /// Get previous view (cycling through all 6 views)
     pub fn prev(&self) -> Self {
         match self {
-            TuiView::Chat => TuiView::Monitor,
-            TuiView::Home => TuiView::Chat,
-            TuiView::Studio => TuiView::Home,
-            TuiView::Monitor => TuiView::Studio,
-            // Auxiliary views return to Home on prev
-            TuiView::Settings | TuiView::Help => TuiView::Home,
+            TuiView::Explorer => TuiView::Settings,
+            TuiView::Chat => TuiView::Explorer,
+            TuiView::Editor => TuiView::Chat,
+            TuiView::Runner => TuiView::Editor,
+            TuiView::Scheduler => TuiView::Runner,
+            TuiView::Settings => TuiView::Scheduler,
         }
     }
 
-    /// Get view number (1-indexed for display, 0 for auxiliary)
+    /// Get view number (1-indexed for display)
     pub fn number(&self) -> u8 {
         match self {
-            TuiView::Chat => 1,
-            TuiView::Home => 2,
-            TuiView::Studio => 3,
-            TuiView::Monitor => 4,
-            TuiView::Settings => 5,
-            TuiView::Help => 6,
+            TuiView::Explorer => 1,
+            TuiView::Chat => 2,
+            TuiView::Editor => 3,
+            TuiView::Runner => 4,
+            TuiView::Scheduler => 5,
+            TuiView::Settings => 6,
         }
     }
 
-    /// Get the title for the header bar
+    /// Get the title for the header bar (v0.12 names)
     pub fn title(&self) -> &'static str {
         match self {
-            TuiView::Chat => "NIKA AGENT",
-            TuiView::Home => "NIKA HOME",
-            TuiView::Studio => "NIKA STUDIO",
-            TuiView::Monitor => "NIKA MONITOR",
+            TuiView::Explorer => "NIKA EXPLORER",
+            TuiView::Chat => "NIKA CHAT",
+            TuiView::Editor => "NIKA EDITOR",
+            TuiView::Runner => "NIKA RUNNER",
+            TuiView::Scheduler => "NIKA SCHEDULER",
             TuiView::Settings => "NIKA SETTINGS",
-            TuiView::Help => "NIKA HELP",
         }
     }
 
     /// Get the icon for the view (terminal-friendly)
     pub fn icon(&self) -> &'static str {
         match self {
-            TuiView::Chat => "◆",
-            TuiView::Home => "◆",
-            TuiView::Studio => "◆",
-            TuiView::Monitor => "◆",
+            TuiView::Explorer => "📁",
+            TuiView::Chat => "💬",
+            TuiView::Editor => "✏",
+            TuiView::Runner => "▶",
+            TuiView::Scheduler => "📅",
             TuiView::Settings => "⚙",
-            TuiView::Help => "?",
+        }
+    }
+
+    /// Get the letter shortcut for the view (v0.12)
+    pub fn shortcut(&self) -> char {
+        match self {
+            TuiView::Explorer => 'e',
+            TuiView::Chat => 'c',
+            TuiView::Editor => 'd',
+            TuiView::Runner => 'r',
+            TuiView::Scheduler => 's',
+            TuiView::Settings => ',',
         }
     }
 
@@ -277,6 +303,8 @@ impl TuiView {
 
 /// Model provider for LLM switching
 pub use crate::tui::command::{McpAction, ModelProvider};
+/// Theme variant for direct theme selection (v0.12.0)
+pub use crate::tui::tokens::CosmicVariant;
 
 /// Result of handling a key event in a view
 #[derive(Debug, Clone)]
@@ -320,6 +348,8 @@ pub enum ViewAction {
     OpenSettings,
     /// Toggle theme (v0.8.1)
     ToggleTheme,
+    /// Set specific theme by variant (v0.12.0 - fix for `[1][2][3]` selection)
+    SetTheme(CosmicVariant),
     /// Verify all configured providers (v0.8.2)
     VerifyProviders,
     /// Refresh verification (invalidate cache + re-verify) (v0.8.2)
@@ -344,104 +374,107 @@ mod tests {
     #[test]
     fn test_tui_view_default() {
         let view = TuiView::default();
-        assert_eq!(view, TuiView::Home);
+        assert_eq!(view, TuiView::Explorer);
     }
 
     #[test]
-    fn test_tui_view_all_main_four_variants() {
+    fn test_tui_view_all_six_views() {
         let views = TuiView::all();
-        assert_eq!(views.len(), 4);
-        assert_eq!(views[0], TuiView::Chat);
-        assert_eq!(views[1], TuiView::Home);
-        assert_eq!(views[2], TuiView::Studio);
-        assert_eq!(views[3], TuiView::Monitor);
+        assert_eq!(views.len(), 6);
+        assert_eq!(views[0], TuiView::Explorer);
+        assert_eq!(views[1], TuiView::Chat);
+        assert_eq!(views[2], TuiView::Editor);
+        assert_eq!(views[3], TuiView::Runner);
+        assert_eq!(views[4], TuiView::Scheduler);
+        assert_eq!(views[5], TuiView::Settings);
     }
 
     #[test]
-    fn test_tui_view_all_including_auxiliary() {
+    fn test_tui_view_all_including_auxiliary_same_as_all() {
         let views = TuiView::all_including_auxiliary();
         assert_eq!(views.len(), 6);
-        assert_eq!(views[4], TuiView::Settings);
-        assert_eq!(views[5], TuiView::Help);
+        assert_eq!(views, TuiView::all());
     }
 
     #[test]
     fn test_tui_view_is_auxiliary() {
+        assert!(!TuiView::Explorer.is_auxiliary());
         assert!(!TuiView::Chat.is_auxiliary());
-        assert!(!TuiView::Home.is_auxiliary());
-        assert!(!TuiView::Studio.is_auxiliary());
-        assert!(!TuiView::Monitor.is_auxiliary());
+        assert!(!TuiView::Editor.is_auxiliary());
+        assert!(!TuiView::Runner.is_auxiliary());
+        assert!(!TuiView::Scheduler.is_auxiliary());
         assert!(TuiView::Settings.is_auxiliary());
-        assert!(TuiView::Help.is_auxiliary());
     }
 
     #[test]
-    fn test_tui_view_next_cycles_main_views() {
-        assert_eq!(TuiView::Chat.next(), TuiView::Home);
-        assert_eq!(TuiView::Home.next(), TuiView::Studio);
-        assert_eq!(TuiView::Studio.next(), TuiView::Monitor);
-        assert_eq!(TuiView::Monitor.next(), TuiView::Chat);
+    fn test_tui_view_next_cycles_all_six() {
+        assert_eq!(TuiView::Explorer.next(), TuiView::Chat);
+        assert_eq!(TuiView::Chat.next(), TuiView::Editor);
+        assert_eq!(TuiView::Editor.next(), TuiView::Runner);
+        assert_eq!(TuiView::Runner.next(), TuiView::Scheduler);
+        assert_eq!(TuiView::Scheduler.next(), TuiView::Settings);
+        assert_eq!(TuiView::Settings.next(), TuiView::Explorer);
     }
 
     #[test]
-    fn test_tui_view_auxiliary_next_returns_home() {
-        assert_eq!(TuiView::Settings.next(), TuiView::Home);
-        assert_eq!(TuiView::Help.next(), TuiView::Home);
-    }
-
-    #[test]
-    fn test_tui_view_prev_cycles_main_views() {
-        assert_eq!(TuiView::Chat.prev(), TuiView::Monitor);
-        assert_eq!(TuiView::Home.prev(), TuiView::Chat);
-        assert_eq!(TuiView::Studio.prev(), TuiView::Home);
-        assert_eq!(TuiView::Monitor.prev(), TuiView::Studio);
-    }
-
-    #[test]
-    fn test_tui_view_auxiliary_prev_returns_home() {
-        assert_eq!(TuiView::Settings.prev(), TuiView::Home);
-        assert_eq!(TuiView::Help.prev(), TuiView::Home);
+    fn test_tui_view_prev_cycles_all_six() {
+        assert_eq!(TuiView::Explorer.prev(), TuiView::Settings);
+        assert_eq!(TuiView::Chat.prev(), TuiView::Explorer);
+        assert_eq!(TuiView::Editor.prev(), TuiView::Chat);
+        assert_eq!(TuiView::Runner.prev(), TuiView::Editor);
+        assert_eq!(TuiView::Scheduler.prev(), TuiView::Runner);
+        assert_eq!(TuiView::Settings.prev(), TuiView::Scheduler);
     }
 
     #[test]
     fn test_tui_view_number_all_six() {
-        assert_eq!(TuiView::Chat.number(), 1);
-        assert_eq!(TuiView::Home.number(), 2);
-        assert_eq!(TuiView::Studio.number(), 3);
-        assert_eq!(TuiView::Monitor.number(), 4);
-        assert_eq!(TuiView::Settings.number(), 5);
-        assert_eq!(TuiView::Help.number(), 6);
+        assert_eq!(TuiView::Explorer.number(), 1);
+        assert_eq!(TuiView::Chat.number(), 2);
+        assert_eq!(TuiView::Editor.number(), 3);
+        assert_eq!(TuiView::Runner.number(), 4);
+        assert_eq!(TuiView::Scheduler.number(), 5);
+        assert_eq!(TuiView::Settings.number(), 6);
     }
 
     #[test]
     fn test_tui_view_titles_all_six() {
-        assert_eq!(TuiView::Chat.title(), "NIKA AGENT");
-        assert_eq!(TuiView::Home.title(), "NIKA HOME");
-        assert_eq!(TuiView::Studio.title(), "NIKA STUDIO");
-        assert_eq!(TuiView::Monitor.title(), "NIKA MONITOR");
+        assert_eq!(TuiView::Explorer.title(), "NIKA EXPLORER");
+        assert_eq!(TuiView::Chat.title(), "NIKA CHAT");
+        assert_eq!(TuiView::Editor.title(), "NIKA EDITOR");
+        assert_eq!(TuiView::Runner.title(), "NIKA RUNNER");
+        assert_eq!(TuiView::Scheduler.title(), "NIKA SCHEDULER");
         assert_eq!(TuiView::Settings.title(), "NIKA SETTINGS");
-        assert_eq!(TuiView::Help.title(), "NIKA HELP");
     }
 
     #[test]
     fn test_tui_view_icons_all_six() {
-        assert_eq!(TuiView::Chat.icon(), "◆");
-        assert_eq!(TuiView::Home.icon(), "◆");
-        assert_eq!(TuiView::Studio.icon(), "◆");
-        assert_eq!(TuiView::Monitor.icon(), "◆");
+        assert_eq!(TuiView::Explorer.icon(), "📁");
+        assert_eq!(TuiView::Chat.icon(), "💬");
+        assert_eq!(TuiView::Editor.icon(), "✏");
+        assert_eq!(TuiView::Runner.icon(), "▶");
+        assert_eq!(TuiView::Scheduler.icon(), "📅");
         assert_eq!(TuiView::Settings.icon(), "⚙");
-        assert_eq!(TuiView::Help.icon(), "?");
+    }
+
+    #[test]
+    fn test_tui_view_shortcuts_all_six() {
+        assert_eq!(TuiView::Explorer.shortcut(), 'e');
+        assert_eq!(TuiView::Chat.shortcut(), 'c');
+        assert_eq!(TuiView::Editor.shortcut(), 'd');
+        assert_eq!(TuiView::Runner.shortcut(), 'r');
+        assert_eq!(TuiView::Scheduler.shortcut(), 's');
+        assert_eq!(TuiView::Settings.shortcut(), ',');
     }
 
     #[test]
     fn test_view_action_switch_to_all_six_views() {
         let actions = [
+            ViewAction::SwitchView(TuiView::Explorer),
             ViewAction::SwitchView(TuiView::Chat),
-            ViewAction::SwitchView(TuiView::Home),
-            ViewAction::SwitchView(TuiView::Studio),
-            ViewAction::SwitchView(TuiView::Monitor),
+            ViewAction::SwitchView(TuiView::Editor),
+            ViewAction::SwitchView(TuiView::Runner),
+            ViewAction::SwitchView(TuiView::Scheduler),
             ViewAction::SwitchView(TuiView::Settings),
-            ViewAction::SwitchView(TuiView::Help),
         ];
         assert_eq!(actions.len(), 6);
     }
@@ -518,5 +551,30 @@ mod tests {
         assert_eq!(DagTab::default(), DagTab::Graph);
         assert_eq!(NovanetTab::default(), NovanetTab::Summary);
         assert_eq!(ReasoningTab::default(), ReasoningTab::Turns);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // ViewAction::SetTheme tests (v0.12.0)
+    // ════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_view_action_set_theme_all_variants() {
+        let actions = [
+            ViewAction::SetTheme(CosmicVariant::CosmicDark),
+            ViewAction::SetTheme(CosmicVariant::CosmicLight),
+            ViewAction::SetTheme(CosmicVariant::CosmicViolet),
+        ];
+        assert_eq!(actions.len(), 3);
+    }
+
+    #[test]
+    fn test_view_action_set_theme_variant_check() {
+        let action = ViewAction::SetTheme(CosmicVariant::CosmicLight);
+        match action {
+            ViewAction::SetTheme(variant) => {
+                assert_eq!(variant, CosmicVariant::CosmicLight);
+            }
+            _ => panic!("Expected SetTheme"),
+        }
     }
 }

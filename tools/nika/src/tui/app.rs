@@ -49,9 +49,11 @@ use crate::tui::command::ModelProvider;
 use rustc_hash::FxHashMap;
 use std::path::PathBuf;
 
+use super::config::{ThemeName, TuiConfig};
 use super::cosmic_theme::CosmicTheme;
 use super::focus::{FocusState, PanelId as NavPanelId};
 use super::mode::InputMode;
+use super::session::save_session;
 use super::standalone::{HistoryEntry, StandaloneState};
 use super::startup;
 use super::state::{PanelId, TuiMode, TuiState};
@@ -59,13 +61,16 @@ use super::theme::Theme;
 use super::utils::truncate_str;
 use super::verification::{VerificationCache, VerificationEntry};
 use super::views::{
-    ChatView, HelpView, HomeView, McpAction, MonitorView, SettingsView, StudioView, TuiView, View,
-    ViewAction,
+    ChatView, HelpView, HomeView, McpAction, MonitorView, SchedulerView, SettingsView, StudioView,
+    TuiView, View, ViewAction,
 };
 use super::widgets::task_box::{
     AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,
 };
-use super::widgets::{ConnectionStatus, Header, StatusBar, StatusMessageWidget, StatusMetrics};
+use super::widgets::{
+    ConnectionStatus, Header, NikaIntro, NikaIntroState, StatusBar, StatusMessageWidget,
+    StatusMetrics,
+};
 use crossterm::event::KeyEvent;
 
 // Note: Frame rate is now adaptive - see FAST_TICK_MS/SLOW_TICK_MS in run_unified()
@@ -241,6 +246,8 @@ pub struct App {
     help_view: HelpView,
     /// Monitor view state (v0.11 - workflow execution monitoring)
     monitor_view: MonitorView,
+    /// Scheduler view state (v0.12 - cron/queue management)
+    scheduler_view: SchedulerView,
     // ═══ LLM Integration for ChatOverlay ═══
     /// Channel for receiving LLM responses (complete responses)
     llm_response_rx: mpsc::Receiver<String>,
@@ -266,6 +273,14 @@ pub struct App {
     /// AbortHandles for tracked background tasks
     /// Enables proper cancellation on app exit via abort_all()
     background_handles: Arc<Mutex<Vec<AbortHandle>>>,
+    // ═══ Session Persistence (v0.12.0) ═══
+    /// Current session ID (for save/load)
+    session_id: Option<String>,
+    // ═══ TUI Config (v0.12.0) ═══
+    /// Loaded configuration from .nika/config.toml
+    /// v0.12.0: Field loaded at startup, full integration in v0.13 (theme/editor settings)
+    #[allow(dead_code)]
+    config: TuiConfig,
     // ═══ Performance: Reusable Event Buffer (v0.8.1) ═══
     /// PERF: Pre-allocated buffer for poll_runtime_events to avoid
     /// allocating a new Vec on every frame (60 FPS = 60 allocations/sec saved)
@@ -274,6 +289,9 @@ pub struct App {
     /// TTL-based cache for provider and MCP server verification results.
     /// Prevents redundant API calls when opening/refreshing the provider selector.
     verification_cache: Arc<Mutex<VerificationCache>>,
+    // ═══ Nika Intro Animation (v0.12.0) ═══
+    /// Splash screen animation shown on standalone TUI startup
+    intro_state: Option<NikaIntroState>,
 }
 
 impl App {
@@ -298,6 +316,7 @@ impl App {
         let settings_view = SettingsView::new();
         let help_view = HelpView::new();
         let monitor_view = MonitorView::new();
+        let scheduler_view = SchedulerView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -307,8 +326,16 @@ impl App {
         // Initialize ChatAgent (may fail if no API keys are set, but that's OK)
         let chat_agent = ChatAgent::new().ok();
 
-        // Initialize cosmic theme (default: CosmicDark)
-        let cosmic_theme = CosmicTheme::default();
+        // Load TUI configuration from .nika/config.toml (v0.12.0)
+        let config = TuiConfig::load_or_default();
+
+        // Initialize cosmic theme from config (v0.12.0: respects saved theme)
+        let theme_variant = match config.tui.theme {
+            ThemeName::Dark => crate::tui::tokens::CosmicVariant::CosmicDark,
+            ThemeName::Light => crate::tui::tokens::CosmicVariant::CosmicLight,
+            ThemeName::Solarized => crate::tui::tokens::CosmicVariant::CosmicViolet,
+        };
+        let cosmic_theme = CosmicTheme::new(theme_variant);
         let theme = cosmic_theme.as_theme();
 
         Ok(Self {
@@ -326,15 +353,16 @@ impl App {
             status_message: None,
             retry_requested: false,
             // 4-view architecture - start in Monitor mode for workflow execution
-            current_view: TuiView::Monitor,
+            current_view: TuiView::Runner,
             input_mode: InputMode::Normal,
-            focus_state: FocusState::new(NavPanelId::MonitorMission),
+            focus_state: FocusState::new(NavPanelId::RunnerMission),
             chat_view,
             home_view: None, // No home view in execution mode
             studio_view,
             settings_view,
             help_view,
             monitor_view,
+            scheduler_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -344,8 +372,11 @@ impl App {
             mcp_client_cache: Arc::new(DashMap::new()),
             cached_mcp_connected: 0,
             background_handles: Arc::new(Mutex::new(Vec::new())),
+            session_id: None, // v0.12: No session in workflow mode
+            config,           // v0.12.0: TUI config from .nika/config.toml
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
+            intro_state: None, // v0.12: No intro in workflow execution mode
         })
     }
 
@@ -362,6 +393,7 @@ impl App {
         let settings_view = SettingsView::new();
         let help_view = HelpView::new();
         let monitor_view = MonitorView::new();
+        let scheduler_view = SchedulerView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -371,8 +403,16 @@ impl App {
         // Initialize ChatAgent (may fail if no API keys are set, but that's OK)
         let chat_agent = ChatAgent::new().ok();
 
-        // Initialize cosmic theme (default: CosmicDark)
-        let cosmic_theme = CosmicTheme::default();
+        // Load TUI configuration from .nika/config.toml (v0.12.0)
+        let config = TuiConfig::load_or_default();
+
+        // Initialize cosmic theme from config (v0.12.0: respects saved theme)
+        let theme_variant = match config.tui.theme {
+            ThemeName::Dark => crate::tui::tokens::CosmicVariant::CosmicDark,
+            ThemeName::Light => crate::tui::tokens::CosmicVariant::CosmicLight,
+            ThemeName::Solarized => crate::tui::tokens::CosmicVariant::CosmicViolet,
+        };
+        let cosmic_theme = CosmicTheme::new(theme_variant);
         let theme = cosmic_theme.as_theme();
 
         Ok(Self {
@@ -390,15 +430,16 @@ impl App {
             status_message: None,
             retry_requested: false,
             // 4-view architecture - start in Home mode for standalone
-            current_view: TuiView::Home,
+            current_view: TuiView::Explorer,
             input_mode: InputMode::Normal,
-            focus_state: FocusState::new(NavPanelId::HomeFiles),
+            focus_state: FocusState::new(NavPanelId::ExplorerFiles),
             chat_view,
             home_view: Some(home_view),
             studio_view,
             settings_view,
             help_view,
             monitor_view,
+            scheduler_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -408,8 +449,11 @@ impl App {
             mcp_client_cache: Arc::new(DashMap::new()),
             cached_mcp_connected: 0,
             background_handles: Arc::new(Mutex::new(Vec::new())),
+            session_id: None,                     // v0.12: Session loaded on demand
+            config,                               // v0.12.0: TUI config from .nika/config.toml
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
+            intro_state: Some(NikaIntroState::new()), // v0.12: Show intro animation on startup
         })
     }
 
@@ -635,7 +679,13 @@ impl App {
             // 2. Determine if we need fast rendering
             let is_streaming = self.chat_view.is_streaming;
             let has_inline_content = !self.chat_view.inline_content.is_empty();
-            let needs_fast_render = is_streaming || has_inline_content || had_recent_input;
+            let intro_active = self
+                .intro_state
+                .as_ref()
+                .map(|i| !i.is_done())
+                .unwrap_or(false);
+            let needs_fast_render =
+                is_streaming || has_inline_content || had_recent_input || intro_active;
             had_recent_input = false; // Consume the flag
 
             // 3. Update elapsed time and animations
@@ -646,6 +696,20 @@ impl App {
             }
             self.studio_view.tick(); // v0.9.1: Matrix Rain animation
             self.studio_view.maybe_validate(); // Debounced validation (300ms after last edit)
+
+            // v0.12: Tick intro animation (if active)
+            if let Some(ref mut intro) = self.intro_state {
+                if !intro.is_done() {
+                    // Get terminal size for intro animation
+                    let intro_area = self
+                        .terminal
+                        .as_ref()
+                        .and_then(|t| t.size().ok())
+                        .map(|s| Rect::new(0, 0, s.width, s.height))
+                        .unwrap_or_else(|| Rect::new(0, 0, 80, 24));
+                    intro.tick(intro_area);
+                }
+            }
 
             // 4. Render frame based on current view
             self.render_unified_frame()?;
@@ -687,6 +751,8 @@ impl App {
 
             // 7. Check quit flag
             if self.should_quit {
+                // Save chat session before quitting (v0.12.0)
+                self.save_current_session();
                 break;
             }
         }
@@ -1220,7 +1286,7 @@ impl App {
 
         if let Some(ref mut terminal) = self.terminal {
             // Ensure timeline cache is up-to-date before rendering Monitor view
-            if current_view == TuiView::Monitor {
+            if current_view == TuiView::Runner {
                 self.state.ensure_timeline_cache();
             }
 
@@ -1246,6 +1312,7 @@ impl App {
                     .count();
                 format!("Tasks: {}/{}", completed, task_count)
             };
+            let scheduler_status = self.scheduler_view.status_line(&self.state);
 
             // Extract references to avoid borrow issues with the closure
             let theme = &self.theme;
@@ -1254,10 +1321,12 @@ impl App {
             let home_view = &mut self.home_view;
             let studio_view = &mut self.studio_view;
             let settings_view = &mut self.settings_view;
-            let help_view = &mut self.help_view;
+            let _help_view = &mut self.help_view; // v0.12: Help merged into Settings, kept for backwards compat
             let monitor_view = &mut self.monitor_view;
+            let scheduler_view = &mut self.scheduler_view;
             let workflow_path = &self.state.workflow.path;
-            // P0 Fix: Use is_paused() accessor for unified pause state
+            let intro_state = &self.intro_state; // v0.12: Intro animation state
+                                                 // P0 Fix: Use is_paused() accessor for unified pause state
             let paused = self.state.is_paused();
             let input_mode = self.input_mode;
 
@@ -1273,12 +1342,12 @@ impl App {
             // Get custom status text from current view (using pre-computed values)
             let status_text = match current_view {
                 TuiView::Chat => chat_status,
-                TuiView::Home => home_status,
-                TuiView::Studio => studio_status,
-                TuiView::Monitor => monitor_status,
+                TuiView::Explorer => home_status,
+                TuiView::Editor => studio_status,
+                TuiView::Runner => monitor_status,
+                TuiView::Scheduler => scheduler_status,
                 // Auxiliary views use their own status (v0.11)
                 TuiView::Settings => settings_view.status_line(state),
-                TuiView::Help => help_view.status_line(state),
             };
 
             terminal
@@ -1294,6 +1363,15 @@ impl App {
                         let overlay = TerminalTooSmallOverlay::new(size.width, size.height);
                         frame.render_widget(overlay, size);
                         return;
+                    }
+
+                    // v0.12: Show intro animation (full screen overlay) if active
+                    if let Some(intro) = intro_state {
+                        if !intro.is_done() {
+                            let intro_widget = NikaIntro::new(intro);
+                            frame.render_widget(intro_widget, size);
+                            return;
+                        }
                     }
 
                     // Layout: Header (1) + Content (dynamic) + StatusBar (1)
@@ -1321,7 +1399,7 @@ impl App {
                         TuiView::Chat => {
                             chat_view.render(frame, chunks[1], state, theme);
                         }
-                        TuiView::Home => {
+                        TuiView::Explorer => {
                             if let Some(ref mut hv) = home_view {
                                 hv.render(frame, chunks[1], state, theme);
                             } else {
@@ -1331,19 +1409,20 @@ impl App {
                                 frame.render_widget(placeholder, chunks[1]);
                             }
                         }
-                        TuiView::Studio => {
+                        TuiView::Editor => {
                             studio_view.render(frame, chunks[1], state, theme);
                         }
-                        TuiView::Monitor => {
+                        TuiView::Runner => {
                             // v0.11: Monitor view with 4-panel layout via View trait
                             monitor_view.render(frame, chunks[1], state, theme);
                         }
-                        // v0.11: Auxiliary views (Settings, Help)
+                        TuiView::Scheduler => {
+                            // v0.12: Scheduler view (cron/queue management)
+                            scheduler_view.render(frame, chunks[1], state, theme);
+                        }
+                        // v0.11: Auxiliary views (Settings)
                         TuiView::Settings => {
                             settings_view.render(frame, chunks[1], state, theme);
-                        }
-                        TuiView::Help => {
-                            help_view.render(frame, chunks[1], state, theme);
                         }
                     }
 
@@ -1428,17 +1507,23 @@ impl App {
                 return Action::SwitchView(TuiView::Chat);
             }
             KeyCode::Char('2') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Home);
+                return Action::SwitchView(TuiView::Explorer);
             }
             KeyCode::Char('3') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Studio);
+                return Action::SwitchView(TuiView::Editor);
             }
             KeyCode::Char('4') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Monitor);
+                return Action::SwitchView(TuiView::Runner);
+            }
+            KeyCode::Char('5') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Scheduler);
+            }
+            KeyCode::Char('6') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Settings);
             }
 
             // Tab/BackTab delegated to views for panel navigation (v0.8 UX)
-            // Use number keys 1/2/3/4 to switch views
+            // Use number keys 1-6 to switch views (v0.12 6-views architecture)
             // Views handle Tab internally for panel focus cycling
             _ => {}
         }
@@ -1470,7 +1555,7 @@ impl App {
         let key_event = KeyEvent::new(code, modifiers);
 
         match self.current_view {
-            TuiView::Monitor => {
+            TuiView::Runner => {
                 // Monitor uses the existing 4-panel key handling
                 self.handle_key(code, modifiers)
             }
@@ -1479,7 +1564,7 @@ impl App {
                 let view_action = self.chat_view.handle_key(key_event, &mut self.state);
                 self.convert_view_action(view_action)
             }
-            TuiView::Home => {
+            TuiView::Explorer => {
                 if let Some(ref mut home_view) = self.home_view {
                     let view_action = home_view.handle_key(key_event, &mut self.state);
                     self.convert_view_action(view_action)
@@ -1488,17 +1573,18 @@ impl App {
                     Action::Continue
                 }
             }
-            TuiView::Studio => {
+            TuiView::Editor => {
                 let view_action = self.studio_view.handle_key(key_event, &mut self.state);
+                self.convert_view_action(view_action)
+            }
+            TuiView::Scheduler => {
+                // v0.12: Scheduler view
+                let view_action = self.scheduler_view.handle_key(key_event, &mut self.state);
                 self.convert_view_action(view_action)
             }
             // v0.11: Auxiliary views - delegate to view handlers
             TuiView::Settings => {
                 let view_action = self.settings_view.handle_key(key_event, &mut self.state);
-                self.convert_view_action(view_action)
-            }
-            TuiView::Help => {
-                let view_action = self.help_view.handle_key(key_event, &mut self.state);
                 self.convert_view_action(view_action)
             }
         }
@@ -1509,7 +1595,7 @@ impl App {
     fn is_view_capturing_input(&self) -> bool {
         match self.current_view {
             TuiView::Chat => !self.chat_view.input.value().is_empty(),
-            TuiView::Studio => self.studio_view.mode == super::views::EditorMode::Insert,
+            TuiView::Editor => self.studio_view.mode == super::views::EditorMode::Insert,
             _ => false,
         }
     }
@@ -1523,7 +1609,7 @@ impl App {
             ViewAction::RunWorkflow(path) => {
                 // Switch to Monitor view and store path for execution
                 self.workflow_path = path.clone();
-                self.current_view = TuiView::Monitor;
+                self.current_view = TuiView::Runner;
                 self.workflow_done = false;
 
                 // Trigger workflow execution asynchronously
@@ -1535,7 +1621,7 @@ impl App {
                 if let Err(e) = self.studio_view.load_file(path) {
                     tracing::error!("Failed to load file in studio: {}", e);
                 }
-                Action::SwitchView(TuiView::Studio)
+                Action::SwitchView(TuiView::Editor)
             }
             ViewAction::SendChatMessage(msg) => {
                 // Send message to LLM for processing (like /infer but conversational)
@@ -1656,6 +1742,10 @@ impl App {
                 self.toggle_theme();
                 Action::Continue
             }
+            ViewAction::SetTheme(variant) => {
+                self.set_theme(variant);
+                Action::Continue
+            }
             ViewAction::VerifyProviders => {
                 // Spawn async verification for providers and MCP servers (v0.8.2)
                 self.spawn_provider_verification();
@@ -1740,7 +1830,8 @@ impl App {
                         use crate::ast::Workflow;
                         match serde_yaml::from_str::<Workflow>(&content) {
                             Ok(_workflow) => {
-                                let name = path.file_name()
+                                let name = path
+                                    .file_name()
                                     .and_then(|n| n.to_str())
                                     .unwrap_or("workflow");
                                 self.set_status(&format!("✅ {} is valid", name));
@@ -2015,26 +2106,26 @@ impl App {
             Action::FocusNext => {
                 self.state.focus_next();
                 // Sync Navigation 2.0 focus_state for Monitor view
-                if self.current_view == TuiView::Monitor {
+                if self.current_view == TuiView::Runner {
                     self.focus_state.next_panel();
                 }
             }
             Action::FocusPrev => {
                 self.state.focus_prev();
                 // Sync Navigation 2.0 focus_state for Monitor view
-                if self.current_view == TuiView::Monitor {
+                if self.current_view == TuiView::Runner {
                     self.focus_state.prev_panel();
                 }
             }
             Action::FocusPanel(n) => {
                 self.state.focus_panel(n);
                 // Sync Navigation 2.0 focus_state for Monitor view
-                if self.current_view == TuiView::Monitor {
+                if self.current_view == TuiView::Runner {
                     let panel = match n {
-                        1 => NavPanelId::MonitorMission,
-                        2 => NavPanelId::MonitorDag,
-                        3 => NavPanelId::MonitorNovanet,
-                        _ => NavPanelId::MonitorReasoning,
+                        1 => NavPanelId::RunnerMission,
+                        2 => NavPanelId::RunnerDag,
+                        3 => NavPanelId::RunnerNovanet,
+                        _ => NavPanelId::RunnerReasoning,
                     };
                     self.focus_state.focus(panel);
                 }
@@ -2388,12 +2479,62 @@ impl App {
         // Also update legacy theme_mode for backward compat
         self.state.theme_mode = self.cosmic_theme.variant().into();
 
+        // v0.12: Sync SettingsView display
+        self.settings_view
+            .update_theme_name(self.cosmic_theme.label());
+
+        self.set_status(&format!("🎨 Theme: {}", self.cosmic_theme.label()));
+    }
+
+    /// Set theme to a specific variant (v0.12.0)
+    ///
+    /// Used by Settings view for direct theme selection via [1][2][3] keys.
+    fn set_theme(&mut self, variant: crate::tui::tokens::CosmicVariant) {
+        self.cosmic_theme = crate::tui::CosmicTheme::new(variant);
+        self.theme = self.cosmic_theme.as_theme();
+
+        // Also update legacy theme_mode for backward compat
+        self.state.theme_mode = self.cosmic_theme.variant().into();
+
+        // v0.12: Sync SettingsView display
+        self.settings_view
+            .update_theme_name(self.cosmic_theme.label());
+
         self.set_status(&format!("🎨 Theme: {}", self.cosmic_theme.label()));
     }
 
     /// Set status message with auto-clear timer
     fn set_status(&mut self, message: &str) {
         self.status_message = Some((message.to_string(), std::time::Instant::now()));
+    }
+
+    /// Save current chat session to disk (v0.12.0)
+    ///
+    /// Called on quit to persist the chat conversation.
+    /// Only saves if there are messages beyond the system prompt.
+    fn save_current_session(&mut self) {
+        // Only save in standalone mode (chat mode)
+        if self.standalone_state.is_none() {
+            return;
+        }
+
+        // Get chat state from the chat view
+        let chat_state = self.chat_view.get_chat_state();
+
+        // Save session (guard: won't save empty sessions)
+        match save_session(&chat_state) {
+            Ok(session) => {
+                self.session_id = Some(session.id.clone());
+                tracing::info!("Chat session saved: {}", session.id);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::InvalidInput => {
+                // Empty session - not an error, just skip
+                tracing::debug!("Skipping save: {}", e);
+            }
+            Err(e) => {
+                tracing::warn!("Failed to save session: {}", e);
+            }
+        }
     }
 
     /// Request workflow retry (TIER 1.2)
@@ -3269,6 +3410,9 @@ impl App {
                     // Sync both provider and model names
                     self.chat_view.set_provider(provider.name());
                     self.chat_view.set_model(agent.model_name());
+                    // v0.12: Sync SettingsView display
+                    self.settings_view
+                        .update_provider(provider.name(), agent.model_name());
                     let msg = format!("Switched to {} ({})", provider.name(), agent.model_name());
                     self.chat_view.add_nika_message(msg.clone(), None);
                     self.set_status(&msg);
@@ -3292,6 +3436,9 @@ impl App {
                         self.chat_agent = Some(agent);
                         self.chat_view.set_provider(provider.name());
                         self.chat_view.set_model(&model_name);
+                        // v0.12: Sync SettingsView display
+                        self.settings_view
+                            .update_provider(provider.name(), &model_name);
                         let msg = format!("Switched to {} ({})", provider.name(), model_name);
                         self.chat_view.add_nika_message(msg.clone(), None);
                         self.set_status(&msg);
@@ -4188,7 +4335,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let state = StandaloneState::new(temp_dir.path().to_path_buf());
         let app = App::new_standalone(state).unwrap();
-        assert_eq!(app.current_view, TuiView::Home);
+        assert_eq!(app.current_view, TuiView::Explorer);
     }
 
     #[test]
@@ -4197,7 +4344,7 @@ mod tests {
         let workflow_path = temp_dir.path().join("test.yaml");
         std::fs::write(&workflow_path, "schema: test").unwrap();
         let app = App::new(&workflow_path).unwrap();
-        assert_eq!(app.current_view, TuiView::Monitor);
+        assert_eq!(app.current_view, TuiView::Runner);
     }
 
     #[test]
@@ -4208,23 +4355,23 @@ mod tests {
         let mut app = App::new(&workflow_path).unwrap();
 
         // Initial view is Monitor
-        assert_eq!(app.current_view, TuiView::Monitor);
+        assert_eq!(app.current_view, TuiView::Runner);
 
         // Switch to Home
-        app.switch_view(TuiView::Home);
-        assert_eq!(app.current_view, TuiView::Home);
+        app.switch_view(TuiView::Explorer);
+        assert_eq!(app.current_view, TuiView::Explorer);
 
         // Switch to Chat
         app.switch_view(TuiView::Chat);
         assert_eq!(app.current_view, TuiView::Chat);
 
         // Switch to Studio
-        app.switch_view(TuiView::Studio);
-        assert_eq!(app.current_view, TuiView::Studio);
+        app.switch_view(TuiView::Editor);
+        assert_eq!(app.current_view, TuiView::Editor);
 
         // Switch back to Monitor
-        app.switch_view(TuiView::Monitor);
-        assert_eq!(app.current_view, TuiView::Monitor);
+        app.switch_view(TuiView::Runner);
+        assert_eq!(app.current_view, TuiView::Runner);
     }
 
     #[test]
@@ -4234,25 +4381,31 @@ mod tests {
         std::fs::write(&workflow_path, "schema: test").unwrap();
         let mut app = App::new(&workflow_path).unwrap();
 
-        // Start at Monitor
-        app.current_view = TuiView::Chat;
+        // Start at Explorer (v0.12 default)
+        app.current_view = TuiView::Explorer;
 
-        // Next should go Chat -> Home -> Studio -> Monitor -> Chat
-        app.current_view = app.current_view.next();
-        assert_eq!(app.current_view, TuiView::Home);
-
-        app.current_view = app.current_view.next();
-        assert_eq!(app.current_view, TuiView::Studio);
-
-        app.current_view = app.current_view.next();
-        assert_eq!(app.current_view, TuiView::Monitor);
-
+        // Next should go Explorer -> Chat -> Editor -> Runner -> Scheduler -> Settings -> Explorer
         app.current_view = app.current_view.next();
         assert_eq!(app.current_view, TuiView::Chat);
 
-        // Prev should go Chat -> Monitor -> Studio -> Home -> Chat
+        app.current_view = app.current_view.next();
+        assert_eq!(app.current_view, TuiView::Editor);
+
+        app.current_view = app.current_view.next();
+        assert_eq!(app.current_view, TuiView::Runner);
+
+        app.current_view = app.current_view.next();
+        assert_eq!(app.current_view, TuiView::Scheduler);
+
+        app.current_view = app.current_view.next();
+        assert_eq!(app.current_view, TuiView::Settings);
+
+        app.current_view = app.current_view.next();
+        assert_eq!(app.current_view, TuiView::Explorer);
+
+        // Prev should go Explorer -> Settings
         app.current_view = app.current_view.prev();
-        assert_eq!(app.current_view, TuiView::Monitor);
+        assert_eq!(app.current_view, TuiView::Settings);
     }
 
     #[test]
@@ -4272,7 +4425,7 @@ mod tests {
         assert!(app.is_view_capturing_input());
 
         // Studio in Normal mode is not capturing
-        app.current_view = TuiView::Studio;
+        app.current_view = TuiView::Editor;
         app.studio_view.mode = EditorMode::Normal;
         assert!(!app.is_view_capturing_input());
 
@@ -4281,10 +4434,10 @@ mod tests {
         assert!(app.is_view_capturing_input());
 
         // Home and Monitor never capture
-        app.current_view = TuiView::Home;
+        app.current_view = TuiView::Explorer;
         assert!(!app.is_view_capturing_input());
 
-        app.current_view = TuiView::Monitor;
+        app.current_view = TuiView::Runner;
         assert!(!app.is_view_capturing_input());
     }
 
@@ -4300,7 +4453,7 @@ mod tests {
         let mut app = App::new(&workflow_path).unwrap();
 
         // Start in Home view
-        app.current_view = TuiView::Home;
+        app.current_view = TuiView::Explorer;
         app.input_mode = InputMode::Normal;
 
         // Tab should be routed to view (returns Continue, not SwitchView)
@@ -4321,7 +4474,7 @@ mod tests {
         let mut app = App::new(&workflow_path).unwrap();
 
         // Start in Home view
-        app.current_view = TuiView::Home;
+        app.current_view = TuiView::Explorer;
         app.input_mode = InputMode::Normal;
 
         // Number keys 1-4 should still switch views
@@ -4335,15 +4488,30 @@ mod tests {
         let action = app.handle_unified_key(KeyCode::Char('3'), KeyModifiers::empty());
         assert_eq!(
             action,
-            Action::SwitchView(TuiView::Studio),
+            Action::SwitchView(TuiView::Editor),
             "Key '3' should switch to Studio view"
         );
 
         let action = app.handle_unified_key(KeyCode::Char('4'), KeyModifiers::empty());
         assert_eq!(
             action,
-            Action::SwitchView(TuiView::Monitor),
+            Action::SwitchView(TuiView::Runner),
             "Key '4' should switch to Monitor view"
+        );
+
+        // v0.12: Keys 5 and 6 for Scheduler and Settings
+        let action = app.handle_unified_key(KeyCode::Char('5'), KeyModifiers::empty());
+        assert_eq!(
+            action,
+            Action::SwitchView(TuiView::Scheduler),
+            "Key '5' should switch to Scheduler view"
+        );
+
+        let action = app.handle_unified_key(KeyCode::Char('6'), KeyModifiers::empty());
+        assert_eq!(
+            action,
+            Action::SwitchView(TuiView::Settings),
+            "Key '6' should switch to Settings view"
         );
     }
 
@@ -4362,7 +4530,7 @@ mod tests {
         let action = app.handle_unified_key(KeyCode::Char('2'), KeyModifiers::empty());
         assert_eq!(
             action,
-            Action::SwitchView(TuiView::Home),
+            Action::SwitchView(TuiView::Explorer),
             "Key '2' should switch to Home view"
         );
     }
@@ -4396,8 +4564,8 @@ mod tests {
         std::fs::write(&workflow_path, "schema: test").unwrap();
         let mut app = App::new(&workflow_path).unwrap();
 
-        let action = app.convert_view_action(ViewAction::SwitchView(TuiView::Home));
-        assert_eq!(action, Action::SwitchView(TuiView::Home));
+        let action = app.convert_view_action(ViewAction::SwitchView(TuiView::Explorer));
+        assert_eq!(action, Action::SwitchView(TuiView::Explorer));
     }
 
     #[tokio::test]
@@ -4744,7 +4912,7 @@ mod tests {
         app.cancel_background_tasks();
     }
 
-    // ═══ TODO 1: Status Bar Height Calculation Tests ═══
+    // ═══ TESTS: Status Bar Height Calculation ═══
 
     #[test]
     fn test_compute_view_area_subtracts_status_bar() {
@@ -4788,5 +4956,32 @@ mod tests {
             view_area.height, 1,
             "Should not subtract from tiny terminal"
         );
+    }
+
+    // ═══ TUI Config Loading Tests (v0.12.0) ═══
+
+    #[test]
+    fn test_app_loads_tui_config() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workflow_path = temp_dir.path().join("test.yaml");
+        std::fs::write(&workflow_path, "schema: test").unwrap();
+
+        let app = App::new(&workflow_path).unwrap();
+
+        // Config should be loaded with defaults
+        assert_eq!(app.config.tui.theme, ThemeName::Dark);
+        assert!(app.config.tui.mouse);
+        assert!(app.config.tui.animations);
+    }
+
+    #[test]
+    fn test_app_standalone_loads_tui_config() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let standalone = StandaloneState::new(temp_dir.path().to_path_buf());
+        let app = App::new_standalone(standalone).unwrap();
+
+        // Config should be loaded with defaults
+        assert_eq!(app.config.tui.theme, ThemeName::Dark);
+        assert!(app.config.tui.mouse);
     }
 }

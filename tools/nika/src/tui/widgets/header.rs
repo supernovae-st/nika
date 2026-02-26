@@ -2,9 +2,11 @@
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────────────────┐
-//! │  ◆ NIKA │ 1:Chat │ 2:Home │ 3:Studio │ 4:Monitor │     ⌘K palette   q:quit │
+//! │  🦋 NIKA │ 1:Explorer │ 2:Chat │ 3:Editor │ 4:Runner │ 5:Scheduler │ 6:⚙   │
 //! └─────────────────────────────────────────────────────────────────────────────┘
 //! ```
+//!
+//! v0.12 6-Views Architecture with new names and shortcuts.
 
 use ratatui::{
     buffer::Buffer,
@@ -18,12 +20,15 @@ use unicode_width::UnicodeWidthStr;
 use crate::tui::theme::Theme;
 use crate::tui::views::TuiView;
 
-/// Tab names for each view
+/// Tab names for each view (6-Views Architecture v0.12.0)
+/// Uses plan-defined names: Explorer, Chat, Editor, Runner, Scheduler, Settings
 const TAB_NAMES: &[(&str, TuiView)] = &[
+    ("Explorer", TuiView::Explorer),
     ("Chat", TuiView::Chat),
-    ("Home", TuiView::Home),
-    ("Studio", TuiView::Studio),
-    ("Monitor", TuiView::Monitor),
+    ("Editor", TuiView::Editor),
+    ("Runner", TuiView::Runner),
+    ("Scheduler", TuiView::Scheduler),
+    ("⚙", TuiView::Settings), // Settings uses icon for brevity
 ];
 
 /// Header configuration
@@ -203,8 +208,8 @@ mod tests {
     #[test]
     fn test_header_new() {
         let theme = Theme::dark();
-        let header = Header::new(TuiView::Home, &theme);
-        assert_eq!(header.view, TuiView::Home);
+        let header = Header::new(TuiView::Explorer, &theme);
+        assert_eq!(header.view, TuiView::Explorer);
         assert!(header.context.is_none());
         assert!(header.status.is_none());
     }
@@ -212,14 +217,14 @@ mod tests {
     #[test]
     fn test_header_with_context() {
         let theme = Theme::dark();
-        let header = Header::new(TuiView::Studio, &theme).context("workflow.nika.yaml");
+        let header = Header::new(TuiView::Editor, &theme).context("workflow.nika.yaml");
         assert_eq!(header.context, Some("workflow.nika.yaml"));
     }
 
     #[test]
     fn test_header_with_status() {
         let theme = Theme::dark();
-        let header = Header::new(TuiView::Monitor, &theme).status("Running 2/3");
+        let header = Header::new(TuiView::Runner, &theme).status("Running 2/3");
         assert_eq!(header.status, Some("Running 2/3"));
     }
 
@@ -244,7 +249,7 @@ mod tests {
         // Test that UTF-8 characters don't cause panics
         let theme = Theme::dark();
         let long_ctx = "génération_de_contenu_français_très_long.nika.yaml";
-        let header = Header::new(TuiView::Studio, &theme).context(long_ctx);
+        let header = Header::new(TuiView::Editor, &theme).context(long_ctx);
         assert!(header.context.is_some());
         // Context should be truncated to 30 chars max
         let char_count = long_ctx.chars().count();
@@ -255,7 +260,19 @@ mod tests {
     fn test_header_context_short() {
         let theme = Theme::dark();
         let short_ctx = "short.yaml";
-        let header = Header::new(TuiView::Studio, &theme).context(short_ctx);
+        let header = Header::new(TuiView::Editor, &theme).context(short_ctx);
         assert_eq!(header.context, Some(short_ctx));
+    }
+
+    #[test]
+    fn test_tab_names_v012() {
+        // Verify v0.12 view names are correct
+        assert_eq!(TAB_NAMES.len(), 6);
+        assert_eq!(TAB_NAMES[0], ("Explorer", TuiView::Explorer));
+        assert_eq!(TAB_NAMES[1], ("Chat", TuiView::Chat));
+        assert_eq!(TAB_NAMES[2], ("Editor", TuiView::Editor));
+        assert_eq!(TAB_NAMES[3], ("Runner", TuiView::Runner));
+        assert_eq!(TAB_NAMES[4], ("Scheduler", TuiView::Scheduler));
+        assert_eq!(TAB_NAMES[5], ("⚙", TuiView::Settings));
     }
 }

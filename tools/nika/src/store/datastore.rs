@@ -82,7 +82,7 @@ impl TaskResult {
 
 /// Thread-safe storage for task results (lock-free)
 ///
-/// Uses Arc<str> keys for zero-cost cloning with same Arc used in events.
+/// Uses `Arc<str>` keys for zero-cost cloning with same Arc used in events.
 #[derive(Clone, Default)]
 pub struct DataStore {
     /// Task results: task_id → TaskResult
@@ -94,7 +94,7 @@ impl DataStore {
         Self::default()
     }
 
-    /// Insert a task result (accepts Arc<str> for zero-cost key reuse)
+    /// Insert a task result (accepts `Arc<str>` for zero-cost key reuse)
     pub fn insert(&self, task_id: Arc<str>, result: TaskResult) {
         self.results.insert(task_id, result);
     }
@@ -115,7 +115,7 @@ impl DataStore {
     }
 
     /// Get just the output Value for a task (for JSONPath resolution)
-    /// Returns Arc<Value> for O(1) cloning instead of deep copy
+    /// Returns `Arc<Value>` for O(1) cloning instead of deep copy
     pub fn get_output(&self, task_id: &str) -> Option<Arc<Value>> {
         self.results.get(task_id).map(|r| Arc::clone(&r.output))
     }

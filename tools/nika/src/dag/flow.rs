@@ -1,7 +1,7 @@
 //! Dag - DAG structure built from workflow flows (optimized)
 //!
 //! Performance optimizations:
-//! - Arc<str> for zero-cost cloning of task IDs
+//! - `Arc<str>` for zero-cost cloning of task IDs
 //! - FxHashMap for faster hashing (non-crypto, ~2x faster)
 //! - SmallVec for stack-allocated small dependency lists (0-4 items)
 //!
@@ -23,7 +23,7 @@ pub(crate) type DepVec = SmallVec<[Arc<str>; 4]>;
 
 /// Graph of task dependencies built from flows
 ///
-/// Uses Arc<str> + FxHashMap + SmallVec for maximum performance.
+/// Uses `Arc<str>` + FxHashMap + SmallVec for maximum performance.
 pub struct Dag {
     /// task_id -> list of successor task_ids (SmallVec: stack-allocated for ≤4)
     adjacency: FxHashMap<Arc<str>, DepVec>,
@@ -90,7 +90,7 @@ impl Dag {
         }
     }
 
-    /// Get dependencies of a task (returns Arc<str> slice)
+    /// Get dependencies of a task (returns `Arc<str>` slice)
     #[inline]
     pub fn get_dependencies(&self, task_id: &str) -> &[Arc<str>] {
         static EMPTY: &[Arc<str>] = &[];
@@ -111,7 +111,7 @@ impl Dag {
 
     /// Find tasks with no successors (final tasks)
     ///
-    /// Returns Arc<str> for zero-cost cloning by caller.
+    /// Returns `Arc<str>` for zero-cost cloning by caller.
     pub fn get_final_tasks(&self) -> Vec<Arc<str>> {
         self.task_ids
             .iter()

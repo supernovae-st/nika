@@ -44,9 +44,9 @@ fn test_provider_env_detection_openai() {
 }
 
 #[test]
+#[ignore = "Requires ANTHROPIC_API_KEY - Claude client panics on creation without key"]
 fn test_rig_provider_claude_creation() {
-    // RigProvider::claude() always succeeds (returns provider directly)
-    // Actual API key validation happens on first call
+    // Note: rig-core's Claude client requires API key at creation time and panics without it
     let provider = RigProvider::claude();
     assert_eq!(provider.name(), "claude");
     assert_eq!(provider.default_model(), "claude-sonnet-4-6");

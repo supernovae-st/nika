@@ -1936,7 +1936,11 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok(), "Mock call should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Mock call should succeed: {:?}",
+            result.err()
+        );
 
         // No McpRetry events should be emitted for successful mock calls
         let events = event_log.filter_task("test_retry_events");
@@ -1944,7 +1948,10 @@ mod tests {
             .iter()
             .filter(|e| matches!(e.kind, EventKind::McpRetry { .. }))
             .collect();
-        assert!(retry_events.is_empty(), "No retry events for successful calls");
+        assert!(
+            retry_events.is_empty(),
+            "No retry events for successful calls"
+        );
     }
 
     #[tokio::test]
@@ -1988,12 +1995,7 @@ mod tests {
         let task_id: Arc<str> = Arc::from("test_not_connected");
 
         let result = client
-            .call_tool_with_retry_events(
-                "some_tool",
-                serde_json::json!({}),
-                &task_id,
-                &event_log,
-            )
+            .call_tool_with_retry_events("some_tool", serde_json::json!({}), &task_id, &event_log)
             .await;
 
         assert!(result.is_err());

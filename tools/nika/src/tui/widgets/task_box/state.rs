@@ -128,6 +128,28 @@ impl BoxState {
         }
     }
 
+    /// Get border color with pulse effect applied
+    ///
+    /// Only applies pulse to Running state; other states return normal border_color.
+    /// Pulse brightens the color by interpolating toward white.
+    pub fn border_color_with_pulse(&self, verb_color: Color, pulse_intensity: f32) -> Color {
+        let base = self.border_color(verb_color);
+
+        // Only pulse when running
+        if !self.is_running() {
+            return base;
+        }
+
+        // Brighten color based on pulse_intensity (0.0-1.0)
+        if let Color::Rgb(r, g, b) = base {
+            let factor = 1.0 + (pulse_intensity * 0.3); // Max 30% brighter
+            let brighten = |c: u8| -> u8 { ((c as f32 * factor).min(255.0)) as u8 };
+            Color::Rgb(brighten(r), brighten(g), brighten(b))
+        } else {
+            base
+        }
+    }
+
     /// Check if state is terminal (no more updates expected)
     pub fn is_terminal(&self) -> bool {
         matches!(
@@ -258,5 +280,44 @@ mod tests {
         if let BoxState::Running { frame, .. } = &running {
             assert_eq!(*frame, 1);
         }
+    }
+
+    #[test]
+    fn test_border_color_with_pulse() {
+        let verb_color = Color::Rgb(139, 92, 246); // Violet
+
+        // Running state with pulse_intensity 0.0 → base color
+        let running = BoxState::running();
+        let base_color = running.border_color(verb_color);
+        assert_eq!(base_color, verb_color);
+
+        // With pulse_intensity 0.5 → brightened color
+        let pulsed = running.border_color_with_pulse(verb_color, 0.5);
+        if let Color::Rgb(r, g, b) = pulsed {
+            // Should be brighter than base (all components >= original)
+            assert!(r >= 139 && g >= 92 && b >= 246);
+        }
+
+        // With pulse_intensity 1.0 → maximum brightness
+        let max_pulsed = running.border_color_with_pulse(verb_color, 1.0);
+        if let Color::Rgb(r, g, b) = max_pulsed {
+            // Should be significantly brighter (at least one component > original)
+            assert!(r > 139 || g > 92 || b > 246);
+        }
+    }
+
+    #[test]
+    fn test_border_color_pulse_non_running_unchanged() {
+        let verb_color = Color::Rgb(139, 92, 246);
+
+        // Queued state ignores pulse
+        let queued = BoxState::Queued;
+        let color = queued.border_color_with_pulse(verb_color, 1.0);
+        assert_eq!(color, queued.border_color(verb_color)); // Unchanged
+
+        // Success state ignores pulse
+        let success = BoxState::success(1000);
+        let color = success.border_color_with_pulse(verb_color, 1.0);
+        assert_eq!(color, success.border_color(verb_color)); // Unchanged
     }
 }

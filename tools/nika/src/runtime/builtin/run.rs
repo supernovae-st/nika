@@ -189,19 +189,19 @@ mod tests {
 
     #[test]
     fn test_run_tool_name() {
-        let tool = RunTool::default();
+        let tool = RunTool;
         assert_eq!(tool.name(), "run");
     }
 
     #[test]
     fn test_run_tool_description() {
-        let tool = RunTool::default();
+        let tool = RunTool;
         assert!(tool.description().contains("workflow"));
     }
 
     #[test]
     fn test_run_tool_schema() {
-        let tool = RunTool::default();
+        let tool = RunTool;
         let schema = tool.parameters_schema();
         assert_eq!(schema["type"], "object");
         assert!(schema["properties"]["workflow"].is_object());
@@ -214,7 +214,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_nonexistent_file_errors() {
-        let tool = RunTool::default();
+        let tool = RunTool;
         let result = tool
             .call(r#"{"workflow": "path/to/workflow.nika.yaml"}"#.to_string())
             .await;
@@ -241,7 +241,7 @@ tasks:
         )
         .unwrap();
 
-        let tool = RunTool::default();
+        let tool = RunTool;
         let result = tool
             .call(format!(
                 r#"{{"workflow": "{}"}}"#,
@@ -271,7 +271,7 @@ tasks:
         )
         .unwrap();
 
-        let tool = RunTool::default();
+        let tool = RunTool;
         let result = tool
             .call(format!(
                 r#"{{"workflow": "{}"}}"#,
@@ -287,7 +287,7 @@ tasks:
 
     #[tokio::test]
     async fn test_run_empty_path_errors() {
-        let tool = RunTool::default();
+        let tool = RunTool;
         let result = tool.call(r#"{"workflow": ""}"#.to_string()).await;
 
         assert!(result.is_err());
@@ -297,7 +297,7 @@ tasks:
 
     #[tokio::test]
     async fn test_run_invalid_extension_errors() {
-        let tool = RunTool::default();
+        let tool = RunTool;
         let result = tool
             .call(r#"{"workflow": "workflow.yaml"}"#.to_string())
             .await;
@@ -324,7 +324,7 @@ tasks:
         )
         .unwrap();
 
-        let tool = RunTool::default();
+        let tool = RunTool;
         let result = tool
             .call(format!(
                 r#"{{"workflow": "{}"}}"#,
@@ -337,7 +337,7 @@ tasks:
 
     #[tokio::test]
     async fn test_run_invalid_json() {
-        let tool = RunTool::default();
+        let tool = RunTool;
         let result = tool.call("not json".to_string()).await;
 
         assert!(result.is_err());
@@ -347,7 +347,7 @@ tasks:
 
     #[tokio::test]
     async fn test_run_missing_workflow() {
-        let tool = RunTool::default();
+        let tool = RunTool;
         let result = tool.call(r#"{"context": {"test": 1}}"#.to_string()).await;
 
         assert!(result.is_err());

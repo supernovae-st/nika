@@ -9,27 +9,39 @@
 //! - Provider default_model() method
 //! - auto() detection returns Option
 //!
-//! NOTE: Some providers (Mistral, Groq, DeepSeek) panic when constructed without
-//! API keys. Tests use conditional construction based on env var availability.
+//! NOTE: rig-core panics when constructing providers without API keys.
+//! Tests use conditional construction based on env var availability.
 
 use nika::provider::rig::RigProvider;
 
+fn has_env(key: &str) -> bool {
+    std::env::var(key).is_ok_and(|v| !v.is_empty())
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
-// TEST 1: Provider constructors (safe providers only)
+// TEST 1: Provider constructors (conditional - requires API keys)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn wiring_9_claude_provider_constructs() {
-    // Claude constructor works (rig-core reads from env but doesn't panic)
-    let provider = RigProvider::claude();
-    assert_eq!(provider.name(), "claude");
+    // rig-core panics without ANTHROPIC_API_KEY
+    if has_env("ANTHROPIC_API_KEY") {
+        let provider = RigProvider::claude();
+        assert_eq!(provider.name(), "claude");
+    } else {
+        println!("Skipping: ANTHROPIC_API_KEY not set");
+    }
 }
 
 #[test]
 fn wiring_9_openai_provider_constructs() {
-    // OpenAI constructor works (rig-core reads from env but doesn't panic)
-    let provider = RigProvider::openai();
-    assert_eq!(provider.name(), "openai");
+    // rig-core panics without OPENAI_API_KEY
+    if has_env("OPENAI_API_KEY") {
+        let provider = RigProvider::openai();
+        assert_eq!(provider.name(), "openai");
+    } else {
+        println!("Skipping: OPENAI_API_KEY not set");
+    }
 }
 
 #[test]
@@ -42,10 +54,6 @@ fn wiring_9_ollama_provider_constructs() {
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST 2: Conditional provider tests (only run if env var is set)
 // ═══════════════════════════════════════════════════════════════════════════
-
-fn has_env(key: &str) -> bool {
-    std::env::var(key).is_ok_and(|v| !v.is_empty())
-}
 
 #[test]
 fn wiring_9_mistral_provider_if_key_exists() {
@@ -81,25 +89,33 @@ fn wiring_9_deepseek_provider_if_key_exists() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TEST 3: Default models (safe providers only)
+// TEST 3: Default models (conditional - requires API keys)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn wiring_9_claude_default_model() {
-    let provider = RigProvider::claude();
-    let model = provider.default_model();
-    assert!(!model.is_empty(), "Claude should have a default model");
-    assert!(
-        model.contains("claude") || model.contains("sonnet") || model.contains("opus"),
-        "Claude model should contain 'claude', 'sonnet', or 'opus'"
-    );
+    if has_env("ANTHROPIC_API_KEY") {
+        let provider = RigProvider::claude();
+        let model = provider.default_model();
+        assert!(!model.is_empty(), "Claude should have a default model");
+        assert!(
+            model.contains("claude") || model.contains("sonnet") || model.contains("opus"),
+            "Claude model should contain 'claude', 'sonnet', or 'opus'"
+        );
+    } else {
+        println!("Skipping: ANTHROPIC_API_KEY not set");
+    }
 }
 
 #[test]
 fn wiring_9_openai_default_model() {
-    let provider = RigProvider::openai();
-    let model = provider.default_model();
-    assert!(!model.is_empty(), "OpenAI should have a default model");
+    if has_env("OPENAI_API_KEY") {
+        let provider = RigProvider::openai();
+        let model = provider.default_model();
+        assert!(!model.is_empty(), "OpenAI should have a default model");
+    } else {
+        println!("Skipping: OPENAI_API_KEY not set");
+    }
 }
 
 #[test]
@@ -130,22 +146,27 @@ fn wiring_9_auto_returns_option() {
             );
         }
         None => {
-            // No API keys configured - this is also valid
-            assert!(true, "No provider available is a valid state");
+            // No API keys configured - this is also valid (reaching here means success)
         }
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TEST 5: Provider identity (safe providers)
+// TEST 5: Provider identity (conditional for Claude/OpenAI, safe for Ollama)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn wiring_9_safe_providers_name_matches_constructor() {
-    // Only test providers that don't panic without API keys
-    assert_eq!(RigProvider::claude().name(), "claude");
-    assert_eq!(RigProvider::openai().name(), "openai");
+    // Ollama doesn't require API key
     assert_eq!(RigProvider::ollama().name(), "ollama");
+
+    // Claude/OpenAI require API keys - test conditionally
+    if has_env("ANTHROPIC_API_KEY") {
+        assert_eq!(RigProvider::claude().name(), "claude");
+    }
+    if has_env("OPENAI_API_KEY") {
+        assert_eq!(RigProvider::openai().name(), "openai");
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

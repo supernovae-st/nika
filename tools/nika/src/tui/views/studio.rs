@@ -14,7 +14,7 @@
 //! Full text editor integration is planned via `ratatui-textarea` (the ratatui org's
 //! hard fork of tui-textarea with ratatui 0.30 support).
 //!
-//! See: https://github.com/ratatui/ratatui-textarea (replaces rhysd/tui-textarea)
+//! See: <https://github.com/ratatui/ratatui-textarea> (replaces rhysd/tui-textarea)
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -597,12 +597,23 @@ impl View for StudioView {
             EditorMode::Insert => "INSERT",
         };
         let modified = if self.modified { " ●" } else { "" };
+
+        // v0.12: Undo/Redo indicator (⤺N ⤻M format)
+        let undo_depth = self.edit_history.undo_depth();
+        let redo_depth = self.edit_history.redo_depth();
+        let undo_redo = if undo_depth > 0 || redo_depth > 0 {
+            format!(" | ⤺{} ⤻{}", undo_depth, redo_depth)
+        } else {
+            String::new()
+        };
+
         format!(
-            "{} | Ln {}, Col {}{}",
+            "{} | Ln {}, Col {}{}{}",
             mode,
             self.current_line(),
             self.current_col(),
-            modified
+            modified,
+            undo_redo
         )
     }
 }
@@ -610,7 +621,7 @@ impl View for StudioView {
 impl StudioView {
     fn handle_normal_mode(&mut self, key: KeyEvent) -> ViewAction {
         match key.code {
-            KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Home),
+            KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Explorer),
             // Ctrl+S to save file (must be before plain 's')
             KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 if let Err(e) = self.save_file() {
@@ -661,10 +672,12 @@ impl StudioView {
                     ViewAction::Error("No file loaded".to_string())
                 }
             }
-            // View switching: number keys only (v0.7.1 - Option B navigation)
-            KeyCode::Char('1') => ViewAction::SwitchView(TuiView::Chat),
-            KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Home),
-            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Monitor),
+            // View switching: number keys (v0.12 6-Views)
+            KeyCode::Char('1') => ViewAction::SwitchView(TuiView::Explorer),
+            KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Chat),
+            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Runner),
+            KeyCode::Char('5') => ViewAction::SwitchView(TuiView::Scheduler),
+            KeyCode::Char('6') => ViewAction::SwitchView(TuiView::Settings),
             KeyCode::Up | KeyCode::Char('k') => {
                 self.buffer.cursor_up();
                 ViewAction::None
@@ -704,11 +717,10 @@ impl StudioView {
         if key
             .modifiers
             .contains(KeyModifiers::CONTROL | KeyModifiers::SHIFT)
+            && matches!(key.code, KeyCode::Char('Z'))
         {
-            if matches!(key.code, KeyCode::Char('Z')) {
-                self.redo();
-                return ViewAction::None;
-            }
+            self.redo();
+            return ViewAction::None;
         }
 
         match key.code {
@@ -982,6 +994,9 @@ impl StudioView {
             Span::styled("No warnings", Style::default().fg(theme.status_success))
         };
 
+        // v0.12: DAG Complexity Meter
+        let complexity_meter = self.render_complexity_meter(theme);
+
         let line = Line::from(vec![
             Span::raw(" "),
             yaml_status,
@@ -989,6 +1004,8 @@ impl StudioView {
             schema_status,
             Span::raw("  |  "),
             warning_status,
+            Span::raw("  |  "),
+            complexity_meter,
         ]);
 
         let paragraph = Paragraph::new(line).block(
@@ -998,6 +1015,38 @@ impl StudioView {
         );
 
         frame.render_widget(paragraph, area);
+    }
+
+    /// v0.12: Render DAG complexity meter
+    /// Shows visual indicator of workflow complexity (tasks × flows)
+    fn render_complexity_meter(&self, theme: &Theme) -> Span<'static> {
+        let cached = self.cached_workflow.borrow();
+        match cached.as_ref() {
+            Some(wf) => {
+                let task_count = wf.tasks.len();
+                let flow_count = wf.flows.len();
+                // Complexity score: tasks + edges (simple heuristic)
+                let score = task_count + flow_count;
+
+                // Visual meter: ▁▂▃▄▅▆▇█ (8 levels)
+                let (meter, color) = match score {
+                    0 => ("▁", theme.text_muted),
+                    1..=2 => ("▂", theme.status_success),
+                    3..=5 => ("▃", theme.status_success),
+                    6..=8 => ("▄", theme.highlight),
+                    9..=12 => ("▅", theme.highlight),
+                    13..=16 => ("▆", theme.status_running),
+                    17..=20 => ("▇", theme.status_running),
+                    _ => ("█", theme.status_failed),
+                };
+
+                Span::styled(
+                    format!("DAG {} {}t {}e", meter, task_count, flow_count),
+                    Style::default().fg(color),
+                )
+            }
+            None => Span::styled("DAG ▁ --", Style::default().fg(theme.text_muted)),
+        }
     }
 }
 
@@ -1408,8 +1457,8 @@ unknown_field: "should fail""#;
         let key = KeyEvent::from(KeyCode::Char('q'));
         let action = view.handle_key(key, &mut state);
         match action {
-            ViewAction::SwitchView(TuiView::Home) => {}
-            _ => panic!("Expected SwitchView(Home)"),
+            ViewAction::SwitchView(TuiView::Explorer) => {}
+            _ => panic!("Expected SwitchView(Explorer)"),
         }
     }
 

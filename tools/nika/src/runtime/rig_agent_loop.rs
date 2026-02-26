@@ -223,15 +223,29 @@ impl RigAgentLoop {
             tools.push(Box::new(spawn_tool));
         }
 
-        // Add builtin nika:* tools (v0.9.3)
+        // Add builtin nika:* tools (v0.12.0)
         // These are always available to agents for workflow control and observability.
+        // LogTool and EmitTool now emit EventKind::Log and EventKind::Custom events.
         use super::builtin::{
             AssertTool, EmitTool, LogTool, NikaBuiltinToolAdapter, PromptTool, RunTool, SleepTool,
         };
 
+        // Create Arc wrappers for sharing with builtin tools (v0.12.0)
+        // EventLog is Clone with Arc internals, so this is cheap.
+        let event_log_arc = Arc::new(event_log.clone());
+        let task_id_arc: Arc<str> = task_id.as_str().into();
+
         tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(SleepTool))));
-        tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(LogTool))));
-        tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(EmitTool))));
+        // v0.12.0: LogTool now emits EventKind::Log to EventLog
+        tools.push(Box::new(
+            NikaBuiltinToolAdapter::new(Arc::new(LogTool))
+                .with_event_log(Arc::clone(&event_log_arc), Arc::clone(&task_id_arc)),
+        ));
+        // v0.12.0: EmitTool now emits EventKind::Custom to EventLog
+        tools.push(Box::new(
+            NikaBuiltinToolAdapter::new(Arc::new(EmitTool))
+                .with_event_log(Arc::clone(&event_log_arc), Arc::clone(&task_id_arc)),
+        ));
         tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(AssertTool))));
         tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
             PromptTool::default(),

@@ -10,7 +10,7 @@ use ratatui::{
     widgets::Widget,
 };
 
-use super::{BoxState, VerbColor};
+use super::{BoxState, RenderMode, TokenVelocity, VerbColor};
 
 /// InferBox data and rendering
 #[derive(Debug, Clone)]
@@ -35,6 +35,14 @@ pub struct InferBox {
     pub expanded_response: bool,
     /// Show streaming cursor
     pub streaming_cursor: bool,
+    /// Pulse intensity for border animation (0.0-1.0)
+    pub pulse_intensity: f32,
+    /// Render mode (Compact/Expanded/Full)
+    pub render_mode: RenderMode,
+    /// Token velocity tracker for sparkline display
+    pub velocity: TokenVelocity,
+    /// Estimated cost in USD
+    pub cost: Option<f64>,
 }
 
 impl InferBox {
@@ -51,6 +59,10 @@ impl InferBox {
             expanded_prompt: false,
             expanded_response: false,
             streaming_cursor: false,
+            pulse_intensity: 0.0,
+            render_mode: RenderMode::default(),
+            velocity: TokenVelocity::new(32),
+            cost: None,
         }
     }
 
@@ -83,6 +95,47 @@ impl InferBox {
     pub fn with_streaming_cursor(mut self, enabled: bool) -> Self {
         self.streaming_cursor = enabled;
         self
+    }
+
+    /// Set pulse intensity for border animation (clamped to 0.0-1.0)
+    pub fn with_pulse_intensity(mut self, intensity: f32) -> Self {
+        self.pulse_intensity = intensity.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Set velocity tracker
+    pub fn with_velocity(mut self, velocity: TokenVelocity) -> Self {
+        self.velocity = velocity;
+        self
+    }
+
+    /// Push a token velocity sample (tokens/sec)
+    pub fn push_velocity_sample(&mut self, tokens_per_sec: f32) {
+        self.velocity.push(tokens_per_sec);
+    }
+
+    /// Calculate cost based on token counts and model
+    pub fn calculate_cost(input_tokens: u32, output_tokens: u32, model: &str) -> f64 {
+        let (input_rate, output_rate) = match model {
+            m if m.contains("claude") => (3.0, 15.0), // $3/M in, $15/M out
+            m if m.contains("gpt-4") => (5.0, 15.0),
+            m if m.contains("gpt-3.5") => (0.5, 1.5),
+            m if m.contains("mistral") => (2.0, 6.0),
+            _ => (1.0, 3.0), // Default fallback
+        };
+
+        let input_cost = (input_tokens as f64 / 1_000_000.0) * input_rate;
+        let output_cost = (output_tokens as f64 / 1_000_000.0) * output_rate;
+        input_cost + output_cost
+    }
+
+    /// Update cost based on current token counts
+    pub fn update_cost(&mut self) {
+        self.cost = Some(Self::calculate_cost(
+            self.tokens_in,
+            self.tokens_out,
+            &self.model,
+        ));
     }
 
     /// Append to response (streaming)
@@ -161,7 +214,9 @@ impl Widget for InferBox {
         }
 
         let verb = VerbColor::Infer;
-        let border_color = self.state.border_color(verb.rgb());
+        let border_color = self
+            .state
+            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
         let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
         let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
@@ -294,15 +349,30 @@ impl Widget for InferBox {
         }
 
         // Footer with metrics
+        let cost_str = self
+            .cost
+            .map(|c| format!(" │ 💰 ${:.4}", c))
+            .unwrap_or_default();
+        let velocity_str = if self.state.is_running() && !self.velocity.is_empty() {
+            format!(
+                " │ {} {:.0} tok/s",
+                self.velocity.sparkline_chars(),
+                self.velocity.average()
+            )
+        } else {
+            String::new()
+        };
         let metrics = format!(
-            "│ 📊 {} in │ {} out │ {} {}{}│",
+            "│ 📊 {} in │ {} out │ {} {}{}{}{}│",
             self.tokens_in,
             self.tokens_out,
             Self::provider_icon(&self.model),
             Self::truncate(&self.model, 10),
             self.thinking_tokens
                 .map(|t| format!(" │ 💭 thinking: {} ", t))
-                .unwrap_or_default()
+                .unwrap_or_default(),
+            cost_str,
+            velocity_str
         );
         let metrics_truncated = Self::truncate(&metrics, inner_width + 2);
         buf.set_string(
@@ -401,5 +471,86 @@ mod tests {
 
         assert!(box_.streaming_cursor);
         assert!(box_.state.is_running());
+    }
+
+    #[test]
+    fn test_infer_box_with_pulse() {
+        let box_ =
+            InferBox::new("claude-sonnet-4-6", "Generate a summary").with_pulse_intensity(0.8);
+        assert!((box_.pulse_intensity - 0.8).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_infer_box_pulse_clamped() {
+        // Test that values are clamped to 0.0-1.0 range
+        let box_high = InferBox::new("model", "prompt").with_pulse_intensity(1.5);
+        assert!((box_high.pulse_intensity - 1.0).abs() < 0.001);
+
+        let box_low = InferBox::new("model", "prompt").with_pulse_intensity(-0.5);
+        assert!((box_low.pulse_intensity - 0.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_infer_box_pulse_default_zero() {
+        let box_ = InferBox::new("model", "prompt");
+        assert!((box_.pulse_intensity - 0.0).abs() < 0.001);
+    }
+
+    // === TokenVelocity wiring tests ===
+
+    #[test]
+    fn test_infer_box_has_velocity() {
+        let mut box_ = InferBox::new("model", "prompt");
+        assert_eq!(box_.velocity.len(), 0);
+
+        box_.push_velocity_sample(10.0);
+        box_.push_velocity_sample(25.0);
+
+        assert_eq!(box_.velocity.len(), 2);
+        assert!((box_.velocity.average() - 17.5).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_infer_box_velocity_sparkline() {
+        let mut box_ = InferBox::new("claude-sonnet-4", "prompt");
+        for i in 0..8 {
+            box_.push_velocity_sample(i as f32 * 10.0);
+        }
+
+        let sparkline = box_.velocity.sparkline_chars();
+        assert_eq!(sparkline.chars().count(), 8);
+    }
+
+    // === Cost calculation tests ===
+
+    #[test]
+    fn test_cost_calculation_claude() {
+        let cost = InferBox::calculate_cost(1000, 500, "claude-sonnet-4");
+        // 1000 * $3/M + 500 * $15/M = $0.003 + $0.0075 = $0.0105
+        assert!((cost - 0.0105).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_cost_calculation_gpt4() {
+        let cost = InferBox::calculate_cost(1000, 500, "gpt-4o");
+        // 1000 * $5/M + 500 * $15/M = $0.005 + $0.0075 = $0.0125
+        assert!((cost - 0.0125).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_cost_calculation_gpt35() {
+        let cost = InferBox::calculate_cost(10000, 5000, "gpt-3.5-turbo");
+        // 10000 * $0.5/M + 5000 * $1.5/M = $0.005 + $0.0075 = $0.0125
+        assert!((cost - 0.0125).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_infer_box_update_cost() {
+        let mut box_ = InferBox::new("claude-sonnet-4", "prompt").with_tokens(1000, 500);
+        assert!(box_.cost.is_none());
+
+        box_.update_cost();
+        assert!(box_.cost.is_some());
+        assert!((box_.cost.unwrap() - 0.0105).abs() < 0.0001);
     }
 }

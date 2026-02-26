@@ -24,13 +24,32 @@ use tokio::sync::mpsc;
 // CHAT AGENT CREATION TESTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Test that ChatAgent can be created successfully
+/// Test that ChatAgent can be created successfully (when API keys available)
 #[tokio::test]
 async fn test_chat_agent_creation_succeeds() {
-    // ChatAgent::new() should always succeed, even without API keys
-    // (errors happen on actual API calls, not on creation)
+    // ChatAgent::new() succeeds with API keys, fails without
+    // In CI without keys, we expect an Err; with keys, we expect Ok
     let result = ChatAgent::new();
-    assert!(result.is_ok(), "ChatAgent creation should succeed");
+
+    match result {
+        Ok(agent) => {
+            // Verify the agent has a valid provider
+            let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "ollama"];
+            assert!(
+                valid_providers.contains(&agent.provider_name()),
+                "Expected valid provider, got: {}",
+                agent.provider_name()
+            );
+        }
+        Err(e) => {
+            // Expected in CI without API keys - verify it's the right error
+            assert!(
+                e.to_string().contains("API key"),
+                "Expected API key error, got: {}",
+                e
+            );
+        }
+    }
 }
 
 /// Test ChatAgent auto-detection picks valid provider

@@ -12,7 +12,7 @@ use ratatui::{
     widgets::Widget,
 };
 
-use super::{http, BoxState, VerbColor};
+use super::{http, BoxState, RenderMode, VerbColor};
 
 /// FetchBox data and rendering
 #[derive(Debug, Clone)]
@@ -41,6 +41,10 @@ pub struct FetchBox {
     pub expanded_request: bool,
     /// Is response section expanded
     pub expanded_response: bool,
+    /// Pulse intensity for border animation (0.0-1.0)
+    pub pulse_intensity: f32,
+    /// Render mode (Compact/Expanded/Full)
+    pub render_mode: RenderMode,
 }
 
 impl FetchBox {
@@ -59,6 +63,8 @@ impl FetchBox {
             state: BoxState::default(),
             expanded_request: false,
             expanded_response: false,
+            pulse_intensity: 0.0,
+            render_mode: RenderMode::default(),
         }
     }
 
@@ -110,6 +116,18 @@ impl FetchBox {
         self
     }
 
+    /// Set pulse intensity for border animation (clamped to 0.0-1.0)
+    pub fn with_pulse_intensity(mut self, intensity: f32) -> Self {
+        self.pulse_intensity = intensity.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Set render mode
+    pub fn with_render_mode(mut self, mode: RenderMode) -> Self {
+        self.render_mode = mode;
+        self
+    }
+
     /// Toggle request expansion
     pub fn toggle_request(&mut self) {
         self.expanded_request = !self.expanded_request;
@@ -122,6 +140,11 @@ impl FetchBox {
 
     /// Calculate required height
     pub fn required_height(&self) -> u16 {
+        // Compact mode is always 1 line
+        if self.render_mode == RenderMode::Compact {
+            return 1;
+        }
+
         let mut height: u16 = 5; // Header + method/url + request header + response header + footer
 
         // Request section
@@ -176,16 +199,62 @@ impl FetchBox {
             value.to_string()
         }
     }
+
+    /// Render in compact mode (single line)
+    fn render_compact(&self, area: Rect, buf: &mut Buffer) {
+        let verb = VerbColor::Fetch;
+        let border_color = self
+            .state
+            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
+        let line_style = Style::default().fg(border_color);
+        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
+        let method_style = Style::default().fg(Color::Rgb(34, 211, 238)); // Cyan
+
+        let status_icon = self.state.icon();
+        let status_text = self
+            .status_code
+            .map(|c| format!("{}", c))
+            .unwrap_or_else(|| "...".to_string());
+
+        // Format: 🛰️ FETCH: GET https://api.example.com  ✅ 200
+        let prefix = format!("{} ", verb.icon_label());
+        let suffix = format!("  {} {}", status_icon, status_text);
+        let available = (area.width as usize)
+            .saturating_sub(prefix.chars().count())
+            .saturating_sub(suffix.chars().count())
+            .saturating_sub(self.method.len() + 1);
+        let url = Self::truncate(&self.url, available);
+
+        // Build the line
+        buf.set_string(area.x, area.y, &prefix, line_style);
+        let x = area.x + prefix.chars().count() as u16;
+        buf.set_string(x, area.y, &self.method, method_style);
+        let x = x + self.method.len() as u16 + 1;
+        buf.set_string(x, area.y, &url, line_style);
+        let x = area.x + (area.width as usize - suffix.chars().count()) as u16;
+        buf.set_string(x, area.y, &suffix, dim_style);
+    }
 }
 
 impl Widget for FetchBox {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        // Compact mode: single line
+        if self.render_mode == RenderMode::Compact {
+            if area.width < 20 || area.height < 1 {
+                return;
+            }
+            self.render_compact(area, buf);
+            return;
+        }
+
         if area.width < 30 || area.height < 5 {
             return;
         }
 
         let verb = VerbColor::Fetch;
-        let border_color = self.state.border_color(verb.rgb());
+        let border_color = self
+            .state
+            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
         let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
         let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
@@ -454,5 +523,71 @@ mod tests {
             FetchBox::new("GET", "https://example.com").with_header("Accept", "application/json");
         // Should be same when not expanded
         assert!(with_headers.required_height() >= 5);
+    }
+
+    #[test]
+    fn test_fetch_box_with_pulse() {
+        let box_ = FetchBox::new("GET", "https://api.example.com").with_pulse_intensity(0.7);
+        assert!((box_.pulse_intensity - 0.7).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_fetch_box_pulse_default_zero() {
+        let box_ = FetchBox::new("GET", "https://api.example.com");
+        assert!((box_.pulse_intensity - 0.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_fetch_box_pulse_clamped() {
+        let box_high = FetchBox::new("GET", "https://example.com").with_pulse_intensity(1.5);
+        assert!((box_high.pulse_intensity - 1.0).abs() < 0.001);
+
+        let box_low = FetchBox::new("GET", "https://example.com").with_pulse_intensity(-0.5);
+        assert!((box_low.pulse_intensity - 0.0).abs() < 0.001);
+    }
+
+    // === RenderMode tests ===
+
+    #[test]
+    fn test_fetch_box_with_render_mode() {
+        let box_ =
+            FetchBox::new("GET", "https://example.com").with_render_mode(RenderMode::Compact);
+        assert_eq!(box_.render_mode, RenderMode::Compact);
+    }
+
+    #[test]
+    fn test_fetch_box_compact_required_height() {
+        let compact =
+            FetchBox::new("GET", "https://example.com").with_render_mode(RenderMode::Compact);
+        assert_eq!(compact.required_height(), 1);
+
+        let expanded =
+            FetchBox::new("GET", "https://example.com").with_render_mode(RenderMode::Expanded);
+        assert!(expanded.required_height() >= 5);
+    }
+
+    #[test]
+    fn test_fetch_box_compact_render() {
+        // Verify compact mode produces a single-line output
+        let box_ = FetchBox::new("GET", "https://api.example.com/data")
+            .with_render_mode(RenderMode::Compact)
+            .with_status(200);
+
+        let mut buf = Buffer::empty(Rect::new(0, 0, 60, 1));
+        box_.render(Rect::new(0, 0, 60, 1), &mut buf);
+
+        // Check the buffer has content on the first line
+        let line: String = (0..60)
+            .map(|x| {
+                buf.cell((x, 0))
+                    .unwrap()
+                    .symbol()
+                    .chars()
+                    .next()
+                    .unwrap_or(' ')
+            })
+            .collect();
+        assert!(line.contains("FETCH"));
+        assert!(line.contains("GET"));
     }
 }

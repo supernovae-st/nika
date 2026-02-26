@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_assignments)]
 //! Large DAG Tests - Stress testing with 100+ tasks.
 //!
 //! Tests:

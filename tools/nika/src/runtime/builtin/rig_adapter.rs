@@ -1,4 +1,4 @@
-//! Rig ToolDyn adapter for builtin tools (v0.9.3)
+//! Rig ToolDyn adapter for builtin tools (v0.12.0)
 //!
 //! Wraps BuiltinTool implementations as rig-core ToolDyn for use in RigAgentLoop.
 //!
@@ -9,8 +9,9 @@
 //!   └── tools: Vec<Box<dyn ToolDyn>>
 //!         ├── NikaMcpTool (MCP tools)
 //!         ├── SpawnAgentTool
-//!         └── NikaBuiltinToolAdapter (builtin tools) ← NEW
-//!               └── Arc<dyn BuiltinTool>
+//!         └── NikaBuiltinToolAdapter (builtin tools)
+//!               ├── Arc<dyn BuiltinTool>
+//!               └── EventLog (v0.12.0: emits EventKind::Log/Custom)
 //! ```
 
 use std::sync::Arc;
@@ -20,16 +21,23 @@ use rig::completion::ToolDefinition;
 use rig::tool::{ToolDyn, ToolError};
 
 use super::BuiltinTool;
+use crate::event::{EventKind, EventLog};
 
 /// Adapter that wraps a BuiltinTool for use with rig-core's agent system.
 ///
 /// This allows builtin tools (nika:sleep, nika:log, etc.) to be called
 /// by the LLM during agentic execution.
+///
+/// v0.12.0: Now supports EventLog emission for `nika:log` and `nika:emit` tools.
 pub struct NikaBuiltinToolAdapter {
     /// The wrapped builtin tool
     tool: Arc<dyn BuiltinTool>,
     /// Full tool name with nika: prefix
     full_name: String,
+    /// EventLog for emitting events (v0.12.0)
+    event_log: Option<Arc<EventLog>>,
+    /// Task ID for event context (v0.12.0)
+    task_id: Option<Arc<str>>,
 }
 
 impl NikaBuiltinToolAdapter {
@@ -39,7 +47,22 @@ impl NikaBuiltinToolAdapter {
     /// * `tool` - The builtin tool to wrap
     pub fn new(tool: Arc<dyn BuiltinTool>) -> Self {
         let full_name = format!("nika:{}", tool.name());
-        Self { tool, full_name }
+        Self {
+            tool,
+            full_name,
+            event_log: None,
+            task_id: None,
+        }
+    }
+
+    /// Set EventLog and task_id for event emission (v0.12.0)
+    ///
+    /// When set, `nika:log` will emit `EventKind::Log` and
+    /// `nika:emit` will emit `EventKind::Custom` to the EventLog.
+    pub fn with_event_log(mut self, event_log: Arc<EventLog>, task_id: Arc<str>) -> Self {
+        self.event_log = Some(event_log);
+        self.task_id = Some(task_id);
+        self
     }
 }
 
@@ -66,11 +89,46 @@ impl ToolDyn for NikaBuiltinToolAdapter {
     }
 
     fn call(&self, args: String) -> BoxFuture<'_, Result<String, ToolError>> {
+        let args_clone = args.clone();
         Box::pin(async move {
-            self.tool
-                .call(args)
-                .await
-                .map_err(|e| ToolError::ToolCallError(Box::new(BuiltinToolError(e.to_string()))))
+            // Call the underlying tool
+            let result =
+                self.tool.call(args_clone.clone()).await.map_err(|e| {
+                    ToolError::ToolCallError(Box::new(BuiltinToolError(e.to_string())))
+                })?;
+
+            // v0.12.0: Emit events for nika:log and nika:emit
+            if let Some(ref event_log) = self.event_log {
+                match self.tool.name() {
+                    "log" => {
+                        // Parse the response to extract level and message
+                        if let Ok(response) = serde_json::from_str::<serde_json::Value>(&result) {
+                            let level = response["level"].as_str().unwrap_or("info").to_string();
+                            let message = response["message"].as_str().unwrap_or("").to_string();
+                            event_log.emit(EventKind::Log {
+                                level,
+                                message,
+                                task_id: self.task_id.clone(),
+                            });
+                        }
+                    }
+                    "emit" => {
+                        // Parse the response to extract name and payload
+                        if let Ok(response) = serde_json::from_str::<serde_json::Value>(&result) {
+                            let name = response["name"].as_str().unwrap_or("unknown").to_string();
+                            let payload = response["payload"].clone();
+                            event_log.emit(EventKind::Custom {
+                                name,
+                                payload,
+                                task_id: self.task_id.clone(),
+                            });
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            Ok(result)
         })
     }
 }
@@ -192,5 +250,110 @@ mod tests {
     fn test_adapter_send_sync() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<NikaBuiltinToolAdapter>();
+    }
+
+    // =========================================================================
+    // v0.12.0: Event Emission Tests
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_log_tool_emits_event() {
+        use super::super::LogTool;
+        use rig::tool::ToolDyn;
+
+        let event_log = Arc::new(EventLog::new());
+        let task_id: Arc<str> = "test-task-1".into();
+
+        let adapter = NikaBuiltinToolAdapter::new(Arc::new(LogTool))
+            .with_event_log(Arc::clone(&event_log), Arc::clone(&task_id));
+
+        // Call the log tool
+        let result = adapter
+            .call(r#"{"level": "info", "message": "Test log message"}"#.to_string())
+            .await;
+
+        assert!(result.is_ok());
+
+        // Verify event was emitted
+        let events = event_log.events();
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::Log {
+            level,
+            message,
+            task_id: tid,
+        } = &events[0].kind
+        {
+            assert_eq!(level, "info");
+            assert_eq!(message, "Test log message");
+            assert_eq!(tid.as_ref().map(|t| t.as_ref()), Some("test-task-1"));
+        } else {
+            panic!("Expected EventKind::Log, got {:?}", events[0].kind);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_emit_tool_emits_custom_event() {
+        use super::super::EmitTool;
+        use rig::tool::ToolDyn;
+
+        let event_log = Arc::new(EventLog::new());
+        let task_id: Arc<str> = "test-task-2".into();
+
+        let adapter = NikaBuiltinToolAdapter::new(Arc::new(EmitTool))
+            .with_event_log(Arc::clone(&event_log), Arc::clone(&task_id));
+
+        // Call the emit tool
+        let result = adapter
+            .call(r#"{"name": "user_action", "payload": {"action": "click"}}"#.to_string())
+            .await;
+
+        assert!(result.is_ok());
+
+        // Verify event was emitted
+        let events = event_log.events();
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::Custom {
+            name,
+            payload,
+            task_id: tid,
+        } = &events[0].kind
+        {
+            assert_eq!(name, "user_action");
+            assert_eq!(payload["action"], "click");
+            assert_eq!(tid.as_ref().map(|t| t.as_ref()), Some("test-task-2"));
+        } else {
+            panic!("Expected EventKind::Custom, got {:?}", events[0].kind);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_adapter_without_event_log_does_not_emit() {
+        use super::super::LogTool;
+        use rig::tool::ToolDyn;
+
+        // Create adapter WITHOUT event_log
+        let adapter = NikaBuiltinToolAdapter::new(Arc::new(LogTool));
+
+        // Call should succeed but no events emitted
+        let result = adapter
+            .call(r#"{"level": "info", "message": "No event expected"}"#.to_string())
+            .await;
+
+        assert!(result.is_ok());
+        // No event_log, so no events to check - just verify it doesn't panic
+    }
+
+    #[test]
+    fn test_with_event_log_builder() {
+        let event_log = Arc::new(EventLog::new());
+        let task_id: Arc<str> = "test-task".into();
+
+        let adapter = NikaBuiltinToolAdapter::new(Arc::new(TestTool))
+            .with_event_log(Arc::clone(&event_log), Arc::clone(&task_id));
+
+        // Verify the builder pattern works
+        assert_eq!(adapter.name(), "nika:test");
     }
 }

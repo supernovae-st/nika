@@ -1,1 +1,1 @@
-{"status": "HEALTHY", "version": "0.7.2", "timestamp": "2026-02-22T20:30:00", "schema": "workflow@0.3", "tests": "2320+ passing", "mvp": "8 complete (RLM)", "next": "v0.8.0 production hardening"}
+{"status": "HEALTHY", "version": "0.12.0", "timestamp": "2026-02-26T12:00:00", "schema": "workflow@0.5", "tests": "2997 passing", "mvp": "8 complete (RLM)", "features": "6-Views + TaskBox + Chat DAG + ARMADA CI", "next": "v0.13.0 keyring + env migration"}

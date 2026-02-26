@@ -397,7 +397,7 @@ mod tests {
             ChatNodeBox::new("msg-001", ChatNodeKind::User).with_state(ChatNodeState::Running);
 
         let intensity = node.pulse_intensity();
-        assert!(intensity >= 0.0 && intensity <= 1.0);
+        assert!((0.0..=1.0).contains(&intensity));
     }
 
     #[test]

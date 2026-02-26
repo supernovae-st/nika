@@ -82,6 +82,17 @@
             "timeout": 2
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "pattern": "git\\s+push\\s+(origin\\s+)?main(\\s|$)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '🚫 BLOCKED: Direct push to main not allowed (branch protected)' && echo '💡 Use /ship to automatically create branch → PR → merge' && echo '   Or manually: git checkout -b feat/xxx && git push -u origin feat/xxx && gh pr create' && exit 1",
+            "timeout": 2
+          }
+        ]
       }
     ]
   }

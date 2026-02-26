@@ -15,7 +15,12 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
-  RUST_VERSION: '1.85'
+  # Using stable; deps require 1.88+ (time crate)
+  RUST_VERSION: stable
+
+defaults:
+  run:
+    working-directory: tools/nika
 
 jobs:
   # ═══════════════════════════════════════════════════════════════════════════
@@ -217,6 +222,7 @@ jobs:
       - station-9-commits
       - station-10-version
     steps:
+      - uses: actions/checkout@v4
       - run: |
           echo ""
           echo "ARMADA FLEET CLEARED FOR LAUNCH"

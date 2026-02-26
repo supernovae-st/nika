@@ -33,7 +33,7 @@ use ratatui::{
 };
 
 use super::trait_view::View;
-use super::{TuiView, ViewAction};
+use super::{CosmicVariant, TuiView, ViewAction};
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
 
@@ -99,16 +99,16 @@ impl SettingsView {
     }
 
     /// Update provider info from state
-    /// (Called externally when provider changes - will be wired in full state sync)
-    #[allow(dead_code)]
+    ///
+    /// Called from App when provider changes (v0.12 state sync).
     pub fn update_provider(&mut self, provider: &str, model: &str) {
         self.provider_name = provider.to_string();
         self.model_name = model.to_string();
     }
 
     /// Update theme name from theme mode
-    /// (Called externally when theme changes - will be wired in full state sync)
-    #[allow(dead_code)]
+    ///
+    /// Called from App when theme changes (v0.12 state sync).
     pub fn update_theme_name(&mut self, name: &str) {
         self.theme_name = name.to_string();
     }
@@ -277,8 +277,8 @@ impl View for SettingsView {
 
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
         match key.code {
-            // Escape returns to Home
-            KeyCode::Esc | KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Home),
+            // Escape returns to Explorer
+            KeyCode::Esc | KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Explorer),
 
             // Tab/Shift+Tab cycles sections
             KeyCode::Tab => {
@@ -304,13 +304,13 @@ impl View for SettingsView {
                 ViewAction::None
             }
 
-            // Theme shortcuts
-            KeyCode::Char('1') => ViewAction::ToggleTheme, // Will cycle to Light
-            KeyCode::Char('2') => ViewAction::ToggleTheme, // Will cycle to Dark
-            KeyCode::Char('3') => ViewAction::ToggleTheme, // Will cycle to Solarized
+            // Theme shortcuts - direct selection (v0.12.0 fix)
+            KeyCode::Char('1') => ViewAction::SetTheme(CosmicVariant::CosmicLight),
+            KeyCode::Char('2') => ViewAction::SetTheme(CosmicVariant::CosmicDark),
+            KeyCode::Char('3') => ViewAction::SetTheme(CosmicVariant::CosmicViolet),
 
-            // ? opens Help view
-            KeyCode::Char('?') => ViewAction::SwitchView(TuiView::Help),
+            // ? shows help (Settings includes help - v0.12)
+            KeyCode::Char('?') => ViewAction::None,
 
             // Enter on Provider opens modal (via chat's Ctrl+P)
             KeyCode::Enter if self.section == SettingsSection::Provider => {
@@ -389,7 +389,7 @@ mod tests {
         let mut state = TuiState::new("test");
         let key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
         let action = view.handle_key(key, &mut state);
-        assert!(matches!(action, ViewAction::SwitchView(TuiView::Home)));
+        assert!(matches!(action, ViewAction::SwitchView(TuiView::Explorer)));
     }
 
     #[test]
@@ -419,12 +419,12 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_key_question_opens_help() {
+    fn test_handle_key_question_does_nothing() {
         let mut view = SettingsView::new();
         let mut state = TuiState::new("test");
         let key = KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE);
         let action = view.handle_key(key, &mut state);
-        assert!(matches!(action, ViewAction::SwitchView(TuiView::Help)));
+        assert!(matches!(action, ViewAction::None));
     }
 
     #[test]
@@ -439,5 +439,45 @@ mod tests {
         let key_k = KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE);
         view.handle_key(key_k, &mut state);
         assert_eq!(view.section, SettingsSection::Provider);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Theme Shortcut Tests (v0.12.0)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_handle_key_1_sets_light_theme() {
+        let mut view = SettingsView::new();
+        let mut state = TuiState::new("test");
+        let key = KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE);
+        let action = view.handle_key(key, &mut state);
+        assert!(matches!(
+            action,
+            ViewAction::SetTheme(CosmicVariant::CosmicLight)
+        ));
+    }
+
+    #[test]
+    fn test_handle_key_2_sets_dark_theme() {
+        let mut view = SettingsView::new();
+        let mut state = TuiState::new("test");
+        let key = KeyEvent::new(KeyCode::Char('2'), KeyModifiers::NONE);
+        let action = view.handle_key(key, &mut state);
+        assert!(matches!(
+            action,
+            ViewAction::SetTheme(CosmicVariant::CosmicDark)
+        ));
+    }
+
+    #[test]
+    fn test_handle_key_3_sets_violet_theme() {
+        let mut view = SettingsView::new();
+        let mut state = TuiState::new("test");
+        let key = KeyEvent::new(KeyCode::Char('3'), KeyModifiers::NONE);
+        let action = view.handle_key(key, &mut state);
+        assert!(matches!(
+            action,
+            ViewAction::SetTheme(CosmicVariant::CosmicViolet)
+        ));
     }
 }

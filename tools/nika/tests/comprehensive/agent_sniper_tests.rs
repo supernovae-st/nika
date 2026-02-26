@@ -7,7 +7,7 @@
 //! - extended_thinking, thinking_budget
 //! - depth_limit
 
-use nika::ast::{AgentParams, TaskAction, Workflow};
+use nika::ast::{TaskAction, Workflow};
 use nika::dag::Dag;
 use std::path::PathBuf;
 

@@ -68,7 +68,7 @@ jobs:
         env:
           INPUT_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          CARGO_VERSION=$(grep '^version = ' tools/nika/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
           if [ "$CARGO_VERSION" != "$INPUT_VERSION" ]; then
             echo "::warning::Cargo.toml version ($CARGO_VERSION) does not match release version ($INPUT_VERSION)"
           fi
@@ -134,7 +134,7 @@ jobs:
       - name: Build release binary
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --manifest-path tools/nika/Cargo.toml --release --target ${{ matrix.target }}
 
       - name: Strip binary (Unix)
         if: matrix.os != 'windows-latest'
@@ -299,7 +299,7 @@ jobs:
           # Publish in dependency order
           for crate in nika-core nika-mcp nika-provider nika-runtime nika-tui nika-cli; do
             echo "Checking $crate..."
-            cargo publish --dry-run -p "$crate" || true
+            cargo publish --manifest-path tools/nika/Cargo.toml --dry-run -p "$crate" || true
           done
 
       - name: Publish crates
@@ -310,7 +310,7 @@ jobs:
             # Publish in dependency order with delay between crates
             for crate in nika-core nika-mcp nika-provider nika-runtime nika-tui nika-cli; do
               echo "Publishing $crate..."
-              cargo publish -p "$crate" --no-verify || true
+              cargo publish --manifest-path tools/nika/Cargo.toml -p "$crate" --no-verify || true
               sleep 30  # Wait for crates.io to index
             done
           else

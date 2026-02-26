@@ -7,8 +7,8 @@
 //! | Component | Implementation |
 //! |-----------|----------------|
 //! | `agent:` verb | [`RigAgentLoop`](crate::runtime::RigAgentLoop) + rig-core |
-//! | `infer:` verb | [`RigProvider`](rig::RigProvider) + rig-core |
-//! | Tool calling | [`NikaMcpTool`](rig::NikaMcpTool) (rig `ToolDyn`) |
+//! | `infer:` verb | `RigProvider` + rig-core |
+//! | Tool calling | `NikaMcpTool` (rig `ToolDyn`) |
 //!
 //! ## Example
 //!

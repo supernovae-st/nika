@@ -1,25 +1,26 @@
 //! Focus State for Panel Navigation
 //!
 //! Manages which panel is currently focused and provides Tab/Shift+Tab navigation.
+//! Updated for 6-Views Architecture (v0.12)
 
 use super::views::TuiView;
 
-/// Panel identifiers for 4-view architecture
+/// Panel identifiers for 6-view architecture (v0.12)
 ///
 /// Each view has its own set of panels that can receive focus.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PanelId {
-    // ═══ Home View (Standalone) ═══
+    // ═══ Explorer View (1) ═══
     /// File browser panel
-    HomeFiles,
+    ExplorerFiles,
     /// DAG preview panel
-    HomeDag,
+    ExplorerDag,
     /// YAML preview panel
-    HomeYaml,
+    ExplorerYaml,
     /// Execution history panel
-    HomeHistory,
+    ExplorerHistory,
 
-    // ═══ Chat View ═══
+    // ═══ Chat View (2) ═══
     /// Conversation history
     ChatConversation,
     /// Text input field
@@ -27,82 +28,104 @@ pub enum PanelId {
     /// Context/files panel
     ChatContext,
 
-    // ═══ Studio View ═══
+    // ═══ Editor View (3) ═══
     /// File explorer
-    StudioFiles,
+    EditorFiles,
     /// YAML editor
-    StudioEditor,
+    EditorEditor,
     /// Diagnostics panel
-    StudioDiagnostics,
+    EditorDiagnostics,
 
-    // ═══ Monitor View (Execution) ═══
+    // ═══ Runner View (4) ═══
     /// Mission control panel
-    MonitorMission,
+    RunnerMission,
     /// DAG visualization
-    MonitorDag,
+    RunnerDag,
     /// NovaNet context panel
-    MonitorNovanet,
+    RunnerNovanet,
     /// Agent reasoning panel
-    MonitorReasoning,
+    RunnerReasoning,
+
+    // ═══ Scheduler View (5) ═══
+    /// Schedule list panel
+    SchedulerList,
+    /// Timeline panel
+    SchedulerTimeline,
+    /// Run history panel
+    SchedulerHistory,
+    /// Cron editor panel
+    SchedulerCronEditor,
 }
 
 impl PanelId {
     /// Get all panels for a specific view
     pub fn panels_for_view(view: TuiView) -> &'static [PanelId] {
         match view {
-            TuiView::Home => &[
-                PanelId::HomeFiles,
-                PanelId::HomeDag,
-                PanelId::HomeYaml,
-                PanelId::HomeHistory,
+            TuiView::Explorer => &[
+                PanelId::ExplorerFiles,
+                PanelId::ExplorerDag,
+                PanelId::ExplorerYaml,
+                PanelId::ExplorerHistory,
             ],
             TuiView::Chat => &[
                 PanelId::ChatConversation,
                 PanelId::ChatInput,
                 PanelId::ChatContext,
             ],
-            TuiView::Studio => &[
-                PanelId::StudioFiles,
-                PanelId::StudioEditor,
-                PanelId::StudioDiagnostics,
+            TuiView::Editor => &[
+                PanelId::EditorFiles,
+                PanelId::EditorEditor,
+                PanelId::EditorDiagnostics,
             ],
-            TuiView::Monitor => &[
-                PanelId::MonitorMission,
-                PanelId::MonitorDag,
-                PanelId::MonitorNovanet,
-                PanelId::MonitorReasoning,
+            TuiView::Runner => &[
+                PanelId::RunnerMission,
+                PanelId::RunnerDag,
+                PanelId::RunnerNovanet,
+                PanelId::RunnerReasoning,
             ],
-            // Settings and Help are auxiliary views without panel navigation (v0.11)
-            TuiView::Settings | TuiView::Help => &[],
+            TuiView::Scheduler => &[
+                PanelId::SchedulerList,
+                PanelId::SchedulerTimeline,
+                PanelId::SchedulerHistory,
+                PanelId::SchedulerCronEditor,
+            ],
+            // Settings is auxiliary view without panel navigation (v0.12)
+            TuiView::Settings => &[],
         }
     }
 
     /// Get the view this panel belongs to
     pub fn view(&self) -> TuiView {
         match self {
-            PanelId::HomeFiles | PanelId::HomeDag | PanelId::HomeYaml | PanelId::HomeHistory => {
-                TuiView::Home
-            }
+            PanelId::ExplorerFiles
+            | PanelId::ExplorerDag
+            | PanelId::ExplorerYaml
+            | PanelId::ExplorerHistory => TuiView::Explorer,
             PanelId::ChatConversation | PanelId::ChatInput | PanelId::ChatContext => TuiView::Chat,
-            PanelId::StudioFiles | PanelId::StudioEditor | PanelId::StudioDiagnostics => {
-                TuiView::Studio
+            PanelId::EditorFiles | PanelId::EditorEditor | PanelId::EditorDiagnostics => {
+                TuiView::Editor
             }
-            PanelId::MonitorMission
-            | PanelId::MonitorDag
-            | PanelId::MonitorNovanet
-            | PanelId::MonitorReasoning => TuiView::Monitor,
+            PanelId::RunnerMission
+            | PanelId::RunnerDag
+            | PanelId::RunnerNovanet
+            | PanelId::RunnerReasoning => TuiView::Runner,
+            PanelId::SchedulerList
+            | PanelId::SchedulerTimeline
+            | PanelId::SchedulerHistory
+            | PanelId::SchedulerCronEditor => TuiView::Scheduler,
         }
     }
 
     /// Get the default panel for a view
     pub fn default_for_view(view: TuiView) -> PanelId {
         match view {
-            TuiView::Home => PanelId::HomeFiles,
+            TuiView::Explorer => PanelId::ExplorerFiles,
             TuiView::Chat => PanelId::ChatInput,
-            TuiView::Studio => PanelId::StudioEditor,
-            TuiView::Monitor => PanelId::MonitorMission,
-            // Auxiliary views don't have panels, return Home's default
-            TuiView::Settings | TuiView::Help => PanelId::HomeFiles,
+            TuiView::Editor => PanelId::EditorEditor,
+            TuiView::Runner => PanelId::RunnerMission,
+            TuiView::Scheduler => PanelId::SchedulerList,
+            // Auxiliary views don't have panels, return Explorer's default
+            TuiView::Settings => PanelId::ExplorerFiles,
         }
     }
 }
@@ -191,50 +214,50 @@ mod tests {
 
     #[test]
     fn test_new_focus_state() {
-        let state = FocusState::new(PanelId::HomeFiles);
-        assert_eq!(state.current(), PanelId::HomeFiles);
+        let state = FocusState::new(PanelId::ExplorerFiles);
+        assert_eq!(state.current(), PanelId::ExplorerFiles);
     }
 
     #[test]
     fn test_focus_changes_current() {
-        let mut state = FocusState::new(PanelId::HomeFiles);
-        state.focus(PanelId::HomeDag);
-        assert_eq!(state.current(), PanelId::HomeDag);
+        let mut state = FocusState::new(PanelId::ExplorerFiles);
+        state.focus(PanelId::ExplorerDag);
+        assert_eq!(state.current(), PanelId::ExplorerDag);
     }
 
     #[test]
     fn test_focus_pushes_to_stack() {
-        let mut state = FocusState::new(PanelId::HomeFiles);
-        state.focus(PanelId::HomeDag);
+        let mut state = FocusState::new(PanelId::ExplorerFiles);
+        state.focus(PanelId::ExplorerDag);
         assert!(state.back());
-        assert_eq!(state.current(), PanelId::HomeFiles);
+        assert_eq!(state.current(), PanelId::ExplorerFiles);
     }
 
     #[test]
     fn test_next_panel_cycles() {
-        let mut state = FocusState::new(PanelId::HomeFiles);
+        let mut state = FocusState::new(PanelId::ExplorerFiles);
         state.next_panel();
-        assert_eq!(state.current(), PanelId::HomeDag);
+        assert_eq!(state.current(), PanelId::ExplorerDag);
         state.next_panel();
-        assert_eq!(state.current(), PanelId::HomeYaml);
+        assert_eq!(state.current(), PanelId::ExplorerYaml);
         state.next_panel();
-        assert_eq!(state.current(), PanelId::HomeHistory);
+        assert_eq!(state.current(), PanelId::ExplorerHistory);
         state.next_panel();
-        assert_eq!(state.current(), PanelId::HomeFiles); // Cycles back
+        assert_eq!(state.current(), PanelId::ExplorerFiles); // Cycles back
     }
 
     #[test]
     fn test_prev_panel_cycles() {
-        let mut state = FocusState::new(PanelId::HomeFiles);
+        let mut state = FocusState::new(PanelId::ExplorerFiles);
         state.prev_panel();
-        assert_eq!(state.current(), PanelId::HomeHistory); // Wraps to end
+        assert_eq!(state.current(), PanelId::ExplorerHistory); // Wraps to end
     }
 
     #[test]
     fn test_reset_to_view() {
-        let mut state = FocusState::new(PanelId::HomeFiles);
-        state.focus(PanelId::HomeDag);
-        state.focus(PanelId::HomeYaml);
+        let mut state = FocusState::new(PanelId::ExplorerFiles);
+        state.focus(PanelId::ExplorerDag);
+        state.focus(PanelId::ExplorerYaml);
         state.reset_to_view(TuiView::Chat);
         assert_eq!(state.current(), PanelId::ChatInput);
         assert!(!state.back()); // Stack cleared
@@ -242,21 +265,25 @@ mod tests {
 
     #[test]
     fn test_panels_for_view() {
-        let home_panels = PanelId::panels_for_view(TuiView::Home);
-        assert_eq!(home_panels.len(), 4);
+        let explorer_panels = PanelId::panels_for_view(TuiView::Explorer);
+        assert_eq!(explorer_panels.len(), 4);
 
         let chat_panels = PanelId::panels_for_view(TuiView::Chat);
         assert_eq!(chat_panels.len(), 3);
 
-        let monitor_panels = PanelId::panels_for_view(TuiView::Monitor);
-        assert_eq!(monitor_panels.len(), 4);
+        let runner_panels = PanelId::panels_for_view(TuiView::Runner);
+        assert_eq!(runner_panels.len(), 4);
+
+        let scheduler_panels = PanelId::panels_for_view(TuiView::Scheduler);
+        assert_eq!(scheduler_panels.len(), 4);
     }
 
     #[test]
     fn test_panel_view() {
-        assert_eq!(PanelId::HomeFiles.view(), TuiView::Home);
+        assert_eq!(PanelId::ExplorerFiles.view(), TuiView::Explorer);
         assert_eq!(PanelId::ChatInput.view(), TuiView::Chat);
-        assert_eq!(PanelId::StudioEditor.view(), TuiView::Studio);
-        assert_eq!(PanelId::MonitorDag.view(), TuiView::Monitor);
+        assert_eq!(PanelId::EditorEditor.view(), TuiView::Editor);
+        assert_eq!(PanelId::RunnerDag.view(), TuiView::Runner);
+        assert_eq!(PanelId::SchedulerList.view(), TuiView::Scheduler);
     }
 }

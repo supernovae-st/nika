@@ -265,9 +265,8 @@ fn wiring_7_dag_panel_visibility() {
 
 #[test]
 fn wiring_7_dag_panel_with_title() {
-    let panel = ChatDagPanel::new().with_title("Chat DAG");
-    // Title is set (no getter, but builder works)
-    assert!(true, "Title builder should work");
+    let _panel = ChatDagPanel::new().with_title("Chat DAG");
+    // Title builder works - reaching here means success
 }
 
 #[test]

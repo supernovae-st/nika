@@ -60,8 +60,7 @@ fn wiring_checkpoint_5_session_meta_fields() {
         let _count = meta.message_count;
     }
 
-    // Test passes even with no sessions
-    assert!(true);
+    // Test passes even with no sessions - reaching here means success
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -75,6 +74,5 @@ fn wiring_checkpoint_5_session_infrastructure() {
     let _ = list_sessions();
     let _ = get_latest_session();
 
-    // Session infrastructure is working
-    assert!(true);
+    // Session infrastructure is working - reaching here means success
 }

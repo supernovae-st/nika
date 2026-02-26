@@ -28,13 +28,13 @@ pub enum McpAction {
 /// Parsed chat command
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
-    /// /infer <prompt> - Direct LLM inference
+    /// `/infer <prompt>` - Direct LLM inference
     Infer { prompt: String },
 
-    /// /exec <command> - Shell execution
+    /// `/exec <command>` - Shell execution
     Exec { command: String },
 
-    /// /fetch <url> [method] - HTTP request
+    /// `/fetch <url> [method]` - HTTP request
     Fetch { url: String, method: String },
 
     /// /fetch error - user made a common mistake (v0.8.2)
@@ -44,14 +44,14 @@ pub enum Command {
         example: String,
     },
 
-    /// /invoke [server:]tool [json_params] - MCP tool call
+    /// `/invoke [server:]tool [json_params]` - MCP tool call
     Invoke {
         tool: String,
         server: Option<String>,
         params: serde_json::Value,
     },
 
-    /// /agent <goal> [--max-turns N] [--mcp server1,server2] - Multi-turn agentic loop
+    /// `/agent <goal> [--max-turns N] [--mcp server1,server2]` - Multi-turn agentic loop
     Agent {
         goal: String,
         max_turns: Option<u32>,
@@ -65,7 +65,7 @@ pub enum Command {
     /// /help or /? - Show help
     Help,
 
-    /// /model <provider> - Switch LLM provider (openai, claude)
+    /// `/model <provider>` - Switch LLM provider (openai, claude)
     Model { provider: ModelProvider },
 
     /// /clear - Clear chat history
@@ -74,7 +74,7 @@ pub enum Command {
     /// /mcp [list|select|toggle] - MCP server management (v0.5.2)
     Mcp { action: McpAction },
 
-    /// /export [path] - Export chat session to JSON file (v0.9)
+    /// `/export [path]` - Export chat session to JSON file (v0.9)
     Export { path: Option<String> },
 }
 
@@ -482,7 +482,7 @@ impl ModelProvider {
         }
     }
 
-    /// Get the short command name for the provider (used with /model <name>)
+    /// Get the short command name for the provider (used with `/model <name>`)
     pub fn command_name(&self) -> &'static str {
         match self {
             ModelProvider::OpenAI => "openai",
@@ -514,6 +514,22 @@ impl ModelProvider {
             ModelProvider::List => true,
             ModelProvider::Ollama => true, // Ollama is always "available" (localhost fallback)
             _ => std::env::var(self.env_var()).is_ok_and(|v| !v.is_empty()),
+        }
+    }
+
+    /// Convert provider name string to ModelProvider enum (v0.12.2)
+    ///
+    /// Used by Provider Modal SelectProvider action to switch providers.
+    /// Returns None for invalid provider names.
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name.to_lowercase().as_str() {
+            "claude" | "anthropic" => Some(ModelProvider::Claude),
+            "openai" | "gpt" => Some(ModelProvider::OpenAI),
+            "mistral" => Some(ModelProvider::Mistral),
+            "groq" => Some(ModelProvider::Groq),
+            "deepseek" => Some(ModelProvider::DeepSeek),
+            "ollama" => Some(ModelProvider::Ollama),
+            _ => None,
         }
     }
 }
@@ -1295,5 +1311,58 @@ mod tests {
         }
         .is_empty());
         assert!(!Command::Clear.is_empty());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ModelProvider::from_name tests (v0.12.2)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_model_provider_from_name_claude() {
+        assert_eq!(
+            ModelProvider::from_name("claude"),
+            Some(ModelProvider::Claude)
+        );
+        assert_eq!(
+            ModelProvider::from_name("anthropic"),
+            Some(ModelProvider::Claude)
+        );
+        assert_eq!(
+            ModelProvider::from_name("CLAUDE"),
+            Some(ModelProvider::Claude)
+        );
+    }
+
+    #[test]
+    fn test_model_provider_from_name_openai() {
+        assert_eq!(
+            ModelProvider::from_name("openai"),
+            Some(ModelProvider::OpenAI)
+        );
+        assert_eq!(ModelProvider::from_name("gpt"), Some(ModelProvider::OpenAI));
+    }
+
+    #[test]
+    fn test_model_provider_from_name_all_providers() {
+        assert_eq!(
+            ModelProvider::from_name("mistral"),
+            Some(ModelProvider::Mistral)
+        );
+        assert_eq!(ModelProvider::from_name("groq"), Some(ModelProvider::Groq));
+        assert_eq!(
+            ModelProvider::from_name("deepseek"),
+            Some(ModelProvider::DeepSeek)
+        );
+        assert_eq!(
+            ModelProvider::from_name("ollama"),
+            Some(ModelProvider::Ollama)
+        );
+    }
+
+    #[test]
+    fn test_model_provider_from_name_invalid() {
+        assert_eq!(ModelProvider::from_name("invalid"), None);
+        assert_eq!(ModelProvider::from_name(""), None);
+        assert_eq!(ModelProvider::from_name("list"), None);
     }
 }

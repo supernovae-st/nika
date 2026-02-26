@@ -25,7 +25,9 @@ fn run_nika(args: &[&str]) -> std::process::Output {
 }
 
 /// Run nika command with timeout
+#[allow(dead_code)]
 fn run_nika_timeout(args: &[&str], timeout_secs: u64) -> std::process::Output {
+    #[allow(unused_imports)]
     use std::time::Duration;
 
     let mut child = Command::new("cargo")
@@ -209,7 +211,7 @@ fn test_cli_json_output() {
 
     // If format is supported, should work
     // If not, should fail gracefully
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let _stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     // Either succeeds with JSON or fails with helpful error

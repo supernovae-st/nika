@@ -809,6 +809,7 @@ impl ProviderModalState {
 }
 
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
 mod tests {
     use super::*;
     use crate::tui::widgets::provider_modal::OllamaModelInfo;
@@ -1649,7 +1650,7 @@ mod tests {
         );
     }
 
-    // ═══ TODO 2: Session Token Tracking Tests ═══
+    // ═══ TESTS: Session Token Tracking ═══
 
     #[test]
     fn test_set_session_tokens_updates_stats() {
@@ -1683,7 +1684,7 @@ mod tests {
         assert_eq!(state.get_session_stats().tokens_used, 0);
     }
 
-    // ═══ TODO 3: MCP Connection Status Tests ═══
+    // ═══ TESTS: MCP Connection Status ═══
 
     #[test]
     fn test_set_mcp_connections_updates_stats() {
