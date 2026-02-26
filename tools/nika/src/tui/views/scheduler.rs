@@ -34,10 +34,10 @@ use super::{TuiView, View, ViewAction};
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
 
-// NOTE: SchedulerView is implemented but not yet wired into App (v0.12 placeholder)
-// Remove #[allow(dead_code)] when wiring is complete
-#[allow(dead_code)]
 /// Scheduler view state
+///
+/// Wired in App (v0.11.3) with full View trait implementation.
+/// Accessed via TuiView::Scheduler ([5] or 's' shortcut).
 #[derive(Debug)]
 pub struct SchedulerView {
     /// Selected schedule index
@@ -48,9 +48,8 @@ pub struct SchedulerView {
     schedules: Vec<ScheduleEntry>,
 }
 
-/// Panels in Scheduler view
+/// Panels in Scheduler view (A/B/C/D 2x2 grid)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[allow(dead_code)]
 pub enum SchedulerPanel {
     #[default]
     ScheduleList,
@@ -90,7 +89,6 @@ impl SchedulerPanel {
 
 /// A scheduled workflow entry
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct ScheduleEntry {
     pub name: String,
     pub cron: String,

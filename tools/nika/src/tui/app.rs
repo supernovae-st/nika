@@ -1515,9 +1515,15 @@ impl App {
             KeyCode::Char('4') if !self.is_view_capturing_input() => {
                 return Action::SwitchView(TuiView::Runner);
             }
+            KeyCode::Char('5') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Scheduler);
+            }
+            KeyCode::Char('6') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Settings);
+            }
 
             // Tab/BackTab delegated to views for panel navigation (v0.8 UX)
-            // Use number keys 1/2/3/4 to switch views
+            // Use number keys 1-6 to switch views (v0.12 6-views architecture)
             // Views handle Tab internally for panel focus cycling
             _ => {}
         }
@@ -2473,6 +2479,9 @@ impl App {
         // Also update legacy theme_mode for backward compat
         self.state.theme_mode = self.cosmic_theme.variant().into();
 
+        // v0.12: Sync SettingsView display
+        self.settings_view.update_theme_name(self.cosmic_theme.label());
+
         self.set_status(&format!("🎨 Theme: {}", self.cosmic_theme.label()));
     }
 
@@ -2485,6 +2494,9 @@ impl App {
 
         // Also update legacy theme_mode for backward compat
         self.state.theme_mode = self.cosmic_theme.variant().into();
+
+        // v0.12: Sync SettingsView display
+        self.settings_view.update_theme_name(self.cosmic_theme.label());
 
         self.set_status(&format!("🎨 Theme: {}", self.cosmic_theme.label()));
     }
@@ -3396,6 +3408,9 @@ impl App {
                     // Sync both provider and model names
                     self.chat_view.set_provider(provider.name());
                     self.chat_view.set_model(agent.model_name());
+                    // v0.12: Sync SettingsView display
+                    self.settings_view
+                        .update_provider(provider.name(), agent.model_name());
                     let msg = format!("Switched to {} ({})", provider.name(), agent.model_name());
                     self.chat_view.add_nika_message(msg.clone(), None);
                     self.set_status(&msg);
@@ -3419,6 +3434,9 @@ impl App {
                         self.chat_agent = Some(agent);
                         self.chat_view.set_provider(provider.name());
                         self.chat_view.set_model(&model_name);
+                        // v0.12: Sync SettingsView display
+                        self.settings_view
+                            .update_provider(provider.name(), &model_name);
                         let msg = format!("Switched to {} ({})", provider.name(), model_name);
                         self.chat_view.add_nika_message(msg.clone(), None);
                         self.set_status(&msg);
@@ -4477,6 +4495,21 @@ mod tests {
             action,
             Action::SwitchView(TuiView::Runner),
             "Key '4' should switch to Monitor view"
+        );
+
+        // v0.12: Keys 5 and 6 for Scheduler and Settings
+        let action = app.handle_unified_key(KeyCode::Char('5'), KeyModifiers::empty());
+        assert_eq!(
+            action,
+            Action::SwitchView(TuiView::Scheduler),
+            "Key '5' should switch to Scheduler view"
+        );
+
+        let action = app.handle_unified_key(KeyCode::Char('6'), KeyModifiers::empty());
+        assert_eq!(
+            action,
+            Action::SwitchView(TuiView::Settings),
+            "Key '6' should switch to Settings view"
         );
     }
 

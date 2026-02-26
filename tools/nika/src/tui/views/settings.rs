@@ -99,16 +99,16 @@ impl SettingsView {
     }
 
     /// Update provider info from state
-    /// (Called externally when provider changes - will be wired in full state sync)
-    #[allow(dead_code)]
+    ///
+    /// Called from App when provider changes (v0.12 state sync).
     pub fn update_provider(&mut self, provider: &str, model: &str) {
         self.provider_name = provider.to_string();
         self.model_name = model.to_string();
     }
 
     /// Update theme name from theme mode
-    /// (Called externally when theme changes - will be wired in full state sync)
-    #[allow(dead_code)]
+    ///
+    /// Called from App when theme changes (v0.12 state sync).
     pub fn update_theme_name(&mut self, name: &str) {
         self.theme_name = name.to_string();
     }
