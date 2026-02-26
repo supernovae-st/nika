@@ -35,6 +35,8 @@ pub struct InferBox {
     pub expanded_response: bool,
     /// Show streaming cursor
     pub streaming_cursor: bool,
+    /// Pulse intensity for border animation (0.0-1.0)
+    pub pulse_intensity: f32,
 }
 
 impl InferBox {
@@ -51,6 +53,7 @@ impl InferBox {
             expanded_prompt: false,
             expanded_response: false,
             streaming_cursor: false,
+            pulse_intensity: 0.0,
         }
     }
 
@@ -82,6 +85,12 @@ impl InferBox {
     /// Enable streaming cursor
     pub fn with_streaming_cursor(mut self, enabled: bool) -> Self {
         self.streaming_cursor = enabled;
+        self
+    }
+
+    /// Set pulse intensity for border animation (clamped to 0.0-1.0)
+    pub fn with_pulse_intensity(mut self, intensity: f32) -> Self {
+        self.pulse_intensity = intensity.clamp(0.0, 1.0);
         self
     }
 
@@ -161,7 +170,7 @@ impl Widget for InferBox {
         }
 
         let verb = VerbColor::Infer;
-        let border_color = self.state.border_color(verb.rgb());
+        let border_color = self.state.border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
         let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
         let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
@@ -401,5 +410,28 @@ mod tests {
 
         assert!(box_.streaming_cursor);
         assert!(box_.state.is_running());
+    }
+
+    #[test]
+    fn test_infer_box_with_pulse() {
+        let box_ = InferBox::new("claude-sonnet-4-6", "Generate a summary")
+            .with_pulse_intensity(0.8);
+        assert!((box_.pulse_intensity - 0.8).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_infer_box_pulse_clamped() {
+        // Test that values are clamped to 0.0-1.0 range
+        let box_high = InferBox::new("model", "prompt").with_pulse_intensity(1.5);
+        assert!((box_high.pulse_intensity - 1.0).abs() < 0.001);
+
+        let box_low = InferBox::new("model", "prompt").with_pulse_intensity(-0.5);
+        assert!((box_low.pulse_intensity - 0.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_infer_box_pulse_default_zero() {
+        let box_ = InferBox::new("model", "prompt");
+        assert!((box_.pulse_intensity - 0.0).abs() < 0.001);
     }
 }

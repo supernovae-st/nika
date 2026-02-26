@@ -735,7 +735,7 @@ mod tests {
             let rain = MatrixRain::new()
                 .frame(frame)
                 .with_nika_pattern(true)
-                .explosion_frame(frame as u8)
+                .explosion_frame(frame)
                 .opacity(1.0);
             let mut buf = Buffer::empty(area);
             rain.render(area, &mut buf);

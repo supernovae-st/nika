@@ -412,14 +412,14 @@ mod tests {
 
         // Initial position at start
         let pos0 = edge.flow_position().unwrap();
-        assert!(pos0.y >= 0 && pos0.y <= 10);
+        assert!(pos0.y <= 10);
 
         // After some ticks, position should still be valid
         for _ in 0..5 {
             edge.tick();
         }
         let pos1 = edge.flow_position().unwrap();
-        assert!(pos1.y >= 0 && pos1.y <= 10);
+        assert!(pos1.y <= 10);
     }
 
     #[test]

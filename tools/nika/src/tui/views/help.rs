@@ -492,7 +492,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_key_G_goes_to_bottom() {
+    fn test_handle_key_shift_g_goes_to_bottom() {
         let mut view = HelpView::new();
         view.total_lines = 100;
         let mut state = TuiState::new("test");
