@@ -235,6 +235,7 @@ mod tests {
         let path = dir.path().join(name);
         let mut file = File::create(&path).await.unwrap();
         file.write_all(content.as_bytes()).await.unwrap();
+        file.flush().await.unwrap(); // Ensure data is written before returning
         path.to_string_lossy().to_string()
     }
 
