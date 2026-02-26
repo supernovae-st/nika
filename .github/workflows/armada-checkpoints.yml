@@ -17,6 +17,10 @@ env:
   RUSTFLAGS: -Dwarnings
   RUST_VERSION: '1.85'
 
+defaults:
+  run:
+    working-directory: tools/nika
+
 jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   # STATION 1-2: Format & Lint (Fast, parallel)
