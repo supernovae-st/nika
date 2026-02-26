@@ -98,10 +98,28 @@ impl KeyAction {
     pub fn actions_for_verb(verb: &str) -> &'static [Self] {
         match verb {
             "infer" => &[Self::Copy, Self::Json, Self::Toggle, Self::Mode],
-            "exec" => &[Self::Copy, Self::Kill, Self::Rerun, Self::Toggle, Self::Mode],
-            "fetch" => &[Self::Copy, Self::Json, Self::Retry, Self::Toggle, Self::Mode],
+            "exec" => &[
+                Self::Copy,
+                Self::Kill,
+                Self::Rerun,
+                Self::Toggle,
+                Self::Mode,
+            ],
+            "fetch" => &[
+                Self::Copy,
+                Self::Json,
+                Self::Retry,
+                Self::Toggle,
+                Self::Mode,
+            ],
             "invoke" => &[Self::Copy, Self::Json, Self::Toggle, Self::Mode],
-            "agent" => &[Self::Copy, Self::Json, Self::Children, Self::Thinking, Self::Mode],
+            "agent" => &[
+                Self::Copy,
+                Self::Json,
+                Self::Children,
+                Self::Thinking,
+                Self::Mode,
+            ],
             _ => &[Self::Copy, Self::Toggle, Self::Mode],
         }
     }
@@ -113,8 +131,14 @@ mod tests {
 
     #[test]
     fn test_common_actions() {
-        assert_eq!(KeyAction::from_key(KeyCode::Char('c')), Some(KeyAction::Copy));
-        assert_eq!(KeyAction::from_key(KeyCode::Char('j')), Some(KeyAction::Json));
+        assert_eq!(
+            KeyAction::from_key(KeyCode::Char('c')),
+            Some(KeyAction::Copy)
+        );
+        assert_eq!(
+            KeyAction::from_key(KeyCode::Char('j')),
+            Some(KeyAction::Json)
+        );
         assert_eq!(KeyAction::from_key(KeyCode::Enter), Some(KeyAction::Toggle));
         assert_eq!(KeyAction::from_key(KeyCode::Esc), Some(KeyAction::Close));
     }
@@ -122,10 +146,16 @@ mod tests {
     #[test]
     fn test_verb_specific_actions() {
         // Exec-specific
-        assert_eq!(KeyAction::from_key(KeyCode::Char('k')), Some(KeyAction::Kill));
+        assert_eq!(
+            KeyAction::from_key(KeyCode::Char('k')),
+            Some(KeyAction::Kill)
+        );
 
         // Fetch-specific
-        assert_eq!(KeyAction::from_key(KeyCode::Char('r')), Some(KeyAction::Retry));
+        assert_eq!(
+            KeyAction::from_key(KeyCode::Char('r')),
+            Some(KeyAction::Retry)
+        );
     }
 
     #[test]
@@ -195,7 +225,10 @@ mod tests {
 
     #[test]
     fn test_mode_key() {
-        assert_eq!(KeyAction::from_key(KeyCode::Char('m')), Some(KeyAction::Mode));
+        assert_eq!(
+            KeyAction::from_key(KeyCode::Char('m')),
+            Some(KeyAction::Mode)
+        );
     }
 
     #[test]
@@ -207,21 +240,30 @@ mod tests {
 
     #[test]
     fn test_rerun_key() {
-        assert_eq!(KeyAction::from_key(KeyCode::Char('!')), Some(KeyAction::Rerun));
+        assert_eq!(
+            KeyAction::from_key(KeyCode::Char('!')),
+            Some(KeyAction::Rerun)
+        );
         assert_eq!(KeyAction::Rerun.label(), "Re-run");
         assert_eq!(KeyAction::Rerun.hint(), "!");
     }
 
     #[test]
     fn test_children_key() {
-        assert_eq!(KeyAction::from_key(KeyCode::Char('e')), Some(KeyAction::Children));
+        assert_eq!(
+            KeyAction::from_key(KeyCode::Char('e')),
+            Some(KeyAction::Children)
+        );
         assert_eq!(KeyAction::Children.label(), "Children");
         assert_eq!(KeyAction::Children.hint(), "e");
     }
 
     #[test]
     fn test_thinking_key() {
-        assert_eq!(KeyAction::from_key(KeyCode::Char('t')), Some(KeyAction::Thinking));
+        assert_eq!(
+            KeyAction::from_key(KeyCode::Char('t')),
+            Some(KeyAction::Thinking)
+        );
         assert_eq!(KeyAction::Thinking.label(), "Thinking");
         assert_eq!(KeyAction::Thinking.hint(), "t");
     }

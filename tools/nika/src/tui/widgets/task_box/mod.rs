@@ -29,6 +29,7 @@ mod colors;
 mod key_action;
 mod render_mode;
 mod state;
+mod token_velocity;
 
 // Individual box widgets
 mod agent;
@@ -42,6 +43,7 @@ pub use colors::{exit, http, status, VerbColor};
 pub use key_action::KeyAction;
 pub use render_mode::RenderMode;
 pub use state::{BoxState, BRAILLE_SPINNER};
+pub use token_velocity::TokenVelocity;
 
 pub use agent::AgentBox;
 pub use exec::ExecBox;
