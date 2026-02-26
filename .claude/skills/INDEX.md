@@ -6,6 +6,7 @@
 
 | Skill | Command | Purpose |
 |-------|---------|---------|
+| **ship** | `/ship` | Auto-ship changes: branch → commit → PR → merge (ARMADA workflow) |
 | **armada** | `/armada` | 10-station quality gates, releases, version lock (0.x.x forever) |
 | **nika-yaml** | `/nika-yaml` | Complete YAML authoring guide (verbs, for_each, bindings) |
 | **nika-arch** | `/nika-arch` | Architecture diagram and module structure |
@@ -108,7 +109,8 @@ nika check workflow.nika.yaml
 
 ## Skill Categories
 
-### Quality & Release (ARMADA)
+### Shipping & Release
+- `/ship` — Auto-ship changes (branch → PR → merge)
 - `/armada` — 10-station quality system
 - `/armada check` — Run all stations locally
 - `/armada release` — Prepare release with validation
