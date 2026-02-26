@@ -26,6 +26,7 @@
 //! ```
 
 mod colors;
+mod render_mode;
 mod state;
 
 // Individual box widgets
@@ -37,6 +38,7 @@ mod invoke;
 
 // Re-exports
 pub use colors::{exit, http, status, VerbColor};
+pub use render_mode::RenderMode;
 pub use state::{BoxState, BRAILLE_SPINNER};
 
 pub use agent::AgentBox;
