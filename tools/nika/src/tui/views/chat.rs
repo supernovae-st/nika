@@ -3843,9 +3843,18 @@ impl ChatView {
                     }
                 }
                 ModalAction::SelectProvider { provider, model } => {
-                    // Update active provider in chat state
-                    self.add_system_message(format!("🔄 Switched to {} ({})", provider, model));
+                    // v0.12.2: Actually switch provider via ChatModelSwitch
+                    use crate::tui::command::ModelProvider;
                     self.provider_modal.visible = false;
+                    if let Some(model_provider) = ModelProvider::from_name(provider) {
+                        self.add_system_message(format!("🔄 Switching to {} ({})", provider, model));
+                        return ViewAction::ChatModelSwitch(model_provider);
+                    } else {
+                        self.add_system_message(format!(
+                            "❌ Unknown provider: {} - available: claude, openai, mistral, groq, deepseek, ollama",
+                            provider
+                        ));
+                    }
                 }
                 ModalAction::CheckProvider { provider } => {
                     self.add_system_message(format!("🔍 Checking {} connection...", provider));

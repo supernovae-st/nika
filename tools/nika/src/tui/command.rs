@@ -516,6 +516,22 @@ impl ModelProvider {
             _ => std::env::var(self.env_var()).is_ok_and(|v| !v.is_empty()),
         }
     }
+
+    /// Convert provider name string to ModelProvider enum (v0.12.2)
+    ///
+    /// Used by Provider Modal SelectProvider action to switch providers.
+    /// Returns None for invalid provider names.
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name.to_lowercase().as_str() {
+            "claude" | "anthropic" => Some(ModelProvider::Claude),
+            "openai" | "gpt" => Some(ModelProvider::OpenAI),
+            "mistral" => Some(ModelProvider::Mistral),
+            "groq" => Some(ModelProvider::Groq),
+            "deepseek" => Some(ModelProvider::DeepSeek),
+            "ollama" => Some(ModelProvider::Ollama),
+            _ => None,
+        }
+    }
 }
 
 /// Help text for the chat interface
@@ -1295,5 +1311,58 @@ mod tests {
         }
         .is_empty());
         assert!(!Command::Clear.is_empty());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ModelProvider::from_name tests (v0.12.2)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_model_provider_from_name_claude() {
+        assert_eq!(
+            ModelProvider::from_name("claude"),
+            Some(ModelProvider::Claude)
+        );
+        assert_eq!(
+            ModelProvider::from_name("anthropic"),
+            Some(ModelProvider::Claude)
+        );
+        assert_eq!(
+            ModelProvider::from_name("CLAUDE"),
+            Some(ModelProvider::Claude)
+        );
+    }
+
+    #[test]
+    fn test_model_provider_from_name_openai() {
+        assert_eq!(
+            ModelProvider::from_name("openai"),
+            Some(ModelProvider::OpenAI)
+        );
+        assert_eq!(ModelProvider::from_name("gpt"), Some(ModelProvider::OpenAI));
+    }
+
+    #[test]
+    fn test_model_provider_from_name_all_providers() {
+        assert_eq!(
+            ModelProvider::from_name("mistral"),
+            Some(ModelProvider::Mistral)
+        );
+        assert_eq!(ModelProvider::from_name("groq"), Some(ModelProvider::Groq));
+        assert_eq!(
+            ModelProvider::from_name("deepseek"),
+            Some(ModelProvider::DeepSeek)
+        );
+        assert_eq!(
+            ModelProvider::from_name("ollama"),
+            Some(ModelProvider::Ollama)
+        );
+    }
+
+    #[test]
+    fn test_model_provider_from_name_invalid() {
+        assert_eq!(ModelProvider::from_name("invalid"), None);
+        assert_eq!(ModelProvider::from_name(""), None);
+        assert_eq!(ModelProvider::from_name("list"), None);
     }
 }
