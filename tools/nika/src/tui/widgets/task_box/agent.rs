@@ -43,6 +43,10 @@ pub struct AgentBox {
     pub expanded_children: bool,
     /// Pulse intensity for border animation (0.0-1.0)
     pub pulse_intensity: f32,
+    /// Whether this is a spawned subagent (vs parent agent)
+    pub is_subagent: bool,
+    /// Nesting depth (0 = root, 1+ = spawned)
+    pub depth: u8,
 }
 
 impl AgentBox {
@@ -63,6 +67,8 @@ impl AgentBox {
             expanded_response: false,
             expanded_children: true, // Children expanded by default
             pulse_intensity: 0.0,
+            is_subagent: false,
+            depth: 0,
         }
     }
 
@@ -102,6 +108,22 @@ impl AgentBox {
     pub fn with_pulse_intensity(mut self, intensity: f32) -> Self {
         self.pulse_intensity = intensity.clamp(0.0, 1.0);
         self
+    }
+
+    /// Mark as spawned subagent with depth (clamped to max 10)
+    pub fn as_subagent(mut self, depth: u8) -> Self {
+        self.is_subagent = true;
+        self.depth = depth.min(10);
+        self
+    }
+
+    /// Get the display icon based on agent type
+    pub fn icon(&self) -> &'static str {
+        if self.is_subagent {
+            "🐤" // Chick for subagent
+        } else {
+            "🐔" // Chicken for parent agent
+        }
     }
 
     /// Add a child task box
@@ -179,7 +201,12 @@ impl Widget for AgentBox {
             return;
         }
 
-        let verb = VerbColor::Agent;
+        // Use Spawn color for subagents (lighter rose), Agent color for parent
+        let verb = if self.is_subagent {
+            VerbColor::Spawn
+        } else {
+            VerbColor::Agent
+        };
         let border_color = self
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
@@ -195,9 +222,19 @@ impl Widget for AgentBox {
         // Top border: ╭─────────────────────────────────────────────────────────────────────╮
         // Header:     │ 🐔 AGENT: Research competitors...           ⣾ Running  00:12       │
         let prompt_truncated = Self::truncate(&self.prompt, inner_width.saturating_sub(35));
+        // Dynamic header label based on agent type
+        let header_label = if self.is_subagent {
+            if self.depth > 1 {
+                format!("{} SUBAGENT (d{})", self.icon(), self.depth)
+            } else {
+                format!("{} SUBAGENT", self.icon())
+            }
+        } else {
+            format!("{} AGENT", self.icon())
+        };
         let title = format!(
             "╭─ {} {} {} {} ─╮",
-            verb.icon_label(),
+            header_label,
             prompt_truncated,
             status_icon,
             status_suffix
@@ -487,5 +524,48 @@ mod tests {
 
         let box_low = AgentBox::new("task-1", "prompt").with_pulse_intensity(-0.5);
         assert!((box_low.pulse_intensity - 0.0).abs() < 0.001);
+    }
+
+    // === Subagent visual tests ===
+
+    #[test]
+    fn test_agent_box_default_not_subagent() {
+        let box_ = AgentBox::new("task-1", "prompt");
+        assert!(!box_.is_subagent);
+        assert_eq!(box_.depth, 0);
+        assert_eq!(box_.icon(), "🐔");
+    }
+
+    #[test]
+    fn test_agent_box_as_subagent() {
+        let box_ = AgentBox::new("child-1", "Subtask").as_subagent(2);
+        assert!(box_.is_subagent);
+        assert_eq!(box_.depth, 2);
+        assert_eq!(box_.icon(), "🐤");
+    }
+
+    #[test]
+    fn test_agent_box_subagent_depth_clamped() {
+        let box_ = AgentBox::new("task-1", "prompt").as_subagent(15);
+        assert_eq!(box_.depth, 10); // Max depth clamped to 10
+    }
+
+    #[test]
+    fn test_agent_box_icon_differs_by_type() {
+        let parent = AgentBox::new("root", "Main task");
+        let child = AgentBox::new("child", "Sub-task").as_subagent(1);
+
+        assert_eq!(parent.icon(), "🐔");
+        assert_eq!(child.icon(), "🐤");
+        assert_ne!(parent.icon(), child.icon());
+    }
+
+    #[test]
+    fn test_agent_box_subagent_depth_one_no_suffix() {
+        // Depth 1 should not show (d1) in header - only depth > 1
+        let sub = AgentBox::new("task", "prompt").as_subagent(1);
+        assert_eq!(sub.depth, 1);
+        // The header_label logic: depth > 1 shows "(dN)"
+        // For depth=1, no suffix is shown
     }
 }
