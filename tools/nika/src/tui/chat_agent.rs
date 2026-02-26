@@ -810,12 +810,30 @@ mod tests {
     #[tokio::test]
     async fn test_chat_agent_creation() {
         // This test verifies ChatAgent can be created
-        // It succeeds if either OPENAI_API_KEY or ANTHROPIC_API_KEY is set
-        // or if neither is set (agent created but will fail on infer)
+        // It succeeds if any API key is set, or returns Err if no keys are available
         let agent = ChatAgent::new();
 
-        // Agent creation should always succeed (error happens on use)
-        assert!(agent.is_ok());
+        // In CI without API keys, expect Err; with keys, expect Ok
+        match agent {
+            Ok(a) => {
+                // Verify the agent has a valid provider
+                let valid_providers =
+                    ["claude", "openai", "mistral", "groq", "deepseek", "ollama"];
+                assert!(
+                    valid_providers.contains(&a.provider_name()),
+                    "Expected valid provider, got: {}",
+                    a.provider_name()
+                );
+            }
+            Err(e) => {
+                // Expected in CI without API keys - verify it's the right error
+                assert!(
+                    e.to_string().contains("API key"),
+                    "Expected API key error, got: {}",
+                    e
+                );
+            }
+        }
     }
 
     #[test]
