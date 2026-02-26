@@ -460,11 +460,11 @@ mod tests {
         edge.render(buf.area, &mut buf);
 
         // Should have vertical line characters
-        assert_eq!(buf.get(5, 2).symbol(), "│");
-        assert_eq!(buf.get(5, 3).symbol(), "│");
-        assert_eq!(buf.get(5, 4).symbol(), "│");
+        assert_eq!(buf.cell((5, 2)).unwrap().symbol(), "│");
+        assert_eq!(buf.cell((5, 3)).unwrap().symbol(), "│");
+        assert_eq!(buf.cell((5, 4)).unwrap().symbol(), "│");
         // Arrow at end
-        assert_eq!(buf.get(5, 5).symbol(), "▼");
+        assert_eq!(buf.cell((5, 5)).unwrap().symbol(), "▼");
     }
 
     #[test]
@@ -475,10 +475,10 @@ mod tests {
         edge.render(buf.area, &mut buf);
 
         // Should have horizontal line characters
-        assert_eq!(buf.get(2, 5).symbol(), "─");
-        assert_eq!(buf.get(3, 5).symbol(), "─");
+        assert_eq!(buf.cell((2, 5)).unwrap().symbol(), "─");
+        assert_eq!(buf.cell((3, 5)).unwrap().symbol(), "─");
         // Arrow at end
-        assert_eq!(buf.get(8, 5).symbol(), "▶");
+        assert_eq!(buf.cell((8, 5)).unwrap().symbol(), "▶");
     }
 
     #[test]

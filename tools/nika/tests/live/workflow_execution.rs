@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables)]
 //! Live workflow execution tests - run actual .nika.yaml workflows.
 //!
 //! These tests execute real workflow files with actual API calls.
