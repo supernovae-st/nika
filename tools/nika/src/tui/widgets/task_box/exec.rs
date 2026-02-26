@@ -99,12 +99,6 @@ impl ExecBox {
         self
     }
 
-    /// Set render mode
-    pub fn with_render_mode(mut self, mode: RenderMode) -> Self {
-        self.render_mode = mode;
-        self
-    }
-
     /// Append to stdout (streaming)
     pub fn append_stdout(&mut self, text: &str) {
         self.stdout.push_str(text);
@@ -127,11 +121,6 @@ impl ExecBox {
 
     /// Calculate required height
     pub fn required_height(&self) -> u16 {
-        // Compact mode is always 1 line
-        if self.render_mode == RenderMode::Compact {
-            return 1;
-        }
-
         let mut height: u16 = 4; // Header + command + footer + bottom border
 
         // Stdout lines
@@ -172,47 +161,10 @@ impl ExecBox {
             None => "exit: ?".to_string(),
         }
     }
-
-    /// Render in compact mode (single line)
-    fn render_compact(&self, area: Rect, buf: &mut Buffer) {
-        let verb = VerbColor::Exec;
-        let border_color = self
-            .state
-            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
-        let line_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-
-        let status_icon = self.state.icon();
-        let exit_info = self.exit_display();
-
-        // Format: 📟 EXEC: ls -la  ✅ exit: 0
-        let prefix = format!("{} ", verb.icon_label());
-        let suffix = format!("  {} {}", status_icon, exit_info);
-        let available = (area.width as usize)
-            .saturating_sub(prefix.chars().count())
-            .saturating_sub(suffix.chars().count());
-        let cmd = Self::truncate(&self.command, available);
-
-        let line = format!("{}{}{}", prefix, cmd, suffix);
-        buf.set_string(area.x, area.y, &line, line_style);
-
-        // Dim the exit info portion
-        let exit_x = area.x + (line.chars().count() - suffix.chars().count()) as u16;
-        buf.set_string(exit_x, area.y, &suffix, dim_style);
-    }
 }
 
 impl Widget for ExecBox {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // Compact mode: single line
-        if self.render_mode == RenderMode::Compact {
-            if area.width < 20 || area.height < 1 {
-                return;
-            }
-            self.render_compact(area, buf);
-            return;
-        }
-
         if area.width < 30 || area.height < 4 {
             return;
         }
@@ -437,49 +389,6 @@ mod tests {
         assert!(running.exit_display().contains("?"));
     }
 
-    // === Signal Exit Code Tests (v0.11 Phase 3) ===
-
-    #[test]
-    fn test_signal_name_sigint() {
-        // SIGINT (Ctrl+C) = signal 2, exit code 130 (128+2)
-        assert_eq!(ExecBox::signal_name(130), Some("SIGINT"));
-    }
-
-    #[test]
-    fn test_signal_name_sigkill() {
-        // SIGKILL = signal 9, exit code 137 (128+9)
-        assert_eq!(ExecBox::signal_name(137), Some("SIGKILL"));
-    }
-
-    #[test]
-    fn test_signal_name_sigterm() {
-        // SIGTERM = signal 15, exit code 143 (128+15)
-        assert_eq!(ExecBox::signal_name(143), Some("SIGTERM"));
-    }
-
-    #[test]
-    fn test_signal_name_sigsegv() {
-        // SIGSEGV = signal 11, exit code 139 (128+11)
-        assert_eq!(ExecBox::signal_name(139), Some("SIGSEGV"));
-    }
-
-    #[test]
-    fn test_signal_name_none_for_normal_exit() {
-        // Normal exit codes (0-127) are not signals
-        assert_eq!(ExecBox::signal_name(0), None);
-        assert_eq!(ExecBox::signal_name(1), None);
-        assert_eq!(ExecBox::signal_name(127), None);
-    }
-
-    #[test]
-    fn test_exit_display_with_signal() {
-        // SIGKILL should show signal name
-        let killed = ExecBox::new("cmd").with_exit_code(137);
-        let display = killed.exit_display();
-        assert!(display.contains("137"));
-        assert!(display.contains("SIGKILL"));
-    }
-
     #[test]
     fn test_with_pid_and_cwd() {
         let box_ = ExecBox::new("cmd")
@@ -518,47 +427,5 @@ mod tests {
 
         let box_low = ExecBox::new("cmd").with_pulse_intensity(-0.5);
         assert!((box_low.pulse_intensity - 0.0).abs() < 0.001);
-    }
-
-    // === RenderMode tests ===
-
-    #[test]
-    fn test_exec_box_with_render_mode() {
-        let box_ = ExecBox::new("ls -la").with_render_mode(RenderMode::Compact);
-        assert_eq!(box_.render_mode, RenderMode::Compact);
-    }
-
-    #[test]
-    fn test_exec_box_compact_required_height() {
-        let compact = ExecBox::new("ls -la").with_render_mode(RenderMode::Compact);
-        assert_eq!(compact.required_height(), 1);
-
-        let expanded = ExecBox::new("ls -la").with_render_mode(RenderMode::Expanded);
-        assert!(expanded.required_height() >= 4);
-    }
-
-    #[test]
-    fn test_exec_box_compact_render() {
-        // Verify compact mode produces a single-line output
-        let box_ = ExecBox::new("ls -la")
-            .with_render_mode(RenderMode::Compact)
-            .with_exit_code(0);
-
-        let mut buf = Buffer::empty(Rect::new(0, 0, 60, 1));
-        box_.render(Rect::new(0, 0, 60, 1), &mut buf);
-
-        // Check the buffer has content on the first line
-        let line: String = (0..60)
-            .map(|x| {
-                buf.cell((x, 0))
-                    .unwrap()
-                    .symbol()
-                    .chars()
-                    .next()
-                    .unwrap_or(' ')
-            })
-            .collect();
-        assert!(line.contains("EXEC"));
-        assert!(line.contains("ls"));
     }
 }

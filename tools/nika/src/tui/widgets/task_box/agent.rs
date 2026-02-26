@@ -123,12 +123,6 @@ impl AgentBox {
         self
     }
 
-    /// Set render mode
-    pub fn with_render_mode(mut self, mode: RenderMode) -> Self {
-        self.render_mode = mode;
-        self
-    }
-
     /// Push a token velocity sample (tokens/sec)
     pub fn push_velocity_sample(&mut self, tokens_per_sec: f32) {
         self.velocity.push(tokens_per_sec);
@@ -166,11 +160,6 @@ impl AgentBox {
 
     /// Calculate required height
     pub fn required_height(&self) -> u16 {
-        // Compact mode is always 1 line
-        if self.render_mode == RenderMode::Compact {
-            return 1;
-        }
-
         let mut height: u16 = 6; // Header + metrics bar + separator + response header + footer + border
 
         // Children height (if expanded)
@@ -215,56 +204,10 @@ impl AgentBox {
             tokens.to_string()
         }
     }
-
-    /// Render in compact mode (single line)
-    fn render_compact(&self, area: Rect, buf: &mut Buffer) {
-        // Use Spawn color for subagents (lighter rose), Agent color for parent
-        let verb = if self.is_subagent {
-            VerbColor::Spawn
-        } else {
-            VerbColor::Agent
-        };
-        let border_color = self
-            .state
-            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
-        let line_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-
-        let status_icon = self.state.icon();
-        let label = if self.is_subagent {
-            format!("{} SUBAGENT", self.icon())
-        } else {
-            format!("{} AGENT", self.icon())
-        };
-
-        // Format: 🐔 AGENT: Research competitors  ⣾ Turn 2/5 │ 750 tok
-        let prefix = format!("{}: ", label);
-        let turn_info = format!("{}/{}", self.turn, self.max_turns);
-        let token_total = Self::format_tokens(self.tokens_in + self.tokens_out);
-        let suffix = format!("  {} Turn {} │ {} tok", status_icon, turn_info, token_total);
-
-        let available = (area.width as usize)
-            .saturating_sub(prefix.chars().count())
-            .saturating_sub(suffix.chars().count());
-        let prompt = Self::truncate(&self.prompt, available);
-
-        let line = format!("{}{}{}", prefix, prompt, suffix);
-        buf.set_string(area.x, area.y, &line, line_style);
-
-        // Dim the metrics portion
-        let suffix_x = area.x + (line.chars().count() - suffix.chars().count()) as u16;
-        buf.set_string(suffix_x, area.y, &suffix, dim_style);
-    }
 }
 
 impl Widget for AgentBox {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // Check for compact mode first
-        if self.render_mode == RenderMode::Compact {
-            self.render_compact(area, buf);
-            return;
-        }
-
         if area.width < 40 || area.height < 6 {
             return;
         }
@@ -670,45 +613,5 @@ mod tests {
 
         let sparkline = box_.velocity.sparkline_chars();
         assert_eq!(sparkline.chars().count(), 8);
-    }
-
-    // === Compact Mode Tests (v0.11 Phase 2) ===
-
-    #[test]
-    fn test_agent_box_with_render_mode() {
-        let box_ =
-            AgentBox::new("task-1", "Research competitors").with_render_mode(RenderMode::Compact);
-        assert_eq!(box_.render_mode, RenderMode::Compact);
-    }
-
-    #[test]
-    fn test_agent_box_compact_required_height() {
-        let box_ =
-            AgentBox::new("task-1", "Research competitors").with_render_mode(RenderMode::Compact);
-        assert_eq!(box_.required_height(), 1);
-    }
-
-    #[test]
-    fn test_agent_box_compact_render() {
-        let box_ = AgentBox::new("task-1", "Research competitors")
-            .with_state(BoxState::Success { duration_ms: 1500 })
-            .with_turn(2, 5)
-            .with_tokens(500, 250)
-            .with_render_mode(RenderMode::Compact);
-
-        let mut buf = Buffer::empty(Rect::new(0, 0, 80, 1));
-        box_.render(Rect::new(0, 0, 80, 1), &mut buf);
-
-        let content: String = buf
-            .content
-            .iter()
-            .map(|c| c.symbol())
-            .collect::<String>()
-            .trim_end()
-            .to_string();
-
-        // Should contain verb icon, label, turn info
-        assert!(content.contains("AGENT"));
-        assert!(content.contains("2/5")); // Turn counter
     }
 }
