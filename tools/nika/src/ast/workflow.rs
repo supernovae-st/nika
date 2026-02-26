@@ -80,6 +80,12 @@ struct WorkflowRaw {
     /// Memory configuration for file loading at workflow start (v0.6)
     #[serde(default)]
     pub memory: Option<super::memory::MemoryConfig>,
+    /// Reusable agent definitions (v0.6)
+    #[serde(default)]
+    pub agents: Option<FxHashMap<String, super::agent_def::AgentDef>>,
+    /// Skill file mappings for prompt augmentation (v0.6)
+    #[serde(default)]
+    pub skills: Option<FxHashMap<String, super::skill_def::SkillDef>>,
     pub tasks: Vec<Task>,
     #[serde(default)]
     pub flows: Vec<Flow>,
@@ -99,6 +105,15 @@ pub struct Workflow {
     pub mcp: Option<FxHashMap<String, McpConfigInline>>,
     /// Memory configuration for file loading at workflow start (v0.6)
     pub memory: Option<super::memory::MemoryConfig>,
+    /// Reusable agent definitions (v0.6)
+    ///
+    /// Named agent configurations that can be referenced by tasks.
+    /// Agents can be inline definitions or file references.
+    pub agents: Option<FxHashMap<String, super::agent_def::AgentDef>>,
+    /// Skill file mappings for prompt augmentation (v0.6)
+    ///
+    /// Named skill files that can be injected into agent system prompts.
+    pub skills: Option<FxHashMap<String, super::skill_def::SkillDef>>,
     pub tasks: Vec<Arc<Task>>,
     pub flows: Vec<Flow>,
 }
@@ -115,6 +130,8 @@ impl<'de> Deserialize<'de> for Workflow {
             model: raw.model,
             mcp: raw.mcp,
             memory: raw.memory,
+            agents: raw.agents,
+            skills: raw.skills,
             tasks: raw.tasks.into_iter().map(Arc::new).collect(),
             flows: raw.flows,
         })
@@ -566,6 +583,129 @@ tasks:
     infer: "Test"
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(workflow.validate_schema().is_ok());
+    }
+
+    #[test]
+    fn test_validate_schema_v06() {
+        let yaml = r#"
+schema: nika/workflow@0.6
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(workflow.validate_schema().is_ok());
+    }
+
+    #[test]
+    fn test_workflow_parse_v06_with_memory() {
+        let yaml = r#"
+schema: nika/workflow@0.6
+memory:
+  files:
+    brand: ./context/brand.md
+    persona: ./context/persona.json
+  session: .nika/sessions/prev.json
+tasks:
+  - id: generate
+    infer: "Generate content using {{memory.files.brand}}"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse v0.6 workflow");
+        assert_eq!(workflow.schema, "nika/workflow@0.6");
+        assert!(workflow.memory.is_some());
+
+        let memory = workflow.memory.as_ref().unwrap();
+        assert_eq!(memory.files.len(), 2);
+        assert!(memory.files.contains_key("brand"));
+        assert!(memory.files.contains_key("persona"));
+        assert!(memory.session.is_some());
+    }
+
+    #[test]
+    fn test_workflow_parse_v06_with_agents() {
+        let yaml = r#"
+schema: nika/workflow@0.6
+agents:
+  researcher:
+    file: ./agents/researcher.agent.yaml
+  translator:
+    system: "You are a translator"
+    provider: openai
+    model: gpt-4o
+    max_turns: 5
+tasks:
+  - id: research
+    infer: "Research topic"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse v0.6 workflow");
+        assert!(workflow.agents.is_some());
+
+        let agents = workflow.agents.as_ref().unwrap();
+        assert_eq!(agents.len(), 2);
+        assert!(agents.contains_key("researcher"));
+        assert!(agents.contains_key("translator"));
+
+        // Check researcher is external
+        let researcher = agents.get("researcher").unwrap();
+        assert!(researcher.is_external());
+        assert_eq!(researcher.file_path(), Some("./agents/researcher.agent.yaml"));
+
+        // Check translator is inline
+        let translator = agents.get("translator").unwrap();
+        assert!(translator.is_inline());
+    }
+
+    #[test]
+    fn test_workflow_parse_v06_with_skills() {
+        let yaml = r#"
+schema: nika/workflow@0.6
+skills:
+  seo: ./skills/seo-writer.skill.md
+  brand: ./skills/brand-voice.skill.md
+tasks:
+  - id: write
+    infer: "Write SEO content"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse v0.6 workflow");
+        assert!(workflow.skills.is_some());
+
+        let skills = workflow.skills.as_ref().unwrap();
+        assert_eq!(skills.len(), 2);
+        assert_eq!(skills.get("seo").unwrap(), "./skills/seo-writer.skill.md");
+        assert_eq!(skills.get("brand").unwrap(), "./skills/brand-voice.skill.md");
+    }
+
+    #[test]
+    fn test_workflow_parse_v06_full() {
+        // Test a complete v0.6 workflow with all new features
+        let yaml = r#"
+schema: nika/workflow@0.6
+provider: claude
+model: claude-sonnet-4-6
+memory:
+  files:
+    context: ./context/brand.md
+skills:
+  writing: ./skills/writing.skill.md
+agents:
+  writer:
+    system: "You are a content writer"
+    max_turns: 3
+tasks:
+  - id: generate
+    infer: "Generate content"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse full v0.6 workflow");
+
+        assert_eq!(workflow.schema, "nika/workflow@0.6");
+        assert_eq!(workflow.provider, "claude");
+        assert_eq!(workflow.model, Some("claude-sonnet-4-6".to_string()));
+        assert!(workflow.memory.is_some());
+        assert!(workflow.skills.is_some());
+        assert!(workflow.agents.is_some());
+        assert_eq!(workflow.tasks.len(), 1);
+
         assert!(workflow.validate_schema().is_ok());
     }
 

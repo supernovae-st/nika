@@ -27,6 +27,10 @@ use super::resolve::ResolvedBindings;
 static USE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\{\{\s*use\.(\w+(?:\.\w+)*)\s*\}\}").unwrap());
 
+/// Pre-compiled regex for {{memory.files.alias}} or {{memory.session.key}} pattern (v0.6)
+static MEMORY_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\{\{\s*memory\.(files|session)\.(\w+(?:\.\w+)*)\s*\}\}").unwrap());
+
 /// Pre-compiled regex for deprecated $alias syntax
 /// Matches: $alias or $alias.field (but not $$, $1, ${, $( which are shell syntax)
 static DEPRECATED_DOLLAR_RE: LazyLock<Regex> =
@@ -51,7 +55,7 @@ fn escape_for_json(s: &str) -> String {
     result
 }
 
-/// Resolve all {{use.alias}} templates using bindings (v0.5)
+/// Resolve all {{use.alias}} and {{memory.files/session.*}} templates (v0.6)
 ///
 /// Returns Cow::Borrowed when no templates (zero allocation).
 /// Returns Cow::Owned with single-pass resolution when templates exist.
@@ -59,18 +63,26 @@ fn escape_for_json(s: &str) -> String {
 /// Performance: Zero-clone traversal - uses references until final value_to_string.
 ///
 /// v0.5: Supports lazy bindings by resolving them on demand via DataStore.
+/// v0.6: Supports memory bindings via {{memory.files.alias}} and {{memory.session.key}}.
 ///
 /// Example: `{{use.forecast}}` → resolved value from bindings
 /// Example: `{{use.flight_info.departure}}` → nested access
+/// Example: `{{memory.files.brand}}` → loaded file content (v0.6)
+/// Example: `{{memory.session.focus}}` → session data (v0.6)
 pub fn resolve<'a>(
     template: &'a str,
     bindings: &ResolvedBindings,
     datastore: &DataStore,
 ) -> Result<Cow<'a, str>, NikaError> {
     // Early return with borrowed string (zero alloc)
-    // Fast check: must contain `{{` followed eventually by `use.`
+    // Fast check: must contain `{{` followed eventually by `use.` or `memory.`
     // Regex handles whitespace variations like `{{ use.` or `{{\tuse.`
-    if !template.contains("{{") || !template.contains("use.") {
+    if !template.contains("{{") {
+        return Ok(Cow::Borrowed(template));
+    }
+    let has_use = template.contains("use.");
+    let has_memory = template.contains("memory.");
+    if !has_use && !has_memory {
         return Ok(Cow::Borrowed(template));
     }
 
@@ -175,6 +187,61 @@ pub fn resolve<'a>(
     // Copy remaining segment after last match
     result.push_str(&template[last_end..]);
 
+    // ─────────────────────────────────────────────────────────────
+    // Pass 2: Resolve {{memory.files.alias}} and {{memory.session.key}} (v0.6)
+    // ─────────────────────────────────────────────────────────────
+    if has_memory && result.contains("memory.") {
+        let intermediate = result;
+        let mut result = String::with_capacity(intermediate.len() + 64);
+        let mut last_end = 0;
+        let mut memory_errors: SmallVec<[String; 4]> = SmallVec::new();
+
+        for cap in MEMORY_RE.captures_iter(&intermediate) {
+            let m = cap.get(0).unwrap();
+            let category = &cap[1]; // "files" or "session"
+            let path_rest = &cap[2]; // alias or alias.field
+
+            // Copy segment before this match
+            result.push_str(&intermediate[last_end..m.start()]);
+
+            // Build full memory path: memory.files.alias or memory.session.key
+            let full_path = format!("memory.{}.{}", category, path_rest);
+
+            // Resolve from datastore
+            match datastore.resolve_memory_path(&full_path) {
+                Some(value) => {
+                    let replacement = memory_value_to_string(&value, &full_path)?;
+
+                    // Escape if we're in a JSON context
+                    let replacement = if is_in_json_context(&intermediate, m.start()) {
+                        escape_for_json(&replacement)
+                    } else {
+                        replacement
+                    };
+
+                    result.push_str(&replacement);
+                }
+                None => {
+                    memory_errors.push(full_path);
+                }
+            }
+
+            last_end = m.end();
+        }
+
+        if !memory_errors.is_empty() {
+            return Err(NikaError::Template(format!(
+                "Memory binding(s) not resolved: {}. Check your 'memory:' block in workflow.",
+                memory_errors.join(", ")
+            )));
+        }
+
+        // Copy remaining segment
+        result.push_str(&intermediate[last_end..]);
+
+        return Ok(Cow::Owned(result));
+    }
+
     Ok(Cow::Owned(result))
 }
 
@@ -188,6 +255,23 @@ fn value_to_string(value: &Value, path: &str, alias: &str) -> Result<String, Nik
             path: path.to_string(),
             alias: alias.to_string(),
         }),
+        Value::Bool(b) => Ok(b.to_string()),
+        Value::Number(n) => Ok(n.to_string()),
+        // For objects/arrays, return compact JSON representation
+        other => Ok(other.to_string()),
+    }
+}
+
+/// Convert memory Value to string for template substitution (v0.6)
+///
+/// Similar to value_to_string but for memory bindings.
+fn memory_value_to_string(value: &Value, path: &str) -> Result<String, NikaError> {
+    match value {
+        Value::String(s) => Ok(s.clone()),
+        Value::Null => Err(NikaError::Template(format!(
+            "Memory binding '{}' resolved to null",
+            path
+        ))),
         Value::Bool(b) => Ok(b.to_string()),
         Value::Number(n) => Ok(n.to_string()),
         // For objects/arrays, return compact JSON representation
@@ -602,5 +686,123 @@ mod tests {
         let result = detect_deprecated_dollar_syntax("{{use.valid}} and $invalid", "task1");
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("$invalid"));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // v0.6: Memory binding tests
+    // ─────────────────────────────────────────────────────────────
+
+    use crate::runtime::memory_loader::LoadedMemory;
+
+    /// Helper to create datastore with memory for tests
+    fn datastore_with_memory() -> DataStore {
+        let store = DataStore::new();
+        let mut memory = LoadedMemory::new();
+        memory
+            .files
+            .insert("brand".to_string(), json!("# QR Code AI\nTagline: Scan smarter"));
+        memory
+            .files
+            .insert("config".to_string(), json!({"theme": "dark", "version": 2}));
+        memory.session = Some(json!({"focus": "rust", "level": 3}));
+        store.set_memory(memory);
+        store
+    }
+
+    #[test]
+    fn resolve_memory_files_simple() {
+        let bindings = ResolvedBindings::new();
+        let ds = datastore_with_memory();
+
+        let result = resolve("Brand: {{memory.files.brand}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "Brand: # QR Code AI\nTagline: Scan smarter");
+    }
+
+    #[test]
+    fn resolve_memory_files_nested() {
+        let bindings = ResolvedBindings::new();
+        let ds = datastore_with_memory();
+
+        let result = resolve("Theme: {{memory.files.config.theme}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "Theme: dark");
+    }
+
+    #[test]
+    fn resolve_memory_session() {
+        let bindings = ResolvedBindings::new();
+        let ds = datastore_with_memory();
+
+        let result = resolve("Focus: {{memory.session.focus}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "Focus: rust");
+    }
+
+    #[test]
+    fn resolve_memory_session_number() {
+        let bindings = ResolvedBindings::new();
+        let ds = datastore_with_memory();
+
+        let result = resolve("Level: {{memory.session.level}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "Level: 3");
+    }
+
+    #[test]
+    fn resolve_memory_with_use_bindings() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("greeting", json!("Hello"));
+        let ds = datastore_with_memory();
+
+        let result = resolve(
+            "{{use.greeting}}! Brand: {{memory.files.brand}}",
+            &bindings,
+            &ds,
+        )
+        .unwrap();
+        assert_eq!(
+            result,
+            "Hello! Brand: # QR Code AI\nTagline: Scan smarter"
+        );
+    }
+
+    #[test]
+    fn resolve_memory_not_found() {
+        let bindings = ResolvedBindings::new();
+        let ds = datastore_with_memory();
+
+        let result = resolve("{{memory.files.nonexistent}}", &bindings, &ds);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Memory binding"));
+        assert!(err.to_string().contains("nonexistent"));
+    }
+
+    #[test]
+    fn resolve_memory_no_memory_loaded() {
+        let bindings = ResolvedBindings::new();
+        let ds = empty_datastore(); // No memory loaded
+
+        let result = resolve("{{memory.files.brand}}", &bindings, &ds);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn resolve_only_memory_no_use() {
+        let bindings = ResolvedBindings::new();
+        let ds = datastore_with_memory();
+
+        // Template with ONLY memory bindings, no use bindings
+        let result = resolve("Theme is {{memory.files.config.theme}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "Theme is dark");
+    }
+
+    #[test]
+    fn resolve_memory_preserves_no_template() {
+        let bindings = ResolvedBindings::new();
+        let ds = datastore_with_memory();
+
+        // No templates at all
+        let result = resolve("Plain text without templates", &bindings, &ds).unwrap();
+        assert_eq!(result, "Plain text without templates");
+        // Should be borrowed (zero alloc)
+        assert!(matches!(result, Cow::Borrowed(_)));
     }
 }
