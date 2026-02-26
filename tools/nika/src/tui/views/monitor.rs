@@ -32,8 +32,10 @@ use ratatui::{
 
 use super::trait_view::View;
 use super::{TuiView, ViewAction};
-use crate::tui::state::{PanelId, TuiState};
+use crate::tui::focus::PanelId;
+use crate::tui::state::TuiState;
 use crate::tui::theme::{MissionPhase, TaskStatus, Theme};
+use crate::tui::unicode::truncate_to_width;
 
 /// Monitor View state
 ///
@@ -55,39 +57,60 @@ pub struct MonitorView {
 }
 
 impl MonitorView {
+    /// Runner panels in order for navigation
+    const PANELS: [PanelId; 4] = [
+        PanelId::RunnerMission,
+        PanelId::RunnerDag,
+        PanelId::RunnerNovanet,
+        PanelId::RunnerReasoning,
+    ];
+
     /// Create a new MonitorView
     pub fn new() -> Self {
         Self {
-            focus: PanelId::Progress,
+            focus: PanelId::RunnerMission,
             scroll: [0; 4],
             frame: 0,
         }
     }
 
+    /// Get panel index (0-3) for scroll array
+    fn panel_index(panel: PanelId) -> usize {
+        match panel {
+            PanelId::RunnerMission => 0,
+            PanelId::RunnerDag => 1,
+            PanelId::RunnerNovanet => 2,
+            PanelId::RunnerReasoning => 3,
+            _ => 0, // Fallback for non-Runner panels
+        }
+    }
+
     /// Focus next panel (Tab)
     pub fn focus_next(&mut self) {
-        self.focus = self.focus.next();
+        let idx = Self::panel_index(self.focus);
+        self.focus = Self::PANELS[(idx + 1) % 4];
     }
 
     /// Focus previous panel (Shift+Tab)
     pub fn focus_prev(&mut self) {
-        self.focus = self.focus.prev();
+        let idx = Self::panel_index(self.focus);
+        self.focus = Self::PANELS[(idx + 3) % 4]; // +3 is same as -1 mod 4
     }
 
     /// Get scroll offset for current panel
     fn scroll_offset(&self, panel: PanelId) -> usize {
-        self.scroll[panel.number() as usize - 1]
+        self.scroll[Self::panel_index(panel)]
     }
 
     /// Scroll current panel down
     fn scroll_down(&mut self) {
-        let idx = self.focus.number() as usize - 1;
+        let idx = Self::panel_index(self.focus);
         self.scroll[idx] = self.scroll[idx].saturating_add(1);
     }
 
     /// Scroll current panel up
     fn scroll_up(&mut self) {
-        let idx = self.focus.number() as usize - 1;
+        let idx = Self::panel_index(self.focus);
         self.scroll[idx] = self.scroll[idx].saturating_sub(1);
     }
 
@@ -178,7 +201,7 @@ impl MonitorView {
                         Span::styled(progress, style),
                     ]))
                     .style(
-                        if i == self.scroll_offset(PanelId::Progress) && focused {
+                        if i == self.scroll_offset(PanelId::RunnerMission) && focused {
                             Style::default().bg(theme.highlight)
                         } else {
                             Style::default()
@@ -324,7 +347,7 @@ impl MonitorView {
                     Span::styled(tool_name, Style::default().fg(theme.text_primary)),
                     Span::styled(duration, Style::default().fg(theme.text_muted)),
                 ]))
-                .style(if i == self.scroll_offset(PanelId::NovaNet) && focused {
+                .style(if i == self.scroll_offset(PanelId::RunnerNovanet) && focused {
                     Style::default().bg(theme.highlight)
                 } else {
                     Style::default()
@@ -404,12 +427,9 @@ impl MonitorView {
                 let mut lines = vec![main_line];
 
                 // Add thinking content if present
+                // v0.12.1: Use unicode-aware truncation to avoid panic on multi-byte chars
                 if let Some(ref thinking) = turn.thinking {
-                    let truncated = if thinking.len() > 100 {
-                        format!("{}...", &thinking[..97])
-                    } else {
-                        thinking.clone()
-                    };
+                    let truncated = truncate_to_width(thinking, 100);
                     lines.push(Line::from(vec![
                         Span::styled("  💭 ", Style::default().fg(theme.status_paused)),
                         Span::styled(
@@ -422,7 +442,7 @@ impl MonitorView {
                 }
 
                 ListItem::new(Text::from(lines)).style(
-                    if i == self.scroll_offset(PanelId::Agent) && focused {
+                    if i == self.scroll_offset(PanelId::RunnerReasoning) && focused {
                         Style::default().bg(theme.highlight)
                     } else {
                         Style::default()
@@ -443,63 +463,7 @@ impl MonitorView {
             frame.render_widget(list, area);
         }
     }
-
-    /// Render metrics footer
-    fn render_footer(&self, frame: &mut Frame, area: Rect, state: &TuiState, theme: &Theme) {
-        let tokens = if state.metrics.total_tokens >= 1000 {
-            format!("{:.1}K", state.metrics.total_tokens as f64 / 1000.0)
-        } else {
-            format!("{}", state.metrics.total_tokens)
-        };
-
-        let cost = format!("${:.3}", state.metrics.cost_usd);
-
-        let footer = Paragraph::new(Line::from(vec![
-            Span::styled("[1]", Style::default().fg(theme.highlight)),
-            Span::styled(
-                " Progress ",
-                Style::default().fg(if self.focus == PanelId::Progress {
-                    theme.text_primary
-                } else {
-                    theme.text_muted
-                }),
-            ),
-            Span::styled("[2]", Style::default().fg(theme.highlight)),
-            Span::styled(
-                " DAG ",
-                Style::default().fg(if self.focus == PanelId::Dag {
-                    theme.text_primary
-                } else {
-                    theme.text_muted
-                }),
-            ),
-            Span::styled("[3]", Style::default().fg(theme.highlight)),
-            Span::styled(
-                " NovaNet ",
-                Style::default().fg(if self.focus == PanelId::NovaNet {
-                    theme.text_primary
-                } else {
-                    theme.text_muted
-                }),
-            ),
-            Span::styled("[4]", Style::default().fg(theme.highlight)),
-            Span::styled(
-                " Reasoning ",
-                Style::default().fg(if self.focus == PanelId::Agent {
-                    theme.text_primary
-                } else {
-                    theme.text_muted
-                }),
-            ),
-            Span::styled("  │  ", Style::default().fg(theme.border_normal)),
-            Span::styled("Tokens: ", Style::default().fg(theme.text_muted)),
-            Span::styled(&tokens, Style::default().fg(theme.highlight)),
-            Span::styled("  Cost: ", Style::default().fg(theme.text_muted)),
-            Span::styled(&cost, Style::default().fg(theme.status_success)),
-        ]));
-
-        frame.render_widget(footer, area);
-    }
+    // v0.12.1: render_footer() removed - global StatusBar handles metrics now
 }
 
 impl Default for MonitorView {
@@ -510,21 +474,12 @@ impl Default for MonitorView {
 
 impl View for MonitorView {
     fn render(&mut self, frame: &mut Frame, area: Rect, state: &TuiState, theme: &Theme) {
-        // Main layout: content + footer
-        let main_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .margin(1)
-            .constraints([
-                Constraint::Min(1),    // Content
-                Constraint::Length(1), // Footer
-            ])
-            .split(area);
-
-        // 4-panel grid (2x2)
+        // v0.12.1: Removed internal footer - global StatusBar handles this now
+        // 4-panel grid (2x2) using full area
         let rows = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(main_chunks[0]);
+            .split(area);
 
         let top_panels = Layout::default()
             .direction(Direction::Horizontal)
@@ -542,32 +497,29 @@ impl View for MonitorView {
             top_panels[0],
             state,
             theme,
-            self.focus == PanelId::Progress,
+            self.focus == PanelId::RunnerMission,
         );
         self.render_dag_panel(
             frame,
             top_panels[1],
             state,
             theme,
-            self.focus == PanelId::Dag,
+            self.focus == PanelId::RunnerDag,
         );
         self.render_novanet_panel(
             frame,
             bottom_panels[0],
             state,
             theme,
-            self.focus == PanelId::NovaNet,
+            self.focus == PanelId::RunnerNovanet,
         );
         self.render_agent_panel(
             frame,
             bottom_panels[1],
             state,
             theme,
-            self.focus == PanelId::Agent,
+            self.focus == PanelId::RunnerReasoning,
         );
-
-        // Footer with metrics
-        self.render_footer(frame, main_chunks[1], state, theme);
     }
 
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
@@ -587,19 +539,19 @@ impl View for MonitorView {
 
             // Number keys focus specific panels
             KeyCode::Char('1') => {
-                self.focus = PanelId::Progress;
+                self.focus = PanelId::RunnerMission;
                 ViewAction::None
             }
             KeyCode::Char('2') => {
-                self.focus = PanelId::Dag;
+                self.focus = PanelId::RunnerDag;
                 ViewAction::None
             }
             KeyCode::Char('3') => {
-                self.focus = PanelId::NovaNet;
+                self.focus = PanelId::RunnerNovanet;
                 ViewAction::None
             }
             KeyCode::Char('4') => {
-                self.focus = PanelId::Agent;
+                self.focus = PanelId::RunnerReasoning;
                 ViewAction::None
             }
 
@@ -658,7 +610,7 @@ mod tests {
     #[test]
     fn test_monitor_view_new() {
         let view = MonitorView::new();
-        assert_eq!(view.focus, PanelId::Progress);
+        assert_eq!(view.focus, PanelId::RunnerMission);
         assert_eq!(view.scroll, [0, 0, 0, 0]);
         assert_eq!(view.frame, 0);
     }
@@ -666,31 +618,31 @@ mod tests {
     #[test]
     fn test_monitor_view_default() {
         let view = MonitorView::default();
-        assert_eq!(view.focus, PanelId::Progress);
+        assert_eq!(view.focus, PanelId::RunnerMission);
     }
 
     #[test]
     fn test_focus_next_cycles() {
         let mut view = MonitorView::new();
-        assert_eq!(view.focus, PanelId::Progress);
+        assert_eq!(view.focus, PanelId::RunnerMission);
         view.focus_next();
-        assert_eq!(view.focus, PanelId::Dag);
+        assert_eq!(view.focus, PanelId::RunnerDag);
         view.focus_next();
-        assert_eq!(view.focus, PanelId::NovaNet);
+        assert_eq!(view.focus, PanelId::RunnerNovanet);
         view.focus_next();
-        assert_eq!(view.focus, PanelId::Agent);
+        assert_eq!(view.focus, PanelId::RunnerReasoning);
         view.focus_next();
-        assert_eq!(view.focus, PanelId::Progress);
+        assert_eq!(view.focus, PanelId::RunnerMission);
     }
 
     #[test]
     fn test_focus_prev_cycles() {
         let mut view = MonitorView::new();
-        assert_eq!(view.focus, PanelId::Progress);
+        assert_eq!(view.focus, PanelId::RunnerMission);
         view.focus_prev();
-        assert_eq!(view.focus, PanelId::Agent);
+        assert_eq!(view.focus, PanelId::RunnerReasoning);
         view.focus_prev();
-        assert_eq!(view.focus, PanelId::NovaNet);
+        assert_eq!(view.focus, PanelId::RunnerNovanet);
     }
 
     #[test]
@@ -726,10 +678,10 @@ mod tests {
         view.scroll[2] = 3; // NovaNet
         view.scroll[3] = 4; // Agent
 
-        assert_eq!(view.scroll_offset(PanelId::Progress), 1);
-        assert_eq!(view.scroll_offset(PanelId::Dag), 2);
-        assert_eq!(view.scroll_offset(PanelId::NovaNet), 3);
-        assert_eq!(view.scroll_offset(PanelId::Agent), 4);
+        assert_eq!(view.scroll_offset(PanelId::RunnerMission), 1);
+        assert_eq!(view.scroll_offset(PanelId::RunnerDag), 2);
+        assert_eq!(view.scroll_offset(PanelId::RunnerNovanet), 3);
+        assert_eq!(view.scroll_offset(PanelId::RunnerReasoning), 4);
     }
 
     #[test]
@@ -777,7 +729,7 @@ mod tests {
         let mut state = TuiState::new("test");
         let key = KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE);
         view.handle_key(key, &mut state);
-        assert_eq!(view.focus, PanelId::Dag);
+        assert_eq!(view.focus, PanelId::RunnerDag);
     }
 
     #[test]
@@ -786,7 +738,7 @@ mod tests {
         let mut state = TuiState::new("test");
         let key = KeyEvent::new(KeyCode::Tab, KeyModifiers::SHIFT);
         view.handle_key(key, &mut state);
-        assert_eq!(view.focus, PanelId::Agent);
+        assert_eq!(view.focus, PanelId::RunnerReasoning);
     }
 
     #[test]
@@ -798,25 +750,25 @@ mod tests {
             KeyEvent::new(KeyCode::Char('2'), KeyModifiers::NONE),
             &mut state,
         );
-        assert_eq!(view.focus, PanelId::Dag);
+        assert_eq!(view.focus, PanelId::RunnerDag);
 
         view.handle_key(
             KeyEvent::new(KeyCode::Char('3'), KeyModifiers::NONE),
             &mut state,
         );
-        assert_eq!(view.focus, PanelId::NovaNet);
+        assert_eq!(view.focus, PanelId::RunnerNovanet);
 
         view.handle_key(
             KeyEvent::new(KeyCode::Char('4'), KeyModifiers::NONE),
             &mut state,
         );
-        assert_eq!(view.focus, PanelId::Agent);
+        assert_eq!(view.focus, PanelId::RunnerReasoning);
 
         view.handle_key(
             KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE),
             &mut state,
         );
-        assert_eq!(view.focus, PanelId::Progress);
+        assert_eq!(view.focus, PanelId::RunnerMission);
     }
 
     #[test]

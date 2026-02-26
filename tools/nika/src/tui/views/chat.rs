@@ -1412,9 +1412,9 @@ impl ChatView {
         self.is_streaming = false;
         // v0.8 WOW: Reveal all remaining text instantly
         self.streaming_decrypt.reveal_all();
-        // v0.8 FIX: Clear inline boxes when streaming completes
-        // They represent the operation that just finished, not history
-        self.inline_content.clear();
+        // v0.12.1: Keep TaskBoxes visible after completion (Option A)
+        // TaskBox::Infer now REPLACES the AI bubble - don't clear it
+        // Old: self.inline_content.clear();
         // v0.8.1: Reset agent phase
         self.on_agent_complete();
         // v0.8.2: Final auto-scroll after streaming completes
@@ -1823,10 +1823,18 @@ impl ChatView {
 
     /// Complete the last RUNNING TaskBox::Infer
     pub fn complete_last_infer_box(&mut self, duration_ms: u64) {
+        // v0.12.1: Transfer partial_response to InferBox before completing
+        // Option A: InferBox REPLACES the AI message bubble
+        let response = std::mem::take(&mut self.partial_response);
+
         // Find last Infer box that is Running
         for content in self.inline_content.iter_mut().rev() {
             if let InlineContent::Task(TaskBox::Infer(infer)) = content {
                 if infer.state.is_running() {
+                    // v0.12.1: Set the response content so it displays in the widget
+                    if !response.is_empty() {
+                        infer.response = response.clone();
+                    }
                     infer.state = BoxState::success(duration_ms);
                     break;
                 }
@@ -5182,9 +5190,15 @@ impl ChatView {
                     items.push(ListItem::new("")); // spacing
                 }
                 InlineContent::Task(task_box) => {
-                    // v0.8.1: Render TaskBox using verb-specific colors
+                    // v0.12.1: Render TaskBox with verb colors and pulse animation
                     let verb_color = task_box.verb_color().rgb();
-                    let border_color = task_box.state().border_color(verb_color);
+                    // Calculate pulse intensity for running state (0.0-1.0 sine wave)
+                    let pulse_intensity = if task_box.state().is_running() {
+                        ((self.frame as f32 / 30.0).sin() + 1.0) / 2.0
+                    } else {
+                        0.0
+                    };
+                    let border_color = task_box.state().border_color_with_pulse(verb_color, pulse_intensity);
                     let state_icon = task_box.state().icon();
                     let state_suffix = task_box.state().suffix();
 
@@ -5244,37 +5258,140 @@ impl ChatView {
                             items.push(ListItem::new("")); // spacing
                         }
                         TaskBox::Infer(infer) => {
-                            // Top border: ╭─ ⚡ INFER ─── status ─╮
+                            // v0.12.1: Full InferBox rendering matching design spec
+                            // Option A: InferBox REPLACES the AI message bubble
+                            let content_color = Color::Rgb(226, 232, 240); // slate-200
+
+                            // 1. Top border: ╭─ ⚡ INFER ─────────────────── ✅ 1.4s ───╮
                             items.push(ListItem::new(Line::from(vec![
                                 Span::styled(
-                                    format!("╭─ ⚡ INFER: {} ", truncate_str(&infer.model, 20)),
-                                    Style::default().fg(border_color),
-                                ),
-                                Span::styled(
-                                    format!("{} {} ─╮", state_icon, state_suffix),
+                                    format!("╭─ ⚡ INFER ────────────────────────────── {} {} ─╮", state_icon, state_suffix),
                                     Style::default().fg(border_color),
                                 ),
                             ])));
-                            // Token info
+
+                            // 2. Model line: │ model: 🧠 claude-sonnet-4-6
+                            let provider_icon = if infer.model.contains("claude") {
+                                "🧠"
+                            } else if infer.model.contains("gpt") {
+                                "🤖"
+                            } else if infer.model.contains("mistral") {
+                                "🌀"
+                            } else if infer.model.contains("llama") {
+                                "🦙"
+                            } else {
+                                "💬"
+                            };
                             items.push(ListItem::new(Line::from(vec![
                                 Span::styled("│ ", Style::default().fg(border_color)),
                                 Span::styled(
-                                    format!("📊 {} in → {} out", infer.tokens_in, infer.tokens_out),
+                                    format!("model: {} {}", provider_icon, truncate_str(&infer.model, 35)),
                                     Style::default().fg(muted_color),
                                 ),
                             ])));
-                            // Response (last 3 lines)
-                            let response_lines: Vec<&str> = infer.response.lines().collect();
-                            let start = response_lines.len().saturating_sub(3);
-                            for line in response_lines.iter().skip(start) {
+
+                            // 3. Separator
+                            items.push(ListItem::new(Line::from(vec![Span::styled(
+                                "├──────────────────────────────────────────────────┤",
+                                Style::default().fg(border_color),
+                            )])));
+
+                            // 4. PROMPT section header
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled("PROMPT", Style::default().fg(muted_color)),
+                            ])));
+
+                            // 5. Prompt content (truncated)
+                            let prompt_display = infer.prompt.replace('\n', " ");
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled(
+                                    format!("┊ {}", truncate_str(&prompt_display, 45)),
+                                    Style::default().fg(content_color),
+                                ),
+                            ])));
+
+                            // 6. Separator
+                            items.push(ListItem::new(Line::from(vec![Span::styled(
+                                "├──────────────────────────────────────────────────┤",
+                                Style::default().fg(border_color),
+                            )])));
+
+                            // 7. RESPONSE section header with streaming/chars indicator
+                            let response_text = if infer.state.is_running() && self.is_streaming {
+                                &self.partial_response
+                            } else {
+                                &infer.response
+                            };
+                            let response_indicator = if infer.state.is_running() && self.is_streaming {
+                                "▼ streaming...".to_string()
+                            } else if !response_text.is_empty() {
+                                format!("▼ {} chars", response_text.len())
+                            } else {
+                                String::new()
+                            };
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled("RESPONSE", Style::default().fg(muted_color)),
+                                Span::styled(
+                                    format!("                              {}", response_indicator),
+                                    Style::default().fg(muted_color),
+                                ),
+                            ])));
+
+                            // 8. Response content (with streaming cursor)
+                            if response_text.is_empty() && infer.state.is_running() {
                                 items.push(ListItem::new(Line::from(vec![
                                     Span::styled("│ ", Style::default().fg(border_color)),
-                                    Span::raw(truncate_str(line, 50)),
+                                    Span::styled("┊ ...", Style::default().fg(content_color)),
                                 ])));
+                            } else {
+                                // Show last 3 lines of response
+                                let response_lines: Vec<&str> = response_text.lines().collect();
+                                let start = response_lines.len().saturating_sub(3);
+                                let lines_to_show: Vec<_> = response_lines.iter().skip(start).collect();
+                                for (idx, line) in lines_to_show.iter().enumerate() {
+                                    let is_last = idx == lines_to_show.len() - 1;
+                                    let cursor = if is_last && infer.state.is_running() && self.is_streaming {
+                                        "█"
+                                    } else {
+                                        ""
+                                    };
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            format!("┊ {}{}", truncate_str(line, 44), cursor),
+                                            Style::default().fg(content_color),
+                                        ),
+                                    ])));
+                                }
                             }
-                            // Bottom border
+
+                            // 9. Footer with metrics: │ 📊 261 in │ 85 out │ 🧠 claude │ 💰 $0.0012 │
+                            let cost = crate::tui::widgets::task_box::InferBox::calculate_cost(
+                                infer.tokens_in,
+                                infer.tokens_out,
+                                &infer.model,
+                            );
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(border_color)),
+                                Span::styled(
+                                    format!(
+                                        "📊 {} in │ {} out │ {} {} │ 💰 ${:.4}",
+                                        infer.tokens_in,
+                                        infer.tokens_out,
+                                        provider_icon,
+                                        truncate_str(&infer.model, 12),
+                                        cost
+                                    ),
+                                    Style::default().fg(muted_color),
+                                ),
+                            ])));
+
+                            // 10. Bottom border
                             items.push(ListItem::new(Line::from(vec![Span::styled(
-                                "╰───────────────────────────────────────────────────╯",
+                                "╰──────────────────────────────────────────────────╯",
                                 Style::default().fg(border_color),
                             )])));
                             items.push(ListItem::new("")); // spacing
@@ -5504,60 +5621,9 @@ impl ChatView {
             items.push(ListItem::new("")); // spacing
         }
 
-        // Add streaming indicator if streaming is in progress
-        // v0.9.1 FIX: Removed inline_content.is_empty() condition - Matrix effect should
-        // render even when TaskBox exists (they serve different purposes)
-        if self.is_streaming {
-            items.push(ListItem::new(Line::from(vec![
-                Span::styled(
-                    "🤖 AI ",
-                    Style::default()
-                        .fg(theme.status_success)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(SEPARATOR_20, Style::default().fg(theme.text_muted)),
-            ])));
-
-            if !self.partial_response.is_empty() {
-                // v0.8.1 FIX: Use content_width for word wrapping to prevent overflow
-                // v0.8 WOW: Use matrix decrypt effect if enabled
-                if self.matrix_effect_enabled {
-                    for decrypt_line in self.streaming_decrypt.build_lines_wrapped(content_width) {
-                        // Prepend the prefix to each line
-                        let mut spans = vec![Span::styled(
-                            "│ ",
-                            Style::default().fg(theme.status_success),
-                        )];
-                        spans.extend(decrypt_line.spans);
-                        items.push(ListItem::new(Line::from(spans)));
-                    }
-                } else {
-                    // Fallback: plain text rendering with word wrap (v0.8.1)
-                    let wrapped_lines = wrap_text(&self.partial_response, content_width);
-                    for line in wrapped_lines {
-                        items.push(ListItem::new(Line::from(vec![
-                            Span::styled("│ ", Style::default().fg(theme.status_success)),
-                            Span::raw(line),
-                        ])));
-                    }
-                }
-            }
-
-            // v0.9.1 FIX: Show phase indicator longer during streaming
-            // Users want to see the animated "Streaming" phase with 🦋 icon
-            // Show until we have substantial content (50+ chars) instead of hiding immediately
-            if self.partial_response.len() < 50 {
-                // v0.8.1: Use AgentPhaseIndicator with Matrix effect
-                // Shows real phase (Syncing/Planning/Invoking/Inferring/Streaming)
-                let phase_line = self.phase_indicator.build_line();
-                let mut spans = vec![Span::styled(
-                    "│ ",
-                    Style::default().fg(theme.status_success),
-                )];
-                spans.extend(phase_line.spans);
-                items.push(ListItem::new(Line::from(spans)));
-            }
-        }
+        // v0.12.1: REMOVED streaming AI bubble - InferBox REPLACES the AI message bubble
+        // The response now displays INSIDE the InferBox widget (Option A)
+        // See TaskBox::Infer rendering above which shows partial_response during streaming
 
         // v0.8 UX: Focus indicators for Conversation panel
         let is_focused = self.focused_panel == ChatPanel::Conversation;
