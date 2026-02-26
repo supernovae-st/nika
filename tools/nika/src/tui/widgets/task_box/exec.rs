@@ -437,6 +437,49 @@ mod tests {
         assert!(running.exit_display().contains("?"));
     }
 
+    // === Signal Exit Code Tests (v0.11 Phase 3) ===
+
+    #[test]
+    fn test_signal_name_sigint() {
+        // SIGINT (Ctrl+C) = signal 2, exit code 130 (128+2)
+        assert_eq!(ExecBox::signal_name(130), Some("SIGINT"));
+    }
+
+    #[test]
+    fn test_signal_name_sigkill() {
+        // SIGKILL = signal 9, exit code 137 (128+9)
+        assert_eq!(ExecBox::signal_name(137), Some("SIGKILL"));
+    }
+
+    #[test]
+    fn test_signal_name_sigterm() {
+        // SIGTERM = signal 15, exit code 143 (128+15)
+        assert_eq!(ExecBox::signal_name(143), Some("SIGTERM"));
+    }
+
+    #[test]
+    fn test_signal_name_sigsegv() {
+        // SIGSEGV = signal 11, exit code 139 (128+11)
+        assert_eq!(ExecBox::signal_name(139), Some("SIGSEGV"));
+    }
+
+    #[test]
+    fn test_signal_name_none_for_normal_exit() {
+        // Normal exit codes (0-127) are not signals
+        assert_eq!(ExecBox::signal_name(0), None);
+        assert_eq!(ExecBox::signal_name(1), None);
+        assert_eq!(ExecBox::signal_name(127), None);
+    }
+
+    #[test]
+    fn test_exit_display_with_signal() {
+        // SIGKILL should show signal name
+        let killed = ExecBox::new("cmd").with_exit_code(137);
+        let display = killed.exit_display();
+        assert!(display.contains("137"));
+        assert!(display.contains("SIGKILL"));
+    }
+
     #[test]
     fn test_with_pid_and_cwd() {
         let box_ = ExecBox::new("cmd")

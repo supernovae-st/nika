@@ -42,6 +42,12 @@ retries = 0
 # Status indicator for long-running tests
 status-level = "fail"
 
+# Per-test overrides for default profile
+[[profile.default.overrides]]
+# Exec timeout test needs more time (tests 60s timeout behavior)
+filter = "test(test_error_handling_exec_timeout)"
+slow-timeout = { period = "90s", terminate-after = 2 }
+
 # =============================================================================
 # CI Profile - GitHub Actions and CI/CD
 # =============================================================================
