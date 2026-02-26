@@ -24,7 +24,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span, Text},
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
@@ -474,6 +474,21 @@ impl Default for MonitorView {
 
 impl View for MonitorView {
     fn render(&mut self, frame: &mut Frame, area: Rect, state: &TuiState, theme: &Theme) {
+        // v0.12.1: Minimum height guard - need at least 8 lines for 2x2 grid
+        if area.height < 8 {
+            // Terminal too small - render fallback message
+            let msg = "↕ Terminal too small";
+            let x = area.x + area.width.saturating_sub(msg.len() as u16) / 2;
+            let y = area.y + area.height / 2;
+            frame.buffer_mut().set_string(
+                x,
+                y,
+                msg,
+                Style::default().fg(Color::Yellow),
+            );
+            return;
+        }
+
         // v0.12.1: Removed internal footer - global StatusBar handles this now
         // 4-panel grid (2x2) using full area
         let rows = Layout::default()
