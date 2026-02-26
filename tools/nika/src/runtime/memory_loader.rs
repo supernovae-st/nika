@@ -98,7 +98,10 @@ impl LoadedMemory {
 /// - File not found
 /// - Invalid JSON/YAML
 /// - Invalid glob pattern
-pub async fn load_memory(config: &MemoryConfig, base_path: &Path) -> Result<LoadedMemory, NikaError> {
+pub async fn load_memory(
+    config: &MemoryConfig,
+    base_path: &Path,
+) -> Result<LoadedMemory, NikaError> {
     let mut memory = LoadedMemory::new();
 
     // Load each file entry
@@ -118,20 +121,19 @@ pub async fn load_memory(config: &MemoryConfig, base_path: &Path) -> Result<Load
     if let Some(session_path) = &config.session {
         let full_path = base_path.join(session_path);
         if full_path.exists() {
-            let content = tokio::fs::read_to_string(&full_path)
-                .await
-                .map_err(|e| NikaError::MemoryLoadError {
-                    alias: "session".to_string(),
-                    path: full_path.display().to_string(),
-                    reason: e.to_string(),
-                })?;
-            let session: Value = serde_json::from_str(&content).map_err(|e| {
+            let content = tokio::fs::read_to_string(&full_path).await.map_err(|e| {
                 NikaError::MemoryLoadError {
                     alias: "session".to_string(),
                     path: full_path.display().to_string(),
-                    reason: format!("Invalid JSON: {}", e),
+                    reason: e.to_string(),
                 }
             })?;
+            let session: Value =
+                serde_json::from_str(&content).map_err(|e| NikaError::MemoryLoadError {
+                    alias: "session".to_string(),
+                    path: full_path.display().to_string(),
+                    reason: format!("Invalid JSON: {}", e),
+                })?;
             memory.session = Some(session);
         }
     }
@@ -146,13 +148,14 @@ fn is_glob_pattern(pattern: &str) -> bool {
 
 /// Load a single file
 async fn load_single_file(path: &Path) -> Result<Value, NikaError> {
-    let content = tokio::fs::read_to_string(path)
-        .await
-        .map_err(|e| NikaError::MemoryLoadError {
-            alias: String::new(),
-            path: path.display().to_string(),
-            reason: e.to_string(),
-        })?;
+    let content =
+        tokio::fs::read_to_string(path)
+            .await
+            .map_err(|e| NikaError::MemoryLoadError {
+                alias: String::new(),
+                path: path.display().to_string(),
+                reason: e.to_string(),
+            })?;
 
     // Parse based on extension
     match path.extension().and_then(|e| e.to_str()) {
@@ -225,13 +228,14 @@ async fn load_glob_files(pattern: &str, base_path: &Path) -> Result<Value, NikaE
         };
 
         if glob.is_match(file_name) {
-            let content = tokio::fs::read_to_string(path)
-                .await
-                .map_err(|e| NikaError::MemoryLoadError {
-                    alias: String::new(),
-                    path: path.display().to_string(),
-                    reason: e.to_string(),
-                })?;
+            let content =
+                tokio::fs::read_to_string(path)
+                    .await
+                    .map_err(|e| NikaError::MemoryLoadError {
+                        alias: String::new(),
+                        path: path.display().to_string(),
+                        reason: e.to_string(),
+                    })?;
             results.push(Value::String(content));
         }
     }

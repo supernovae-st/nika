@@ -736,9 +736,7 @@ impl FixSuggestion for NikaError {
             }
             NikaError::AssertionFailed { .. } => Some("The condition evaluated to false"),
             // Memory errors (v0.13)
-            NikaError::MemoryLoadError { .. } => {
-                Some("Check the file path exists and is readable")
-            }
+            NikaError::MemoryLoadError { .. } => Some("Check the file path exists and is readable"),
         }
     }
 }

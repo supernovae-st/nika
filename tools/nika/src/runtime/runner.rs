@@ -26,6 +26,7 @@ use crate::store::{DataStore, TaskResult};
 use crate::util::intern;
 
 use super::executor::TaskExecutor;
+use super::memory_loader::load_memory;
 use super::output::make_task_result;
 
 /// Result of executing a task iteration
@@ -341,6 +342,14 @@ impl Runner {
 
         // Validate use: blocks before execution (fail-fast)
         validate_use_wiring(&self.workflow, &self.flow_graph)?;
+
+        // Load memory files if workflow has memory: block (v0.13 Schema @0.6)
+        if let Some(memory_config) = &self.workflow.memory {
+            let base_path = std::env::current_dir().unwrap_or_default();
+            let loaded_memory = load_memory(memory_config, &base_path).await?;
+            self.datastore.set_memory(loaded_memory);
+            debug!("Loaded {} memory files", memory_config.files.len());
+        }
 
         let total_tasks = self.workflow.tasks.len();
         let mut completed = 0;
@@ -784,6 +793,7 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
+            memory: None,
             tasks: vec![],
             flows: vec![],
         }
@@ -817,6 +827,7 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
+            memory: None,
             tasks: vec![Arc::new(Task {
                 id: "echo_items".to_string(),
                 for_each: Some(serde_json::json!(["a", "b", "c"])),
@@ -872,6 +883,7 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
+            memory: None,
             tasks: vec![Arc::new(Task {
                 id: "ordered".to_string(),
                 for_each: Some(serde_json::json!(["first", "second", "third"])),
@@ -927,6 +939,7 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
+            memory: None,
             tasks: tasks
                 .into_iter()
                 .map(|(id, cmd)| {
@@ -1349,6 +1362,7 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
+            memory: None,
             tasks: vec![Arc::new(Task {
                 id: "concurrent".to_string(),
                 for_each: Some(serde_json::json!(["a", "b", "c", "d"])),
@@ -1393,6 +1407,7 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
+            memory: None,
             tasks: vec![Arc::new(Task {
                 id: "failfast".to_string(),
                 for_each: Some(serde_json::json!(["ok1", "FAIL", "ok2", "ok3"])),
@@ -1429,6 +1444,7 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
+            memory: None,
             tasks: vec![Arc::new(Task {
                 id: "continue".to_string(),
                 for_each: Some(serde_json::json!(["ok1", "ok2"])),

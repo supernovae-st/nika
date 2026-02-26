@@ -77,6 +77,9 @@ struct WorkflowRaw {
     /// MCP server configurations (v0.2)
     #[serde(default)]
     pub mcp: Option<FxHashMap<String, McpConfigInline>>,
+    /// Memory configuration for file loading at workflow start (v0.6)
+    #[serde(default)]
+    pub memory: Option<super::memory::MemoryConfig>,
     pub tasks: Vec<Task>,
     #[serde(default)]
     pub flows: Vec<Flow>,
@@ -94,6 +97,8 @@ pub struct Workflow {
     /// referencing external configuration. The map key is the server
     /// name used in `invoke.mcp` fields.
     pub mcp: Option<FxHashMap<String, McpConfigInline>>,
+    /// Memory configuration for file loading at workflow start (v0.6)
+    pub memory: Option<super::memory::MemoryConfig>,
     pub tasks: Vec<Arc<Task>>,
     pub flows: Vec<Flow>,
 }
@@ -109,6 +114,7 @@ impl<'de> Deserialize<'de> for Workflow {
             provider: raw.provider,
             model: raw.model,
             mcp: raw.mcp,
+            memory: raw.memory,
             tasks: raw.tasks.into_iter().map(Arc::new).collect(),
             flows: raw.flows,
         })

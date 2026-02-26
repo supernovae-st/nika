@@ -34,8 +34,8 @@ pub use builtin::{
 pub use chat_workflow::{ChatMessage, ChatWorkflow, Role};
 pub use executor::TaskExecutor;
 pub use hitl::{DefaultHitlHandler, HitlError, HitlHandler, HitlRequest, HitlResponse};
+pub use memory_loader::{load_memory, LoadedMemory};
 pub use output::make_task_result;
 pub use rig_agent_loop::{RigAgentLoop, RigAgentLoopResult, RigAgentStatus};
 pub use runner::Runner;
 pub use spawn::{SpawnAgentParams, SpawnAgentTool};
-pub use memory_loader::{load_memory, LoadedMemory};
