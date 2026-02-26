@@ -737,9 +737,8 @@ tasks:
                     ..
                 } = &event.kind
                 {
-                    if meta.thinking.is_some() {
+                    if let Some(thinking) = &meta.thinking {
                         has_thinking = true;
-                        let thinking = meta.thinking.as_ref().unwrap();
                         assert!(!thinking.is_empty(), "Thinking should not be empty");
                     }
                 }

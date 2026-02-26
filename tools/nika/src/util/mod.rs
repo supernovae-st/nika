@@ -3,7 +3,7 @@
 //! Contains helper functions and data structures used across the codebase:
 //! - `constants`: Centralized timeouts and limits
 //! - `fs`: Atomic file write operations
-//! - `interner`: String interning for recurring task IDs (Arc<str> deduplication)
+//! - `interner`: String interning for recurring task IDs (`Arc<str>` deduplication)
 //! - `jsonpath`: Minimal JSONPath parser for path resolution
 
 pub mod constants;

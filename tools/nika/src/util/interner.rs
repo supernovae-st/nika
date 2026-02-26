@@ -17,7 +17,7 @@ static INTERNER: LazyLock<Interner> = LazyLock::new(Interner::new);
 
 /// Thread-safe string interner using DashMap
 pub struct Interner {
-    /// Map from string content to interned Arc<str>
+    /// Map from string content to interned `Arc<str>`
     strings: DashMap<Arc<str>, ()>,
 }
 
@@ -29,7 +29,7 @@ impl Interner {
         }
     }
 
-    /// Intern a string, returning a shared Arc<str>
+    /// Intern a string, returning a shared `Arc<str>`
     ///
     /// If the string was already interned, returns the existing Arc.
     /// Otherwise, creates a new Arc and stores it.
