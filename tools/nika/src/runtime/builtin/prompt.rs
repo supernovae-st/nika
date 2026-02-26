@@ -110,6 +110,7 @@ impl BuiltinTool for PromptTool {
     }
 
     fn parameters_schema(&self) -> serde_json::Value {
+        // v0.12.1: OpenAI-compatible schema with additionalProperties: false
         serde_json::json!({
             "type": "object",
             "properties": {
@@ -122,7 +123,8 @@ impl BuiltinTool for PromptTool {
                     "description": "Default value if no input provided"
                 }
             },
-            "required": ["message"]
+            "required": ["message"],
+            "additionalProperties": false
         })
     }
 

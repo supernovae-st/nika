@@ -41,7 +41,7 @@ use tui_input::{Input, InputRequest};
 
 use super::trait_view::View;
 use super::ViewAction;
-use crate::tui::command::{Command, ModelProvider, HELP_TEXT};
+use crate::tui::command::{Command, ExportFormat, ModelProvider, HELP_TEXT};
 
 /// Check if the "command" modifier is pressed (Ctrl on Linux/Windows, Cmd on macOS)
 /// On macOS, Cmd key maps to SUPER modifier in crossterm
@@ -1696,7 +1696,9 @@ impl ChatView {
         self.maybe_sync_dag();
 
         // v0.13: Wire to ChatWorkflow DAG (unified execution)
-        let _ = self.workflow.add_message_with_mentions(&content, WorkflowRole::Tool);
+        let _ = self
+            .workflow
+            .add_message_with_mentions(&content, WorkflowRole::Tool);
     }
 
     /// v0.12.1: Sync DAG if panel is visible (avoid unnecessary work)
@@ -2352,7 +2354,9 @@ impl ChatView {
 
         // v0.13: Wire to ChatWorkflow DAG (unified execution)
         // Use add_message_with_mentions to handle @N references automatically
-        let _ = self.workflow.add_message_with_mentions(&content, WorkflowRole::User);
+        let _ = self
+            .workflow
+            .add_message_with_mentions(&content, WorkflowRole::User);
     }
 
     /// Add a Nika response
@@ -2368,11 +2372,13 @@ impl ChatView {
             thinking: None,
         });
         self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
-        // v0.12.1: Sync DAG when messages change
+                                      // v0.12.1: Sync DAG when messages change
         self.maybe_sync_dag();
 
         // v0.13: Wire to ChatWorkflow DAG (unified execution)
-        let _ = self.workflow.add_message_with_mentions(&content, WorkflowRole::Assistant);
+        let _ = self
+            .workflow
+            .add_message_with_mentions(&content, WorkflowRole::Assistant);
     }
 
     /// Add a Nika response with thinking content (v0.5.2+)
@@ -2393,11 +2399,13 @@ impl ChatView {
             thinking,
         });
         self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
-        // v0.12.1: Sync DAG when messages change
+                                      // v0.12.1: Sync DAG when messages change
         self.maybe_sync_dag();
 
         // v0.13: Wire to ChatWorkflow DAG (unified execution)
-        let _ = self.workflow.add_message_with_mentions(&content, WorkflowRole::Assistant);
+        let _ = self
+            .workflow
+            .add_message_with_mentions(&content, WorkflowRole::Assistant);
     }
 
     /// Add a system message (for mode changes, status updates)
@@ -2414,11 +2422,13 @@ impl ChatView {
             thinking: None,
         });
         self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
-        // v0.12.1: Sync DAG when messages change
+                                      // v0.12.1: Sync DAG when messages change
         self.maybe_sync_dag();
 
         // v0.13: Wire to ChatWorkflow DAG (unified execution)
-        let _ = self.workflow.add_message_with_mentions(&content_str, WorkflowRole::System);
+        let _ = self
+            .workflow
+            .add_message_with_mentions(&content_str, WorkflowRole::System);
     }
 
     /// v0.9: Export chat session to JSON file
@@ -2508,6 +2518,61 @@ impl ChatView {
 
         // Write to file using atomic_write for safety
         atomic_write(Path::new(&filepath), json.as_bytes())
+            .map_err(|e| format!("File write failed: {}", e))?;
+
+        Ok(filepath)
+    }
+
+    /// v0.13: Export chat session as a runnable Nika YAML workflow
+    ///
+    /// Exports the chat conversation as a YAML workflow file that can be re-executed
+    /// with `nika run <file>`. User messages become `infer:` tasks, and @N mentions
+    /// create DAG edges between tasks.
+    pub fn export_session_yaml(&self, path: Option<&str>) -> Result<String, String> {
+        // Generate default filename with timestamp
+        let filepath = match path {
+            Some(p) => {
+                // v0.9 SECURITY: Validate user-provided path (same as JSON export)
+                let path = Path::new(p);
+
+                // Reject absolute paths (must be relative to current directory)
+                if path.is_absolute() {
+                    return Err("Security: Absolute paths not allowed. Use a relative path.".into());
+                }
+
+                // Reject paths with parent directory traversal
+                for component in path.components() {
+                    if matches!(component, std::path::Component::ParentDir) {
+                        return Err(
+                            "Security: Path traversal (..) not allowed. Use a simple filename."
+                                .into(),
+                        );
+                    }
+                }
+
+                // Ensure .nika.yaml extension
+                let p_str = p.to_string();
+                if p_str.ends_with(".nika.yaml") {
+                    p_str
+                } else if p_str.ends_with(".yaml") || p_str.ends_with(".yml") {
+                    // Replace .yaml/.yml with .nika.yaml
+                    let base = p_str.trim_end_matches(".yaml").trim_end_matches(".yml");
+                    format!("{}.nika.yaml", base)
+                } else {
+                    format!("{}.nika.yaml", p_str)
+                }
+            }
+            None => format!(
+                "nika-chat-{}.nika.yaml",
+                Local::now().format("%Y%m%d-%H%M%S")
+            ),
+        };
+
+        // Generate YAML from ChatWorkflow
+        let yaml = self.workflow.to_yaml();
+
+        // Write to file using atomic_write for safety
+        atomic_write(Path::new(&filepath), yaml.as_bytes())
             .map_err(|e| format!("File write failed: {}", e))?;
 
         Ok(filepath)
@@ -3662,13 +3727,21 @@ impl View for ChatView {
                                 ViewAction::ChatModelSwitch(provider)
                             }
                         }
-                        Command::Export { path } => {
-                            // v0.9: Export chat to JSON file
-                            match self.export_session(path.as_deref()) {
+                        Command::Export { format, path } => {
+                            // v0.9: Export chat to JSON or YAML file
+                            let result = match format {
+                                ExportFormat::Json => self.export_session(path.as_deref()),
+                                ExportFormat::Yaml => self.export_session_yaml(path.as_deref()),
+                            };
+                            match result {
                                 Ok(filepath) => {
+                                    let format_name = match format {
+                                        ExportFormat::Json => "JSON",
+                                        ExportFormat::Yaml => "YAML workflow",
+                                    };
                                     self.add_system_message(format!(
-                                        "📤 Chat exported to: {}",
-                                        filepath
+                                        "📤 Chat exported as {} to: {}",
+                                        format_name, filepath
                                     ));
                                 }
                                 Err(e) => {
@@ -3857,13 +3930,21 @@ impl ChatView {
                             ),
                             Command::Mcp { action } => ViewAction::ChatMcp(action),
                             Command::Model { provider } => ViewAction::ChatModelSwitch(provider),
-                            Command::Export { path } => {
-                                // v0.9: Export chat to JSON file
-                                match self.export_session(path.as_deref()) {
+                            Command::Export { format, path } => {
+                                // v0.13: Export chat to JSON or YAML file
+                                let result = match format {
+                                    ExportFormat::Json => self.export_session(path.as_deref()),
+                                    ExportFormat::Yaml => self.export_session_yaml(path.as_deref()),
+                                };
+                                match result {
                                     Ok(filepath) => {
+                                        let format_name = match format {
+                                            ExportFormat::Json => "JSON",
+                                            ExportFormat::Yaml => "YAML workflow",
+                                        };
                                         self.add_system_message(format!(
-                                            "📤 Chat exported to: {}",
-                                            filepath
+                                            "📤 Chat exported as {} to: {}",
+                                            format_name, filepath
                                         ));
                                     }
                                     Err(e) => {
@@ -5358,7 +5439,9 @@ impl ChatView {
                     } else {
                         0.0
                     };
-                    let border_color = task_box.state().border_color_with_pulse(verb_color, pulse_intensity);
+                    let border_color = task_box
+                        .state()
+                        .border_color_with_pulse(verb_color, pulse_intensity);
                     let state_icon = task_box.state().icon();
                     let state_suffix = task_box.state().suffix();
 
@@ -5384,18 +5467,28 @@ impl ChatView {
                                     } else {
                                         ""
                                     };
-                                    items.push(ListItem::new(Line::from(vec![
-                                        Span::styled(
-                                            format!("╭─ 🔌 INVOKE ──────────────────────────── {} {} ─╮", state_icon, state_suffix),
-                                            Style::default().fg(border_color),
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ 🔌 INVOKE ──────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
                                         ),
-                                    ])));
+                                        Style::default().fg(border_color),
+                                    )])));
                                     items.push(ListItem::new(Line::from(vec![
                                         Span::styled("│ ", Style::default().fg(border_color)),
-                                        Span::styled(truncate_str(&invoke.tool, 20), Style::default().fg(content_color)),
+                                        Span::styled(
+                                            truncate_str(&invoke.tool, 20),
+                                            Style::default().fg(content_color),
+                                        ),
                                         Span::styled(" @ ", Style::default().fg(muted_color)),
-                                        Span::styled(truncate_str(&invoke.server, 12), Style::default().fg(emerald_400)),
-                                        Span::styled(format!(" │ {}", status_str), Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            truncate_str(&invoke.server, 12),
+                                            Style::default().fg(emerald_400),
+                                        ),
+                                        Span::styled(
+                                            format!(" │ {}", status_str),
+                                            Style::default().fg(muted_color),
+                                        ),
                                     ])));
                                     items.push(ListItem::new(Line::from(vec![Span::styled(
                                         "╰──────────────────────────────────────────────────╯",
@@ -5405,12 +5498,13 @@ impl ChatView {
                                 RenderMode::Expanded | RenderMode::Full => {
                                     // EXPANDED/FULL: Full InvokeBox rendering
                                     // 1. Top border with status
-                                    items.push(ListItem::new(Line::from(vec![
-                                        Span::styled(
-                                            format!("╭─ 🔌 INVOKE ────────────────────────────── {} {} ─╮", state_icon, state_suffix),
-                                            Style::default().fg(border_color),
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ 🔌 INVOKE ────────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
                                         ),
-                                    ])));
+                                        Style::default().fg(border_color),
+                                    )])));
 
                                     // 2. Tool + Server line
                                     items.push(ListItem::new(Line::from(vec![
@@ -5454,7 +5548,10 @@ impl ChatView {
                                         items.push(ListItem::new(Line::from(vec![
                                             Span::styled("│ ", Style::default().fg(border_color)),
                                             Span::styled("┊ ", Style::default().fg(muted_color)),
-                                            Span::styled("(no params)", Style::default().fg(muted_color)),
+                                            Span::styled(
+                                                "(no params)",
+                                                Style::default().fg(muted_color),
+                                            ),
                                         ])));
                                     }
 
@@ -5469,11 +5566,18 @@ impl ChatView {
                                         let result_str = serde_json::to_string(result)
                                             .unwrap_or_else(|_| "null".to_string());
                                         // Show first 2 lines of result
-                                        let result_lines: Vec<&str> = result_str.lines().take(2).collect();
+                                        let result_lines: Vec<&str> =
+                                            result_str.lines().take(2).collect();
                                         if result_lines.is_empty() {
                                             items.push(ListItem::new(Line::from(vec![
-                                                Span::styled("│ ", Style::default().fg(border_color)),
-                                                Span::styled("┊ ", Style::default().fg(muted_color)),
+                                                Span::styled(
+                                                    "│ ",
+                                                    Style::default().fg(border_color),
+                                                ),
+                                                Span::styled(
+                                                    "┊ ",
+                                                    Style::default().fg(muted_color),
+                                                ),
                                                 Span::styled(
                                                     truncate_str(&result_str, 44),
                                                     Style::default().fg(success_color),
@@ -5482,8 +5586,14 @@ impl ChatView {
                                         } else {
                                             for line in result_lines {
                                                 items.push(ListItem::new(Line::from(vec![
-                                                    Span::styled("│ ", Style::default().fg(border_color)),
-                                                    Span::styled("┊ ", Style::default().fg(muted_color)),
+                                                    Span::styled(
+                                                        "│ ",
+                                                        Style::default().fg(border_color),
+                                                    ),
+                                                    Span::styled(
+                                                        "┊ ",
+                                                        Style::default().fg(muted_color),
+                                                    ),
                                                     Span::styled(
                                                         truncate_str(line, 44),
                                                         Style::default().fg(success_color),
@@ -5507,8 +5617,14 @@ impl ChatView {
                                         items.push(ListItem::new(Line::from(vec![
                                             Span::styled("│ ", Style::default().fg(border_color)),
                                             Span::styled("┊ ", Style::default().fg(muted_color)),
-                                            Span::styled("(calling MCP server)", Style::default().fg(muted_color)),
-                                            Span::styled(cursor, Style::default().fg(success_color)),
+                                            Span::styled(
+                                                "(calling MCP server)",
+                                                Style::default().fg(muted_color),
+                                            ),
+                                            Span::styled(
+                                                cursor,
+                                                Style::default().fg(success_color),
+                                            ),
                                         ])));
                                     }
 
@@ -5542,17 +5658,22 @@ impl ChatView {
                                     // ╭─ ⚡ INFER ──────────────────────── ⏳ Running ─╮
                                     // │ "Generate a headline..."  │ 127 in │ 45 out │
                                     // ╰────────────────────────────────────────────────╯
-                                    let prompt_preview = truncate_str(&infer.prompt.replace('\n', " "), 28);
-                                    items.push(ListItem::new(Line::from(vec![
-                                        Span::styled(
-                                            format!("╭─ ⚡ INFER ──────────────────────────── {} {} ─╮", state_icon, state_suffix),
-                                            Style::default().fg(border_color),
+                                    let prompt_preview =
+                                        truncate_str(&infer.prompt.replace('\n', " "), 28);
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ ⚡ INFER ──────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
                                         ),
-                                    ])));
+                                        Style::default().fg(border_color),
+                                    )])));
                                     items.push(ListItem::new(Line::from(vec![
                                         Span::styled("│ ", Style::default().fg(border_color)),
                                         Span::styled(
-                                            format!("\"{}\" │ {} in │ {} out", prompt_preview, infer.tokens_in, infer.tokens_out),
+                                            format!(
+                                                "\"{}\" │ {} in │ {} out",
+                                                prompt_preview, infer.tokens_in, infer.tokens_out
+                                            ),
                                             Style::default().fg(content_color),
                                         ),
                                     ])));
@@ -5564,18 +5685,23 @@ impl ChatView {
                                 RenderMode::Expanded | RenderMode::Full => {
                                     // EXPANDED/FULL: Full InferBox rendering
                                     // 1. Top border
-                                    items.push(ListItem::new(Line::from(vec![
-                                        Span::styled(
-                                            format!("╭─ ⚡ INFER ────────────────────────────── {} {} ─╮", state_icon, state_suffix),
-                                            Style::default().fg(border_color),
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ ⚡ INFER ────────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
                                         ),
-                                    ])));
+                                        Style::default().fg(border_color),
+                                    )])));
 
                                     // 2. Model line
                                     items.push(ListItem::new(Line::from(vec![
                                         Span::styled("│ ", Style::default().fg(border_color)),
                                         Span::styled(
-                                            format!("model: {} {}", provider_icon, truncate_str(&infer.model, 35)),
+                                            format!(
+                                                "model: {} {}",
+                                                provider_icon,
+                                                truncate_str(&infer.model, 35)
+                                            ),
                                             Style::default().fg(muted_color),
                                         ),
                                     ])));
@@ -5607,23 +5733,28 @@ impl ChatView {
                                     )])));
 
                                     // 6. RESPONSE section
-                                    let response_text = if infer.state.is_running() && self.is_streaming {
-                                        &self.partial_response
-                                    } else {
-                                        &infer.response
-                                    };
-                                    let response_indicator = if infer.state.is_running() && self.is_streaming {
-                                        "▼ streaming...".to_string()
-                                    } else if !response_text.is_empty() {
-                                        format!("▼ {} chars", response_text.len())
-                                    } else {
-                                        String::new()
-                                    };
+                                    let response_text =
+                                        if infer.state.is_running() && self.is_streaming {
+                                            &self.partial_response
+                                        } else {
+                                            &infer.response
+                                        };
+                                    let response_indicator =
+                                        if infer.state.is_running() && self.is_streaming {
+                                            "▼ streaming...".to_string()
+                                        } else if !response_text.is_empty() {
+                                            format!("▼ {} chars", response_text.len())
+                                        } else {
+                                            String::new()
+                                        };
                                     items.push(ListItem::new(Line::from(vec![
                                         Span::styled("│ ", Style::default().fg(border_color)),
                                         Span::styled("RESPONSE", Style::default().fg(muted_color)),
                                         Span::styled(
-                                            format!("                              {}", response_indicator),
+                                            format!(
+                                                "                              {}",
+                                                response_indicator
+                                            ),
                                             Style::default().fg(muted_color),
                                         ),
                                     ])));
@@ -5632,19 +5763,38 @@ impl ChatView {
                                     if response_text.is_empty() && infer.state.is_running() {
                                         items.push(ListItem::new(Line::from(vec![
                                             Span::styled("│ ", Style::default().fg(border_color)),
-                                            Span::styled("┊ ...", Style::default().fg(content_color)),
+                                            Span::styled(
+                                                "┊ ...",
+                                                Style::default().fg(content_color),
+                                            ),
                                         ])));
                                     } else {
-                                        let response_lines: Vec<&str> = response_text.lines().collect();
+                                        let response_lines: Vec<&str> =
+                                            response_text.lines().collect();
                                         let start = response_lines.len().saturating_sub(3);
-                                        let lines_to_show: Vec<_> = response_lines.iter().skip(start).collect();
+                                        let lines_to_show: Vec<_> =
+                                            response_lines.iter().skip(start).collect();
                                         for (idx, line) in lines_to_show.iter().enumerate() {
                                             let is_last = idx == lines_to_show.len() - 1;
-                                            let cursor = if is_last && infer.state.is_running() && self.is_streaming { "█" } else { "" };
+                                            let cursor = if is_last
+                                                && infer.state.is_running()
+                                                && self.is_streaming
+                                            {
+                                                "█"
+                                            } else {
+                                                ""
+                                            };
                                             items.push(ListItem::new(Line::from(vec![
-                                                Span::styled("│ ", Style::default().fg(border_color)),
                                                 Span::styled(
-                                                    format!("┊ {}{}", truncate_str(line, 44), cursor),
+                                                    "│ ",
+                                                    Style::default().fg(border_color),
+                                                ),
+                                                Span::styled(
+                                                    format!(
+                                                        "┊ {}{}",
+                                                        truncate_str(line, 44),
+                                                        cursor
+                                                    ),
                                                     Style::default().fg(content_color),
                                                 ),
                                             ])));
@@ -5652,15 +5802,22 @@ impl ChatView {
                                     }
 
                                     // 8. Footer with metrics
-                                    let cost = crate::tui::widgets::task_box::InferBox::calculate_cost(
-                                        infer.tokens_in, infer.tokens_out, &infer.model,
-                                    );
+                                    let cost =
+                                        crate::tui::widgets::task_box::InferBox::calculate_cost(
+                                            infer.tokens_in,
+                                            infer.tokens_out,
+                                            &infer.model,
+                                        );
                                     items.push(ListItem::new(Line::from(vec![
                                         Span::styled("│ ", Style::default().fg(border_color)),
                                         Span::styled(
-                                            format!("📊 {} in │ {} out │ {} {} │ 💰 ${:.4}",
-                                                infer.tokens_in, infer.tokens_out, provider_icon,
-                                                truncate_str(&infer.model, 12), cost
+                                            format!(
+                                                "📊 {} in │ {} out │ {} {} │ 💰 ${:.4}",
+                                                infer.tokens_in,
+                                                infer.tokens_out,
+                                                provider_icon,
+                                                truncate_str(&infer.model, 12),
+                                                cost
                                             ),
                                             Style::default().fg(muted_color),
                                         ),
@@ -5678,22 +5835,35 @@ impl ChatView {
                         TaskBox::Exec(exec) => {
                             // v0.12.1: RenderMode-aware ExecBox rendering
                             let content_color = Color::Rgb(226, 232, 240); // slate-200
-                            let exit_display = exec.exit_code.map(|c| format!("exit: {}", c)).unwrap_or_else(|| "running...".to_string());
-                            let exit_color = exec.exit_code.map(|c| if c == 0 { success_color } else { error_color }).unwrap_or(muted_color);
+                            let exit_display = exec
+                                .exit_code
+                                .map(|c| format!("exit: {}", c))
+                                .unwrap_or_else(|| "running...".to_string());
+                            let exit_color = exec
+                                .exit_code
+                                .map(|c| if c == 0 { success_color } else { error_color })
+                                .unwrap_or(muted_color);
 
                             match self.task_box_render_mode {
                                 RenderMode::Compact => {
                                     // COMPACT: 3 lines - header + command + footer
-                                    items.push(ListItem::new(Line::from(vec![
-                                        Span::styled(
-                                            format!("╭─ 📟 EXEC ──────────────────────────────── {} {} ─╮", state_icon, state_suffix),
-                                            Style::default().fg(border_color),
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ 📟 EXEC ──────────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
                                         ),
-                                    ])));
+                                        Style::default().fg(border_color),
+                                    )])));
                                     items.push(ListItem::new(Line::from(vec![
                                         Span::styled("│ ", Style::default().fg(border_color)),
-                                        Span::styled(format!("$ {} │ ", truncate_str(&exec.command, 30)), Style::default().fg(content_color)),
-                                        Span::styled(exit_display.clone(), Style::default().fg(exit_color)),
+                                        Span::styled(
+                                            format!("$ {} │ ", truncate_str(&exec.command, 30)),
+                                            Style::default().fg(content_color),
+                                        ),
+                                        Span::styled(
+                                            exit_display.clone(),
+                                            Style::default().fg(exit_color),
+                                        ),
                                     ])));
                                     items.push(ListItem::new(Line::from(vec![Span::styled(
                                         "╰──────────────────────────────────────────────────╯",
@@ -5702,15 +5872,19 @@ impl ChatView {
                                 }
                                 RenderMode::Expanded | RenderMode::Full => {
                                     // EXPANDED/FULL: Full ExecBox rendering
-                                    items.push(ListItem::new(Line::from(vec![
-                                        Span::styled(
-                                            format!("╭─ 📟 EXEC ─────────────────────────────── {} {} ─╮", state_icon, state_suffix),
-                                            Style::default().fg(border_color),
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ 📟 EXEC ─────────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
                                         ),
-                                    ])));
+                                        Style::default().fg(border_color),
+                                    )])));
                                     items.push(ListItem::new(Line::from(vec![
                                         Span::styled("│ ", Style::default().fg(border_color)),
-                                        Span::styled(format!("$ {}", truncate_str(&exec.command, 45)), Style::default().fg(content_color)),
+                                        Span::styled(
+                                            format!("$ {}", truncate_str(&exec.command, 45)),
+                                            Style::default().fg(content_color),
+                                        ),
                                     ])));
                                     items.push(ListItem::new(Line::from(vec![Span::styled(
                                         "├──────────────────────────────────────────────────┤",
@@ -5718,29 +5892,49 @@ impl ChatView {
                                     )])));
                                     let output_indicator = if !exec.stdout.is_empty() {
                                         format!("▼ {} lines", exec.stdout.lines().count())
-                                    } else { String::new() };
+                                    } else {
+                                        String::new()
+                                    };
                                     items.push(ListItem::new(Line::from(vec![
                                         Span::styled("│ ", Style::default().fg(border_color)),
                                         Span::styled("OUTPUT", Style::default().fg(muted_color)),
-                                        Span::styled(format!("                                  {}", output_indicator), Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            format!(
+                                                "                                  {}",
+                                                output_indicator
+                                            ),
+                                            Style::default().fg(muted_color),
+                                        ),
                                     ])));
                                     if exec.stdout.is_empty() && exec.state.is_running() {
                                         items.push(ListItem::new(Line::from(vec![
                                             Span::styled("│ ", Style::default().fg(border_color)),
-                                            Span::styled("┊ ...", Style::default().fg(content_color)),
+                                            Span::styled(
+                                                "┊ ...",
+                                                Style::default().fg(content_color),
+                                            ),
                                         ])));
                                     } else if exec.stdout.is_empty() {
                                         items.push(ListItem::new(Line::from(vec![
                                             Span::styled("│ ", Style::default().fg(border_color)),
-                                            Span::styled("┊ (no output)", Style::default().fg(muted_color)),
+                                            Span::styled(
+                                                "┊ (no output)",
+                                                Style::default().fg(muted_color),
+                                            ),
                                         ])));
                                     } else {
                                         let output_lines: Vec<&str> = exec.stdout.lines().collect();
                                         let start = output_lines.len().saturating_sub(3);
                                         for line in output_lines.iter().skip(start) {
                                             items.push(ListItem::new(Line::from(vec![
-                                                Span::styled("│ ", Style::default().fg(border_color)),
-                                                Span::styled(format!("┊ {}", truncate_str(line, 44)), Style::default().fg(content_color)),
+                                                Span::styled(
+                                                    "│ ",
+                                                    Style::default().fg(border_color),
+                                                ),
+                                                Span::styled(
+                                                    format!("┊ {}", truncate_str(line, 44)),
+                                                    Style::default().fg(content_color),
+                                                ),
                                             ])));
                                         }
                                     }
@@ -5767,24 +5961,44 @@ impl ChatView {
                                     // ╭─ 🛰️ FETCH ────────────────── ⏳ Running ─╮
                                     // │ GET https://api.example... │ 200 │ 45ms │
                                     // ╰────────────────────────────────────────────╯
-                                    let status_str = fetch.status_code.map(|s| format!("{}", s)).unwrap_or_else(|| "---".to_string());
-                                    let status_color = fetch.status_code.map(|s| {
-                                        if (200..300).contains(&s) { success_color } else { error_color }
-                                    }).unwrap_or(muted_color);
+                                    let status_str = fetch
+                                        .status_code
+                                        .map(|s| format!("{}", s))
+                                        .unwrap_or_else(|| "---".to_string());
+                                    let status_color = fetch
+                                        .status_code
+                                        .map(|s| {
+                                            if (200..300).contains(&s) {
+                                                success_color
+                                            } else {
+                                                error_color
+                                            }
+                                        })
+                                        .unwrap_or(muted_color);
 
-                                    items.push(ListItem::new(Line::from(vec![
-                                        Span::styled(
-                                            format!("╭─ 🛰️ FETCH ────────────────────────────── {} {} ─╮", state_icon, state_suffix),
-                                            Style::default().fg(border_color),
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ 🛰️ FETCH ────────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
                                         ),
-                                    ])));
+                                        Style::default().fg(border_color),
+                                    )])));
                                     items.push(ListItem::new(Line::from(vec![
                                         Span::styled("│ ", Style::default().fg(border_color)),
-                                        Span::styled(format!("{} ", fetch.method), Style::default().fg(amber_400)),
-                                        Span::styled(truncate_str(&fetch.url, 28), Style::default().fg(content_color)),
+                                        Span::styled(
+                                            format!("{} ", fetch.method),
+                                            Style::default().fg(amber_400),
+                                        ),
+                                        Span::styled(
+                                            truncate_str(&fetch.url, 28),
+                                            Style::default().fg(content_color),
+                                        ),
                                         Span::styled(" │ ", Style::default().fg(muted_color)),
                                         Span::styled(status_str, Style::default().fg(status_color)),
-                                        Span::styled(format!(" │ {}ms", fetch.ttfb_ms), Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            format!(" │ {}ms", fetch.ttfb_ms),
+                                            Style::default().fg(muted_color),
+                                        ),
                                     ])));
                                     items.push(ListItem::new(Line::from(vec![Span::styled(
                                         "╰──────────────────────────────────────────────────╯",
@@ -5794,12 +6008,13 @@ impl ChatView {
                                 RenderMode::Expanded | RenderMode::Full => {
                                     // EXPANDED/FULL: Full FetchBox rendering
                                     // 1. Top border with status
-                                    items.push(ListItem::new(Line::from(vec![
-                                        Span::styled(
-                                            format!("╭─ 🛰️ FETCH ─────────────────────────────── {} {} ─╮", state_icon, state_suffix),
-                                            Style::default().fg(border_color),
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ 🛰️ FETCH ─────────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
                                         ),
-                                    ])));
+                                        Style::default().fg(border_color),
+                                    )])));
 
                                     // 2. Method + URL line
                                     items.push(ListItem::new(Line::from(vec![
@@ -5836,11 +6051,18 @@ impl ChatView {
 
                                     // 5. Response body preview (first 2 lines or status)
                                     if let Some(body) = &fetch.response_body {
-                                        let preview_lines: Vec<&str> = body.lines().take(2).collect();
+                                        let preview_lines: Vec<&str> =
+                                            body.lines().take(2).collect();
                                         for line in preview_lines {
                                             items.push(ListItem::new(Line::from(vec![
-                                                Span::styled("│ ", Style::default().fg(border_color)),
-                                                Span::styled("┊ ", Style::default().fg(muted_color)),
+                                                Span::styled(
+                                                    "│ ",
+                                                    Style::default().fg(border_color),
+                                                ),
+                                                Span::styled(
+                                                    "┊ ",
+                                                    Style::default().fg(muted_color),
+                                                ),
                                                 Span::styled(
                                                     truncate_str(line, 44),
                                                     Style::default().fg(content_color),
@@ -5853,23 +6075,45 @@ impl ChatView {
                                         items.push(ListItem::new(Line::from(vec![
                                             Span::styled("│ ", Style::default().fg(border_color)),
                                             Span::styled("┊ ", Style::default().fg(muted_color)),
-                                            Span::styled("(awaiting response)", Style::default().fg(muted_color)),
-                                            Span::styled(cursor, Style::default().fg(success_color)),
+                                            Span::styled(
+                                                "(awaiting response)",
+                                                Style::default().fg(muted_color),
+                                            ),
+                                            Span::styled(
+                                                cursor,
+                                                Style::default().fg(success_color),
+                                            ),
                                         ])));
                                     }
 
                                     // 6. Footer with metrics
-                                    let status_str = fetch.status_code.map(|s| format!("{}", s)).unwrap_or_else(|| "---".to_string());
-                                    let status_color = fetch.status_code.map(|s| {
-                                        if (200..300).contains(&s) { success_color } else { error_color }
-                                    }).unwrap_or(muted_color);
+                                    let status_str = fetch
+                                        .status_code
+                                        .map(|s| format!("{}", s))
+                                        .unwrap_or_else(|| "---".to_string());
+                                    let status_color = fetch
+                                        .status_code
+                                        .map(|s| {
+                                            if (200..300).contains(&s) {
+                                                success_color
+                                            } else {
+                                                error_color
+                                            }
+                                        })
+                                        .unwrap_or(muted_color);
 
                                     items.push(ListItem::new(Line::from(vec![
                                         Span::styled("│ ", Style::default().fg(border_color)),
                                         Span::styled("Status: ", Style::default().fg(muted_color)),
                                         Span::styled(status_str, Style::default().fg(status_color)),
-                                        Span::styled(format!(" │ TTFB: {}ms", fetch.ttfb_ms), Style::default().fg(muted_color)),
-                                        Span::styled(format!(" │ Retries: {}", fetch.retries), Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            format!(" │ TTFB: {}ms", fetch.ttfb_ms),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                        Span::styled(
+                                            format!(" │ Retries: {}", fetch.retries),
+                                            Style::default().fg(muted_color),
+                                        ),
                                     ])));
 
                                     // 7. Bottom border
@@ -5900,17 +6144,27 @@ impl ChatView {
                                         format!("{}", total_tokens)
                                     };
 
-                                    items.push(ListItem::new(Line::from(vec![
-                                        Span::styled(
-                                            format!("╭─ {} AGENT ────────────────────────────── {} {} ─╮", agent_icon, state_icon, state_suffix),
-                                            Style::default().fg(border_color),
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ {} AGENT ────────────────────────────── {} {} ─╮",
+                                            agent_icon, state_icon, state_suffix
                                         ),
-                                    ])));
+                                        Style::default().fg(border_color),
+                                    )])));
                                     items.push(ListItem::new(Line::from(vec![
                                         Span::styled("│ ", Style::default().fg(border_color)),
                                         Span::styled("🎯 ", Style::default().fg(amber_400)),
-                                        Span::styled(truncate_str(&agent.prompt, 25), Style::default().fg(content_color)),
-                                        Span::styled(format!(" │ T:{}/{} │ {}", agent.turn, agent.max_turns, token_str), Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            truncate_str(&agent.prompt, 25),
+                                            Style::default().fg(content_color),
+                                        ),
+                                        Span::styled(
+                                            format!(
+                                                " │ T:{}/{} │ {}",
+                                                agent.turn, agent.max_turns, token_str
+                                            ),
+                                            Style::default().fg(muted_color),
+                                        ),
                                     ])));
                                     items.push(ListItem::new(Line::from(vec![Span::styled(
                                         "╰──────────────────────────────────────────────────╯",
@@ -5920,12 +6174,13 @@ impl ChatView {
                                 RenderMode::Expanded | RenderMode::Full => {
                                     // EXPANDED/FULL: Full AgentBox rendering
                                     // 1. Top border with status
-                                    items.push(ListItem::new(Line::from(vec![
-                                        Span::styled(
-                                            format!("╭─ {} AGENT ─────────────────────────────── {} {} ─╮", agent_icon, state_icon, state_suffix),
-                                            Style::default().fg(border_color),
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ {} AGENT ─────────────────────────────── {} {} ─╮",
+                                            agent_icon, state_icon, state_suffix
                                         ),
-                                    ])));
+                                        Style::default().fg(border_color),
+                                    )])));
 
                                     // 2. Goal/prompt line
                                     items.push(ListItem::new(Line::from(vec![
@@ -5946,16 +6201,26 @@ impl ChatView {
                                     // 4. RESPONSE section header
                                     items.push(ListItem::new(Line::from(vec![
                                         Span::styled("│ ", Style::default().fg(border_color)),
-                                        Span::styled("💬 RESPONSE", Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            "💬 RESPONSE",
+                                            Style::default().fg(muted_color),
+                                        ),
                                     ])));
 
                                     // 5. Final response content (first 3 lines or streaming indicator)
                                     if let Some(response) = &agent.final_response {
-                                        let response_lines: Vec<&str> = response.lines().take(3).collect();
+                                        let response_lines: Vec<&str> =
+                                            response.lines().take(3).collect();
                                         for line in response_lines {
                                             items.push(ListItem::new(Line::from(vec![
-                                                Span::styled("│ ", Style::default().fg(border_color)),
-                                                Span::styled("┊ ", Style::default().fg(muted_color)),
+                                                Span::styled(
+                                                    "│ ",
+                                                    Style::default().fg(border_color),
+                                                ),
+                                                Span::styled(
+                                                    "┊ ",
+                                                    Style::default().fg(muted_color),
+                                                ),
                                                 Span::styled(
                                                     truncate_str(line, 44),
                                                     Style::default().fg(content_color),
@@ -5964,10 +6229,19 @@ impl ChatView {
                                         }
                                         if response.lines().count() > 3 {
                                             items.push(ListItem::new(Line::from(vec![
-                                                Span::styled("│ ", Style::default().fg(border_color)),
-                                                Span::styled("┊ ", Style::default().fg(muted_color)),
                                                 Span::styled(
-                                                    format!("... ({} more lines)", response.lines().count() - 3),
+                                                    "│ ",
+                                                    Style::default().fg(border_color),
+                                                ),
+                                                Span::styled(
+                                                    "┊ ",
+                                                    Style::default().fg(muted_color),
+                                                ),
+                                                Span::styled(
+                                                    format!(
+                                                        "... ({} more lines)",
+                                                        response.lines().count() - 3
+                                                    ),
                                                     Style::default().fg(muted_color),
                                                 ),
                                             ])));
@@ -5979,10 +6253,16 @@ impl ChatView {
                                             Span::styled("│ ", Style::default().fg(border_color)),
                                             Span::styled("┊ ", Style::default().fg(muted_color)),
                                             Span::styled(
-                                                format!("(turn {}/{} in progress)", agent.turn, agent.max_turns),
+                                                format!(
+                                                    "(turn {}/{} in progress)",
+                                                    agent.turn, agent.max_turns
+                                                ),
                                                 Style::default().fg(muted_color),
                                             ),
-                                            Span::styled(cursor, Style::default().fg(success_color)),
+                                            Span::styled(
+                                                cursor,
+                                                Style::default().fg(success_color),
+                                            ),
                                         ])));
                                     }
 
@@ -5995,13 +6275,25 @@ impl ChatView {
                                     };
                                     items.push(ListItem::new(Line::from(vec![
                                         Span::styled("│ ", Style::default().fg(border_color)),
-                                        Span::styled(format!("Turn {}/{}", agent.turn, agent.max_turns), Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            format!("Turn {}/{}", agent.turn, agent.max_turns),
+                                            Style::default().fg(muted_color),
+                                        ),
                                         Span::styled(" │ ", Style::default().fg(muted_color)),
-                                        Span::styled(format!("🎫 {} tokens", token_str), Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            format!("🎫 {} tokens", token_str),
+                                            Style::default().fg(muted_color),
+                                        ),
                                         Span::styled(" │ ", Style::default().fg(muted_color)),
-                                        Span::styled(format!("💰 ${:.2}", agent.cost), Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            format!("💰 ${:.2}", agent.cost),
+                                            Style::default().fg(muted_color),
+                                        ),
                                         Span::styled(" │ ", Style::default().fg(muted_color)),
-                                        Span::styled(format!("🔌 {} calls", agent.tool_calls), Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            format!("🔌 {} calls", agent.tool_calls),
+                                            Style::default().fg(muted_color),
+                                        ),
                                     ])));
 
                                     // 7. Bottom border

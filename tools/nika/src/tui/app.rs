@@ -940,7 +940,8 @@ impl App {
                     // Update session context with token usage for status bar display
                     self.chat_view.add_tokens(input_tokens, output_tokens);
                     // v0.12.1: Also update the running InferBox with final token counts
-                    self.chat_view.append_infer_content("", output_tokens as u32);
+                    self.chat_view
+                        .append_infer_content("", output_tokens as u32);
                     tracing::debug!(
                         input = input_tokens,
                         output = output_tokens,

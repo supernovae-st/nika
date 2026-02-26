@@ -139,7 +139,11 @@ fn wiring_8_handle_key_tab_focus_next() {
         matches!(action, ViewAction::None),
         "Tab should return None (internal focus change)"
     );
-    assert_eq!(view.focus, PanelId::RunnerDag, "Tab should move to next panel");
+    assert_eq!(
+        view.focus,
+        PanelId::RunnerDag,
+        "Tab should move to next panel"
+    );
 }
 
 #[test]

@@ -56,8 +56,8 @@ use crate::tui::state::TuiState;
 use crate::tui::theme::{MissionPhase, TaskStatus, Theme, VerbColor};
 use crate::tui::unicode::truncate_to_width;
 use crate::tui::widgets::{
+    task_box::{AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, RenderMode, TaskBox},
     DagAscii, NodeBoxData, NodeBoxMode,
-    task_box::{BoxState, InferBox, ExecBox, FetchBox, InvokeBox, AgentBox, TaskBox, RenderMode},
 };
 
 /// Monitor View state
@@ -420,13 +420,18 @@ impl MonitorView {
                         let is_selected = i == self.selected_task && focused;
                         return Some(
                             ListItem::new(Line::from(vec![
-                                Span::styled(format!("{} ", verb_icon), Style::default().fg(verb_color)),
+                                Span::styled(
+                                    format!("{} ", verb_icon),
+                                    Style::default().fg(verb_color),
+                                ),
                                 Span::styled(status_icon, Style::default().fg(status_color)),
                                 Span::raw(" "),
                                 Span::styled(
                                     truncate_to_width(task_id, 20),
                                     if is_selected {
-                                        Style::default().fg(theme.text_primary).add_modifier(Modifier::BOLD)
+                                        Style::default()
+                                            .fg(theme.text_primary)
+                                            .add_modifier(Modifier::BOLD)
                                     } else {
                                         Style::default().fg(theme.text_primary)
                                     },
@@ -443,7 +448,10 @@ impl MonitorView {
                     // Expanded/Full mode: two lines with progress bar
                     let progress = match &task.status {
                         TaskStatus::Success => {
-                            let duration = task.duration_ms.map(|d| format!(" {}ms", d)).unwrap_or_default();
+                            let duration = task
+                                .duration_ms
+                                .map(|d| format!(" {}ms", d))
+                                .unwrap_or_default();
                             format!("▓▓▓▓▓▓▓▓▓▓ 100%{}", duration)
                         }
                         TaskStatus::Running => {
@@ -459,26 +467,30 @@ impl MonitorView {
 
                     // Token count for infer tasks
                     let tokens_str = if task.task_type.as_deref() == Some("infer") {
-                        task.tokens.map(|t| format!(" [{}T]", t)).unwrap_or_default()
+                        task.tokens
+                            .map(|t| format!(" [{}T]", t))
+                            .unwrap_or_default()
                     } else {
                         String::new()
                     };
 
                     let is_selected = i == self.selected_task && focused;
-                    let mut lines = vec![
-                        Line::from(vec![
-                            Span::styled(format!("{} ", verb_icon), Style::default().fg(verb_color)),
-                            Span::styled(status_icon, Style::default().fg(status_color)),
-                            Span::raw(" "),
-                            Span::styled(
-                                task_id.clone(),
-                                Style::default()
-                                    .fg(theme.text_primary)
-                                    .add_modifier(if is_selected { Modifier::BOLD } else { Modifier::empty() }),
-                            ),
-                            Span::styled(tokens_str, Style::default().fg(theme.text_muted)),
-                        ]),
-                    ];
+                    let mut lines = vec![Line::from(vec![
+                        Span::styled(format!("{} ", verb_icon), Style::default().fg(verb_color)),
+                        Span::styled(status_icon, Style::default().fg(status_color)),
+                        Span::raw(" "),
+                        Span::styled(
+                            task_id.clone(),
+                            Style::default()
+                                .fg(theme.text_primary)
+                                .add_modifier(if is_selected {
+                                    Modifier::BOLD
+                                } else {
+                                    Modifier::empty()
+                                }),
+                        ),
+                        Span::styled(tokens_str, Style::default().fg(theme.text_muted)),
+                    ])];
 
                     // Add progress line for Expanded/Full mode
                     if self.render_mode != RenderMode::Compact {
@@ -488,13 +500,11 @@ impl MonitorView {
                         ]));
                     }
 
-                    Some(
-                        ListItem::new(Text::from(lines)).style(if is_selected {
-                            Style::default().bg(Color::Rgb(30, 30, 40))
-                        } else {
-                            Style::default()
-                        }),
-                    )
+                    Some(ListItem::new(Text::from(lines)).style(if is_selected {
+                        Style::default().bg(Color::Rgb(30, 30, 40))
+                    } else {
+                        Style::default()
+                    }))
                 })
             })
             .flatten()
@@ -554,12 +564,9 @@ impl MonitorView {
             let msg = "No tasks loaded";
             let x = inner_area.x + (inner_area.width.saturating_sub(msg.len() as u16)) / 2;
             let y = inner_area.y + inner_area.height / 2;
-            frame.buffer_mut().set_string(
-                x,
-                y,
-                msg,
-                Style::default().fg(theme.text_muted),
-            );
+            frame
+                .buffer_mut()
+                .set_string(x, y, msg, Style::default().fg(theme.text_muted));
             return;
         }
 
@@ -632,11 +639,13 @@ impl MonitorView {
                     Span::styled(tool_name, Style::default().fg(theme.text_primary)),
                     Span::styled(duration, Style::default().fg(theme.text_muted)),
                 ]))
-                .style(if i == self.scroll_offset(PanelId::RunnerNovanet) && focused {
-                    Style::default().bg(theme.highlight)
-                } else {
-                    Style::default()
-                })
+                .style(
+                    if i == self.scroll_offset(PanelId::RunnerNovanet) && focused {
+                        Style::default().bg(theme.highlight)
+                    } else {
+                        Style::default()
+                    },
+                )
             })
             .collect();
 
@@ -772,12 +781,9 @@ impl View for MonitorView {
             let msg = "↕ Terminal too small";
             let x = area.x + area.width.saturating_sub(msg.len() as u16) / 2;
             let y = area.y + area.height / 2;
-            frame.buffer_mut().set_string(
-                x,
-                y,
-                msg,
-                Style::default().fg(Color::Yellow),
-            );
+            frame
+                .buffer_mut()
+                .set_string(x, y, msg, Style::default().fg(Color::Yellow));
             return;
         }
 
@@ -1033,11 +1039,26 @@ mod tests {
 
     #[test]
     fn test_verb_from_task_type() {
-        assert_eq!(MonitorView::verb_from_task_type(Some("infer")), VerbColor::Infer);
-        assert_eq!(MonitorView::verb_from_task_type(Some("exec")), VerbColor::Exec);
-        assert_eq!(MonitorView::verb_from_task_type(Some("fetch")), VerbColor::Fetch);
-        assert_eq!(MonitorView::verb_from_task_type(Some("invoke")), VerbColor::Invoke);
-        assert_eq!(MonitorView::verb_from_task_type(Some("agent")), VerbColor::Agent);
+        assert_eq!(
+            MonitorView::verb_from_task_type(Some("infer")),
+            VerbColor::Infer
+        );
+        assert_eq!(
+            MonitorView::verb_from_task_type(Some("exec")),
+            VerbColor::Exec
+        );
+        assert_eq!(
+            MonitorView::verb_from_task_type(Some("fetch")),
+            VerbColor::Fetch
+        );
+        assert_eq!(
+            MonitorView::verb_from_task_type(Some("invoke")),
+            VerbColor::Invoke
+        );
+        assert_eq!(
+            MonitorView::verb_from_task_type(Some("agent")),
+            VerbColor::Agent
+        );
         assert_eq!(MonitorView::verb_from_task_type(None), VerbColor::Infer);
     }
 

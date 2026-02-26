@@ -25,14 +25,15 @@ use crate::event::{EventKind, EventLog};
 
 /// Adapter that wraps a BuiltinTool for use with rig-core's agent system.
 ///
-/// This allows builtin tools (nika:sleep, nika:log, etc.) to be called
+/// This allows builtin tools (nika_sleep, nika_log, etc.) to be called
 /// by the LLM during agentic execution.
 ///
-/// v0.12.0: Now supports EventLog emission for `nika:log` and `nika:emit` tools.
+/// v0.12.0: Now supports EventLog emission for `nika_log` and `nika_emit` tools.
+/// v0.12.1: Changed prefix from `nika:` to `nika_` for Anthropic API compatibility.
 pub struct NikaBuiltinToolAdapter {
     /// The wrapped builtin tool
     tool: Arc<dyn BuiltinTool>,
-    /// Full tool name with nika: prefix
+    /// Full tool name with nika_ prefix
     full_name: String,
     /// EventLog for emitting events (v0.12.0)
     event_log: Option<Arc<EventLog>>,
@@ -46,7 +47,9 @@ impl NikaBuiltinToolAdapter {
     /// # Arguments
     /// * `tool` - The builtin tool to wrap
     pub fn new(tool: Arc<dyn BuiltinTool>) -> Self {
-        let full_name = format!("nika:{}", tool.name());
+        // Use underscore instead of colon for Anthropic API compatibility
+        // Pattern: ^[a-zA-Z0-9_-]{1,128}$ - colon is NOT allowed
+        let full_name = format!("nika_{}", tool.name());
         Self {
             tool,
             full_name,
@@ -193,7 +196,7 @@ mod tests {
     fn test_adapter_name() {
         let tool = Arc::new(TestTool);
         let adapter = NikaBuiltinToolAdapter::new(tool);
-        assert_eq!(adapter.name(), "nika:test");
+        assert_eq!(adapter.name(), "nika_test");
     }
 
     #[tokio::test]
@@ -202,7 +205,7 @@ mod tests {
         let adapter = NikaBuiltinToolAdapter::new(tool);
         let def = adapter.definition("test".to_string()).await;
 
-        assert_eq!(def.name, "nika:test");
+        assert_eq!(def.name, "nika_test");
         assert_eq!(def.description, "A test tool for unit tests");
         assert_eq!(
             def.parameters,
@@ -242,7 +245,7 @@ mod tests {
         let tool = Arc::new(TestTool);
         let adapter = NikaBuiltinToolAdapter::new(tool);
         let debug_str = format!("{:?}", adapter);
-        assert!(debug_str.contains("nika:test"));
+        assert!(debug_str.contains("nika_test"));
     }
 
     // Test that the adapter implements Send + Sync (required by rig-core)
@@ -354,6 +357,6 @@ mod tests {
             .with_event_log(Arc::clone(&event_log), Arc::clone(&task_id));
 
         // Verify the builder pattern works
-        assert_eq!(adapter.name(), "nika:test");
+        assert_eq!(adapter.name(), "nika_test");
     }
 }

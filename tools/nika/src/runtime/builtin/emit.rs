@@ -27,13 +27,34 @@ use std::future::Future;
 use std::pin::Pin;
 
 /// Parameters for nika:emit tool.
+/// v0.12.1: Supports both `payload` (JSON) and `payload_json` (string) for OpenAI compatibility.
 #[derive(Debug, Clone, Deserialize)]
 struct EmitParams {
     /// Event name/type.
     name: String,
-    /// Event payload (arbitrary JSON, optional).
+    /// Event payload as JSON string (for OpenAI strict mode).
     #[serde(default)]
-    payload: Value,
+    payload_json: Option<String>,
+    /// Event payload as direct JSON (for Claude and other providers).
+    /// Deprecated: Use payload_json for OpenAI compatibility.
+    #[serde(default)]
+    payload: Option<Value>,
+}
+
+impl EmitParams {
+    /// Get the payload as a JSON Value, parsing from payload_json if needed.
+    fn get_payload(&self) -> Result<Value, NikaError> {
+        if let Some(ref json_str) = self.payload_json {
+            serde_json::from_str(json_str).map_err(|e| NikaError::BuiltinInvalidParams {
+                tool: "nika_emit".into(),
+                reason: format!("Invalid payload_json: {}", e),
+            })
+        } else if let Some(ref value) = self.payload {
+            Ok(value.clone())
+        } else {
+            Ok(Value::Null)
+        }
+    }
 }
 
 /// Response from nika:emit tool.
@@ -63,6 +84,9 @@ impl BuiltinTool for EmitTool {
     }
 
     fn parameters_schema(&self) -> serde_json::Value {
+        // v0.12.1: OpenAI-compatible schema
+        // OpenAI strict mode requires additionalProperties: false everywhere
+        // To support arbitrary payloads, we use payload_json as a string (JSON-encoded)
         serde_json::json!({
             "type": "object",
             "properties": {
@@ -70,12 +94,13 @@ impl BuiltinTool for EmitTool {
                     "type": "string",
                     "description": "Event name/type identifier"
                 },
-                "payload": {
-                    "type": "object",
-                    "description": "Arbitrary JSON payload for the event"
+                "payload_json": {
+                    "type": "string",
+                    "description": "Event payload as JSON string (e.g., '{\"key\": \"value\"}' or '123' or '\"text\"')"
                 }
             },
-            "required": ["name"]
+            "required": ["name"],
+            "additionalProperties": false
         })
     }
 
@@ -99,12 +124,15 @@ impl BuiltinTool for EmitTool {
                 });
             }
 
+            // v0.12.1: Get payload from either payload_json (OpenAI) or payload (Claude)
+            let payload = params.get_payload()?;
+
             // Note: The actual EventLog emission will be handled by the Router
             // when integrated with the Executor. For now, we just validate and
             // return success. The Router will capture the params and emit the
             // EventKind::Custom event.
             tracing::debug!(
-                target: "nika:emit",
+                target: "nika_emit",
                 name = %params.name,
                 "Custom event emitted"
             );
@@ -113,7 +141,7 @@ impl BuiltinTool for EmitTool {
             let response = EmitResponse {
                 emitted: true,
                 name: params.name,
-                payload: params.payload,
+                payload,
             };
 
             serde_json::to_string(&response).map_err(|e| NikaError::BuiltinToolError {
@@ -146,7 +174,9 @@ mod tests {
         let schema = tool.parameters_schema();
         assert_eq!(schema["type"], "object");
         assert!(schema["properties"]["name"].is_object());
-        assert!(schema["properties"]["payload"].is_object());
+        // v0.12.1: payload_json for OpenAI compatibility
+        assert!(schema["properties"]["payload_json"].is_object());
+        assert_eq!(schema["additionalProperties"], false);
         assert!(schema["required"]
             .as_array()
             .unwrap()

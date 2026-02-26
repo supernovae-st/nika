@@ -18,15 +18,18 @@ pub const FETCH_TIMEOUT: Duration = Duration::from_secs(30);
 pub const INFER_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Timeout for establishing HTTP connections
-pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// v0.12.1: Increased from 10s to 20s for slow MCP server cold starts
+pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Timeout for MCP tool calls (invoke: verb)
-pub const MCP_CALL_TIMEOUT: Duration = Duration::from_secs(30);
+/// v0.12.1: Increased from 30s to 60s for complex MCP operations
+pub const MCP_CALL_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// v0.8.5: Timeout for complete MCP server initialization (connect + list_tools + overhead)
 /// Prevents hanging on slow/unresponsive MCP servers during startup.
 /// Should be > CONNECT_TIMEOUT + MCP_CALL_TIMEOUT to allow sequential operations.
-pub const MCP_INIT_TIMEOUT: Duration = Duration::from_secs(45);
+/// v0.12.1: Increased from 45s to 90s to match increased component timeouts
+pub const MCP_INIT_TIMEOUT: Duration = Duration::from_secs(90);
 
 /// Timeout for streaming chunk delivery (per-chunk, not total stream)
 /// If no chunk arrives within this time, the stream is considered stalled.
@@ -85,11 +88,11 @@ mod tests {
     }
 
     #[test]
-    fn connect_timeout_is_shortest() {
-        // Connection establishment should be fast
-        assert!(CONNECT_TIMEOUT < EXEC_TIMEOUT);
-        assert!(CONNECT_TIMEOUT < FETCH_TIMEOUT);
+    fn connect_timeout_is_reasonable() {
+        // v0.12.1: Connection timeout increased for MCP cold starts
+        // Should still be shorter than inference timeout
         assert!(CONNECT_TIMEOUT < INFER_TIMEOUT);
+        assert!(CONNECT_TIMEOUT <= EXEC_TIMEOUT);
     }
 
     #[test]

@@ -354,6 +354,117 @@ impl ChatWorkflow {
     pub fn total_messages(&self) -> u32 {
         self.message_counter
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.13: YAML Export for /export yaml command
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Export the chat conversation to Nika workflow YAML.
+    ///
+    /// Converts User messages to `infer:` tasks, preserving @N dependencies
+    /// as `flows:` entries. Assistant/System/Tool messages are included
+    /// as comments for context.
+    ///
+    /// # Example Output
+    ///
+    /// ```yaml
+    /// schema: "nika/workflow@0.2"
+    /// provider: claude
+    ///
+    /// tasks:
+    ///   - id: msg-002
+    ///     infer: "What is Rust?"
+    ///
+    ///   - id: msg-004
+    ///     infer: "@2 Tell me more about safety"
+    ///
+    /// flows:
+    ///   - from: msg-002
+    ///     to: msg-004
+    /// ```
+    pub fn to_yaml(&self) -> String {
+        let mut yaml = String::new();
+
+        // Header
+        yaml.push_str("# Auto-generated from Nika Chat session\n");
+        yaml.push_str(&format!(
+            "# Generated: {}\n",
+            Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+        ));
+        yaml.push_str("# Use `nika run <file>` to execute\n\n");
+
+        yaml.push_str("schema: \"nika/workflow@0.2\"\n");
+        yaml.push_str("provider: claude\n\n");
+
+        // Collect tasks (User messages become infer: tasks)
+        let mut tasks: Vec<(&str, &str)> = Vec::new(); // (id, content)
+        let mut flows: Vec<(String, String)> = Vec::new(); // (from_id, to_id)
+
+        for (idx, msg) in self.all_messages() {
+            match msg.role {
+                Role::User => {
+                    // User message becomes an infer task
+                    tasks.push((&msg.id, &msg.content));
+
+                    // Check for @N dependencies
+                    for dep_idx in self.get_dependencies(idx) {
+                        if let Some(dep_msg) = self.get_message_by_index(dep_idx) {
+                            // Only add flow if the dependency is also a User message (task)
+                            if dep_msg.role == Role::User {
+                                flows.push((dep_msg.id.clone(), msg.id.clone()));
+                            }
+                        }
+                    }
+                }
+                Role::Assistant => {
+                    // Assistant responses are outputs, add as comment
+                    // Skip for now - could be added as expected_output in future
+                }
+                Role::System => {
+                    // System messages are context, skip
+                }
+                Role::Tool => {
+                    // Tool outputs are results, skip
+                }
+            }
+        }
+
+        // Tasks section
+        if tasks.is_empty() {
+            yaml.push_str("# No user messages to convert to tasks\n");
+            yaml.push_str("tasks: []\n\n");
+        } else {
+            yaml.push_str("tasks:\n");
+            for (id, content) in &tasks {
+                // Escape content for YAML
+                let escaped = escape_yaml_string(content);
+                yaml.push_str(&format!("  - id: \"{}\"\n", id));
+                yaml.push_str(&format!("    infer: \"{}\"\n\n", escaped));
+            }
+        }
+
+        // Flows section (dependencies from @N mentions)
+        if flows.is_empty() {
+            yaml.push_str("flows: []\n");
+        } else {
+            yaml.push_str("flows:\n");
+            for (from_id, to_id) in &flows {
+                yaml.push_str(&format!("  - from: \"{}\"\n", from_id));
+                yaml.push_str(&format!("    to: \"{}\"\n\n", to_id));
+            }
+        }
+
+        yaml
+    }
+}
+
+/// Escape a string for YAML output (double-quoted style).
+fn escape_yaml_string(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
 }
 
 impl Default for ChatWorkflow {
@@ -1031,5 +1142,175 @@ mod tests {
         // Actually: 1→2, 3→4, 4→5 (auto), 2→5 (mention), 4→5 (mention but duplicate)
         // StableGraph allows parallel edges, so we might have 5 edges
         assert!(workflow.dag.edge_count() >= 4);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 2.4: to_yaml() export tests (v0.13)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_to_yaml_empty_workflow() {
+        let workflow = ChatWorkflow::new();
+        let yaml = workflow.to_yaml();
+
+        // Header should be present
+        assert!(yaml.contains("# Auto-generated from Nika Chat session"));
+        assert!(yaml.contains("schema: \"nika/workflow@0.2\""));
+        assert!(yaml.contains("provider: claude"));
+
+        // No tasks or flows
+        assert!(yaml.contains("tasks: []"));
+        assert!(yaml.contains("flows: []"));
+    }
+
+    #[test]
+    fn test_to_yaml_single_user_message() {
+        let mut workflow = ChatWorkflow::new();
+        workflow.add_message("What is Rust?", Role::User);
+
+        let yaml = workflow.to_yaml();
+
+        // Should have one task
+        assert!(yaml.contains("tasks:"));
+        assert!(yaml.contains("- id: \"msg-001\""));
+        assert!(yaml.contains("infer: \"What is Rust?\""));
+    }
+
+    #[test]
+    fn test_to_yaml_skips_non_user_messages() {
+        let mut workflow = ChatWorkflow::new();
+        workflow.add_message("What is Rust?", Role::User); // msg-001
+        workflow.add_message("Rust is a systems language", Role::Assistant); // msg-002
+        workflow.add_message("System initialized", Role::System); // msg-003
+        workflow.add_message("Tool output", Role::Tool); // msg-004
+        workflow.add_message("Tell me more", Role::User); // msg-005
+
+        let yaml = workflow.to_yaml();
+
+        // Only User messages become tasks
+        assert!(yaml.contains("- id: \"msg-001\""));
+        assert!(yaml.contains("- id: \"msg-005\""));
+
+        // Assistant/System/Tool should NOT appear as task IDs
+        assert!(!yaml.contains("- id: \"msg-002\""));
+        assert!(!yaml.contains("- id: \"msg-003\""));
+        assert!(!yaml.contains("- id: \"msg-004\""));
+    }
+
+    #[test]
+    fn test_to_yaml_escapes_quotes() {
+        let mut workflow = ChatWorkflow::new();
+        workflow.add_message("Generate \"hello world\" program", Role::User);
+
+        let yaml = workflow.to_yaml();
+
+        // Quotes should be escaped
+        assert!(yaml.contains(r#"infer: "Generate \"hello world\" program""#));
+    }
+
+    #[test]
+    fn test_to_yaml_escapes_multiline() {
+        let mut workflow = ChatWorkflow::new();
+        workflow.add_message("Line 1\nLine 2", Role::User);
+
+        let yaml = workflow.to_yaml();
+
+        // Newlines should be escaped as \n in the output
+        assert!(yaml.contains("Line 1\\nLine 2"));
+    }
+
+    #[test]
+    fn test_to_yaml_with_mention_creates_flow() {
+        let mut workflow = ChatWorkflow::new();
+        workflow
+            .add_message_with_mentions("What is Rust?", Role::User)
+            .unwrap(); // msg-001
+        workflow
+            .add_message_with_mentions("Rust is...", Role::Assistant)
+            .unwrap(); // msg-002
+        workflow
+            .add_message_with_mentions("Expand on @1", Role::User)
+            .unwrap(); // msg-003
+
+        let yaml = workflow.to_yaml();
+
+        // Should have flow from msg-001 to msg-003
+        assert!(yaml.contains("flows:"));
+        // The flow section should contain the dependency
+        assert!(yaml.contains("from: \"msg-001\"") || yaml.contains("from: msg-001"));
+    }
+
+    #[test]
+    fn test_to_yaml_multiple_mentions_create_multiple_flows() {
+        let mut workflow = ChatWorkflow::new();
+        workflow
+            .add_message_with_mentions("First question", Role::User)
+            .unwrap(); // msg-001
+        workflow
+            .add_message_with_mentions("Answer 1", Role::Assistant)
+            .unwrap(); // msg-002
+        workflow
+            .add_message_with_mentions("Second question", Role::User)
+            .unwrap(); // msg-003
+        workflow
+            .add_message_with_mentions("Answer 2", Role::Assistant)
+            .unwrap(); // msg-004
+        workflow
+            .add_message_with_mentions("Compare @1 and @3", Role::User)
+            .unwrap(); // msg-005
+
+        let yaml = workflow.to_yaml();
+
+        // msg-005 depends on msg-001 and msg-003 (both User messages)
+        // Only flows between User messages should appear
+        assert!(yaml.contains("flows:"));
+        // The to should be msg-005
+        assert!(yaml.contains("to: \"msg-005\"") || yaml.contains("to: msg-005"));
+    }
+
+    #[test]
+    fn test_escape_yaml_string_simple() {
+        assert_eq!(escape_yaml_string("hello"), "hello");
+    }
+
+    #[test]
+    fn test_escape_yaml_string_with_quotes() {
+        assert_eq!(escape_yaml_string(r#"say "hi""#), r#"say \"hi\""#);
+    }
+
+    #[test]
+    fn test_escape_yaml_string_with_newline() {
+        assert_eq!(escape_yaml_string("line1\nline2"), "line1\\nline2");
+    }
+
+    #[test]
+    fn test_escape_yaml_string_with_backslash() {
+        assert_eq!(escape_yaml_string(r"path\to\file"), r"path\\to\\file");
+    }
+
+    #[test]
+    fn test_escape_yaml_string_complex() {
+        let input = "He said \"hello\"\nThen walked away";
+        let expected = r#"He said \"hello\"\nThen walked away"#;
+        assert_eq!(escape_yaml_string(input), expected);
+    }
+
+    #[test]
+    fn test_to_yaml_round_trip_parseable() {
+        // Verify the generated YAML is syntactically valid
+        let mut workflow = ChatWorkflow::new();
+        workflow.add_message("Question 1", Role::User);
+        workflow.add_message("Answer 1", Role::Assistant);
+        workflow.add_message("Question 2", Role::User);
+
+        let yaml = workflow.to_yaml();
+
+        // Should be parseable as YAML (not panic)
+        let parsed: serde_yaml::Value = serde_yaml::from_str(&yaml).expect("Valid YAML");
+
+        // Verify structure
+        assert!(parsed["schema"].as_str().is_some());
+        assert!(parsed["tasks"].is_sequence());
+        assert!(parsed["flows"].is_sequence());
     }
 }

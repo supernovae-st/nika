@@ -51,6 +51,7 @@ impl BuiltinTool for SleepTool {
     }
 
     fn parameters_schema(&self) -> serde_json::Value {
+        // v0.12.1: OpenAI-compatible schema with additionalProperties: false
         serde_json::json!({
             "type": "object",
             "properties": {
@@ -59,7 +60,8 @@ impl BuiltinTool for SleepTool {
                     "description": "Duration to sleep in humantime format (e.g., '1s', '500ms', '1m30s')"
                 }
             },
-            "required": ["duration"]
+            "required": ["duration"],
+            "additionalProperties": false
         })
     }
 

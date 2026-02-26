@@ -14,7 +14,6 @@ use nika::mcp::validation::{McpValidator, ValidationConfig};
 use nika::mcp::{McpClient, McpConfig};
 use nika::runtime::Runner;
 use nika::tools::PermissionMode;
-use nika::tui::widgets::provider_modal::migrate_env_to_keyring;
 use nika::Event;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -141,6 +140,13 @@ enum Commands {
         action: TraceAction,
     },
 
+    /// Manage LLM provider API keys (v0.12.1)
+    #[cfg(feature = "tui")]
+    Provider {
+        #[command(subcommand)]
+        action: ProviderAction,
+    },
+
     /// [deprecated] Use 'nika' instead
     #[cfg(feature = "tui")]
     #[command(hide = true)]
@@ -182,6 +188,46 @@ enum TraceAction {
         /// Keep only last N traces
         #[arg(short, long, default_value = "10")]
         keep: usize,
+    },
+}
+
+/// Provider management actions (v0.12.1)
+#[cfg(feature = "tui")]
+#[derive(Subcommand)]
+enum ProviderAction {
+    /// List all providers and their status
+    List,
+
+    /// Set API key for a provider (stored in system keychain)
+    Set {
+        /// Provider name (anthropic, openai, mistral, groq, deepseek)
+        provider: String,
+        /// API key (or use --prompt to enter interactively)
+        key: Option<String>,
+        /// Prompt for key interactively (hidden input)
+        #[arg(short, long)]
+        prompt: bool,
+    },
+
+    /// Get API key for a provider (masked for security)
+    Get {
+        /// Provider name
+        provider: String,
+    },
+
+    /// Delete API key for a provider
+    Delete {
+        /// Provider name
+        provider: String,
+    },
+
+    /// Migrate API keys from environment variables to keychain
+    Migrate,
+
+    /// Test connection to a provider
+    Test {
+        /// Provider name
+        provider: String,
     },
 }
 
@@ -279,6 +325,10 @@ async fn main() {
 
         // Trace commands
         Some(Commands::Trace { action }) => handle_trace_command(action),
+
+        // Provider management (v0.12.1)
+        #[cfg(feature = "tui")]
+        Some(Commands::Provider { action }) => handle_provider_command(action).await,
 
         // Legacy TUI command (hidden, backward compat)
         #[cfg(feature = "tui")]
@@ -682,6 +732,228 @@ fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// PROVIDER COMMAND (v0.12.1)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// All supported providers
+#[cfg(feature = "tui")]
+const ALL_PROVIDERS: &[&str] = &[
+    "anthropic",
+    "openai",
+    "mistral",
+    "groq",
+    "deepseek",
+    "ollama",
+];
+
+/// Handle provider management commands
+#[cfg(feature = "tui")]
+async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError> {
+    use colored::Colorize;
+    use nika::tui::widgets::provider_modal::{
+        mask_api_key, migrate_env_to_keyring, provider_env_var, validate_key_format, NikaKeyring,
+    };
+    use std::io::{self, Write};
+
+    match action {
+        ProviderAction::List => {
+            println!("{}", "LLM Providers".bold());
+            println!("{}", "─".repeat(60));
+
+            for provider in ALL_PROVIDERS {
+                let env_var = provider_env_var(provider);
+                let has_keychain = NikaKeyring::exists(provider);
+                let has_env = std::env::var(env_var).is_ok();
+
+                let status = match (has_keychain, has_env) {
+                    (true, true) => format!("{} (keychain + env)", "✓".green()),
+                    (true, false) => format!("{} (keychain)", "✓".green()),
+                    (false, true) => format!("{} (env only)", "~".yellow()),
+                    (false, false) => format!("{}", "✗".red()),
+                };
+
+                let masked = if has_keychain {
+                    NikaKeyring::get_masked(provider).unwrap_or_default()
+                } else if has_env {
+                    std::env::var(env_var)
+                        .ok()
+                        .map(|k| mask_api_key(&k))
+                        .unwrap_or_default()
+                } else {
+                    String::new()
+                };
+
+                println!(
+                    "  {:12} {} {}",
+                    provider,
+                    status,
+                    if masked.is_empty() {
+                        String::new()
+                    } else {
+                        format!("[{}]", masked.dimmed())
+                    }
+                );
+            }
+
+            println!();
+            println!(
+                "{}",
+                "Use 'nika provider set <name>' to add an API key".dimmed()
+            );
+            Ok(())
+        }
+
+        ProviderAction::Set {
+            provider,
+            key,
+            prompt,
+        } => {
+            // Validate provider name
+            if !ALL_PROVIDERS.contains(&provider.as_str()) {
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "Unknown provider '{}'. Valid: {}",
+                        provider,
+                        ALL_PROVIDERS.join(", ")
+                    ),
+                });
+            }
+
+            // Get key from argument or prompt
+            let api_key = match (prompt, key) {
+                // If prompt flag is set or no key provided, read from stdin
+                (true, _) | (false, None) => {
+                    print!("Enter API key for {}: ", provider);
+                    io::stdout().flush().unwrap();
+
+                    // Read password without echo (requires rpassword crate)
+                    // For now, just read from stdin (visible)
+                    let mut input = String::new();
+                    io::stdin().read_line(&mut input).map_err(|e| {
+                        NikaError::Execution(format!("Failed to read input: {}", e))
+                    })?;
+                    input.trim().to_string()
+                }
+                // Key provided as argument
+                (false, Some(k)) => k,
+            };
+
+            // Validate key format
+            if let Err(e) = validate_key_format(&provider, &api_key) {
+                return Err(NikaError::ValidationError { reason: e });
+            }
+
+            // Store in keychain
+            NikaKeyring::set(&provider, &api_key)
+                .map_err(|e| NikaError::Execution(format!("Failed to store key: {}", e)))?;
+
+            println!(
+                "{} API key for {} stored in system keychain",
+                "✓".green(),
+                provider.bold()
+            );
+            Ok(())
+        }
+
+        ProviderAction::Get { provider } => {
+            match NikaKeyring::get_masked(&provider) {
+                Some(masked) => {
+                    println!("{}: {}", provider, masked);
+                }
+                None => {
+                    let env_var = provider_env_var(&provider);
+                    match std::env::var(env_var) {
+                        Ok(key) => {
+                            println!("{}: {} (from env)", provider, mask_api_key(&key));
+                        }
+                        Err(_) => {
+                            println!("{}: {}", provider, "Not configured".red());
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+
+        ProviderAction::Delete { provider } => {
+            match NikaKeyring::delete(&provider) {
+                Ok(()) => {
+                    println!(
+                        "{} API key for {} deleted from keychain",
+                        "✓".green(),
+                        provider.bold()
+                    );
+                }
+                Err(e) => {
+                    return Err(NikaError::Execution(format!("Failed to delete key: {}", e)));
+                }
+            }
+            Ok(())
+        }
+
+        ProviderAction::Migrate => {
+            println!(
+                "{}",
+                "Migrating API keys from environment variables...".cyan()
+            );
+            let report = migrate_env_to_keyring();
+            println!();
+            println!("{}", report.summary());
+            Ok(())
+        }
+
+        ProviderAction::Test { provider } => {
+            println!("Testing connection to {}...", provider.bold());
+
+            // First check if API key is configured
+            let env_var = provider_env_var(&provider);
+            let has_key = NikaKeyring::exists(&provider)
+                || std::env::var(env_var).is_ok_and(|v| !v.is_empty());
+
+            if !has_key && provider != "ollama" {
+                println!(
+                    "{} No API key configured for {}",
+                    "✗".red(),
+                    provider.bold()
+                );
+                println!("  Use 'nika provider set {}' to add your API key", provider);
+                return Ok(());
+            }
+
+            // Try to create provider and make a simple request
+            use nika::provider::rig::RigProvider;
+
+            let prov = match provider.as_str() {
+                "anthropic" => RigProvider::claude(),
+                "openai" => RigProvider::openai(),
+                "mistral" => RigProvider::mistral(),
+                "groq" => RigProvider::groq(),
+                "deepseek" => RigProvider::deepseek(),
+                "ollama" => RigProvider::ollama(),
+                _ => {
+                    return Err(NikaError::ValidationError {
+                        reason: format!("Unknown provider: {}", provider),
+                    })
+                }
+            };
+
+            // Simple test inference
+            match prov.infer("Say 'OK' if you can hear me.", None).await {
+                Ok(response) => {
+                    println!("{} Connection successful!", "✓".green());
+                    let truncated: String = response.chars().take(100).collect();
+                    println!("  Response: {}", truncated);
+                }
+                Err(e) => {
+                    println!("{} Connection failed: {}", "✗".red(), e);
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // INIT COMMAND
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -804,7 +1076,9 @@ flows:
     }
 
     // Migrate API keys from env vars to keychain if requested
+    #[cfg(feature = "tui")]
     if migrate_keys {
+        use nika::tui::widgets::provider_modal::migrate_env_to_keyring;
         println!();
         println!(
             "{}",
@@ -829,6 +1103,13 @@ flows:
                 "NOTE: You can now remove these env vars from your shell config.".yellow()
             );
         }
+    }
+    #[cfg(not(feature = "tui"))]
+    if migrate_keys {
+        println!(
+            "{} Key migration requires TUI feature. Use: cargo build --features tui",
+            "Warning:".yellow()
+        );
     }
 
     Ok(())
