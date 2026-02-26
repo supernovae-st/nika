@@ -34,6 +34,9 @@ pub const SCHEMA_V04: &str = "nika/workflow@0.4";
 /// Expected schema version for v0.5 workflows (decompose, lazy bindings, spawn_agent)
 pub const SCHEMA_V05: &str = "nika/workflow@0.5";
 
+/// Expected schema version for v0.6 workflows (memory, agents, skills)
+pub const SCHEMA_V06: &str = "nika/workflow@0.6";
+
 /// Inline MCP server configuration (v0.2)
 ///
 /// Allows workflows to define MCP servers directly in YAML.
@@ -142,7 +145,7 @@ impl Workflow {
     /// Validate the workflow schema version and task configuration
     ///
     /// Returns error if:
-    /// - Schema doesn't match expected version (v0.1, v0.2, v0.3, v0.4, or v0.5)
+    /// - Schema doesn't match expected version (v0.1 through v0.6)
     /// - Any task has invalid for_each configuration (non-array or empty)
     pub fn validate_schema(&self) -> Result<(), NikaError> {
         // Validate schema version
@@ -151,11 +154,12 @@ impl Workflow {
             && self.schema != SCHEMA_V03
             && self.schema != SCHEMA_V04
             && self.schema != SCHEMA_V05
+            && self.schema != SCHEMA_V06
         {
             return Err(NikaError::InvalidSchema {
                 expected: format!(
-                    "{} or {} or {} or {} or {}",
-                    SCHEMA_V01, SCHEMA_V02, SCHEMA_V03, SCHEMA_V04, SCHEMA_V05
+                    "{} or {} or {} or {} or {} or {}",
+                    SCHEMA_V01, SCHEMA_V02, SCHEMA_V03, SCHEMA_V04, SCHEMA_V05, SCHEMA_V06
                 ),
                 actual: self.schema.clone(),
             });
