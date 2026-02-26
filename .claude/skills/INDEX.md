@@ -1,6 +1,6 @@
 # Nika Skills Index
 
-**Nika Version:** v0.9.0 | **5 verbs** | Full streaming + VS Code TUI | rig-core v0.31 | 6 LLM providers
+**Nika Version:** v0.12.0 | **5 verbs** | Full streaming + 6-Views TUI + ARMADA CI | rig-core v0.31 | 6 LLM providers
 
 ## Available Skills
 
@@ -44,9 +44,9 @@
 - Claude hooks (`.claude/settings.json`)
 - release-plz (`release-plz.toml`)
 
-## v0.7.x Features
+## v0.12.x Features
 
-Features in v0.7.x (MVP 8 complete + TUI navigation refresh):
+Features in v0.12.x (MVP 8 complete + 6-Views + TaskBox + ARMADA CI):
 
 | Feature | Documentation |
 |---------|--------------|
@@ -69,7 +69,7 @@ Features from earlier versions:
 
 ## Quick Reference
 
-### CLI Commands (v0.9.0)
+### CLI Commands (v0.12.0)
 
 ```bash
 # TUI Home view (default)
