@@ -33,6 +33,8 @@ pub struct ExecBox {
     pub expanded_stdout: bool,
     /// Is stderr section expanded
     pub expanded_stderr: bool,
+    /// Pulse intensity for border animation (0.0-1.0)
+    pub pulse_intensity: f32,
 }
 
 impl ExecBox {
@@ -48,6 +50,7 @@ impl ExecBox {
             state: BoxState::default(),
             expanded_stdout: false,
             expanded_stderr: false,
+            pulse_intensity: 0.0,
         }
     }
 
@@ -84,6 +87,12 @@ impl ExecBox {
     /// Set working directory
     pub fn with_cwd(mut self, cwd: impl Into<String>) -> Self {
         self.cwd = Some(cwd.into());
+        self
+    }
+
+    /// Set pulse intensity for border animation (clamped to 0.0-1.0)
+    pub fn with_pulse_intensity(mut self, intensity: f32) -> Self {
+        self.pulse_intensity = intensity.clamp(0.0, 1.0);
         self
     }
 
@@ -158,7 +167,9 @@ impl Widget for ExecBox {
         }
 
         let verb = VerbColor::Exec;
-        let border_color = self.state.border_color(verb.rgb());
+        let border_color = self
+            .state
+            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
         let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
         let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
@@ -392,5 +403,26 @@ mod tests {
 
         let with_output = ExecBox::new("cmd").with_stdout("output");
         assert!(with_output.required_height() > minimal.required_height());
+    }
+
+    #[test]
+    fn test_exec_box_with_pulse() {
+        let box_ = ExecBox::new("ls -la").with_pulse_intensity(0.7);
+        assert!((box_.pulse_intensity - 0.7).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_exec_box_pulse_default_zero() {
+        let box_ = ExecBox::new("ls -la");
+        assert!((box_.pulse_intensity - 0.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_exec_box_pulse_clamped() {
+        let box_high = ExecBox::new("cmd").with_pulse_intensity(1.5);
+        assert!((box_high.pulse_intensity - 1.0).abs() < 0.001);
+
+        let box_low = ExecBox::new("cmd").with_pulse_intensity(-0.5);
+        assert!((box_low.pulse_intensity - 0.0).abs() < 0.001);
     }
 }

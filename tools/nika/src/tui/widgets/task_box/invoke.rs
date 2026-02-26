@@ -43,6 +43,8 @@ pub struct InvokeBox {
     result_oneline_cached: Option<String>,
     /// Cached pretty JSON for result (render expanded mode)
     result_pretty_cached: Option<String>,
+    /// Pulse intensity for border animation (0.0-1.0)
+    pub pulse_intensity: f32,
 }
 
 impl InvokeBox {
@@ -61,6 +63,7 @@ impl InvokeBox {
             params_pretty_cached: None,
             result_oneline_cached: None,
             result_pretty_cached: None,
+            pulse_intensity: 0.0,
         }
     }
 
@@ -108,6 +111,12 @@ impl InvokeBox {
     /// Set error
     pub fn with_error(mut self, error: impl Into<String>) -> Self {
         self.error = Some(error.into());
+        self
+    }
+
+    /// Set pulse intensity for border animation (clamped to 0.0-1.0)
+    pub fn with_pulse_intensity(mut self, intensity: f32) -> Self {
+        self.pulse_intensity = intensity.clamp(0.0, 1.0);
         self
     }
 
@@ -174,7 +183,9 @@ impl Widget for InvokeBox {
         }
 
         let verb = VerbColor::Invoke;
-        let border_color = self.state.border_color(verb.rgb());
+        let border_color = self
+            .state
+            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
         let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
         let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
@@ -520,5 +531,26 @@ mod tests {
 
         // Expanded should be taller (adds lines from pretty JSON)
         assert!(expanded_height > collapsed_height);
+    }
+
+    #[test]
+    fn test_invoke_box_with_pulse() {
+        let box_ = InvokeBox::new("novanet_describe", "novanet").with_pulse_intensity(0.7);
+        assert!((box_.pulse_intensity - 0.7).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_invoke_box_pulse_default_zero() {
+        let box_ = InvokeBox::new("novanet_describe", "novanet");
+        assert!((box_.pulse_intensity - 0.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_invoke_box_pulse_clamped() {
+        let box_high = InvokeBox::new("tool", "server").with_pulse_intensity(1.5);
+        assert!((box_high.pulse_intensity - 1.0).abs() < 0.001);
+
+        let box_low = InvokeBox::new("tool", "server").with_pulse_intensity(-0.5);
+        assert!((box_low.pulse_intensity - 0.0).abs() < 0.001);
     }
 }

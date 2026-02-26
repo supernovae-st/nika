@@ -41,6 +41,8 @@ pub struct AgentBox {
     pub expanded_response: bool,
     /// Is children section expanded
     pub expanded_children: bool,
+    /// Pulse intensity for border animation (0.0-1.0)
+    pub pulse_intensity: f32,
 }
 
 impl AgentBox {
@@ -60,6 +62,7 @@ impl AgentBox {
             state: BoxState::default(),
             expanded_response: false,
             expanded_children: true, // Children expanded by default
+            pulse_intensity: 0.0,
         }
     }
 
@@ -92,6 +95,12 @@ impl AgentBox {
     /// Set final response
     pub fn with_final_response(mut self, response: impl Into<String>) -> Self {
         self.final_response = Some(response.into());
+        self
+    }
+
+    /// Set pulse intensity for border animation (clamped to 0.0-1.0)
+    pub fn with_pulse_intensity(mut self, intensity: f32) -> Self {
+        self.pulse_intensity = intensity.clamp(0.0, 1.0);
         self
     }
 
@@ -171,7 +180,9 @@ impl Widget for AgentBox {
         }
 
         let verb = VerbColor::Agent;
-        let border_color = self.state.border_color(verb.rgb());
+        let border_color = self
+            .state
+            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
         let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
         let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
@@ -455,5 +466,26 @@ mod tests {
             box_.final_response,
             Some("Based on my analysis...".to_string())
         );
+    }
+
+    #[test]
+    fn test_agent_box_with_pulse() {
+        let box_ = AgentBox::new("task-1", "Research competitors").with_pulse_intensity(0.7);
+        assert!((box_.pulse_intensity - 0.7).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_agent_box_pulse_default_zero() {
+        let box_ = AgentBox::new("task-1", "Research competitors");
+        assert!((box_.pulse_intensity - 0.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_agent_box_pulse_clamped() {
+        let box_high = AgentBox::new("task-1", "prompt").with_pulse_intensity(1.5);
+        assert!((box_high.pulse_intensity - 1.0).abs() < 0.001);
+
+        let box_low = AgentBox::new("task-1", "prompt").with_pulse_intensity(-0.5);
+        assert!((box_low.pulse_intensity - 0.0).abs() < 0.001);
     }
 }

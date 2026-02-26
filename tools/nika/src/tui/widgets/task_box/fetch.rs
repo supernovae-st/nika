@@ -41,6 +41,8 @@ pub struct FetchBox {
     pub expanded_request: bool,
     /// Is response section expanded
     pub expanded_response: bool,
+    /// Pulse intensity for border animation (0.0-1.0)
+    pub pulse_intensity: f32,
 }
 
 impl FetchBox {
@@ -59,6 +61,7 @@ impl FetchBox {
             state: BoxState::default(),
             expanded_request: false,
             expanded_response: false,
+            pulse_intensity: 0.0,
         }
     }
 
@@ -107,6 +110,12 @@ impl FetchBox {
     /// Set retry count
     pub fn with_retries(mut self, retries: u32) -> Self {
         self.retries = retries;
+        self
+    }
+
+    /// Set pulse intensity for border animation (clamped to 0.0-1.0)
+    pub fn with_pulse_intensity(mut self, intensity: f32) -> Self {
+        self.pulse_intensity = intensity.clamp(0.0, 1.0);
         self
     }
 
@@ -185,7 +194,9 @@ impl Widget for FetchBox {
         }
 
         let verb = VerbColor::Fetch;
-        let border_color = self.state.border_color(verb.rgb());
+        let border_color = self
+            .state
+            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
         let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
         let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
@@ -454,5 +465,26 @@ mod tests {
             FetchBox::new("GET", "https://example.com").with_header("Accept", "application/json");
         // Should be same when not expanded
         assert!(with_headers.required_height() >= 5);
+    }
+
+    #[test]
+    fn test_fetch_box_with_pulse() {
+        let box_ = FetchBox::new("GET", "https://api.example.com").with_pulse_intensity(0.7);
+        assert!((box_.pulse_intensity - 0.7).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_fetch_box_pulse_default_zero() {
+        let box_ = FetchBox::new("GET", "https://api.example.com");
+        assert!((box_.pulse_intensity - 0.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_fetch_box_pulse_clamped() {
+        let box_high = FetchBox::new("GET", "https://example.com").with_pulse_intensity(1.5);
+        assert!((box_high.pulse_intensity - 1.0).abs() < 0.001);
+
+        let box_low = FetchBox::new("GET", "https://example.com").with_pulse_intensity(-0.5);
+        assert!((box_low.pulse_intensity - 0.0).abs() < 0.001);
     }
 }
