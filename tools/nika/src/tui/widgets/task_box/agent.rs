@@ -761,7 +761,8 @@ mod tests {
     #[test]
     fn test_agent_box_children_status_icons_single() {
         let mut box_ = AgentBox::new("task-1", "prompt");
-        let child = TaskBox::Invoke(InvokeBox::new("tool", "server").with_state(BoxState::success(100)));
+        let child =
+            TaskBox::Invoke(InvokeBox::new("tool", "server").with_state(BoxState::success(100)));
         box_.add_child(child);
         assert_eq!(box_.children_status_icons(), "✅");
     }
@@ -773,7 +774,8 @@ mod tests {
         let mut box_ = AgentBox::new("task-1", "prompt");
 
         // Add completed child
-        let child1 = TaskBox::Invoke(InvokeBox::new("tool1", "server").with_state(BoxState::success(100)));
+        let child1 =
+            TaskBox::Invoke(InvokeBox::new("tool1", "server").with_state(BoxState::success(100)));
         box_.add_child(child1);
 
         // Add running child
@@ -781,13 +783,16 @@ mod tests {
         box_.add_child(child2);
 
         // Add failed child
-        let child3 = TaskBox::Invoke(InvokeBox::new("tool2", "server").with_state(BoxState::failed("error".to_string(), 100)));
+        let child3 = TaskBox::Invoke(
+            InvokeBox::new("tool2", "server")
+                .with_state(BoxState::failed("error".to_string(), 100)),
+        );
         box_.add_child(child3);
 
         let icons = box_.children_status_icons();
         assert!(icons.contains("✅")); // success
         assert!(icons.contains("❌")); // failed
-        // Running icon is a spinner character
+                                       // Running icon is a spinner character
     }
 
     #[test]
@@ -797,8 +802,7 @@ mod tests {
         // Add 12 children
         for i in 0..12 {
             let child = TaskBox::Invoke(
-                InvokeBox::new(format!("tool{}", i), "server")
-                    .with_state(BoxState::success(100))
+                InvokeBox::new(format!("tool{}", i), "server").with_state(BoxState::success(100)),
             );
             box_.add_child(child);
         }
@@ -815,9 +819,11 @@ mod tests {
             .with_state(BoxState::running());
 
         // Add some children
-        let child1 = TaskBox::Invoke(InvokeBox::new("tool1", "server").with_state(BoxState::success(100)));
+        let child1 =
+            TaskBox::Invoke(InvokeBox::new("tool1", "server").with_state(BoxState::success(100)));
         box_.add_child(child1);
-        let child2 = TaskBox::Invoke(InvokeBox::new("tool2", "server").with_state(BoxState::success(100)));
+        let child2 =
+            TaskBox::Invoke(InvokeBox::new("tool2", "server").with_state(BoxState::success(100)));
         box_.add_child(child2);
 
         let compact = box_.compact_line(60);
@@ -855,7 +861,7 @@ mod tests {
 
         assert!(compact.contains("✅")); // Success state
         assert!(compact.contains("5/5")); // Turn progress
-        // Should show truncated response preview
+                                          // Should show truncated response preview
         assert!(compact.contains("The analysis"));
     }
 }
