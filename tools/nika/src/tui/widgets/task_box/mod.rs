@@ -26,6 +26,7 @@
 //! ```
 
 mod colors;
+mod key_action;
 mod render_mode;
 mod state;
 
@@ -38,6 +39,7 @@ mod invoke;
 
 // Re-exports
 pub use colors::{exit, http, status, VerbColor};
+pub use key_action::KeyAction;
 pub use render_mode::RenderMode;
 pub use state::{BoxState, BRAILLE_SPINNER};
 
