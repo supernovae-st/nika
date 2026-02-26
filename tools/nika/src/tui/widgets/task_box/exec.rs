@@ -10,7 +10,7 @@ use ratatui::{
     widgets::Widget,
 };
 
-use super::{exit, BoxState, VerbColor};
+use super::{exit, BoxState, RenderMode, VerbColor};
 
 /// ExecBox data and rendering
 #[derive(Debug, Clone)]
@@ -35,6 +35,8 @@ pub struct ExecBox {
     pub expanded_stderr: bool,
     /// Pulse intensity for border animation (0.0-1.0)
     pub pulse_intensity: f32,
+    /// Render mode (Compact/Expanded/Full)
+    pub render_mode: RenderMode,
 }
 
 impl ExecBox {
@@ -51,6 +53,7 @@ impl ExecBox {
             expanded_stdout: false,
             expanded_stderr: false,
             pulse_intensity: 0.0,
+            render_mode: RenderMode::default(),
         }
     }
 

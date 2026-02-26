@@ -10,7 +10,7 @@ use ratatui::{
     widgets::Widget,
 };
 
-use super::{BoxState, VerbColor};
+use super::{BoxState, RenderMode, VerbColor};
 
 /// InvokeBox data and rendering
 #[derive(Debug, Clone)]
@@ -45,6 +45,8 @@ pub struct InvokeBox {
     result_pretty_cached: Option<String>,
     /// Pulse intensity for border animation (0.0-1.0)
     pub pulse_intensity: f32,
+    /// Render mode (Compact/Expanded/Full)
+    pub render_mode: RenderMode,
 }
 
 impl InvokeBox {
@@ -64,6 +66,7 @@ impl InvokeBox {
             result_oneline_cached: None,
             result_pretty_cached: None,
             pulse_intensity: 0.0,
+            render_mode: RenderMode::default(),
         }
     }
 

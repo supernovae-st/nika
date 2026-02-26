@@ -51,6 +51,7 @@ pub use fetch::FetchBox;
 pub use infer::InferBox;
 pub use invoke::InvokeBox;
 
+use crossterm::event::KeyCode;
 use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
 
 /// Union type for all task boxes
@@ -139,6 +140,85 @@ impl TaskBox {
         match self {
             Self::Agent(b) => Some(&b.task_id),
             _ => None,
+        }
+    }
+
+    /// Handle keyboard input, return action if recognized
+    pub fn handle_key(&mut self, key: KeyCode) -> Option<KeyAction> {
+        let action = KeyAction::from_key(key)?;
+
+        match action {
+            KeyAction::Toggle => {
+                match self {
+                    TaskBox::Infer(b) => b.expanded_response = !b.expanded_response,
+                    TaskBox::Exec(b) => b.expanded_stdout = !b.expanded_stdout,
+                    TaskBox::Fetch(b) => b.expanded_response = !b.expanded_response,
+                    TaskBox::Invoke(b) => b.toggle_result(),
+                    TaskBox::Agent(b) => b.toggle_response(),
+                }
+                Some(action)
+            }
+            KeyAction::Mode => {
+                self.cycle_render_mode();
+                Some(action)
+            }
+            KeyAction::Children => {
+                if let TaskBox::Agent(b) = self {
+                    b.toggle_children();
+                    Some(action)
+                } else {
+                    None
+                }
+            }
+            KeyAction::Kill => {
+                if matches!(self, TaskBox::Exec(_)) {
+                    Some(action) // Caller handles actual kill
+                } else {
+                    None
+                }
+            }
+            KeyAction::Retry => {
+                if matches!(self, TaskBox::Fetch(_)) {
+                    Some(action) // Caller handles actual retry
+                } else {
+                    None
+                }
+            }
+            // Copy, Json, etc. return action for caller to handle
+            _ => Some(action),
+        }
+    }
+
+    /// Get available actions for this box type
+    pub fn available_actions(&self) -> &'static [KeyAction] {
+        match self {
+            TaskBox::Infer(_) => KeyAction::actions_for_verb("infer"),
+            TaskBox::Exec(_) => KeyAction::actions_for_verb("exec"),
+            TaskBox::Fetch(_) => KeyAction::actions_for_verb("fetch"),
+            TaskBox::Invoke(_) => KeyAction::actions_for_verb("invoke"),
+            TaskBox::Agent(_) => KeyAction::actions_for_verb("agent"),
+        }
+    }
+
+    /// Get current render mode
+    pub fn render_mode(&self) -> RenderMode {
+        match self {
+            TaskBox::Infer(b) => b.render_mode,
+            TaskBox::Exec(b) => b.render_mode,
+            TaskBox::Fetch(b) => b.render_mode,
+            TaskBox::Invoke(b) => b.render_mode,
+            TaskBox::Agent(b) => b.render_mode,
+        }
+    }
+
+    /// Cycle to next render mode
+    pub fn cycle_render_mode(&mut self) {
+        match self {
+            TaskBox::Infer(b) => b.render_mode = b.render_mode.cycle(),
+            TaskBox::Exec(b) => b.render_mode = b.render_mode.cycle(),
+            TaskBox::Fetch(b) => b.render_mode = b.render_mode.cycle(),
+            TaskBox::Invoke(b) => b.render_mode = b.render_mode.cycle(),
+            TaskBox::Agent(b) => b.render_mode = b.render_mode.cycle(),
         }
     }
 }
@@ -242,5 +322,84 @@ mod tests {
 
         let agent = TaskBox::Agent(AgentBox::new("my-task", "prompt"));
         assert_eq!(agent.task_id(), Some("my-task"));
+    }
+
+    // === handle_key and render_mode tests ===
+
+    #[test]
+    fn test_taskbox_handle_key_toggle() {
+        let mut box_ = TaskBox::Infer(InferBox::new("model", "prompt"));
+
+        // Initially not expanded
+        if let TaskBox::Infer(ref inner) = box_ {
+            assert!(!inner.expanded_response);
+        }
+
+        // Toggle with Enter
+        let action = box_.handle_key(KeyCode::Enter);
+        assert_eq!(action, Some(KeyAction::Toggle));
+
+        // Verify state changed
+        if let TaskBox::Infer(ref inner) = box_ {
+            assert!(inner.expanded_response);
+        }
+    }
+
+    #[test]
+    fn test_taskbox_handle_key_mode() {
+        let mut box_ = TaskBox::Exec(ExecBox::new("echo hello"));
+
+        // Get initial mode
+        let initial_mode = box_.render_mode();
+        assert_eq!(initial_mode, RenderMode::Expanded);
+
+        // Cycle mode with 'm'
+        let action = box_.handle_key(KeyCode::Char('m'));
+        assert_eq!(action, Some(KeyAction::Mode));
+
+        // Verify mode changed
+        assert_eq!(box_.render_mode(), RenderMode::Full);
+    }
+
+    #[test]
+    fn test_taskbox_available_actions() {
+        let infer = TaskBox::Infer(InferBox::new("model", "prompt"));
+        let actions = infer.available_actions();
+        assert!(actions.contains(&KeyAction::Copy));
+        assert!(actions.contains(&KeyAction::Json));
+        assert!(!actions.contains(&KeyAction::Kill)); // Exec-only
+
+        let exec = TaskBox::Exec(ExecBox::new("echo hello"));
+        let actions = exec.available_actions();
+        assert!(actions.contains(&KeyAction::Kill));
+        assert!(actions.contains(&KeyAction::Rerun));
+    }
+
+    #[test]
+    fn test_taskbox_render_mode_default() {
+        let infer = TaskBox::Infer(InferBox::new("model", "prompt"));
+        assert_eq!(infer.render_mode(), RenderMode::Expanded);
+
+        let exec = TaskBox::Exec(ExecBox::new("ls"));
+        assert_eq!(exec.render_mode(), RenderMode::Expanded);
+
+        let fetch = TaskBox::Fetch(FetchBox::new("GET", "https://example.com"));
+        assert_eq!(fetch.render_mode(), RenderMode::Expanded);
+    }
+
+    #[test]
+    fn test_taskbox_cycle_render_mode() {
+        let mut box_ = TaskBox::Invoke(InvokeBox::new("tool", "server"));
+
+        assert_eq!(box_.render_mode(), RenderMode::Expanded);
+
+        box_.cycle_render_mode();
+        assert_eq!(box_.render_mode(), RenderMode::Full);
+
+        box_.cycle_render_mode();
+        assert_eq!(box_.render_mode(), RenderMode::Compact);
+
+        box_.cycle_render_mode();
+        assert_eq!(box_.render_mode(), RenderMode::Expanded);
     }
 }

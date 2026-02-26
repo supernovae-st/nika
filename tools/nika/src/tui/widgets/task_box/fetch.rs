@@ -12,7 +12,7 @@ use ratatui::{
     widgets::Widget,
 };
 
-use super::{http, BoxState, VerbColor};
+use super::{http, BoxState, RenderMode, VerbColor};
 
 /// FetchBox data and rendering
 #[derive(Debug, Clone)]
@@ -43,6 +43,8 @@ pub struct FetchBox {
     pub expanded_response: bool,
     /// Pulse intensity for border animation (0.0-1.0)
     pub pulse_intensity: f32,
+    /// Render mode (Compact/Expanded/Full)
+    pub render_mode: RenderMode,
 }
 
 impl FetchBox {
@@ -62,6 +64,7 @@ impl FetchBox {
             expanded_request: false,
             expanded_response: false,
             pulse_intensity: 0.0,
+            render_mode: RenderMode::default(),
         }
     }
 

@@ -10,7 +10,7 @@ use ratatui::{
     widgets::Widget,
 };
 
-use super::{BoxState, TaskBox, VerbColor};
+use super::{BoxState, RenderMode, TaskBox, VerbColor};
 
 /// AgentBox data and rendering
 #[derive(Debug, Clone)]
@@ -47,6 +47,8 @@ pub struct AgentBox {
     pub is_subagent: bool,
     /// Nesting depth (0 = root, 1+ = spawned)
     pub depth: u8,
+    /// Render mode (Compact/Expanded/Full)
+    pub render_mode: RenderMode,
 }
 
 impl AgentBox {
@@ -69,6 +71,7 @@ impl AgentBox {
             pulse_intensity: 0.0,
             is_subagent: false,
             depth: 0,
+            render_mode: RenderMode::default(),
         }
     }
 
