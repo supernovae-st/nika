@@ -10,7 +10,7 @@ use ratatui::{
     widgets::Widget,
 };
 
-use super::{BoxState, RenderMode, TaskBox, VerbColor};
+use super::{BoxState, RenderMode, TaskBox, TokenVelocity, VerbColor};
 
 /// AgentBox data and rendering
 #[derive(Debug, Clone)]
@@ -49,6 +49,8 @@ pub struct AgentBox {
     pub depth: u8,
     /// Render mode (Compact/Expanded/Full)
     pub render_mode: RenderMode,
+    /// Token velocity tracker for sparkline display
+    pub velocity: TokenVelocity,
 }
 
 impl AgentBox {
@@ -72,6 +74,7 @@ impl AgentBox {
             is_subagent: false,
             depth: 0,
             render_mode: RenderMode::default(),
+            velocity: TokenVelocity::new(32),
         }
     }
 
@@ -118,6 +121,11 @@ impl AgentBox {
         self.is_subagent = true;
         self.depth = depth.min(10);
         self
+    }
+
+    /// Push a token velocity sample (tokens/sec)
+    pub fn push_velocity_sample(&mut self, tokens_per_sec: f32) {
+        self.velocity.push(tokens_per_sec);
     }
 
     /// Get the display icon based on agent type
@@ -567,5 +575,31 @@ mod tests {
         assert_eq!(sub.depth, 1);
         // The header_label logic: depth > 1 shows "(dN)"
         // For depth=1, no suffix is shown
+    }
+
+    // === TokenVelocity wiring tests ===
+
+    #[test]
+    fn test_agent_box_has_velocity() {
+        let mut box_ = AgentBox::new("task-1", "prompt");
+        assert_eq!(box_.velocity.len(), 0);
+
+        box_.push_velocity_sample(10.0);
+        box_.push_velocity_sample(30.0);
+        box_.push_velocity_sample(50.0);
+
+        assert_eq!(box_.velocity.len(), 3);
+        assert!((box_.velocity.average() - 30.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_agent_box_velocity_sparkline() {
+        let mut box_ = AgentBox::new("task-1", "prompt");
+        for i in 0..8 {
+            box_.push_velocity_sample(i as f32 * 10.0);
+        }
+
+        let sparkline = box_.velocity.sparkline_chars();
+        assert_eq!(sparkline.chars().count(), 8);
     }
 }

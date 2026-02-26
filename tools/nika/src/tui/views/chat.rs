@@ -7179,11 +7179,13 @@ mod tests {
         let view = ChatView::new();
         // Provider ID should be set based on available API keys
         assert!(!view.current_provider_id.is_empty());
-        // Should be one of the known providers
-        let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "ollama"];
+        // Should be one of the known providers, or "none" if no API keys available
+        let valid_providers = [
+            "claude", "openai", "mistral", "groq", "deepseek", "ollama", "none",
+        ];
         assert!(
             valid_providers.contains(&view.current_provider_id.as_str()),
-            "Provider ID '{}' should be a valid provider",
+            "Provider ID '{}' should be a valid provider or 'none'",
             view.current_provider_id
         );
     }
@@ -7201,6 +7203,7 @@ mod tests {
             ),
             "deepseek" => assert!(view.current_model.starts_with("deepseek")),
             "ollama" => assert!(view.current_model.contains("llama")),
+            "none" => assert!(view.current_model == "No API Key"), // CI without keys
             _ => panic!("Unknown provider: {}", view.current_provider_id),
         }
     }
