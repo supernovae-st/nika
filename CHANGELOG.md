@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-02-26
+
+### Added
+- **ARMADA CI System** - 10-station quality checkpoint system
+  - Station 1: Format (`cargo fmt --check`)
+  - Station 2: Lint (`cargo clippy -- -D warnings`)
+  - Station 3: Tests (`cargo nextest run` - 2,997 tests)
+  - Station 4: Coverage (`cargo llvm-cov` >70%)
+  - Station 5: Docs (`cargo doc --no-deps`)
+  - Station 6: Security (`cargo audit` + `cargo deny`)
+  - Station 7-8: AI Reviews (CodeRabbit + Claude)
+  - Station 9: Conventional commits validation
+  - Station 10: Version lock enforcement (0.x.x forever)
+- **Version Lock Enforcement** - Nika will NEVER be v1.0.0
+  - Rust tests (`tests/version_lock_test.rs`)
+  - CI workflow (`.github/workflows/version-lock.yml`)
+  - Claude Code hooks (PreToolUse blocks v1.x)
+  - release-plz configured for 0.x.x
+- **/ship Skill** - One-command shipping workflow
+  - Detects changes → Creates branch → Commits → Pushes → Creates PR
+  - Waits for CI → Enables auto-merge → Cleans up
+- **6-Views Architecture** - Complete TUI restructure
+  - View enum: Home, Chat, Studio, Monitor, Settings, Help
+  - Full keyboard navigation (1-6 keys)
+  - Cross-view state synchronization
+- **TaskBox Widgets** - Compact/expanded modes with animations
+  - `InferBox`, `ExecBox`, `FetchBox`, `InvokeBox`, `AgentBox`
+  - `BorderPulse` animation for running state
+  - `TokenVelocity` real-time metrics
+  - `RenderMode` enum for detail levels
+
+### Statistics
+- **2,997 tests passing** (277 new in v0.10-v0.12)
+- **Zero clippy warnings**
+- **11 Claude Code skills**, **7 hooks**, **27 rules**
+
+## [0.11.0] - 2026-02-25
+
+### Added
+- **Production Wiring** - Complete integration of all TUI components
+  - Chat DAG widgets wired into ChatView
+  - Settings and Help views integrated
+  - MonitorView with View trait implementation
+- **release-plz Automation** - Automated release PR creation
+  - Conventional commits → CHANGELOG generation
+  - git-cliff for changelog formatting
+  - GitHub release creation
+
+### Changed
+- Rebrand FORTRESS → ARMADA (cosmic pirate theme)
+- Version bump to v0.11.0
+
+## [0.10.0] - 2026-02-25
+
+### Added
+- **Chat DAG Widgets** (108 tests)
+  - `ChatNodeBox` - Individual chat message as graph node (4 kinds, 4 states)
+  - `ChatEdgeLine` - @N reference edges between nodes (Bezier curves)
+  - `ChatTaskQueue` - Task execution queue with 5-verb icons
+  - `ChatDagPanel` - Full DAG visualization (nodes + edges combined)
+- **Animation System**
+  - `AnimationTicker` - 60fps coordinated animation utility
+  - `AnimationState` - Running/Paused/Stopped states
+  - Easing utilities for smooth transitions
+- **Nika Intro Animation** - ASCII art explosion into matrix rain (15 frames, 1.5s)
+
+### Statistics
+- **2,720+ tests passing** (108 new chat widget tests)
+
 ## [0.9.0] - 2026-02-25
 
 ### Added
@@ -268,7 +337,13 @@ let result = provider.infer("prompt", None).await?;
 - `nika run <workflow.yaml>` - Execute a workflow
 - `nika validate <workflow.yaml>` - Validate without execution
 
-[Unreleased]: https://github.com/supernovae-st/nika-dev/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/supernovae-st/nika-dev/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/supernovae-st/nika-dev/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/supernovae-st/nika-dev/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/supernovae-st/nika-dev/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/supernovae-st/nika-dev/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/supernovae-st/nika-dev/compare/v0.7.2...v0.8.0
+[0.7.2]: https://github.com/supernovae-st/nika-dev/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/supernovae-st/nika-dev/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/supernovae-st/nika-dev/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/supernovae-st/nika-dev/compare/v0.5.2...v0.6.0
