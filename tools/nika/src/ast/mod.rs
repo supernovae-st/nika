@@ -46,4 +46,4 @@ pub use workflow::{
 // DecomposeSpec is defined in decompose.rs (v0.5 - Runtime DAG expansion)
 pub use decompose::{DecomposeSpec, DecomposeStrategy};
 // Loader is defined in loader.rs (v0.13 - Multi-format agent/skill loading)
-pub use loader::{load_definition, discover_definitions, DefinitionKind, LoadedDefinition};
+pub use loader::{discover_definitions, load_definition, DefinitionKind, LoadedDefinition};

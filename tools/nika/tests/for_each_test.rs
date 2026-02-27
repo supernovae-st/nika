@@ -190,7 +190,7 @@ tasks:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
     assert!(
@@ -220,7 +220,7 @@ tasks:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
     assert!(
@@ -249,7 +249,7 @@ tasks:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
     // Workflow should complete (not panic) even with partial failures
@@ -277,7 +277,7 @@ tasks:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
     assert!(
@@ -307,7 +307,7 @@ tasks:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
     assert!(

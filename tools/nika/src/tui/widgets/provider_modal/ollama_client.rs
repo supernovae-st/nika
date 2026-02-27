@@ -344,36 +344,44 @@ mod tests {
     }
 
     // SEC-002: URL validation tests
+    // NOTE: These tests must clear both env vars to avoid parallel test pollution
+
     #[test]
     fn test_ollama_base_url_valid_http() {
+        std::env::remove_var("OLLAMA_API_BASE_URL");
         std::env::set_var("OLLAMA_HOST", "http://192.168.1.100:11434");
         let url = ollama_base_url();
-        assert_eq!(url, "http://192.168.1.100:11434");
         std::env::remove_var("OLLAMA_HOST");
+        assert_eq!(url, "http://192.168.1.100:11434");
     }
 
     #[test]
     fn test_ollama_base_url_valid_https() {
+        std::env::remove_var("OLLAMA_API_BASE_URL");
         std::env::set_var("OLLAMA_HOST", "https://ollama.example.com");
         let url = ollama_base_url();
-        assert_eq!(url, "https://ollama.example.com");
         std::env::remove_var("OLLAMA_HOST");
+        assert_eq!(url, "https://ollama.example.com");
     }
 
     #[test]
     fn test_ollama_base_url_invalid_scheme_uses_default() {
+        std::env::remove_var("OLLAMA_API_BASE_URL");
         std::env::set_var("OLLAMA_HOST", "ftp://malicious.com");
         let url = ollama_base_url();
-        assert_eq!(url, "http://localhost:11434");
         std::env::remove_var("OLLAMA_HOST");
+        assert_eq!(url, "http://localhost:11434");
     }
 
     #[test]
     fn test_ollama_base_url_invalid_url_uses_default() {
+        // Clear env first to avoid pollution from parallel tests
+        std::env::remove_var("OLLAMA_API_BASE_URL");
         std::env::set_var("OLLAMA_HOST", "not-a-valid-url");
         let url = ollama_base_url();
-        assert_eq!(url, "http://localhost:11434");
         std::env::remove_var("OLLAMA_HOST");
+        // "not-a-valid-url" has no scheme, so url::Url::parse fails -> returns default
+        assert_eq!(url, "http://localhost:11434");
     }
 
     // =========== Wiremock Integration Tests ===========

@@ -1,8 +1,8 @@
 # Nika Core Functionality Audit
 
-**Date:** 2026-02-27
+**Date:** 2026-02-27 (Updated)
 **Version:** v0.12.1
-**Tests:** 3,131 passing (12 spawn_agent + 7 rig_agent_loop + 33 memory + 5 agent_def + 10 skill)
+**Tests:** 3,146 passing
 
 ---
 
@@ -215,6 +215,70 @@ From official docs, rig-core provides `StreamingPromptRequest.multi_turn(depth)`
 3. **Documentation:** Add builtin tools usage examples to README
 4. **MCP Config:** Use pre-built binary paths instead of cargo run in workflows
 5. **Timeout Tuning:** Increase MCP connect timeout for slow compiles (>20s)
+
+---
+
+## Session 2: Nested Workflows & Code Quality (2026-02-27)
+
+### Runtime Wiring Verified
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `memory_loader.rs` | ✓ WIRED | Loads `memory:` files at workflow start |
+| `resolver.rs` | ✓ WIRED | Resolves `agents:` and `skills:` definitions |
+| `ChatWorkflow` | ✓ CORRECT | DAG data structure, not execution engine |
+
+### Nested Workflow Testing
+
+**nika:run builtin** is fully functional for workflow composition:
+
+| Test | Result |
+|------|--------|
+| 2-level nesting (parent → child) | ✓ Works |
+| 3-level nesting (L1 → L2 → L3) | ✓ Works |
+| Result propagation between levels | ✓ Works |
+| Separate trace per workflow | ✓ Works |
+
+**Test workflows created:**
+- `nested-parent.nika.yaml` - Parent orchestrator
+- `nested-child.nika.yaml` - Child workflow
+- `nested-level1.nika.yaml` - Triple nesting test
+- `nested-level2.nika.yaml` - Middle level
+- `nested-level3.nika.yaml` - Deepest level
+
+### Code Quality Audit
+
+**unwrap()/expect() in critical paths:** ✓ CLEAN
+
+| File | Production unwraps | Test unwraps |
+|------|-------------------|--------------|
+| `runner.rs` | 0 | 50+ |
+| `executor.rs` | 0 | 30+ |
+| `rig_agent_loop.rs` | 0 | 1 |
+| `mcp/client.rs` | 0 | 10+ |
+
+All `unwrap()` calls are in test code. Production paths use proper error handling.
+
+### CLI Commands Verified
+
+| Command | Status | Description |
+|---------|--------|-------------|
+| `nika` | ✓ | TUI Home view |
+| `nika chat` | ✓ | Chat agent mode |
+| `nika studio` | ✓ | YAML editor |
+| `nika check <file>` | ✓ | Validate workflow |
+| `nika run <file>` | ✓ | Execute workflow |
+| `nika provider list` | ✓ | Show provider status |
+| `nika mcp list -w <file>` | ✓ | List MCP servers |
+| `nika trace list` | ✓ | Show execution traces |
+| `nika trace show <id>` | ✓ | Display trace events |
+
+### Bug Fixes Applied
+
+1. **Runner mutability** - Changed `run(&self)` to `run(&mut self)` for asset loading
+2. **Test files** - Fixed 30+ test files to use `mut runner`
+3. **Env var pollution** - Fixed Ollama URL tests with proper isolation
+4. **Formatting** - Ran `cargo fmt` for clean code style
 
 ---
 

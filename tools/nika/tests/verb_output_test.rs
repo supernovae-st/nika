@@ -26,7 +26,7 @@ fn parse_workflow(yaml: &str) -> Workflow {
 
 async fn run_workflow_and_get_output(workflow: Workflow) -> Option<Arc<Value>> {
     let (event_log, mut rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let mut final_output = None;
@@ -57,7 +57,7 @@ async fn run_workflow_and_get_output(workflow: Workflow) -> Option<Arc<Value>> {
 
 async fn run_workflow_and_get_task_output(workflow: Workflow, task_id: &str) -> Option<Arc<Value>> {
     let (event_log, mut rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let mut task_output = None;
@@ -546,7 +546,7 @@ tasks:
     );
 
     let (event_log, mut rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let mut provider_called = false;
@@ -667,7 +667,7 @@ tasks:
     );
 
     let (event_log, mut rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let mut agent_started = false;
@@ -724,7 +724,7 @@ tasks:
     );
 
     let (event_log, mut rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let mut has_thinking = false;

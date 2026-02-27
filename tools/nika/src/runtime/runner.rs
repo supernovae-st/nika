@@ -819,16 +819,16 @@ mod tests {
     #[test]
     fn test_runner_quiet_mode() {
         // Default should not be quiet
-        let mut runner = Runner::new(make_empty_workflow());
+        let runner = Runner::new(make_empty_workflow());
         assert!(!runner.quiet, "Runner should not be quiet by default");
 
         // quiet() should enable quiet mode
-        let mut runner = Runner::new(make_empty_workflow()).quiet();
+        let runner = Runner::new(make_empty_workflow()).quiet();
         assert!(runner.quiet, "Runner should be quiet after .quiet()");
 
         // Can chain with with_event_log
         let event_log = crate::event::EventLog::new();
-        let mut runner = Runner::with_event_log(make_empty_workflow(), event_log).quiet();
+        let runner = Runner::with_event_log(make_empty_workflow(), event_log).quiet();
         assert!(runner.quiet, "Runner should be quiet when chained");
     }
 
@@ -1245,7 +1245,7 @@ mod tests {
             vec![("a", "echo A"), ("b", "echo B")],
             vec![], // No flows = no dependencies
         );
-        let mut runner = Runner::new(workflow);
+        let runner = Runner::new(workflow);
 
         let ready = runner.get_ready_tasks();
         assert_eq!(ready.len(), 2, "Both tasks should be ready");
@@ -1262,7 +1262,7 @@ mod tests {
             vec![("a", "echo A"), ("b", "echo B"), ("c", "echo C")],
             vec![("a", "b"), ("b", "c")],
         );
-        let mut runner = Runner::new(workflow);
+        let runner = Runner::new(workflow);
 
         let ready = runner.get_ready_tasks();
         assert_eq!(ready.len(), 1, "Only first task should be ready");
@@ -1272,7 +1272,7 @@ mod tests {
     #[test]
     fn get_ready_tasks_excludes_completed_tasks() {
         let workflow = create_exec_workflow(vec![("only", "echo x")], vec![]);
-        let mut runner = Runner::new(workflow);
+        let runner = Runner::new(workflow);
 
         // Initially task is ready
         let ready = runner.get_ready_tasks();
@@ -1292,7 +1292,7 @@ mod tests {
     #[test]
     fn all_done_returns_false_when_tasks_pending() {
         let workflow = create_exec_workflow(vec![("a", "echo A"), ("b", "echo B")], vec![]);
-        let mut runner = Runner::new(workflow);
+        let runner = Runner::new(workflow);
 
         assert!(!runner.all_done(), "Not all tasks are done initially");
     }
@@ -1300,7 +1300,7 @@ mod tests {
     #[test]
     fn all_done_returns_true_when_all_completed() {
         let workflow = create_exec_workflow(vec![("a", "echo A"), ("b", "echo B")], vec![]);
-        let mut runner = Runner::new(workflow);
+        let runner = Runner::new(workflow);
 
         // Mark all tasks as done
         runner.datastore.insert(
@@ -1320,7 +1320,7 @@ mod tests {
         // Chain: a -> b (b is final)
         let workflow =
             create_exec_workflow(vec![("a", "echo A"), ("b", "echo B")], vec![("a", "b")]);
-        let mut runner = Runner::new(workflow);
+        let runner = Runner::new(workflow);
 
         // Mark tasks as done
         runner.datastore.insert(
@@ -1340,7 +1340,7 @@ mod tests {
     #[test]
     fn get_final_output_returns_none_when_no_results() {
         let workflow = create_exec_workflow(vec![("only", "echo x")], vec![]);
-        let mut runner = Runner::new(workflow);
+        let runner = Runner::new(workflow);
 
         let output = runner.get_final_output();
         assert!(output.is_none(), "No output when tasks not complete");
@@ -1352,7 +1352,7 @@ mod tests {
             vec![("a", "echo A"), ("b", "exit 1")],
             vec![], // Both are final tasks (no successors)
         );
-        let mut runner = Runner::new(workflow);
+        let runner = Runner::new(workflow);
 
         // a succeeds, b fails
         runner.datastore.insert(
@@ -1509,7 +1509,7 @@ mod tests {
     fn with_event_log_uses_provided_event_log() {
         let workflow = create_exec_workflow(vec![("a", "echo A")], vec![]);
         let custom_log = EventLog::new();
-        let mut runner = Runner::with_event_log(workflow, custom_log);
+        let runner = Runner::with_event_log(workflow, custom_log);
 
         // The runner should use the provided event log
         assert!(runner.event_log().events().is_empty());
@@ -1568,7 +1568,7 @@ mod tests {
     #[test]
     fn test_cancel_token_default() {
         let workflow = make_empty_workflow();
-        let mut runner = Runner::new(workflow);
+        let runner = Runner::new(workflow);
 
         // Should not be cancelled by default
         assert!(
@@ -1583,7 +1583,7 @@ mod tests {
         let token = CancellationToken::new();
         let token_clone = token.clone();
 
-        let mut runner = Runner::new(workflow).with_cancel_token(token);
+        let runner = Runner::new(workflow).with_cancel_token(token);
 
         // Cancelling the original token should be reflected
         token_clone.cancel();
@@ -1593,7 +1593,7 @@ mod tests {
     #[test]
     fn test_cancel_token_cloning() {
         let workflow = make_empty_workflow();
-        let mut runner = Runner::new(workflow);
+        let runner = Runner::new(workflow);
 
         let token1 = runner.cancel_token();
         let token2 = runner.cancel_token();
@@ -1715,7 +1715,7 @@ mod tests {
     #[test]
     fn test_pause_state_default() {
         let workflow = make_empty_workflow();
-        let mut runner = Runner::new(workflow);
+        let runner = Runner::new(workflow);
 
         // Should not be paused by default
         assert!(
@@ -1727,7 +1727,7 @@ mod tests {
     #[test]
     fn test_pause_and_resume() {
         let workflow = make_empty_workflow();
-        let mut runner = Runner::new(workflow);
+        let runner = Runner::new(workflow);
 
         // Initially not paused
         assert!(!runner.is_paused());
@@ -1747,7 +1747,7 @@ mod tests {
     #[test]
     fn test_pause_handles_cloning() {
         let workflow = make_empty_workflow();
-        let mut runner = Runner::new(workflow);
+        let runner = Runner::new(workflow);
 
         let (paused1, notify1) = runner.pause_handles();
         let (paused2, _notify2) = runner.pause_handles();
@@ -1782,7 +1782,7 @@ mod tests {
     fn test_pause_emits_events() {
         let workflow = make_empty_workflow();
         let event_log = EventLog::new();
-        let mut runner = Runner::with_event_log(workflow, event_log.clone());
+        let runner = Runner::with_event_log(workflow, event_log.clone());
 
         // Pause and resume
         runner.pause();

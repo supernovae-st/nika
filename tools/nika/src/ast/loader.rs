@@ -116,7 +116,10 @@ pub fn load_definition(path: &Path, kind: DefinitionKind) -> Result<LoadedDefini
 }
 
 /// Try loading with various extensions
-fn try_load_with_extensions(path: &Path, kind: DefinitionKind) -> Result<LoadedDefinition, NikaError> {
+fn try_load_with_extensions(
+    path: &Path,
+    kind: DefinitionKind,
+) -> Result<LoadedDefinition, NikaError> {
     let base = path.to_string_lossy();
 
     for ext in kind.extensions() {
@@ -155,7 +158,10 @@ fn load_from_folder(path: &Path, kind: DefinitionKind) -> Result<LoadedDefinitio
         for entry in entries.flatten() {
             let entry_path = entry.path();
             if entry_path.is_file() {
-                let filename = entry_path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                let filename = entry_path
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("");
                 for ext in kind.extensions() {
                     if filename.ends_with(ext) {
                         return load_from_file(&entry_path, kind);
@@ -191,21 +197,22 @@ fn load_from_file(path: &Path, kind: DefinitionKind) -> Result<LoadedDefinition,
         "md" => parse_markdown(&content, path, kind),
         _ => {
             // Try markdown first (more common), then YAML
-            parse_markdown(&content, path, kind)
-                .or_else(|_| parse_yaml(&content, path, kind))
+            parse_markdown(&content, path, kind).or_else(|_| parse_yaml(&content, path, kind))
         }
     }
 }
 
 /// Parse YAML format definition
-fn parse_yaml(content: &str, path: &Path, _kind: DefinitionKind) -> Result<LoadedDefinition, NikaError> {
+fn parse_yaml(
+    content: &str,
+    path: &Path,
+    _kind: DefinitionKind,
+) -> Result<LoadedDefinition, NikaError> {
     let def: YamlDefinition = serde_yaml::from_str(content).map_err(|e| NikaError::ParseError {
         details: format!("{}: {}", path.display(), e),
     })?;
 
-    let name = def
-        .name
-        .unwrap_or_else(|| extract_name_from_path(path));
+    let name = def.name.unwrap_or_else(|| extract_name_from_path(path));
 
     Ok(LoadedDefinition {
         name,
@@ -220,7 +227,11 @@ fn parse_yaml(content: &str, path: &Path, _kind: DefinitionKind) -> Result<Loade
 }
 
 /// Parse Markdown with YAML frontmatter (Claude Code style)
-fn parse_markdown(content: &str, path: &Path, _kind: DefinitionKind) -> Result<LoadedDefinition, NikaError> {
+fn parse_markdown(
+    content: &str,
+    path: &Path,
+    _kind: DefinitionKind,
+) -> Result<LoadedDefinition, NikaError> {
     let (frontmatter, body) = extract_frontmatter(content)?;
 
     let fm: Frontmatter = if let Some(fm_str) = frontmatter {
@@ -238,9 +249,7 @@ fn parse_markdown(content: &str, path: &Path, _kind: DefinitionKind) -> Result<L
         }
     };
 
-    let name = fm
-        .name
-        .unwrap_or_else(|| extract_name_from_path(path));
+    let name = fm.name.unwrap_or_else(|| extract_name_from_path(path));
 
     let description = fm.description.or_else(|| extract_first_paragraph(&body));
 

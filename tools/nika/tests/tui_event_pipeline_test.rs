@@ -68,7 +68,7 @@ tasks:
     .unwrap();
 
     let (event_log, rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let events = collect_events(rx, 5000).await;
@@ -128,7 +128,7 @@ flows:
     .unwrap();
 
     let (event_log, rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let events = collect_events(rx, 5000).await;
@@ -169,7 +169,7 @@ flows:
     .unwrap();
 
     let (event_log, rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let events = collect_events(rx, 5000).await;
@@ -208,7 +208,7 @@ tasks:
     .unwrap();
 
     let (event_log, rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let events = collect_events(rx, 5000).await;
@@ -254,7 +254,7 @@ tasks:
     .unwrap();
 
     let (event_log, rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let events = collect_events(rx, 5000).await;
@@ -306,7 +306,7 @@ flows:
     .unwrap();
 
     let (event_log, rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let events = collect_events(rx, 5000).await;
@@ -347,7 +347,7 @@ tasks:
     .unwrap();
 
     let (event_log, rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let events = collect_events(rx, 5000).await;
@@ -387,7 +387,7 @@ tasks:
     .unwrap();
 
     let (event_log, rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let events = collect_events(rx, 5000).await;
@@ -435,7 +435,7 @@ flows:
     .unwrap();
 
     let (event_log, rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let events = collect_events(rx, 5000).await;
@@ -466,7 +466,7 @@ tasks:
     .unwrap();
 
     let (event_log, rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let events = collect_events(rx, 5000).await;
@@ -523,7 +523,7 @@ tasks:
     .unwrap();
 
     let (event_log, rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let events = collect_events(rx, 5000).await;
@@ -565,7 +565,7 @@ tasks:
     .unwrap();
 
     let (event_log, rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let events = collect_events(rx, 5000).await;
@@ -613,7 +613,7 @@ tasks:
     .unwrap();
 
     let (event_log, rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let events = collect_events(rx, 5000).await;

@@ -1,0 +1,6 @@
+# Level 3 (deepest) workflow for triple-nested execution test
+schema: "nika/workflow@0.5"
+
+tasks:
+  - id: level3_task
+    exec: "echo 'Level 3 executed!'"
