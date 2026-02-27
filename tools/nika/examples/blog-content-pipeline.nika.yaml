@@ -597,7 +597,7 @@ flows:
   # Phase 3: Structure & metadata chain
   - source: research_topics
     target: generate_outline
-  - source: research_topics
+  - source: generate_outline
     target: generate_title
   - source: generate_title
     target: generate_metadata
