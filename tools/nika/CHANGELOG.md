@@ -7,6 +7,33 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-02-27
+
+### Added
+- **Shell Completion** - `nika completion <shell>` for bash/zsh/fish/powershell
+  - Full completion for all commands and options
+  - Install: `nika completion zsh > ~/.zfunc/_nika`
+- **Configuration CLI** - `nika config` command (git/gh style)
+  - `nika config list` - Show all configuration
+  - `nika config get <key>` - Get value (dot-separated path)
+  - `nika config set <key> <value>` - Set value
+  - `nika config edit` - Open in $EDITOR
+  - `nika config path` - Show config file location
+  - `nika config reset --force` - Reset to defaults
+- **Global CLI Flags** - Terminal-first DX improvements
+  - `-v, --verbose` - Increase verbosity (-v, -vv, -vvv)
+  - `-q, --quiet` - Suppress non-error output
+  - `--color <auto|always|never>` - Control color output
+- **Config Template** - `templates/config.toml` for reset command
+
+### Changed
+- Verbosity levels: 0=warn, 1=info, 2=debug, 3=trace
+- `nika ui --view` no longer has `-v` short option (conflicts with verbose)
+- Help text updated with new commands and global flags
+
+### Dependencies
+- Added `clap_complete` 4.5 for shell completion
+
 ## [0.13.0] - 2026-02-27
 
 ### Added

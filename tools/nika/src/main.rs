@@ -1,6 +1,6 @@
 //! Nika CLI - DAG workflow runner
 
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, CommandFactory, Parser, Subcommand, ValueEnum};
 use colored::Colorize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -44,10 +44,22 @@ WORKFLOW EXECUTION:
 
 INTERACTIVE MODES:
     nika ui                       TUI (Explorer view by default)
-    nika ui --view chat           TUI Chat view
-    nika ui --view editor         TUI Editor view
+    nika ui --view=chat           TUI Chat view
+    nika ui --view=editor         TUI Editor view
     nika chat                     TUI Chat (shortcut)
     nika studio [file]            TUI Editor (shortcut)
+
+CONFIGURATION:
+    nika config list              Show all config values
+    nika config get editor.theme  Get specific value
+    nika config set editor.theme dark
+    nika config edit              Open in $EDITOR
+    nika config path              Show config file path
+
+SHELL COMPLETION:
+    nika completion bash > ~/.local/share/bash-completion/completions/nika
+    nika completion zsh > ~/.zfunc/_nika
+    nika completion fish > ~/.config/fish/completions/nika.fish
 
 PROVIDER MANAGEMENT:
     nika provider list            Show providers and API key status
@@ -64,6 +76,11 @@ TRACES:
     nika trace list               List execution traces
     nika trace show <id>          Show trace details
     nika trace export <id>        Export to JSON/YAML
+
+GLOBAL FLAGS:
+    -v, --verbose                 Increase verbosity (-v, -vv, -vvv)
+    -q, --quiet                   Suppress non-error output
+    --color <auto|always|never>   Control color output
 
 ENVIRONMENT VARIABLES:
     ANTHROPIC_API_KEY             Claude (preferred)
@@ -87,6 +104,18 @@ DOCUMENTATION:
 // CLI STRUCTURE
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// Color output mode (like cargo/git)
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+pub enum ColorChoice {
+    /// Auto-detect based on terminal support
+    #[default]
+    Auto,
+    /// Always use colors
+    Always,
+    /// Never use colors
+    Never,
+}
+
 #[derive(Parser)]
 #[command(name = "nika")]
 #[command(version)]
@@ -98,6 +127,18 @@ struct Cli {
     #[arg(value_name = "WORKFLOW")]
     file: Option<PathBuf>,
 
+    /// Increase verbosity (-v info, -vv debug, -vvv trace)
+    #[arg(short, long, action = ArgAction::Count, global = true)]
+    verbose: u8,
+
+    /// Suppress all output except errors
+    #[arg(short, long, global = true)]
+    quiet: bool,
+
+    /// Color output: auto, always, never
+    #[arg(long, default_value = "auto", global = true, value_enum)]
+    color: ColorChoice,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -108,7 +149,7 @@ enum Commands {
     #[cfg(feature = "tui")]
     Ui {
         /// Initial view: explorer, chat, editor, runner, scheduler, settings
-        #[arg(short, long, value_name = "VIEW")]
+        #[arg(long, value_name = "VIEW")]
         view: Option<String>,
 
         /// Workflow file to load (optional)
@@ -195,6 +236,19 @@ enum Commands {
     Mcp {
         #[command(subcommand)]
         action: McpAction,
+    },
+
+    /// Generate shell completions (v0.13.1)
+    Completion {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
+
+    /// Manage Nika configuration (v0.13.1)
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
     },
 
     /// [deprecated] Use 'nika' instead
@@ -308,6 +362,44 @@ enum McpAction {
     },
 }
 
+/// Configuration management actions (v0.13.1)
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// List all configuration values
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Get a specific config value
+    Get {
+        /// Config key (dot-separated, e.g., editor.theme)
+        key: String,
+    },
+
+    /// Set a config value
+    Set {
+        /// Config key (dot-separated, e.g., editor.theme)
+        key: String,
+        /// Value to set
+        value: String,
+    },
+
+    /// Open config file in $EDITOR
+    Edit,
+
+    /// Show config file path
+    Path,
+
+    /// Reset config to defaults
+    Reset {
+        /// Skip confirmation
+        #[arg(short, long)]
+        force: bool,
+    },
+}
+
 #[tokio::main]
 async fn main() {
     // Load .env file (ignore if not present)
@@ -315,14 +407,28 @@ async fn main() {
 
     let cli = Cli::parse();
 
+    // Apply color settings
+    match cli.color {
+        ColorChoice::Always => colored::control::set_override(true),
+        ColorChoice::Never => colored::control::set_override(false),
+        ColorChoice::Auto => {} // Use default detection
+    }
+
     // Determine if we're running TUI (skip tracing to avoid terminal pollution)
     let is_tui = is_tui_mode(&cli);
 
-    if !is_tui {
+    // Initialize tracing with verbosity level
+    if !is_tui && !cli.quiet {
+        let level = match cli.verbose {
+            0 => tracing::Level::WARN,  // Default: warnings only
+            1 => tracing::Level::INFO,  // -v: info
+            2 => tracing::Level::DEBUG, // -vv: debug
+            _ => tracing::Level::TRACE, // -vvv: trace
+        };
+
         tracing_subscriber::fmt()
             .with_env_filter(
-                tracing_subscriber::EnvFilter::from_default_env()
-                    .add_directive(tracing::Level::INFO.into()),
+                tracing_subscriber::EnvFilter::from_default_env().add_directive(level.into()),
             )
             .init();
     }
@@ -352,6 +458,9 @@ async fn main() {
             std::process::exit(1);
         }
     }
+
+    // Extract global flags for use in handlers
+    let quiet = cli.quiet;
 
     // Handle subcommands or default to help (terminal-first)
     let result = match cli.command {
@@ -429,6 +538,15 @@ async fn main() {
 
         // MCP server management (v0.12.1)
         Some(Commands::Mcp { action }) => handle_mcp_command(action).await,
+
+        // Shell completion (v0.13.1)
+        Some(Commands::Completion { shell }) => {
+            clap_complete::generate(shell, &mut Cli::command(), "nika", &mut std::io::stdout());
+            Ok(())
+        }
+
+        // Configuration management (v0.13.1)
+        Some(Commands::Config { action }) => handle_config_command(action, quiet),
 
         // Legacy TUI command (hidden, backward compat)
         #[cfg(feature = "tui")]
@@ -1723,4 +1841,246 @@ async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
             Ok(())
         }
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIG COMMAND HANDLER (v0.13.1)
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), NikaError> {
+    // Find .nika directory
+    let nika_dir = find_nika_dir()?;
+    let config_path = nika_dir.join("config.toml");
+
+    match action {
+        ConfigAction::Path => {
+            println!("{}", config_path.display());
+            Ok(())
+        }
+
+        ConfigAction::List { json } => {
+            if !config_path.exists() {
+                if json {
+                    println!("{{}}");
+                } else {
+                    println!(
+                        "{} No config file found at {}",
+                        "ℹ".cyan(),
+                        config_path.display()
+                    );
+                    println!("  Run 'nika init' to create one.");
+                }
+                return Ok(());
+            }
+
+            let content = fs::read_to_string(&config_path)?;
+
+            if json {
+                // Parse TOML and convert to JSON
+                let value: toml::Value =
+                    toml::from_str(&content).map_err(|e| NikaError::ValidationError {
+                        reason: format!("Invalid TOML: {}", e),
+                    })?;
+                let json = serde_json::to_string_pretty(&value).map_err(|e| {
+                    NikaError::ValidationError {
+                        reason: format!("JSON conversion failed: {}", e),
+                    }
+                })?;
+                println!("{}", json);
+            } else {
+                println!("{}", "Nika Configuration".bold());
+                println!("{}", "─".repeat(40));
+                println!();
+                println!("{}", content);
+            }
+            Ok(())
+        }
+
+        ConfigAction::Get { key } => {
+            if !config_path.exists() {
+                return Err(NikaError::ValidationError {
+                    reason: "No config file found. Run 'nika init' first.".to_string(),
+                });
+            }
+
+            let content = fs::read_to_string(&config_path)?;
+            let value: toml::Value =
+                toml::from_str(&content).map_err(|e| NikaError::ValidationError {
+                    reason: format!("Invalid TOML: {}", e),
+                })?;
+
+            // Navigate to the key (dot-separated path)
+            let mut current = &value;
+            for part in key.split('.') {
+                current = current
+                    .get(part)
+                    .ok_or_else(|| NikaError::ValidationError {
+                        reason: format!("Key '{}' not found", key),
+                    })?;
+            }
+
+            // Print the value
+            match current {
+                toml::Value::String(s) => println!("{}", s),
+                toml::Value::Integer(i) => println!("{}", i),
+                toml::Value::Float(f) => println!("{}", f),
+                toml::Value::Boolean(b) => println!("{}", b),
+                _ => println!("{}", current),
+            }
+            Ok(())
+        }
+
+        ConfigAction::Set { key, value } => {
+            if !config_path.exists() {
+                return Err(NikaError::ValidationError {
+                    reason: "No config file found. Run 'nika init' first.".to_string(),
+                });
+            }
+
+            let content = fs::read_to_string(&config_path)?;
+            let mut doc =
+                content
+                    .parse::<toml::Table>()
+                    .map_err(|e| NikaError::ValidationError {
+                        reason: format!("Invalid TOML: {}", e),
+                    })?;
+
+            // Navigate and set the value
+            let parts: Vec<&str> = key.split('.').collect();
+            if parts.is_empty() {
+                return Err(NikaError::ValidationError {
+                    reason: "Empty key".to_string(),
+                });
+            }
+
+            // Build nested structure
+            let mut current = &mut doc;
+            for (i, part) in parts.iter().enumerate() {
+                if i == parts.len() - 1 {
+                    // Last part - set the value
+                    let toml_value = parse_config_value(&value);
+                    current.insert((*part).to_string(), toml_value);
+                } else {
+                    // Navigate or create table
+                    if !current.contains_key(*part) {
+                        current.insert((*part).to_string(), toml::Value::Table(toml::Table::new()));
+                    }
+                    current = current
+                        .get_mut(*part)
+                        .unwrap()
+                        .as_table_mut()
+                        .ok_or_else(|| NikaError::ValidationError {
+                            reason: format!("'{}' is not a table", part),
+                        })?;
+                }
+            }
+
+            // Write back
+            let new_content =
+                toml::to_string_pretty(&doc).map_err(|e| NikaError::ValidationError {
+                    reason: format!("TOML serialization failed: {}", e),
+                })?;
+            fs::write(&config_path, new_content)?;
+
+            if !quiet {
+                println!("{} {} = {}", "✓".green(), key, value);
+            }
+            Ok(())
+        }
+
+        ConfigAction::Edit => {
+            let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
+
+            if !config_path.exists() {
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "No config file found at {}. Run 'nika init' first.",
+                        config_path.display()
+                    ),
+                });
+            }
+
+            let status = std::process::Command::new(&editor)
+                .arg(&config_path)
+                .status()
+                .map_err(|e| NikaError::ValidationError {
+                    reason: format!("Failed to launch editor '{}': {}", editor, e),
+                })?;
+
+            if !status.success() {
+                return Err(NikaError::ValidationError {
+                    reason: format!("Editor '{}' exited with code {:?}", editor, status.code()),
+                });
+            }
+            Ok(())
+        }
+
+        ConfigAction::Reset { force } => {
+            if !force {
+                println!(
+                    "{} This will reset config to defaults. Use --force to confirm.",
+                    "⚠".yellow()
+                );
+                return Ok(());
+            }
+
+            if config_path.exists() {
+                fs::remove_file(&config_path)?;
+            }
+
+            // Create default config
+            let default_config = include_str!("../templates/config.toml");
+            fs::write(&config_path, default_config)?;
+
+            if !quiet {
+                println!("{} Config reset to defaults", "✓".green());
+            }
+            Ok(())
+        }
+    }
+}
+
+/// Parse a string value into appropriate TOML type
+fn parse_config_value(value: &str) -> toml::Value {
+    // Try boolean
+    if value == "true" {
+        return toml::Value::Boolean(true);
+    }
+    if value == "false" {
+        return toml::Value::Boolean(false);
+    }
+
+    // Try integer
+    if let Ok(i) = value.parse::<i64>() {
+        return toml::Value::Integer(i);
+    }
+
+    // Try float
+    if let Ok(f) = value.parse::<f64>() {
+        return toml::Value::Float(f);
+    }
+
+    // Default to string
+    toml::Value::String(value.to_string())
+}
+
+/// Find .nika directory (search current and parents)
+fn find_nika_dir() -> Result<PathBuf, NikaError> {
+    let current = std::env::current_dir()?;
+
+    let mut dir = current.as_path();
+    loop {
+        let nika_dir = dir.join(".nika");
+        if nika_dir.exists() && nika_dir.is_dir() {
+            return Ok(nika_dir);
+        }
+
+        match dir.parent() {
+            Some(parent) => dir = parent,
+            None => break,
+        }
+    }
+
+    // Default to current directory
+    Ok(current.join(".nika"))
 }

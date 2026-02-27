@@ -1,6 +1,6 @@
 [package]
 name = "nika"
-version = "0.13.0"
+version = "0.13.1"
 edition = "2021"
 description = "DAG workflow runner for AI tasks with MCP integration"
 license = "AGPL-3.0-or-later"
@@ -19,6 +19,7 @@ test-fixtures = []  # Export test_fixtures module for external test crates
 [dependencies]
 # CLI
 clap = { version = "4.5", features = ["derive"] }
+clap_complete = "4.5"  # Shell completion generation
 
 # Async
 tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs"] }
