@@ -201,6 +201,7 @@ mod tests {
     use super::*;
     use crate::ast::{FetchParams, InferParams, InvokeParams, Task};
     use crate::binding::UseEntry;
+    use crate::serde_yaml;
     use serde_json::json;
 
     // ═══════════════════════════════════════════════════════════════

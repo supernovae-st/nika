@@ -11,6 +11,7 @@
 use nika::ast::{AgentParams, DecomposeSpec, DecomposeStrategy};
 use nika::binding::UseEntry;
 use nika::event::EventKind;
+use nika::serde_yaml;
 use serde_json::json;
 use std::sync::Arc;
 

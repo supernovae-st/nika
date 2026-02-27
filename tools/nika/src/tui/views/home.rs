@@ -12,6 +12,7 @@
 //! +---------------------------------------------------------------------------------+
 //! ```
 
+use crate::serde_yaml;
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;

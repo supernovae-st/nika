@@ -8,6 +8,7 @@
 //! 4. EventLog (AgentTurn events)
 //! 5. TUI state (display)
 
+use nika::serde_yaml;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 

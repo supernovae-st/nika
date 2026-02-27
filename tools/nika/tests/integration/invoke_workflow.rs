@@ -4,6 +4,7 @@
 //! verifying schema, task count, MCP config, and task action types.
 
 use nika::ast::TaskAction;
+use nika::serde_yaml;
 use nika::Workflow;
 
 // ═══════════════════════════════════════════════════════════════

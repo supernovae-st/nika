@@ -17,6 +17,7 @@
 
 use nika::ast::Workflow;
 use nika::runtime::Runner;
+use nika::serde_yaml;
 
 // ═══════════════════════════════════════════════════════════════
 // for_each Parsing Tests

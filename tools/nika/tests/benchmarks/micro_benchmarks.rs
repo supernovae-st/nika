@@ -5,6 +5,7 @@
 
 use nika::ast::Workflow;
 use nika::dag::Dag;
+use nika::serde_yaml;
 use std::time::Instant;
 
 // ============================================================================

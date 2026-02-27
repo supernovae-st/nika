@@ -11,6 +11,7 @@
 
 use nika::ast::{TaskAction, Workflow};
 use nika::dag::Dag;
+use nika::serde_yaml;
 use std::path::PathBuf;
 
 fn examples_dir() -> PathBuf {

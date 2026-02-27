@@ -3,6 +3,7 @@
 //! These tests define the expected behavior of the new rig-based agent loop.
 //! Following TDD: tests are written FIRST, then implementation.
 
+use nika::serde_yaml;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 

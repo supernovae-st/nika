@@ -86,6 +86,7 @@ impl Default for SkillRef {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::serde_yaml;
 
     #[test]
     fn test_skill_def_is_string() {

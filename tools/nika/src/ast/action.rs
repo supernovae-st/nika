@@ -152,6 +152,7 @@ impl TaskAction {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::serde_yaml;
     use serde_json::json;
 
     // =========================================================================

@@ -20,6 +20,7 @@
 
 use crate::ast::{AgentDef, SkillDef, Workflow};
 use crate::error::NikaError;
+use crate::serde_yaml;
 use rustc_hash::FxHashMap;
 use std::path::Path;
 use tokio::fs;

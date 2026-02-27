@@ -16,6 +16,7 @@
 //!
 //! See: <https://github.com/ratatui/ratatui-textarea> (replaces rhysd/tui-textarea)
 
+use crate::serde_yaml;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -487,7 +488,8 @@ impl StudioView {
         self.validation.warnings.clear();
 
         // Phase 1: Check YAML syntax validity
-        match serde_yaml::from_str::<serde_yaml::Value>(&content) {
+        // Note: Using serde_json::Value as target since serde-saphyr doesn't export Value type
+        match serde_yaml::from_str::<serde_json::Value>(&content) {
             Ok(_) => {
                 self.validation.yaml_valid = true;
             }

@@ -6,6 +6,7 @@
 //! - Workflow YAML parsing (ast/workflow.rs)
 //! - DAG validation (dag/validate.rs)
 
+use nika::serde_yaml;
 use proptest::prelude::*;
 use serde_json::json;
 
@@ -239,13 +240,13 @@ tasks:
         #[test]
         fn test_workflow_parse_never_panics(yaml in ".*") {
             // Parse YAML - should never panic
-            let _ = serde_yaml::from_str::<serde_yaml::Value>(&yaml);
+            let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
         }
 
         /// Property: Valid schema versions parse successfully
         #[test]
         fn test_valid_schema_parses(yaml in arb_valid_workflow()) {
-            let result: Result<serde_yaml::Value, _> = serde_yaml::from_str(&yaml);
+            let result: Result<serde_json::Value, _> = serde_yaml::from_str(&yaml);
             assert!(result.is_ok(), "Valid workflow should parse: {}", yaml);
         }
 
@@ -266,7 +267,7 @@ tasks:
                     invalid_schema, task_id
                 );
                 // Should parse YAML but fail schema validation (not panic)
-                let parsed: Result<serde_yaml::Value, _> = serde_yaml::from_str(&yaml);
+                let parsed: Result<serde_json::Value, _> = serde_yaml::from_str(&yaml);
                 // Even if YAML is valid, schema validation would catch it
                 prop_assert!(parsed.is_ok() || parsed.is_err());
             }
@@ -286,7 +287,7 @@ tasks:
                 task_id
             );
             // Should not panic during parse/validation
-            let _ = serde_yaml::from_str::<serde_yaml::Value>(&yaml);
+            let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
         }
 
         /// Property: for_each with non-array fails validation (never panics)
@@ -306,7 +307,7 @@ tasks:
                 task_id, non_array
             );
             // Should not panic
-            let _ = serde_yaml::from_str::<serde_yaml::Value>(&yaml);
+            let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
         }
 
         /// Property: Valid for_each arrays parse successfully
@@ -327,7 +328,7 @@ tasks:
     exec: "echo {{{{item}}}}""#,
                 task_id, items_yaml
             );
-            let result: Result<serde_yaml::Value, _> = serde_yaml::from_str(&yaml);
+            let result: Result<serde_json::Value, _> = serde_yaml::from_str(&yaml);
             prop_assert!(result.is_ok(), "Valid for_each should parse: {}", yaml);
         }
     }
@@ -395,7 +396,7 @@ mod dag_fuzzing {
         #[test]
         fn test_dag_validation_never_panics(yaml in arb_linear_dag()) {
             // Parse and validate - should never panic
-            let _ = serde_yaml::from_str::<serde_yaml::Value>(&yaml);
+            let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
         }
 
         /// Property: Self-referencing task fails validation (never panics)
@@ -413,7 +414,7 @@ flows:
                 task_id, task_id, task_id
             );
             // Should not panic - should either parse and fail validation, or fail parse
-            let _ = serde_yaml::from_str::<serde_yaml::Value>(&yaml);
+            let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
         }
 
         /// Property: Cyclic dependencies detected (never panics)
@@ -439,7 +440,7 @@ flows:
                     task1, task2, task1, task2, task2, task1
                 );
                 // Should not panic - cycles should be detected
-                let _ = serde_yaml::from_str::<serde_yaml::Value>(&yaml);
+                let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
             }
         }
 
@@ -462,7 +463,7 @@ flows:
                     task1, task1, nonexistent
                 );
                 // Should not panic
-                let _ = serde_yaml::from_str::<serde_yaml::Value>(&yaml);
+                let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
             }
         }
 
@@ -479,7 +480,7 @@ flows:
             }
 
             // Should not cause stack overflow
-            let _ = serde_yaml::from_str::<serde_yaml::Value>(&yaml);
+            let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
         }
     }
 }

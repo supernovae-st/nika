@@ -7,6 +7,7 @@
 //! - Invoke: MCP tool call / resource read
 
 use nika::ast::TaskAction;
+use nika::serde_yaml;
 
 // ═══════════════════════════════════════════════════════════════
 // Invoke Variant Tests (NEW in v0.2)

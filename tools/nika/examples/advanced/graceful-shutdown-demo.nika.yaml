@@ -1,0 +1,261 @@
+# Graceful Shutdown & Checkpointing Demo
+# Demonstrates: Stop conditions, checkpoints, resume, connection draining
+#
+# v0.14 features:
+# - Checkpoint/resume for long-running workflows
+# - Graceful shutdown with in-flight task completion
+# - Stop conditions with custom actions
+# - Progress tracking and resumability
+#
+# Use case: Large batch processing that can be interrupted and resumed
+schema: nika/workflow@0.7
+
+workflow: batch-processor-resumable
+description: |
+  Demonstrates graceful shutdown with checkpointing.
+  Can be interrupted (Ctrl+C) and resumed from last checkpoint.
+
+context:
+  session: ./.nika/sessions/batch-processor.json
+
+# Checkpoint configuration
+checkpoint:
+  enabled: true
+  # Save checkpoint after each batch
+  frequency: per_batch
+  # Or time-based: every 5 minutes
+  # frequency: "5m"
+  storage: ./.nika/checkpoints/
+
+tasks:
+  # ════════════════════════════════════════════════════════════════════
+  # INITIALIZATION: Load or Resume State
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: init_state
+    infer:
+      prompt: |
+        Initialize batch processing state.
+
+        Check for existing checkpoint:
+        Checkpoint Data: {{context.session.checkpoint}}
+
+        If resuming:
+        - Load last processed index
+        - Load accumulated results
+        - Log resume message
+
+        If fresh start:
+        - Initialize counters to 0
+        - Create empty results array
+
+        Return JSON:
+        {
+          "is_resume": boolean,
+          "last_index": number,
+          "total_items": number,
+          "results_so_far": [],
+          "start_time": "ISO timestamp"
+        }
+      response_format: json
+    output:
+      use.state: result
+      checkpoint: true
+
+  # ════════════════════════════════════════════════════════════════════
+  # FETCH ITEMS: Get batch to process
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: fetch_items
+    fetch:
+      url: "${API_URL}/items"
+      method: GET
+      params:
+        offset: "{{use.state.last_index}}"
+        limit: 1000
+    flow: [init_state]
+    output:
+      use.items: result.items
+      use.total: result.total
+
+  # ════════════════════════════════════════════════════════════════════
+  # BATCH PROCESSING: Process items with checkpointing
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: process_batch
+    for_each: "{{use.items}}"
+    as: item
+    concurrency: 5
+    fail_fast: false
+
+    # Checkpoint after each batch of 100 items
+    checkpoint:
+      every: 100
+      include: ["processed_count", "results", "errors"]
+
+    agent:
+      prompt: |
+        Process item {{use.item.id}}:
+
+        Item Data: {{use.item}}
+
+        1. Validate item data
+        2. Transform according to schema
+        3. Enrich with external data if needed
+        4. Return processed result
+
+        Handle errors gracefully - return error object instead of failing.
+      max_turns: 3
+      # Stop processing if critical error
+      stop_conditions:
+        - pattern: "CRITICAL_ERROR"
+          action: checkpoint_and_stop
+          message: "Critical error - checkpointing and stopping"
+    flow: [fetch_items]
+    output:
+      use.batch_results: result
+      checkpoint: true  # Save after batch completion
+
+  # ════════════════════════════════════════════════════════════════════
+  # PROGRESS TRACKING: Monitor and report progress
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: track_progress
+    infer:
+      prompt: |
+        Calculate batch processing progress:
+
+        State: {{use.state}}
+        Batch Results: {{use.batch_results}}
+        Total Items: {{use.total}}
+
+        Return JSON:
+        {
+          "processed": number,
+          "remaining": number,
+          "success_count": number,
+          "error_count": number,
+          "progress_percent": number,
+          "estimated_remaining_time": "duration string",
+          "throughput_per_minute": number
+        }
+      response_format: json
+    flow: [process_batch]
+    output:
+      use.progress: result
+
+  # ════════════════════════════════════════════════════════════════════
+  # CONTINUATION CHECK: Decide whether to continue or finish
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: check_continuation
+    infer:
+      prompt: |
+        Evaluate whether to continue processing:
+
+        Progress: {{use.progress}}
+
+        Continue if:
+        - More items remaining (remaining > 0)
+        - Error rate < 10%
+        - No critical errors
+
+        Return JSON:
+        {
+          "should_continue": boolean,
+          "reason": string,
+          "next_batch_size": number
+        }
+      response_format: json
+    flow: [track_progress]
+    output:
+      use.continuation: result
+    # Stop condition for completion
+    stop_conditions:
+      - pattern: '"should_continue":\s*false'
+        action: complete
+        message: "All items processed"
+
+  # ════════════════════════════════════════════════════════════════════
+  # RECURSIVE CONTINUATION: Process next batch
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: continue_processing
+    invoke_workflow:
+      path: "./batch-processor-resumable.nika.yaml"
+      inputs:
+        state:
+          last_index: "{{use.state.last_index + use.batch_results.length}}"
+          results_so_far: "{{use.state.results_so_far.concat(use.batch_results)}}"
+    condition: "{{use.continuation.should_continue}}"
+    flow: [check_continuation]
+
+  # ════════════════════════════════════════════════════════════════════
+  # FINALIZATION: Generate summary when complete
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: generate_summary
+    infer:
+      prompt: |
+        Generate final processing summary:
+
+        Final Progress: {{use.progress}}
+        All Results: {{use.state.results_so_far}}
+
+        Create comprehensive report with:
+        - Total processed
+        - Success/error breakdown
+        - Processing duration
+        - Average throughput
+        - Notable issues
+        - Recommendations
+      response_format: markdown
+    condition: "{{!use.continuation.should_continue}}"
+    flow: [check_continuation]
+    output:
+      use.summary: result
+
+  - id: cleanup_checkpoint
+    exec: "rm -f .nika/checkpoints/batch-processor-*.json"
+    condition: "{{!use.continuation.should_continue}}"
+    flow: [generate_summary]
+
+  - id: send_completion_notification
+    fetch:
+      url: "${SLACK_WEBHOOK_URL}"
+      method: POST
+      headers:
+        Content-Type: application/json
+      body: |
+        {
+          "text": "✅ Batch Processing Complete",
+          "blocks": [
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "{{use.summary}}"
+              }
+            }
+          ]
+        }
+    condition: "{{!use.continuation.should_continue}}"
+    flow: [cleanup_checkpoint]
+
+# ════════════════════════════════════════════════════════════════════
+# SHUTDOWN BEHAVIOR
+# ════════════════════════════════════════════════════════════════════
+#
+# On SIGTERM/Ctrl+C:
+# 1. Stop accepting new batch items
+# 2. Wait for in-flight items to complete (up to shutdown_timeout)
+# 3. Save checkpoint with current state
+# 4. Exit gracefully
+#
+# On resume:
+# 1. Load checkpoint from .nika/checkpoints/
+# 2. Continue from last processed index
+# 3. Merge new results with existing
+#
+# Resume command:
+#   nika run batch-processor-resumable.nika.yaml --resume

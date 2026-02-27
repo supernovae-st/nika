@@ -4,6 +4,7 @@
 //! Start with: cd novanet && cargo run --bin novanet-mcp
 
 use nika::ast::Workflow;
+use nika::serde_yaml;
 use std::env;
 use std::path::PathBuf;
 

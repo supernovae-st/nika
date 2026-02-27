@@ -246,6 +246,7 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
     use crate::ast::Workflow;
     use crate::event::EventLog;
     use crate::runtime::Runner;
+    use crate::serde_yaml;
 
     // Install panic hook for terminal recovery
     install_panic_hook();

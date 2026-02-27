@@ -8,6 +8,7 @@
 //! - Supporting dynamic workflow patterns
 
 use nika::binding::{ResolvedBindings, UseEntry, WiringSpec};
+use nika::serde_yaml;
 use nika::store::{DataStore, TaskResult};
 use serde_json::json;
 use std::sync::Arc;

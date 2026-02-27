@@ -11,6 +11,7 @@
 //! - OPENAI_API_KEY for OpenAI tests
 //! - Neo4j running for NovaNet tests
 
+use nika::serde_yaml;
 use std::sync::Arc;
 use std::time::Duration;
 

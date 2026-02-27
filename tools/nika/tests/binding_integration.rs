@@ -5,6 +5,7 @@
 use nika::binding::{
     parse_use_entry, template_resolve, validate_task_id, ResolvedBindings, WiringSpec,
 };
+use nika::serde_yaml;
 use nika::store::{DataStore, TaskResult};
 use serde_json::json;
 use std::sync::Arc;

@@ -21,6 +21,7 @@
 //!   session: .nika/sessions/prev.json  # Session restore
 //! ```
 
+use crate::serde_yaml;
 use std::path::Path;
 
 use globset::GlobBuilder;

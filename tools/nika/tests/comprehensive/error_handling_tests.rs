@@ -11,6 +11,7 @@
 
 use nika::ast::Workflow;
 use nika::dag::Dag;
+use nika::serde_yaml;
 
 // ============================================================================
 // PARSE ERROR TESTS (NIKA-000-009)

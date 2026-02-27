@@ -5,6 +5,7 @@
 
 use nika::ast::AgentParams;
 use nika::event::{EventKind, EventLog};
+use nika::serde_yaml;
 use serde_json::json;
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -18,6 +18,7 @@
 //! ```
 
 use crate::error::NikaError;
+use crate::serde_yaml;
 use jsonschema::Validator;
 use serde_json::Value;
 use std::sync::OnceLock;

@@ -7,6 +7,7 @@
 //! - `cargo nextest run provider_integration -- --ignored`
 //! - Requires ANTHROPIC_API_KEY or OPENAI_API_KEY
 
+use nika::serde_yaml;
 use rustc_hash::FxHashMap;
 use std::env;
 

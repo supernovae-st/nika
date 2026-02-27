@@ -4,6 +4,7 @@
 
 use nika::ast::Workflow;
 use nika::dag::Dag;
+use nika::serde_yaml;
 
 // ═══════════════════════════════════════════════════════════════
 // INTEGRATION TESTS: DAG Structure Validation

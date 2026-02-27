@@ -3,6 +3,7 @@
 //! Uses insta for snapshot comparison.
 
 use nika::ast::{TaskAction, Workflow};
+use nika::serde_yaml;
 use serde_json::json;
 
 // ============================================================================

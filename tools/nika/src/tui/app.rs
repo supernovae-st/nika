@@ -3,6 +3,7 @@
 //! Main event loop with 60 FPS rendering.
 //! Handles keyboard input, event processing, and frame rendering.
 
+use crate::serde_yaml;
 use std::io::{self, Stdout};
 use std::path::Path;
 use std::sync::Arc;

@@ -9,6 +9,7 @@
 use nika::ast::Workflow;
 use nika::event::EventLog;
 use nika::runtime::Runner;
+use nika::serde_yaml;
 
 /// Helper to create a minimal workflow YAML and parse it
 fn parse_workflow(yaml: &str) -> Workflow {

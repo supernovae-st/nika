@@ -318,6 +318,7 @@ impl AgentParams {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::serde_yaml;
 
     #[test]
     fn parse_agent_params_basic() {

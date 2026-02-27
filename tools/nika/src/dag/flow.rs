@@ -242,6 +242,7 @@ impl Dag {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::serde_yaml;
 
     // ═══════════════════════════════════════════════════════════════
     // CYCLE DETECTION TESTS

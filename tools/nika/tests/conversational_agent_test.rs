@@ -6,6 +6,7 @@
 //! These tests verify the agent: verb works correctly in conversational
 //! scenarios typical of chat interfaces.
 
+use nika::serde_yaml;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 

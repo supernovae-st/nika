@@ -28,6 +28,7 @@ use super::BuiltinTool;
 use crate::ast::Workflow;
 use crate::error::NikaError;
 use crate::runtime::Runner;
+use crate::serde_yaml;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::future::Future;

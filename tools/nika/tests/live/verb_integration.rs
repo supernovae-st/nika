@@ -4,6 +4,7 @@
 //! workflow definitions. Execution tests require API keys.
 
 use nika::ast::Workflow;
+use nika::serde_yaml;
 use std::env;
 
 /// Check if we have any LLM provider available

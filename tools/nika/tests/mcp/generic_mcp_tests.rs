@@ -3,6 +3,7 @@
 //! Tests MCP client functionality with various MCP servers.
 
 use nika::ast::{TaskAction, Workflow};
+use nika::serde_yaml;
 use std::env;
 
 /// Check if generic MCP tests are enabled

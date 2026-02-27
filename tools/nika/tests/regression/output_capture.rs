@@ -4,6 +4,7 @@
 //! Uses direct command execution for shell tests and workflow parsing for format validation.
 
 use nika::ast::Workflow;
+use nika::serde_yaml;
 use std::process::Command;
 
 // ============================================================================
