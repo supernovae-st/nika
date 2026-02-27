@@ -41,7 +41,7 @@ pub use output::{OutputFormat, OutputPolicy};
 pub use skill_def::{SkillDef, SkillRef};
 pub use workflow::{
     Flow, FlowEndpoint, McpConfigInline, Task, Workflow, SCHEMA_V01, SCHEMA_V02, SCHEMA_V03,
-    SCHEMA_V04, SCHEMA_V05, SCHEMA_V06,
+    SCHEMA_V04, SCHEMA_V05, SCHEMA_V06, SCHEMA_V07, SCHEMA_V08,
 };
 // DecomposeSpec is defined in decompose.rs (v0.5 - Runtime DAG expansion)
 pub use decompose::{DecomposeSpec, DecomposeStrategy};
