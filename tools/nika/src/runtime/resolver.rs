@@ -24,6 +24,7 @@ use rustc_hash::FxHashMap;
 use std::path::Path;
 use tokio::fs;
 use tracing::debug;
+use crate::serde_yaml;
 
 /// Resolved agents (all expanded to inline definitions)
 pub type ResolvedAgents = FxHashMap<String, ResolvedAgent>;

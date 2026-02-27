@@ -32,6 +32,7 @@
 use crate::mcp::types::McpErrorCode;
 use miette::Diagnostic;
 use thiserror::Error;
+use crate::serde_yaml;
 
 pub type Result<T> = std::result::Result<T, NikaError>;
 
@@ -196,6 +197,9 @@ pub enum NikaError {
 
     #[error("[NIKA-061] Schema validation failed: {details}")]
     SchemaFailed { details: String },
+
+    #[error("[NIKA-062] Serialization error: {details}")]
+    SerializationError { details: String },
 
     // ═══════════════════════════════════════════
     // USE BLOCK VALIDATION (070-079) - v0.1
@@ -504,6 +508,7 @@ impl NikaError {
             // Output errors
             Self::InvalidJson { .. } => "NIKA-060",
             Self::SchemaFailed { .. } => "NIKA-061",
+            Self::SerializationError { .. } => "NIKA-062",
             // Use block errors
             Self::DuplicateAlias { .. } => "NIKA-070",
             Self::UnknownAlias { .. } => "NIKA-071",
@@ -633,6 +638,7 @@ impl FixSuggestion for NikaError {
             }
             NikaError::InvalidJson { .. } => Some("Ensure output is valid JSON"),
             NikaError::SchemaFailed { .. } => Some("Fix output to match declared schema"),
+            NikaError::SerializationError { .. } => Some("Check data structure is serializable"),
             NikaError::DuplicateAlias { .. } => Some("Use unique alias names in use: block"),
             NikaError::UnknownAlias { .. } => {
                 Some("Declare the alias in use: block before referencing")
@@ -771,6 +777,7 @@ impl FixSuggestion for NikaError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::serde_yaml;
 
     // ═══════════════════════════════════════════════════════════════════════════
     // WORKFLOW ERRORS (000-009)
@@ -1273,7 +1280,8 @@ mod tests {
     #[test]
     fn test_yaml_parse_error_from_serde() {
         let yaml_str = "invalid: yaml: syntax:";
-        let yaml_err: serde_yaml::Result<serde_yaml::Value> = serde_yaml::from_str(yaml_str);
+        // Use serde_json::Value as target since serde-saphyr doesn't export Value type
+        let yaml_err = serde_yaml::from_str::<serde_json::Value>(yaml_str);
         if let Err(e) = yaml_err {
             let err: NikaError = e.into();
             assert_eq!(err.code(), "NIKA-095");

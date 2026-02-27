@@ -15,6 +15,7 @@
 //!         locale: "{{use.locale}}"
 //! ```
 
+use nika::serde_yaml;
 use nika::ast::Workflow;
 use nika::runtime::Runner;
 

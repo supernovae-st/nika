@@ -16,6 +16,7 @@ use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use crate::serde_yaml;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use nucleo::{Config, Matcher, Utf32Str};

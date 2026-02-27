@@ -243,6 +243,7 @@ impl<'de> Visitor<'de> for UseEntryVisitor {
 
 #[cfg(test)]
 mod tests {
+    use crate::serde_yaml;
     use super::*;
     use serde_json::json;
 

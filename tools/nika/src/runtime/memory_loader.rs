@@ -22,6 +22,7 @@
 //! ```
 
 use std::path::Path;
+use crate::serde_yaml;
 
 use globset::GlobBuilder;
 use ignore::WalkBuilder;

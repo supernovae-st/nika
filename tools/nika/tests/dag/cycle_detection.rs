@@ -2,6 +2,7 @@
 //!
 //! Ensures DAG validation correctly identifies cyclic dependencies.
 
+use nika::serde_yaml;
 use nika::ast::Workflow;
 use nika::dag::Dag;
 

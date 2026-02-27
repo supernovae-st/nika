@@ -2,6 +2,7 @@
 //!
 //! Tests YAML deserialization and validation of agent verb parameters.
 
+use nika::serde_yaml;
 use nika::ast::AgentParams;
 
 // ===============================================================

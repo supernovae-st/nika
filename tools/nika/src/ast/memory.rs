@@ -39,6 +39,7 @@ pub struct MemoryConfig {
 
 #[cfg(test)]
 mod tests {
+    use crate::serde_yaml;
     use super::*;
 
     #[test]

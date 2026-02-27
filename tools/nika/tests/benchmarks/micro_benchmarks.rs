@@ -3,6 +3,7 @@
 //! These are quick inline benchmarks for development.
 //! For detailed benchmarks, use the Criterion benchmarks in benches/
 
+use nika::serde_yaml;
 use nika::ast::Workflow;
 use nika::dag::Dag;
 use std::time::Instant;

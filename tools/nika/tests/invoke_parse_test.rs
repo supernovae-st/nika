@@ -2,6 +2,7 @@
 //!
 //! Tests YAML deserialization and validation of invoke verb parameters.
 
+use nika::serde_yaml;
 use nika::ast::InvokeParams;
 use serde_json::json;
 

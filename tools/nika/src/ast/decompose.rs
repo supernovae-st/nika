@@ -64,6 +64,7 @@ impl DecomposeSpec {
 
 #[cfg(test)]
 mod tests {
+    use crate::serde_yaml;
     use super::*;
 
     #[test]

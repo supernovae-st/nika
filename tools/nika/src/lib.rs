@@ -41,6 +41,14 @@
 //! | [`error`] | Error types with fix suggestions |
 
 // ═══════════════════════════════════════════════════════════════
+// YAML PARSING - serde-saphyr (replaces deprecated serde_yaml)
+// Migration: 2026-02-27 - serde_yaml v0.9.34 is deprecated
+// This alias allows all modules to continue using `serde_yaml::` syntax
+// See: docs/plans/2026-02-27-v014-complete-plan.md Section 14.1
+// ═══════════════════════════════════════════════════════════════
+pub use serde_saphyr as serde_yaml;
+
+// ═══════════════════════════════════════════════════════════════
 // DOMAIN MODEL - YAML → Rust types
 // ═══════════════════════════════════════════════════════════════
 pub mod ast;

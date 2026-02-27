@@ -1306,11 +1306,12 @@ mod tests {
         let yaml = workflow.to_yaml();
 
         // Should be parseable as YAML (not panic)
-        let parsed: serde_yaml::Value = serde_yaml::from_str(&yaml).expect("Valid YAML");
+        // Note: Using serde_json::Value as target since serde-saphyr doesn't export Value type
+        let parsed: serde_json::Value = crate::serde_yaml::from_str(&yaml).expect("Valid YAML");
 
         // Verify structure
         assert!(parsed["schema"].as_str().is_some());
-        assert!(parsed["tasks"].is_sequence());
-        assert!(parsed["flows"].is_sequence());
+        assert!(parsed["tasks"].is_array()); // serde_json uses is_array()
+        assert!(parsed["flows"].is_array());
     }
 }

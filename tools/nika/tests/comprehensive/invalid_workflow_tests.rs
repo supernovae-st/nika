@@ -9,6 +9,7 @@
 //! - Missing required fields
 //! - Type mismatches
 
+use nika::serde_yaml;
 use nika::ast::Workflow;
 use nika::dag::Dag;
 

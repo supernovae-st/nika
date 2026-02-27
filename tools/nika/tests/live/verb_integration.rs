@@ -3,6 +3,7 @@
 //! Tests each verb (infer, exec, fetch, invoke, agent) by parsing and validating
 //! workflow definitions. Execution tests require API keys.
 
+use nika::serde_yaml;
 use nika::ast::Workflow;
 use std::env;
 

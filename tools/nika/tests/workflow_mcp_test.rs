@@ -3,6 +3,7 @@
 //! Tests YAML deserialization of the `mcp` field in Workflow struct.
 //! This field was added in v0.2 to support inline MCP server configuration.
 
+use nika::serde_yaml;
 use nika::Workflow;
 
 // ===================================================================

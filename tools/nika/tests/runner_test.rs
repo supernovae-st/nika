@@ -6,6 +6,7 @@
 //! - for_each parallelism and concurrency
 //! - Event emission
 
+use nika::serde_yaml;
 use nika::ast::Workflow;
 use nika::event::EventLog;
 use nika::runtime::Runner;

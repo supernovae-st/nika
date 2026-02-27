@@ -3,6 +3,7 @@
 //! Tests the complete workflow parsing for invoke-novanet.nika.yaml example,
 //! verifying schema, task count, MCP config, and task action types.
 
+use nika::serde_yaml;
 use nika::ast::TaskAction;
 use nika::Workflow;
 

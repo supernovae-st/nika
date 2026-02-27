@@ -3,6 +3,7 @@
 //! These tests capture and compare actual outputs to detect regressions.
 //! Uses direct command execution for shell tests and workflow parsing for format validation.
 
+use nika::serde_yaml;
 use nika::ast::Workflow;
 use std::process::Command;
 

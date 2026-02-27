@@ -33,6 +33,7 @@ pub enum OutputFormat {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::serde_yaml;
 
     #[test]
     fn parse_text_format() {

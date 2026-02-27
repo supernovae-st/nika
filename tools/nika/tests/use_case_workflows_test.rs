@@ -13,6 +13,7 @@
 //! cargo nextest run use_case_workflows
 //! ```
 
+use nika::serde_yaml;
 use nika::Workflow;
 use std::fs;
 use std::path::Path;

@@ -3,6 +3,7 @@
 //! These tests verify that multiple concurrent MCP calls work correctly,
 //! testing the OnceCell-based client caching and io_lock synchronization.
 
+use nika::serde_yaml;
 use nika::ast::Workflow;
 use nika::runtime::Runner;
 

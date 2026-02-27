@@ -7,6 +7,7 @@ use std::io::{self, Stdout};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
+use crate::serde_yaml;
 
 // PERF: Use parking_lot::Mutex instead of std::sync::Mutex
 // - No poisoning (simpler error handling)

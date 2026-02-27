@@ -8,6 +8,7 @@
 //! Run manually:
 //! - `cargo nextest run mcp_integration -- --ignored`
 
+use nika::serde_yaml;
 use rustc_hash::FxHashMap;
 
 use nika::ast::{McpConfigInline, Workflow};

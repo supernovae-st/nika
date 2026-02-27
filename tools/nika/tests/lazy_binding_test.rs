@@ -7,6 +7,7 @@
 //! - Breaking circular dependency detection false positives
 //! - Supporting dynamic workflow patterns
 
+use nika::serde_yaml;
 use nika::binding::{ResolvedBindings, UseEntry, WiringSpec};
 use nika::store::{DataStore, TaskResult};
 use serde_json::json;

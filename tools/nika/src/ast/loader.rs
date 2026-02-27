@@ -24,6 +24,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use crate::error::NikaError;
+use crate::serde_yaml;
 
 /// Parsed agent/skill definition from any format
 #[derive(Debug, Clone)]

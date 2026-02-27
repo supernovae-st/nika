@@ -6,6 +6,7 @@
 //! Run mock tests: `cargo test --test mcp_real_output_test`
 //! Run real tests: `cargo test --test mcp_real_output_test -- --ignored`
 
+use nika::serde_yaml;
 use std::sync::Arc;
 use std::time::Duration;
 

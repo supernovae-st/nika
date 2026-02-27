@@ -198,6 +198,7 @@ fn validate_from_task(
 
 #[cfg(test)]
 mod tests {
+    use crate::serde_yaml;
     use super::*;
     use crate::ast::{FetchParams, InferParams, InvokeParams, Task};
     use crate::binding::UseEntry;

@@ -6,6 +6,7 @@
 //! - Fetch: HTTP request
 //! - Invoke: MCP tool call / resource read
 
+use nika::serde_yaml;
 use nika::ast::TaskAction;
 
 // ═══════════════════════════════════════════════════════════════

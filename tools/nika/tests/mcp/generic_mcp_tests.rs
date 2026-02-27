@@ -2,6 +2,7 @@
 //!
 //! Tests MCP client functionality with various MCP servers.
 
+use nika::serde_yaml;
 use nika::ast::{TaskAction, Workflow};
 use std::env;
 

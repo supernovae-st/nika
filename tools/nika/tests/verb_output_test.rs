@@ -6,6 +6,7 @@
 //! Run: `cargo test --test verb_output_test`
 //! Run with API: `cargo test --test verb_output_test -- --ignored`
 
+use nika::serde_yaml;
 use std::sync::Arc;
 use std::time::Duration;
 

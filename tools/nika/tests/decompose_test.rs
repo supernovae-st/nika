@@ -3,6 +3,7 @@
 //! Tests runtime DAG expansion via MCP traversal.
 //! Phase 4 of MVP 8: RLM Enhancements.
 
+use nika::serde_yaml;
 use nika::ast::{DecomposeStrategy, Workflow};
 
 // ============================================================================

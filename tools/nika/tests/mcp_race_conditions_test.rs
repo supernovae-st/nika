@@ -33,6 +33,7 @@
 //! | `test_concurrent_cache_access` | Multiple tasks hitting response cache | Cache thread safety |
 //! | `test_concurrent_connect_disconnect` | Connect/disconnect race | State consistency |
 
+use nika::serde_yaml;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
