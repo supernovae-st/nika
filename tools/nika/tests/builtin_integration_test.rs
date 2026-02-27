@@ -204,7 +204,12 @@ async fn test_executor_invoke_nika_run_nonexistent_errors() {
 
     assert!(result.is_err(), "Expected Err for non-existent workflow");
     let err = result.unwrap_err();
-    assert!(err.to_string().contains("not found"));
+    // v0.14.0: Path canonicalization gives "resolve workflow path" error for missing files
+    assert!(
+        err.to_string().contains("resolve workflow path") || err.to_string().contains("not found"),
+        "Expected error, got: {}",
+        err
+    );
 }
 
 #[tokio::test]

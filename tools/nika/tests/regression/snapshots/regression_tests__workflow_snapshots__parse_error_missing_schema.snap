@@ -2,4 +2,12 @@
 source: tests/regression/workflow_snapshots.rs
 expression: error_msg
 ---
-missing field `schema` at line 2 column 1
+error: line 2 column 1: missing field `schema`
+ --> <input>:2:1
+  |
+1 |
+2 | tasks:
+  | ^ missing field `schema`
+3 |   - id: task1
+4 |     exec: "echo"
+  |
