@@ -22,48 +22,66 @@ use nika::Event;
 
 const LONG_ABOUT: &str = r#"Nika - DAG workflow runner for AI tasks with MCP integration
 
-Nika executes YAML-defined workflows using 5 semantic verbs:
-  ⚡ infer:   LLM text generation
-  📟 exec:    Shell command execution
-  🛰️ fetch:   HTTP requests
-  🔌 invoke:  MCP tool calls
-  🐔 agent:   Multi-turn agentic loops
+Execute YAML-defined workflows using 5 semantic verbs:
+  infer:   LLM text generation (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama)
+  exec:    Shell command execution
+  fetch:   HTTP requests
+  invoke:  MCP tool calls
+  agent:   Multi-turn agentic loops
 
-Launch without arguments to open the interactive TUI."#;
+Terminal-first design: simple commands for simple tasks, TUI for complex interactions."#;
 
-const AFTER_HELP: &str = r#"EXAMPLES:
-    nika                              Launch interactive TUI (Home view)
-    nika workflow.nika.yaml           Run a workflow directly
-    nika chat                         Start conversational AI agent
-    nika chat --provider openai       Chat with OpenAI
-    nika run my-flow.nika.yaml        Run workflow (explicit)
-    nika check my-flow.nika.yaml      Validate workflow syntax
-    nika check flow.yaml --strict     Validate with MCP connections
-    nika studio my-flow.nika.yaml     Open workflow in editor
-    nika init                         Initialize a new project
-    nika trace list                   View execution traces
+const AFTER_HELP: &str = r#"QUICK START:
+    nika workflow.nika.yaml       Run a workflow (streaming output)
+    nika ui                       Open interactive TUI
+    nika init                     Initialize new project (.nika/)
+
+WORKFLOW EXECUTION:
+    nika <file.nika.yaml>         Run workflow directly
+    nika run <file> --provider x  Run with provider override
+    nika check <file>             Validate syntax and DAG
+    nika check <file> --strict    Validate + test MCP connections
+
+INTERACTIVE MODES:
+    nika ui                       TUI (Explorer view by default)
+    nika ui --view chat           TUI Chat view
+    nika ui --view editor         TUI Editor view
+    nika chat                     TUI Chat (shortcut)
+    nika studio [file]            TUI Editor (shortcut)
 
 PROVIDER MANAGEMENT:
-    nika provider list                List all LLM providers and their status
-    nika provider set anthropic       Set API key for a provider
-    nika provider test openai         Test connection to a provider
-    nika provider migrate             Migrate env vars to system keychain
+    nika provider list            Show providers and API key status
+    nika provider set anthropic   Store key in system keychain
+    nika provider test openai     Test provider connection
+    nika provider migrate         Move env vars to keychain
 
 MCP SERVER MANAGEMENT:
-    nika mcp list -w flow.yaml        List MCP servers defined in workflow
-    nika mcp test flow.yaml server    Test connection to an MCP server
-    nika mcp tools flow.yaml server   List tools from an MCP server
+    nika mcp list -w flow.yaml    List servers in workflow
+    nika mcp test flow.yaml srv   Test server connection
+    nika mcp tools flow.yaml srv  List available tools
 
-VIEWS (in TUI):
-    [a] Chat     Conversational agent interface
-    [h] Home     Browse and select workflows
-    [s] Studio   Edit YAML with live validation
-    [m] Monitor  Real-time execution observer
+TRACES:
+    nika trace list               List execution traces
+    nika trace show <id>          Show trace details
+    nika trace export <id>        Export to JSON/YAML
 
-KEYBOARD:
-    Tab          Navigate views
-    ?            Show help
-    q            Quit"#;
+ENVIRONMENT VARIABLES:
+    ANTHROPIC_API_KEY             Claude (preferred)
+    OPENAI_API_KEY                OpenAI
+    MISTRAL_API_KEY               Mistral
+    GROQ_API_KEY                  Groq
+    DEEPSEEK_API_KEY              DeepSeek
+    OLLAMA_API_BASE_URL           Ollama (no key needed)
+
+TUI VIEWS (in nika ui):
+    [e] Explorer   File browser + DAG preview
+    [c] Chat       AI agent conversation
+    [d] Editor     YAML workflow editor
+    [r] Runner     Real-time execution
+    [s] Scheduler  Cron/queue management
+
+DOCUMENTATION:
+    https://github.com/SuperNovae-studio/nika"#;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CLI STRUCTURE
@@ -86,26 +104,41 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Start interactive chat mode (agent conversation)
+    /// Launch interactive TUI (terminal UI)
     #[cfg(feature = "tui")]
+    Ui {
+        /// Initial view: explorer, chat, editor, runner, scheduler, settings
+        #[arg(short, long, value_name = "VIEW")]
+        view: Option<String>,
+
+        /// Workflow file to load (optional)
+        #[arg(value_name = "WORKFLOW")]
+        workflow: Option<PathBuf>,
+    },
+
+    /// Start interactive chat mode (shortcut for `nika ui --view chat`)
+    #[cfg(feature = "tui")]
+    #[command(visible_alias = "c")]
     Chat {
-        /// Override provider (claude, openai)
-        #[arg(short, long)]
+        /// LLM provider: claude, openai, mistral, groq, deepseek, ollama
+        #[arg(short, long, value_name = "NAME")]
         provider: Option<String>,
 
-        /// Override model
-        #[arg(short, long)]
+        /// Model name (provider-specific)
+        #[arg(short, long, value_name = "MODEL")]
         model: Option<String>,
     },
 
-    /// Open Studio editor for a workflow
+    /// Open Studio editor (shortcut for `nika ui --view editor`)
     #[cfg(feature = "tui")]
+    #[command(visible_alias = "s")]
     Studio {
         /// Workflow file to edit (optional)
         workflow: Option<PathBuf>,
     },
 
-    /// Run a workflow file
+    /// Run a workflow file (headless, no TUI)
+    #[command(visible_alias = "r")]
     Run {
         /// Path to .nika.yaml file
         file: String,
@@ -119,8 +152,8 @@ enum Commands {
         model: Option<String>,
     },
 
-    /// Validate a workflow file
-    #[command(alias = "validate")]
+    /// Validate workflow syntax, DAG structure, and bindings
+    #[command(alias = "validate", visible_alias = "v")]
     Check {
         /// Path to .nika.yaml file
         file: String,
@@ -320,20 +353,40 @@ async fn main() {
         }
     }
 
-    // Handle subcommands or default to TUI
+    // Handle subcommands or default to help (terminal-first)
     let result = match cli.command {
-        // No command = launch TUI (Home view)
+        // No command = show help (like cargo, git)
         None => {
-            #[cfg(feature = "tui")]
-            {
-                nika::tui::run_tui_standalone().await
-            }
-            #[cfg(not(feature = "tui"))]
-            {
-                eprintln!("{} TUI feature not enabled", "Error:".red().bold());
-                eprintln!("  {} Use: nika run <workflow.nika.yaml>", "Hint:".yellow());
+            use clap::CommandFactory;
+            if let Err(e) = Cli::command().print_help() {
+                eprintln!("Failed to print help: {}", e);
                 std::process::exit(1);
             }
+            Ok(())
+        }
+
+        // Launch TUI (explicit via `nika ui`)
+        #[cfg(feature = "tui")]
+        Some(Commands::Ui { view, workflow }) => {
+            use nika::tui::TuiView;
+            let initial_view = match view.as_deref() {
+                Some("chat") | Some("c") => Some(TuiView::Chat),
+                Some("editor") | Some("d") | Some("studio") => Some(TuiView::Editor),
+                Some("runner") | Some("r") | Some("monitor") => Some(TuiView::Runner),
+                Some("scheduler") | Some("s") => Some(TuiView::Scheduler),
+                Some("settings") | Some(",") => Some(TuiView::Settings),
+                Some("explorer") | Some("e") | Some("home") => Some(TuiView::Explorer),
+                Some(unknown) => {
+                    eprintln!(
+                        "{} Unknown view '{}'. Valid: explorer, chat, editor, runner, scheduler, settings",
+                        "Error:".red().bold(),
+                        unknown
+                    );
+                    std::process::exit(1);
+                }
+                None => None, // Use default (Explorer)
+            };
+            nika::tui::run_tui_with_options(workflow, initial_view).await
         }
 
         // Chat mode
@@ -400,9 +453,9 @@ async fn main() {
 
 /// Check if we're running in TUI mode (skip tracing to avoid terminal pollution)
 fn is_tui_mode(cli: &Cli) -> bool {
-    // No command and no file = TUI standalone
+    // No command and no file = show help (terminal-first), NOT TUI
     if cli.command.is_none() && cli.file.is_none() {
-        return true;
+        return false;
     }
 
     // Check TUI-related commands
@@ -410,7 +463,10 @@ fn is_tui_mode(cli: &Cli) -> bool {
     if let Some(ref cmd) = cli.command {
         return matches!(
             cmd,
-            Commands::Chat { .. } | Commands::Studio { .. } | Commands::Tui { .. }
+            Commands::Ui { .. }
+                | Commands::Chat { .. }
+                | Commands::Studio { .. }
+                | Commands::Tui { .. }
         );
     }
 
