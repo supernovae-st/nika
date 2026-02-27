@@ -36,6 +36,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   - `check_token_spend()` - Token budget limits and tracking
   - `PolicyDecision` enum: Allow, Block, RequiresApproval
   - `TokenBudget` with spend tracking and remaining budget
+- **Doctor Command** - System health diagnostics (v0.13.1)
+  - `nika doctor` - Run all diagnostic checks
+  - `nika doctor --full` - Include slow MCP connectivity checks
+  - `nika doctor --format json` - JSON output for scripting
+  - Checks: Project setup, config validity, API keys, trace dir, Rust version
 
 ### Changed
 - Verbosity levels: 0=warn, 1=info, 2=debug, 3=trace
