@@ -1,0 +1,296 @@
+# Parallel Entity Generation with Nested for_each
+# Demonstrates: Nested parallelism, decompose, MCP integration, batching
+#
+# v0.14 features:
+# - Nested for_each for 2D parallelism (entities × locales)
+# - decompose: for dynamic item discovery
+# - Concurrency control per level
+# - Result aggregation patterns
+#
+# Use case: Generate content for all entities across all locales
+schema: nika/workflow@0.7
+
+workflow: parallel-entity-generator
+description: |
+  Generate localized content for all entities in parallel.
+  Demonstrates advanced parallelism patterns with NovaNet MCP.
+
+mcp:
+  servers:
+    novanet:
+      command: cargo
+      args: ["run", "--manifest-path", "../novanet/tools/novanet-mcp/Cargo.toml"]
+      env:
+        NEO4J_URI: "${NEO4J_URI}"
+        NEO4J_USER: "${NEO4J_USER}"
+        NEO4J_PASSWORD: "${NEO4J_PASSWORD}"
+
+context:
+  files:
+    generation_config: ./.nika/context/generation-config.yaml
+    brand_guidelines: ./.nika/context/brand-guidelines.md
+
+tasks:
+  # ════════════════════════════════════════════════════════════════════
+  # STAGE 1: Discover Entities and Locales
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: discover_entities
+    invoke:
+      server: novanet
+      tool: novanet_traverse
+      params:
+        start: "project:qrcode-ai"
+        arc: "HAS_ENTITY"
+        depth: 1
+        return_fields: ["key", "name", "priority"]
+    output:
+      use.entities: result.nodes
+
+  - id: discover_locales
+    invoke:
+      server: novanet
+      tool: novanet_traverse
+      params:
+        start: "project:qrcode-ai"
+        arc: "SUPPORTS_LOCALE"
+        depth: 1
+        return_fields: ["code", "name", "tier"]
+    output:
+      use.locales: result.nodes
+
+  # ════════════════════════════════════════════════════════════════════
+  # STAGE 2: Create Generation Matrix
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: create_matrix
+    infer:
+      prompt: |
+        Create generation matrix from entities and locales:
+
+        Entities: {{use.entities}}
+        Locales: {{use.locales}}
+
+        Filter:
+        - Only entities with priority >= 2
+        - Only tier-1 and tier-2 locales
+        - Skip already generated combinations (check timestamps)
+
+        Return JSON array of generation tasks:
+        [
+          { "entity_key": "...", "locale_code": "...", "priority": number }
+        ]
+
+        Sort by priority (highest first).
+      response_format: json
+    flow: [discover_entities, discover_locales]
+    output:
+      use.generation_matrix: result
+
+  # ════════════════════════════════════════════════════════════════════
+  # STAGE 3: Batch by Entity (Outer Loop)
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: process_entities
+    for_each: "{{use.entities | filter(e => e.priority >= 2)}}"
+    as: entity
+    concurrency: 3  # Process 3 entities in parallel
+    fail_fast: false
+
+    # Inner workflow for each entity
+    tasks:
+      # Get entity context from NovaNet
+      - id: get_entity_context
+        invoke:
+          server: novanet
+          tool: novanet_describe
+          params:
+            entity: "{{use.entity.key}}"
+            include: ["atoms", "natives", "relations"]
+        output:
+          use.entity_context: result
+
+      # Generate for all locales of this entity
+      - id: generate_locales
+        for_each: "{{use.locales | filter(l => l.tier <= 2)}}"
+        as: locale
+        concurrency: 5  # 5 locales in parallel per entity
+        fail_fast: false
+
+        agent:
+          prompt: |
+            Generate localized content for entity in locale.
+
+            Entity: {{use.entity.key}}
+            Entity Context: {{use.entity_context}}
+            Locale: {{use.locale.code}}
+
+            Brand Guidelines:
+            {{context.files.brand_guidelines}}
+
+            Generation Config:
+            {{context.files.generation_config}}
+
+            Generate:
+            1. denomination_forms (text, title, abbrev, url)
+            2. description (150-200 words)
+            3. meta_title (60 chars)
+            4. meta_description (160 chars)
+            5. key_features (5 bullet points)
+
+            Return structured JSON matching EntityNative schema.
+          mcp: [novanet]
+          max_turns: 5
+          stop_conditions:
+            - pattern: "VALIDATION_PASSED"
+              action: complete
+        flow: [get_entity_context]
+        output:
+          use.locale_content: result
+
+      # Validate generated content
+      - id: validate_locale_content
+        invoke:
+          server: novanet
+          tool: novanet_validate
+          params:
+            entity: "{{use.entity.key}}"
+            locale: "{{use.locale.code}}"
+            content: "{{use.locale_content}}"
+            schema: "EntityNative"
+        flow: [generate_locales]
+        output:
+          use.validation_result: result
+
+      # Save to graph if valid
+      - id: save_entity_native
+        invoke:
+          server: novanet
+          tool: novanet_upsert
+          params:
+            node_type: "EntityNative"
+            entity: "{{use.entity.key}}"
+            locale: "{{use.locale.code}}"
+            data: "{{use.locale_content}}"
+        condition: "{{use.validation_result.valid}}"
+        flow: [validate_locale_content]
+        output:
+          use.save_result: result
+
+    flow: [create_matrix]
+    output:
+      use.entity_results: result
+
+  # ════════════════════════════════════════════════════════════════════
+  # STAGE 4: Aggregate Results
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: aggregate_results
+    infer:
+      prompt: |
+        Aggregate generation results:
+
+        Entity Results: {{use.entity_results}}
+
+        Calculate:
+        - Total entities processed
+        - Total locale combinations generated
+        - Success/failure breakdown
+        - Validation errors by type
+        - Average generation time per entity
+        - Coverage matrix (entity × locale)
+
+        Return comprehensive JSON report.
+      response_format: json
+    flow: [process_entities]
+    output:
+      use.aggregated_results: result
+
+  # ════════════════════════════════════════════════════════════════════
+  # STAGE 5: Quality Report
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: generate_quality_report
+    agent:
+      prompt: |
+        Generate quality report for content generation run:
+
+        Aggregated Results: {{use.aggregated_results}}
+
+        Analyze:
+        1. Content quality patterns
+        2. Locale-specific issues
+        3. Entity coverage gaps
+        4. Recommendations for improvements
+
+        Format as markdown report suitable for stakeholders.
+      max_turns: 3
+    flow: [aggregate_results]
+    output:
+      use.quality_report: result
+
+  - id: save_report
+    exec: |
+      mkdir -p reports
+      echo '{{use.quality_report}}' > reports/generation-report-$(date +%Y%m%d-%H%M%S).md
+    flow: [generate_quality_report]
+
+  # ════════════════════════════════════════════════════════════════════
+  # STAGE 6: Notifications
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: notify_completion
+    fetch:
+      url: "${SLACK_WEBHOOK_URL}"
+      method: POST
+      headers:
+        Content-Type: application/json
+      body: |
+        {
+          "text": "🚀 Entity Generation Complete",
+          "blocks": [
+            {
+              "type": "section",
+              "fields": [
+                {
+                  "type": "mrkdwn",
+                  "text": "*Entities:* {{use.aggregated_results.total_entities}}"
+                },
+                {
+                  "type": "mrkdwn",
+                  "text": "*Locales:* {{use.aggregated_results.total_locales}}"
+                },
+                {
+                  "type": "mrkdwn",
+                  "text": "*Success Rate:* {{use.aggregated_results.success_rate}}%"
+                },
+                {
+                  "type": "mrkdwn",
+                  "text": "*Duration:* {{use.aggregated_results.duration}}"
+                }
+              ]
+            }
+          ]
+        }
+    flow: [save_report]
+
+# ════════════════════════════════════════════════════════════════════
+# PARALLELISM DIAGRAM
+# ════════════════════════════════════════════════════════════════════
+#
+#                 ┌─────────────────────────────────────────────┐
+#                 │         process_entities (3 parallel)       │
+#                 │  ┌─────────┐  ┌─────────┐  ┌─────────┐     │
+#                 │  │Entity A │  │Entity B │  │Entity C │     │
+#                 │  └────┬────┘  └────┬────┘  └────┬────┘     │
+#                 │       │            │            │          │
+#                 │       ▼            ▼            ▼          │
+#                 │  ┌─────────────────────────────────────┐   │
+#                 │  │   generate_locales (5 parallel)     │   │
+#                 │  │  ┌────┐┌────┐┌────┐┌────┐┌────┐    │   │
+#                 │  │  │fr  ││en  ││de  ││es  ││it  │    │   │
+#                 │  │  └────┘└────┘└────┘└────┘└────┘    │   │
+#                 │  └─────────────────────────────────────┘   │
+#                 └─────────────────────────────────────────────┘
+#
+# Total parallelism: 3 entities × 5 locales = 15 concurrent generations

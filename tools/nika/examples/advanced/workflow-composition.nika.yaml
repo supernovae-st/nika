@@ -1,0 +1,252 @@
+# Workflow Composition - include: and invoke_workflow:
+# Demonstrates: Modular workflow design, DRY principles, reusable components
+#
+# v0.14 features:
+# - include: for importing shared task definitions
+# - invoke_workflow: for calling workflows as subroutines
+# - Scoped bindings between parent/child workflows
+#
+# This example shows a content generation system built from reusable workflows
+schema: nika/workflow@0.7
+
+workflow: content-generation-orchestrator
+description: |
+  Master workflow that composes multiple specialized workflows.
+  Demonstrates modular workflow architecture.
+
+# ════════════════════════════════════════════════════════════════════
+# INCLUDE: Import shared task definitions
+# ════════════════════════════════════════════════════════════════════
+include:
+  # Shared quality checking tasks
+  - path: ./shared/quality-checks.nika.yaml
+    prefix: quality_  # Tasks imported as quality_grammar_check, quality_seo_check, etc.
+
+  # Shared notification tasks
+  - path: ./shared/notifications.nika.yaml
+    prefix: notify_
+
+context:
+  files:
+    brand_voice: ./.nika/context/brand-voice.md
+    style_guide: ./.nika/context/style-guide.md
+    target_audience: ./.nika/context/audience-profile.json
+
+tasks:
+  # ════════════════════════════════════════════════════════════════════
+  # STAGE 1: Content Planning
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: analyze_requirements
+    infer:
+      prompt: |
+        Analyze content requirements:
+
+        Topic: {{use.topic}}
+        Target Audience: {{context.files.target_audience}}
+        Brand Voice: {{context.files.brand_voice}}
+
+        Return JSON with:
+        - content_type: "blog" | "landing" | "product" | "email"
+        - word_count: number
+        - key_sections: string[]
+        - seo_keywords: string[]
+        - tone: string
+      response_format: json
+    output:
+      use.content_plan: result
+
+  # ════════════════════════════════════════════════════════════════════
+  # STAGE 2: Invoke Specialized Workflows
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: generate_content
+    invoke_workflow:
+      # Dynamically select workflow based on content type
+      path: "./workflows/{{use.content_plan.content_type}}-generator.nika.yaml"
+      # Pass bindings to child workflow
+      inputs:
+        topic: "{{use.topic}}"
+        word_count: "{{use.content_plan.word_count}}"
+        sections: "{{use.content_plan.key_sections}}"
+        keywords: "{{use.content_plan.seo_keywords}}"
+        tone: "{{use.content_plan.tone}}"
+        brand_voice: "{{context.files.brand_voice}}"
+      # Capture outputs from child workflow
+      outputs:
+        content: draft_content
+        metadata: content_metadata
+    flow: [analyze_requirements]
+    output:
+      use.raw_content: result.content
+      use.content_meta: result.metadata
+
+  # ════════════════════════════════════════════════════════════════════
+  # STAGE 3: Parallel Quality Checks (Imported Tasks)
+  # ════════════════════════════════════════════════════════════════════
+
+  # These tasks come from ./shared/quality-checks.nika.yaml
+  # They're imported with prefix "quality_"
+
+  - id: run_quality_checks
+    for_each: ["grammar", "seo", "brand_voice", "readability"]
+    as: check_type
+    concurrency: 4
+    # Reference imported tasks dynamically
+    invoke_workflow:
+      path: "./shared/quality-checks.nika.yaml"
+      task: "{{use.check_type}}_check"
+      inputs:
+        content: "{{use.raw_content}}"
+        style_guide: "{{context.files.style_guide}}"
+    flow: [generate_content]
+    output:
+      use.quality_results: result
+
+  - id: aggregate_quality
+    infer:
+      prompt: |
+        Aggregate quality check results:
+
+        {{use.quality_results}}
+
+        Return JSON:
+        - overall_score: number (0-100)
+        - passed: boolean (true if score >= 80)
+        - issues: { category: string, severity: "low"|"medium"|"high", suggestion: string }[]
+        - requires_revision: boolean
+      response_format: json
+    flow: [run_quality_checks]
+    output:
+      use.quality_summary: result
+
+  # ════════════════════════════════════════════════════════════════════
+  # STAGE 4: Revision Loop (Conditional)
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: revise_content
+    agent:
+      prompt: |
+        Revise content based on quality feedback:
+
+        Original Content:
+        {{use.raw_content}}
+
+        Quality Issues:
+        {{use.quality_summary.issues}}
+
+        Style Guide:
+        {{context.files.style_guide}}
+
+        Fix all issues while maintaining:
+        - Brand voice
+        - Key messages
+        - SEO keywords
+
+        Return the revised content.
+      max_turns: 3
+    # Only run if revision is needed
+    condition: "{{use.quality_summary.requires_revision}}"
+    flow: [aggregate_quality]
+    output:
+      use.revised_content: result
+
+  # ════════════════════════════════════════════════════════════════════
+  # STAGE 5: SEO Optimization
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: optimize_seo
+    invoke_workflow:
+      path: "./workflows/seo-optimizer.nika.yaml"
+      inputs:
+        content: "{{use.revised_content || use.raw_content}}"
+        keywords: "{{use.content_plan.seo_keywords}}"
+        target_score: 85
+      outputs:
+        optimized: optimized_content
+        seo_report: seo_analysis
+    flow: [revise_content]
+    output:
+      use.final_content: result.optimized
+      use.seo_report: result.seo_report
+
+  # ════════════════════════════════════════════════════════════════════
+  # STAGE 6: Multi-Format Export
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: export_formats
+    for_each: ["html", "markdown", "json", "pdf"]
+    as: format
+    concurrency: 4
+    invoke_workflow:
+      path: "./workflows/content-exporter.nika.yaml"
+      inputs:
+        content: "{{use.final_content}}"
+        format: "{{use.format}}"
+        metadata: "{{use.content_meta}}"
+      outputs:
+        file_path: exported_file
+    flow: [optimize_seo]
+    output:
+      use.exported_files: result
+
+  # ════════════════════════════════════════════════════════════════════
+  # STAGE 7: Publish & Notify (Imported Tasks)
+  # ════════════════════════════════════════════════════════════════════
+
+  - id: publish_content
+    fetch:
+      url: "${CMS_API}/content"
+      method: POST
+      headers:
+        Authorization: "Bearer ${CMS_TOKEN}"
+        Content-Type: application/json
+      body: |
+        {
+          "title": "{{use.content_meta.title}}",
+          "content": "{{use.final_content}}",
+          "metadata": {{use.content_meta}},
+          "seo": {{use.seo_report}},
+          "status": "draft"
+        }
+    flow: [export_formats]
+    output:
+      use.publish_result: result
+
+  # Imported notification tasks from ./shared/notifications.nika.yaml
+  - id: send_notifications
+    invoke_workflow:
+      path: "./shared/notifications.nika.yaml"
+      inputs:
+        event_type: "content_published"
+        payload:
+          content_id: "{{use.publish_result.id}}"
+          title: "{{use.content_meta.title}}"
+          quality_score: "{{use.quality_summary.overall_score}}"
+          seo_score: "{{use.seo_report.score}}"
+          exported_files: "{{use.exported_files}}"
+    flow: [publish_content]
+
+# ════════════════════════════════════════════════════════════════════
+# WORKFLOW COMPOSITION SUMMARY
+# ════════════════════════════════════════════════════════════════════
+#
+# This master workflow composes:
+#
+# 1. INCLUDED TASKS (prefix namespacing):
+#    - quality-checks.nika.yaml → quality_grammar_check, quality_seo_check, etc.
+#    - notifications.nika.yaml → notify_slack, notify_email, etc.
+#
+# 2. INVOKED WORKFLOWS (subroutine calls):
+#    - blog-generator.nika.yaml
+#    - landing-generator.nika.yaml
+#    - product-generator.nika.yaml
+#    - email-generator.nika.yaml
+#    - seo-optimizer.nika.yaml
+#    - content-exporter.nika.yaml
+#
+# 3. BENEFITS:
+#    - DRY: Shared logic defined once
+#    - Testable: Each workflow tested independently
+#    - Maintainable: Changes propagate automatically
+#    - Composable: Mix and match for new use cases
