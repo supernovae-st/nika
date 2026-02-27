@@ -25,11 +25,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   - `-q, --quiet` - Suppress non-error output
   - `--color <auto|always|never>` - Control color output
 - **Config Template** - `templates/config.toml` for reset command
+- **Boot Sequence** - 6-phase startup with structured context
+  - Phases: ConfigDiscovery → ConfigValidation → MemoryLoading → McpStartup → ProviderValidation → Ready
+  - `BootContext` accumulates config, warnings, and timing
+  - `PhaseResult` with duration, success, and diagnostic messages
+  - Full `NikaConfig` struct: tools, provider, editor, session, trace, policy
+- **Policy Enforcer** - Security policy enforcement (v0.13.1)
+  - `check_exec()` - Block dangerous shell commands (sudo, rm -rf, chmod 777)
+  - `check_fetch()` - Block/allow hosts, enforce network restrictions
+  - `check_token_spend()` - Token budget limits and tracking
+  - `PolicyDecision` enum: Allow, Block, RequiresApproval
+  - `TokenBudget` with spend tracking and remaining budget
 
 ### Changed
 - Verbosity levels: 0=warn, 1=info, 2=debug, 3=trace
 - `nika ui --view` no longer has `-v` short option (conflicts with verbose)
 - Help text updated with new commands and global flags
+
+### New Error Codes
+- `NIKA-160` PolicyViolation - Action blocked by security policy
+- `NIKA-161` BootFailed - Boot sequence phase failure
 
 ### Dependencies
 - Added `clap_complete` 4.5 for shell completion

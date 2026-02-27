@@ -1,4 +1,4 @@
-//! Runtime Module - Workflow execution (v0.10.0)
+//! Runtime Module - Workflow execution (v0.13.1)
 //!
 //! Contains the runtime execution components:
 //! - `runner`: DAG execution with tokio concurrency
@@ -12,16 +12,20 @@
 //! - `hitl`: Human-In-The-Loop handler trait (v0.10.0)
 //! - `memory_loader`: Memory file loading at workflow start (v0.13 Schema @0.6)
 //! - `resolver`: Agent and skill resolution (v0.13 Schema @0.6)
+//! - `boot`: Boot sequence with 6-phase initialization (v0.13.1)
+//! - `policy`: Security policy enforcement for exec/fetch/tokens (v0.13.1)
 //!
 //! This module represents the "how" - runtime execution.
 //! For static structure, see the `ast` module.
 
+pub mod boot;
 pub mod builtin;
 pub mod chat_workflow;
 mod executor;
 pub mod hitl;
 pub mod memory_loader;
 mod output;
+pub mod policy;
 pub mod resolver;
 mod rig_agent_loop;
 mod runner;
@@ -44,3 +48,10 @@ pub use resolver::{
 pub use rig_agent_loop::{RigAgentLoop, RigAgentLoopResult, RigAgentStatus};
 pub use runner::Runner;
 pub use spawn::{SpawnAgentParams, SpawnAgentTool};
+
+// v0.13.1: Boot sequence and policy enforcement
+pub use boot::{
+    BootContext, BootPhase, BootSequence, EditorConfig, NikaConfig, PhaseResult, PolicyConfig,
+    ProviderConfig, SessionConfig, ToolsConfig, TraceConfig,
+};
+pub use policy::{PolicyDecision, PolicyEnforcer, TokenBudget};

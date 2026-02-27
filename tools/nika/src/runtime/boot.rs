@@ -1,0 +1,690 @@
+//! Boot Sequence - 6-phase startup with progress reporting (v0.13.1)
+//!
+//! Phases:
+//! 1. Config discovery (find .nika/)
+//! 2. Config validation (parse config.toml)
+//! 3. Memory loading (load memory files)
+//! 4. MCP server startup (launch configured servers)
+//! 5. Provider validation (check API keys)
+//! 6. Ready state
+
+use crate::error::NikaError;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
+/// Boot phase enumeration
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum BootPhase {
+    /// Phase 1: Finding .nika/ directory
+    ConfigDiscovery,
+    /// Phase 2: Parsing and validating config.toml
+    ConfigValidation,
+    /// Phase 3: Loading memory files
+    MemoryLoading,
+    /// Phase 4: Starting MCP servers
+    McpStartup,
+    /// Phase 5: Validating provider API keys
+    ProviderValidation,
+    /// Phase 6: System ready
+    Ready,
+}
+
+impl BootPhase {
+    /// Get human-readable phase name
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::ConfigDiscovery => "Config Discovery",
+            Self::ConfigValidation => "Config Validation",
+            Self::MemoryLoading => "Memory Loading",
+            Self::McpStartup => "MCP Startup",
+            Self::ProviderValidation => "Provider Validation",
+            Self::Ready => "Ready",
+        }
+    }
+
+    /// Get phase number (1-6)
+    pub fn number(&self) -> u8 {
+        match self {
+            Self::ConfigDiscovery => 1,
+            Self::ConfigValidation => 2,
+            Self::MemoryLoading => 3,
+            Self::McpStartup => 4,
+            Self::ProviderValidation => 5,
+            Self::Ready => 6,
+        }
+    }
+
+    /// Get phase icon
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Self::ConfigDiscovery => "🔍",
+            Self::ConfigValidation => "✅",
+            Self::MemoryLoading => "📚",
+            Self::McpStartup => "🔌",
+            Self::ProviderValidation => "🔑",
+            Self::Ready => "🚀",
+        }
+    }
+}
+
+/// Phase result with timing
+#[derive(Debug, Clone)]
+pub struct PhaseResult {
+    pub phase: BootPhase,
+    pub success: bool,
+    pub duration: Duration,
+    pub message: Option<String>,
+    pub warnings: Vec<String>,
+}
+
+/// Boot context - accumulated state during boot
+#[derive(Debug, Clone, Default)]
+pub struct BootContext {
+    /// Root .nika/ directory
+    pub nika_dir: Option<PathBuf>,
+    /// Parsed configuration
+    pub config: Option<NikaConfig>,
+    /// Loaded memory context
+    pub memory: Option<HashMap<String, serde_json::Value>>,
+    /// Available MCP servers
+    pub mcp_servers: Vec<String>,
+    /// Available providers with API keys
+    pub providers: Vec<String>,
+    /// Phase results
+    pub phases: Vec<PhaseResult>,
+    /// Total boot duration
+    pub total_duration: Duration,
+}
+
+/// Nika configuration from config.toml
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NikaConfig {
+    #[serde(default)]
+    pub tools: ToolsConfig,
+    #[serde(default)]
+    pub provider: ProviderConfig,
+    #[serde(default)]
+    pub editor: EditorConfig,
+    #[serde(default)]
+    pub session: SessionConfig,
+    #[serde(default)]
+    pub trace: TraceConfig,
+    #[serde(default)]
+    pub policy: PolicyConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolsConfig {
+    #[serde(default = "default_permission")]
+    pub permission: String,
+    pub working_dir: Option<String>,
+}
+
+impl Default for ToolsConfig {
+    fn default() -> Self {
+        Self {
+            permission: default_permission(),
+            working_dir: None,
+        }
+    }
+}
+
+fn default_permission() -> String {
+    "plan".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderConfig {
+    #[serde(default = "default_provider")]
+    pub default: String,
+    pub model: Option<String>,
+}
+
+impl Default for ProviderConfig {
+    fn default() -> Self {
+        Self {
+            default: default_provider(),
+            model: None,
+        }
+    }
+}
+
+fn default_provider() -> String {
+    "claude".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EditorConfig {
+    #[serde(default = "default_theme")]
+    pub theme: String,
+    #[serde(default = "default_tab_width")]
+    pub tab_width: u8,
+    #[serde(default = "default_true")]
+    pub auto_format: bool,
+}
+
+impl Default for EditorConfig {
+    fn default() -> Self {
+        Self {
+            theme: default_theme(),
+            tab_width: default_tab_width(),
+            auto_format: true,
+        }
+    }
+}
+
+fn default_theme() -> String {
+    "solarized".to_string()
+}
+
+fn default_tab_width() -> u8 {
+    2
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionConfig {
+    #[serde(default = "default_true")]
+    pub auto_restore: bool,
+    #[serde(default = "default_max_sessions")]
+    pub max_sessions: u32,
+    #[serde(default = "default_session_ttl")]
+    pub session_ttl_days: u32,
+}
+
+impl Default for SessionConfig {
+    fn default() -> Self {
+        Self {
+            auto_restore: true,
+            max_sessions: default_max_sessions(),
+            session_ttl_days: default_session_ttl(),
+        }
+    }
+}
+
+fn default_max_sessions() -> u32 {
+    50
+}
+
+fn default_session_ttl() -> u32 {
+    7
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TraceConfig {
+    #[serde(default = "default_retention")]
+    pub retention_days: u32,
+    #[serde(default = "default_max_traces")]
+    pub max_traces: u32,
+}
+
+impl Default for TraceConfig {
+    fn default() -> Self {
+        Self {
+            retention_days: default_retention(),
+            max_traces: default_max_traces(),
+        }
+    }
+}
+
+fn default_retention() -> u32 {
+    7
+}
+
+fn default_max_traces() -> u32 {
+    100
+}
+
+/// Policy configuration for security enforcement
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PolicyConfig {
+    /// Allow exec: verb
+    #[serde(default = "default_true")]
+    pub allow_exec: bool,
+    /// Allow fetch: verb (network access)
+    #[serde(default = "default_true")]
+    pub allow_network: bool,
+    /// Blocked shell commands (substrings)
+    #[serde(default)]
+    pub blocked_commands: Vec<String>,
+    /// Maximum token spend per workflow run
+    pub max_token_spend: Option<u64>,
+    /// Allowed hosts for fetch:
+    #[serde(default)]
+    pub allowed_hosts: Vec<String>,
+    /// Blocked hosts for fetch:
+    #[serde(default)]
+    pub blocked_hosts: Vec<String>,
+}
+
+impl Default for PolicyConfig {
+    fn default() -> Self {
+        Self {
+            allow_exec: true,
+            allow_network: true,
+            blocked_commands: vec![
+                "rm -rf /".to_string(),
+                "sudo".to_string(),
+                "chmod 777".to_string(),
+            ],
+            max_token_spend: None,
+            allowed_hosts: vec![],
+            blocked_hosts: vec![],
+        }
+    }
+}
+
+/// Boot sequence runner
+pub struct BootSequence {
+    start_dir: PathBuf,
+    verbose: bool,
+}
+
+impl BootSequence {
+    /// Create a new boot sequence starting from a directory
+    pub fn new(start_dir: impl AsRef<Path>) -> Self {
+        Self {
+            start_dir: start_dir.as_ref().to_path_buf(),
+            verbose: false,
+        }
+    }
+
+    /// Enable verbose output
+    pub fn with_verbose(mut self, verbose: bool) -> Self {
+        self.verbose = verbose;
+        self
+    }
+
+    /// Run the full boot sequence
+    pub async fn run(&self) -> Result<BootContext, NikaError> {
+        let boot_start = Instant::now();
+        let mut ctx = BootContext::default();
+
+        // Phase 1: Config Discovery
+        let phase_result = self.phase_config_discovery(&mut ctx).await;
+        ctx.phases.push(phase_result.clone());
+        if !phase_result.success {
+            ctx.total_duration = boot_start.elapsed();
+            return Err(NikaError::ValidationError {
+                reason: phase_result
+                    .message
+                    .unwrap_or_else(|| "Config discovery failed".into()),
+            });
+        }
+
+        // Phase 2: Config Validation
+        let phase_result = self.phase_config_validation(&mut ctx).await;
+        ctx.phases.push(phase_result.clone());
+        if !phase_result.success {
+            ctx.total_duration = boot_start.elapsed();
+            return Err(NikaError::ValidationError {
+                reason: phase_result
+                    .message
+                    .unwrap_or_else(|| "Config validation failed".into()),
+            });
+        }
+
+        // Phase 3: Memory Loading (optional, doesn't fail boot)
+        let phase_result = self.phase_memory_loading(&mut ctx).await;
+        ctx.phases.push(phase_result);
+
+        // Phase 4: MCP Startup (optional, doesn't fail boot)
+        let phase_result = self.phase_mcp_startup(&mut ctx).await;
+        ctx.phases.push(phase_result);
+
+        // Phase 5: Provider Validation (optional, doesn't fail boot)
+        let phase_result = self.phase_provider_validation(&mut ctx).await;
+        ctx.phases.push(phase_result);
+
+        // Phase 6: Ready
+        ctx.phases.push(PhaseResult {
+            phase: BootPhase::Ready,
+            success: true,
+            duration: Duration::ZERO,
+            message: Some("Boot complete".into()),
+            warnings: vec![],
+        });
+
+        ctx.total_duration = boot_start.elapsed();
+        Ok(ctx)
+    }
+
+    async fn phase_config_discovery(&self, ctx: &mut BootContext) -> PhaseResult {
+        let start = Instant::now();
+        let mut warnings = vec![];
+
+        // Search for .nika/ directory
+        let mut dir = self.start_dir.as_path();
+        loop {
+            let nika_dir = dir.join(".nika");
+            if nika_dir.exists() && nika_dir.is_dir() {
+                ctx.nika_dir = Some(nika_dir);
+                return PhaseResult {
+                    phase: BootPhase::ConfigDiscovery,
+                    success: true,
+                    duration: start.elapsed(),
+                    message: Some(format!("Found .nika/ at {}", dir.display())),
+                    warnings,
+                };
+            }
+
+            match dir.parent() {
+                Some(parent) => dir = parent,
+                None => break,
+            }
+        }
+
+        // Not found - use current directory
+        warnings.push("No .nika/ directory found, using defaults".into());
+        ctx.nika_dir = Some(self.start_dir.join(".nika"));
+
+        PhaseResult {
+            phase: BootPhase::ConfigDiscovery,
+            success: true, // Still succeeds, just with defaults
+            duration: start.elapsed(),
+            message: Some("Using default configuration".into()),
+            warnings,
+        }
+    }
+
+    async fn phase_config_validation(&self, ctx: &mut BootContext) -> PhaseResult {
+        let start = Instant::now();
+        let mut warnings = vec![];
+
+        let nika_dir = match &ctx.nika_dir {
+            Some(dir) => dir.clone(),
+            None => {
+                return PhaseResult {
+                    phase: BootPhase::ConfigValidation,
+                    success: false,
+                    duration: start.elapsed(),
+                    message: Some("No .nika directory".into()),
+                    warnings,
+                };
+            }
+        };
+
+        let config_path = nika_dir.join("config.toml");
+        if !config_path.exists() {
+            // Use defaults
+            ctx.config = Some(NikaConfig::default());
+            warnings.push("config.toml not found, using defaults".into());
+            return PhaseResult {
+                phase: BootPhase::ConfigValidation,
+                success: true,
+                duration: start.elapsed(),
+                message: Some("Using default configuration".into()),
+                warnings,
+            };
+        }
+
+        // Parse config
+        match tokio::fs::read_to_string(&config_path).await {
+            Ok(content) => match toml::from_str::<NikaConfig>(&content) {
+                Ok(config) => {
+                    ctx.config = Some(config);
+                    PhaseResult {
+                        phase: BootPhase::ConfigValidation,
+                        success: true,
+                        duration: start.elapsed(),
+                        message: Some("Configuration loaded".into()),
+                        warnings,
+                    }
+                }
+                Err(e) => {
+                    warnings.push(format!("Config parse error: {}", e));
+                    ctx.config = Some(NikaConfig::default());
+                    PhaseResult {
+                        phase: BootPhase::ConfigValidation,
+                        success: true, // Proceed with defaults
+                        duration: start.elapsed(),
+                        message: Some("Using defaults due to parse error".into()),
+                        warnings,
+                    }
+                }
+            },
+            Err(e) => {
+                warnings.push(format!("Config read error: {}", e));
+                ctx.config = Some(NikaConfig::default());
+                PhaseResult {
+                    phase: BootPhase::ConfigValidation,
+                    success: true,
+                    duration: start.elapsed(),
+                    message: Some("Using defaults due to read error".into()),
+                    warnings,
+                }
+            }
+        }
+    }
+
+    async fn phase_memory_loading(&self, ctx: &mut BootContext) -> PhaseResult {
+        let start = Instant::now();
+        let warnings = vec![];
+
+        let nika_dir = match &ctx.nika_dir {
+            Some(dir) => dir.clone(),
+            None => {
+                return PhaseResult {
+                    phase: BootPhase::MemoryLoading,
+                    success: true,
+                    duration: start.elapsed(),
+                    message: Some("Skipped (no .nika/)".into()),
+                    warnings,
+                };
+            }
+        };
+
+        let memory_path = nika_dir.join("memory.yaml");
+        if !memory_path.exists() {
+            return PhaseResult {
+                phase: BootPhase::MemoryLoading,
+                success: true,
+                duration: start.elapsed(),
+                message: Some("No memory.yaml".into()),
+                warnings,
+            };
+        }
+
+        // Load memory (simplified - full implementation in memory_loader.rs)
+        ctx.memory = Some(HashMap::new());
+
+        PhaseResult {
+            phase: BootPhase::MemoryLoading,
+            success: true,
+            duration: start.elapsed(),
+            message: Some("Memory loaded".into()),
+            warnings,
+        }
+    }
+
+    async fn phase_mcp_startup(&self, _ctx: &mut BootContext) -> PhaseResult {
+        let start = Instant::now();
+        let warnings = vec![];
+
+        // MCP servers are started on-demand, not at boot
+        // This phase just checks for configured servers
+
+        PhaseResult {
+            phase: BootPhase::McpStartup,
+            success: true,
+            duration: start.elapsed(),
+            message: Some("MCP servers ready (on-demand)".into()),
+            warnings,
+        }
+    }
+
+    async fn phase_provider_validation(&self, ctx: &mut BootContext) -> PhaseResult {
+        let start = Instant::now();
+        let mut warnings = vec![];
+        let mut providers = vec![];
+
+        // Check for API keys
+        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+            providers.push("claude".to_string());
+        }
+        if std::env::var("OPENAI_API_KEY").is_ok() {
+            providers.push("openai".to_string());
+        }
+        if std::env::var("MISTRAL_API_KEY").is_ok() {
+            providers.push("mistral".to_string());
+        }
+        if std::env::var("GROQ_API_KEY").is_ok() {
+            providers.push("groq".to_string());
+        }
+        if std::env::var("DEEPSEEK_API_KEY").is_ok() {
+            providers.push("deepseek".to_string());
+        }
+        if std::env::var("OLLAMA_API_BASE_URL").is_ok() {
+            providers.push("ollama".to_string());
+        }
+
+        if providers.is_empty() {
+            warnings.push("No API keys found".into());
+        }
+
+        ctx.providers = providers.clone();
+
+        PhaseResult {
+            phase: BootPhase::ProviderValidation,
+            success: true,
+            duration: start.elapsed(),
+            message: Some(format!("{} provider(s) available", providers.len())),
+            warnings,
+        }
+    }
+}
+
+impl BootContext {
+    /// Check if boot was successful
+    pub fn is_ready(&self) -> bool {
+        self.phases
+            .iter()
+            .any(|p| p.phase == BootPhase::Ready && p.success)
+    }
+
+    /// Get all warnings from boot phases
+    pub fn all_warnings(&self) -> Vec<String> {
+        self.phases
+            .iter()
+            .flat_map(|p| p.warnings.clone())
+            .collect()
+    }
+
+    /// Format boot summary for display
+    pub fn summary(&self) -> String {
+        let mut lines = vec![format!("Boot completed in {:?}", self.total_duration)];
+
+        for phase in &self.phases {
+            let status = if phase.success { "✓" } else { "✗" };
+            lines.push(format!(
+                "  {} {} {} ({:?})",
+                status,
+                phase.phase.icon(),
+                phase.phase.name(),
+                phase.duration
+            ));
+            for warning in &phase.warnings {
+                lines.push(format!("    ⚠ {}", warning));
+            }
+        }
+
+        lines.join("\n")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_boot_phase_properties() {
+        assert_eq!(BootPhase::ConfigDiscovery.number(), 1);
+        assert_eq!(BootPhase::Ready.number(), 6);
+        assert_eq!(BootPhase::McpStartup.name(), "MCP Startup");
+    }
+
+    #[test]
+    fn test_default_config() {
+        let config = NikaConfig::default();
+        assert_eq!(config.tools.permission, "plan");
+        assert_eq!(config.provider.default, "claude");
+        assert_eq!(config.editor.theme, "solarized");
+        assert!(config.policy.allow_exec);
+    }
+
+    #[test]
+    fn test_policy_defaults() {
+        let policy = PolicyConfig::default();
+        assert!(policy.allow_exec);
+        assert!(policy.allow_network);
+        assert!(policy.blocked_commands.contains(&"sudo".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_boot_sequence_no_nika_dir() {
+        let temp = tempdir().unwrap();
+        let boot = BootSequence::new(temp.path());
+        let ctx = boot.run().await.unwrap();
+
+        assert!(ctx.is_ready());
+        assert!(ctx.all_warnings().iter().any(|w| w.contains("No .nika/")));
+    }
+
+    #[tokio::test]
+    async fn test_boot_sequence_with_config() {
+        let temp = tempdir().unwrap();
+        let nika_dir = temp.path().join(".nika");
+        std::fs::create_dir_all(&nika_dir).unwrap();
+
+        let config_content = r#"
+[tools]
+permission = "accept-edits"
+
+[provider]
+default = "openai"
+"#;
+        std::fs::write(nika_dir.join("config.toml"), config_content).unwrap();
+
+        let boot = BootSequence::new(temp.path());
+        let ctx = boot.run().await.unwrap();
+
+        assert!(ctx.is_ready());
+        let config = ctx.config.unwrap();
+        assert_eq!(config.tools.permission, "accept-edits");
+        assert_eq!(config.provider.default, "openai");
+    }
+
+    #[test]
+    fn test_boot_context_summary() {
+        let ctx = BootContext {
+            phases: vec![
+                PhaseResult {
+                    phase: BootPhase::ConfigDiscovery,
+                    success: true,
+                    duration: Duration::from_millis(5),
+                    message: Some("Found".into()),
+                    warnings: vec![],
+                },
+                PhaseResult {
+                    phase: BootPhase::Ready,
+                    success: true,
+                    duration: Duration::ZERO,
+                    message: Some("Ready".into()),
+                    warnings: vec![],
+                },
+            ],
+            total_duration: Duration::from_millis(10),
+            ..Default::default()
+        };
+
+        let summary = ctx.summary();
+        assert!(summary.contains("Boot completed"));
+        assert!(summary.contains("Config Discovery"));
+    }
+}

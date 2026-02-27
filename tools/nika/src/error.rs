@@ -400,6 +400,23 @@ pub enum NikaError {
     StartupError { phase: String, reason: String },
 
     // ═══════════════════════════════════════════
+    // POLICY ERRORS (160-169) - NEW v0.13.1
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-160] Policy violation: {reason}")]
+    #[diagnostic(
+        code(nika::policy_violation),
+        help("Check .nika/config.toml [policy] section or use --allow flag")
+    )]
+    PolicyViolation { reason: String },
+
+    #[error("[NIKA-161] Boot sequence failed in phase '{phase}': {reason}")]
+    #[diagnostic(
+        code(nika::boot_failed),
+        help("Run 'nika doctor' to diagnose boot issues")
+    )]
+    BootFailed { phase: String, reason: String },
+
+    // ═══════════════════════════════════════════
     // TOOL ERRORS (200-209) - NEW v0.6
     // ═══════════════════════════════════════════
     #[error("[{code}] {message}")]
@@ -544,6 +561,9 @@ impl NikaError {
             Self::AssertionFailed { .. } => "NIKA-213",
             // Memory errors (v0.13)
             Self::MemoryLoadError { .. } => "NIKA-250",
+            // Policy errors (v0.13.1)
+            Self::PolicyViolation { .. } => "NIKA-160",
+            Self::BootFailed { .. } => "NIKA-161",
         }
     }
 
@@ -737,6 +757,13 @@ impl FixSuggestion for NikaError {
             NikaError::AssertionFailed { .. } => Some("The condition evaluated to false"),
             // Memory errors (v0.13)
             NikaError::MemoryLoadError { .. } => Some("Check the file path exists and is readable"),
+            // Policy errors (v0.13.1)
+            NikaError::PolicyViolation { .. } => {
+                Some("This action was blocked by security policy. Check .nika/config.toml policy section.")
+            }
+            NikaError::BootFailed { .. } => {
+                Some("Boot sequence failed. Run 'nika doctor' to diagnose.")
+            }
         }
     }
 }
