@@ -33,7 +33,7 @@ tasks:
     );
 
     let workflow: Workflow = serde_yaml::from_str(&yaml).unwrap();
-    let runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
     assert!(
@@ -70,7 +70,7 @@ tasks:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
     assert!(
@@ -102,7 +102,7 @@ tasks:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
     assert!(result.is_ok(), "Should succeed: {:?}", result.err());

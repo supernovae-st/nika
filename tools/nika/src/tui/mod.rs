@@ -274,7 +274,7 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
 
     // 3. Create Runner with the broadcast-enabled EventLog and quiet mode
     // quiet() suppresses console output that would interfere with the TUI
-    let runner = Runner::with_event_log(workflow, event_log).quiet();
+    let mut runner = Runner::with_event_log(workflow, event_log).quiet();
 
     // 4. Spawn Runner in background task
     let runner_handle = tokio::spawn(async move {
@@ -388,6 +388,61 @@ pub async fn run_tui_studio(workflow: Option<std::path::PathBuf>) -> crate::erro
     app.run_unified().await
 }
 
+/// Run the TUI with customizable options (view and workflow)
+///
+/// This is the entry point for `nika ui [--view <view>] [workflow]` command.
+/// Supports all 7 views: explorer, chat, editor, runner, scheduler, settings, split.
+///
+/// # Arguments
+///
+/// * `workflow` - Optional workflow file to load
+/// * `initial_view` - Optional initial view (defaults to Explorer)
+#[cfg(feature = "tui")]
+pub async fn run_tui_with_options(
+    workflow: Option<std::path::PathBuf>,
+    initial_view: Option<views::TuiView>,
+) -> crate::error::Result<()> {
+    use views::TuiView;
+
+    // Install panic hook for terminal recovery
+    install_panic_hook();
+
+    // Find project root
+    let root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+    // Create standalone state
+    let state = StandaloneState::new(root.clone());
+
+    // Create app with initial view (default to Explorer)
+    let mut app = App::new_standalone(state)?;
+
+    if let Some(view) = initial_view {
+        app = app.with_initial_view(view);
+    }
+
+    // If workflow provided and view is Editor/Runner, load it
+    if let Some(path) = workflow {
+        let full_path = if path.is_absolute() {
+            path
+        } else {
+            root.join(path)
+        };
+
+        // Load file into Editor if Editor/Split view, or use for Runner
+        match initial_view {
+            Some(TuiView::Editor) | Some(TuiView::Split) | None => {
+                app = app.with_studio_file(full_path);
+            }
+            _ => {
+                // For other views, still set the file context
+                app = app.with_studio_file(full_path);
+            }
+        }
+    }
+
+    app.run_unified().await
+}
+
 /// Find project root by looking for Cargo.toml or .git
 #[cfg(feature = "tui")]
 fn find_project_root() -> Option<std::path::PathBuf> {
@@ -429,6 +484,16 @@ pub async fn run_tui_chat(
 
 #[cfg(not(feature = "tui"))]
 pub async fn run_tui_studio(_workflow: Option<std::path::PathBuf>) -> crate::error::Result<()> {
+    Err(crate::error::NikaError::ValidationError {
+        reason: "TUI feature not enabled. Rebuild with --features tui".to_string(),
+    })
+}
+
+#[cfg(not(feature = "tui"))]
+pub async fn run_tui_with_options(
+    _workflow: Option<std::path::PathBuf>,
+    _initial_view: Option<views::TuiView>,
+) -> crate::error::Result<()> {
     Err(crate::error::NikaError::ValidationError {
         reason: "TUI feature not enabled. Rebuild with --features tui".to_string(),
     })

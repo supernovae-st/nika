@@ -14,7 +14,8 @@
         "nika/workflow@0.2",
         "nika/workflow@0.3",
         "nika/workflow@0.4",
-        "nika/workflow@0.5"
+        "nika/workflow@0.5",
+        "nika/workflow@0.6"
       ],
       "description": "Workflow schema version"
     },
@@ -43,6 +44,10 @@
         "$ref": "#/$defs/McpConfig"
       }
     },
+    "memory": {
+      "$ref": "#/$defs/MemoryConfig",
+      "description": "Memory configuration for loading files at workflow start (v0.6+)"
+    },
     "tasks": {
       "type": "array",
       "minItems": 1,
@@ -60,6 +65,21 @@
     }
   },
   "$defs": {
+    "MemoryConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Map of alias -> file path (supports glob patterns)"
+        },
+        "session": {
+          "type": "string",
+          "description": "Path to session JSON file to restore"
+        }
+      }
+    },
     "McpConfig": {
       "type": "object",
       "required": ["command"],

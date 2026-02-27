@@ -61,8 +61,8 @@ use super::theme::Theme;
 use super::utils::truncate_str;
 use super::verification::{VerificationCache, VerificationEntry};
 use super::views::{
-    ChatView, HelpView, HomeView, McpAction, MonitorView, SchedulerView, SettingsView, StudioView,
-    TuiView, View, ViewAction,
+    ChatView, HelpView, HomeView, McpAction, MonitorView, SchedulerView, SettingsView, SplitView,
+    StudioView, TuiView, View, ViewAction,
 };
 use super::widgets::task_box::{
     AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,
@@ -248,6 +248,8 @@ pub struct App {
     monitor_view: MonitorView,
     /// Scheduler view state (v0.12 - cron/queue management)
     scheduler_view: SchedulerView,
+    /// Split view state (v0.13 - side-by-side Editor + Runner)
+    split_view: SplitView,
     // ═══ LLM Integration for ChatOverlay ═══
     /// Channel for receiving LLM responses (complete responses)
     llm_response_rx: mpsc::Receiver<String>,
@@ -317,6 +319,7 @@ impl App {
         let help_view = HelpView::new();
         let monitor_view = MonitorView::new();
         let scheduler_view = SchedulerView::new();
+        let split_view = SplitView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -363,6 +366,7 @@ impl App {
             help_view,
             monitor_view,
             scheduler_view,
+            split_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -394,6 +398,7 @@ impl App {
         let help_view = HelpView::new();
         let monitor_view = MonitorView::new();
         let scheduler_view = SchedulerView::new();
+        let split_view = SplitView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -440,6 +445,7 @@ impl App {
             help_view,
             monitor_view,
             scheduler_view,
+            split_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -696,6 +702,7 @@ impl App {
             }
             self.studio_view.tick(); // v0.9.1: Matrix Rain animation
             self.studio_view.maybe_validate(); // Debounced validation (300ms after last edit)
+            self.monitor_view.tick(&mut self.state); // v0.12.1: Runner panel animations
 
             // v0.12: Tick intro animation (if active)
             if let Some(ref mut intro) = self.intro_state {
@@ -903,17 +910,10 @@ impl App {
                 StreamChunk::Done(_complete) => {
                     // Stream completed - finalize thinking and attach to last message
                     self.chat_view.finalize_thinking();
-                    // v0.8.1 FIX: Transfer partial_response to message when streaming finishes
-                    if self.chat_view.is_streaming {
-                        let final_response = self.chat_view.finish_streaming();
-                        // Replace placeholder with final streamed response
-                        if !final_response.is_empty() {
-                            if let Some(last) = self.chat_view.messages.last_mut() {
-                                last.content = final_response;
-                            }
-                        }
-                    }
-                    tracing::debug!("Stream completed");
+                    // v0.12.1: Don't update message here - InferComplete handles the response
+                    // The InferComplete event transfers partial_response to InferBox.response
+                    // Old v0.8.1 code updated last message, but now TaskBox replaces AI bubble
+                    tracing::debug!("Stream completed (TaskBox handles response)");
                 }
                 StreamChunk::Error(err) => {
                     // Remove "Thinking..." message and show categorized error (v0.5.2+)
@@ -939,6 +939,9 @@ impl App {
                 } => {
                     // Update session context with token usage for status bar display
                     self.chat_view.add_tokens(input_tokens, output_tokens);
+                    // v0.12.1: Also update the running InferBox with final token counts
+                    self.chat_view
+                        .append_infer_content("", output_tokens as u32);
                     tracing::debug!(
                         input = input_tokens,
                         output = output_tokens,
@@ -994,11 +997,12 @@ impl App {
                 }
                 StreamChunk::InferStart {
                     model,
+                    prompt,
                     prompt_tokens,
                     max_tokens,
                 } => {
-                    // v0.8.4: Create TaskBox::Infer for inline rendering
-                    let infer_box = InferBox::new(&model, "(streaming...)")
+                    // v0.12.1: Create TaskBox::Infer with actual prompt for inline rendering
+                    let infer_box = InferBox::new(&model, &prompt)
                         .with_state(BoxState::running())
                         .with_tokens(prompt_tokens, 0)
                         .with_streaming_cursor(true);
@@ -1017,18 +1021,13 @@ impl App {
                     self.chat_view.append_infer_content("", output_tokens);
                 }
                 StreamChunk::InferComplete => {
-                    // v0.8.4: Update TaskBox::Infer with success (find by type + Running state)
+                    // v0.12.1: InferBox REPLACES AI message bubble (Option A)
+                    // 1. Transfer partial_response to InferBox.response
                     self.chat_view.complete_last_infer_box(0);
-                    // Complete inline inference visualization
+                    // 2. Complete inline inference visualization
                     self.chat_view.complete_infer_stream();
-                    // v0.8.1 FIX: Transfer partial_response to message when streaming finishes
-                    let final_response = self.chat_view.finish_streaming();
-                    if !final_response.is_empty() {
-                        if let Some(last) = self.chat_view.messages.last_mut() {
-                            // Replace placeholder with final streamed response
-                            last.content = final_response;
-                        }
-                    }
+                    // 3. Set is_streaming = false (response already transferred to InferBox)
+                    let _ = self.chat_view.finish_streaming();
                     tracing::debug!("Infer completed with TaskBox");
                 }
                 // ═══════════════════════════════════════════════════════════════════════
@@ -1313,6 +1312,7 @@ impl App {
                 format!("Tasks: {}/{}", completed, task_count)
             };
             let scheduler_status = self.scheduler_view.status_line(&self.state);
+            let split_status = self.split_view.status_line(&self.state); // v0.13: Split view
 
             // Extract references to avoid borrow issues with the closure
             let theme = &self.theme;
@@ -1324,6 +1324,7 @@ impl App {
             let _help_view = &mut self.help_view; // v0.12: Help merged into Settings, kept for backwards compat
             let monitor_view = &mut self.monitor_view;
             let scheduler_view = &mut self.scheduler_view;
+            let split_view = &mut self.split_view; // v0.13: Split view
             let workflow_path = &self.state.workflow.path;
             let intro_state = &self.intro_state; // v0.12: Intro animation state
                                                  // P0 Fix: Use is_paused() accessor for unified pause state
@@ -1346,6 +1347,8 @@ impl App {
                 TuiView::Editor => studio_status,
                 TuiView::Runner => monitor_status,
                 TuiView::Scheduler => scheduler_status,
+                // v0.13: Split view (Editor + Runner side by side)
+                TuiView::Split => split_status,
                 // Auxiliary views use their own status (v0.11)
                 TuiView::Settings => settings_view.status_line(state),
             };
@@ -1419,6 +1422,10 @@ impl App {
                         TuiView::Scheduler => {
                             // v0.12: Scheduler view (cron/queue management)
                             scheduler_view.render(frame, chunks[1], state, theme);
+                        }
+                        TuiView::Split => {
+                            // v0.13: Split view (Editor + Runner side by side)
+                            split_view.render(frame, chunks[1], state, theme);
                         }
                         // v0.11: Auxiliary views (Settings)
                         TuiView::Settings => {
@@ -1582,6 +1589,11 @@ impl App {
                 let view_action = self.scheduler_view.handle_key(key_event, &mut self.state);
                 self.convert_view_action(view_action)
             }
+            TuiView::Split => {
+                // v0.13: Split view (Editor + Runner side by side)
+                let view_action = self.split_view.handle_key(key_event, &mut self.state);
+                self.convert_view_action(view_action)
+            }
             // v0.11: Auxiliary views - delegate to view handlers
             TuiView::Settings => {
                 let view_action = self.settings_view.handle_key(key_event, &mut self.state);
@@ -1624,51 +1636,83 @@ impl App {
                 Action::SwitchView(TuiView::Editor)
             }
             ViewAction::SendChatMessage(msg) => {
-                // Send message to LLM for processing (like /infer but conversational)
+                // v0.12.1: Send message using TaskBox pattern (like /infer)
+                // This enables InferBox rendering instead of plain text bubbles
                 if !msg.is_empty() {
-                    // Show "Thinking..." indicator
-                    self.chat_view
-                        .add_nika_message("Thinking...".to_string(), None);
+                    // v0.12.1: Don't add "Thinking..." message - InferBox replaces AI bubble
+                    // Old: self.chat_view.add_nika_message("Thinking...".to_string(), None);
 
                     // Build conversation context from previous messages
                     let context = self.build_conversation_context();
                     let prompt_with_context = format!("{}{}", context, msg);
 
+                    // v0.12.1: Use streaming channel for TaskBox rendering (like handle_chat_infer)
+                    let stream_tx = self.stream_chunk_tx.clone();
+
                     // v0.8.2: Capture selected provider/model for correct routing
                     let provider_id = self.chat_view.current_provider_id.clone();
                     let model_name = self.chat_view.current_model.clone();
 
-                    // Spawn tracked task to call ChatAgent.infer() with timeout protection
-                    let tx = self.llm_response_tx.clone();
+                    // Estimate prompt tokens (rough approximation: chars / 4)
+                    let prompt_tokens = (prompt_with_context.len() / 4) as u32;
+                    let max_tokens = 4096u32;
+
+                    // v0.12.1: Capture user prompt for TaskBox display
+                    let user_prompt = msg.clone();
+
+                    // Spawn tracked task to call ChatAgent.infer() with TaskBox events
                     if self.ensure_chat_agent().is_some() {
                         self.spawn_tracked(async move {
-                            // v0.8.2: Use selected provider/model (CRITICAL FIX!)
+                            // v0.12.1: Send InferStart to create TaskBox::Infer with actual prompt
+                            let _ = stream_tx
+                                .send(StreamChunk::InferStart {
+                                    model: model_name.clone(),
+                                    prompt: user_prompt.clone(),
+                                    prompt_tokens,
+                                    max_tokens,
+                                })
+                                .await;
+
+                            // v0.8.2: Create agent with selected provider/model
+                            // Wire streaming for real-time token display (TaskBox UX)
                             match crate::tui::ChatAgent::with_overrides(
                                 Some(&provider_id),
                                 Some(&model_name),
                             ) {
-                                Ok(mut agent) => {
+                                Ok(agent) => {
+                                    let mut agent = agent.with_stream_chunks(stream_tx.clone());
                                     match timeout(INFER_TIMEOUT, agent.infer(&prompt_with_context))
                                         .await
                                     {
-                                        Ok(Ok(response)) => {
-                                            let _ = tx.send(response).await;
+                                        Ok(Ok(_response)) => {
+                                            // Response already displayed via streaming tokens
+                                            // StreamChunk::Token appends to TaskBox
                                         }
                                         Ok(Err(e)) => {
-                                            let _ = tx.send(format!("Error: {}", e)).await;
+                                            let _ = stream_tx
+                                                .send(StreamChunk::Error(e.to_string()))
+                                                .await;
                                         }
                                         Err(_) => {
-                                            let _ = tx
-                                                .send(format!(
-                                                    "Error: LLM inference timed out after {}s",
+                                            let _ = stream_tx
+                                                .send(StreamChunk::Error(format!(
+                                                    "LLM inference timed out after {}s",
                                                     INFER_TIMEOUT.as_secs()
-                                                ))
+                                                )))
                                                 .await;
                                         }
                                     }
+                                    // v0.12.1: Send InferComplete to finalize TaskBox
+                                    let _ = stream_tx.send(StreamChunk::InferComplete).await;
                                 }
                                 Err(e) => {
-                                    let _ = tx.send(format!("Error: {}", e)).await;
+                                    let _ = stream_tx
+                                        .send(StreamChunk::Error(format!(
+                                            "Error creating agent: {}",
+                                            e
+                                        )))
+                                        .await;
+                                    let _ = stream_tx.send(StreamChunk::InferComplete).await;
                                 }
                             }
                         });
@@ -2269,8 +2313,41 @@ impl App {
             }
             // View navigation actions (with Navigation 2.0 focus sync)
             Action::SwitchView(view) => {
+                // v0.12.1: Call lifecycle hooks on view transition
+                let old_view = self.current_view;
+                if old_view != view {
+                    // Call on_leave for the old view
+                    match old_view {
+                        TuiView::Chat => self.chat_view.on_leave(&mut self.state),
+                        TuiView::Explorer => {
+                            if let Some(ref mut home) = self.home_view {
+                                home.on_leave(&mut self.state);
+                            }
+                        }
+                        TuiView::Editor => self.studio_view.on_leave(&mut self.state),
+                        TuiView::Runner => self.monitor_view.on_leave(&mut self.state),
+                        _ => {} // Scheduler, Settings - no special handling yet
+                    }
+                }
+
                 self.current_view = view;
                 self.focus_state.reset_to_view(view);
+
+                // v0.12.1: Call on_enter for the new view
+                if old_view != view {
+                    match view {
+                        TuiView::Chat => self.chat_view.on_enter(&mut self.state),
+                        TuiView::Explorer => {
+                            if let Some(ref mut home) = self.home_view {
+                                home.on_enter(&mut self.state);
+                            }
+                        }
+                        TuiView::Editor => self.studio_view.on_enter(&mut self.state),
+                        TuiView::Runner => self.monitor_view.on_enter(&mut self.state),
+                        _ => {} // Scheduler, Settings - no special handling yet
+                    }
+                }
+
                 // Auto-enter Insert mode for Chat view so users can type immediately
                 self.input_mode = if view == TuiView::Chat {
                     InputMode::Insert
@@ -2595,9 +2672,8 @@ impl App {
             return;
         }
 
-        // Show "Thinking..." indicator
-        self.chat_view
-            .add_nika_message("Thinking...".to_string(), None);
+        // v0.12.1: Don't add "Thinking..." message - InferBox replaces AI bubble
+        // Old: self.chat_view.add_nika_message("Thinking...".to_string(), None);
 
         // Build conversation context from previous messages
         let context = self.build_conversation_context();
@@ -2623,13 +2699,17 @@ impl App {
         // v0.8.2: Capture selected provider ID for correct routing
         let provider_id = self.chat_view.current_provider_id.clone();
 
+        // v0.12.1: Capture user prompt for TaskBox display
+        let user_prompt = prompt.clone();
+
         // Check if agent exists or can be created
         if self.ensure_chat_agent().is_some() {
             self.spawn_tracked(async move {
-                // v0.8.0: Send InferStart for inline visualization
+                // v0.12.1: Send InferStart for inline visualization with actual prompt
                 let _ = stream_tx
                     .send(StreamChunk::InferStart {
                         model: model_name.clone(),
+                        prompt: user_prompt.clone(),
                         prompt_tokens,
                         max_tokens,
                     })
@@ -3683,7 +3763,7 @@ impl App {
             }
 
             // Create and run workflow with timeout protection
-            let runner = Runner::with_event_log(workflow, event_log);
+            let mut runner = Runner::with_event_log(workflow, event_log);
             match timeout(WORKFLOW_TIMEOUT, runner.run()).await {
                 Ok(Ok(output)) => {
                     tracing::info!("Workflow completed: {} chars output", output.len());
@@ -4575,17 +4655,18 @@ mod tests {
         std::fs::write(&workflow_path, "schema: test").unwrap();
         let mut app = App::new(&workflow_path).unwrap();
 
-        // Record initial message count
-        let initial_count = app.chat_view.messages.len();
+        // v0.12.1: Option A - InferBox REPLACES the AI message bubble
+        // SendChatMessage now uses TaskBox pattern via StreamChunk events
+        // No "Thinking..." message is added - response comes via InferBox widget
 
-        // Send a message - this triggers async LLM call or shows "no API key" message
+        // Send a message - this triggers async LLM call via stream_chunk_tx
         let action = app.convert_view_action(ViewAction::SendChatMessage("Hello".to_string()));
+
+        // Should return Continue (async task spawned, no immediate state change)
         assert_eq!(action, Action::Continue);
 
-        // Should have added at least one message:
-        // - "Thinking..." (if API key available and async task spawned)
-        // - OR "No API key configured..." (if no API key)
-        assert!(app.chat_view.messages.len() > initial_count);
+        // Note: The actual TaskBox creation happens asynchronously via stream_chunk_tx
+        // which is processed in the event loop, not synchronously in convert_view_action
     }
 
     // ═══════════════════════════════════════════

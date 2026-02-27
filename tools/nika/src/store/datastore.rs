@@ -2,14 +2,18 @@
 //!
 //! Single HashMap design with lock-free concurrent access.
 //! Path resolution unified with jsonpath module.
+//!
+//! v0.13: Added memory storage for workflow `memory:` block.
 
 use std::borrow::Cow;
 use std::sync::Arc;
 use std::time::Duration;
 
 use dashmap::DashMap;
+use parking_lot::RwLock;
 use serde_json::Value;
 
+use crate::runtime::memory_loader::LoadedMemory;
 use crate::util::jsonpath;
 
 /// Task execution status
@@ -83,10 +87,18 @@ impl TaskResult {
 /// Thread-safe storage for task results (lock-free)
 ///
 /// Uses `Arc<str>` keys for zero-cost cloning with same Arc used in events.
+///
+/// v0.13: Added memory storage for workflow `memory:` block.
 #[derive(Clone, Default)]
 pub struct DataStore {
     /// Task results: task_id → TaskResult
     results: Arc<DashMap<Arc<str>, TaskResult>>,
+
+    /// Memory loaded at workflow start (v0.13)
+    ///
+    /// Contains files loaded from the `memory:` block.
+    /// Accessible via `{{memory.files.alias}}` bindings.
+    memory: Arc<RwLock<LoadedMemory>>,
 }
 
 impl DataStore {
@@ -138,6 +150,84 @@ impl DataStore {
         // Use jsonpath for path resolution (handles both dots and array indices)
         // Arc<Value> derefs to &Value, so this works without changes
         jsonpath::resolve(&output, remaining).ok().flatten()
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MEMORY STORAGE (v0.13 Schema @0.6)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Set workflow memory (v0.13)
+    ///
+    /// Called by Runner at workflow start after loading memory files.
+    pub fn set_memory(&self, memory: LoadedMemory) {
+        *self.memory.write() = memory;
+    }
+
+    /// Get a memory file by alias (v0.13)
+    ///
+    /// Returns the loaded value for `{{memory.files.alias}}` bindings.
+    pub fn get_memory_file(&self, alias: &str) -> Option<Value> {
+        self.memory.read().get_file(alias).cloned()
+    }
+
+    /// Get session data (v0.13)
+    ///
+    /// Returns the loaded session for `{{memory.session.key}}` bindings.
+    pub fn get_memory_session(&self) -> Option<Value> {
+        self.memory.read().get_session().cloned()
+    }
+
+    /// Check if memory is loaded (v0.13)
+    pub fn has_memory(&self) -> bool {
+        !self.memory.read().is_empty()
+    }
+
+    /// Resolve a memory path (v0.13)
+    ///
+    /// Supports:
+    /// - `memory.files.alias` → file content
+    /// - `memory.files.alias.field` → nested field
+    /// - `memory.session` → session data
+    /// - `memory.session.field` → session field
+    pub fn resolve_memory_path(&self, path: &str) -> Option<Value> {
+        let parts: Vec<&str> = path.split('.').collect();
+        if parts.len() < 2 {
+            return None;
+        }
+
+        let memory = self.memory.read();
+
+        match parts[1] {
+            "files" => {
+                if parts.len() < 3 {
+                    return None;
+                }
+                let alias = parts[2];
+                let value = memory.get_file(alias)?;
+
+                if parts.len() == 3 {
+                    // memory.files.alias → full file content
+                    Some(value.clone())
+                } else {
+                    // memory.files.alias.field → nested path
+                    let remaining = parts[3..].join(".");
+                    jsonpath::resolve(value, &remaining).ok().flatten()
+                }
+            }
+            "session" => {
+                let session = memory.get_session()?;
+
+                if parts.len() == 2 {
+                    // memory.session → full session
+                    Some(session.clone())
+                } else {
+                    // memory.session.field → nested path
+                    let remaining = parts[2..].join(".");
+                    jsonpath::resolve(session, &remaining).ok().flatten()
+                }
+            }
+            _ => None,
+        }
     }
 }
 
@@ -509,5 +599,115 @@ mod tests {
 
         // Clone should also see it (same underlying DashMap)
         assert!(cloned.contains("new"));
+    }
+
+    // =========================================================================
+    // Memory Storage Tests (v0.13 Schema @0.6)
+    // =========================================================================
+
+    #[test]
+    fn test_memory_default_is_empty() {
+        let store = DataStore::new();
+        assert!(!store.has_memory());
+    }
+
+    #[test]
+    fn test_set_and_get_memory_file() {
+        let store = DataStore::new();
+
+        let mut memory = LoadedMemory::new();
+        memory
+            .files
+            .insert("brand".to_string(), json!("# Brand Guide"));
+
+        store.set_memory(memory);
+
+        assert!(store.has_memory());
+        assert_eq!(store.get_memory_file("brand"), Some(json!("# Brand Guide")));
+        assert!(store.get_memory_file("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_set_and_get_memory_session() {
+        let store = DataStore::new();
+
+        let mut memory = LoadedMemory::new();
+        memory.session = Some(json!({"focus_areas": ["rust", "ai"]}));
+
+        store.set_memory(memory);
+
+        assert!(store.has_memory());
+        let session = store.get_memory_session().unwrap();
+        assert!(session["focus_areas"].is_array());
+    }
+
+    #[test]
+    fn test_resolve_memory_path_files() {
+        let store = DataStore::new();
+
+        let mut memory = LoadedMemory::new();
+        memory.files.insert(
+            "persona".to_string(),
+            json!({"name": "Agent", "role": "assistant"}),
+        );
+
+        store.set_memory(memory);
+
+        // Full file
+        assert_eq!(
+            store.resolve_memory_path("memory.files.persona"),
+            Some(json!({"name": "Agent", "role": "assistant"}))
+        );
+
+        // Nested field
+        assert_eq!(
+            store.resolve_memory_path("memory.files.persona.name"),
+            Some(json!("Agent"))
+        );
+
+        // Missing file
+        assert!(store.resolve_memory_path("memory.files.missing").is_none());
+    }
+
+    #[test]
+    fn test_resolve_memory_path_session() {
+        let store = DataStore::new();
+
+        let mut memory = LoadedMemory::new();
+        memory.session = Some(json!({"focus": "rust", "level": 3}));
+
+        store.set_memory(memory);
+
+        // Full session
+        assert_eq!(
+            store.resolve_memory_path("memory.session"),
+            Some(json!({"focus": "rust", "level": 3}))
+        );
+
+        // Nested field
+        assert_eq!(
+            store.resolve_memory_path("memory.session.focus"),
+            Some(json!("rust"))
+        );
+        assert_eq!(
+            store.resolve_memory_path("memory.session.level"),
+            Some(json!(3))
+        );
+    }
+
+    #[test]
+    fn test_resolve_memory_path_invalid() {
+        let store = DataStore::new();
+
+        let mut memory = LoadedMemory::new();
+        memory.files.insert("brand".to_string(), json!("content"));
+
+        store.set_memory(memory);
+
+        // Invalid paths
+        assert!(store.resolve_memory_path("memory").is_none());
+        assert!(store.resolve_memory_path("memory.invalid").is_none());
+        assert!(store.resolve_memory_path("memory.files").is_none());
+        assert!(store.resolve_memory_path("other.path").is_none());
     }
 }

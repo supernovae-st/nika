@@ -102,6 +102,7 @@ impl BuiltinTool for LogTool {
     }
 
     fn parameters_schema(&self) -> serde_json::Value {
+        // v0.12.1: OpenAI-compatible schema with additionalProperties: false
         serde_json::json!({
             "type": "object",
             "properties": {
@@ -115,7 +116,8 @@ impl BuiltinTool for LogTool {
                     "description": "Log message to emit"
                 }
             },
-            "required": ["level", "message"]
+            "required": ["level", "message"],
+            "additionalProperties": false
         })
     }
 

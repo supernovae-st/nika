@@ -39,7 +39,7 @@ use crate::event::{ContextSource, EventKind, ExcludedItem};
 
 use super::theme::{MissionPhase, TaskStatus, ThemeMode};
 use super::views::{DagTab, MissionTab, NovanetTab, ReasoningTab};
-use super::widgets::{StatusQueue, TimelineEntry};
+use super::widgets::{task_box::TokenVelocity, StatusQueue, TimelineEntry};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ANIMATION FRAME CONSTANTS (v0.9.x)
@@ -712,6 +712,8 @@ pub struct Metrics {
     pub provider_calls: usize,
     /// Last model used (for status display)
     pub last_model: Option<String>,
+    /// Token velocity tracker for sparkline display (v0.13)
+    pub token_velocity: TokenVelocity,
 }
 
 // ═══════════════════════════════════════════
@@ -2150,6 +2152,14 @@ impl TuiState {
                     .push(input_tokens + output_tokens);
                 if let Some(ttft) = ttft_ms {
                     self.metrics.latency_history.push(*ttft);
+                    // v0.13: Calculate tokens/sec from TTFT and push to velocity tracker
+                    // TTFT in ms, output_tokens is total - estimate avg rate
+                    let ttft_secs = (*ttft as f32).max(1.0) / 1000.0;
+                    let velocity = *output_tokens as f32 / ttft_secs;
+                    self.metrics.token_velocity.push(velocity);
+                } else if *output_tokens > 0 {
+                    // Fallback: assume ~1 second if no TTFT, just track relative activity
+                    self.metrics.token_velocity.push(*output_tokens as f32);
                 }
 
                 // TIER 3.4: Token usage progression with cosmic pirate emojis

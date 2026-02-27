@@ -1,0 +1,20 @@
+# Test: Agent with extended thinking (Claude only)
+# Tests the extended_thinking: true parameter
+# Run with: ANTHROPIC_API_KEY=... nika examples/test-agent-with-thinking.nika.yaml
+
+schema: "nika/workflow@0.5"
+provider: claude
+
+tasks:
+  - id: thinking_agent
+    agent:
+      prompt: "Analyze step by step: What are the 3 most important features for a QR Code generator?"
+      extended_thinking: true
+      thinking_budget: 2000
+      max_turns: 2
+    output:
+      format: json
+
+flows:
+  - source: thinking_agent
+    target: null

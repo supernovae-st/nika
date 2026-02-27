@@ -1,0 +1,35 @@
+# Test: Real MCP integration with NovaNet
+# Prerequisites: Neo4j running with docker-compose up -d
+# Run with: nika examples/test-mcp-novanet.nika.yaml
+
+schema: "nika/workflow@0.5"
+provider: claude
+
+mcp:
+  novanet:
+    command: "/Users/thibaut/supernovae-st/supernovae-agi/novanet/tools/novanet-mcp/target/debug/novanet-mcp"
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+
+tasks:
+  # Step 1: Describe the schema
+  - id: describe_schema
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: schema
+    output:
+      format: json
+
+  # Step 2: Process result
+  - id: summarize
+    use:
+      schema: describe_schema
+    exec: "echo 'Schema received: {{use.schema}}'"
+
+flows:
+  - source: describe_schema
+    target: summarize

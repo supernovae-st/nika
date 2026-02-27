@@ -105,6 +105,9 @@ fn extract_json_from_output(output: &str) -> Result<Value, String> {
 
 /// Convert execution output to TaskResult, parsing as JSON if output format is json.
 /// Also validates against schema if declared.
+///
+/// v0.12.1: Empty output with JSON format returns `null` instead of failing.
+/// This enables graceful handling of commands that produce no output.
 pub async fn make_task_result(
     output: String,
     policy: Option<&crate::ast::OutputPolicy>,
@@ -112,6 +115,15 @@ pub async fn make_task_result(
 ) -> TaskResult {
     if let Some(policy) = policy {
         if policy.format == OutputFormat::Json {
+            // v0.12.1: Handle empty output gracefully - return null instead of error
+            if output.trim().is_empty() {
+                tracing::debug!(
+                    target: "nika::output",
+                    "Empty output with JSON format, returning null"
+                );
+                return TaskResult::success(Value::Null, duration);
+            }
+
             // Parse as JSON, handling markdown code blocks
             let json_value = match extract_json_from_output(&output) {
                 Ok(v) => v,
@@ -671,5 +683,46 @@ Enjoy your reading!"#;
         assert!(result.is_success(), "Should parse JSON from markdown block");
         assert_eq!(result.output["sign"], "scorpio");
         assert_eq!(result.output["lucky_number"], 7);
+    }
+
+    #[tokio::test]
+    async fn make_task_result_empty_output_returns_null() {
+        use crate::ast::OutputPolicy;
+
+        let policy = OutputPolicy {
+            format: OutputFormat::Json,
+            schema: None,
+        };
+
+        // v0.12.1: Empty output with JSON format returns null
+        let empty_output = "".to_string();
+        let result = make_task_result(empty_output, Some(&policy), std::time::Duration::ZERO).await;
+
+        assert!(result.is_success(), "Empty output should succeed with null");
+        assert!(result.output.is_null(), "Empty output should return null");
+    }
+
+    #[tokio::test]
+    async fn make_task_result_whitespace_output_returns_null() {
+        use crate::ast::OutputPolicy;
+
+        let policy = OutputPolicy {
+            format: OutputFormat::Json,
+            schema: None,
+        };
+
+        // v0.12.1: Whitespace-only output also returns null
+        let whitespace_output = "   \n\t  ".to_string();
+        let result =
+            make_task_result(whitespace_output, Some(&policy), std::time::Duration::ZERO).await;
+
+        assert!(
+            result.is_success(),
+            "Whitespace-only output should succeed with null"
+        );
+        assert!(
+            result.output.is_null(),
+            "Whitespace-only output should return null"
+        );
     }
 }

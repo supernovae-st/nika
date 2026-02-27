@@ -91,6 +91,8 @@ impl PanelId {
             ],
             // Settings is auxiliary view without panel navigation (v0.12)
             TuiView::Settings => &[],
+            // Split view has its own focus management (v0.13)
+            TuiView::Split => &[],
         }
     }
 
@@ -126,6 +128,8 @@ impl PanelId {
             TuiView::Scheduler => PanelId::SchedulerList,
             // Auxiliary views don't have panels, return Explorer's default
             TuiView::Settings => PanelId::ExplorerFiles,
+            // Split view has its own focus management (v0.13)
+            TuiView::Split => PanelId::ExplorerFiles,
         }
     }
 }

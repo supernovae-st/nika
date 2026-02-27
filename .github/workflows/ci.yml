@@ -9,7 +9,7 @@
 # 5. build: Release build verification
 # 6. summary: PR comment with results
 #
-# Nika v0.8.0 — Studio DX + Full Streaming + RLM Enhancements | 1,879 tests
+# Nika v0.13.0 — Schema @0.6 + Terminal-First CLI | 3,146 tests
 
 name: CI
 
@@ -34,7 +34,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
-  NIKA_VERSION: v0.8.0
+  NIKA_VERSION: v0.13.0
   # Minimum Rust version (matches Cargo.toml rust-version)
   # Note: Using stable to get latest; deps require 1.88+ (time crate)
   RUST_VERSION: stable

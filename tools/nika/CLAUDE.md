@@ -758,6 +758,58 @@ nika trace export <id>
 nika trace clean
 ```
 
+### Provider Management (v0.12.1)
+
+```bash
+# List all LLM providers and their status
+nika provider list
+
+# Set API key for a provider (stores in system keychain)
+nika provider set anthropic
+nika provider set openai
+
+# Test connection to a provider
+nika provider test claude
+nika provider test openai
+
+# Migrate environment variables to system keychain
+nika provider migrate
+```
+
+| Provider | Env Variable | Default Model |
+|----------|--------------|---------------|
+| Claude | `ANTHROPIC_API_KEY` | claude-sonnet-4-6 |
+| OpenAI | `OPENAI_API_KEY` | gpt-4o |
+| Mistral | `MISTRAL_API_KEY` | mistral-large-latest |
+| Groq | `GROQ_API_KEY` | llama-3.3-70b-versatile |
+| DeepSeek | `DEEPSEEK_API_KEY` | deepseek-chat |
+| Ollama | `OLLAMA_API_BASE_URL` | llama3.2 |
+
+### MCP Server Management (v0.12.1)
+
+```bash
+# List MCP servers defined in a workflow
+nika mcp list --workflow flow.nika.yaml
+
+# Test connection to an MCP server
+nika mcp test flow.nika.yaml perplexity
+
+# List tools available from an MCP server
+nika mcp tools flow.nika.yaml perplexity
+```
+
+MCP servers are defined in workflow files:
+
+```yaml
+mcp:
+  servers:
+    perplexity:
+      command: npx
+      args: ["-y", "@anthropic/mcp-server-perplexity"]
+      env:
+        PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
+```
+
 ### Development & Testing
 
 ```bash

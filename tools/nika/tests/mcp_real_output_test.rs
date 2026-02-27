@@ -26,7 +26,7 @@ fn parse_workflow(yaml: &str) -> Workflow {
 
 async fn run_and_collect_mcp_events(workflow: Workflow, timeout_secs: u64) -> Vec<Event> {
     let (event_log, mut rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let mut mcp_events = Vec::new();
@@ -57,7 +57,7 @@ async fn run_workflow_and_get_task_output(
     timeout_secs: u64,
 ) -> Option<Arc<Value>> {
     let (event_log, mut rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
 
     let mut task_output = None;
@@ -126,7 +126,7 @@ tasks:
     // Note: This will fail because the mock MCP server doesn't exist
     // The test verifies the event emission structure
     let (event_log, mut rx) = EventLog::new_with_broadcast();
-    let runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log);
     let _handle = tokio::spawn(async move { runner.run().await });
 
     // Just verify we can receive events (will likely fail on MCP connection)

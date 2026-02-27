@@ -35,13 +35,34 @@ use std::path::Path;
 use std::pin::Pin;
 
 /// Parameters for nika:run tool.
+/// v0.12.1: Supports both `context` (JSON) and `context_json` (string) for OpenAI compatibility.
 #[derive(Debug, Clone, Deserialize)]
 pub struct RunParams {
     /// Path to the workflow file to execute.
     pub workflow: String,
+    /// Context as JSON string (for OpenAI strict mode).
+    #[serde(default)]
+    pub context_json: Option<String>,
     /// Context to pass to the nested workflow (optional).
+    /// Deprecated: Use context_json for OpenAI compatibility.
     #[serde(default)]
     pub context: Option<Value>,
+}
+
+impl RunParams {
+    /// Get the context as a JSON Value, parsing from context_json if needed.
+    pub fn get_context(&self) -> Result<Option<Value>, NikaError> {
+        if let Some(ref json_str) = self.context_json {
+            let value =
+                serde_json::from_str(json_str).map_err(|e| NikaError::BuiltinInvalidParams {
+                    tool: "nika:run".into(),
+                    reason: format!("Invalid context_json: {}", e),
+                })?;
+            Ok(Some(value))
+        } else {
+            Ok(self.context.clone())
+        }
+    }
 }
 
 /// Response from nika:run tool.
@@ -75,6 +96,8 @@ impl BuiltinTool for RunTool {
     }
 
     fn parameters_schema(&self) -> serde_json::Value {
+        // v0.12.1: OpenAI-compatible schema with additionalProperties: false
+        // context_json is used for OpenAI strict mode (JSON string)
         serde_json::json!({
             "type": "object",
             "properties": {
@@ -82,12 +105,13 @@ impl BuiltinTool for RunTool {
                     "type": "string",
                     "description": "Path to the workflow file to execute"
                 },
-                "context": {
-                    "type": "object",
-                    "description": "Context to pass to the nested workflow"
+                "context_json": {
+                    "type": "string",
+                    "description": "Context as JSON string (for OpenAI: '{\"key\": \"value\"}')"
                 }
             },
-            "required": ["workflow"]
+            "required": ["workflow"],
+            "additionalProperties": false
         })
     }
 
@@ -155,7 +179,7 @@ impl BuiltinTool for RunTool {
             );
 
             // Create Runner and execute workflow
-            let runner = Runner::new(workflow).quiet();
+            let mut runner = Runner::new(workflow).quiet();
             let result = runner
                 .run()
                 .await
@@ -205,7 +229,9 @@ mod tests {
         let schema = tool.parameters_schema();
         assert_eq!(schema["type"], "object");
         assert!(schema["properties"]["workflow"].is_object());
-        assert!(schema["properties"]["context"].is_object());
+        // v0.12.1: context_json for OpenAI compatibility
+        assert!(schema["properties"]["context_json"].is_object());
+        assert_eq!(schema["additionalProperties"], false);
         assert!(schema["required"]
             .as_array()
             .unwrap()

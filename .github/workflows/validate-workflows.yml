@@ -67,14 +67,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check for non-.nika.yaml workflow files
+      - name: Check for non-standard YAML files
         run: |
-          # Find YAML files in examples/ that don't follow the .nika.yaml convention
-          # Exclude legitimate non-workflow YAML files
-          WRONG_EXT=$(find tools/nika/examples -name "*.yaml" ! -name "*.nika.yaml" 2>/dev/null || true)
+          # Find YAML files in examples/ that don't follow Nika conventions
+          # Valid extensions (Schema @0.6):
+          #   *.nika.yaml  - Workflow definitions
+          #   *.agent.yaml - Agent definitions
+          #   *.skill.yaml - Skill definitions
+          WRONG_EXT=$(find tools/nika/examples -name "*.yaml" \
+            ! -name "*.nika.yaml" \
+            ! -name "*.agent.yaml" \
+            ! -name "*.skill.yaml" \
+            2>/dev/null || true)
           if [ -n "$WRONG_EXT" ]; then
-            echo "ERROR: Found workflow files without .nika.yaml extension:"
+            echo "ERROR: Found YAML files without valid extension:"
             echo "$WRONG_EXT"
+            echo ""
+            echo "Valid extensions: *.nika.yaml, *.agent.yaml, *.skill.yaml"
             exit 1
           fi
-          echo "All workflow files use .nika.yaml extension"
+          echo "All YAML files use valid Nika extensions"

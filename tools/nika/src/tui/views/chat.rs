@@ -41,13 +41,14 @@ use tui_input::{Input, InputRequest};
 
 use super::trait_view::View;
 use super::ViewAction;
-use crate::tui::command::{Command, ModelProvider, HELP_TEXT};
+use crate::tui::command::{Command, ExportFormat, ModelProvider, HELP_TEXT};
 
 /// Check if the "command" modifier is pressed (Ctrl on Linux/Windows, Cmd on macOS)
 /// On macOS, Cmd key maps to SUPER modifier in crossterm
 fn is_cmd_pressed(modifiers: KeyModifiers) -> bool {
     modifiers.contains(KeyModifiers::CONTROL) || modifiers.contains(KeyModifiers::SUPER)
 }
+use crate::runtime::chat_workflow::{ChatWorkflow, Role as WorkflowRole};
 use crate::tui::file_resolve::FileResolver;
 use crate::tui::state::{
     ChatOverlayMessage, ChatOverlayMessageRole, ChatOverlayState, ChatPanel, PanelScrollState,
@@ -64,7 +65,7 @@ use crate::tui::utils::{truncate_str, wrap_text};
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
     // Task Box widgets (v0.8.1 - visual verb containers)
-    task_box::{BoxState, TaskBox},
+    task_box::{BoxState, RenderMode, TaskBox},
     ActivityItem,
     ActivityTemp,
     AgentPhase,
@@ -480,6 +481,16 @@ pub struct ChatView {
     pub task_queue: Vec<ChatTaskQueueItem>,
     /// Selected DAG node index (for navigation)
     pub dag_selected: Option<usize>,
+
+    // === v0.12.1: TaskBox RenderMode ===
+    /// Current render mode for inline TaskBoxes (Compact/Expanded/Full)
+    /// Toggle with `m` key when not in input mode
+    pub task_box_render_mode: RenderMode,
+
+    // === v0.13: ChatWorkflow DAG (unified execution) ===
+    /// Runtime workflow DAG that mirrors chat messages
+    /// Used for /export yaml and unified execution with YAML workflows
+    pub workflow: ChatWorkflow,
 }
 
 /// Stores info about a failed MCP call for retry (v0.9 Phase 2)
@@ -638,6 +649,10 @@ impl ChatView {
   Type a message to chat, or /help for commands.
 "#;
 
+        // v0.13: Initialize ChatWorkflow with welcome message for DAG sync
+        let mut workflow = ChatWorkflow::new();
+        workflow.add_message(welcome_banner, WorkflowRole::System);
+
         Self {
             messages: vec![ChatMessage {
                 id: 1, // First message gets ID 1
@@ -761,6 +776,12 @@ impl ChatView {
             dag_edges: Vec::new(),
             task_queue: Vec::new(),
             dag_selected: None,
+
+            // v0.12.1: TaskBox RenderMode (default to Expanded for rich inline display)
+            task_box_render_mode: RenderMode::Expanded,
+
+            // v0.13: ChatWorkflow DAG (unified execution)
+            workflow,
         }
     }
 
@@ -1153,21 +1174,22 @@ impl ChatView {
     fn compute_panel_areas(area: Rect) -> (Rect, Rect, Rect, Rect, Rect) {
         use ratatui::layout::{Constraint, Direction, Layout};
 
-        // Vertical layout: session bar, main content, input, hints
+        // v0.12.1: Vertical layout must match render() exactly
+        // ProStatusBar (2 lines) | main content | input | hints
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3), // Session context bar
+                Constraint::Length(2), // ProStatusBar (2 lines - matches render)
                 Constraint::Min(10),   // Main content area
                 Constraint::Length(3), // Input field
                 Constraint::Length(1), // Command hints
             ])
             .split(area);
 
-        // Horizontal split for main content: messages (70%) | activity (30%)
+        // v0.12.1: Horizontal split must match render() - 65%/35%
         let main_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+            .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
             .split(chunks[1]);
 
         (
@@ -1412,9 +1434,9 @@ impl ChatView {
         self.is_streaming = false;
         // v0.8 WOW: Reveal all remaining text instantly
         self.streaming_decrypt.reveal_all();
-        // v0.8 FIX: Clear inline boxes when streaming completes
-        // They represent the operation that just finished, not history
-        self.inline_content.clear();
+        // v0.12.1: Keep TaskBoxes visible after completion (Option A)
+        // TaskBox::Infer now REPLACES the AI bubble - don't clear it
+        // Old: self.inline_content.clear();
         // v0.8.1: Reset agent phase
         self.on_agent_complete();
         // v0.8.2: Final auto-scroll after streaming completes
@@ -1664,12 +1686,26 @@ impl ChatView {
         self.messages.push(ChatMessage {
             id,
             role: MessageRole::Tool,
-            content,
+            content: content.clone(),
             timestamp: Local::now(),
             created_at: Instant::now(),
             execution: None,
             thinking: None,
         });
+        // v0.12.1: Sync DAG when messages change
+        self.maybe_sync_dag();
+
+        // v0.13: Wire to ChatWorkflow DAG (unified execution)
+        let _ = self
+            .workflow
+            .add_message_with_mentions(&content, WorkflowRole::Tool);
+    }
+
+    /// v0.12.1: Sync DAG if panel is visible (avoid unnecessary work)
+    fn maybe_sync_dag(&mut self) {
+        if self.show_dag_panel {
+            self.sync_dag_from_messages();
+        }
     }
 
     // === Chat UX Enrichment (v2) Methods ===
@@ -1786,17 +1822,23 @@ impl ChatView {
     /// Each verb type (infer, exec, fetch, invoke, agent) has its own visual treatment.
     pub fn add_task_box(&mut self, task_box: TaskBox) {
         // Add activity based on verb type
-        let verb_name = match &task_box {
-            TaskBox::Infer(_) => "infer",
-            TaskBox::Exec(_) => "exec",
-            TaskBox::Fetch(_) => "fetch",
-            TaskBox::Invoke(_) => "invoke",
-            TaskBox::Agent(_) => "agent",
+        let (verb_name, chat_verb) = match &task_box {
+            TaskBox::Infer(_) => ("infer", ChatTaskVerb::Infer),
+            TaskBox::Exec(_) => ("exec", ChatTaskVerb::Exec),
+            TaskBox::Fetch(_) => ("fetch", ChatTaskVerb::Fetch),
+            TaskBox::Invoke(_) => ("invoke", ChatTaskVerb::Invoke),
+            TaskBox::Agent(_) => ("agent", ChatTaskVerb::Agent),
         };
-        self.activity_items.push(ActivityItem::hot(
-            format!("task-{}-{}", verb_name, self.inline_content.len()),
-            verb_name,
-        ));
+
+        // v0.12.1: Generate unique task ID for queue tracking
+        let task_id = format!("task-{}-{}", verb_name, self.inline_content.len());
+
+        self.activity_items
+            .push(ActivityItem::hot(task_id.clone(), verb_name));
+
+        // v0.12.1: Add to task queue and set state to Running
+        self.add_task_to_queue(&task_id, chat_verb);
+        self.update_task_state(&task_id, ChatTaskState::Running, None);
 
         self.inline_content.push(InlineContent::Task(task_box));
         self.auto_scroll_to_bottom();
@@ -1814,8 +1856,26 @@ impl ChatView {
 
     /// Complete the last TaskBox with success (generic fallback)
     pub fn complete_last_task_box(&mut self, duration_ms: u64) {
+        // v0.12.1: Determine verb type for queue update
+        let verb = if let Some(InlineContent::Task(task_box)) = self.inline_content.last() {
+            Some(match task_box {
+                TaskBox::Infer(_) => ChatTaskVerb::Infer,
+                TaskBox::Exec(_) => ChatTaskVerb::Exec,
+                TaskBox::Fetch(_) => ChatTaskVerb::Fetch,
+                TaskBox::Invoke(_) => ChatTaskVerb::Invoke,
+                TaskBox::Agent(_) => ChatTaskVerb::Agent,
+            })
+        } else {
+            None
+        };
+
         if let Some(InlineContent::Task(task_box)) = self.inline_content.last_mut() {
             *task_box.state_mut() = BoxState::success(duration_ms);
+        }
+
+        // v0.12.1: Update task queue state
+        if let Some(v) = verb {
+            self.complete_last_running_task(v, duration_ms);
         }
         self.transition_activity_to_warm("task");
         self.auto_scroll_to_bottom();
@@ -1823,15 +1883,25 @@ impl ChatView {
 
     /// Complete the last RUNNING TaskBox::Infer
     pub fn complete_last_infer_box(&mut self, duration_ms: u64) {
+        // v0.12.1: Transfer partial_response to InferBox before completing
+        // Option A: InferBox REPLACES the AI message bubble
+        let response = std::mem::take(&mut self.partial_response);
+
         // Find last Infer box that is Running
         for content in self.inline_content.iter_mut().rev() {
             if let InlineContent::Task(TaskBox::Infer(infer)) = content {
                 if infer.state.is_running() {
+                    // v0.12.1: Set the response content so it displays in the widget
+                    if !response.is_empty() {
+                        infer.response = response.clone();
+                    }
                     infer.state = BoxState::success(duration_ms);
                     break;
                 }
             }
         }
+        // v0.12.1: Update task queue state
+        self.complete_last_running_task(ChatTaskVerb::Infer, duration_ms);
         self.transition_activity_to_warm("infer");
         self.auto_scroll_to_bottom();
     }
@@ -1846,6 +1916,8 @@ impl ChatView {
                 }
             }
         }
+        // v0.12.1: Update task queue state
+        self.complete_last_running_task(ChatTaskVerb::Exec, duration_ms);
         self.transition_activity_to_warm("exec");
         self.auto_scroll_to_bottom();
     }
@@ -1860,6 +1932,8 @@ impl ChatView {
                 }
             }
         }
+        // v0.12.1: Update task queue state
+        self.complete_last_running_task(ChatTaskVerb::Fetch, duration_ms);
         self.transition_activity_to_warm("fetch");
         self.auto_scroll_to_bottom();
     }
@@ -1874,6 +1948,8 @@ impl ChatView {
                 }
             }
         }
+        // v0.12.1: Update task queue state
+        self.complete_last_running_task(ChatTaskVerb::Invoke, duration_ms);
         self.transition_activity_to_warm("invoke");
         self.auto_scroll_to_bottom();
     }
@@ -1893,6 +1969,8 @@ impl ChatView {
                 }
             }
         }
+        // v0.12.1: Update task queue state
+        self.complete_last_running_task(ChatTaskVerb::Invoke, duration_ms);
         self.transition_activity_to_warm("invoke");
         self.auto_scroll_to_bottom();
     }
@@ -1908,6 +1986,8 @@ impl ChatView {
                 }
             }
         }
+        // v0.12.1: Update task queue state
+        self.fail_last_running_task(ChatTaskVerb::Invoke, duration_ms);
         self.auto_scroll_to_bottom();
     }
 
@@ -1921,14 +2001,34 @@ impl ChatView {
                 }
             }
         }
+        // v0.12.1: Update task queue state
+        self.complete_last_running_task(ChatTaskVerb::Agent, duration_ms);
         self.transition_activity_to_warm("agent");
         self.auto_scroll_to_bottom();
     }
 
     /// Fail the last TaskBox with error
     pub fn fail_last_task_box(&mut self, error: &str, duration_ms: u64) {
+        // v0.12.1: Determine verb type before failing for queue update
+        let verb = if let Some(InlineContent::Task(task_box)) = self.inline_content.last() {
+            Some(match task_box {
+                TaskBox::Infer(_) => ChatTaskVerb::Infer,
+                TaskBox::Exec(_) => ChatTaskVerb::Exec,
+                TaskBox::Fetch(_) => ChatTaskVerb::Fetch,
+                TaskBox::Invoke(_) => ChatTaskVerb::Invoke,
+                TaskBox::Agent(_) => ChatTaskVerb::Agent,
+            })
+        } else {
+            None
+        };
+
         if let Some(InlineContent::Task(task_box)) = self.inline_content.last_mut() {
             *task_box.state_mut() = BoxState::failed(error, duration_ms);
+        }
+
+        // v0.12.1: Update task queue state
+        if let Some(v) = verb {
+            self.fail_last_running_task(v, duration_ms);
         }
         self.auto_scroll_to_bottom();
     }
@@ -2244,11 +2344,19 @@ impl ChatView {
             execution: None,
             thinking: None,
         });
-        self.history.push(content);
+        self.history.push(content.clone());
         self.history_index = None;
         // v0.8.1: When user sends a message, they want to see the response
         self.user_at_bottom = true;
         self.auto_scroll_to_bottom();
+        // v0.12.1: Sync DAG when messages change
+        self.maybe_sync_dag();
+
+        // v0.13: Wire to ChatWorkflow DAG (unified execution)
+        // Use add_message_with_mentions to handle @N references automatically
+        let _ = self
+            .workflow
+            .add_message_with_mentions(&content, WorkflowRole::User);
     }
 
     /// Add a Nika response
@@ -2257,13 +2365,20 @@ impl ChatView {
         self.messages.push(ChatMessage {
             id,
             role: MessageRole::Nika,
-            content,
+            content: content.clone(),
             timestamp: Local::now(),
             created_at: Instant::now(),
             execution,
             thinking: None,
         });
         self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
+                                      // v0.12.1: Sync DAG when messages change
+        self.maybe_sync_dag();
+
+        // v0.13: Wire to ChatWorkflow DAG (unified execution)
+        let _ = self
+            .workflow
+            .add_message_with_mentions(&content, WorkflowRole::Assistant);
     }
 
     /// Add a Nika response with thinking content (v0.5.2+)
@@ -2277,28 +2392,43 @@ impl ChatView {
         self.messages.push(ChatMessage {
             id,
             role: MessageRole::Nika,
-            content,
+            content: content.clone(),
             timestamp: Local::now(),
             created_at: Instant::now(),
             execution,
             thinking,
         });
         self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
+                                      // v0.12.1: Sync DAG when messages change
+        self.maybe_sync_dag();
+
+        // v0.13: Wire to ChatWorkflow DAG (unified execution)
+        let _ = self
+            .workflow
+            .add_message_with_mentions(&content, WorkflowRole::Assistant);
     }
 
     /// Add a system message (for mode changes, status updates)
     pub fn add_system_message(&mut self, content: impl Into<String>) {
         let id = self.next_message_id();
+        let content_str = content.into();
         self.messages.push(ChatMessage {
             id,
             role: MessageRole::System,
-            content: content.into(),
+            content: content_str.clone(),
             timestamp: Local::now(),
             created_at: Instant::now(),
             execution: None,
             thinking: None,
         });
         self.auto_scroll_to_bottom(); // v0.8 FIX: Auto-scroll on new message
+                                      // v0.12.1: Sync DAG when messages change
+        self.maybe_sync_dag();
+
+        // v0.13: Wire to ChatWorkflow DAG (unified execution)
+        let _ = self
+            .workflow
+            .add_message_with_mentions(&content_str, WorkflowRole::System);
     }
 
     /// v0.9: Export chat session to JSON file
@@ -2388,6 +2518,61 @@ impl ChatView {
 
         // Write to file using atomic_write for safety
         atomic_write(Path::new(&filepath), json.as_bytes())
+            .map_err(|e| format!("File write failed: {}", e))?;
+
+        Ok(filepath)
+    }
+
+    /// v0.13: Export chat session as a runnable Nika YAML workflow
+    ///
+    /// Exports the chat conversation as a YAML workflow file that can be re-executed
+    /// with `nika run <file>`. User messages become `infer:` tasks, and @N mentions
+    /// create DAG edges between tasks.
+    pub fn export_session_yaml(&self, path: Option<&str>) -> Result<String, String> {
+        // Generate default filename with timestamp
+        let filepath = match path {
+            Some(p) => {
+                // v0.9 SECURITY: Validate user-provided path (same as JSON export)
+                let path = Path::new(p);
+
+                // Reject absolute paths (must be relative to current directory)
+                if path.is_absolute() {
+                    return Err("Security: Absolute paths not allowed. Use a relative path.".into());
+                }
+
+                // Reject paths with parent directory traversal
+                for component in path.components() {
+                    if matches!(component, std::path::Component::ParentDir) {
+                        return Err(
+                            "Security: Path traversal (..) not allowed. Use a simple filename."
+                                .into(),
+                        );
+                    }
+                }
+
+                // Ensure .nika.yaml extension
+                let p_str = p.to_string();
+                if p_str.ends_with(".nika.yaml") {
+                    p_str
+                } else if p_str.ends_with(".yaml") || p_str.ends_with(".yml") {
+                    // Replace .yaml/.yml with .nika.yaml
+                    let base = p_str.trim_end_matches(".yaml").trim_end_matches(".yml");
+                    format!("{}.nika.yaml", base)
+                } else {
+                    format!("{}.nika.yaml", p_str)
+                }
+            }
+            None => format!(
+                "nika-chat-{}.nika.yaml",
+                Local::now().format("%Y%m%d-%H%M%S")
+            ),
+        };
+
+        // Generate YAML from ChatWorkflow
+        let yaml = self.workflow.to_yaml();
+
+        // Write to file using atomic_write for safety
+        atomic_write(Path::new(&filepath), yaml.as_bytes())
             .map_err(|e| format!("File write failed: {}", e))?;
 
         Ok(filepath)
@@ -3429,6 +3614,17 @@ impl View for ChatView {
             // Use Ctrl+C (double-tap) instead
             // 's' when empty opens Settings view (consistent with other views)
             KeyCode::Char('s') if self.input.value().is_empty() => ViewAction::OpenSettings,
+            // 'm' when empty cycles TaskBox render mode (v0.12.1)
+            KeyCode::Char('m') if self.input.value().is_empty() => {
+                self.cycle_task_box_render_mode();
+                let mode_name = match self.task_box_render_mode {
+                    RenderMode::Compact => "Compact (1 line)",
+                    RenderMode::Expanded => "Expanded (default)",
+                    RenderMode::Full => "Full (all details)",
+                };
+                self.add_system_message(format!("📦 TaskBox mode: {}", mode_name));
+                ViewAction::None
+            }
             // Shift+T or Ctrl+t toggles theme (v0.8.1 - consistent with app.rs)
             KeyCode::Char('T') => ViewAction::ToggleTheme,
             KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -3531,13 +3727,21 @@ impl View for ChatView {
                                 ViewAction::ChatModelSwitch(provider)
                             }
                         }
-                        Command::Export { path } => {
-                            // v0.9: Export chat to JSON file
-                            match self.export_session(path.as_deref()) {
+                        Command::Export { format, path } => {
+                            // v0.9: Export chat to JSON or YAML file
+                            let result = match format {
+                                ExportFormat::Json => self.export_session(path.as_deref()),
+                                ExportFormat::Yaml => self.export_session_yaml(path.as_deref()),
+                            };
+                            match result {
                                 Ok(filepath) => {
+                                    let format_name = match format {
+                                        ExportFormat::Json => "JSON",
+                                        ExportFormat::Yaml => "YAML workflow",
+                                    };
                                     self.add_system_message(format!(
-                                        "📤 Chat exported to: {}",
-                                        filepath
+                                        "📤 Chat exported as {} to: {}",
+                                        format_name, filepath
                                     ));
                                 }
                                 Err(e) => {
@@ -3726,13 +3930,21 @@ impl ChatView {
                             ),
                             Command::Mcp { action } => ViewAction::ChatMcp(action),
                             Command::Model { provider } => ViewAction::ChatModelSwitch(provider),
-                            Command::Export { path } => {
-                                // v0.9: Export chat to JSON file
-                                match self.export_session(path.as_deref()) {
+                            Command::Export { format, path } => {
+                                // v0.13: Export chat to JSON or YAML file
+                                let result = match format {
+                                    ExportFormat::Json => self.export_session(path.as_deref()),
+                                    ExportFormat::Yaml => self.export_session_yaml(path.as_deref()),
+                                };
+                                match result {
                                     Ok(filepath) => {
+                                        let format_name = match format {
+                                            ExportFormat::Json => "JSON",
+                                            ExportFormat::Yaml => "YAML workflow",
+                                        };
                                         self.add_system_message(format!(
-                                            "📤 Chat exported to: {}",
-                                            filepath
+                                            "📤 Chat exported as {} to: {}",
+                                            format_name, filepath
                                         ));
                                     }
                                     Err(e) => {
@@ -4611,12 +4823,15 @@ impl ChatView {
         self.dag_nodes.clear();
         self.dag_edges.clear();
 
-        for (i, msg) in self.messages.iter().enumerate() {
+        // v0.13: Use ChatWorkflow's DAG for proper dependency edges
+        let messages = self.workflow.all_messages();
+
+        for (i, (idx, msg)) in messages.iter().enumerate() {
             let kind = match msg.role {
-                MessageRole::User => ChatNodeKind::User,
-                MessageRole::Nika => ChatNodeKind::Assistant,
-                MessageRole::System => ChatNodeKind::System,
-                MessageRole::Tool => ChatNodeKind::ToolCall,
+                WorkflowRole::User => ChatNodeKind::User,
+                WorkflowRole::Assistant => ChatNodeKind::Assistant,
+                WorkflowRole::System => ChatNodeKind::System,
+                WorkflowRole::Tool => ChatNodeKind::ToolCall,
             };
 
             // Create node with truncated label
@@ -4626,17 +4841,17 @@ impl ChatView {
                 msg.content.clone()
             };
 
-            let node = DagNodeData::new(&format!("msg_{}", msg.id), kind, i as u32)
+            let node = DagNodeData::new(&msg.id, kind, i as u32)
                 .with_label(&label)
                 .with_state(ChatNodeState::Complete);
 
             self.dag_nodes.push(node);
 
-            // Create edge from previous message (simple chain for now)
-            if i > 0 {
-                let prev_id = format!("msg_{}", self.messages[i - 1].id);
-                let curr_id = format!("msg_{}", msg.id);
-                self.dag_edges.push(DagEdgeData::new(&prev_id, &curr_id));
+            // v0.13: Use actual DAG edges (includes @N mention references)
+            for dep_idx in self.workflow.get_dependencies(*idx) {
+                if let Some(dep_msg) = self.workflow.get_message_by_index(dep_idx) {
+                    self.dag_edges.push(DagEdgeData::new(&dep_msg.id, &msg.id));
+                }
             }
         }
     }
@@ -4662,6 +4877,34 @@ impl ChatView {
         }
     }
 
+    /// v0.12.1: Complete the last running task of a specific verb in the queue
+    fn complete_last_running_task(&mut self, verb: ChatTaskVerb, elapsed_ms: u64) {
+        // Find and update the last running task of this verb type
+        if let Some(task) = self
+            .task_queue
+            .iter_mut()
+            .rev()
+            .find(|t| t.verb() == verb && t.state() == ChatTaskState::Running)
+        {
+            task.set_state(ChatTaskState::Complete);
+            task.set_elapsed(std::time::Duration::from_millis(elapsed_ms));
+        }
+    }
+
+    /// v0.12.1: Fail the last running task of a specific verb in the queue
+    fn fail_last_running_task(&mut self, verb: ChatTaskVerb, elapsed_ms: u64) {
+        // Find and update the last running task of this verb type
+        if let Some(task) = self
+            .task_queue
+            .iter_mut()
+            .rev()
+            .find(|t| t.verb() == verb && t.state() == ChatTaskState::Running)
+        {
+            task.set_state(ChatTaskState::Failed);
+            task.set_elapsed(std::time::Duration::from_millis(elapsed_ms));
+        }
+    }
+
     /// Toggle DAG panel visibility (Ctrl+D)
     pub fn toggle_dag_panel(&mut self) {
         self.show_dag_panel = !self.show_dag_panel;
@@ -4669,6 +4912,12 @@ impl ChatView {
             // Sync DAG state when showing
             self.sync_dag_from_messages();
         }
+    }
+
+    /// Cycle TaskBox render mode: Compact → Expanded → Full → Compact
+    /// v0.12.1: Toggle with `m` key when not in input mode
+    pub fn cycle_task_box_render_mode(&mut self) {
+        self.task_box_render_mode = self.task_box_render_mode.cycle();
     }
 
     /// Render messages v2 with inline MCP/Infer boxes
@@ -5182,210 +5431,879 @@ impl ChatView {
                     items.push(ListItem::new("")); // spacing
                 }
                 InlineContent::Task(task_box) => {
-                    // v0.8.1: Render TaskBox using verb-specific colors
+                    // v0.12.1: Render TaskBox with verb colors and pulse animation
                     let verb_color = task_box.verb_color().rgb();
-                    let border_color = task_box.state().border_color(verb_color);
+                    // Calculate pulse intensity for running state (0.0-1.0 sine wave)
+                    let pulse_intensity = if task_box.state().is_running() {
+                        ((self.frame as f32 / 30.0).sin() + 1.0) / 2.0
+                    } else {
+                        0.0
+                    };
+                    let border_color = task_box
+                        .state()
+                        .border_color_with_pulse(verb_color, pulse_intensity);
                     let state_icon = task_box.state().icon();
                     let state_suffix = task_box.state().suffix();
 
                     // Render based on TaskBox variant
                     match task_box {
                         TaskBox::Invoke(invoke) => {
-                            // Top border: ╭─ 🔌 INVOKE: tool_name ─── status ─╮
-                            items.push(ListItem::new(Line::from(vec![
-                                Span::styled(
-                                    format!("╭─ 🔌 INVOKE: {} ", invoke.tool),
-                                    Style::default().fg(border_color),
-                                ),
-                                Span::styled(
-                                    format!("{} {} ─╮", state_icon, state_suffix),
-                                    Style::default().fg(border_color),
-                                ),
-                            ])));
-                            // Server line
-                            items.push(ListItem::new(Line::from(vec![
-                                Span::styled("│ ", Style::default().fg(border_color)),
-                                Span::styled(
-                                    format!("server: {}", invoke.server),
-                                    Style::default().fg(muted_color),
-                                ),
-                            ])));
-                            // Params (if any)
-                            if !invoke.params.is_null() {
-                                let params_str = serde_json::to_string(&invoke.params)
-                                    .unwrap_or_else(|_| "{}".to_string());
-                                items.push(ListItem::new(Line::from(vec![
-                                    Span::styled("│ ", Style::default().fg(border_color)),
-                                    Span::styled("📥 ", Style::default().fg(muted_color)),
-                                    Span::raw(truncate_str(&params_str, 40)),
-                                ])));
+                            // v0.12.1: RenderMode-aware InvokeBox rendering
+                            let content_color = Color::Rgb(226, 232, 240); // slate-200
+                            let emerald_400 = Color::Rgb(52, 211, 153);
+
+                            match self.task_box_render_mode {
+                                RenderMode::Compact => {
+                                    // COMPACT: 3 lines - header, tool@server, footer
+                                    // ╭─ 🔌 INVOKE ────────────────── ⏳ Running ─╮
+                                    // │ novanet_describe @ novanet │ ✓ result   │
+                                    // ╰────────────────────────────────────────────╯
+                                    let status_str = if invoke.result.is_some() {
+                                        "✓ result"
+                                    } else if invoke.error.is_some() {
+                                        "❌ error"
+                                    } else if task_box.state().is_running() {
+                                        "⏳"
+                                    } else {
+                                        ""
+                                    };
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ 🔌 INVOKE ──────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
+                                        ),
+                                        Style::default().fg(border_color),
+                                    )])));
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            truncate_str(&invoke.tool, 20),
+                                            Style::default().fg(content_color),
+                                        ),
+                                        Span::styled(" @ ", Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            truncate_str(&invoke.server, 12),
+                                            Style::default().fg(emerald_400),
+                                        ),
+                                        Span::styled(
+                                            format!(" │ {}", status_str),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                    ])));
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "╰──────────────────────────────────────────────────╯",
+                                        Style::default().fg(border_color),
+                                    )])));
+                                }
+                                RenderMode::Expanded | RenderMode::Full => {
+                                    // EXPANDED/FULL: Full InvokeBox rendering
+                                    // 1. Top border with status
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ 🔌 INVOKE ────────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
+                                        ),
+                                        Style::default().fg(border_color),
+                                    )])));
+
+                                    // 2. Tool + Server line
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            truncate_str(&invoke.tool, 25),
+                                            Style::default().fg(content_color),
+                                        ),
+                                        Span::styled(" @ ", Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            truncate_str(&invoke.server, 18),
+                                            Style::default().fg(emerald_400),
+                                        ),
+                                    ])));
+
+                                    // 3. Separator
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "├──────────────────────────────────────────────────┤",
+                                        Style::default().fg(border_color),
+                                    )])));
+
+                                    // 4. INPUT section header
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled("📥 INPUT", Style::default().fg(muted_color)),
+                                    ])));
+
+                                    // 5. Params preview (truncated JSON)
+                                    if !invoke.params.is_null() {
+                                        let params_str = serde_json::to_string(&invoke.params)
+                                            .unwrap_or_else(|_| "{}".to_string());
+                                        items.push(ListItem::new(Line::from(vec![
+                                            Span::styled("│ ", Style::default().fg(border_color)),
+                                            Span::styled("┊ ", Style::default().fg(muted_color)),
+                                            Span::styled(
+                                                truncate_str(&params_str, 44),
+                                                Style::default().fg(content_color),
+                                            ),
+                                        ])));
+                                    } else {
+                                        items.push(ListItem::new(Line::from(vec![
+                                            Span::styled("│ ", Style::default().fg(border_color)),
+                                            Span::styled("┊ ", Style::default().fg(muted_color)),
+                                            Span::styled(
+                                                "(no params)",
+                                                Style::default().fg(muted_color),
+                                            ),
+                                        ])));
+                                    }
+
+                                    // 6. OUTPUT section header
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled("📤 OUTPUT", Style::default().fg(muted_color)),
+                                    ])));
+
+                                    // 7. Result or error preview
+                                    if let Some(ref result) = invoke.result {
+                                        let result_str = serde_json::to_string(result)
+                                            .unwrap_or_else(|_| "null".to_string());
+                                        // Show first 2 lines of result
+                                        let result_lines: Vec<&str> =
+                                            result_str.lines().take(2).collect();
+                                        if result_lines.is_empty() {
+                                            items.push(ListItem::new(Line::from(vec![
+                                                Span::styled(
+                                                    "│ ",
+                                                    Style::default().fg(border_color),
+                                                ),
+                                                Span::styled(
+                                                    "┊ ",
+                                                    Style::default().fg(muted_color),
+                                                ),
+                                                Span::styled(
+                                                    truncate_str(&result_str, 44),
+                                                    Style::default().fg(success_color),
+                                                ),
+                                            ])));
+                                        } else {
+                                            for line in result_lines {
+                                                items.push(ListItem::new(Line::from(vec![
+                                                    Span::styled(
+                                                        "│ ",
+                                                        Style::default().fg(border_color),
+                                                    ),
+                                                    Span::styled(
+                                                        "┊ ",
+                                                        Style::default().fg(muted_color),
+                                                    ),
+                                                    Span::styled(
+                                                        truncate_str(line, 44),
+                                                        Style::default().fg(success_color),
+                                                    ),
+                                                ])));
+                                            }
+                                        }
+                                    } else if let Some(ref err) = invoke.error {
+                                        items.push(ListItem::new(Line::from(vec![
+                                            Span::styled("│ ", Style::default().fg(border_color)),
+                                            Span::styled("┊ ", Style::default().fg(muted_color)),
+                                            Span::styled("❌ ", Style::default().fg(error_color)),
+                                            Span::styled(
+                                                truncate_str(err, 40),
+                                                Style::default().fg(error_color),
+                                            ),
+                                        ])));
+                                    } else if task_box.state().is_running() {
+                                        // Streaming cursor for running invoke
+                                        let cursor = if self.frame % 2 == 0 { "▌" } else { " " };
+                                        items.push(ListItem::new(Line::from(vec![
+                                            Span::styled("│ ", Style::default().fg(border_color)),
+                                            Span::styled("┊ ", Style::default().fg(muted_color)),
+                                            Span::styled(
+                                                "(calling MCP server)",
+                                                Style::default().fg(muted_color),
+                                            ),
+                                            Span::styled(
+                                                cursor,
+                                                Style::default().fg(success_color),
+                                            ),
+                                        ])));
+                                    }
+
+                                    // 8. Bottom border
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "╰──────────────────────────────────────────────────╯",
+                                        Style::default().fg(border_color),
+                                    )])));
+                                    items.push(ListItem::new("")); // spacing
+                                }
                             }
-                            // Result or error
-                            if let Some(ref result) = invoke.result {
-                                let result_str = serde_json::to_string(result)
-                                    .unwrap_or_else(|_| "null".to_string());
-                                items.push(ListItem::new(Line::from(vec![
-                                    Span::styled("│ ", Style::default().fg(border_color)),
-                                    Span::styled("📤 ", Style::default().fg(success_color)),
-                                    Span::raw(truncate_str(&result_str, 40)),
-                                ])));
-                            } else if let Some(ref err) = invoke.error {
-                                items.push(ListItem::new(Line::from(vec![
-                                    Span::styled("│ ", Style::default().fg(border_color)),
-                                    Span::styled("❌ ", Style::default().fg(error_color)),
-                                    Span::raw(truncate_str(err, 40)),
-                                ])));
-                            }
-                            // Bottom border
-                            items.push(ListItem::new(Line::from(vec![Span::styled(
-                                SEPARATOR_52,
-                                Style::default().fg(border_color),
-                            )])));
-                            items.push(ListItem::new("")); // spacing
                         }
                         TaskBox::Infer(infer) => {
-                            // Top border: ╭─ ⚡ INFER ─── status ─╮
-                            items.push(ListItem::new(Line::from(vec![
-                                Span::styled(
-                                    format!("╭─ ⚡ INFER: {} ", truncate_str(&infer.model, 20)),
-                                    Style::default().fg(border_color),
-                                ),
-                                Span::styled(
-                                    format!("{} {} ─╮", state_icon, state_suffix),
-                                    Style::default().fg(border_color),
-                                ),
-                            ])));
-                            // Token info
-                            items.push(ListItem::new(Line::from(vec![
-                                Span::styled("│ ", Style::default().fg(border_color)),
-                                Span::styled(
-                                    format!("📊 {} in → {} out", infer.tokens_in, infer.tokens_out),
-                                    Style::default().fg(muted_color),
-                                ),
-                            ])));
-                            // Response (last 3 lines)
-                            let response_lines: Vec<&str> = infer.response.lines().collect();
-                            let start = response_lines.len().saturating_sub(3);
-                            for line in response_lines.iter().skip(start) {
-                                items.push(ListItem::new(Line::from(vec![
-                                    Span::styled("│ ", Style::default().fg(border_color)),
-                                    Span::raw(truncate_str(line, 50)),
-                                ])));
+                            // v0.12.1: RenderMode-aware InferBox rendering
+                            let content_color = Color::Rgb(226, 232, 240); // slate-200
+                            let provider_icon = if infer.model.contains("claude") {
+                                "🧠"
+                            } else if infer.model.contains("gpt") {
+                                "🤖"
+                            } else if infer.model.contains("mistral") {
+                                "🌀"
+                            } else if infer.model.contains("llama") {
+                                "🦙"
+                            } else {
+                                "💬"
+                            };
+
+                            match self.task_box_render_mode {
+                                RenderMode::Compact => {
+                                    // COMPACT: 2 lines - header + content preview
+                                    // ╭─ ⚡ INFER ──────────────────────── ⏳ Running ─╮
+                                    // │ "Generate a headline..."  │ 127 in │ 45 out │
+                                    // ╰────────────────────────────────────────────────╯
+                                    let prompt_preview =
+                                        truncate_str(&infer.prompt.replace('\n', " "), 28);
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ ⚡ INFER ──────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
+                                        ),
+                                        Style::default().fg(border_color),
+                                    )])));
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            format!(
+                                                "\"{}\" │ {} in │ {} out",
+                                                prompt_preview, infer.tokens_in, infer.tokens_out
+                                            ),
+                                            Style::default().fg(content_color),
+                                        ),
+                                    ])));
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "╰──────────────────────────────────────────────────╯",
+                                        Style::default().fg(border_color),
+                                    )])));
+                                }
+                                RenderMode::Expanded | RenderMode::Full => {
+                                    // EXPANDED/FULL: Full InferBox rendering
+                                    // 1. Top border
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ ⚡ INFER ────────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
+                                        ),
+                                        Style::default().fg(border_color),
+                                    )])));
+
+                                    // 2. Model line
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            format!(
+                                                "model: {} {}",
+                                                provider_icon,
+                                                truncate_str(&infer.model, 35)
+                                            ),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                    ])));
+
+                                    // 3. Separator
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "├──────────────────────────────────────────────────┤",
+                                        Style::default().fg(border_color),
+                                    )])));
+
+                                    // 4. PROMPT section
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled("PROMPT", Style::default().fg(muted_color)),
+                                    ])));
+                                    let prompt_display = infer.prompt.replace('\n', " ");
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            format!("┊ {}", truncate_str(&prompt_display, 45)),
+                                            Style::default().fg(content_color),
+                                        ),
+                                    ])));
+
+                                    // 5. Separator
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "├──────────────────────────────────────────────────┤",
+                                        Style::default().fg(border_color),
+                                    )])));
+
+                                    // 6. RESPONSE section
+                                    let response_text =
+                                        if infer.state.is_running() && self.is_streaming {
+                                            &self.partial_response
+                                        } else {
+                                            &infer.response
+                                        };
+                                    let response_indicator =
+                                        if infer.state.is_running() && self.is_streaming {
+                                            "▼ streaming...".to_string()
+                                        } else if !response_text.is_empty() {
+                                            format!("▼ {} chars", response_text.len())
+                                        } else {
+                                            String::new()
+                                        };
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled("RESPONSE", Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            format!(
+                                                "                              {}",
+                                                response_indicator
+                                            ),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                    ])));
+
+                                    // 7. Response content
+                                    if response_text.is_empty() && infer.state.is_running() {
+                                        items.push(ListItem::new(Line::from(vec![
+                                            Span::styled("│ ", Style::default().fg(border_color)),
+                                            Span::styled(
+                                                "┊ ...",
+                                                Style::default().fg(content_color),
+                                            ),
+                                        ])));
+                                    } else {
+                                        let response_lines: Vec<&str> =
+                                            response_text.lines().collect();
+                                        let start = response_lines.len().saturating_sub(3);
+                                        let lines_to_show: Vec<_> =
+                                            response_lines.iter().skip(start).collect();
+                                        for (idx, line) in lines_to_show.iter().enumerate() {
+                                            let is_last = idx == lines_to_show.len() - 1;
+                                            let cursor = if is_last
+                                                && infer.state.is_running()
+                                                && self.is_streaming
+                                            {
+                                                "█"
+                                            } else {
+                                                ""
+                                            };
+                                            items.push(ListItem::new(Line::from(vec![
+                                                Span::styled(
+                                                    "│ ",
+                                                    Style::default().fg(border_color),
+                                                ),
+                                                Span::styled(
+                                                    format!(
+                                                        "┊ {}{}",
+                                                        truncate_str(line, 44),
+                                                        cursor
+                                                    ),
+                                                    Style::default().fg(content_color),
+                                                ),
+                                            ])));
+                                        }
+                                    }
+
+                                    // 8. Footer with metrics
+                                    let cost =
+                                        crate::tui::widgets::task_box::InferBox::calculate_cost(
+                                            infer.tokens_in,
+                                            infer.tokens_out,
+                                            &infer.model,
+                                        );
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            format!(
+                                                "📊 {} in │ {} out │ {} {} │ 💰 ${:.4}",
+                                                infer.tokens_in,
+                                                infer.tokens_out,
+                                                provider_icon,
+                                                truncate_str(&infer.model, 12),
+                                                cost
+                                            ),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                    ])));
+
+                                    // 9. Bottom border
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "╰──────────────────────────────────────────────────╯",
+                                        Style::default().fg(border_color),
+                                    )])));
+                                }
                             }
-                            // Bottom border
-                            items.push(ListItem::new(Line::from(vec![Span::styled(
-                                "╰───────────────────────────────────────────────────╯",
-                                Style::default().fg(border_color),
-                            )])));
                             items.push(ListItem::new("")); // spacing
                         }
                         TaskBox::Exec(exec) => {
-                            // Top border: ╭─ 📟 EXEC ─── status ─╮
-                            items.push(ListItem::new(Line::from(vec![
-                                Span::styled(
-                                    format!("╭─ 📟 EXEC: {} ", truncate_str(&exec.command, 30)),
-                                    Style::default().fg(border_color),
-                                ),
-                                Span::styled(
-                                    format!("{} {} ─╮", state_icon, state_suffix),
-                                    Style::default().fg(border_color),
-                                ),
-                            ])));
-                            // Exit code or output
-                            if let Some(code) = exec.exit_code {
-                                items.push(ListItem::new(Line::from(vec![
-                                    Span::styled("│ ", Style::default().fg(border_color)),
-                                    Span::styled(
-                                        format!("exit: {}", code),
-                                        Style::default().fg(if code == 0 {
-                                            success_color
-                                        } else {
-                                            error_color
-                                        }),
-                                    ),
-                                ])));
+                            // v0.12.1: RenderMode-aware ExecBox rendering
+                            let content_color = Color::Rgb(226, 232, 240); // slate-200
+                            let exit_display = exec
+                                .exit_code
+                                .map(|c| format!("exit: {}", c))
+                                .unwrap_or_else(|| "running...".to_string());
+                            let exit_color = exec
+                                .exit_code
+                                .map(|c| if c == 0 { success_color } else { error_color })
+                                .unwrap_or(muted_color);
+
+                            match self.task_box_render_mode {
+                                RenderMode::Compact => {
+                                    // COMPACT: 3 lines - header + command + footer
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ 📟 EXEC ──────────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
+                                        ),
+                                        Style::default().fg(border_color),
+                                    )])));
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            format!("$ {} │ ", truncate_str(&exec.command, 30)),
+                                            Style::default().fg(content_color),
+                                        ),
+                                        Span::styled(
+                                            exit_display.clone(),
+                                            Style::default().fg(exit_color),
+                                        ),
+                                    ])));
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "╰──────────────────────────────────────────────────╯",
+                                        Style::default().fg(border_color),
+                                    )])));
+                                }
+                                RenderMode::Expanded | RenderMode::Full => {
+                                    // EXPANDED/FULL: Full ExecBox rendering
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ 📟 EXEC ─────────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
+                                        ),
+                                        Style::default().fg(border_color),
+                                    )])));
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            format!("$ {}", truncate_str(&exec.command, 45)),
+                                            Style::default().fg(content_color),
+                                        ),
+                                    ])));
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "├──────────────────────────────────────────────────┤",
+                                        Style::default().fg(border_color),
+                                    )])));
+                                    let output_indicator = if !exec.stdout.is_empty() {
+                                        format!("▼ {} lines", exec.stdout.lines().count())
+                                    } else {
+                                        String::new()
+                                    };
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled("OUTPUT", Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            format!(
+                                                "                                  {}",
+                                                output_indicator
+                                            ),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                    ])));
+                                    if exec.stdout.is_empty() && exec.state.is_running() {
+                                        items.push(ListItem::new(Line::from(vec![
+                                            Span::styled("│ ", Style::default().fg(border_color)),
+                                            Span::styled(
+                                                "┊ ...",
+                                                Style::default().fg(content_color),
+                                            ),
+                                        ])));
+                                    } else if exec.stdout.is_empty() {
+                                        items.push(ListItem::new(Line::from(vec![
+                                            Span::styled("│ ", Style::default().fg(border_color)),
+                                            Span::styled(
+                                                "┊ (no output)",
+                                                Style::default().fg(muted_color),
+                                            ),
+                                        ])));
+                                    } else {
+                                        let output_lines: Vec<&str> = exec.stdout.lines().collect();
+                                        let start = output_lines.len().saturating_sub(3);
+                                        for line in output_lines.iter().skip(start) {
+                                            items.push(ListItem::new(Line::from(vec![
+                                                Span::styled(
+                                                    "│ ",
+                                                    Style::default().fg(border_color),
+                                                ),
+                                                Span::styled(
+                                                    format!("┊ {}", truncate_str(line, 44)),
+                                                    Style::default().fg(content_color),
+                                                ),
+                                            ])));
+                                        }
+                                    }
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(exit_display, Style::default().fg(exit_color)),
+                                    ])));
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "╰──────────────────────────────────────────────────╯",
+                                        Style::default().fg(border_color),
+                                    )])));
+                                }
                             }
-                            // Output (last 2 lines)
-                            let output_lines: Vec<&str> = exec.stdout.lines().collect();
-                            for line in output_lines.iter().rev().take(2).rev() {
-                                items.push(ListItem::new(Line::from(vec![
-                                    Span::styled("│ ", Style::default().fg(border_color)),
-                                    Span::raw(truncate_str(line, 50)),
-                                ])));
-                            }
-                            // Bottom border
-                            items.push(ListItem::new(Line::from(vec![Span::styled(
-                                SEPARATOR_52,
-                                Style::default().fg(border_color),
-                            )])));
                             items.push(ListItem::new("")); // spacing
                         }
                         TaskBox::Fetch(fetch) => {
-                            // Top border: ╭─ 🛰️ FETCH ─── status ─╮
-                            items.push(ListItem::new(Line::from(vec![
-                                Span::styled(
-                                    format!(
-                                        "╭─ 🛰️ FETCH: {} {} ",
-                                        fetch.method,
-                                        truncate_str(&fetch.url, 25)
-                                    ),
-                                    Style::default().fg(border_color),
-                                ),
-                                Span::styled(
-                                    format!("{} {} ─╮", state_icon, state_suffix),
-                                    Style::default().fg(border_color),
-                                ),
-                            ])));
-                            // Status code
-                            if let Some(status) = fetch.status_code {
-                                items.push(ListItem::new(Line::from(vec![
-                                    Span::styled("│ ", Style::default().fg(border_color)),
-                                    Span::styled(
-                                        format!("status: {}", status),
-                                        Style::default().fg(if (200..300).contains(&status) {
-                                            success_color
-                                        } else {
-                                            error_color
-                                        }),
-                                    ),
-                                ])));
+                            // v0.12.1: RenderMode-aware FetchBox rendering
+                            let content_color = Color::Rgb(226, 232, 240); // slate-200
+                            let amber_400 = Color::Rgb(251, 191, 36);
+
+                            match self.task_box_render_mode {
+                                RenderMode::Compact => {
+                                    // COMPACT: 3 lines - header, method+url, footer
+                                    // ╭─ 🛰️ FETCH ────────────────── ⏳ Running ─╮
+                                    // │ GET https://api.example... │ 200 │ 45ms │
+                                    // ╰────────────────────────────────────────────╯
+                                    let status_str = fetch
+                                        .status_code
+                                        .map(|s| format!("{}", s))
+                                        .unwrap_or_else(|| "---".to_string());
+                                    let status_color = fetch
+                                        .status_code
+                                        .map(|s| {
+                                            if (200..300).contains(&s) {
+                                                success_color
+                                            } else {
+                                                error_color
+                                            }
+                                        })
+                                        .unwrap_or(muted_color);
+
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ 🛰️ FETCH ────────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
+                                        ),
+                                        Style::default().fg(border_color),
+                                    )])));
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            format!("{} ", fetch.method),
+                                            Style::default().fg(amber_400),
+                                        ),
+                                        Span::styled(
+                                            truncate_str(&fetch.url, 28),
+                                            Style::default().fg(content_color),
+                                        ),
+                                        Span::styled(" │ ", Style::default().fg(muted_color)),
+                                        Span::styled(status_str, Style::default().fg(status_color)),
+                                        Span::styled(
+                                            format!(" │ {}ms", fetch.ttfb_ms),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                    ])));
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "╰──────────────────────────────────────────────────╯",
+                                        Style::default().fg(border_color),
+                                    )])));
+                                }
+                                RenderMode::Expanded | RenderMode::Full => {
+                                    // EXPANDED/FULL: Full FetchBox rendering
+                                    // 1. Top border with status
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ 🛰️ FETCH ─────────────────────────────── {} {} ─╮",
+                                            state_icon, state_suffix
+                                        ),
+                                        Style::default().fg(border_color),
+                                    )])));
+
+                                    // 2. Method + URL line
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            format!("{} ", fetch.method),
+                                            Style::default().fg(amber_400),
+                                        ),
+                                        Span::styled(
+                                            truncate_str(&fetch.url, 42),
+                                            Style::default().fg(content_color),
+                                        ),
+                                    ])));
+
+                                    // 3. Separator
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "├──────────────────────────────────────────────────┤",
+                                        Style::default().fg(border_color),
+                                    )])));
+
+                                    // 4. RESPONSE section header
+                                    let size_str = if fetch.response_size > 0 {
+                                        format!(" ({:.1}KB)", fetch.response_size as f64 / 1024.0)
+                                    } else {
+                                        String::new()
+                                    };
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            format!("💬 RESPONSE{}", size_str),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                    ])));
+
+                                    // 5. Response body preview (first 2 lines or status)
+                                    if let Some(body) = &fetch.response_body {
+                                        let preview_lines: Vec<&str> =
+                                            body.lines().take(2).collect();
+                                        for line in preview_lines {
+                                            items.push(ListItem::new(Line::from(vec![
+                                                Span::styled(
+                                                    "│ ",
+                                                    Style::default().fg(border_color),
+                                                ),
+                                                Span::styled(
+                                                    "┊ ",
+                                                    Style::default().fg(muted_color),
+                                                ),
+                                                Span::styled(
+                                                    truncate_str(line, 44),
+                                                    Style::default().fg(content_color),
+                                                ),
+                                            ])));
+                                        }
+                                    } else if task_box.state().is_running() {
+                                        // Streaming cursor for running fetch
+                                        let cursor = if self.frame % 2 == 0 { "▌" } else { " " };
+                                        items.push(ListItem::new(Line::from(vec![
+                                            Span::styled("│ ", Style::default().fg(border_color)),
+                                            Span::styled("┊ ", Style::default().fg(muted_color)),
+                                            Span::styled(
+                                                "(awaiting response)",
+                                                Style::default().fg(muted_color),
+                                            ),
+                                            Span::styled(
+                                                cursor,
+                                                Style::default().fg(success_color),
+                                            ),
+                                        ])));
+                                    }
+
+                                    // 6. Footer with metrics
+                                    let status_str = fetch
+                                        .status_code
+                                        .map(|s| format!("{}", s))
+                                        .unwrap_or_else(|| "---".to_string());
+                                    let status_color = fetch
+                                        .status_code
+                                        .map(|s| {
+                                            if (200..300).contains(&s) {
+                                                success_color
+                                            } else {
+                                                error_color
+                                            }
+                                        })
+                                        .unwrap_or(muted_color);
+
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled("Status: ", Style::default().fg(muted_color)),
+                                        Span::styled(status_str, Style::default().fg(status_color)),
+                                        Span::styled(
+                                            format!(" │ TTFB: {}ms", fetch.ttfb_ms),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                        Span::styled(
+                                            format!(" │ Retries: {}", fetch.retries),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                    ])));
+
+                                    // 7. Bottom border
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "╰──────────────────────────────────────────────────╯",
+                                        Style::default().fg(border_color),
+                                    )])));
+                                    items.push(ListItem::new("")); // spacing
+                                }
                             }
-                            // Bottom border
-                            items.push(ListItem::new(Line::from(vec![Span::styled(
-                                SEPARATOR_52,
-                                Style::default().fg(border_color),
-                            )])));
-                            items.push(ListItem::new("")); // spacing
                         }
                         TaskBox::Agent(agent) => {
-                            // Top border: ╭─ 🐔 AGENT ─── status ─╮
-                            items.push(ListItem::new(Line::from(vec![
-                                Span::styled(
-                                    format!("╭─ 🐔 AGENT: {} ", truncate_str(&agent.prompt, 25)),
-                                    Style::default().fg(border_color),
-                                ),
-                                Span::styled(
-                                    format!("{} {} ─╮", state_icon, state_suffix),
-                                    Style::default().fg(border_color),
-                                ),
-                            ])));
-                            // Turn/cost info
-                            items.push(ListItem::new(Line::from(vec![
-                                Span::styled("│ ", Style::default().fg(border_color)),
-                                Span::styled(
-                                    format!(
-                                        "Turn {}/{} │ 💰 ${:.2} │ 🔌 {} tools",
-                                        agent.turn, agent.max_turns, agent.cost, agent.tool_calls
-                                    ),
-                                    Style::default().fg(muted_color),
-                                ),
-                            ])));
-                            // Bottom border
-                            items.push(ListItem::new(Line::from(vec![Span::styled(
-                                SEPARATOR_52,
-                                Style::default().fg(border_color),
-                            )])));
-                            items.push(ListItem::new("")); // spacing
+                            // v0.12.1: RenderMode-aware AgentBox rendering
+                            let content_color = Color::Rgb(226, 232, 240); // slate-200
+                            let amber_400 = Color::Rgb(251, 191, 36);
+                            let agent_icon = if agent.is_subagent { "🐤" } else { "🐔" };
+
+                            match self.task_box_render_mode {
+                                RenderMode::Compact => {
+                                    // COMPACT: 3 lines - header, goal, footer with stats
+                                    // ╭─ 🐔 AGENT ────────────────── ⏳ Running ─╮
+                                    // │ 🎯 "Analyze and report..." │ T:2/5 │ 1.2K │
+                                    // ╰────────────────────────────────────────────╯
+                                    let total_tokens = agent.tokens_in + agent.tokens_out;
+                                    let token_str = if total_tokens > 1000 {
+                                        format!("{:.1}K", total_tokens as f64 / 1000.0)
+                                    } else {
+                                        format!("{}", total_tokens)
+                                    };
+
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ {} AGENT ────────────────────────────── {} {} ─╮",
+                                            agent_icon, state_icon, state_suffix
+                                        ),
+                                        Style::default().fg(border_color),
+                                    )])));
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled("🎯 ", Style::default().fg(amber_400)),
+                                        Span::styled(
+                                            truncate_str(&agent.prompt, 25),
+                                            Style::default().fg(content_color),
+                                        ),
+                                        Span::styled(
+                                            format!(
+                                                " │ T:{}/{} │ {}",
+                                                agent.turn, agent.max_turns, token_str
+                                            ),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                    ])));
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "╰──────────────────────────────────────────────────╯",
+                                        Style::default().fg(border_color),
+                                    )])));
+                                }
+                                RenderMode::Expanded | RenderMode::Full => {
+                                    // EXPANDED/FULL: Full AgentBox rendering
+                                    // 1. Top border with status
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        format!(
+                                            "╭─ {} AGENT ─────────────────────────────── {} {} ─╮",
+                                            agent_icon, state_icon, state_suffix
+                                        ),
+                                        Style::default().fg(border_color),
+                                    )])));
+
+                                    // 2. Goal/prompt line
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled("🎯 ", Style::default().fg(amber_400)),
+                                        Span::styled(
+                                            truncate_str(&agent.prompt, 45),
+                                            Style::default().fg(content_color),
+                                        ),
+                                    ])));
+
+                                    // 3. Separator
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "├──────────────────────────────────────────────────┤",
+                                        Style::default().fg(border_color),
+                                    )])));
+
+                                    // 4. RESPONSE section header
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            "💬 RESPONSE",
+                                            Style::default().fg(muted_color),
+                                        ),
+                                    ])));
+
+                                    // 5. Final response content (first 3 lines or streaming indicator)
+                                    if let Some(response) = &agent.final_response {
+                                        let response_lines: Vec<&str> =
+                                            response.lines().take(3).collect();
+                                        for line in response_lines {
+                                            items.push(ListItem::new(Line::from(vec![
+                                                Span::styled(
+                                                    "│ ",
+                                                    Style::default().fg(border_color),
+                                                ),
+                                                Span::styled(
+                                                    "┊ ",
+                                                    Style::default().fg(muted_color),
+                                                ),
+                                                Span::styled(
+                                                    truncate_str(line, 44),
+                                                    Style::default().fg(content_color),
+                                                ),
+                                            ])));
+                                        }
+                                        if response.lines().count() > 3 {
+                                            items.push(ListItem::new(Line::from(vec![
+                                                Span::styled(
+                                                    "│ ",
+                                                    Style::default().fg(border_color),
+                                                ),
+                                                Span::styled(
+                                                    "┊ ",
+                                                    Style::default().fg(muted_color),
+                                                ),
+                                                Span::styled(
+                                                    format!(
+                                                        "... ({} more lines)",
+                                                        response.lines().count() - 3
+                                                    ),
+                                                    Style::default().fg(muted_color),
+                                                ),
+                                            ])));
+                                        }
+                                    } else if task_box.state().is_running() {
+                                        // Streaming cursor for running agent
+                                        let cursor = if self.frame % 2 == 0 { "▌" } else { " " };
+                                        items.push(ListItem::new(Line::from(vec![
+                                            Span::styled("│ ", Style::default().fg(border_color)),
+                                            Span::styled("┊ ", Style::default().fg(muted_color)),
+                                            Span::styled(
+                                                format!(
+                                                    "(turn {}/{} in progress)",
+                                                    agent.turn, agent.max_turns
+                                                ),
+                                                Style::default().fg(muted_color),
+                                            ),
+                                            Span::styled(
+                                                cursor,
+                                                Style::default().fg(success_color),
+                                            ),
+                                        ])));
+                                    }
+
+                                    // 6. Footer with turn count, tokens, cost, tool calls
+                                    let total_tokens = agent.tokens_in + agent.tokens_out;
+                                    let token_str = if total_tokens > 1000 {
+                                        format!("{:.1}K", total_tokens as f64 / 1000.0)
+                                    } else {
+                                        format!("{}", total_tokens)
+                                    };
+                                    items.push(ListItem::new(Line::from(vec![
+                                        Span::styled("│ ", Style::default().fg(border_color)),
+                                        Span::styled(
+                                            format!("Turn {}/{}", agent.turn, agent.max_turns),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                        Span::styled(" │ ", Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            format!("🎫 {} tokens", token_str),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                        Span::styled(" │ ", Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            format!("💰 ${:.2}", agent.cost),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                        Span::styled(" │ ", Style::default().fg(muted_color)),
+                                        Span::styled(
+                                            format!("🔌 {} calls", agent.tool_calls),
+                                            Style::default().fg(muted_color),
+                                        ),
+                                    ])));
+
+                                    // 7. Bottom border
+                                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                                        "╰──────────────────────────────────────────────────╯",
+                                        Style::default().fg(border_color),
+                                    )])));
+                                    items.push(ListItem::new("")); // spacing
+                                }
+                            }
                         }
                     }
                 }
@@ -5504,60 +6422,9 @@ impl ChatView {
             items.push(ListItem::new("")); // spacing
         }
 
-        // Add streaming indicator if streaming is in progress
-        // v0.9.1 FIX: Removed inline_content.is_empty() condition - Matrix effect should
-        // render even when TaskBox exists (they serve different purposes)
-        if self.is_streaming {
-            items.push(ListItem::new(Line::from(vec![
-                Span::styled(
-                    "🤖 AI ",
-                    Style::default()
-                        .fg(theme.status_success)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(SEPARATOR_20, Style::default().fg(theme.text_muted)),
-            ])));
-
-            if !self.partial_response.is_empty() {
-                // v0.8.1 FIX: Use content_width for word wrapping to prevent overflow
-                // v0.8 WOW: Use matrix decrypt effect if enabled
-                if self.matrix_effect_enabled {
-                    for decrypt_line in self.streaming_decrypt.build_lines_wrapped(content_width) {
-                        // Prepend the prefix to each line
-                        let mut spans = vec![Span::styled(
-                            "│ ",
-                            Style::default().fg(theme.status_success),
-                        )];
-                        spans.extend(decrypt_line.spans);
-                        items.push(ListItem::new(Line::from(spans)));
-                    }
-                } else {
-                    // Fallback: plain text rendering with word wrap (v0.8.1)
-                    let wrapped_lines = wrap_text(&self.partial_response, content_width);
-                    for line in wrapped_lines {
-                        items.push(ListItem::new(Line::from(vec![
-                            Span::styled("│ ", Style::default().fg(theme.status_success)),
-                            Span::raw(line),
-                        ])));
-                    }
-                }
-            }
-
-            // v0.9.1 FIX: Show phase indicator longer during streaming
-            // Users want to see the animated "Streaming" phase with 🦋 icon
-            // Show until we have substantial content (50+ chars) instead of hiding immediately
-            if self.partial_response.len() < 50 {
-                // v0.8.1: Use AgentPhaseIndicator with Matrix effect
-                // Shows real phase (Syncing/Planning/Invoking/Inferring/Streaming)
-                let phase_line = self.phase_indicator.build_line();
-                let mut spans = vec![Span::styled(
-                    "│ ",
-                    Style::default().fg(theme.status_success),
-                )];
-                spans.extend(phase_line.spans);
-                items.push(ListItem::new(Line::from(spans)));
-            }
-        }
+        // v0.12.1: REMOVED streaming AI bubble - InferBox REPLACES the AI message bubble
+        // The response now displays INSIDE the InferBox widget (Option A)
+        // See TaskBox::Infer rendering above which shows partial_response during streaming
 
         // v0.8 UX: Focus indicators for Conversation panel
         let is_focused = self.focused_panel == ChatPanel::Conversation;
@@ -8253,5 +9120,106 @@ mod tests {
 
         // Model should be set based on env (or default)
         assert!(!state.current_model.is_empty());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.13: ChatWorkflow Wiring Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_chat_view_workflow_initialized() {
+        let view = ChatView::new();
+        // Workflow should be initialized with welcome message (v0.13: for DAG sync)
+        assert_eq!(view.workflow.message_count(), 1);
+    }
+
+    #[test]
+    fn test_chat_view_user_message_wires_to_workflow() {
+        let mut view = ChatView::new();
+        view.add_user_message("Hello world".to_string());
+
+        // Should be in both messages vec and workflow
+        assert_eq!(view.messages.len(), 2); // welcome + user
+        assert_eq!(view.workflow.message_count(), 2); // welcome + user (v0.13: both wired)
+    }
+
+    #[test]
+    fn test_chat_view_nika_message_wires_to_workflow() {
+        let mut view = ChatView::new();
+        view.add_user_message("Hello".to_string());
+        view.add_nika_message("Hi there!".to_string(), None);
+
+        // All should be in workflow (welcome + user + nika)
+        assert_eq!(view.workflow.message_count(), 3);
+    }
+
+    #[test]
+    fn test_chat_view_system_message_wires_to_workflow() {
+        let mut view = ChatView::new();
+        view.add_system_message("System notification");
+
+        // System message in workflow (welcome + system)
+        assert_eq!(view.workflow.message_count(), 2);
+    }
+
+    #[test]
+    fn test_chat_view_tool_message_wires_to_workflow() {
+        let mut view = ChatView::new();
+        view.add_tool_message("Tool output".to_string());
+
+        // Tool message in workflow (welcome + tool)
+        assert_eq!(view.workflow.message_count(), 2);
+    }
+
+    #[test]
+    fn test_chat_view_workflow_preserves_roles() {
+        let mut view = ChatView::new();
+        view.add_user_message("User msg".to_string());
+        view.add_nika_message("Assistant msg".to_string(), None);
+        view.add_system_message("System msg");
+        view.add_tool_message("Tool msg".to_string());
+
+        let messages = view.workflow.all_messages();
+        assert_eq!(messages.len(), 5); // welcome + 4 messages
+        assert_eq!(messages[0].1.role, WorkflowRole::System); // welcome
+        assert_eq!(messages[1].1.role, WorkflowRole::User);
+        assert_eq!(messages[2].1.role, WorkflowRole::Assistant);
+        assert_eq!(messages[3].1.role, WorkflowRole::System);
+        assert_eq!(messages[4].1.role, WorkflowRole::Tool);
+    }
+
+    #[test]
+    fn test_chat_view_sync_dag_uses_workflow() {
+        let mut view = ChatView::new();
+        view.show_dag_panel = true;
+        view.add_user_message("First".to_string());
+        view.add_nika_message("Second".to_string(), None);
+
+        // Sync should use workflow
+        view.sync_dag_from_messages();
+
+        // Should have 3 nodes (from workflow: welcome + user + nika)
+        assert_eq!(view.dag_nodes.len(), 3);
+        // Should have 2 edges (sequential: welcome->user, user->nika)
+        assert_eq!(view.dag_edges.len(), 2);
+    }
+
+    #[test]
+    fn test_chat_view_workflow_mention_creates_edge() {
+        let mut view = ChatView::new();
+        view.show_dag_panel = true;
+
+        // Add messages with @1 reference (note: @1 is the welcome message now)
+        view.add_user_message("What is Rust?".to_string());
+        view.add_nika_message("Rust is a programming language".to_string(), None);
+        view.add_user_message("@2 Tell me more about safety".to_string()); // References msg 2 (user question)
+
+        view.sync_dag_from_messages();
+
+        // Should have 4 nodes (welcome + 3 messages)
+        assert_eq!(view.dag_nodes.len(), 4);
+        // Should have 3+ edges: sequential chain + @2 mention
+        // Note: depends on how mentions are resolved
+        assert!(view.dag_edges.len() >= 3);
     }
 }

@@ -601,6 +601,8 @@ impl TaskExecutor {
         datastore: &DataStore,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates (v0.5: supports lazy bindings)
+        // Note: Shell escaping is NOT applied by default to preserve backward compatibility.
+        // For values that need shell escaping, use {{use.alias|shell}} syntax (v0.13+).
         let command = template_resolve(&exec.command, bindings, datastore)?;
 
         // EMIT: TemplateResolved
@@ -715,29 +717,41 @@ impl TaskExecutor {
         let call_id = Uuid::new_v4().to_string();
         let start_time = Instant::now();
 
-        // EMIT: McpInvoke event (with params for TUI display)
+        // v0.12.1: Resolve templates FIRST, then emit event with resolved params
+        // This fixes the bug where TUI showed literal {{use.topic}} instead of resolved values
+        let resolved_params = if let Some(ref original_params) = invoke.params {
+            let params_str = serde_json::to_string(original_params)
+                .map_err(|e| NikaError::Execution(format!("Failed to serialize params: {}", e)))?;
+            let resolved_str = template_resolve(&params_str, bindings, datastore)?;
+            Some(
+                serde_json::from_str::<serde_json::Value>(&resolved_str).map_err(|e| {
+                    NikaError::Execution(format!(
+                        "Failed to parse resolved params '{}': {}",
+                        resolved_str, e
+                    ))
+                })?,
+            )
+        } else {
+            None
+        };
+
+        // EMIT: McpInvoke event (with RESOLVED params for TUI display)
         self.event_log.emit(EventKind::McpInvoke {
             task_id: Arc::clone(task_id),
             call_id: call_id.clone(),
             mcp_server: invoke.mcp.clone(),
             tool: invoke.tool.clone(),
             resource: invoke.resource.clone(),
-            params: invoke.params.clone(),
+            params: resolved_params.clone(),
         });
 
-        // Check for builtin nika:* tools (v0.9.3)
+        // Check for builtin nika_* tools (v0.12.1: changed from nika:* for Anthropic API)
         if let Some(tool) = &invoke.tool {
             if BuiltinToolRouter::is_builtin(tool) {
-                // Resolve templates in params
-                let params = if let Some(ref original_params) = invoke.params {
-                    let params_str = serde_json::to_string(original_params).map_err(|e| {
-                        NikaError::Execution(format!("Failed to serialize params: {}", e))
-                    })?;
-                    let resolved_str = template_resolve(&params_str, bindings, datastore)?;
-                    resolved_str.into_owned()
-                } else {
-                    "{}".to_string()
-                };
+                // Use already-resolved params
+                let params = resolved_params
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "{}".to_string());
 
                 // Dispatch to builtin router
                 let result = self.builtin_router.dispatch(tool, params).await?;
@@ -767,22 +781,8 @@ impl TaskExecutor {
 
         let is_error = false;
         let result = if let Some(tool) = &invoke.tool {
-            // Tool call path - resolve templates in params
-            let params = if let Some(ref original_params) = invoke.params {
-                // Convert params to string, resolve templates, parse back
-                let params_str = serde_json::to_string(original_params).map_err(|e| {
-                    NikaError::Execution(format!("Failed to serialize params: {}", e))
-                })?;
-                let resolved_str = template_resolve(&params_str, bindings, datastore)?;
-                serde_json::from_str(&resolved_str).map_err(|e| {
-                    NikaError::Execution(format!(
-                        "Failed to parse resolved params '{}': {}",
-                        resolved_str, e
-                    ))
-                })?
-            } else {
-                serde_json::Value::Null
-            };
+            // Tool call path - use already-resolved params (v0.12.1: moved resolution before event)
+            let params = resolved_params.clone().unwrap_or(serde_json::Value::Null);
             // v0.11.0: Use call_tool_with_retry_events for McpRetry event emission
             let tool_result = client
                 .call_tool_with_retry_events(tool, params, task_id, &self.event_log)

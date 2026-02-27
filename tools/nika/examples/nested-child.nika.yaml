@@ -1,0 +1,24 @@
+# Child workflow for nested execution test
+# This workflow is invoked by nested-parent.nika.yaml via nika:run
+
+schema: "nika/workflow@0.5"
+
+tasks:
+  - id: child_step1
+    exec: "echo 'Child step 1: Preparing data'"
+
+  - id: child_step2
+    use:
+      step1: child_step1
+    exec: "echo 'Child step 2: Processing'"
+
+  - id: child_final
+    use:
+      step2: child_step2
+    exec: "echo 'Child workflow complete!'"
+
+flows:
+  - source: child_step1
+    target: child_step2
+  - source: child_step2
+    target: child_final

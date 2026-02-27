@@ -361,6 +361,27 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
             // Settings uses default navigation (Tab, Esc, arrows)
             // No additional view-specific bindings needed
         }
+        // v0.13: Split view has its own keybindings (Tab to switch panes, Ctrl+] for ratio)
+        TuiView::Split => {
+            bindings.push(Keybinding {
+                code: KeyCode::Tab,
+                modifiers: KeyModifiers::NONE,
+                description: "Switch pane",
+                category: KeyCategory::PanelNav,
+            });
+            bindings.push(Keybinding {
+                code: KeyCode::Char(']'),
+                modifiers: KeyModifiers::CONTROL,
+                description: "Cycle ratio",
+                category: KeyCategory::PanelNav,
+            });
+            bindings.push(Keybinding {
+                code: KeyCode::F(9),
+                modifiers: KeyModifiers::NONE,
+                description: "Exit split",
+                category: KeyCategory::ViewNav,
+            });
+        }
     }
 
     bindings

@@ -310,7 +310,7 @@ tasks:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse workflow");
-    let runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow);
 
     let result = runner.run().await;
 
@@ -566,7 +566,7 @@ tasks:
         let yaml = yaml.to_string();
         handles.spawn(async move {
             let workflow: Workflow = serde_yaml::from_str(&yaml).expect("Should parse workflow");
-            let runner = Runner::new(workflow);
+            let mut runner = Runner::new(workflow);
             let result = runner.run().await;
             (i, result.is_ok())
         });

@@ -10,7 +10,7 @@
 //! - Key event handling
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use nika::tui::{MonitorView, PanelId, TuiState, TuiView, View, ViewAction};
+use nika::tui::{MonitorView, NavPanelId as PanelId, TuiState, TuiView, View, ViewAction};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST 1: MonitorView construction
@@ -21,7 +21,7 @@ fn wiring_8_monitor_view_new() {
     let view = MonitorView::new();
     assert_eq!(
         view.focus,
-        PanelId::Progress,
+        PanelId::RunnerMission,
         "Default focus should be Progress"
     );
 }
@@ -29,7 +29,7 @@ fn wiring_8_monitor_view_new() {
 #[test]
 fn wiring_8_monitor_view_default() {
     let view = MonitorView::default();
-    assert_eq!(view.focus, PanelId::Progress);
+    assert_eq!(view.focus, PanelId::RunnerMission);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -40,21 +40,21 @@ fn wiring_8_monitor_view_default() {
 fn wiring_8_focus_next_cycles_four_panels() {
     let mut view = MonitorView::new();
 
-    assert_eq!(view.focus, PanelId::Progress);
+    assert_eq!(view.focus, PanelId::RunnerMission);
 
     view.focus_next();
-    assert_eq!(view.focus, PanelId::Dag);
+    assert_eq!(view.focus, PanelId::RunnerDag);
 
     view.focus_next();
-    assert_eq!(view.focus, PanelId::NovaNet);
+    assert_eq!(view.focus, PanelId::RunnerNovanet);
 
     view.focus_next();
-    assert_eq!(view.focus, PanelId::Agent);
+    assert_eq!(view.focus, PanelId::RunnerReasoning);
 
     view.focus_next();
     assert_eq!(
         view.focus,
-        PanelId::Progress,
+        PanelId::RunnerMission,
         "Should cycle back to Progress"
     );
 }
@@ -63,33 +63,34 @@ fn wiring_8_focus_next_cycles_four_panels() {
 fn wiring_8_focus_prev_cycles_four_panels() {
     let mut view = MonitorView::new();
 
-    assert_eq!(view.focus, PanelId::Progress);
+    assert_eq!(view.focus, PanelId::RunnerMission);
 
     view.focus_prev();
     assert_eq!(
         view.focus,
-        PanelId::Agent,
+        PanelId::RunnerReasoning,
         "Prev from Progress goes to Agent"
     );
 
     view.focus_prev();
-    assert_eq!(view.focus, PanelId::NovaNet);
+    assert_eq!(view.focus, PanelId::RunnerNovanet);
 
     view.focus_prev();
-    assert_eq!(view.focus, PanelId::Dag);
+    assert_eq!(view.focus, PanelId::RunnerDag);
 
     view.focus_prev();
-    assert_eq!(view.focus, PanelId::Progress);
+    assert_eq!(view.focus, PanelId::RunnerMission);
 }
 
 #[test]
 fn wiring_8_panel_id_has_four_variants() {
-    let all = PanelId::all();
+    // v0.12.1: Use panels_for_view instead of all() for 6-Views architecture
+    let all = PanelId::panels_for_view(TuiView::Runner);
     assert_eq!(all.len(), 4, "MonitorView should have 4 panels");
-    assert_eq!(all[0], PanelId::Progress);
-    assert_eq!(all[1], PanelId::Dag);
-    assert_eq!(all[2], PanelId::NovaNet);
-    assert_eq!(all[3], PanelId::Agent);
+    assert_eq!(all[0], PanelId::RunnerMission);
+    assert_eq!(all[1], PanelId::RunnerDag);
+    assert_eq!(all[2], PanelId::RunnerNovanet);
+    assert_eq!(all[3], PanelId::RunnerReasoning);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -138,7 +139,11 @@ fn wiring_8_handle_key_tab_focus_next() {
         matches!(action, ViewAction::None),
         "Tab should return None (internal focus change)"
     );
-    assert_eq!(view.focus, PanelId::Dag, "Tab should move to next panel");
+    assert_eq!(
+        view.focus,
+        PanelId::RunnerDag,
+        "Tab should move to next panel"
+    );
 }
 
 #[test]
@@ -156,7 +161,7 @@ fn wiring_8_handle_key_shift_tab_focus_prev() {
     );
     assert_eq!(
         view.focus,
-        PanelId::Agent,
+        PanelId::RunnerReasoning,
         "Shift+Tab should move to previous panel"
     );
 }
@@ -184,22 +189,22 @@ fn wiring_8_handle_key_number_jumps_to_panel() {
     // Press '2' to jump to DAG panel
     let key_2 = KeyEvent::new(KeyCode::Char('2'), KeyModifiers::NONE);
     let _ = view.handle_key(key_2, &mut state);
-    assert_eq!(view.focus, PanelId::Dag);
+    assert_eq!(view.focus, PanelId::RunnerDag);
 
     // Press '3' to jump to NovaNet panel
     let key_3 = KeyEvent::new(KeyCode::Char('3'), KeyModifiers::NONE);
     let _ = view.handle_key(key_3, &mut state);
-    assert_eq!(view.focus, PanelId::NovaNet);
+    assert_eq!(view.focus, PanelId::RunnerNovanet);
 
     // Press '4' to jump to Agent panel
     let key_4 = KeyEvent::new(KeyCode::Char('4'), KeyModifiers::NONE);
     let _ = view.handle_key(key_4, &mut state);
-    assert_eq!(view.focus, PanelId::Agent);
+    assert_eq!(view.focus, PanelId::RunnerReasoning);
 
     // Press '1' to jump to Progress panel
     let key_1 = KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE);
     let _ = view.handle_key(key_1, &mut state);
-    assert_eq!(view.focus, PanelId::Progress);
+    assert_eq!(view.focus, PanelId::RunnerMission);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

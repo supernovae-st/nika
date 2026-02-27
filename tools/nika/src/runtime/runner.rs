@@ -26,7 +26,9 @@ use crate::store::{DataStore, TaskResult};
 use crate::util::intern;
 
 use super::executor::TaskExecutor;
+use super::memory_loader::load_memory;
 use super::output::make_task_result;
+use super::resolver::{resolve_assets, ResolvedAssets};
 
 /// Result of executing a task iteration
 /// For for_each tasks, includes the iteration index for ordered aggregation
@@ -56,6 +58,8 @@ pub struct Runner {
     paused: Arc<AtomicBool>,
     /// Notify to wake runner from pause (v0.5.2+)
     resume_notify: Arc<Notify>,
+    /// Resolved agents and skills (v0.13 Schema @0.6)
+    resolved_assets: ResolvedAssets,
 }
 
 impl Runner {
@@ -91,6 +95,7 @@ impl Runner {
             cancel_token: CancellationToken::new(),
             paused: Arc::new(AtomicBool::new(false)),
             resume_notify: Arc::new(Notify::new()),
+            resolved_assets: ResolvedAssets::default(),
         }
     }
 
@@ -321,7 +326,7 @@ impl Runner {
 
     /// Main execution loop
     #[instrument(skip(self), fields(workflow_tasks = self.workflow.tasks.len()))]
-    pub async fn run(&self) -> Result<String, NikaError> {
+    pub async fn run(&mut self) -> Result<String, NikaError> {
         let workflow_start = Instant::now();
         info!("Starting workflow execution");
 
@@ -341,6 +346,25 @@ impl Runner {
 
         // Validate use: blocks before execution (fail-fast)
         validate_use_wiring(&self.workflow, &self.flow_graph)?;
+
+        // Load memory files if workflow has memory: block (v0.13 Schema @0.6)
+        let base_path = std::env::current_dir().unwrap_or_default();
+        if let Some(memory_config) = &self.workflow.memory {
+            let loaded_memory = load_memory(memory_config, &base_path).await?;
+            self.datastore.set_memory(loaded_memory);
+            debug!("Loaded {} memory files", memory_config.files.len());
+        }
+
+        // Resolve agents and skills (v0.13 Schema @0.6)
+        // This loads external agent definitions and skill files
+        if self.workflow.agents.is_some() || self.workflow.skills.is_some() {
+            self.resolved_assets = resolve_assets(&self.workflow, &base_path).await?;
+            debug!(
+                agents = self.resolved_assets.agents.len(),
+                skills = self.resolved_assets.skills.len(),
+                "Resolved workflow assets"
+            );
+        }
 
         let total_tasks = self.workflow.tasks.len();
         let mut completed = 0;
@@ -784,6 +808,9 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
+            memory: None,
+            agents: None,
+            skills: None,
             tasks: vec![],
             flows: vec![],
         }
@@ -817,6 +844,9 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
+            memory: None,
+            agents: None,
+            skills: None,
             tasks: vec![Arc::new(Task {
                 id: "echo_items".to_string(),
                 for_each: Some(serde_json::json!(["a", "b", "c"])),
@@ -835,7 +865,7 @@ mod tests {
             flows: vec![],
         };
 
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
         let result = runner.run().await;
         assert!(
             result.is_ok(),
@@ -872,6 +902,9 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
+            memory: None,
+            agents: None,
+            skills: None,
             tasks: vec![Arc::new(Task {
                 id: "ordered".to_string(),
                 for_each: Some(serde_json::json!(["first", "second", "third"])),
@@ -890,7 +923,7 @@ mod tests {
             flows: vec![],
         };
 
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
         runner.run().await.unwrap();
 
         let parent_result = runner.datastore.get("ordered");
@@ -927,6 +960,9 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
+            memory: None,
+            agents: None,
+            skills: None,
             tasks: tasks
                 .into_iter()
                 .map(|(id, cmd)| {
@@ -960,7 +996,7 @@ mod tests {
     #[tokio::test]
     async fn event_sequence_for_single_task() {
         let workflow = create_exec_workflow(vec![("greet", "echo hello")], vec![]);
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
 
         let result = runner.run().await;
         assert!(result.is_ok());
@@ -1011,7 +1047,7 @@ mod tests {
             vec![("greet", "echo hello"), ("shout", "echo DONE")],
             vec![("greet", "shout")],
         );
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
 
         let result = runner.run().await;
         assert!(result.is_ok());
@@ -1056,7 +1092,7 @@ mod tests {
             vec![("task_a", "echo A"), ("task_b", "echo B")],
             vec![], // No dependencies = parallel
         );
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
 
         let result = runner.run().await;
         assert!(result.is_ok());
@@ -1094,7 +1130,7 @@ mod tests {
             vec![("a", "echo 1"), ("b", "echo 2"), ("c", "echo 3")],
             vec![("a", "b"), ("b", "c")],
         );
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
 
         runner.run().await.unwrap();
 
@@ -1113,7 +1149,7 @@ mod tests {
             vec![("fast", "echo quick"), ("slow", "sleep 0.1 && echo done")],
             vec![("fast", "slow")],
         );
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
 
         runner.run().await.unwrap();
 
@@ -1139,7 +1175,7 @@ mod tests {
     #[tokio::test]
     async fn failed_task_emits_task_failed_event() {
         let workflow = create_exec_workflow(vec![("fail", "exit 1")], vec![]);
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
 
         let result = runner.run().await;
         // Workflow completes but task failed
@@ -1157,7 +1193,7 @@ mod tests {
     async fn template_resolved_event_captures_before_and_after() {
         // Create workflow with task that has a command
         let workflow = create_exec_workflow(vec![("echo_test", "echo hello world")], vec![]);
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
 
         runner.run().await.unwrap();
 
@@ -1180,7 +1216,7 @@ mod tests {
     #[tokio::test]
     async fn event_log_to_json_serializes_correctly() {
         let workflow = create_exec_workflow(vec![("simple", "echo test")], vec![]);
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
 
         runner.run().await.unwrap();
 
@@ -1349,6 +1385,9 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
+            memory: None,
+            agents: None,
+            skills: None,
             tasks: vec![Arc::new(Task {
                 id: "concurrent".to_string(),
                 for_each: Some(serde_json::json!(["a", "b", "c", "d"])),
@@ -1367,7 +1406,7 @@ mod tests {
             flows: vec![],
         };
 
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
         let result = runner.run().await;
         assert!(
             result.is_ok(),
@@ -1393,6 +1432,9 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
+            memory: None,
+            agents: None,
+            skills: None,
             tasks: vec![Arc::new(Task {
                 id: "failfast".to_string(),
                 for_each: Some(serde_json::json!(["ok1", "FAIL", "ok2", "ok3"])),
@@ -1412,7 +1454,7 @@ mod tests {
             flows: vec![],
         };
 
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
         let result = runner.run().await;
         // Workflow completes but parent task may be marked as failed
         assert!(result.is_ok() || result.is_err());
@@ -1429,6 +1471,9 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
+            memory: None,
+            agents: None,
+            skills: None,
             tasks: vec![Arc::new(Task {
                 id: "continue".to_string(),
                 for_each: Some(serde_json::json!(["ok1", "ok2"])),
@@ -1447,7 +1492,7 @@ mod tests {
             flows: vec![],
         };
 
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
         let result = runner.run().await;
         assert!(result.is_ok(), "Workflow should complete");
 
@@ -1473,7 +1518,7 @@ mod tests {
     #[tokio::test]
     async fn workflow_completed_event_has_duration() {
         let workflow = create_exec_workflow(vec![("quick", "echo fast")], vec![]);
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
 
         runner.run().await.unwrap();
 
@@ -1494,7 +1539,7 @@ mod tests {
     #[tokio::test]
     async fn workflow_started_event_has_generation_id() {
         let workflow = create_exec_workflow(vec![("a", "echo A")], vec![]);
-        let runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow);
 
         runner.run().await.unwrap();
 
@@ -1565,7 +1610,7 @@ mod tests {
         let workflow = create_exec_workflow(vec![("slow", "sleep 10")], vec![]);
         let token = CancellationToken::new();
 
-        let runner = Runner::new(workflow).with_cancel_token(token.clone());
+        let mut runner = Runner::new(workflow).with_cancel_token(token.clone());
 
         // Cancel before starting
         token.cancel();
@@ -1597,7 +1642,7 @@ mod tests {
         let token = CancellationToken::new();
         let token_clone = token.clone();
 
-        let runner = Runner::new(workflow).with_cancel_token(token);
+        let mut runner = Runner::new(workflow).with_cancel_token(token);
 
         // Spawn the workflow run in background
         let handle = tokio::spawn(async move { runner.run().await });
@@ -1634,7 +1679,7 @@ mod tests {
 
         let event_log = EventLog::new();
         let event_log_clone = event_log.clone();
-        let runner = Runner::with_event_log(workflow, event_log).with_cancel_token(token);
+        let mut runner = Runner::with_event_log(workflow, event_log).with_cancel_token(token);
 
         // Spawn the workflow
         let run_handle = tokio::spawn(async move { runner.run().await });
@@ -1765,7 +1810,7 @@ mod tests {
         let workflow = create_exec_workflow(vec![("task1", "echo done")], vec![]);
         let event_log = EventLog::new();
         let event_log_clone = event_log.clone();
-        let runner = Runner::with_event_log(workflow, event_log);
+        let mut runner = Runner::with_event_log(workflow, event_log);
 
         // Pause before running
         runner.pause();

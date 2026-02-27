@@ -74,8 +74,21 @@ pub enum Command {
     /// /mcp [list|select|toggle] - MCP server management (v0.5.2)
     Mcp { action: McpAction },
 
-    /// `/export [path]` - Export chat session to JSON file (v0.9)
-    Export { path: Option<String> },
+    /// `/export [json|yaml] [path]` - Export chat session (v0.9, v0.13: yaml)
+    Export {
+        format: ExportFormat,
+        path: Option<String>,
+    },
+}
+
+/// Export format for chat sessions (v0.13: added yaml)
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum ExportFormat {
+    /// JSON format (default, v0.9)
+    #[default]
+    Json,
+    /// YAML workflow format (v0.13) - exports as runnable .nika.yaml
+    Yaml,
 }
 
 /// Available LLM providers via rig-core (v0.6: expanded to 6 providers)
@@ -141,13 +154,7 @@ impl Command {
                 "/model" => Self::parse_model_args(args),
                 "/mcp" => Self::parse_mcp_args(args),
                 "/clear" => Command::Clear,
-                "/export" => Command::Export {
-                    path: if args.is_empty() {
-                        None
-                    } else {
-                        Some(args.to_string())
-                    },
-                },
+                "/export" => Self::parse_export_args(args),
                 _ => {
                     // Unknown command, treat as chat message
                     Command::Chat {
@@ -325,6 +332,58 @@ impl Command {
             },
             _ => Command::Model {
                 provider: ModelProvider::List,
+            },
+        }
+    }
+
+    /// Parse /export arguments: /export [json|yaml] [path]
+    /// v0.13: Added yaml format for workflow export
+    fn parse_export_args(args: &str) -> Command {
+        let parts: Vec<&str> = args.split_whitespace().collect();
+
+        match parts.as_slice() {
+            // /export (no args) -> JSON to auto-generated path
+            [] => Command::Export {
+                format: ExportFormat::Json,
+                path: None,
+            },
+            // /export json or /export yaml
+            [format] if format.eq_ignore_ascii_case("json") => Command::Export {
+                format: ExportFormat::Json,
+                path: None,
+            },
+            [format] if format.eq_ignore_ascii_case("yaml") => Command::Export {
+                format: ExportFormat::Yaml,
+                path: None,
+            },
+            // /export path.json (infer format from extension)
+            [path] if path.ends_with(".json") => Command::Export {
+                format: ExportFormat::Json,
+                path: Some((*path).to_string()),
+            },
+            // /export path.yaml or path.nika.yaml
+            [path] if path.ends_with(".yaml") || path.ends_with(".yml") => Command::Export {
+                format: ExportFormat::Yaml,
+                path: Some((*path).to_string()),
+            },
+            // /export path (no extension) -> JSON default
+            [path] => Command::Export {
+                format: ExportFormat::Json,
+                path: Some((*path).to_string()),
+            },
+            // /export json path or /export yaml path
+            [format, path] if format.eq_ignore_ascii_case("json") => Command::Export {
+                format: ExportFormat::Json,
+                path: Some((*path).to_string()),
+            },
+            [format, path] if format.eq_ignore_ascii_case("yaml") => Command::Export {
+                format: ExportFormat::Yaml,
+                path: Some((*path).to_string()),
+            },
+            // Default: treat everything as path, JSON format
+            _ => Command::Export {
+                format: ExportFormat::Json,
+                path: Some(args.to_string()),
             },
         }
     }
@@ -1364,5 +1423,127 @@ mod tests {
         assert_eq!(ModelProvider::from_name("invalid"), None);
         assert_eq!(ModelProvider::from_name(""), None);
         assert_eq!(ModelProvider::from_name("list"), None);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task 2.4: parse_export_args tests (v0.13)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_parse_export_args_no_args_defaults_to_json() {
+        let cmd = Command::parse_export_args("");
+        assert!(matches!(
+            cmd,
+            Command::Export {
+                format: ExportFormat::Json,
+                path: None
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_export_args_yaml_keyword() {
+        let cmd = Command::parse_export_args("yaml");
+        assert!(matches!(
+            cmd,
+            Command::Export {
+                format: ExportFormat::Yaml,
+                path: None
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_export_args_json_keyword() {
+        let cmd = Command::parse_export_args("json");
+        assert!(matches!(
+            cmd,
+            Command::Export {
+                format: ExportFormat::Json,
+                path: None
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_export_args_yaml_with_path() {
+        let cmd = Command::parse_export_args("yaml my-workflow.nika.yaml");
+        if let Command::Export { format, path } = cmd {
+            assert_eq!(format, ExportFormat::Yaml);
+            assert_eq!(path, Some("my-workflow.nika.yaml".to_string()));
+        } else {
+            panic!("Expected Export command");
+        }
+    }
+
+    #[test]
+    fn test_parse_export_args_json_with_path() {
+        let cmd = Command::parse_export_args("json output.json");
+        if let Command::Export { format, path } = cmd {
+            assert_eq!(format, ExportFormat::Json);
+            assert_eq!(path, Some("output.json".to_string()));
+        } else {
+            panic!("Expected Export command");
+        }
+    }
+
+    #[test]
+    fn test_parse_export_args_path_infers_yaml_extension() {
+        // .yaml extension should infer YAML format
+        let cmd = Command::parse_export_args("output.yaml");
+        if let Command::Export { format, path } = cmd {
+            assert_eq!(format, ExportFormat::Yaml);
+            assert_eq!(path, Some("output.yaml".to_string()));
+        } else {
+            panic!("Expected Export command");
+        }
+    }
+
+    #[test]
+    fn test_parse_export_args_path_infers_yml_extension() {
+        // .yml extension should infer YAML format
+        let cmd = Command::parse_export_args("output.yml");
+        if let Command::Export { format, path } = cmd {
+            assert_eq!(format, ExportFormat::Yaml);
+            assert_eq!(path, Some("output.yml".to_string()));
+        } else {
+            panic!("Expected Export command");
+        }
+    }
+
+    #[test]
+    fn test_parse_export_args_path_infers_json_extension() {
+        // .json extension should infer JSON format
+        let cmd = Command::parse_export_args("output.json");
+        if let Command::Export { format, path } = cmd {
+            assert_eq!(format, ExportFormat::Json);
+            assert_eq!(path, Some("output.json".to_string()));
+        } else {
+            panic!("Expected Export command");
+        }
+    }
+
+    #[test]
+    fn test_parse_export_args_path_without_extension_defaults_json() {
+        // No extension should default to JSON
+        let cmd = Command::parse_export_args("myfile");
+        if let Command::Export { format, path } = cmd {
+            assert_eq!(format, ExportFormat::Json);
+            assert_eq!(path, Some("myfile".to_string()));
+        } else {
+            panic!("Expected Export command");
+        }
+    }
+
+    #[test]
+    fn test_export_format_default() {
+        assert_eq!(ExportFormat::default(), ExportFormat::Json);
+    }
+
+    #[test]
+    fn test_export_format_equality() {
+        assert_eq!(ExportFormat::Json, ExportFormat::Json);
+        assert_eq!(ExportFormat::Yaml, ExportFormat::Yaml);
+        assert_ne!(ExportFormat::Json, ExportFormat::Yaml);
     }
 }

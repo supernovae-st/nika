@@ -664,6 +664,18 @@ fn format_cost(cost: f64) -> String {
 
 impl Widget for MissionControlPanel<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        // v0.12.1: Minimum height guard to prevent rendering issues
+        // Need at least: border (2) + 1 section header + 1 content line = 4 lines minimum
+        if area.height < 4 {
+            // Too small to render - just show border with ellipsis
+            let block = Block::default()
+                .title(" 📊 ... ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::DarkGray));
+            block.render(area, buf);
+            return;
+        }
+
         // Get theme-aware colors
         let header = self.color_header();
         let cyan = self.color_cyan();

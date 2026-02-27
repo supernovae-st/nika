@@ -77,6 +77,7 @@ async fn test_claude_streaming() {
                     model,
                     prompt_tokens,
                     max_tokens,
+                    ..
                 } => {
                     eprintln!("INFER START: {} ({}→{})", model, prompt_tokens, max_tokens);
                 }

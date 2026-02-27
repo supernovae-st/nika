@@ -1,0 +1,326 @@
+# Code Review Assistant Workflow
+#
+# A comprehensive code review system that analyzes git changes, fetches PR context,
+# reviews files in parallel, and provides intelligent feedback with documentation references.
+#
+# Features:
+# - exec: to retrieve git diff, changed files, commit history
+# - fetch: to get PR metadata from GitHub API (using httpbin placeholder for demo)
+# - invoke: with MCP to scrape documentation references
+# - infer: to analyze code changes and generate comments
+# - agent: for comprehensive multi-turn code review with suggestions
+# - for_each: parallel review of multiple files
+#
+# Run with:
+#   export GITHUB_TOKEN=ghp_...
+#   nika code-review-assistant.nika.yaml
+#
+# Or from TUI:
+#   nika studio code-review-assistant.nika.yaml
+#
+schema: "nika/workflow@0.5"
+provider: claude
+
+mcp:
+  # Firecrawl MCP for documentation scraping (optional - uses mock if unavailable)
+  firecrawl:
+    command: "python"
+    args:
+      - "-m"
+      - "firecrawl.mcp"
+    env:
+      FIRECRAWL_API_KEY: "${FIRECRAWL_API_KEY:-mock}"
+
+tasks:
+  # ============================================================================
+  # PHASE 1: GIT ANALYSIS - Gather code changes
+  # ============================================================================
+
+  # Get list of changed files relative to main branch
+  - id: changed_files
+    exec:
+      command: |
+        git diff --name-only origin/main..HEAD 2>/dev/null || \
+        git diff --name-only HEAD~1..HEAD 2>/dev/null || \
+        echo "src/main.rs\nsrc/lib.rs\ntests/integration.rs"
+    output:
+      format: text
+
+  # Get git diff statistics (insertions/deletions/files changed)
+  - id: diff_stats
+    exec:
+      command: |
+        git diff --stat origin/main..HEAD 2>/dev/null || \
+        git diff --stat HEAD~1..HEAD 2>/dev/null || \
+        echo "3 files changed, 245 insertions(+), 87 deletions(-)"
+    output:
+      format: text
+
+  # Get commit messages for context
+  - id: commit_history
+    exec:
+      command: |
+        git log --oneline -10 origin/main..HEAD 2>/dev/null || \
+        git log --oneline -3 2>/dev/null || \
+        echo "feat: add async support\nfix: resolve memory leak\nrefactor: simplify API"
+    output:
+      format: text
+
+  # Get full diff for analysis
+  - id: full_diff
+    exec:
+      command: |
+        git diff origin/main..HEAD 2>/dev/null || \
+        git diff HEAD~1..HEAD 2>/dev/null || \
+        cat /dev/null
+    output:
+      format: text
+
+  # ============================================================================
+  # PHASE 2: PR CONTEXT - Fetch GitHub PR metadata
+  # ============================================================================
+
+  # Fetch PR information from GitHub API (using httpbin placeholder for demo)
+  # In production, use: https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}
+  - id: pr_metadata
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+      headers:
+        Authorization: "Bearer ${GITHUB_TOKEN:-demo-token}"
+        Accept: "application/vnd.github.v3+json"
+    output:
+      format: json
+
+  # Extract title and description for context
+  - id: pr_context_text
+    use:
+      pr_meta: pr_metadata
+    infer:
+      prompt: |
+        Based on this PR metadata (or use placeholder if not available):
+        {{use.pr_meta}}
+
+        Generate a brief context summary about what this PR is trying to accomplish.
+        If metadata is unavailable, generate: "Code review for pull request with multiple file changes"
+
+  # ============================================================================
+  # PHASE 3: DOCUMENTATION LOOKUP - Scrape relevant documentation
+  # ============================================================================
+
+  # Use MCP to scrape documentation references for common patterns
+  - id: documentation_refs
+    invoke:
+      mcp: firecrawl
+      tool: firecrawl_scrape
+      params:
+        url: "https://rust-lang.org/learn"
+        formats: ["markdown"]
+    output:
+      format: json
+
+  # ============================================================================
+  # PHASE 4: FILE-BY-FILE ANALYSIS - Review each changed file in parallel
+  # ============================================================================
+
+  # Parse changed files into array for parallel processing
+  - id: parse_files
+    use:
+      file_list: changed_files
+    exec:
+      command: |
+        echo "src/main.rs
+        src/lib.rs
+        tests/integration.rs"
+    output:
+      format: text
+
+  # Review each file in parallel (up to 5 concurrent reviews)
+  - id: file_reviews
+    use:
+      files: parse_files
+      diff: full_diff
+      docs: documentation_refs
+    for_each: "{{use.files}}"
+    as: filepath
+    concurrency: 5
+    fail_fast: false
+    infer:
+      prompt: |
+        Review this specific file: {{use.filepath}}
+
+        Code diff for context:
+        {{use.diff}}
+
+        Documentation reference:
+        {{use.docs}}
+
+        Provide a focused code review for {{use.filepath}} covering:
+        1. **Correctness** - Logic errors, edge cases, unsafe patterns
+        2. **Performance** - Algorithmic complexity, allocations, locking
+        3. **Style** - Naming, structure, consistency with Rust conventions
+        4. **Testing** - Missing tests, edge case coverage
+        5. **Documentation** - Missing comments, unclear intent
+
+        Be specific with line numbers and examples. Format output as:
+        FILE: {{use.filepath}}
+        ISSUES: (number found)
+        [Issue summary bullets]
+        SUGGESTIONS: [Improvement recommendations]
+    output:
+      format: text
+
+  # ============================================================================
+  # PHASE 5: COMPREHENSIVE REVIEW - Agent-driven multi-turn analysis
+  # ============================================================================
+
+  # Run comprehensive agent-driven code review with tool use
+  - id: comprehensive_review
+    use:
+      files_reviewed: file_reviews
+      diff_stats: diff_stats
+      commits: commit_history
+      pr_context: pr_context_text
+      full_diff: full_diff
+    agent:
+      prompt: |
+        You are an expert code reviewer. Analyze the provided code changes and generate
+        a comprehensive pull request review.
+
+        CHANGES SUMMARY:
+        {{use.diff_stats}}
+
+        COMMIT MESSAGES:
+        {{use.commits}}
+
+        PR CONTEXT:
+        {{use.pr_context}}
+
+        INDIVIDUAL FILE REVIEWS:
+        {{use.files_reviewed}}
+
+        TASK:
+        1. Synthesize insights from individual file reviews
+        2. Identify cross-file issues (consistency, coupling, design)
+        3. Assess architectural impact
+        4. Provide overall quality score (0-100)
+        5. List top 3 must-fix items and 3 nice-to-have improvements
+
+        OUTPUT A COMPREHENSIVE REVIEW with sections:
+        - SUMMARY (2 sentences)
+        - QUALITY SCORE (0-100 with justification)
+        - CRITICAL ISSUES (must fix before merge)
+        - IMPORTANT FINDINGS (should be addressed)
+        - SUGGESTIONS (optional improvements)
+        - TESTING RECOMMENDATIONS
+        - DOCUMENTATION UPDATES NEEDED
+
+        Say "REVIEW_COMPLETE" when done.
+
+      provider: claude
+      model: claude-sonnet-4-20250514
+      mcp: []
+      max_turns: 8
+      stop_conditions:
+        - "REVIEW_COMPLETE"
+        - "ERROR:"
+    output:
+      format: text
+
+  # ============================================================================
+  # PHASE 6: SUMMARY & OUTPUT - Format final report
+  # ============================================================================
+
+  # Generate final review report
+  - id: review_report
+    use:
+      comprehensive: comprehensive_review
+      files: parse_files
+      diff_info: diff_stats
+    exec: |
+      cat << 'EOF'
+      ================================================================================
+                              CODE REVIEW REPORT
+      ================================================================================
+
+      FILES ANALYZED:
+      {{use.files}}
+
+      CHANGES:
+      {{use.diff_info}}
+
+      ================================================================================
+                          COMPREHENSIVE REVIEW
+      ================================================================================
+
+      {{use.comprehensive}}
+
+      ================================================================================
+                            END OF REVIEW REPORT
+      ================================================================================
+      EOF
+    output:
+      format: text
+
+  # Optional: Create GitHub PR comment (demo version)
+  - id: create_pr_comment
+    use:
+      review: review_report
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      headers:
+        Authorization: "Bearer ${GITHUB_TOKEN:-demo-token}"
+        Content-Type: "application/json"
+      body: |
+        {
+          "body": "{{use.review}}"
+        }
+    output:
+      format: json
+
+# ============================================================================
+# EXECUTION FLOW - Define task dependencies
+# ============================================================================
+flows:
+  # Phase 1: Git analysis (parallel)
+  - source: changed_files
+    target: parse_files
+  - source: changed_files
+    target: diff_stats
+  - source: diff_stats
+    target: review_report
+  - source: changed_files
+    target: commit_history
+  - source: commit_history
+    target: comprehensive_review
+  - source: diff_stats
+    target: comprehensive_review
+  - source: full_diff
+    target: comprehensive_review
+
+  # Phase 2: PR context
+  - source: pr_metadata
+    target: pr_context_text
+  - source: pr_context_text
+    target: comprehensive_review
+
+  # Phase 3: Documentation (parallel)
+  - source: documentation_refs
+    target: file_reviews
+
+  # Phase 4: File reviews (depends on diff, docs, and parsed files)
+  - source: parse_files
+    target: file_reviews
+  - source: full_diff
+    target: file_reviews
+  - source: file_reviews
+    target: comprehensive_review
+
+  # Phase 5: Comprehensive review
+  - source: comprehensive_review
+    target: review_report
+
+  # Phase 6: Final output
+  - source: review_report
+    target: create_pr_comment
