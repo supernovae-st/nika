@@ -175,32 +175,31 @@ flows:
 #[test]
 fn test_multiple_cycles() {
     // Multiple independent cycles
+    // Note: Using longer task IDs for compatibility with serde-saphyr
     let yaml = r#"
 schema: "nika/workflow@0.5"
 workflow: multi-cycle
 description: "Multiple cycles in same graph"
 
 tasks:
-  - id: A
+  - id: task_a
     exec: "echo A"
-  - id: B
+  - id: task_b
     exec: "echo B"
-  - id: X
+  - id: task_x
     exec: "echo X"
-  - id: Y
+  - id: task_y
     exec: "echo Y"
 
 flows:
-  # Cycle 1: A -> B -> A
-  - source: A
-    target: B
-  - source: B
-    target: A
-  # Cycle 2: X -> Y -> X
-  - source: X
-    target: Y
-  - source: Y
-    target: X
+  - source: task_a
+    target: task_b
+  - source: task_b
+    target: task_a
+  - source: task_x
+    target: task_y
+  - source: task_y
+    target: task_x
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
