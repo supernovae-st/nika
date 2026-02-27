@@ -39,9 +39,9 @@ tasks:
         elapsed, per_iter
     );
 
-    // Should parse in under 100µs per iteration
+    // Should parse in under 500µs per iteration (relaxed for CI + coverage instrumentation)
     assert!(
-        per_iter.as_micros() < 100,
+        per_iter.as_micros() < 500,
         "Parsing too slow: {:?}",
         per_iter
     );
