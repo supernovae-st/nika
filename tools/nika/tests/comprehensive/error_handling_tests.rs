@@ -9,9 +9,9 @@
 //! - MCP errors (NIKA-100-109)
 //! - Agent errors (NIKA-110-119)
 
-use nika::serde_yaml;
 use nika::ast::Workflow;
 use nika::dag::Dag;
+use nika::serde_yaml;
 
 // ============================================================================
 // PARSE ERROR TESTS (NIKA-000-009)

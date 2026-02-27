@@ -8,10 +8,10 @@
 //! - Neo4j running at bolt://localhost:7687
 //! - NovaNet MCP server accessible
 
-use nika::serde_yaml;
 use nika::ast::{AgentParams, DecomposeSpec, DecomposeStrategy};
 use nika::binding::UseEntry;
 use nika::event::EventKind;
+use nika::serde_yaml;
 use serde_json::json;
 use std::sync::Arc;
 

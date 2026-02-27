@@ -2,9 +2,9 @@
 //!
 //! Tests for DAG validation including cycle detection and path validation.
 
-use nika::serde_yaml;
 use nika::ast::Workflow;
 use nika::dag::Dag;
+use nika::serde_yaml;
 
 // ═══════════════════════════════════════════════════════════════
 // INTEGRATION TESTS: DAG Structure Validation

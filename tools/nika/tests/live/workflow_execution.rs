@@ -3,8 +3,8 @@
 //!
 //! These tests execute real workflow files with actual API calls.
 
-use nika::serde_yaml;
 use nika::ast::Workflow;
+use nika::serde_yaml;
 use std::env;
 use std::path::PathBuf;
 

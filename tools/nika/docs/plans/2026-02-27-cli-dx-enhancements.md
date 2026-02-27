@@ -159,15 +159,40 @@ max_token_spend = 10000
 
 ---
 
-## P3: Operations (14h total)
+## P3: Operations (16h total)
 
-### 3.1 Heartbeat/Cron (12h)
+### 3.1 Jobs Daemon (12h) → See v0.14 Complete Plan
 
-Background task scheduling.
+> **📋 Full specification:** `docs/plans/2026-02-27-v014-complete-plan.md` (Section 3)
 
-**Deferred to v0.14+** - Complex feature requiring daemon mode.
+Background service for scheduled workflow execution with 4 trigger types.
 
-### 3.2 Doctor Command (2h)
+**Features:**
+- 4 trigger types: `cron`, `webhook`, `watch`, `interval`
+- CLI commands: `nika jobs start/stop/restart/status/list/run/enable/disable/history/logs/metrics/install/uninstall`
+- State persistence in `.nika/jobs.db` (rusqlite)
+- Webhook server with HMAC signature verification (axum)
+- Notifications: Slack, Discord, Email, ntfy
+- System service integration (systemd/launchd)
+
+**Config example:**
+```toml
+[[jobs.definitions]]
+name = "daily-sync"
+workflow = "./workflows/sync.nika.yaml"
+trigger = { cron = "0 9 * * *", timezone = "Europe/Paris" }
+retry = { max_attempts = 3, backoff = "exponential" }
+on_failure = ["notify:slack"]
+
+[[jobs.definitions]]
+name = "webhook-deploy"
+workflow = "./workflows/deploy.nika.yaml"
+trigger = { webhook = "/hooks/deploy", method = "POST" }
+```
+
+**Dependencies:** tokio-cron-scheduler, notify, backon, axum, rusqlite, lettre
+
+### 3.2 Enhanced Doctor Command (4h)
 
 System health check.
 

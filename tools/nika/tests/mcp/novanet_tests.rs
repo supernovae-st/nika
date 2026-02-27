@@ -3,8 +3,8 @@
 //! These tests require a running NovaNet MCP server.
 //! Start with: cd novanet && cargo run --bin novanet-mcp
 
-use nika::serde_yaml;
 use nika::ast::Workflow;
+use nika::serde_yaml;
 use std::env;
 use std::path::PathBuf;
 

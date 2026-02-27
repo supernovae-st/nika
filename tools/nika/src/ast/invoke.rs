@@ -82,8 +82,8 @@ impl InvokeParams {
 
 #[cfg(test)]
 mod tests {
-    use crate::serde_yaml;
     use super::*;
+    use crate::serde_yaml;
     use serde_json::json;
 
     #[test]

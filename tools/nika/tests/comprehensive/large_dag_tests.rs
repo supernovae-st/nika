@@ -8,9 +8,9 @@
 //! - Diamond patterns at scale
 //! - Fan-in/fan-out at scale
 
-use nika::serde_yaml;
 use nika::ast::{TaskAction, Workflow};
 use nika::dag::Dag;
+use nika::serde_yaml;
 use std::path::PathBuf;
 
 /// Get path to examples directory

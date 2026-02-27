@@ -18,10 +18,10 @@
 //! ```
 
 use crate::error::NikaError;
+use crate::serde_yaml;
 use jsonschema::Validator;
 use serde_json::Value;
 use std::sync::OnceLock;
-use crate::serde_yaml;
 
 /// Embedded schema JSON (compiled at build time)
 const SCHEMA_JSON: &str = include_str!("../../schemas/nika-workflow.schema.json");

@@ -446,8 +446,8 @@ impl ToolDefinition {
 
 #[cfg(test)]
 mod tests {
-    use crate::serde_yaml;
     use super::*;
+    use crate::serde_yaml;
     use pretty_assertions::assert_eq;
 
     // ═══════════════════════════════════════════════════════════════

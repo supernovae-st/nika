@@ -937,9 +937,11 @@ fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
 
             let exported = match format.as_str() {
                 "json" => serde_json::to_string_pretty(&events)?,
-                "yaml" => serde_yaml::to_string(&events).map_err(|e| NikaError::SerializationError {
-                    details: e.to_string(),
-                })?,
+                "yaml" => {
+                    serde_yaml::to_string(&events).map_err(|e| NikaError::SerializationError {
+                        details: e.to_string(),
+                    })?
+                }
                 other => {
                     return Err(NikaError::ValidationError {
                         reason: format!("Unknown format: {}. Use 'json' or 'yaml'", other),

@@ -64,8 +64,8 @@ impl DecomposeSpec {
 
 #[cfg(test)]
 mod tests {
-    use crate::serde_yaml;
     use super::*;
+    use crate::serde_yaml;
 
     #[test]
     fn test_decompose_strategy_default_is_semantic() {

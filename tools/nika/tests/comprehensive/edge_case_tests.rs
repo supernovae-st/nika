@@ -9,9 +9,9 @@
 //! - Wide fan-in/fan-out
 //! - All binding syntaxes ($var, {{use.var}})
 
-use nika::serde_yaml;
 use nika::ast::{TaskAction, Workflow};
 use nika::dag::Dag;
+use nika::serde_yaml;
 use std::path::PathBuf;
 
 fn examples_dir() -> PathBuf {

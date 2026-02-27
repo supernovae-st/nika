@@ -28,12 +28,12 @@ use super::BuiltinTool;
 use crate::ast::Workflow;
 use crate::error::NikaError;
 use crate::runtime::Runner;
+use crate::serde_yaml;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
-use crate::serde_yaml;
 
 /// Parameters for nika:run tool.
 /// v0.12.1: Supports both `context` (JSON) and `context_json` (string) for OpenAI compatibility.

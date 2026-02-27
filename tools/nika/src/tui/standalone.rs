@@ -25,10 +25,10 @@
 //! - `ignore`: .gitignore-aware directory traversal (from ripgrep author)
 //! - `camino`: UTF-8 safe paths
 
+use crate::serde_yaml;
 use ignore::WalkBuilder;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
-use crate::serde_yaml;
 
 use serde::{Deserialize, Serialize};
 

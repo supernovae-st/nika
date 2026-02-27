@@ -410,8 +410,8 @@ impl FlowEndpoint {
 
 #[cfg(test)]
 mod tests {
-    use crate::serde_yaml;
     use super::*;
+    use crate::serde_yaml;
 
     // ═══════════════════════════════════════════════════════════════════════════
     // WORKFLOW PARSING TESTS

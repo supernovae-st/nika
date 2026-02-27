@@ -106,8 +106,8 @@ impl AgentDef {
 
 #[cfg(test)]
 mod tests {
-    use crate::serde_yaml;
     use super::*;
+    use crate::serde_yaml;
 
     #[test]
     fn test_agent_def_from() {

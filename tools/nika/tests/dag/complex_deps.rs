@@ -2,9 +2,9 @@
 //!
 //! Tests various DAG patterns: diamond, fan-in, fan-out, chain, etc.
 
-use nika::serde_yaml;
 use nika::ast::Workflow;
 use nika::dag::Dag;
+use nika::serde_yaml;
 
 // ============================================================================
 // DIAMOND PATTERN TESTS

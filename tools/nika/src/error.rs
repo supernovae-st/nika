@@ -30,9 +30,9 @@
 //! v0.6.1: Added miette for fancy error display with source spans
 
 use crate::mcp::types::McpErrorCode;
+use crate::serde_yaml;
 use miette::Diagnostic;
 use thiserror::Error;
-use crate::serde_yaml;
 
 pub type Result<T> = std::result::Result<T, NikaError>;
 

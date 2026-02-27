@@ -16,11 +16,11 @@
 //!
 //! See: <https://github.com/ratatui/ratatui-textarea> (replaces rhysd/tui-textarea)
 
+use crate::serde_yaml;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use crate::serde_yaml;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{

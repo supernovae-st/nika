@@ -2,9 +2,9 @@
 //!
 //! Verifies that DAG structure supports correct execution ordering.
 
-use nika::serde_yaml;
 use nika::ast::Workflow;
 use nika::dag::Dag;
+use nika::serde_yaml;
 
 // ============================================================================
 // DEPENDENCY STRUCTURE TESTS

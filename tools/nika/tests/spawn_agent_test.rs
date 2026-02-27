@@ -3,9 +3,9 @@
 //! TDD RED phase: These tests should FAIL initially.
 //! They define the expected behavior for nested agent spawning.
 
-use nika::serde_yaml;
 use nika::ast::AgentParams;
 use nika::event::{EventKind, EventLog};
+use nika::serde_yaml;
 use serde_json::json;
 
 // ═══════════════════════════════════════════════════════════════════════════════
