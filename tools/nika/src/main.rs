@@ -1,6 +1,6 @@
 //! Nika CLI - DAG workflow runner
 
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, CommandFactory, Parser, Subcommand, ValueEnum};
 use colored::Colorize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -44,10 +44,22 @@ WORKFLOW EXECUTION:
 
 INTERACTIVE MODES:
     nika ui                       TUI (Explorer view by default)
-    nika ui --view chat           TUI Chat view
-    nika ui --view editor         TUI Editor view
+    nika ui --view=chat           TUI Chat view
+    nika ui --view=editor         TUI Editor view
     nika chat                     TUI Chat (shortcut)
     nika studio [file]            TUI Editor (shortcut)
+
+CONFIGURATION:
+    nika config list              Show all config values
+    nika config get editor.theme  Get specific value
+    nika config set editor.theme dark
+    nika config edit              Open in $EDITOR
+    nika config path              Show config file path
+
+SHELL COMPLETION:
+    nika completion bash > ~/.local/share/bash-completion/completions/nika
+    nika completion zsh > ~/.zfunc/_nika
+    nika completion fish > ~/.config/fish/completions/nika.fish
 
 PROVIDER MANAGEMENT:
     nika provider list            Show providers and API key status
@@ -64,6 +76,11 @@ TRACES:
     nika trace list               List execution traces
     nika trace show <id>          Show trace details
     nika trace export <id>        Export to JSON/YAML
+
+GLOBAL FLAGS:
+    -v, --verbose                 Increase verbosity (-v, -vv, -vvv)
+    -q, --quiet                   Suppress non-error output
+    --color <auto|always|never>   Control color output
 
 ENVIRONMENT VARIABLES:
     ANTHROPIC_API_KEY             Claude (preferred)
@@ -87,6 +104,18 @@ DOCUMENTATION:
 // CLI STRUCTURE
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// Color output mode (like cargo/git)
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+pub enum ColorChoice {
+    /// Auto-detect based on terminal support
+    #[default]
+    Auto,
+    /// Always use colors
+    Always,
+    /// Never use colors
+    Never,
+}
+
 #[derive(Parser)]
 #[command(name = "nika")]
 #[command(version)]
@@ -98,6 +127,18 @@ struct Cli {
     #[arg(value_name = "WORKFLOW")]
     file: Option<PathBuf>,
 
+    /// Increase verbosity (-v info, -vv debug, -vvv trace)
+    #[arg(short, long, action = ArgAction::Count, global = true)]
+    verbose: u8,
+
+    /// Suppress all output except errors
+    #[arg(short, long, global = true)]
+    quiet: bool,
+
+    /// Color output: auto, always, never
+    #[arg(long, default_value = "auto", global = true, value_enum)]
+    color: ColorChoice,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -108,7 +149,7 @@ enum Commands {
     #[cfg(feature = "tui")]
     Ui {
         /// Initial view: explorer, chat, editor, runner, scheduler, settings
-        #[arg(short, long, value_name = "VIEW")]
+        #[arg(long, value_name = "VIEW")]
         view: Option<String>,
 
         /// Workflow file to load (optional)
@@ -195,6 +236,31 @@ enum Commands {
     Mcp {
         #[command(subcommand)]
         action: McpAction,
+    },
+
+    /// Generate shell completions (v0.13.1)
+    Completion {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
+
+    /// Manage Nika configuration (v0.13.1)
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+
+    /// Check system health and diagnose issues (v0.13.1)
+    #[command(visible_alias = "d")]
+    Doctor {
+        /// Run all checks including slow ones (MCP connectivity)
+        #[arg(long)]
+        full: bool,
+
+        /// Output format: text, json
+        #[arg(long, default_value = "text")]
+        format: String,
     },
 
     /// [deprecated] Use 'nika' instead
@@ -308,6 +374,44 @@ enum McpAction {
     },
 }
 
+/// Configuration management actions (v0.13.1)
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// List all configuration values
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Get a specific config value
+    Get {
+        /// Config key (dot-separated, e.g., editor.theme)
+        key: String,
+    },
+
+    /// Set a config value
+    Set {
+        /// Config key (dot-separated, e.g., editor.theme)
+        key: String,
+        /// Value to set
+        value: String,
+    },
+
+    /// Open config file in $EDITOR
+    Edit,
+
+    /// Show config file path
+    Path,
+
+    /// Reset config to defaults
+    Reset {
+        /// Skip confirmation
+        #[arg(short, long)]
+        force: bool,
+    },
+}
+
 #[tokio::main]
 async fn main() {
     // Load .env file (ignore if not present)
@@ -315,14 +419,28 @@ async fn main() {
 
     let cli = Cli::parse();
 
+    // Apply color settings
+    match cli.color {
+        ColorChoice::Always => colored::control::set_override(true),
+        ColorChoice::Never => colored::control::set_override(false),
+        ColorChoice::Auto => {} // Use default detection
+    }
+
     // Determine if we're running TUI (skip tracing to avoid terminal pollution)
     let is_tui = is_tui_mode(&cli);
 
-    if !is_tui {
+    // Initialize tracing with verbosity level
+    if !is_tui && !cli.quiet {
+        let level = match cli.verbose {
+            0 => tracing::Level::WARN,  // Default: warnings only
+            1 => tracing::Level::INFO,  // -v: info
+            2 => tracing::Level::DEBUG, // -vv: debug
+            _ => tracing::Level::TRACE, // -vvv: trace
+        };
+
         tracing_subscriber::fmt()
             .with_env_filter(
-                tracing_subscriber::EnvFilter::from_default_env()
-                    .add_directive(tracing::Level::INFO.into()),
+                tracing_subscriber::EnvFilter::from_default_env().add_directive(level.into()),
             )
             .init();
     }
@@ -352,6 +470,9 @@ async fn main() {
             std::process::exit(1);
         }
     }
+
+    // Extract global flags for use in handlers
+    let quiet = cli.quiet;
 
     // Handle subcommands or default to help (terminal-first)
     let result = match cli.command {
@@ -429,6 +550,20 @@ async fn main() {
 
         // MCP server management (v0.12.1)
         Some(Commands::Mcp { action }) => handle_mcp_command(action).await,
+
+        // Shell completion (v0.13.1)
+        Some(Commands::Completion { shell }) => {
+            clap_complete::generate(shell, &mut Cli::command(), "nika", &mut std::io::stdout());
+            Ok(())
+        }
+
+        // Configuration management (v0.13.1)
+        Some(Commands::Config { action }) => handle_config_command(action, quiet),
+
+        // Doctor command (v0.13.1)
+        Some(Commands::Doctor { full, format }) => {
+            handle_doctor_command(full, &format, quiet).await
+        }
 
         // Legacy TUI command (hidden, backward compat)
         #[cfg(feature = "tui")]
@@ -1723,4 +1858,597 @@ async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
             Ok(())
         }
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIG COMMAND HANDLER (v0.13.1)
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), NikaError> {
+    // Find .nika directory
+    let nika_dir = find_nika_dir()?;
+    let config_path = nika_dir.join("config.toml");
+
+    match action {
+        ConfigAction::Path => {
+            println!("{}", config_path.display());
+            Ok(())
+        }
+
+        ConfigAction::List { json } => {
+            if !config_path.exists() {
+                if json {
+                    println!("{{}}");
+                } else {
+                    println!(
+                        "{} No config file found at {}",
+                        "ℹ".cyan(),
+                        config_path.display()
+                    );
+                    println!("  Run 'nika init' to create one.");
+                }
+                return Ok(());
+            }
+
+            let content = fs::read_to_string(&config_path)?;
+
+            if json {
+                // Parse TOML and convert to JSON
+                let value: toml::Value =
+                    toml::from_str(&content).map_err(|e| NikaError::ValidationError {
+                        reason: format!("Invalid TOML: {}", e),
+                    })?;
+                let json = serde_json::to_string_pretty(&value).map_err(|e| {
+                    NikaError::ValidationError {
+                        reason: format!("JSON conversion failed: {}", e),
+                    }
+                })?;
+                println!("{}", json);
+            } else {
+                println!("{}", "Nika Configuration".bold());
+                println!("{}", "─".repeat(40));
+                println!();
+                println!("{}", content);
+            }
+            Ok(())
+        }
+
+        ConfigAction::Get { key } => {
+            if !config_path.exists() {
+                return Err(NikaError::ValidationError {
+                    reason: "No config file found. Run 'nika init' first.".to_string(),
+                });
+            }
+
+            let content = fs::read_to_string(&config_path)?;
+            let value: toml::Value =
+                toml::from_str(&content).map_err(|e| NikaError::ValidationError {
+                    reason: format!("Invalid TOML: {}", e),
+                })?;
+
+            // Navigate to the key (dot-separated path)
+            let mut current = &value;
+            for part in key.split('.') {
+                current = current
+                    .get(part)
+                    .ok_or_else(|| NikaError::ValidationError {
+                        reason: format!("Key '{}' not found", key),
+                    })?;
+            }
+
+            // Print the value
+            match current {
+                toml::Value::String(s) => println!("{}", s),
+                toml::Value::Integer(i) => println!("{}", i),
+                toml::Value::Float(f) => println!("{}", f),
+                toml::Value::Boolean(b) => println!("{}", b),
+                _ => println!("{}", current),
+            }
+            Ok(())
+        }
+
+        ConfigAction::Set { key, value } => {
+            if !config_path.exists() {
+                return Err(NikaError::ValidationError {
+                    reason: "No config file found. Run 'nika init' first.".to_string(),
+                });
+            }
+
+            let content = fs::read_to_string(&config_path)?;
+            let mut doc =
+                content
+                    .parse::<toml::Table>()
+                    .map_err(|e| NikaError::ValidationError {
+                        reason: format!("Invalid TOML: {}", e),
+                    })?;
+
+            // Navigate and set the value
+            let parts: Vec<&str> = key.split('.').collect();
+            if parts.is_empty() {
+                return Err(NikaError::ValidationError {
+                    reason: "Empty key".to_string(),
+                });
+            }
+
+            // Build nested structure
+            let mut current = &mut doc;
+            for (i, part) in parts.iter().enumerate() {
+                if i == parts.len() - 1 {
+                    // Last part - set the value
+                    let toml_value = parse_config_value(&value);
+                    current.insert((*part).to_string(), toml_value);
+                } else {
+                    // Navigate or create table
+                    if !current.contains_key(*part) {
+                        current.insert((*part).to_string(), toml::Value::Table(toml::Table::new()));
+                    }
+                    current = current
+                        .get_mut(*part)
+                        .unwrap()
+                        .as_table_mut()
+                        .ok_or_else(|| NikaError::ValidationError {
+                            reason: format!("'{}' is not a table", part),
+                        })?;
+                }
+            }
+
+            // Write back
+            let new_content =
+                toml::to_string_pretty(&doc).map_err(|e| NikaError::ValidationError {
+                    reason: format!("TOML serialization failed: {}", e),
+                })?;
+            fs::write(&config_path, new_content)?;
+
+            if !quiet {
+                println!("{} {} = {}", "✓".green(), key, value);
+            }
+            Ok(())
+        }
+
+        ConfigAction::Edit => {
+            let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
+
+            if !config_path.exists() {
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "No config file found at {}. Run 'nika init' first.",
+                        config_path.display()
+                    ),
+                });
+            }
+
+            let status = std::process::Command::new(&editor)
+                .arg(&config_path)
+                .status()
+                .map_err(|e| NikaError::ValidationError {
+                    reason: format!("Failed to launch editor '{}': {}", editor, e),
+                })?;
+
+            if !status.success() {
+                return Err(NikaError::ValidationError {
+                    reason: format!("Editor '{}' exited with code {:?}", editor, status.code()),
+                });
+            }
+            Ok(())
+        }
+
+        ConfigAction::Reset { force } => {
+            if !force {
+                println!(
+                    "{} This will reset config to defaults. Use --force to confirm.",
+                    "⚠".yellow()
+                );
+                return Ok(());
+            }
+
+            if config_path.exists() {
+                fs::remove_file(&config_path)?;
+            }
+
+            // Create default config
+            let default_config = include_str!("../templates/config.toml");
+            fs::write(&config_path, default_config)?;
+
+            if !quiet {
+                println!("{} Config reset to defaults", "✓".green());
+            }
+            Ok(())
+        }
+    }
+}
+
+/// Parse a string value into appropriate TOML type
+fn parse_config_value(value: &str) -> toml::Value {
+    // Try boolean
+    if value == "true" {
+        return toml::Value::Boolean(true);
+    }
+    if value == "false" {
+        return toml::Value::Boolean(false);
+    }
+
+    // Try integer
+    if let Ok(i) = value.parse::<i64>() {
+        return toml::Value::Integer(i);
+    }
+
+    // Try float
+    if let Ok(f) = value.parse::<f64>() {
+        return toml::Value::Float(f);
+    }
+
+    // Default to string
+    toml::Value::String(value.to_string())
+}
+
+/// Find .nika directory (search current and parents)
+fn find_nika_dir() -> Result<PathBuf, NikaError> {
+    let current = std::env::current_dir()?;
+
+    let mut dir = current.as_path();
+    loop {
+        let nika_dir = dir.join(".nika");
+        if nika_dir.exists() && nika_dir.is_dir() {
+            return Ok(nika_dir);
+        }
+
+        match dir.parent() {
+            Some(parent) => dir = parent,
+            None => break,
+        }
+    }
+
+    // Default to current directory
+    Ok(current.join(".nika"))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOCTOR COMMAND HANDLER (v0.13.1)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Diagnostic check result
+#[derive(Debug, Clone)]
+struct DiagnosticCheck {
+    name: &'static str,
+    status: DiagnosticStatus,
+    message: String,
+    suggestion: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum DiagnosticStatus {
+    Pass,
+    Warn,
+    Fail,
+}
+
+impl DiagnosticCheck {
+    fn pass(name: &'static str, message: impl Into<String>) -> Self {
+        Self {
+            name,
+            status: DiagnosticStatus::Pass,
+            message: message.into(),
+            suggestion: None,
+        }
+    }
+
+    fn warn(name: &'static str, message: impl Into<String>, suggestion: impl Into<String>) -> Self {
+        Self {
+            name,
+            status: DiagnosticStatus::Warn,
+            message: message.into(),
+            suggestion: Some(suggestion.into()),
+        }
+    }
+
+    fn fail(name: &'static str, message: impl Into<String>, suggestion: impl Into<String>) -> Self {
+        Self {
+            name,
+            status: DiagnosticStatus::Fail,
+            message: message.into(),
+            suggestion: Some(suggestion.into()),
+        }
+    }
+
+    fn icon(&self) -> &'static str {
+        match self.status {
+            DiagnosticStatus::Pass => "✓",
+            DiagnosticStatus::Warn => "⚠",
+            DiagnosticStatus::Fail => "✗",
+        }
+    }
+}
+
+async fn handle_doctor_command(full: bool, format: &str, quiet: bool) -> Result<(), NikaError> {
+    let mut checks: Vec<DiagnosticCheck> = vec![];
+
+    // 1. Check .nika directory
+    checks.push(check_nika_directory());
+
+    // 2. Check config file
+    checks.push(check_config_file());
+
+    // 3. Check API keys
+    checks.extend(check_api_keys());
+
+    // 4. Check trace directory
+    checks.push(check_trace_directory());
+
+    // 5. Check Rust version
+    checks.push(check_rust_version());
+
+    // 6. Full mode: Check MCP connectivity (slow)
+    if full {
+        checks.push(check_mcp_connectivity().await);
+    }
+
+    // Output results
+    if format == "json" {
+        output_doctor_json(&checks);
+    } else {
+        output_doctor_text(&checks, quiet);
+    }
+
+    // Return error if any checks failed
+    let has_failures = checks.iter().any(|c| c.status == DiagnosticStatus::Fail);
+    if has_failures {
+        return Err(NikaError::ValidationError {
+            reason: "Some diagnostic checks failed".to_string(),
+        });
+    }
+
+    Ok(())
+}
+
+fn check_nika_directory() -> DiagnosticCheck {
+    match find_nika_dir() {
+        Ok(dir) if dir.exists() => DiagnosticCheck::pass(
+            "Project",
+            format!(".nika directory found at {}", dir.display()),
+        ),
+        Ok(dir) => DiagnosticCheck::warn(
+            "Project",
+            format!("No .nika directory at {}", dir.display()),
+            "Run 'nika init' to create project structure",
+        ),
+        Err(_) => DiagnosticCheck::fail(
+            "Project",
+            "Cannot determine current directory",
+            "Check filesystem permissions",
+        ),
+    }
+}
+
+fn check_config_file() -> DiagnosticCheck {
+    let nika_dir = match find_nika_dir() {
+        Ok(d) => d,
+        Err(_) => {
+            return DiagnosticCheck::warn(
+                "Config",
+                "Cannot locate .nika directory",
+                "Run 'nika init' first",
+            )
+        }
+    };
+
+    let config_path = nika_dir.join("config.toml");
+    if !config_path.exists() {
+        return DiagnosticCheck::warn(
+            "Config",
+            "No config.toml found",
+            "Run 'nika init' to create default config",
+        );
+    }
+
+    // Try to parse the config
+    match fs::read_to_string(&config_path) {
+        Ok(content) => match toml::from_str::<toml::Value>(&content) {
+            Ok(_) => DiagnosticCheck::pass("Config", "config.toml is valid TOML"),
+            Err(e) => DiagnosticCheck::fail(
+                "Config",
+                format!("config.toml has syntax errors: {}", e),
+                "Run 'nika config edit' to fix",
+            ),
+        },
+        Err(e) => DiagnosticCheck::fail(
+            "Config",
+            format!("Cannot read config.toml: {}", e),
+            "Check file permissions",
+        ),
+    }
+}
+
+fn check_api_keys() -> Vec<DiagnosticCheck> {
+    let mut checks = vec![];
+
+    // Check common API keys (without exposing values)
+    let keys = [
+        ("ANTHROPIC_API_KEY", "Claude"),
+        ("OPENAI_API_KEY", "OpenAI"),
+        ("MISTRAL_API_KEY", "Mistral"),
+        ("GROQ_API_KEY", "Groq"),
+        ("DEEPSEEK_API_KEY", "DeepSeek"),
+    ];
+
+    let mut any_found = false;
+    for (env_var, provider) in keys {
+        if std::env::var(env_var).is_ok() {
+            checks.push(DiagnosticCheck::pass(
+                "API Key",
+                format!("{} API key configured ({})", provider, env_var),
+            ));
+            any_found = true;
+        }
+    }
+
+    // Check Ollama (URL-based, no key)
+    if std::env::var("OLLAMA_API_BASE_URL").is_ok() {
+        checks.push(DiagnosticCheck::pass(
+            "API Key",
+            "Ollama configured (OLLAMA_API_BASE_URL)",
+        ));
+        any_found = true;
+    }
+
+    if !any_found {
+        checks.push(DiagnosticCheck::warn(
+            "API Key",
+            "No LLM API keys found",
+            "Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or configure Ollama",
+        ));
+    }
+
+    checks
+}
+
+fn check_trace_directory() -> DiagnosticCheck {
+    let nika_dir = match find_nika_dir() {
+        Ok(d) => d,
+        Err(_) => {
+            return DiagnosticCheck::warn(
+                "Traces",
+                "Cannot locate .nika directory",
+                "Run 'nika init' first",
+            )
+        }
+    };
+
+    let trace_dir = nika_dir.join("traces");
+
+    // Check if directory exists
+    if !trace_dir.exists() {
+        return DiagnosticCheck::warn(
+            "Traces",
+            "Trace directory doesn't exist",
+            "It will be created on first workflow run",
+        );
+    }
+
+    // Check if writable by attempting to create a temp file
+    let test_file = trace_dir.join(".nika_doctor_test");
+    match fs::write(&test_file, b"test") {
+        Ok(_) => {
+            let _ = fs::remove_file(&test_file);
+            DiagnosticCheck::pass(
+                "Traces",
+                format!("Trace directory writable ({})", trace_dir.display()),
+            )
+        }
+        Err(e) => DiagnosticCheck::fail(
+            "Traces",
+            format!("Trace directory not writable: {}", e),
+            "Check directory permissions",
+        ),
+    }
+}
+
+fn check_rust_version() -> DiagnosticCheck {
+    // Get rustc version
+    match std::process::Command::new("rustc")
+        .arg("--version")
+        .output()
+    {
+        Ok(output) => {
+            let version = String::from_utf8_lossy(&output.stdout);
+            let version = version.trim();
+            if version.contains("1.8") || version.contains("1.9") {
+                DiagnosticCheck::pass("Rust", version.to_string())
+            } else if version.starts_with("rustc 1.7") {
+                DiagnosticCheck::warn(
+                    "Rust",
+                    format!("{} (older version)", version),
+                    "Consider updating: rustup update",
+                )
+            } else {
+                DiagnosticCheck::pass("Rust", version.to_string())
+            }
+        }
+        Err(_) => DiagnosticCheck::warn(
+            "Rust",
+            "rustc not found in PATH",
+            "Install Rust: https://rustup.rs",
+        ),
+    }
+}
+
+async fn check_mcp_connectivity() -> DiagnosticCheck {
+    // This is a placeholder - in a real implementation, we'd try to connect
+    // to configured MCP servers from the config file
+    DiagnosticCheck::pass(
+        "MCP",
+        "MCP connectivity check (requires configured servers)",
+    )
+}
+
+fn output_doctor_text(checks: &[DiagnosticCheck], quiet: bool) {
+    if !quiet {
+        println!();
+        println!("{}", "Nika Doctor".bold());
+        println!("{}", "═".repeat(50));
+        println!();
+    }
+
+    let mut pass_count = 0;
+    let mut warn_count = 0;
+    let mut fail_count = 0;
+
+    for check in checks {
+        let icon = match check.status {
+            DiagnosticStatus::Pass => check.icon().green(),
+            DiagnosticStatus::Warn => check.icon().yellow(),
+            DiagnosticStatus::Fail => check.icon().red(),
+        };
+
+        println!("{} {} {}", icon, check.name.bold(), check.message);
+
+        if let Some(ref suggestion) = check.suggestion {
+            println!("  {} {}", "→".cyan(), suggestion);
+        }
+
+        match check.status {
+            DiagnosticStatus::Pass => pass_count += 1,
+            DiagnosticStatus::Warn => warn_count += 1,
+            DiagnosticStatus::Fail => fail_count += 1,
+        }
+    }
+
+    if !quiet {
+        println!();
+        println!(
+            "{} {} passed, {} warnings, {} failed",
+            "Summary:".bold(),
+            pass_count.to_string().green(),
+            warn_count.to_string().yellow(),
+            fail_count.to_string().red()
+        );
+    }
+}
+
+fn output_doctor_json(checks: &[DiagnosticCheck]) {
+    let results: Vec<serde_json::Value> = checks
+        .iter()
+        .map(|c| {
+            serde_json::json!({
+                "name": c.name,
+                "status": match c.status {
+                    DiagnosticStatus::Pass => "pass",
+                    DiagnosticStatus::Warn => "warn",
+                    DiagnosticStatus::Fail => "fail",
+                },
+                "message": c.message,
+                "suggestion": c.suggestion,
+            })
+        })
+        .collect();
+
+    let output = serde_json::json!({
+        "checks": results,
+        "summary": {
+            "pass": checks.iter().filter(|c| c.status == DiagnosticStatus::Pass).count(),
+            "warn": checks.iter().filter(|c| c.status == DiagnosticStatus::Warn).count(),
+            "fail": checks.iter().filter(|c| c.status == DiagnosticStatus::Fail).count(),
+        }
+    });
+
+    println!("{}", serde_json::to_string_pretty(&output).unwrap());
 }

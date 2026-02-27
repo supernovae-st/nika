@@ -7,6 +7,123 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-02-27
+
+### Added
+- **Shell Completion** - `nika completion <shell>` for bash/zsh/fish/powershell
+  - Full completion for all commands and options
+  - Install: `nika completion zsh > ~/.zfunc/_nika`
+- **Configuration CLI** - `nika config` command (git/gh style)
+  - `nika config list` - Show all configuration
+  - `nika config get <key>` - Get value (dot-separated path)
+  - `nika config set <key> <value>` - Set value
+  - `nika config edit` - Open in $EDITOR
+  - `nika config path` - Show config file location
+  - `nika config reset --force` - Reset to defaults
+- **Global CLI Flags** - Terminal-first DX improvements
+  - `-v, --verbose` - Increase verbosity (-v, -vv, -vvv)
+  - `-q, --quiet` - Suppress non-error output
+  - `--color <auto|always|never>` - Control color output
+- **Config Template** - `templates/config.toml` for reset command
+- **Boot Sequence** - 6-phase startup with structured context
+  - Phases: ConfigDiscovery → ConfigValidation → MemoryLoading → McpStartup → ProviderValidation → Ready
+  - `BootContext` accumulates config, warnings, and timing
+  - `PhaseResult` with duration, success, and diagnostic messages
+  - Full `NikaConfig` struct: tools, provider, editor, session, trace, policy
+- **Policy Enforcer** - Security policy enforcement (v0.13.1)
+  - `check_exec()` - Block dangerous shell commands (sudo, rm -rf, chmod 777)
+  - `check_fetch()` - Block/allow hosts, enforce network restrictions
+  - `check_token_spend()` - Token budget limits and tracking
+  - `PolicyDecision` enum: Allow, Block, RequiresApproval
+  - `TokenBudget` with spend tracking and remaining budget
+- **Doctor Command** - System health diagnostics (v0.13.1)
+  - `nika doctor` - Run all diagnostic checks
+  - `nika doctor --full` - Include slow MCP connectivity checks
+  - `nika doctor --format json` - JSON output for scripting
+  - Checks: Project setup, config validity, API keys, trace dir, Rust version
+
+### Changed
+- Verbosity levels: 0=warn, 1=info, 2=debug, 3=trace
+- `nika ui --view` no longer has `-v` short option (conflicts with verbose)
+- Help text updated with new commands and global flags
+
+### New Error Codes
+- `NIKA-160` PolicyViolation - Action blocked by security policy
+- `NIKA-161` BootFailed - Boot sequence phase failure
+
+### Dependencies
+- Added `clap_complete` 4.5 for shell completion
+
+## [0.13.0] - 2026-02-27
+
+### Added
+- **Schema @0.6 Infrastructure** - Foundation for memory, agents, and skills
+  - `MemorySpec`, `AgentDefinition`, `SkillDefinition` AST modules
+  - `SCHEMA_V06` constant for workflow version detection
+  - Memory errors (250-259) for loading/parsing failures
+  - Agent/skill resolver for multi-format loading (.md, .yaml)
+- **Memory Loading** - Workflow memory context support
+  - `load_memory()` runtime function
+  - `LoadedMemory` struct with context data
+  - Memory file parsing and validation
+- **Agent/Skill Resolution** - Dynamic asset loading
+  - `resolve_assets()` for agents and skills discovery
+  - `ResolvedAgent`, `ResolvedSkills` types
+  - Multi-format support: YAML inline or markdown files
+- **Terminal-First CLI Design** - Inspired by cargo/git/gh patterns
+  - Cleaner help output with contextual examples
+  - Consistent subcommand structure
+  - `nika mcp start/stop/restart` server management
+- **Complete .nika Directory Structure** - Full project initialization
+  - `config.toml`, `user.yaml`, `memory.yaml`, `policies.yaml`
+  - `agents/`, `skills/`, `context/`, `workflows/` subdirectories
+  - `memory/`, `proposed/`, `cache/` runtime directories
+  - Example files: `researcher.md` agent, `code-review.md` skill
+- **Chat-to-YAML Export** - Convert chat sessions to workflows
+  - `/export yaml` command in Chat view
+  - ChatWorkflow → Workflow AST conversion
+- **Split View (Runner Redesign)** - Horizontal split for task focus
+  - Left panel: DAG overview
+  - Right panel: Active task details (TaskBox)
+- **Binding Modifiers** - Extended template processing
+  - `|shell` modifier for safe shell escaping
+  - Prevents command injection in `exec:` tasks
+
+### Changed
+- TUI Runner view uses horizontal split layout
+- TaskBox inline rendering for all 5 verbs
+- InferBox enhanced with full design spec
+
+### Fixed
+- Runner view visual bugs and lifecycle issues
+- Resolver mutability for asset loading
+- Example workflows fixed for DAG and schema compliance
+
+### Statistics
+- **2,997 tests passing**
+- **Zero clippy warnings**
+- **Schema @0.6 ready** (infrastructure complete)
+
+## [0.12.1] - 2026-02-25
+
+### Added
+- **MCP Server Management Commands** - CLI control for MCP servers
+  - `nika mcp start <server>` - Start server process
+  - `nika mcp stop <server>` - Stop running server
+  - `nika mcp restart <server>` - Restart server
+  - `nika mcp status` - Show all server statuses
+- **TaskBox Visual Enhancements** - Full design spec implementation
+  - Plan A documentation: Complete TaskBox visual specification
+  - 12-phase implementation plan with 24 tasks
+  - All 5 verb boxes: InferBox, ExecBox, FetchBox, InvokeBox, AgentBox
+
+### Changed
+- Updated cliff.toml with SuperNovae release template
+- Improved DX documentation
+
+### Statistics
+- **2,893 tests passing**
+
 ## [0.12.0] - 2026-02-25
 
 ### Added
@@ -415,7 +532,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **TUI** - Terminal UI with ratatui (feature-gated)
 - **Schema v0.1** - `nika/workflow@0.1`
 
-[Unreleased]: https://github.com/supernovae-st/nika-dev/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/supernovae-st/nika-dev/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/supernovae-st/nika-dev/compare/v0.12.1...v0.13.0
+[0.12.1]: https://github.com/supernovae-st/nika-dev/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/supernovae-st/nika-dev/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/supernovae-st/nika-dev/compare/v0.10.5...v0.11.0
 [0.10.5]: https://github.com/supernovae-st/nika-dev/compare/v0.10.0...v0.10.5

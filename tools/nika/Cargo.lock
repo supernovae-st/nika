@@ -477,6 +477,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_complete"
+version = "4.5.66"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c757a3b7e39161a4e56f9365141ada2a6c915a8622c408ab6bb4b5d047371031"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "clap_derive"
 version = "4.5.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2230,7 +2239,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "arboard",
  "async-trait",
@@ -2238,6 +2247,7 @@ dependencies = [
  "camino",
  "chrono",
  "clap",
+ "clap_complete",
  "colored",
  "criterion",
  "crossterm 0.29.0",
