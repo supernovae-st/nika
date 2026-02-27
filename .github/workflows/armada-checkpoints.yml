@@ -30,7 +30,7 @@ jobs:
     name: "🔧 Station 1: Format"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
@@ -41,7 +41,7 @@ jobs:
     name: "📎 Station 2: Lint"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
@@ -56,7 +56,7 @@ jobs:
     name: "🧪 Station 3: Tests"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
@@ -70,7 +70,7 @@ jobs:
     name: "📊 Station 4: Coverage"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
@@ -94,7 +94,7 @@ jobs:
     name: "📖 Station 5: Docs"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
@@ -107,7 +107,7 @@ jobs:
     name: "⚓ Station 6: Security"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
@@ -128,7 +128,7 @@ jobs:
     name: "🤖 Station 7: CodeRabbit"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: |
           echo "CodeRabbit AI review"
           echo "If CodeRabbit GitHub App is installed, it reviews automatically."
@@ -139,7 +139,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Claude AI Review (placeholder)
@@ -155,7 +155,7 @@ jobs:
     name: "📝 Station 9: Ship's Log"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Check commit messages (conventional)
@@ -180,7 +180,7 @@ jobs:
     name: "🏴‍☠️ Station 10: Captain's Orders"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Enforce 0.x.x version (Captain's Orders)
         run: |
           if [[ -f "tools/nika/Cargo.toml" ]]; then
@@ -222,7 +222,7 @@ jobs:
       - station-9-commits
       - station-10-version
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: |
           echo ""
           echo "ARMADA FLEET CLEARED FOR LAUNCH"
