@@ -144,13 +144,14 @@ async fn resolve_agent(
             let file_path = base_path.join(file);
             debug!(agent = name, path = ?file_path, "Loading external agent definition");
 
-            let content = fs::read_to_string(&file_path).await.map_err(|e| {
-                NikaError::MemoryLoadError {
-                    alias: name.to_string(),
-                    path: file_path.display().to_string(),
-                    reason: e.to_string(),
-                }
-            })?;
+            let content =
+                fs::read_to_string(&file_path)
+                    .await
+                    .map_err(|e| NikaError::MemoryLoadError {
+                        alias: name.to_string(),
+                        path: file_path.display().to_string(),
+                        reason: e.to_string(),
+                    })?;
 
             // Parse the external file as an inline agent definition
             let parsed: ExternalAgentFile =
@@ -205,21 +206,17 @@ fn default_provider() -> String {
 }
 
 /// Load a skill file content.
-async fn load_skill(
-    name: &str,
-    path: &SkillDef,
-    base_path: &Path,
-) -> Result<String, NikaError> {
+async fn load_skill(name: &str, path: &SkillDef, base_path: &Path) -> Result<String, NikaError> {
     let file_path = base_path.join(path);
     debug!(skill = name, path = ?file_path, "Loading skill file");
 
-    let content = fs::read_to_string(&file_path).await.map_err(|e| {
-        NikaError::MemoryLoadError {
+    let content = fs::read_to_string(&file_path)
+        .await
+        .map_err(|e| NikaError::MemoryLoadError {
             alias: name.to_string(),
             path: file_path.display().to_string(),
             reason: e.to_string(),
-        }
-    })?;
+        })?;
 
     Ok(content)
 }
@@ -498,7 +495,10 @@ system: "You are a researcher."
         assert_eq!(assets.agents.len(), 2);
         let researcher = assets.get_agent("researcher").unwrap();
         assert_eq!(researcher.system, "You are a researcher.");
-        assert_eq!(researcher.source, AgentSource::External("agents/researcher.agent.yaml".to_string()));
+        assert_eq!(
+            researcher.source,
+            AgentSource::External("agents/researcher.agent.yaml".to_string())
+        );
 
         let writer = assets.get_agent("writer").unwrap();
         assert_eq!(writer.system, "You are a writer.");
@@ -506,8 +506,14 @@ system: "You are a researcher."
 
         // Check skills
         assert_eq!(assets.skills.len(), 2);
-        assert!(assets.get_skill("skill1").unwrap().contains("First skill content"));
-        assert!(assets.get_skill("skill2").unwrap().contains("Second skill content"));
+        assert!(assets
+            .get_skill("skill1")
+            .unwrap()
+            .contains("First skill content"));
+        assert!(assets
+            .get_skill("skill2")
+            .unwrap()
+            .contains("Second skill content"));
     }
 
     #[tokio::test]
@@ -580,7 +586,9 @@ system: "You are an agent with defaults."
                 source: AgentSource::Inline,
             },
         );
-        assets.skills.insert("skill".to_string(), "Skill content".to_string());
+        assets
+            .skills
+            .insert("skill".to_string(), "Skill content".to_string());
 
         assert!(assets.get_agent("test").is_some());
         assert!(assets.get_agent("nonexistent").is_none());

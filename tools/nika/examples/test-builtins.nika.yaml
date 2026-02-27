@@ -1,0 +1,72 @@
+# Test: Builtin nika:* tools
+# Run with: nika examples/test-builtins.nika.yaml
+#
+# Note: Builtins require mcp field for schema validation but intercept before MCP call
+
+schema: "nika/workflow@0.5"
+
+# Dummy MCP config (not actually used - builtins intercept before MCP call)
+mcp:
+  dummy:
+    command: "echo"
+    args: ["not used"]
+
+tasks:
+  # Test 1: nika:sleep
+  - id: test_sleep
+    invoke:
+      mcp: dummy
+      tool: nika:sleep
+      params:
+        duration: "100ms"
+
+  # Test 2: nika:log
+  - id: test_log
+    use:
+      sleep_result: test_sleep
+    invoke:
+      mcp: dummy
+      tool: nika:log
+      params:
+        level: info
+        message: "Sleep completed: {{use.sleep_result}}"
+
+  # Test 3: nika:emit
+  - id: test_emit
+    use:
+      log_result: test_log
+    invoke:
+      mcp: dummy
+      tool: nika:emit
+      params:
+        name: "custom_event"
+        payload:
+          test: "passed"
+          step: "emit"
+
+  # Test 4: nika:assert (pass)
+  - id: test_assert_pass
+    use:
+      emit_result: test_emit
+    invoke:
+      mcp: dummy
+      tool: nika:assert
+      params:
+        condition: true
+        message: "This should pass"
+
+  # Final: collect results
+  - id: final
+    use:
+      assert_result: test_assert_pass
+    exec: "echo 'All builtin tests passed!'"
+
+flows:
+  - source: test_sleep
+    target: test_log
+  - source: test_log
+    target: test_emit
+  - source: test_emit
+    target: test_assert_pass
+  - source: test_assert_pass
+    target: final

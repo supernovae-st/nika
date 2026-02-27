@@ -38,7 +38,9 @@ pub use executor::TaskExecutor;
 pub use hitl::{DefaultHitlHandler, HitlError, HitlHandler, HitlRequest, HitlResponse};
 pub use memory_loader::{load_memory, LoadedMemory};
 pub use output::make_task_result;
-pub use resolver::{resolve_assets, AgentSource, ResolvedAgent, ResolvedAgents, ResolvedAssets, ResolvedSkills};
+pub use resolver::{
+    resolve_assets, AgentSource, ResolvedAgent, ResolvedAgents, ResolvedAssets, ResolvedSkills,
+};
 pub use rig_agent_loop::{RigAgentLoop, RigAgentLoopResult, RigAgentStatus};
 pub use runner::Runner;
 pub use spawn::{SpawnAgentParams, SpawnAgentTool};
