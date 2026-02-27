@@ -37,6 +37,12 @@ pub const SCHEMA_V05: &str = "nika/workflow@0.5";
 /// Expected schema version for v0.6 workflows (memory, agents, skills)
 pub const SCHEMA_V06: &str = "nika/workflow@0.6";
 
+/// Expected schema version for v0.7 workflows (enhanced TUI streaming)
+pub const SCHEMA_V07: &str = "nika/workflow@0.7";
+
+/// Expected schema version for v0.8 workflows (Studio DX, agents from:)
+pub const SCHEMA_V08: &str = "nika/workflow@0.8";
+
 /// Inline MCP server configuration (v0.2)
 ///
 /// Allows workflows to define MCP servers directly in YAML.
@@ -168,7 +174,7 @@ impl Workflow {
     /// Validate the workflow schema version and task configuration
     ///
     /// Returns error if:
-    /// - Schema doesn't match expected version (v0.1 through v0.6)
+    /// - Schema doesn't match expected version (v0.1 through v0.8)
     /// - Any task has invalid for_each configuration (non-array or empty)
     pub fn validate_schema(&self) -> Result<(), NikaError> {
         // Validate schema version
@@ -178,11 +184,14 @@ impl Workflow {
             && self.schema != SCHEMA_V04
             && self.schema != SCHEMA_V05
             && self.schema != SCHEMA_V06
+            && self.schema != SCHEMA_V07
+            && self.schema != SCHEMA_V08
         {
             return Err(NikaError::InvalidSchema {
                 expected: format!(
-                    "{} or {} or {} or {} or {} or {}",
-                    SCHEMA_V01, SCHEMA_V02, SCHEMA_V03, SCHEMA_V04, SCHEMA_V05, SCHEMA_V06
+                    "{} or {} or {} or {} or {} or {} or {} or {}",
+                    SCHEMA_V01, SCHEMA_V02, SCHEMA_V03, SCHEMA_V04, SCHEMA_V05, SCHEMA_V06,
+                    SCHEMA_V07, SCHEMA_V08
                 ),
                 actual: self.schema.clone(),
             });
@@ -591,6 +600,30 @@ tasks:
     fn test_validate_schema_v06() {
         let yaml = r#"
 schema: nika/workflow@0.6
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(workflow.validate_schema().is_ok());
+    }
+
+    #[test]
+    fn test_validate_schema_v07() {
+        let yaml = r#"
+schema: nika/workflow@0.7
+tasks:
+  - id: task1
+    infer: "Test"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        assert!(workflow.validate_schema().is_ok());
+    }
+
+    #[test]
+    fn test_validate_schema_v08() {
+        let yaml = r#"
+schema: nika/workflow@0.8
 tasks:
   - id: task1
     infer: "Test"

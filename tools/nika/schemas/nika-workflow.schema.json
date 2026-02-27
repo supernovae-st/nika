@@ -64,9 +64,77 @@
         "$ref": "#/$defs/Flow"
       },
       "description": "DAG edges defining task dependencies"
+    },
+    "agents": {
+      "type": "object",
+      "description": "Agent definitions - reusable agent configurations (v0.6+)",
+      "additionalProperties": {
+        "$ref": "#/$defs/AgentDef"
+      }
     }
   },
   "$defs": {
+    "AgentDef": {
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "External agent reference using from: (v0.13+)",
+          "required": ["from"],
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "type": "string",
+              "description": "Path to agent definition (file or folder, auto-detects format)"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "description": "External agent file reference (legacy)",
+          "required": ["file"],
+          "additionalProperties": false,
+          "properties": {
+            "file": {
+              "type": "string",
+              "description": "Path to agent definition file (.agent.yaml)"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "description": "Inline agent definition",
+          "required": ["system"],
+          "additionalProperties": false,
+          "properties": {
+            "system": {
+              "type": "string",
+              "description": "System prompt for the agent"
+            },
+            "provider": {
+              "type": "string",
+              "enum": ["claude", "openai", "mistral", "groq", "deepseek", "ollama", "mock"],
+              "default": "claude",
+              "description": "LLM provider for this agent"
+            },
+            "model": {
+              "type": "string",
+              "description": "Model to use"
+            },
+            "max_turns": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum turns for the agent"
+            },
+            "temperature": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2,
+              "description": "Temperature for generation"
+            }
+          }
+        }
+      ]
+    },
     "MemoryConfig": {
       "type": "object",
       "additionalProperties": false,
