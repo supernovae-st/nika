@@ -1160,6 +1160,233 @@ Provide feedback in categories:
     fs::write(&example_skill_path, example_skill_content)?;
     println!("{} Created {}", "✓".green(), example_skill_path.display());
 
+    // Create context directory (v0.13)
+    let context_dir = nika_dir.join("context");
+    fs::create_dir_all(&context_dir)?;
+    println!("{} Created {}", "✓".green(), context_dir.display());
+
+    // Create example context file
+    let context_path = context_dir.join("project.md");
+    let context_content = r#"# Project Context
+
+This file provides shared context for all agents and workflows.
+
+## Project Overview
+
+Describe your project here. This context will be available to agents via `memory.context.project`.
+
+## Key Information
+
+- Project name: [Your Project]
+- Tech stack: [Your Stack]
+- Key conventions: [Your Conventions]
+"#;
+    fs::write(&context_path, context_content)?;
+    println!("{} Created {}", "✓".green(), context_path.display());
+
+    // Create memory directory (v0.13)
+    let memory_dir = nika_dir.join("memory");
+    fs::create_dir_all(&memory_dir)?;
+    println!("{} Created {}", "✓".green(), memory_dir.display());
+
+    // Create proposed directory (for agent-proposed changes)
+    let proposed_dir = nika_dir.join("proposed");
+    fs::create_dir_all(&proposed_dir)?;
+    println!("{} Created {}", "✓".green(), proposed_dir.display());
+
+    // Create cache directory
+    let cache_dir = nika_dir.join("cache");
+    fs::create_dir_all(&cache_dir)?;
+    println!("{} Created {}", "✓".green(), cache_dir.display());
+
+    // Create workflows directory (v0.13 - for sub-workflow composition)
+    let workflows_dir = nika_dir.join("workflows");
+    fs::create_dir_all(&workflows_dir)?;
+    println!("{} Created {}", "✓".green(), workflows_dir.display());
+
+    // Create example sub-workflow (can be called via nika:run)
+    let example_subworkflow_path = workflows_dir.join("helpers.nika.yaml");
+    let example_subworkflow_content = r#"# Helper Sub-Workflows
+# These workflows can be called from parent workflows via nika:run
+#
+# Usage in parent workflow:
+#   tasks:
+#     - id: generate_summary
+#       invoke:
+#         tool: nika:run
+#         params:
+#           workflow: .nika/workflows/helpers.nika.yaml
+#           task: summarize
+#           input: "{{use.content}}"
+
+schema: "nika/workflow@0.6"
+workflow: helpers
+description: "Reusable helper workflows for common tasks"
+
+tasks:
+  - id: summarize
+    infer:
+      prompt: |
+        Summarize the following content in 3 bullet points:
+
+        {{use.input}}
+      model: claude-sonnet-4-20250514
+    output:
+      use.summary: result
+
+  - id: translate
+    infer:
+      prompt: |
+        Translate the following text to {{use.target_language | default: "French"}}:
+
+        {{use.input}}
+      model: claude-sonnet-4-20250514
+    output:
+      use.translation: result
+
+  - id: review_code
+    infer:
+      prompt: |
+        Review the following code for bugs, security issues, and improvements:
+
+        ```{{use.language | default: "rust"}}
+        {{use.code}}
+        ```
+
+        Provide:
+        1. Critical issues
+        2. Suggestions for improvement
+        3. Overall assessment
+      model: claude-sonnet-4-20250514
+    output:
+      use.review: result
+"#;
+    fs::write(&example_subworkflow_path, example_subworkflow_content)?;
+    println!(
+        "{} Created {}",
+        "✓".green(),
+        example_subworkflow_path.display()
+    );
+
+    // Create user.yaml (v0.13)
+    let user_path = nika_dir.join("user.yaml");
+    let user_content = r#"# Nika User Profile
+# Personalize your AI experience
+
+# Your name (used in greetings and personalization)
+# name: "Your Name"
+
+# Email (optional, for notifications)
+# email: "you@example.com"
+
+# Timezone (for scheduling and timestamps)
+timezone: "UTC"
+
+# Preferred language (ISO 639-1 code)
+language: "en-US"
+
+# Additional context about you (helps agents understand your preferences)
+# context: |
+#   I prefer concise responses.
+#   I work primarily with Rust and TypeScript.
+"#;
+    fs::write(&user_path, user_content)?;
+    println!("{} Created {}", "✓".green(), user_path.display());
+
+    // Create memory.yaml (v0.13)
+    let memory_config_path = nika_dir.join("memory.yaml");
+    let memory_config_content = r#"# Nika Memory Configuration
+# Persistent memory across sessions
+
+# Enable/disable memory system
+enabled: true
+
+# Storage backend: file, sqlite, redis (file is default)
+backend: file
+
+# Time-to-live in seconds for memory entries (0 = no expiry)
+ttl_secs: 0
+
+# Maximum number of entries to keep (0 = unlimited)
+max_entries: 1000
+
+# Memory scopes (named memory buckets)
+scopes:
+  # Conversation history
+  conversation:
+    persist: true
+    ttl_secs: 86400  # 24 hours
+
+  # Project-specific memory
+  project:
+    persist: true
+    ttl_secs: 0  # Never expires
+
+  # Temporary scratch space
+  scratch:
+    persist: false
+    ttl_secs: 3600  # 1 hour
+"#;
+    fs::write(&memory_config_path, memory_config_content)?;
+    println!("{} Created {}", "✓".green(), memory_config_path.display());
+
+    // Create policies.yaml (v0.13)
+    let policies_path = nika_dir.join("policies.yaml");
+    let policies_content = r#"# Nika Security Policies
+# Control what agents can do
+
+execution:
+  # Shell commands that are always allowed (glob patterns)
+  allow_commands:
+    - "echo *"
+    - "cat *"
+    - "ls *"
+    - "pwd"
+    - "date"
+    - "git status"
+    - "git diff *"
+    - "git log *"
+    - "cargo *"
+    - "npm *"
+    - "pnpm *"
+
+  # Shell commands that are always blocked
+  block_commands:
+    - "rm -rf /*"
+    - "sudo *"
+    - "chmod 777 *"
+
+  # Require confirmation for potentially destructive commands
+  confirm_destructive: true
+
+  # Maximum execution time for any command (seconds)
+  max_execution_secs: 300
+
+budget:
+  # Daily token limit (0 = unlimited)
+  daily_token_limit: 0
+
+  # Monthly cost limit in cents (0 = unlimited)
+  monthly_cost_limit_cents: 0
+
+  # Warn when this percentage of budget is reached
+  warn_at_percent: 80
+
+network:
+  # Domains that can be accessed (empty = all allowed)
+  # allow_domains:
+  #   - "api.example.com"
+
+  # Domains that are always blocked
+  block_domains:
+    - "localhost:internal"
+
+  # Allow localhost/127.0.0.1 access
+  allow_localhost: true
+"#;
+    fs::write(&policies_path, policies_content)?;
+    println!("{} Created {}", "✓".green(), policies_path.display());
+
     // Create example workflow unless --no-example
     if !no_example {
         let example_path = cwd.join("hello.nika.yaml");
@@ -1207,11 +1434,21 @@ flows:
     println!();
     println!("  {} Project structure:", "📁".cyan());
     println!("    .nika/");
-    println!("    ├── config.toml");
-    println!("    ├── agents/         # Agent definitions (.md or .agent.yaml)");
+    println!("    ├── config.toml      # Main configuration");
+    println!("    ├── user.yaml        # User profile");
+    println!("    ├── memory.yaml      # Memory configuration");
+    println!("    ├── policies.yaml    # Security policies");
+    println!("    ├── agents/          # Agent definitions (.md or .agent.yaml)");
     println!("    │   └── researcher.md");
-    println!("    └── skills/         # Skill definitions (.md or .skill.yaml)");
-    println!("        └── code-review.md");
+    println!("    ├── skills/          # Skill definitions (.md or .skill.yaml)");
+    println!("    │   └── code-review.md");
+    println!("    ├── context/         # Shared context files");
+    println!("    │   └── project.md");
+    println!("    ├── workflows/       # Sub-workflows (called via nika:run)");
+    println!("    │   └── helpers.nika.yaml");
+    println!("    ├── memory/          # Persistent memory storage");
+    println!("    ├── proposed/        # Agent-proposed changes");
+    println!("    └── cache/           # Temporary cache");
     if !no_example {
         println!();
         println!("  {} Run example workflow:", "→".cyan());
