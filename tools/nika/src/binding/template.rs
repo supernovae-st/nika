@@ -24,12 +24,15 @@ use crate::store::DataStore;
 use super::resolve::ResolvedBindings;
 
 /// Pre-compiled regex for {{use.alias}} or {{use.alias.field}} pattern
-static USE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\{\{\s*use\.(\w+(?:\.\w+)*)\s*\}\}").unwrap());
+/// v0.13: Now supports optional |shell modifier: {{use.alias|shell}}
+static USE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\{\{\s*use\.(\w+(?:\.\w+)*)(?:\s*\|\s*(shell))?\s*\}\}").unwrap()
+});
 
 /// Pre-compiled regex for {{memory.files.alias}} or {{memory.session.key}} pattern (v0.6)
-static MEMORY_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\{\{\s*memory\.(files|session)\.(\w+(?:\.\w+)*)\s*\}\}").unwrap());
+static MEMORY_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\{\{\s*memory\.(files|session)\.(\w+(?:\.\w+)*)\s*\}\}").unwrap()
+});
 
 /// Pre-compiled regex for deprecated $alias syntax
 /// Matches: $alias or $alias.field (but not $$, $1, ${, $( which are shell syntax)
@@ -52,6 +55,36 @@ fn escape_for_json(s: &str) -> String {
             c => result.push(c),
         }
     }
+    result
+}
+
+/// Escape a string for safe shell usage (v0.13)
+///
+/// Uses single quotes with proper escaping for all special characters.
+/// This ensures values from LLM outputs can be safely used in shell commands.
+///
+/// Example: "Hello 'world'" becomes "'Hello '\''world'\'''"
+pub fn escape_for_shell(s: &str) -> String {
+    // Single-quote escaping: wrap in single quotes, escape existing single quotes
+    // 'foo' -> safe
+    // foo'bar -> 'foo'\''bar'
+    if s.is_empty() {
+        return "''".to_string();
+    }
+
+    let mut result = String::with_capacity(s.len() + 10);
+    result.push('\'');
+
+    for ch in s.chars() {
+        if ch == '\'' {
+            // End current single-quote, add escaped single-quote, start new single-quote
+            result.push_str("'\\''");
+        } else {
+            result.push(ch);
+        }
+    }
+
+    result.push('\'');
     result
 }
 
@@ -97,6 +130,7 @@ pub fn resolve<'a>(
     for cap in USE_RE.captures_iter(template) {
         let m = cap.get(0).unwrap();
         let path = &cap[1]; // e.g., "forecast" or "flight_info.departure"
+        let modifier = cap.get(2).map(|m| m.as_str()); // v0.13: optional |shell modifier
 
         // Copy segment before this match
         result.push_str(&template[last_end..m.start()]);
@@ -159,11 +193,11 @@ pub fn resolve<'a>(
                 // This is the ONLY place we convert/allocate for the value
                 let replacement = value_to_string(value_ref, path, alias)?;
 
-                // Escape if we're in a JSON context
-                let replacement = if is_in_json_context(template, m.start()) {
-                    escape_for_json(&replacement)
-                } else {
-                    replacement
+                // Apply modifier or context-based escaping (v0.13)
+                let replacement = match modifier {
+                    Some("shell") => escape_for_shell(&replacement),
+                    _ if is_in_json_context(template, m.start()) => escape_for_json(&replacement),
+                    _ => replacement,
                 };
 
                 result.push_str(&replacement);
@@ -239,6 +273,151 @@ pub fn resolve<'a>(
         // Copy remaining segment
         result.push_str(&intermediate[last_end..]);
 
+        return Ok(Cow::Owned(result));
+    }
+
+    Ok(Cow::Owned(result))
+}
+
+/// Resolve templates for shell context (v0.13)
+///
+/// Similar to `resolve`, but shell-escapes all substituted values to prevent
+/// command injection from LLM outputs containing special characters.
+///
+/// Example: `echo 'Hello {{use.msg}}'` with msg="Nika's test" becomes
+///          `echo 'Hello '\''Nika'\''s test'\'''`
+pub fn resolve_for_shell<'a>(
+    template: &'a str,
+    bindings: &ResolvedBindings,
+    datastore: &DataStore,
+) -> Result<Cow<'a, str>, NikaError> {
+    // Early return if no templates
+    if !template.contains("{{") {
+        return Ok(Cow::Borrowed(template));
+    }
+    let has_use = template.contains("use.");
+    let has_memory = template.contains("memory.");
+    if !has_use && !has_memory {
+        return Ok(Cow::Borrowed(template));
+    }
+
+    let mut result = String::with_capacity(template.len() + 64);
+    let mut last_end = 0;
+    let mut errors: SmallVec<[String; 4]> = SmallVec::new();
+
+    for cap in USE_RE.captures_iter(template) {
+        let m = cap.get(0).unwrap();
+        let path = &cap[1];
+
+        result.push_str(&template[last_end..m.start()]);
+
+        let mut parts = path.split('.');
+        let alias = parts.next().unwrap();
+
+        match bindings.get_resolved(alias, datastore) {
+            Ok(base_value) => {
+                let mut value_ref: &Value = &base_value;
+                let mut traversed_segments: SmallVec<[&str; 8]> = SmallVec::new();
+                traversed_segments.push(alias);
+
+                for segment in parts {
+                    let next = if let Ok(idx) = segment.parse::<usize>() {
+                        value_ref.get(idx)
+                    } else {
+                        value_ref.get(segment)
+                    };
+
+                    match next {
+                        Some(v) => {
+                            traversed_segments.push(segment);
+                            value_ref = v;
+                        }
+                        None => {
+                            let value_type = match value_ref {
+                                Value::Null => "null",
+                                Value::Bool(_) => "bool",
+                                Value::Number(_) => "number",
+                                Value::String(_) => "string",
+                                Value::Array(_) => "array",
+                                Value::Object(_) => "object",
+                            };
+
+                            if matches!(value_ref, Value::Object(_) | Value::Array(_)) {
+                                let traversed_path = traversed_segments.join(".");
+                                return Err(NikaError::PathNotFound {
+                                    path: format!("{}.{}", traversed_path, segment),
+                                });
+                            } else {
+                                return Err(NikaError::InvalidTraversal {
+                                    segment: segment.to_string(),
+                                    value_type: value_type.to_string(),
+                                    full_path: path.to_string(),
+                                });
+                            }
+                        }
+                    }
+                }
+
+                let raw_value = value_to_string(value_ref, path, alias)?;
+                // Shell-escape the value (v0.13)
+                let escaped = escape_for_shell(&raw_value);
+                result.push_str(&escaped);
+            }
+            Err(_) => {
+                errors.push(alias.to_string());
+            }
+        }
+
+        last_end = m.end();
+    }
+
+    if !errors.is_empty() {
+        return Err(NikaError::Template(format!(
+            "Alias(es) not resolved: {}. Did you declare them in 'use:'?",
+            errors.join(", ")
+        )));
+    }
+
+    result.push_str(&template[last_end..]);
+
+    // Pass 2: Memory bindings (shell-escaped)
+    if has_memory && result.contains("memory.") {
+        let intermediate = result;
+        let mut result = String::with_capacity(intermediate.len() + 64);
+        let mut last_end = 0;
+        let mut memory_errors: SmallVec<[String; 4]> = SmallVec::new();
+
+        for cap in MEMORY_RE.captures_iter(&intermediate) {
+            let m = cap.get(0).unwrap();
+            let category = &cap[1];
+            let path_rest = &cap[2];
+
+            result.push_str(&intermediate[last_end..m.start()]);
+
+            let full_path = format!("memory.{}.{}", category, path_rest);
+
+            match datastore.resolve_memory_path(&full_path) {
+                Some(value) => {
+                    let raw_value = memory_value_to_string(&value, &full_path)?;
+                    let escaped = escape_for_shell(&raw_value);
+                    result.push_str(&escaped);
+                }
+                None => {
+                    memory_errors.push(full_path);
+                }
+            }
+
+            last_end = m.end();
+        }
+
+        if !memory_errors.is_empty() {
+            return Err(NikaError::Template(format!(
+                "Memory binding(s) not resolved: {}. Check your 'memory:' block in workflow.",
+                memory_errors.join(", ")
+            )));
+        }
+
+        result.push_str(&intermediate[last_end..]);
         return Ok(Cow::Owned(result));
     }
 
@@ -698,9 +877,10 @@ mod tests {
     fn datastore_with_memory() -> DataStore {
         let store = DataStore::new();
         let mut memory = LoadedMemory::new();
-        memory
-            .files
-            .insert("brand".to_string(), json!("# QR Code AI\nTagline: Scan smarter"));
+        memory.files.insert(
+            "brand".to_string(),
+            json!("# QR Code AI\nTagline: Scan smarter"),
+        );
         memory
             .files
             .insert("config".to_string(), json!({"theme": "dark", "version": 2}));
@@ -757,10 +937,7 @@ mod tests {
             &ds,
         )
         .unwrap();
-        assert_eq!(
-            result,
-            "Hello! Brand: # QR Code AI\nTagline: Scan smarter"
-        );
+        assert_eq!(result, "Hello! Brand: # QR Code AI\nTagline: Scan smarter");
     }
 
     #[test]
@@ -804,5 +981,164 @@ mod tests {
         assert_eq!(result, "Plain text without templates");
         // Should be borrowed (zero alloc)
         assert!(matches!(result, Cow::Borrowed(_)));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Shell escaping tests (v0.13)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn escape_for_shell_simple() {
+        assert_eq!(escape_for_shell("hello"), "'hello'");
+    }
+
+    #[test]
+    fn escape_for_shell_empty() {
+        assert_eq!(escape_for_shell(""), "''");
+    }
+
+    #[test]
+    fn escape_for_shell_with_single_quote() {
+        // "Nika's" becomes "'Nika'\''s'"
+        assert_eq!(escape_for_shell("Nika's"), "'Nika'\\''s'");
+    }
+
+    #[test]
+    fn escape_for_shell_with_multiple_quotes() {
+        // "don't won't" should escape both quotes
+        assert_eq!(escape_for_shell("don't won't"), "'don'\\''t won'\\''t'");
+    }
+
+    #[test]
+    fn escape_for_shell_with_special_chars() {
+        // Special shell characters should be safe inside single quotes
+        assert_eq!(escape_for_shell("$HOME;rm -rf /"), "'$HOME;rm -rf /'");
+    }
+
+    #[test]
+    fn escape_for_shell_with_backticks() {
+        // Backticks should be safe inside single quotes
+        assert_eq!(escape_for_shell("`whoami`"), "'`whoami`'");
+    }
+
+    #[test]
+    fn escape_for_shell_with_newlines() {
+        // Newlines should be preserved inside single quotes
+        assert_eq!(escape_for_shell("line1\nline2"), "'line1\nline2'");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // |shell modifier tests (v0.13)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn resolve_shell_modifier_simple() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("msg", json!("hello world"));
+        let ds = empty_datastore();
+
+        // Using |shell modifier applies shell escaping
+        let result = resolve("echo {{use.msg|shell}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "echo 'hello world'");
+    }
+
+    #[test]
+    fn resolve_shell_modifier_with_quote() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("response", json!("Hello from Nika's v0.5.1!"));
+        let ds = empty_datastore();
+
+        // The |shell modifier escapes single quotes correctly
+        let result = resolve("echo {{use.response|shell}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "echo 'Hello from Nika'\\''s v0.5.1!'");
+    }
+
+    #[test]
+    fn resolve_shell_modifier_with_special_chars() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("content", json!("Hello; echo pwned"));
+        let ds = empty_datastore();
+
+        // Shell special characters are safely escaped
+        let result = resolve("echo {{use.content|shell}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "echo 'Hello; echo pwned'");
+    }
+
+    #[test]
+    fn resolve_without_modifier_no_escape() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("msg", json!("hello world"));
+        let ds = empty_datastore();
+
+        // Without |shell modifier, no escaping happens (backward compatible)
+        let result = resolve("echo {{use.msg}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "echo hello world");
+    }
+
+    #[test]
+    fn resolve_shell_modifier_multiple() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("file", json!("test.txt"));
+        bindings.set("content", json!("Hello 'world'"));
+        let ds = empty_datastore();
+
+        // Multiple bindings with |shell modifier
+        let result = resolve(
+            "cat {{use.file|shell}} && echo {{use.content|shell}}",
+            &bindings,
+            &ds,
+        )
+        .unwrap();
+        assert_eq!(result, "cat 'test.txt' && echo 'Hello '\\''world'\\'''");
+    }
+
+    #[test]
+    fn resolve_for_shell_simple() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("msg", json!("hello world"));
+        let ds = empty_datastore();
+
+        let result = resolve_for_shell("echo {{use.msg}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "echo 'hello world'");
+    }
+
+    #[test]
+    fn resolve_for_shell_with_quote() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("response", json!("Hello from Nika's v0.5.1!"));
+        let ds = empty_datastore();
+
+        // resolve_for_shell escapes ALL bindings
+        let result =
+            resolve_for_shell("echo 'Claude said: {{use.response}}'", &bindings, &ds).unwrap();
+        // The output has escaped quotes
+        assert_eq!(
+            result,
+            "echo 'Claude said: 'Hello from Nika'\\''s v0.5.1!''"
+        );
+    }
+
+    #[test]
+    fn resolve_for_shell_no_templates() {
+        let bindings = ResolvedBindings::new();
+        let ds = empty_datastore();
+
+        // No templates - should return borrowed string
+        let result = resolve_for_shell("echo hello", &bindings, &ds).unwrap();
+        assert_eq!(result, "echo hello");
+        assert!(matches!(result, Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn resolve_for_shell_preserves_command_structure() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("file", json!("test.txt"));
+        bindings.set("content", json!("Hello; echo pwned"));
+        let ds = empty_datastore();
+
+        // The command structure is preserved, only the value is escaped
+        let result =
+            resolve_for_shell("cat {{use.file}} && echo {{use.content}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "cat 'test.txt' && echo 'Hello; echo pwned'");
     }
 }

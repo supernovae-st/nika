@@ -1,15 +1,16 @@
-schema: nika/workflow@0.5
+schema: nika/workflow@0.6
 workflow: test-real-claude
 description: Test real Claude API call
 
 tasks:
   - id: generate
-    infer: "Say 'Hello from Nika v0.5.1!' in exactly 5 words"
+    infer: "Say 'Hello from Nika!' in exactly 4 words"
 
   - id: print
     use:
       response: generate
-    exec: "echo 'Claude said: {{use.response}}'"
+    # Use |shell modifier to safely escape LLM output (v0.13)
+    exec: "echo {{use.response|shell}}"
 
 flows:
   - source: generate

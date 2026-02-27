@@ -601,6 +601,8 @@ impl TaskExecutor {
         datastore: &DataStore,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates (v0.5: supports lazy bindings)
+        // Note: Shell escaping is NOT applied by default to preserve backward compatibility.
+        // For values that need shell escaping, use {{use.alias|shell}} syntax (v0.13+).
         let command = template_resolve(&exec.command, bindings, datastore)?;
 
         // EMIT: TemplateResolved

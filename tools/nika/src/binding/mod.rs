@@ -58,6 +58,7 @@ pub use mention::{
 };
 pub use resolve::{LazyBinding, ResolvedBindings};
 pub use template::{
-    detect_deprecated_dollar_syntax, extract_refs, resolve as template_resolve, validate_refs,
+    detect_deprecated_dollar_syntax, escape_for_shell, extract_refs, resolve as template_resolve,
+    resolve_for_shell as template_resolve_for_shell, validate_refs,
 };
 pub use validate::validate_task_id;
