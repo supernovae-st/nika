@@ -5,6 +5,7 @@
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use nika::Workflow;
+use serde_saphyr as serde_yaml; // v0.13.0: migrated from deprecated serde_yaml
 
 /// Generate a workflow YAML with N tasks
 fn generate_workflow_yaml(task_count: usize) -> String {

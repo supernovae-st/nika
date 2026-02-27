@@ -7,6 +7,35 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-02-27
+
+### Added
+- **Enhanced `nika_run` Builtin** - Runtime workflow composition via builtin (not new verb)
+  - `timeout_secs` parameter - Execution timeout (default: 300s, max: 3600s)
+  - `max_depth` parameter - Recursion depth limiting (default: 3, max: 10)
+  - Path canonicalization for security (prevents directory traversal)
+  - Response includes `duration_ms` and `depth` fields
+  - Context injection via `context` and `context_json` parameters
+- **Runner::with_initial_context()** - Inject initial context into child workflow
+  - Child workflows access parent context via `use: parent: __parent_context__.result`
+  - Enables data passing between nested workflows
+
+### Changed
+- `nika_run` builtin now enforces timeout via `tokio::time::timeout`
+- `nika_run` builtin prevents infinite recursion with depth tracking
+- **task_local! depth tracking** - Replaced global AtomicU32 with tokio::task_local!
+  - Fixes race conditions between concurrent workflow executions
+  - Provides panic-safe depth cleanup via RAII scope pattern
+- **Async file I/O** - Replaced std::fs with tokio::fs for non-blocking reads
+  - File read wrapped in 30s timeout to prevent hangs
+- Runtime timeout/max_depth clamping (defense-in-depth)
+- Error messages updated from `nika:run` to `nika_run` (API compatibility)
+- **30 new tests** for task_local! depth tracking, context injection, and timeout clamping
+
+### Security
+- Path canonicalization resolves symlinks and `..` to prevent escaping
+- Async I/O prevents blocking the executor on slow filesystems
+
 ## [0.13.1] - 2026-02-27
 
 ### Added

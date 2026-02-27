@@ -5,6 +5,7 @@
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use nika::{validate_use_wiring, Dag, Workflow};
+use serde_saphyr as serde_yaml; // v0.13.0: migrated from deprecated serde_yaml
 
 /// Generate a linear workflow (A -> B -> C -> ...)
 fn generate_linear_workflow(size: usize) -> Workflow {

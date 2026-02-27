@@ -1,6 +1,6 @@
 [package]
 name = "nika"
-version = "0.13.1"
+version = "0.14.0"
 edition = "2021"
 description = "DAG workflow runner for AI tasks with MCP integration"
 license = "AGPL-3.0-or-later"
@@ -115,6 +115,7 @@ pretty_assertions = "1.4"
 criterion = { version = "0.5", features = ["async_tokio"] }
 serial_test = "3.1"
 wiremock = "0.6"
+serde-saphyr = "0.0.20"  # For benchmarks (same as main dep)
 
 # Self-dependency to enable test-fixtures feature for integration tests
 [dev-dependencies.nika]
