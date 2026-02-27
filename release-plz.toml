@@ -17,7 +17,7 @@ git_release_enable = true
 # Draft releases for review before publishing
 git_release_draft = false
 # Use release type based on conventional commits
-release_commits = "^(feat|fix|docs|perf|refactor|style|test|chore)(\\([a-z-]+\\))?!?:"
+release_commits = "^(feat|fix|docs|perf|refactor|style|test|chore|security)(\\([a-z-]+\\))?!?:"
 # PR labels for release PRs
 pr_labels = ["release", "automated", "armada"]
 # Repo URL for links
