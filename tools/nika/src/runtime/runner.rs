@@ -108,6 +108,33 @@ impl Runner {
         self
     }
 
+    /// Inject initial context into the datastore (v0.14.0)
+    ///
+    /// Used by nika_run to pass parent context to child workflows.
+    /// The context is stored as a successful task result under the given key,
+    /// making it accessible via `use: alias: <key>.result` in the child workflow.
+    ///
+    /// # Example
+    ///
+    /// ```text
+    /// // In parent workflow via nika_run:
+    /// // context: { "entity": "qr-code", "locale": "fr-FR" }
+    ///
+    /// // Child workflow can access via:
+    /// // use:
+    /// //   parent: __parent_context__.result
+    /// ```
+    pub fn with_initial_context(self, key: &str, context: Value) -> Self {
+        use crate::store::TaskResult;
+        use crate::util::intern;
+
+        self.datastore.insert(
+            intern(key),
+            TaskResult::success(context, std::time::Duration::ZERO),
+        );
+        self
+    }
+
     /// Set a custom cancellation token (v0.5.2)
     ///
     /// This allows external control of workflow cancellation.
@@ -830,6 +857,50 @@ mod tests {
         let event_log = crate::event::EventLog::new();
         let runner = Runner::with_event_log(make_empty_workflow(), event_log).quiet();
         assert!(runner.quiet, "Runner should be quiet when chained");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // v0.14.0: INITIAL CONTEXT TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_with_initial_context_stores_value() {
+        use serde_json::json;
+
+        let workflow = make_empty_workflow();
+        let runner = Runner::new(workflow).with_initial_context(
+            "__parent_context__",
+            json!({"key": "value", "nested": {"deep": true}}),
+        );
+
+        // Context should be stored in datastore
+        let result = runner.datastore.get("__parent_context__");
+        assert!(result.is_some(), "Context should be stored");
+
+        let stored = result.unwrap();
+        assert!(stored.is_success(), "Should be stored as success");
+
+        let output = stored.output_str();
+        assert!(output.contains("key"), "Should contain 'key'");
+        assert!(output.contains("value"), "Should contain 'value'");
+    }
+
+    #[test]
+    fn test_with_initial_context_chaining() {
+        use serde_json::json;
+
+        // Should chain with other builder methods
+        let workflow = make_empty_workflow();
+        let event_log = EventLog::new();
+        let runner = Runner::with_event_log(workflow, event_log)
+            .quiet()
+            .with_initial_context("test_ctx", json!({"test": 123}));
+
+        assert!(runner.quiet, "Should be quiet");
+        assert!(
+            runner.datastore.get("test_ctx").is_some(),
+            "Context should exist"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════

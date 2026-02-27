@@ -1,4 +1,4 @@
-//! Builtin Tools Module - nika_* tools for HITL and workflow composition (v0.12.1)
+//! Builtin Tools Module - nika_* tools for HITL and workflow composition (v0.14.0)
 //!
 //! Provides 6 builtin tools with nika_ prefix:
 //! - `nika_sleep` - Pause execution for duration
@@ -6,7 +6,7 @@
 //! - `nika_emit` - Emit custom event to EventLog
 //! - `nika_assert` - Validate condition, fail if false
 //! - `nika_prompt` - HITL - request user input
-//! - `nika_run` - Execute nested workflow
+//! - `nika_run` - Execute nested workflow (v0.14.0: +timeout, +max_depth, +path security)
 //!
 //! v0.12.1: Changed prefix from `nika:` to `nika_` for Anthropic API compatibility.
 //! Tool name pattern: ^[a-zA-Z0-9_-]{1,128}$ - colon is NOT allowed.

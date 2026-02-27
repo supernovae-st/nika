@@ -337,9 +337,12 @@ mod tests {
             .dispatch("nika:run", r#"{"workflow":"test.nika.yaml"}"#.to_string())
             .await;
 
-        // v0.10.0: Now errors when file doesn't exist (full workflow execution)
+        // v0.14.0: Path canonicalization gives "resolve workflow path" error
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.to_string().contains("not found"));
+        assert!(
+            err.to_string().contains("resolve workflow path")
+                || err.to_string().contains("not found")
+        );
     }
 }
