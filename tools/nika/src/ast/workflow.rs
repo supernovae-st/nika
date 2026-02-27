@@ -649,7 +649,10 @@ tasks:
         // Check researcher is external
         let researcher = agents.get("researcher").unwrap();
         assert!(researcher.is_external());
-        assert_eq!(researcher.file_path(), Some("./agents/researcher.agent.yaml"));
+        assert_eq!(
+            researcher.file_path(),
+            Some("./agents/researcher.agent.yaml")
+        );
 
         // Check translator is inline
         let translator = agents.get("translator").unwrap();
@@ -673,7 +676,10 @@ tasks:
         let skills = workflow.skills.as_ref().unwrap();
         assert_eq!(skills.len(), 2);
         assert_eq!(skills.get("seo").unwrap(), "./skills/seo-writer.skill.md");
-        assert_eq!(skills.get("brand").unwrap(), "./skills/brand-voice.skill.md");
+        assert_eq!(
+            skills.get("brand").unwrap(),
+            "./skills/brand-voice.skill.md"
+        );
     }
 
     #[test]
@@ -696,7 +702,8 @@ tasks:
   - id: generate
     infer: "Generate content"
 "#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse full v0.6 workflow");
+        let workflow: Workflow =
+            serde_yaml::from_str(yaml).expect("Failed to parse full v0.6 workflow");
 
         assert_eq!(workflow.schema, "nika/workflow@0.6");
         assert_eq!(workflow.provider, "claude");

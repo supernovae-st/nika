@@ -1,16 +1,28 @@
-//! Agent definition types for workflow (v0.6)
+//! Agent definition types for workflow (v0.6, v0.13)
 //!
 //! The `agents:` block in a workflow allows defining reusable agent configurations.
 //! Agents can be defined inline or loaded from external files.
+//!
+//! # v0.13 Multi-format Support
+//!
+//! Agents and skills can be loaded from multiple formats:
+//! - `.agent.yaml` / `.agent.yml` - YAML format
+//! - `.skill.yaml` / `.skill.yml` - YAML format
+//! - `.md` files with YAML frontmatter (Claude Code style)
+//! - Folders containing the above
 //!
 //! # Example
 //!
 //! ```yaml
 //! agents:
 //!   researcher:
-//!     file: ./agents/researcher.agent.yaml  # External definition
+//!     from: ./agents/researcher           # v0.13: Auto-detect format (folder or file)
+//!   helper:
+//!     file: ./agents/helper.agent.yaml    # Explicit YAML (legacy)
+//!   reviewer:
+//!     from: ./agents/reviewer.md          # Markdown with frontmatter
 //!   translator:
-//!     system: "You are a translator..."     # Inline definition
+//!     system: "You are a translator..."   # Inline definition
 //!     provider: claude
 //!     model: claude-sonnet-4-6
 //!     max_turns: 3
@@ -18,13 +30,20 @@
 
 use serde::Deserialize;
 
-/// Agent definition (v0.6)
+/// Agent definition (v0.6, v0.13)
 ///
-/// Can be either an external file reference or an inline definition.
+/// Can be either an external file/folder reference or an inline definition.
+/// v0.13 adds support for `from:` which auto-detects format.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum AgentDef {
-    /// External file reference
+    /// External reference using `from:` (v0.13 - auto-detect format)
+    From {
+        /// Path to agent definition (file or folder, any supported format)
+        from: String,
+    },
+
+    /// External file reference using `file:` (legacy)
     External {
         /// Path to the agent definition file (.agent.yaml)
         file: String,
@@ -55,9 +74,9 @@ fn default_provider() -> String {
 }
 
 impl AgentDef {
-    /// Check if this is an external file reference
+    /// Check if this is an external reference (file or from)
     pub fn is_external(&self) -> bool {
-        matches!(self, AgentDef::External { .. })
+        matches!(self, AgentDef::External { .. } | AgentDef::From { .. })
     }
 
     /// Check if this is an inline definition
@@ -65,12 +84,23 @@ impl AgentDef {
         matches!(self, AgentDef::Inline { .. })
     }
 
-    /// Get the file path if this is an external reference
+    /// Check if this uses the new `from:` syntax (v0.13)
+    pub fn is_from(&self) -> bool {
+        matches!(self, AgentDef::From { .. })
+    }
+
+    /// Get the file/folder path if this is an external reference
     pub fn file_path(&self) -> Option<&str> {
         match self {
             AgentDef::External { file } => Some(file),
+            AgentDef::From { from } => Some(from),
             AgentDef::Inline { .. } => None,
         }
+    }
+
+    /// Get the source path (alias for file_path)
+    pub fn source_path(&self) -> Option<&str> {
+        self.file_path()
     }
 }
 
@@ -79,12 +109,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_agent_def_from() {
+        let yaml = r#"
+from: ./agents/researcher
+"#;
+        let def: AgentDef = serde_yaml::from_str(yaml).unwrap();
+        assert!(def.is_external());
+        assert!(def.is_from());
+        assert_eq!(def.file_path(), Some("./agents/researcher"));
+    }
+
+    #[test]
+    fn test_agent_def_from_md() {
+        let yaml = r#"
+from: ./agents/reviewer.md
+"#;
+        let def: AgentDef = serde_yaml::from_str(yaml).unwrap();
+        assert!(def.is_from());
+        assert_eq!(def.source_path(), Some("./agents/reviewer.md"));
+    }
+
+    #[test]
     fn test_agent_def_external() {
         let yaml = r#"
 file: ./agents/researcher.agent.yaml
 "#;
         let def: AgentDef = serde_yaml::from_str(yaml).unwrap();
         assert!(def.is_external());
+        assert!(!def.is_from());
         assert_eq!(def.file_path(), Some("./agents/researcher.agent.yaml"));
     }
 
@@ -143,6 +195,9 @@ temperature: 0.7
         let external = AgentDef::External {
             file: "test.yaml".to_string(),
         };
+        let from = AgentDef::From {
+            from: "./agents/test".to_string(),
+        };
         let inline = AgentDef::Inline {
             system: "test".to_string(),
             provider: "claude".to_string(),
@@ -153,14 +208,24 @@ temperature: 0.7
 
         assert!(external.is_external());
         assert!(!external.is_inline());
+        assert!(!external.is_from());
+
+        assert!(from.is_external());
+        assert!(from.is_from());
+        assert!(!from.is_inline());
+
         assert!(!inline.is_external());
         assert!(inline.is_inline());
+        assert!(!inline.is_from());
     }
 
     #[test]
     fn test_agent_def_file_path() {
         let external = AgentDef::External {
             file: "path/to/agent.yaml".to_string(),
+        };
+        let from = AgentDef::From {
+            from: "./agents/researcher".to_string(),
         };
         let inline = AgentDef::Inline {
             system: "test".to_string(),
@@ -171,6 +236,8 @@ temperature: 0.7
         };
 
         assert_eq!(external.file_path(), Some("path/to/agent.yaml"));
+        assert_eq!(from.file_path(), Some("./agents/researcher"));
+        assert_eq!(from.source_path(), Some("./agents/researcher"));
         assert_eq!(inline.file_path(), None);
     }
 }

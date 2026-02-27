@@ -474,7 +474,7 @@ async fn run_workflow(
     );
 
     // Run
-    let runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow);
     let output = runner.run().await?;
 
     // Print output
@@ -1078,6 +1078,88 @@ default = "claude"
     fs::write(&config_path, config_content)?;
     println!("{} Created {}", "✓".green(), config_path.display());
 
+    // Create agents directory with example (v0.13)
+    let agents_dir = nika_dir.join("agents");
+    fs::create_dir_all(&agents_dir)?;
+    println!("{} Created {}", "✓".green(), agents_dir.display());
+
+    // Create example agent (Claude Code style with YAML frontmatter)
+    let example_agent_path = agents_dir.join("researcher.md");
+    let example_agent_content = r#"---
+name: researcher
+description: A helpful research agent that can search and summarize information
+model: claude-sonnet-4-6
+max_turns: 10
+---
+
+You are a Research Agent specialized in finding and synthesizing information.
+
+## Capabilities
+
+- Search the web for relevant information
+- Summarize findings in clear, concise language
+- Cite sources and provide references
+- Answer follow-up questions
+
+## Guidelines
+
+1. Always verify information from multiple sources when possible
+2. Clearly distinguish between facts and opinions
+3. Acknowledge uncertainty when information is incomplete
+4. Provide actionable insights when relevant
+
+## Output Format
+
+Structure your responses with:
+- **Summary**: Key findings in 2-3 sentences
+- **Details**: Supporting information
+- **Sources**: References used (when applicable)
+"#;
+    fs::write(&example_agent_path, example_agent_content)?;
+    println!("{} Created {}", "✓".green(), example_agent_path.display());
+
+    // Create skills directory with example (v0.13)
+    let skills_dir = nika_dir.join("skills");
+    fs::create_dir_all(&skills_dir)?;
+    println!("{} Created {}", "✓".green(), skills_dir.display());
+
+    // Create example skill
+    let example_skill_path = skills_dir.join("code-review.md");
+    let example_skill_content = r#"---
+name: code-review
+description: Skill for reviewing code quality, patterns, and best practices
+---
+
+# Code Review Skill
+
+When reviewing code, analyze for:
+
+## Quality Checks
+- Clear naming conventions
+- Appropriate error handling
+- Code duplication
+- Complexity and readability
+
+## Security
+- Input validation
+- Authentication/authorization
+- Sensitive data handling
+
+## Best Practices
+- SOLID principles
+- DRY (Don't Repeat Yourself)
+- Single responsibility
+- Proper documentation
+
+## Output
+Provide feedback in categories:
+- 🔴 Critical: Must fix before merge
+- 🟡 Important: Should address
+- 🟢 Suggestion: Nice to have
+"#;
+    fs::write(&example_skill_path, example_skill_content)?;
+    println!("{} Created {}", "✓".green(), example_skill_path.display());
+
     // Create example workflow unless --no-example
     if !no_example {
         let example_path = cwd.join("hello.nika.yaml");
@@ -1085,9 +1167,14 @@ default = "claude"
             let example_content = r#"# Example Nika Workflow
 # Run with: nika run hello.nika.yaml
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.6"
 workflow: hello-world
 description: "Simple hello world workflow demonstrating basic features"
+
+# v0.13: Agents can be loaded from .nika/agents/ using 'from:'
+agents:
+  researcher:
+    from: .nika/agents/researcher  # Auto-detects .md, .agent.yaml, or folder
 
 tasks:
   - id: greet
@@ -1096,6 +1183,7 @@ tasks:
   - id: expand
     use:
       greeting: greet
+    # v0.13: Use |shell modifier for safe shell command execution
     infer: "Take this greeting and expand it into a motivational paragraph: {{use.greeting}}"
 
 flows:
@@ -1116,6 +1204,14 @@ flows:
         permission_mode.display_name().cyan()
     );
     println!("  Config: {}", config_path.display());
+    println!();
+    println!("  {} Project structure:", "📁".cyan());
+    println!("    .nika/");
+    println!("    ├── config.toml");
+    println!("    ├── agents/         # Agent definitions (.md or .agent.yaml)");
+    println!("    │   └── researcher.md");
+    println!("    └── skills/         # Skill definitions (.md or .skill.yaml)");
+    println!("        └── code-review.md");
     if !no_example {
         println!();
         println!("  {} Run example workflow:", "→".cyan());

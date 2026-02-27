@@ -1,0 +1,34 @@
+# Test: Multi-turn agent with stop conditions
+# Tests the agent loop iteration and stop conditions
+# Run with: nika examples/test-agent-multi-turn.nika.yaml
+
+schema: "nika/workflow@0.5"
+provider: mock
+
+tasks:
+  - id: research_agent
+    agent:
+      prompt: |
+        You are a research assistant. Your task is to:
+        1. List 3 key benefits of QR codes
+        2. For each benefit, provide an example use case
+        3. When done, end your response with "RESEARCH_COMPLETE"
+      system: |
+        You are a helpful AI assistant specialized in QR code technology.
+        Always be concise and factual.
+      max_turns: 5
+      stop_conditions:
+        - "RESEARCH_COMPLETE"
+        - "DONE"
+        - "END"
+    output:
+      format: json
+
+  - id: summarize
+    use:
+      research: research_agent
+    exec: "echo 'Research completed with result length: {{use.research}}' | head -c 100"
+
+flows:
+  - source: research_agent
+    target: summarize

@@ -3763,7 +3763,7 @@ impl App {
             }
 
             // Create and run workflow with timeout protection
-            let runner = Runner::with_event_log(workflow, event_log);
+            let mut runner = Runner::with_event_log(workflow, event_log);
             match timeout(WORKFLOW_TIMEOUT, runner.run()).await {
                 Ok(Ok(output)) => {
                     tracing::info!("Workflow completed: {} chars output", output.len());

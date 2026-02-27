@@ -18,6 +18,7 @@ mod agent;
 mod agent_def;
 pub mod decompose;
 mod invoke;
+pub mod loader;
 pub mod memory;
 mod output;
 pub mod schema_validator;
@@ -44,3 +45,5 @@ pub use workflow::{
 };
 // DecomposeSpec is defined in decompose.rs (v0.5 - Runtime DAG expansion)
 pub use decompose::{DecomposeSpec, DecomposeStrategy};
+// Loader is defined in loader.rs (v0.13 - Multi-format agent/skill loading)
+pub use loader::{load_definition, discover_definitions, DefinitionKind, LoadedDefinition};

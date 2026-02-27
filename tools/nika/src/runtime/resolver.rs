@@ -140,6 +140,24 @@ async fn resolve_agent(
     base_path: &Path,
 ) -> Result<ResolvedAgent, NikaError> {
     match def {
+        AgentDef::From { from } => {
+            // v0.13: Use multi-format loader
+            use crate::ast::loader::{load_definition, DefinitionKind};
+
+            let source_path = base_path.join(from);
+            debug!(agent = name, path = ?source_path, "Loading agent via multi-format loader");
+
+            let loaded = load_definition(&source_path, DefinitionKind::Agent)?;
+
+            Ok(ResolvedAgent {
+                system: loaded.system,
+                provider: loaded.provider.unwrap_or_else(|| "claude".to_string()),
+                model: loaded.model,
+                max_turns: loaded.max_turns,
+                temperature: loaded.temperature,
+                source: AgentSource::External(from.clone()),
+            })
+        }
         AgentDef::External { file } => {
             let file_path = base_path.join(file);
             debug!(agent = name, path = ?file_path, "Loading external agent definition");

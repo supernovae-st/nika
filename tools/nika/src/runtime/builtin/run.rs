@@ -179,7 +179,7 @@ impl BuiltinTool for RunTool {
             );
 
             // Create Runner and execute workflow
-            let runner = Runner::new(workflow).quiet();
+            let mut runner = Runner::new(workflow).quiet();
             let result = runner
                 .run()
                 .await

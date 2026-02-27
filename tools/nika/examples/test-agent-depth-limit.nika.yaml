@@ -1,0 +1,35 @@
+# Test: Agent with depth limit for spawn_agent
+# Tests nested agent spawning with depth protection
+# Run with: nika examples/test-agent-depth-limit.nika.yaml
+
+schema: "nika/workflow@0.5"
+provider: mock
+
+tasks:
+  - id: orchestrator_agent
+    agent:
+      prompt: |
+        You are an orchestrator agent. Your job is to:
+        1. Break down the task into 2 subtasks
+        2. Use spawn_agent tool to delegate each subtask
+        3. Aggregate the results
+
+        Task: Generate content for a QR Code landing page.
+        Subtasks:
+        - Generate a headline
+        - Generate a call-to-action
+
+        When done, say "ORCHESTRATION_COMPLETE"
+      system: |
+        You can use the spawn_agent tool to delegate subtasks.
+        Each spawned agent will run independently.
+      depth_limit: 3
+      max_turns: 5
+      stop_conditions:
+        - "ORCHESTRATION_COMPLETE"
+    output:
+      format: json
+
+flows:
+  - source: orchestrator_agent
+    target: null
