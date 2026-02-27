@@ -484,7 +484,7 @@ pub struct ChatView {
 
     // === v0.12.1: TaskBox RenderMode ===
     /// Current render mode for inline TaskBoxes (Compact/Expanded/Full)
-    /// Toggle with [m] key when not in input mode
+    /// Toggle with `m` key when not in input mode
     pub task_box_render_mode: RenderMode,
 
     // === v0.13: ChatWorkflow DAG (unified execution) ===
@@ -4915,7 +4915,7 @@ impl ChatView {
     }
 
     /// Cycle TaskBox render mode: Compact → Expanded → Full → Compact
-    /// v0.12.1: Toggle with [m] key when not in input mode
+    /// v0.12.1: Toggle with `m` key when not in input mode
     pub fn cycle_task_box_render_mode(&mut self) {
         self.task_box_render_mode = self.task_box_render_mode.cycle();
     }

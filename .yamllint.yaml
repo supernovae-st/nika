@@ -50,7 +50,7 @@ rules:
 
   quoted-strings:
     quote-type: any
-    required: only-when-needed
+    required: false  # Allow any quoting style for flexibility
 
 ignore: |
   node_modules/

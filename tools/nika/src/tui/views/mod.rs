@@ -188,7 +188,7 @@ impl ReasoningTab {
 /// - NEW: Scheduler (5)
 /// - Settings stays (6)
 /// - Help merged into Settings (no longer a TuiView)
-/// - NEW: Split (v0.13) - Editor + Runner side-by-side [F9]
+/// - NEW: Split (v0.13) - Editor + Runner side-by-side (F9)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TuiView {
     /// Explorer - file browser + DAG preview (default) [1/e]
@@ -204,7 +204,7 @@ pub enum TuiView {
     Scheduler,
     /// Settings - provider config, theme, preferences [6/,]
     Settings,
-    /// Split - side-by-side Editor + Runner (v0.13) [F9]
+    /// Split - side-by-side Editor + Runner (v0.13) (F9 key)
     Split,
 }
 
