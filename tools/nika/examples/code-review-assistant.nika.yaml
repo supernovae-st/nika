@@ -89,7 +89,6 @@ tasks:
       headers:
         Authorization: "Bearer ${GITHUB_TOKEN:-demo-token}"
         Accept: "application/vnd.github.v3+json"
-      timeout_secs: 10
     output:
       format: json
 
@@ -129,9 +128,10 @@ tasks:
     use:
       file_list: changed_files
     exec:
-      command: echo "src/main.rs
-src/lib.rs
-tests/integration.rs"
+      command: |
+        echo "src/main.rs
+        src/lib.rs
+        tests/integration.rs"
     output:
       format: text
 
@@ -276,7 +276,6 @@ tests/integration.rs"
         {
           "body": "{{use.review}}"
         }
-      timeout_secs: 10
     output:
       format: json
 
@@ -295,6 +294,10 @@ flows:
     target: commit_history
   - source: commit_history
     target: comprehensive_review
+  - source: diff_stats
+    target: comprehensive_review
+  - source: full_diff
+    target: comprehensive_review
 
   # Phase 2: PR context
   - source: pr_metadata
@@ -306,7 +309,9 @@ flows:
   - source: documentation_refs
     target: file_reviews
 
-  # Phase 4: File reviews (depends on diff and docs)
+  # Phase 4: File reviews (depends on diff, docs, and parsed files)
+  - source: parse_files
+    target: file_reviews
   - source: full_diff
     target: file_reviews
   - source: file_reviews
