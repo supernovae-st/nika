@@ -190,8 +190,14 @@ impl Workflow {
             return Err(NikaError::InvalidSchema {
                 expected: format!(
                     "{} or {} or {} or {} or {} or {} or {} or {}",
-                    SCHEMA_V01, SCHEMA_V02, SCHEMA_V03, SCHEMA_V04, SCHEMA_V05, SCHEMA_V06,
-                    SCHEMA_V07, SCHEMA_V08
+                    SCHEMA_V01,
+                    SCHEMA_V02,
+                    SCHEMA_V03,
+                    SCHEMA_V04,
+                    SCHEMA_V05,
+                    SCHEMA_V06,
+                    SCHEMA_V07,
+                    SCHEMA_V08
                 ),
                 actual: self.schema.clone(),
             });

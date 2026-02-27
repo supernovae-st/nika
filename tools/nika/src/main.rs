@@ -264,6 +264,14 @@ enum Commands {
         format: String,
     },
 
+    /// Manage the Jobs Daemon for scheduled workflow execution (v0.14.0)
+    #[cfg(feature = "jobs")]
+    #[command(visible_alias = "j")]
+    Jobs {
+        #[command(subcommand)]
+        action: JobsAction,
+    },
+
     /// [deprecated] Use 'nika' instead
     #[cfg(feature = "tui")]
     #[command(hide = true)]
@@ -411,6 +419,86 @@ enum ConfigAction {
         #[arg(short, long)]
         force: bool,
     },
+}
+
+/// Jobs Daemon management actions (v0.14.0)
+#[cfg(feature = "jobs")]
+#[derive(Subcommand)]
+enum JobsAction {
+    /// Start the Jobs Daemon (daemonizes by default)
+    Start {
+        /// Run in foreground (don't daemonize)
+        #[arg(short, long)]
+        foreground: bool,
+
+        /// Path to jobs configuration file
+        #[arg(short, long, default_value = ".nika/jobs.toml")]
+        config: PathBuf,
+    },
+
+    /// Stop the running Jobs Daemon
+    Stop {
+        /// Force kill (SIGKILL instead of SIGTERM)
+        #[arg(short, long)]
+        force: bool,
+    },
+
+    /// Show status of the Jobs Daemon
+    Status {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// List all configured jobs
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Path to jobs configuration file
+        #[arg(short, long, default_value = ".nika/jobs.toml")]
+        config: PathBuf,
+    },
+
+    /// Manually trigger a job
+    Trigger {
+        /// Job name to trigger
+        job_name: String,
+
+        /// Path to jobs configuration file
+        #[arg(short, long, default_value = ".nika/jobs.toml")]
+        config: PathBuf,
+    },
+
+    /// Pause a job (skip scheduled runs)
+    Pause {
+        /// Job name to pause
+        job_name: String,
+    },
+
+    /// Resume a paused job
+    Resume {
+        /// Job name to resume
+        job_name: String,
+    },
+
+    /// Show execution history for jobs
+    History {
+        /// Job name (all jobs if not specified)
+        job_name: Option<String>,
+
+        /// Limit number of entries
+        #[arg(short, long, default_value = "20")]
+        limit: usize,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Reload daemon configuration
+    Reload,
 }
 
 #[tokio::main]
@@ -565,6 +653,10 @@ async fn main() {
         Some(Commands::Doctor { full, format }) => {
             handle_doctor_command(full, &format, quiet).await
         }
+
+        // Jobs Daemon management (v0.14.0)
+        #[cfg(feature = "jobs")]
+        Some(Commands::Jobs { action }) => handle_jobs_command(action, quiet).await,
 
         // Legacy TUI command (hidden, backward compat)
         #[cfg(feature = "tui")]
@@ -2456,4 +2548,379 @@ fn output_doctor_json(checks: &[DiagnosticCheck]) {
     });
 
     println!("{}", serde_json::to_string_pretty(&output).unwrap());
+}
+
+// ============================================================================
+// Jobs Daemon Command Handler (v0.14.0)
+// ============================================================================
+
+#[cfg(feature = "jobs")]
+async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), NikaError> {
+    use colored::Colorize;
+    use nika::jobs::{JobsConfig, JobsDaemon, StateStore};
+
+    match action {
+        JobsAction::Start { foreground, config } => {
+            // Check if config file exists
+            if !config.exists() {
+                return Err(NikaError::ConfigError {
+                    reason: format!("Jobs config file not found: {}", config.display()),
+                });
+            }
+
+            // Load configuration
+            let jobs_config =
+                JobsConfig::from_file(&config).map_err(|e| NikaError::ConfigError {
+                    reason: format!("Failed to load jobs config: {}", e),
+                })?;
+
+            if !quiet {
+                println!(
+                    "{} Starting Jobs Daemon with {} jobs from {}",
+                    "🚀".bold(),
+                    jobs_config.jobs.len().to_string().cyan(),
+                    config.display()
+                );
+            }
+
+            // Create and start daemon
+            let daemon = JobsDaemon::new(jobs_config).map_err(|e| NikaError::RuntimeError {
+                reason: format!("Failed to create daemon: {}", e),
+            })?;
+
+            if foreground {
+                // Run in foreground (blocking)
+                if !quiet {
+                    println!(
+                        "{} Running in foreground mode (Ctrl+C to stop)",
+                        "ℹ️".bold()
+                    );
+                }
+                daemon.start().await.map_err(|e| NikaError::RuntimeError {
+                    reason: format!("Daemon error: {}", e),
+                })?;
+            } else {
+                // Daemonize
+                daemon.start().await.map_err(|e| NikaError::RuntimeError {
+                    reason: format!("Failed to start daemon: {}", e),
+                })?;
+
+                if !quiet {
+                    println!("{} Jobs Daemon started successfully", "✅".green());
+                }
+            }
+        }
+
+        JobsAction::Stop { force } => {
+            let pid_file = find_nika_dir()?.join("jobs.pid");
+
+            if !pid_file.exists() {
+                return Err(NikaError::RuntimeError {
+                    reason: "No running daemon found (jobs.pid not found)".to_string(),
+                });
+            }
+
+            if !quiet {
+                println!(
+                    "{} Stopping Jobs Daemon{}...",
+                    "🛑".bold(),
+                    if force { " (force)" } else { "" }
+                );
+            }
+
+            JobsDaemon::stop_by_pid_file(&pid_file).map_err(|e| NikaError::RuntimeError {
+                reason: format!("Failed to stop daemon: {}", e),
+            })?;
+
+            if !quiet {
+                println!("{} Jobs Daemon stopped", "✅".green());
+            }
+        }
+
+        JobsAction::Status { json } => {
+            let pid_file = find_nika_dir()?.join("jobs.pid");
+
+            let status = JobsDaemon::get_status_from_pid_file(&pid_file);
+            let is_running = matches!(
+                status,
+                nika::jobs::DaemonStatus::Running | nika::jobs::DaemonStatus::Starting
+            );
+
+            if json {
+                let output = serde_json::json!({
+                    "running": is_running,
+                    "status": status.to_string(),
+                });
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            } else {
+                println!("{}", "Jobs Daemon Status".bold().cyan());
+                match status {
+                    nika::jobs::DaemonStatus::Running => {
+                        println!("  {} {}", "Status:".dimmed(), "Running".green().bold());
+                    }
+                    nika::jobs::DaemonStatus::Starting => {
+                        println!("  {} {}", "Status:".dimmed(), "Starting".yellow().bold());
+                    }
+                    nika::jobs::DaemonStatus::ShuttingDown => {
+                        println!(
+                            "  {} {}",
+                            "Status:".dimmed(),
+                            "Shutting Down".yellow().bold()
+                        );
+                    }
+                    nika::jobs::DaemonStatus::Stopped => {
+                        println!("  {} {}", "Status:".dimmed(), "Stopped".red().bold());
+                    }
+                }
+            }
+        }
+
+        JobsAction::List { json, config } => {
+            // Check if config file exists
+            if !config.exists() {
+                return Err(NikaError::ConfigError {
+                    reason: format!("Jobs config file not found: {}", config.display()),
+                });
+            }
+
+            // Load configuration
+            let jobs_config =
+                JobsConfig::from_file(&config).map_err(|e| NikaError::ConfigError {
+                    reason: format!("Failed to load jobs config: {}", e),
+                })?;
+
+            if json {
+                let output: Vec<serde_json::Value> = jobs_config
+                    .jobs
+                    .iter()
+                    .map(|j| {
+                        serde_json::json!({
+                            "name": j.name,
+                            "workflow": j.workflow.display().to_string(),
+                            "schedule": format!("{:?}", j.trigger),
+                            "enabled": j.enabled,
+                        })
+                    })
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            } else {
+                println!("{}", "Configured Jobs".bold().cyan());
+                println!();
+                for job in &jobs_config.jobs {
+                    let status = if job.enabled {
+                        "●".green()
+                    } else {
+                        "○".dimmed()
+                    };
+                    println!(
+                        "  {} {} {}",
+                        status,
+                        job.name.bold(),
+                        format!("({})", job.workflow.display()).dimmed()
+                    );
+                    println!("    {} {:?}", "Schedule:".dimmed(), job.trigger);
+                }
+                println!();
+                println!(
+                    "{} {} jobs configured",
+                    "Total:".dimmed(),
+                    jobs_config.jobs.len()
+                );
+            }
+        }
+
+        JobsAction::Trigger { job_name, config } => {
+            // Load config and create daemon to trigger job
+            let jobs_config =
+                JobsConfig::from_file(&config).map_err(|e| NikaError::ConfigError {
+                    reason: format!("Failed to load jobs config: {}", e),
+                })?;
+
+            // Verify job exists
+            if !jobs_config.jobs.iter().any(|j| j.name == job_name) {
+                return Err(NikaError::ValidationError {
+                    reason: format!("Job '{}' not found in config", job_name),
+                });
+            }
+
+            if !quiet {
+                println!("{} Triggering job '{}'...", "⚡".bold(), job_name.cyan());
+            }
+
+            // Create daemon and trigger
+            let daemon = JobsDaemon::new(jobs_config).map_err(|e| NikaError::RuntimeError {
+                reason: format!("Failed to create daemon: {}", e),
+            })?;
+
+            daemon
+                .trigger_job(&job_name)
+                .await
+                .map_err(|e| NikaError::RuntimeError {
+                    reason: format!("Failed to trigger job: {}", e),
+                })?;
+
+            if !quiet {
+                println!("{} Job '{}' triggered successfully", "✅".green(), job_name);
+            }
+        }
+
+        JobsAction::Pause { job_name } => {
+            let pid_file = find_nika_dir()?.join("jobs.pid");
+
+            if !pid_file.exists() {
+                return Err(NikaError::RuntimeError {
+                    reason: "No running daemon found".to_string(),
+                });
+            }
+
+            // Send pause command to daemon via IPC
+            // For now, we'll use a simple approach via the daemon
+            let daemon = JobsDaemon::from_config_file(&find_nika_dir()?.join("jobs.toml"))
+                .await
+                .map_err(|e| NikaError::RuntimeError {
+                    reason: format!("Failed to connect to daemon: {}", e),
+                })?;
+
+            daemon
+                .pause_job(&job_name)
+                .await
+                .map_err(|e| NikaError::RuntimeError {
+                    reason: format!("Failed to pause job: {}", e),
+                })?;
+
+            if !quiet {
+                println!("{} Job '{}' paused", "⏸️".bold(), job_name.yellow());
+            }
+        }
+
+        JobsAction::Resume { job_name } => {
+            let pid_file = find_nika_dir()?.join("jobs.pid");
+
+            if !pid_file.exists() {
+                return Err(NikaError::RuntimeError {
+                    reason: "No running daemon found".to_string(),
+                });
+            }
+
+            let daemon = JobsDaemon::from_config_file(&find_nika_dir()?.join("jobs.toml"))
+                .await
+                .map_err(|e| NikaError::RuntimeError {
+                    reason: format!("Failed to connect to daemon: {}", e),
+                })?;
+
+            daemon
+                .resume_job(&job_name)
+                .await
+                .map_err(|e| NikaError::RuntimeError {
+                    reason: format!("Failed to resume job: {}", e),
+                })?;
+
+            if !quiet {
+                println!("{} Job '{}' resumed", "▶️".bold(), job_name.green());
+            }
+        }
+
+        JobsAction::History {
+            job_name,
+            limit,
+            json,
+        } => {
+            let state_dir = find_nika_dir()?.join("jobs.db");
+            let store = StateStore::new(&state_dir).map_err(|e| NikaError::RuntimeError {
+                reason: format!("Failed to open state store: {}", e),
+            })?;
+
+            let executions = store
+                .list_executions(job_name.as_deref(), limit)
+                .map_err(|e| NikaError::RuntimeError {
+                    reason: format!("Failed to query history: {}", e),
+                })?;
+
+            if json {
+                let output: Vec<serde_json::Value> = executions
+                    .iter()
+                    .map(|e| {
+                        serde_json::json!({
+                            "id": e.id,
+                            "job_name": e.job_name,
+                            "status": format!("{:?}", e.status),
+                            "trigger": e.trigger,
+                            "started_at": e.started_at.to_rfc3339(),
+                            "ended_at": e.ended_at.map(|t| t.to_rfc3339()),
+                            "duration_ms": e.duration_ms,
+                            "attempt": e.attempt,
+                            "error": e.error,
+                        })
+                    })
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            } else {
+                let title = match &job_name {
+                    Some(name) => format!("Execution History for '{}'", name),
+                    None => "Execution History (All Jobs)".to_string(),
+                };
+                println!("{}", title.bold().cyan());
+                println!();
+
+                if executions.is_empty() {
+                    println!("  {}", "No executions found".dimmed());
+                } else {
+                    for exec in &executions {
+                        let status_icon = match exec.status {
+                            nika::jobs::JobExecutionStatus::Completed => "✅",
+                            nika::jobs::JobExecutionStatus::Failed => "❌",
+                            nika::jobs::JobExecutionStatus::Running => "🔄",
+                            nika::jobs::JobExecutionStatus::Queued => "⏳",
+                            nika::jobs::JobExecutionStatus::Cancelled => "🚫",
+                        };
+
+                        let duration = exec
+                            .duration_ms
+                            .map(|d| format!("{}ms", d))
+                            .unwrap_or_else(|| "-".to_string());
+
+                        println!(
+                            "  {} {} {} {}",
+                            status_icon,
+                            exec.job_name.bold(),
+                            exec.started_at
+                                .format("%Y-%m-%d %H:%M:%S")
+                                .to_string()
+                                .dimmed(),
+                            format!("({})", duration).dimmed()
+                        );
+
+                        if let Some(ref err) = exec.error {
+                            println!("    {} {}", "Error:".red(), err);
+                        }
+                    }
+                }
+
+                println!();
+                println!(
+                    "{} {} executions shown",
+                    "Total:".dimmed(),
+                    executions.len()
+                );
+            }
+        }
+
+        JobsAction::Reload => {
+            let pid_file = find_nika_dir()?.join("jobs.pid");
+
+            if !quiet {
+                println!("{} Reloading daemon configuration...", "🔄".bold());
+            }
+
+            JobsDaemon::reload_by_signal(&pid_file).map_err(|e| NikaError::RuntimeError {
+                reason: format!("Failed to reload daemon: {}", e),
+            })?;
+
+            if !quiet {
+                println!("{} Configuration reload signal sent", "✅".green());
+            }
+        }
+    }
+
+    Ok(())
 }

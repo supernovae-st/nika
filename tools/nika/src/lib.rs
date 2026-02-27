@@ -78,6 +78,12 @@ pub mod config;
 pub mod error;
 
 // ═══════════════════════════════════════════════════════════════
+// JOBS DAEMON - Background workflow scheduler (feature-gated)
+// ═══════════════════════════════════════════════════════════════
+#[cfg(feature = "jobs")]
+pub mod jobs;
+
+// ═══════════════════════════════════════════════════════════════
 // TEST UTILITIES (cfg(test) or cfg(feature = "test-fixtures"))
 // ═══════════════════════════════════════════════════════════════
 #[cfg(any(test, feature = "test-fixtures"))]

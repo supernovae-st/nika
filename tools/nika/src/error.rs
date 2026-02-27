@@ -421,6 +421,16 @@ pub enum NikaError {
     BootFailed { phase: String, reason: String },
 
     // ═══════════════════════════════════════════
+    // RUNTIME ERRORS (170-179) - NEW v0.14
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-170] Runtime error: {reason}")]
+    #[diagnostic(
+        code(nika::runtime_error),
+        help("Check the runtime configuration and system resources")
+    )]
+    RuntimeError { reason: String },
+
+    // ═══════════════════════════════════════════
     // TOOL ERRORS (200-209) - NEW v0.6
     // ═══════════════════════════════════════════
     #[error("[{code}] {message}")]
@@ -569,6 +579,8 @@ impl NikaError {
             // Policy errors (v0.13.1)
             Self::PolicyViolation { .. } => "NIKA-160",
             Self::BootFailed { .. } => "NIKA-161",
+            // Runtime errors (v0.14)
+            Self::RuntimeError { .. } => "NIKA-170",
         }
     }
 
@@ -769,6 +781,9 @@ impl FixSuggestion for NikaError {
             }
             NikaError::BootFailed { .. } => {
                 Some("Boot sequence failed. Run 'nika doctor' to diagnose.")
+            }
+            NikaError::RuntimeError { .. } => {
+                Some("Check the runtime configuration and system resources.")
             }
         }
     }
