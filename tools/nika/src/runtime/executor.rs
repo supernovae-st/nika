@@ -3,6 +3,7 @@
 //! Handles execution of individual tasks: infer, exec, fetch, invoke, agent.
 //! Uses DashMap for lock-free provider caching.
 
+use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -21,6 +22,8 @@ use crate::error::NikaError;
 use crate::event::{ContextSource, EventKind, EventLog};
 use crate::mcp::{McpClient, McpConfig};
 use crate::provider::rig::{RigProvider, StreamChunk};
+use crate::runtime::boot::PolicyConfig;
+use crate::runtime::policy::{PolicyDecision, PolicyEnforcer};
 use crate::runtime::{BuiltinToolRouter, RigAgentLoop};
 use crate::store::DataStore;
 use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
@@ -56,6 +59,8 @@ pub struct TaskExecutor {
     event_log: EventLog,
     /// Router for builtin nika:* tools (v0.9.3)
     builtin_router: Arc<BuiltinToolRouter>,
+    /// Policy enforcer for security checks (v0.13.1)
+    policy_enforcer: Arc<parking_lot::RwLock<PolicyEnforcer>>,
 }
 
 impl TaskExecutor {
@@ -65,6 +70,17 @@ impl TaskExecutor {
         model: Option<&str>,
         mcp_configs: Option<FxHashMap<String, McpConfigInline>>,
         event_log: EventLog,
+    ) -> Self {
+        Self::with_policy(provider, model, mcp_configs, event_log, None)
+    }
+
+    /// Create a new executor with explicit policy configuration (v0.13.1)
+    pub fn with_policy(
+        provider: &str,
+        model: Option<&str>,
+        mcp_configs: Option<FxHashMap<String, McpConfigInline>>,
+        event_log: EventLog,
+        policy_config: Option<PolicyConfig>,
     ) -> Self {
         // SAFETY: ClientBuilder::build() only fails with custom TLS or proxy config.
         // We use defaults, so this is effectively infallible.
@@ -79,6 +95,8 @@ impl TaskExecutor {
                 reqwest::Client::new()
             });
 
+        let policy_enforcer = PolicyEnforcer::new(policy_config.unwrap_or_default());
+
         Self {
             http_client,
             rig_provider_cache: Arc::new(DashMap::new()),
@@ -88,6 +106,7 @@ impl TaskExecutor {
             default_model: model.map(Into::into),
             event_log,
             builtin_router: Arc::new(BuiltinToolRouter::new()),
+            policy_enforcer: Arc::new(RwLock::new(policy_enforcer)),
         }
     }
 
@@ -570,6 +589,23 @@ impl TaskExecutor {
             prompt_len: prompt.len(),
         });
 
+        // POLICY CHECK: token budget (v0.13.1)
+        // Estimate tokens for budget check (actual usage tracked after call)
+        let estimated_tokens = (prompt.len() / 4) as u64; // ~4 chars per token
+        {
+            let policy = self.policy_enforcer.read();
+            let decision = policy.check_token_spend(estimated_tokens);
+            if let PolicyDecision::Block(reason) = decision {
+                tracing::warn!(
+                    task_id = %task_id,
+                    estimated_tokens = estimated_tokens,
+                    reason = %reason,
+                    "infer: blocked by token budget"
+                );
+                return Err(NikaError::PolicyViolation { reason });
+            }
+        }
+
         // Use infer_stream to capture token usage. We discard the stream chunks
         // (no TUI display in executor mode) but keep the StreamResult metrics.
         let (tx, _rx) = mpsc::channel::<StreamChunk>(64);
@@ -577,6 +613,12 @@ impl TaskExecutor {
             .infer_stream(&prompt, tx, model)
             .await
             .map_err(|e| NikaError::Provider(e.to_string()))?;
+
+        // Record actual token spend (v0.13.1)
+        let actual_tokens = (stream_result.input_tokens + stream_result.output_tokens) as u64;
+        self.policy_enforcer
+            .write()
+            .record_token_spend(actual_tokens);
 
         // EMIT: ProviderResponded with accurate token counts from streaming response
         self.event_log.emit(EventKind::ProviderResponded {
@@ -596,28 +638,40 @@ impl TaskExecutor {
     async fn run_exec(
         &self,
         task_id: &Arc<str>,
-        exec: &ExecParams,
+        params: &ExecParams,
         bindings: &ResolvedBindings,
         datastore: &DataStore,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates (v0.5: supports lazy bindings)
         // Note: Shell escaping is NOT applied by default to preserve backward compatibility.
         // For values that need shell escaping, use {{use.alias|shell}} syntax (v0.13+).
-        let command = template_resolve(&exec.command, bindings, datastore)?;
+        let resolved_cmd = template_resolve(&params.command, bindings, datastore)?;
+
+        // POLICY CHECK: exec verb (v0.13.1)
+        let policy_decision = self.policy_enforcer.read().check_exec(&resolved_cmd);
+        if let PolicyDecision::Block(reason) = policy_decision {
+            tracing::warn!(
+                task_id = %task_id,
+                command = %resolved_cmd,
+                reason = %reason,
+                "exec: blocked by policy"
+            );
+            return Err(NikaError::PolicyViolation { reason });
+        }
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
             task_id: Arc::clone(task_id),
-            template: exec.command.clone(),
-            result: command.to_string(),
+            template: params.command.clone(),
+            result: resolved_cmd.to_string(),
         });
 
-        // Execute with timeout
+        // Run shell command with timeout
         let output = tokio::time::timeout(
             EXEC_TIMEOUT,
             tokio::process::Command::new("sh")
                 .arg("-c")
-                .arg(command.as_ref())
+                .arg(resolved_cmd.as_ref())
                 .output(),
         )
         .await
@@ -647,6 +701,18 @@ impl TaskExecutor {
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates (v0.5: supports lazy bindings)
         let url = template_resolve(&fetch.url, bindings, datastore)?;
+
+        // POLICY CHECK: fetch verb (v0.13.1)
+        let policy_decision = self.policy_enforcer.read().check_fetch(&url);
+        if let PolicyDecision::Block(reason) = policy_decision {
+            tracing::warn!(
+                task_id = %task_id,
+                url = %url,
+                reason = %reason,
+                "fetch: blocked by policy"
+            );
+            return Err(NikaError::PolicyViolation { reason });
+        }
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
@@ -887,6 +953,30 @@ impl TaskExecutor {
             .validate()
             .map_err(|e| NikaError::AgentValidationError { reason: e })?;
 
+        // POLICY CHECK: token budget (v0.13.1)
+        // Estimate tokens for budget check - use token_budget from agent params if set,
+        // otherwise estimate from prompt length
+        let estimated_tokens: u64 =
+            resolved_agent
+                .token_budget
+                .map(u64::from)
+                .unwrap_or_else(|| {
+                    (resolved_agent.prompt.len() / 4) as u64 // ~4 chars per token
+                });
+        {
+            let policy = self.policy_enforcer.read();
+            let decision = policy.check_token_spend(estimated_tokens);
+            if let PolicyDecision::Block(reason) = decision {
+                tracing::warn!(
+                    task_id = %task_id,
+                    estimated_tokens = estimated_tokens,
+                    reason = %reason,
+                    "agent: blocked by token budget"
+                );
+                return Err(NikaError::PolicyViolation { reason });
+            }
+        }
+
         // EMIT: AgentStart event
         self.event_log.emit(EventKind::AgentStart {
             task_id: Arc::clone(task_id),
@@ -936,6 +1026,11 @@ impl TaskExecutor {
         };
 
         let duration_ms = start.elapsed().as_millis() as u64;
+
+        // Record actual token spend (v0.13.1)
+        self.policy_enforcer
+            .write()
+            .record_token_spend(result.total_tokens as u64);
 
         // EMIT: AgentComplete event
         self.event_log.emit(EventKind::AgentComplete {
@@ -1867,5 +1962,200 @@ mod tests {
             },
         };
         assert_eq!(action_type(&agent_action), "agent");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // POLICY ENFORCEMENT TESTS (v0.13.1)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_execute_exec_blocked_by_policy() {
+        // Configure policy to block 'sudo' commands
+        let policy_config = PolicyConfig {
+            allow_exec: true,
+            blocked_commands: vec!["sudo".to_string(), "rm -rf".to_string()],
+            ..Default::default()
+        };
+        let executor =
+            TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
+        let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
+
+        let action = TaskAction::Exec {
+            exec: ExecParams {
+                command: "sudo apt install".to_string(),
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_policy_exec");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
+
+        assert!(result.is_err(), "Should be blocked by policy");
+        match result.unwrap_err() {
+            NikaError::PolicyViolation { reason } => {
+                assert!(
+                    reason.contains("sudo"),
+                    "Reason should mention blocked pattern"
+                );
+            }
+            err => panic!("Expected PolicyViolation, got: {err:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_exec_allowed_by_policy() {
+        let policy_config = PolicyConfig {
+            allow_exec: true,
+            blocked_commands: vec!["sudo".to_string()],
+            ..Default::default()
+        };
+        let executor =
+            TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
+        let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
+
+        let action = TaskAction::Exec {
+            exec: ExecParams {
+                command: "echo hello".to_string(),
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_policy_exec_allowed");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
+
+        assert!(result.is_ok(), "Should be allowed: {:?}", result.err());
+        assert_eq!(result.unwrap(), "hello");
+    }
+
+    #[tokio::test]
+    async fn test_execute_exec_disabled_by_policy() {
+        // Configure policy to disable exec entirely
+        let policy_config = PolicyConfig {
+            allow_exec: false,
+            ..Default::default()
+        };
+        let executor =
+            TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
+        let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
+
+        let action = TaskAction::Exec {
+            exec: ExecParams {
+                command: "echo safe".to_string(),
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_policy_exec_disabled");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
+
+        assert!(result.is_err(), "Should be blocked when exec is disabled");
+        match result.unwrap_err() {
+            NikaError::PolicyViolation { reason } => {
+                assert!(
+                    reason.contains("disabled"),
+                    "Reason should mention disabled"
+                );
+            }
+            err => panic!("Expected PolicyViolation, got: {err:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_fetch_blocked_by_policy() {
+        // Configure policy to block specific hosts
+        let policy_config = PolicyConfig {
+            allow_network: true,
+            blocked_hosts: vec!["evil.com".to_string()],
+            ..Default::default()
+        };
+        let executor =
+            TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
+        let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
+
+        let action = TaskAction::Fetch {
+            fetch: FetchParams {
+                url: "https://evil.com/api".to_string(),
+                method: "GET".to_string(),
+                headers: rustc_hash::FxHashMap::default(),
+                body: None,
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_policy_fetch");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
+
+        assert!(result.is_err(), "Should be blocked by policy");
+        match result.unwrap_err() {
+            NikaError::PolicyViolation { reason } => {
+                assert!(reason.contains("blocked"), "Reason should mention blocked");
+            }
+            err => panic!("Expected PolicyViolation, got: {err:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_fetch_disabled_by_policy() {
+        // Configure policy to disable network entirely
+        let policy_config = PolicyConfig {
+            allow_network: false,
+            ..Default::default()
+        };
+        let executor =
+            TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
+        let bindings = ResolvedBindings::new();
+        let datastore = DataStore::new();
+
+        let action = TaskAction::Fetch {
+            fetch: FetchParams {
+                url: "https://api.example.com".to_string(),
+                method: "GET".to_string(),
+                headers: rustc_hash::FxHashMap::default(),
+                body: None,
+            },
+        };
+
+        let task_id: Arc<str> = Arc::from("test_policy_fetch_disabled");
+        let result = executor
+            .execute(&task_id, &action, &bindings, &datastore)
+            .await;
+
+        assert!(
+            result.is_err(),
+            "Should be blocked when network is disabled"
+        );
+        match result.unwrap_err() {
+            NikaError::PolicyViolation { reason } => {
+                assert!(
+                    reason.contains("disabled"),
+                    "Reason should mention disabled"
+                );
+            }
+            err => panic!("Expected PolicyViolation, got: {err:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_executor_with_policy_config() {
+        let policy_config = PolicyConfig {
+            allow_exec: true,
+            allow_network: false,
+            max_token_spend: Some(1000),
+            ..Default::default()
+        };
+
+        let executor =
+            TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
+
+        // Verify executor was created (basic sanity check)
+        assert_eq!(executor.default_provider.as_ref(), "mock");
     }
 }
