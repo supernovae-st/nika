@@ -310,7 +310,8 @@ impl BootSequence {
         ctx.phases.push(phase_result.clone());
         if !phase_result.success {
             ctx.total_duration = boot_start.elapsed();
-            return Err(NikaError::ValidationError {
+            return Err(NikaError::BootFailed {
+                phase: phase_result.phase.name().to_string(),
                 reason: phase_result
                     .message
                     .unwrap_or_else(|| "Config discovery failed".into()),
@@ -322,7 +323,8 @@ impl BootSequence {
         ctx.phases.push(phase_result.clone());
         if !phase_result.success {
             ctx.total_duration = boot_start.elapsed();
-            return Err(NikaError::ValidationError {
+            return Err(NikaError::BootFailed {
+                phase: phase_result.phase.name().to_string(),
                 reason: phase_result
                     .message
                     .unwrap_or_else(|| "Config validation failed".into()),
