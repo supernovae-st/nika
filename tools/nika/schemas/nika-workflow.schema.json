@@ -15,7 +15,9 @@
         "nika/workflow@0.3",
         "nika/workflow@0.4",
         "nika/workflow@0.5",
-        "nika/workflow@0.6"
+        "nika/workflow@0.6",
+        "nika/workflow@0.7",
+        "nika/workflow@0.8"
       ],
       "description": "Workflow schema version"
     },
