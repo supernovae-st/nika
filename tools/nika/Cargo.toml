@@ -48,14 +48,14 @@ keyring = "3"
 
 # Utilities
 bytes = "1.11.1"  # Force upgrade to fix RUSTSEC-2026-0007
-regex = "1.11"
+regex = "1.12"
 colored = "2.1"
 dotenvy = "0.15"
 dashmap = "6.1"
 parking_lot = "0.12"
 smallvec = "1.13"
 rustc-hash = "2.1"
-uuid = { version = "1.0", features = ["v4"] }
+uuid = { version = "1.21", features = ["v4"] }
 dirs = "5.0"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 chrono = "0.4"
@@ -98,12 +98,12 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures = { version = "0.3.32", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
-tempfile = "3.14"
+tempfile = "3.25"
 proptest = "1.4"
 insta = { version = "1.34", features = ["yaml"] }
 pretty_assertions = "1.4"
 criterion = { version = "0.5", features = ["async_tokio"] }
-serial_test = "3.1"
+serial_test = "3.4"
 wiremock = "0.6"
 
 # Self-dependency to enable test-fixtures feature for integration tests
