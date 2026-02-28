@@ -630,6 +630,7 @@ mod tests {
         let store = StateStore::in_memory().unwrap();
 
         // Create some executions
+        // insert_execution updates stats when inserting with final status
         let mut record1 = ExecutionRecord::new(
             "exec-1".to_string(),
             "stats-job".to_string(),
@@ -638,7 +639,6 @@ mod tests {
         record1.mark_running();
         record1.mark_completed(None);
         store.insert_execution(&record1).unwrap();
-        store.update_execution(&record1).unwrap();
 
         let mut record2 = ExecutionRecord::new(
             "exec-2".to_string(),
@@ -648,7 +648,6 @@ mod tests {
         record2.mark_running();
         record2.mark_failed("error".to_string());
         store.insert_execution(&record2).unwrap();
-        store.update_execution(&record2).unwrap();
 
         let stats = store.get_stats("stats-job").unwrap();
         assert_eq!(stats.total_executions, 2);
