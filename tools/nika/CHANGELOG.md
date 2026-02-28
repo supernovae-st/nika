@@ -7,6 +7,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-02-28
+
+### Fixed
+- **Schema Parser** - Added support for schema versions `@0.7` and `@0.8` (#22)
+  - Workflows using `nika/workflow@0.7` or `@0.8` now parse correctly
+  - Backward compatible with all previous versions (@0.1 - @0.6)
+- **Jobs Module** - Fixed `JobsConfig` structure alignment in `main.rs` (#24)
+  - CLI now correctly wires jobs daemon configuration
+  - Compilation with `--features jobs` works without errors
+- **Jobs Tests** - Fixed `test_job_stats` double-counting bug (#26)
+  - `insert_execution` correctly updates stats for terminal-status records
+  - Removed redundant `update_execution` calls from test
+- **Test Isolation** - Use unique temp directories for standalone tests (#25)
+  - Prevents race conditions when running tests in parallel
+  - Each test gets isolated `.nika/` directory
+
+### Changed
+- **Examples** - Moved experimental workflows to `drafts/` directory (#23)
+  - Added test workflows for schema version validation
+  - Cleaner separation between production and experimental examples
+- **Documentation** - Updated version references throughout codebase (#21)
+
 ## [0.14.0] - 2026-02-27
 
 ### Added
