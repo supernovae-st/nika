@@ -1,0 +1,11 @@
+schema: "nika/workflow@0.8"
+workflow: test-foreach-concurrency-1
+description: "Test for_each with concurrency=1 (sequential)"
+
+tasks:
+  - id: parallel_test
+    for_each: ["apple", "banana", "cherry", "date", "elderberry"]
+    as: fruit
+    concurrency: 1
+    fail_fast: true
+    infer: "Describe {{use.fruit}} in exactly one short sentence (max 15 words)."
