@@ -1,0 +1,8 @@
+# Schema v0.8: Studio DX (edit history, session persistence, themes, config)
+schema: nika/workflow@0.8
+workflow: v08-studiodx-test
+description: "Test schema v0.8 - Studio DX features"
+
+tasks:
+  - id: studio_test
+    infer: "Name 3 colors of the rainbow"

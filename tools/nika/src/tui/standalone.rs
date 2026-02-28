@@ -560,6 +560,7 @@ impl StandaloneState {
 mod tests {
     use super::*;
     use std::time::Duration;
+    use tempfile::tempdir;
 
     // ───────────────────────────────────────────────────────────────────────────
     // StandalonePanel Tests
@@ -1019,17 +1020,24 @@ mod tests {
 
     #[test]
     fn test_standalone_state_selected_workflow_when_empty() {
-        let root = PathBuf::from("/tmp/nika_test");
-        let state = StandaloneState::new(root);
+        // Use unique temp directory to avoid picking up leftover files
+        let temp_dir = tempdir().unwrap();
+        let mut state = StandaloneState::new(temp_dir.path().to_path_buf());
+        // Clear any entries that might have been found
+        state.browser_entries.clear();
 
         assert_eq!(state.selected_workflow(), None);
     }
 
     #[test]
     fn test_standalone_state_selected_workflow_on_directory() {
-        let root = PathBuf::from("/tmp/nika_test");
+        // Use unique temp directory to avoid picking up leftover files
+        let temp_dir = tempdir().unwrap();
+        let root = temp_dir.path().to_path_buf();
         let root_clone = root.clone();
         let mut state = StandaloneState::new(root);
+        // Clear entries and add only our test directory entry
+        state.browser_entries.clear();
         let mut dir_entry = BrowserEntry::new(PathBuf::from("/tmp/examples"), &root_clone);
         dir_entry.is_dir = true;
         state.browser_entries.push(dir_entry);
@@ -1040,9 +1048,13 @@ mod tests {
 
     #[test]
     fn test_standalone_state_selected_workflow_on_file() {
-        let root = PathBuf::from("/tmp/nika_test");
+        // Use unique temp directory to avoid picking up leftover files
+        let temp_dir = tempdir().unwrap();
+        let root = temp_dir.path().to_path_buf();
         let root_clone = root.clone();
         let mut state = StandaloneState::new(root);
+        // Clear entries and add only our test file entry
+        state.browser_entries.clear();
         let path = PathBuf::from("/tmp/test.nika.yaml");
         state
             .browser_entries
@@ -1146,9 +1158,13 @@ mod tests {
 
     #[test]
     fn test_standalone_state_update_preview_directory() {
-        let root = PathBuf::from("/tmp/nika_test");
+        // Use unique temp directory to avoid picking up leftover files
+        let temp_dir = tempdir().unwrap();
+        let root = temp_dir.path().to_path_buf();
         let root_clone = root.clone();
         let mut state = StandaloneState::new(root);
+        // Clear entries and add only our test directory entry
+        state.browser_entries.clear();
         let mut entry = BrowserEntry::new(PathBuf::from("/tmp/examples"), &root_clone);
         entry.is_dir = true;
         state.browser_entries.push(entry);

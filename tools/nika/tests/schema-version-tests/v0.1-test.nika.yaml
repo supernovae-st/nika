@@ -1,0 +1,8 @@
+# Schema v0.1: Original verbs (infer, exec, fetch)
+schema: nika/workflow@0.1
+workflow: v01-basic-test
+description: "Test schema v0.1 - original 3 verbs"
+
+tasks:
+  - id: greet
+    infer: "Say hello in exactly 5 words"
