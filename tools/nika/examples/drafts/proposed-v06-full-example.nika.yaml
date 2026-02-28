@@ -1,25 +1,25 @@
 # ============================================================================
-# PROPOSED v0.6 — Full Example with Memory, Agents, Skills
+# v0.9 — Full Example with Context, Agents, Skills
 # ============================================================================
 #
-# This file shows the PROPOSED v0.6 syntax (NOT YET IMPLEMENTED).
-# Compare with current v0.5 workarounds below.
+# This file shows the v0.9 syntax with context: field (replaces memory:).
 #
 # Inspired by:
 # - CrewAI: config/agents.yaml, config/tasks.yaml, knowledge sources
 # - LangGraph: memory stores, checkpointers, state persistence
 #
-# Run with: cargo run -- run examples/proposed-v06-full-example.nika.yaml
+# Run with: cargo run -- run examples/drafts/proposed-v06-full-example.nika.yaml
 # ============================================================================
 
-schema: "nika/workflow@0.6"
+schema: "nika/workflow@0.9"
 workflow: qrcode-ai-content-pipeline
 description: "Full content generation pipeline for QR Code AI"
 
 # ============================================================================
-# NEW: Memory System (v0.6)
+# Context System (v0.9) - Replaces memory:
 # ============================================================================
-# Replaces ugly `exec: cat ./file` workarounds with declarative file loading.
+# Declarative file loading at workflow start.
+# Ephemeral context - cleared after each run.
 #
 # CrewAI equivalent:
 #   knowledge:
@@ -28,14 +28,14 @@ description: "Full content generation pipeline for QR Code AI"
 #       - JSONKnowledgeSource(file_paths=["persona.json"])
 # ============================================================================
 
-memory:
+context:
   # Layer 1: Project Files (loaded at workflow start)
   files:
     # Markdown → raw string
     brand: ./context/brand.md
     style_guide: ./context/style-guide.md
 
-    # JSON → parsed object (access via memory.files.persona.name)
+    # JSON → parsed object (access via context.files.persona.name)
     persona: ./context/persona.json
 
     # YAML → parsed object
@@ -47,11 +47,8 @@ memory:
   # Layer 2: Session Context (restore previous chat/workflow)
   session: .nika/sessions/previous-run.json
 
-  # Layer 3: Long-term Memory (v1.0+, not implemented yet)
-  # persistent: .nika/memory/embeddings.db
-
 # ============================================================================
-# NEW: Agent Definitions (v0.6)
+# Agent Definitions (v0.6+)
 # ============================================================================
 # Reusable agent configurations, either inline or from external files.
 #
@@ -144,10 +141,10 @@ tasks:
         Research SEO trends and competitors for QR Code AI.
 
         Brand context:
-        {{memory.files.brand}}
+        {{context.files.brand}}
 
         Focus areas from previous session:
-        {{memory.session.focus_areas}}
+        {{context.session.focus_areas}}
 
   # --------------------------------------------------------------------------
   # Task 2: Get Entity Context from NovaNet
@@ -183,19 +180,19 @@ tasks:
         {{use.get_entity}}
 
         Brand guidelines:
-        {{memory.files.brand}}
+        {{context.files.brand}}
 
         Style guide:
-        {{memory.files.style_guide}}
+        {{context.files.style_guide}}
 
         Persona to target:
-        {{memory.files.persona.target_audience}}
+        {{context.files.persona.target_audience}}
 
         SEO rules:
-        {{memory.files.seo_rules}}
+        {{context.files.seo_rules}}
 
         Reference examples:
-        {{memory.files.examples}}
+        {{context.files.examples}}
 
   # --------------------------------------------------------------------------
   # Task 4: Review (uses agent)
@@ -210,7 +207,7 @@ tasks:
         {{use.write_content}}
 
         Brand guidelines:
-        {{memory.files.brand}}
+        {{context.files.brand}}
 
         Check for:
         - Brand voice consistency

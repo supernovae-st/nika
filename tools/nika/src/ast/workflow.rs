@@ -1,4 +1,4 @@
-//! Workflow Types - main workflow structure (v0.1 - v0.5)
+//! Workflow Types - main workflow structure (v0.1 - v0.9)
 //!
 //! Contains the core YAML-parsed types:
 //! - `Workflow`: Root workflow with tasks and flows
@@ -6,6 +6,8 @@
 //! - `Flow`: DAG edge between tasks
 //! - `FlowEndpoint`: Single or multiple task references
 //! - `McpConfigInline`: Inline MCP server configuration (v0.2+)
+//! - `ContextConfig`: File loading at workflow start (v0.9)
+//! - `IncludeSpec`: DAG fusion from external workflows (v0.9)
 
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
@@ -42,6 +44,9 @@ pub const SCHEMA_V07: &str = "nika/workflow@0.7";
 
 /// Expected schema version for v0.8 workflows (Studio DX, agents from:)
 pub const SCHEMA_V08: &str = "nika/workflow@0.8";
+
+/// Expected schema version for v0.9 workflows (context:, include: DAG fusion)
+pub const SCHEMA_V09: &str = "nika/workflow@0.9";
 
 /// Inline MCP server configuration (v0.2)
 ///
@@ -83,9 +88,12 @@ struct WorkflowRaw {
     /// MCP server configurations (v0.2)
     #[serde(default)]
     pub mcp: Option<FxHashMap<String, McpConfigInline>>,
-    /// Memory configuration for file loading at workflow start (v0.6)
+    /// Context configuration for file loading at workflow start (v0.9)
     #[serde(default)]
-    pub memory: Option<super::memory::MemoryConfig>,
+    pub context: Option<super::context::ContextConfig>,
+    /// Include external workflows for DAG fusion (v0.9)
+    #[serde(default)]
+    pub include: Option<Vec<super::include::IncludeSpec>>,
     /// Reusable agent definitions (v0.6)
     #[serde(default)]
     pub agents: Option<FxHashMap<String, super::agent_def::AgentDef>>,
@@ -98,7 +106,7 @@ struct WorkflowRaw {
 }
 
 /// Workflow with Arc-wrapped tasks for efficient cloning
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Workflow {
     pub schema: String,
     pub provider: String,
@@ -109,8 +117,16 @@ pub struct Workflow {
     /// referencing external configuration. The map key is the server
     /// name used in `invoke.mcp` fields.
     pub mcp: Option<FxHashMap<String, McpConfigInline>>,
-    /// Memory configuration for file loading at workflow start (v0.6)
-    pub memory: Option<super::memory::MemoryConfig>,
+    /// Context configuration for file loading at workflow start (v0.9)
+    ///
+    /// Files are loaded into the DataStore at workflow start and accessible
+    /// via `{{context.files.alias}}` bindings.
+    pub context: Option<super::context::ContextConfig>,
+    /// Include external workflows for DAG fusion (v0.9)
+    ///
+    /// Included workflows have their tasks merged into the main DAG
+    /// at parse time. They share the same DataStore.
+    pub include: Option<Vec<super::include::IncludeSpec>>,
     /// Reusable agent definitions (v0.6)
     ///
     /// Named agent configurations that can be referenced by tasks.
@@ -135,7 +151,8 @@ impl<'de> Deserialize<'de> for Workflow {
             provider: raw.provider,
             model: raw.model,
             mcp: raw.mcp,
-            memory: raw.memory,
+            context: raw.context,
+            include: raw.include,
             agents: raw.agents,
             skills: raw.skills,
             tasks: raw.tasks.into_iter().map(Arc::new).collect(),
@@ -174,7 +191,7 @@ impl Workflow {
     /// Validate the workflow schema version and task configuration
     ///
     /// Returns error if:
-    /// - Schema doesn't match expected version (v0.1 through v0.8)
+    /// - Schema doesn't match expected version (v0.1 through v0.9)
     /// - Any task has invalid for_each configuration (non-array or empty)
     pub fn validate_schema(&self) -> Result<(), NikaError> {
         // Validate schema version
@@ -186,10 +203,11 @@ impl Workflow {
             && self.schema != SCHEMA_V06
             && self.schema != SCHEMA_V07
             && self.schema != SCHEMA_V08
+            && self.schema != SCHEMA_V09
         {
             return Err(NikaError::InvalidSchema {
                 expected: format!(
-                    "{} or {} or {} or {} or {} or {} or {} or {}",
+                    "{} or {} or {} or {} or {} or {} or {} or {} or {}",
                     SCHEMA_V01,
                     SCHEMA_V02,
                     SCHEMA_V03,
@@ -197,7 +215,8 @@ impl Workflow {
                     SCHEMA_V05,
                     SCHEMA_V06,
                     SCHEMA_V07,
-                    SCHEMA_V08
+                    SCHEMA_V08,
+                    SCHEMA_V09
                 ),
                 actual: self.schema.clone(),
             });
@@ -216,7 +235,7 @@ fn default_provider() -> String {
     "claude".to_string()
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Task {
     pub id: String,
     /// Explicit data wiring (v0.1)
@@ -400,14 +419,14 @@ impl Task {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Flow {
     pub source: FlowEndpoint,
     pub target: FlowEndpoint,
 }
 
 /// Handles string OR array for source/target
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum FlowEndpoint {
     Single(String),
@@ -639,27 +658,27 @@ tasks:
     }
 
     #[test]
-    fn test_workflow_parse_v06_with_memory() {
+    fn test_workflow_parse_v09_with_context() {
         let yaml = r#"
-schema: nika/workflow@0.6
-memory:
+schema: nika/workflow@0.9
+context:
   files:
     brand: ./context/brand.md
     persona: ./context/persona.json
   session: .nika/sessions/prev.json
 tasks:
   - id: generate
-    infer: "Generate content using {{memory.files.brand}}"
+    infer: "Generate content using {{context.files.brand}}"
 "#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse v0.6 workflow");
-        assert_eq!(workflow.schema, "nika/workflow@0.6");
-        assert!(workflow.memory.is_some());
+        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse v0.9 workflow");
+        assert_eq!(workflow.schema, "nika/workflow@0.9");
+        assert!(workflow.context.is_some());
 
-        let memory = workflow.memory.as_ref().unwrap();
-        assert_eq!(memory.files.len(), 2);
-        assert!(memory.files.contains_key("brand"));
-        assert!(memory.files.contains_key("persona"));
-        assert!(memory.session.is_some());
+        let context = workflow.context.as_ref().unwrap();
+        assert_eq!(context.files.len(), 2);
+        assert!(context.files.contains_key("brand"));
+        assert!(context.files.contains_key("persona"));
+        assert!(context.session.is_some());
     }
 
     #[test]
@@ -723,15 +742,15 @@ tasks:
     }
 
     #[test]
-    fn test_workflow_parse_v06_full() {
-        // Test a complete v0.6 workflow with all new features
+    fn test_workflow_parse_v09_full() {
+        // Test a complete v0.9 workflow with all new features
         let yaml = r#"
-schema: nika/workflow@0.6
+schema: nika/workflow@0.9
 provider: claude
 model: claude-sonnet-4-6
-memory:
+context:
   files:
-    context: ./context/brand.md
+    brand: ./context/brand.md
 skills:
   writing: ./skills/writing.skill.md
 agents:
@@ -743,12 +762,12 @@ tasks:
     infer: "Generate content"
 "#;
         let workflow: Workflow =
-            serde_yaml::from_str(yaml).expect("Failed to parse full v0.6 workflow");
+            serde_yaml::from_str(yaml).expect("Failed to parse full v0.9 workflow");
 
-        assert_eq!(workflow.schema, "nika/workflow@0.6");
+        assert_eq!(workflow.schema, "nika/workflow@0.9");
         assert_eq!(workflow.provider, "claude");
         assert_eq!(workflow.model, Some("claude-sonnet-4-6".to_string()));
-        assert!(workflow.memory.is_some());
+        assert!(workflow.context.is_some());
         assert!(workflow.skills.is_some());
         assert!(workflow.agents.is_some());
         assert_eq!(workflow.tasks.len(), 1);

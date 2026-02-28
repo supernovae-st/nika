@@ -25,8 +25,8 @@ use crate::event::{EventKind, EventLog, TraceWriter};
 use crate::store::{DataStore, TaskResult};
 use crate::util::intern;
 
+use super::context_loader::load_context;
 use super::executor::TaskExecutor;
-use super::memory_loader::load_memory;
 use super::output::make_task_result;
 use super::resolver::{resolve_assets, ResolvedAssets};
 
@@ -374,12 +374,12 @@ impl Runner {
         // Validate use: blocks before execution (fail-fast)
         validate_use_wiring(&self.workflow, &self.flow_graph)?;
 
-        // Load memory files if workflow has memory: block (v0.13 Schema @0.6)
+        // Load context files if workflow has context: block (v0.14.2 Schema @0.9)
         let base_path = std::env::current_dir().unwrap_or_default();
-        if let Some(memory_config) = &self.workflow.memory {
-            let loaded_memory = load_memory(memory_config, &base_path).await?;
-            self.datastore.set_memory(loaded_memory);
-            debug!("Loaded {} memory files", memory_config.files.len());
+        if let Some(context_config) = &self.workflow.context {
+            let loaded_context = load_context(context_config, &base_path).await?;
+            self.datastore.set_context(loaded_context);
+            debug!("Loaded {} context files", context_config.files.len());
         }
 
         // Resolve agents and skills (v0.13 Schema @0.6)
@@ -835,7 +835,8 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: None,
             skills: None,
             tasks: vec![],
@@ -915,7 +916,8 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: None,
             skills: None,
             tasks: vec![Arc::new(Task {
@@ -973,7 +975,8 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: None,
             skills: None,
             tasks: vec![Arc::new(Task {
@@ -1031,7 +1034,8 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: None,
             skills: None,
             tasks: tasks
@@ -1456,7 +1460,8 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: None,
             skills: None,
             tasks: vec![Arc::new(Task {
@@ -1503,7 +1508,8 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: None,
             skills: None,
             tasks: vec![Arc::new(Task {
@@ -1542,7 +1548,8 @@ mod tests {
             provider: "mock".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: None,
             skills: None,
             tasks: vec![Arc::new(Task {

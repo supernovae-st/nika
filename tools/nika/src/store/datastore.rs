@@ -3,7 +3,7 @@
 //! Single HashMap design with lock-free concurrent access.
 //! Path resolution unified with jsonpath module.
 //!
-//! v0.13: Added memory storage for workflow `memory:` block.
+//! v0.14.2: Added context storage for workflow `context:` block.
 
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -13,7 +13,7 @@ use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde_json::Value;
 
-use crate::runtime::memory_loader::LoadedMemory;
+use crate::runtime::context_loader::LoadedContext;
 use crate::util::jsonpath;
 
 /// Task execution status
@@ -88,17 +88,17 @@ impl TaskResult {
 ///
 /// Uses `Arc<str>` keys for zero-cost cloning with same Arc used in events.
 ///
-/// v0.13: Added memory storage for workflow `memory:` block.
+/// v0.14.2: Added context storage for workflow `context:` block.
 #[derive(Clone, Default)]
 pub struct DataStore {
     /// Task results: task_id → TaskResult
     results: Arc<DashMap<Arc<str>, TaskResult>>,
 
-    /// Memory loaded at workflow start (v0.13)
+    /// Context loaded at workflow start (v0.14.2)
     ///
-    /// Contains files loaded from the `memory:` block.
-    /// Accessible via `{{memory.files.alias}}` bindings.
-    memory: Arc<RwLock<LoadedMemory>>,
+    /// Contains files loaded from the `context:` block.
+    /// Accessible via `{{context.files.alias}}` bindings.
+    context: Arc<RwLock<LoadedContext>>,
 }
 
 impl DataStore {
@@ -153,49 +153,49 @@ impl DataStore {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // MEMORY STORAGE (v0.13 Schema @0.6)
+    // CONTEXT STORAGE (v0.14.2 Schema @0.9)
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /// Set workflow memory (v0.13)
+    /// Set workflow context (v0.14.2)
     ///
-    /// Called by Runner at workflow start after loading memory files.
-    pub fn set_memory(&self, memory: LoadedMemory) {
-        *self.memory.write() = memory;
+    /// Called by Runner at workflow start after loading context files.
+    pub fn set_context(&self, context: LoadedContext) {
+        *self.context.write() = context;
     }
 
-    /// Get a memory file by alias (v0.13)
+    /// Get a context file by alias (v0.14.2)
     ///
-    /// Returns the loaded value for `{{memory.files.alias}}` bindings.
-    pub fn get_memory_file(&self, alias: &str) -> Option<Value> {
-        self.memory.read().get_file(alias).cloned()
+    /// Returns the loaded value for `{{context.files.alias}}` bindings.
+    pub fn get_context_file(&self, alias: &str) -> Option<Value> {
+        self.context.read().get_file(alias).cloned()
     }
 
-    /// Get session data (v0.13)
+    /// Get session data (v0.14.2)
     ///
-    /// Returns the loaded session for `{{memory.session.key}}` bindings.
-    pub fn get_memory_session(&self) -> Option<Value> {
-        self.memory.read().get_session().cloned()
+    /// Returns the loaded session for `{{context.session.key}}` bindings.
+    pub fn get_context_session(&self) -> Option<Value> {
+        self.context.read().get_session().cloned()
     }
 
-    /// Check if memory is loaded (v0.13)
-    pub fn has_memory(&self) -> bool {
-        !self.memory.read().is_empty()
+    /// Check if context is loaded (v0.14.2)
+    pub fn has_context(&self) -> bool {
+        !self.context.read().is_empty()
     }
 
-    /// Resolve a memory path (v0.13)
+    /// Resolve a context path (v0.14.2)
     ///
     /// Supports:
-    /// - `memory.files.alias` → file content
-    /// - `memory.files.alias.field` → nested field
-    /// - `memory.session` → session data
-    /// - `memory.session.field` → session field
-    pub fn resolve_memory_path(&self, path: &str) -> Option<Value> {
+    /// - `context.files.alias` → file content
+    /// - `context.files.alias.field` → nested field
+    /// - `context.session` → session data
+    /// - `context.session.field` → session field
+    pub fn resolve_context_path(&self, path: &str) -> Option<Value> {
         let parts: Vec<&str> = path.split('.').collect();
         if parts.len() < 2 {
             return None;
         }
 
-        let memory = self.memory.read();
+        let context = self.context.read();
 
         match parts[1] {
             "files" => {
@@ -203,25 +203,25 @@ impl DataStore {
                     return None;
                 }
                 let alias = parts[2];
-                let value = memory.get_file(alias)?;
+                let value = context.get_file(alias)?;
 
                 if parts.len() == 3 {
-                    // memory.files.alias → full file content
+                    // context.files.alias → full file content
                     Some(value.clone())
                 } else {
-                    // memory.files.alias.field → nested path
+                    // context.files.alias.field → nested path
                     let remaining = parts[3..].join(".");
                     jsonpath::resolve(value, &remaining).ok().flatten()
                 }
             }
             "session" => {
-                let session = memory.get_session()?;
+                let session = context.get_session()?;
 
                 if parts.len() == 2 {
-                    // memory.session → full session
+                    // context.session → full session
                     Some(session.clone())
                 } else {
-                    // memory.session.field → nested path
+                    // context.session.field → nested path
                     let remaining = parts[2..].join(".");
                     jsonpath::resolve(session, &remaining).ok().flatten()
                 }
@@ -602,112 +602,117 @@ mod tests {
     }
 
     // =========================================================================
-    // Memory Storage Tests (v0.13 Schema @0.6)
+    // Context Storage Tests (v0.14.2 Schema @0.9)
     // =========================================================================
 
     #[test]
-    fn test_memory_default_is_empty() {
+    fn test_context_default_is_empty() {
         let store = DataStore::new();
-        assert!(!store.has_memory());
+        assert!(!store.has_context());
     }
 
     #[test]
-    fn test_set_and_get_memory_file() {
+    fn test_set_and_get_context_file() {
         let store = DataStore::new();
 
-        let mut memory = LoadedMemory::new();
-        memory
+        let mut context = LoadedContext::new();
+        context
             .files
             .insert("brand".to_string(), json!("# Brand Guide"));
 
-        store.set_memory(memory);
+        store.set_context(context);
 
-        assert!(store.has_memory());
-        assert_eq!(store.get_memory_file("brand"), Some(json!("# Brand Guide")));
-        assert!(store.get_memory_file("nonexistent").is_none());
+        assert!(store.has_context());
+        assert_eq!(
+            store.get_context_file("brand"),
+            Some(json!("# Brand Guide"))
+        );
+        assert!(store.get_context_file("nonexistent").is_none());
     }
 
     #[test]
-    fn test_set_and_get_memory_session() {
+    fn test_set_and_get_context_session() {
         let store = DataStore::new();
 
-        let mut memory = LoadedMemory::new();
-        memory.session = Some(json!({"focus_areas": ["rust", "ai"]}));
+        let mut context = LoadedContext::new();
+        context.session = Some(json!({"focus_areas": ["rust", "ai"]}));
 
-        store.set_memory(memory);
+        store.set_context(context);
 
-        assert!(store.has_memory());
-        let session = store.get_memory_session().unwrap();
+        assert!(store.has_context());
+        let session = store.get_context_session().unwrap();
         assert!(session["focus_areas"].is_array());
     }
 
     #[test]
-    fn test_resolve_memory_path_files() {
+    fn test_resolve_context_path_files() {
         let store = DataStore::new();
 
-        let mut memory = LoadedMemory::new();
-        memory.files.insert(
+        let mut context = LoadedContext::new();
+        context.files.insert(
             "persona".to_string(),
             json!({"name": "Agent", "role": "assistant"}),
         );
 
-        store.set_memory(memory);
+        store.set_context(context);
 
         // Full file
         assert_eq!(
-            store.resolve_memory_path("memory.files.persona"),
+            store.resolve_context_path("context.files.persona"),
             Some(json!({"name": "Agent", "role": "assistant"}))
         );
 
         // Nested field
         assert_eq!(
-            store.resolve_memory_path("memory.files.persona.name"),
+            store.resolve_context_path("context.files.persona.name"),
             Some(json!("Agent"))
         );
 
         // Missing file
-        assert!(store.resolve_memory_path("memory.files.missing").is_none());
+        assert!(store
+            .resolve_context_path("context.files.missing")
+            .is_none());
     }
 
     #[test]
-    fn test_resolve_memory_path_session() {
+    fn test_resolve_context_path_session() {
         let store = DataStore::new();
 
-        let mut memory = LoadedMemory::new();
-        memory.session = Some(json!({"focus": "rust", "level": 3}));
+        let mut context = LoadedContext::new();
+        context.session = Some(json!({"focus": "rust", "level": 3}));
 
-        store.set_memory(memory);
+        store.set_context(context);
 
         // Full session
         assert_eq!(
-            store.resolve_memory_path("memory.session"),
+            store.resolve_context_path("context.session"),
             Some(json!({"focus": "rust", "level": 3}))
         );
 
         // Nested field
         assert_eq!(
-            store.resolve_memory_path("memory.session.focus"),
+            store.resolve_context_path("context.session.focus"),
             Some(json!("rust"))
         );
         assert_eq!(
-            store.resolve_memory_path("memory.session.level"),
+            store.resolve_context_path("context.session.level"),
             Some(json!(3))
         );
     }
 
     #[test]
-    fn test_resolve_memory_path_invalid() {
+    fn test_resolve_context_path_invalid() {
         let store = DataStore::new();
 
-        let mut memory = LoadedMemory::new();
-        memory.files.insert("brand".to_string(), json!("content"));
+        let mut context = LoadedContext::new();
+        context.files.insert("brand".to_string(), json!("content"));
 
-        store.set_memory(memory);
+        store.set_context(context);
 
         // Invalid paths
-        assert!(store.resolve_memory_path("memory").is_none());
-        assert!(store.resolve_memory_path("memory.invalid").is_none());
-        assert!(store.resolve_memory_path("memory.files").is_none());
-        assert!(store.resolve_memory_path("other.path").is_none());
+        assert!(store.resolve_context_path("context").is_none());
+        assert!(store.resolve_context_path("context.invalid").is_none());
+        assert!(store.resolve_context_path("context.files").is_none());
+        assert!(store.resolve_context_path("other.path").is_none());
     }
 }

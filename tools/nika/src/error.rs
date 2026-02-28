@@ -465,14 +465,14 @@ pub enum NikaError {
     AssertionFailed { message: String, condition: String },
 
     // ═══════════════════════════════════════════
-    // MEMORY ERRORS (250-259) - NEW v0.13 (Schema @0.6)
+    // CONTEXT ERRORS (250-259) - v0.14.2 (Schema @0.9)
     // ═══════════════════════════════════════════
-    #[error("[NIKA-250] Failed to load memory file '{alias}' from '{path}': {reason}")]
+    #[error("[NIKA-250] Failed to load context file '{alias}' from '{path}': {reason}")]
     #[diagnostic(
-        code(nika::memory_load_error),
+        code(nika::context_load_error),
         help("Check the file path exists and is readable")
     )]
-    MemoryLoadError {
+    ContextLoadError {
         alias: String,
         path: String,
         reason: String,
@@ -574,8 +574,8 @@ impl NikaError {
             Self::BuiltinToolNotFound { .. } => "NIKA-211",
             Self::BuiltinInvalidParams { .. } => "NIKA-212",
             Self::AssertionFailed { .. } => "NIKA-213",
-            // Memory errors (v0.13)
-            Self::MemoryLoadError { .. } => "NIKA-250",
+            // Context errors (v0.14.2)
+            Self::ContextLoadError { .. } => "NIKA-250",
             // Policy errors (v0.13.1)
             Self::PolicyViolation { .. } => "NIKA-160",
             Self::BootFailed { .. } => "NIKA-161",
@@ -773,8 +773,8 @@ impl FixSuggestion for NikaError {
                 Some("Check the parameter format matches the expected JSON schema")
             }
             NikaError::AssertionFailed { .. } => Some("The condition evaluated to false"),
-            // Memory errors (v0.13)
-            NikaError::MemoryLoadError { .. } => Some("Check the file path exists and is readable"),
+            // Context errors (v0.14.2)
+            NikaError::ContextLoadError { .. } => Some("Check the file path exists and is readable"),
             // Policy errors (v0.13.1)
             NikaError::PolicyViolation { .. } => {
                 Some("This action was blocked by security policy. Check .nika/config.toml policy section.")

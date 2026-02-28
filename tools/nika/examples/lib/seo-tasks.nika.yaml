@@ -1,0 +1,79 @@
+# ============================================================================
+# SEO Tasks Library - Reusable SEO workflow tasks
+# ============================================================================
+# This file is designed to be included by other workflows via `include:`.
+# Tasks are prefixed when included to prevent ID collisions.
+#
+# Usage:
+#   include:
+#     - path: ./lib/seo-tasks.nika.yaml
+#       prefix: seo_
+# ============================================================================
+
+schema: "nika/workflow@0.9"
+workflow: seo-tasks-lib
+description: "Reusable SEO analysis and optimization tasks"
+
+tasks:
+  # --------------------------------------------------------------------------
+  # SEO Analysis Task
+  # --------------------------------------------------------------------------
+  - id: analyze_keywords
+    description: "Analyze keywords for SEO optimization"
+    infer: |
+      Analyze the following topic for SEO keyword opportunities:
+      "QR Code AI Technology"
+
+      Identify primary and secondary keywords, keyword density targets,
+      and suggest improvements for search engine optimization.
+
+      Return a JSON object with:
+      - primary_keywords: array of main keywords
+      - secondary_keywords: array of supporting keywords
+      - density_score: target 0-100
+      - suggestions: array of improvement suggestions
+    output:
+      format: json
+
+  # --------------------------------------------------------------------------
+  # Meta Description Generator
+  # --------------------------------------------------------------------------
+  - id: generate_meta
+    description: "Generate SEO-optimized meta description"
+    use:
+      keywords: analyze_keywords
+    infer: |
+      Generate an SEO-optimized meta description (max 155 characters)
+      using these keywords:
+
+      Keywords: {{use.keywords}}
+
+      The meta description should:
+      - Include primary keyword naturally
+      - Be compelling and click-worthy
+      - Stay under 155 characters
+
+  # --------------------------------------------------------------------------
+  # Title Tag Generator
+  # --------------------------------------------------------------------------
+  - id: generate_title
+    description: "Generate SEO-optimized title tag"
+    use:
+      keywords: analyze_keywords
+    infer: |
+      Generate an SEO-optimized title tag (max 60 characters)
+      using these keywords:
+
+      Keywords: {{use.keywords}}
+
+      The title should:
+      - Start with primary keyword
+      - Be compelling and descriptive
+      - Stay under 60 characters
+
+# DAG flows within this library
+flows:
+  - source: analyze_keywords
+    target: generate_meta
+  - source: analyze_keywords
+    target: generate_title

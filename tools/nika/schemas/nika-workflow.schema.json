@@ -17,7 +17,8 @@
         "nika/workflow@0.5",
         "nika/workflow@0.6",
         "nika/workflow@0.7",
-        "nika/workflow@0.8"
+        "nika/workflow@0.8",
+        "nika/workflow@0.9"
       ],
       "description": "Workflow schema version"
     },
@@ -46,9 +47,16 @@
         "$ref": "#/$defs/McpConfig"
       }
     },
-    "memory": {
-      "$ref": "#/$defs/MemoryConfig",
-      "description": "Memory configuration for loading files at workflow start (v0.6+)"
+    "context": {
+      "$ref": "#/$defs/ContextConfig",
+      "description": "Context configuration for loading files at workflow start (v0.9+)"
+    },
+    "include": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/IncludeSpec"
+      },
+      "description": "Include external workflows (DAG fusion, v0.9+)"
     },
     "tasks": {
       "type": "array",
@@ -135,7 +143,7 @@
         }
       ]
     },
-    "MemoryConfig": {
+    "ContextConfig": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -147,6 +155,21 @@
         "session": {
           "type": "string",
           "description": "Path to session JSON file to restore"
+        }
+      }
+    },
+    "IncludeSpec": {
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to workflow file to include (relative to current workflow)"
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix for task IDs from included workflow (prevents collisions)"
         }
       }
     },

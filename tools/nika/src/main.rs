@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 // Import from lib modules
 use nika::ast::schema_validator::WorkflowSchemaValidator;
-use nika::ast::{TaskAction, Workflow};
+use nika::ast::{expand_includes, TaskAction, Workflow};
 use nika::dag::{validate_use_wiring, Dag};
 use nika::error::NikaError;
 use nika::mcp::validation::{McpValidator, ValidationConfig};
@@ -737,7 +737,11 @@ async fn run_workflow(
     validator.validate_yaml(&yaml)?;
 
     // Parse into Workflow struct (now we know structure is valid)
-    let mut workflow: Workflow = serde_yaml::from_str(&yaml)?;
+    let workflow: Workflow = serde_yaml::from_str(&yaml)?;
+
+    // Expand includes (v0.14.2 - DAG fusion)
+    let base_path = Path::new(file).parent().unwrap_or(Path::new("."));
+    let mut workflow = expand_includes(workflow, base_path)?;
 
     // Validate schema version and task config
     workflow.validate_schema()?;
@@ -780,6 +784,10 @@ fn validate_workflow(file: &str) -> Result<(), NikaError> {
     // Parse into Workflow struct (now we know structure is valid)
     let workflow: Workflow = serde_yaml::from_str(&yaml)?;
 
+    // Expand includes (v0.14.2 - DAG fusion)
+    let base_path = Path::new(file).parent().unwrap_or(Path::new("."));
+    let workflow = expand_includes(workflow, base_path)?;
+
     // Validate schema version and task config
     workflow.validate_schema()?;
 
@@ -809,6 +817,10 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
 
     // Parse into Workflow struct
     let workflow: Workflow = serde_yaml::from_str(&yaml)?;
+
+    // Expand includes (v0.14.2 - DAG fusion)
+    let base_path = Path::new(file).parent().unwrap_or(Path::new("."));
+    let workflow = expand_includes(workflow, base_path)?;
 
     // Validate schema version and task config
     workflow.validate_schema()?;

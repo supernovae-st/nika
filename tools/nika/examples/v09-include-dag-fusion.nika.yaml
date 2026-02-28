@@ -1,0 +1,114 @@
+# ============================================================================
+# v0.9 — include: DAG Fusion Example
+# ============================================================================
+#
+# Demonstrates the `include:` feature for merging external workflows.
+# Tasks from included workflows are merged into the main DAG at parse time.
+#
+# Features demonstrated:
+# - include: field for DAG fusion
+# - prefix: for task ID namespacing
+# - context: field for file loading
+# - Referencing prefixed task outputs
+#
+# Run with: cargo run -- run examples/v09-include-dag-fusion.nika.yaml
+# ============================================================================
+
+schema: "nika/workflow@0.9"
+workflow: content-with-seo
+description: "Content generation with included SEO tasks"
+
+# ============================================================================
+# Include External Workflows (v0.9)
+# ============================================================================
+# Tasks from included workflows are merged into this DAG.
+# Use prefix: to prevent task ID collisions.
+# ============================================================================
+
+include:
+  - path: ./lib/seo-tasks.nika.yaml
+    prefix: seo_
+
+# ============================================================================
+# Context (v0.9)
+# ============================================================================
+# Load files at workflow start for use in tasks.
+# ============================================================================
+
+context:
+  files:
+    brand_guide: ./context/brand.md
+    style_guide: ./context/style-guide.md
+
+# ============================================================================
+# Tasks
+# ============================================================================
+
+tasks:
+  # --------------------------------------------------------------------------
+  # Task 1: Generate Content
+  # --------------------------------------------------------------------------
+  - id: generate_content
+    description: "Generate blog post content"
+    infer: |
+      Write a blog post about QR Code AI technology.
+
+      Brand guidelines:
+      {{context.files.brand_guide}}
+
+      The content should be informative, engaging, and
+      optimized for search engines.
+
+  # --------------------------------------------------------------------------
+  # Task 2: Prepare content for SEO analysis
+  # --------------------------------------------------------------------------
+  # This task bridges to the included SEO tasks by providing the 'content' binding
+  - id: prepare_for_seo
+    description: "Prepare content for SEO analysis"
+    exec: "echo '{{use.content}}'"
+    use:
+      content: generate_content
+
+  # --------------------------------------------------------------------------
+  # Task 3: Final Assembly
+  # --------------------------------------------------------------------------
+  # References prefixed task outputs from included workflow
+  - id: assemble_page
+    description: "Assemble final page with SEO elements"
+    use:
+      seo_title: seo_generate_title
+      seo_meta: seo_generate_meta
+      content: generate_content
+    infer: |
+      Assemble a complete HTML page with:
+
+      Title: {{use.seo_title}}
+      Meta Description: {{use.seo_meta}}
+
+      Content:
+      {{use.content}}
+
+      Return the complete HTML document.
+
+# ============================================================================
+# Flows
+# ============================================================================
+# Connect main tasks to included tasks (using prefixed IDs)
+# ============================================================================
+
+flows:
+  # Main content generation
+  - source: generate_content
+    target: prepare_for_seo
+
+  # Connect to included SEO tasks (prefixed with seo_)
+  - source: prepare_for_seo
+    target: seo_analyze_keywords
+
+  # Final assembly depends on SEO tasks (prefixed)
+  - source: seo_generate_meta
+    target: assemble_page
+  - source: seo_generate_title
+    target: assemble_page
+  - source: generate_content
+    target: assemble_page
