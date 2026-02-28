@@ -1,4 +1,4 @@
-//! Runtime Module - Workflow execution (v0.13.1)
+//! Runtime Module - Workflow execution (v0.14.2)
 //!
 //! Contains the runtime execution components:
 //! - `runner`: DAG execution with tokio concurrency
@@ -10,7 +10,7 @@
 //! - `chat_workflow`: Chat-as-DAG wrapper (v0.9.1)
 //! - `builtin`: Builtin nika:* tools (v0.9.3)
 //! - `hitl`: Human-In-The-Loop handler trait (v0.10.0)
-//! - `memory_loader`: Memory file loading at workflow start (v0.13 Schema @0.6)
+//! - `context_loader`: Context file loading at workflow start (v0.14.2 Schema @0.9)
 //! - `resolver`: Agent and skill resolution (v0.13 Schema @0.6)
 //! - `boot`: Boot sequence with 6-phase initialization (v0.13.1)
 //! - `policy`: Security policy enforcement for exec/fetch/tokens (v0.13.1)
@@ -21,9 +21,9 @@
 pub mod boot;
 pub mod builtin;
 pub mod chat_workflow;
+pub mod context_loader;
 mod executor;
 pub mod hitl;
-pub mod memory_loader;
 mod output;
 pub mod policy;
 pub mod resolver;
@@ -38,9 +38,9 @@ pub use builtin::{
     RunTool,
 };
 pub use chat_workflow::{ChatMessage, ChatWorkflow, Role};
+pub use context_loader::{load_context, LoadedContext};
 pub use executor::TaskExecutor;
 pub use hitl::{DefaultHitlHandler, HitlError, HitlHandler, HitlRequest, HitlResponse};
-pub use memory_loader::{load_memory, LoadedMemory};
 pub use output::make_task_result;
 pub use resolver::{
     resolve_assets, AgentSource, ResolvedAgent, ResolvedAgents, ResolvedAssets, ResolvedSkills,

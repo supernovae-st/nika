@@ -1,7 +1,7 @@
-//! Memory Loader - Load files at workflow start (v0.6)
+//! Context Loader - Load files at workflow start (v0.9)
 //!
-//! Loads files declared in the `memory:` block at workflow start.
-//! Files are made available via `{{memory.files.alias}}` bindings.
+//! Loads files declared in the `context:` block at workflow start.
+//! Files are made available via `{{context.files.alias}}` bindings.
 //!
 //! # Supported file types
 //!
@@ -13,7 +13,7 @@
 //! # Example
 //!
 //! ```yaml
-//! memory:
+//! context:
 //!   files:
 //!     brand: ./context/brand.md        # String
 //!     persona: ./context/persona.json  # JSON object
@@ -29,18 +29,18 @@ use ignore::WalkBuilder;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
 
-use crate::ast::memory::MemoryConfig;
+use crate::ast::context::ContextConfig;
 use crate::error::NikaError;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// LOADED MEMORY
+// LOADED CONTEXT
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Loaded memory context from workflow `memory:` block
+/// Loaded context from workflow `context:` block
 ///
 /// Contains all files loaded at workflow start, keyed by alias.
 #[derive(Debug, Clone, Default)]
-pub struct LoadedMemory {
+pub struct LoadedContext {
     /// Loaded files by alias
     ///
     /// - Single files: `Value::String` (text) or `Value::Object` (JSON/YAML)
@@ -51,8 +51,8 @@ pub struct LoadedMemory {
     pub session: Option<Value>,
 }
 
-impl LoadedMemory {
-    /// Create an empty LoadedMemory
+impl LoadedContext {
+    /// Create an empty LoadedContext
     pub fn new() -> Self {
         Self::default()
     }
@@ -67,7 +67,7 @@ impl LoadedMemory {
         self.session.as_ref()
     }
 
-    /// Check if memory is empty
+    /// Check if context is empty
     pub fn is_empty(&self) -> bool {
         self.files.is_empty() && self.session.is_none()
     }
@@ -79,19 +79,19 @@ impl LoadedMemory {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MEMORY LOADER
+// CONTEXT LOADER
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Load memory files at workflow start
+/// Load context files at workflow start
 ///
 /// # Arguments
 ///
-/// * `config` - Memory configuration from workflow
+/// * `config` - Context configuration from workflow
 /// * `base_path` - Base directory for resolving relative paths
 ///
 /// # Returns
 ///
-/// Loaded memory with all files resolved
+/// Loaded context with all files resolved
 ///
 /// # Errors
 ///
@@ -99,11 +99,11 @@ impl LoadedMemory {
 /// - File not found
 /// - Invalid JSON/YAML
 /// - Invalid glob pattern
-pub async fn load_memory(
-    config: &MemoryConfig,
+pub async fn load_context(
+    config: &ContextConfig,
     base_path: &Path,
-) -> Result<LoadedMemory, NikaError> {
-    let mut memory = LoadedMemory::new();
+) -> Result<LoadedContext, NikaError> {
+    let mut context = LoadedContext::new();
 
     // Load each file entry
     for (alias, path_pattern) in &config.files {
@@ -115,7 +115,7 @@ pub async fn load_memory(
             let full_path = base_path.join(path_pattern);
             load_single_file(&full_path).await?
         };
-        memory.files.insert(alias.to_string(), value);
+        context.files.insert(alias.to_string(), value);
     }
 
     // Load session if specified
@@ -123,23 +123,23 @@ pub async fn load_memory(
         let full_path = base_path.join(session_path);
         if full_path.exists() {
             let content = tokio::fs::read_to_string(&full_path).await.map_err(|e| {
-                NikaError::MemoryLoadError {
+                NikaError::ContextLoadError {
                     alias: "session".to_string(),
                     path: full_path.display().to_string(),
                     reason: e.to_string(),
                 }
             })?;
             let session: Value =
-                serde_json::from_str(&content).map_err(|e| NikaError::MemoryLoadError {
+                serde_json::from_str(&content).map_err(|e| NikaError::ContextLoadError {
                     alias: "session".to_string(),
                     path: full_path.display().to_string(),
                     reason: format!("Invalid JSON: {}", e),
                 })?;
-            memory.session = Some(session);
+            context.session = Some(session);
         }
     }
 
-    Ok(memory)
+    Ok(context)
 }
 
 /// Check if a path pattern contains glob characters
@@ -152,7 +152,7 @@ async fn load_single_file(path: &Path) -> Result<Value, NikaError> {
     let content =
         tokio::fs::read_to_string(path)
             .await
-            .map_err(|e| NikaError::MemoryLoadError {
+            .map_err(|e| NikaError::ContextLoadError {
                 alias: String::new(),
                 path: path.display().to_string(),
                 reason: e.to_string(),
@@ -160,13 +160,13 @@ async fn load_single_file(path: &Path) -> Result<Value, NikaError> {
 
     // Parse based on extension
     match path.extension().and_then(|e| e.to_str()) {
-        Some("json") => serde_json::from_str(&content).map_err(|e| NikaError::MemoryLoadError {
+        Some("json") => serde_json::from_str(&content).map_err(|e| NikaError::ContextLoadError {
             alias: String::new(),
             path: path.display().to_string(),
             reason: format!("Invalid JSON: {}", e),
         }),
         Some("yaml") | Some("yml") => {
-            serde_yaml::from_str(&content).map_err(|e| NikaError::MemoryLoadError {
+            serde_yaml::from_str(&content).map_err(|e| NikaError::ContextLoadError {
                 alias: String::new(),
                 path: path.display().to_string(),
                 reason: format!("Invalid YAML: {}", e),
@@ -193,7 +193,7 @@ async fn load_glob_files(pattern: &str, base_path: &Path) -> Result<Value, NikaE
     let glob = GlobBuilder::new(file_pattern)
         .literal_separator(true)
         .build()
-        .map_err(|e| NikaError::MemoryLoadError {
+        .map_err(|e| NikaError::ContextLoadError {
             alias: String::new(),
             path: pattern.to_string(),
             reason: format!("Invalid glob pattern: {}", e),
@@ -232,7 +232,7 @@ async fn load_glob_files(pattern: &str, base_path: &Path) -> Result<Value, NikaE
             let content =
                 tokio::fs::read_to_string(path)
                     .await
-                    .map_err(|e| NikaError::MemoryLoadError {
+                    .map_err(|e| NikaError::ContextLoadError {
                         alias: String::new(),
                         path: path.display().to_string(),
                         reason: e.to_string(),
@@ -255,21 +255,21 @@ mod tests {
     use tokio::fs;
 
     #[test]
-    fn test_loaded_memory_default() {
-        let memory = LoadedMemory::default();
-        assert!(memory.is_empty());
-        assert_eq!(memory.file_count(), 0);
+    fn test_loaded_context_default() {
+        let context = LoadedContext::default();
+        assert!(context.is_empty());
+        assert_eq!(context.file_count(), 0);
     }
 
     #[test]
-    fn test_loaded_memory_get_file() {
-        let mut memory = LoadedMemory::new();
-        memory
+    fn test_loaded_context_get_file() {
+        let mut context = LoadedContext::new();
+        context
             .files
             .insert("test".to_string(), Value::String("content".to_string()));
 
-        assert!(memory.get_file("test").is_some());
-        assert!(memory.get_file("nonexistent").is_none());
+        assert!(context.get_file("test").is_some());
+        assert!(context.get_file("nonexistent").is_none());
     }
 
     #[test]
@@ -345,7 +345,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_load_memory_full() {
+    async fn test_load_context_full() {
         let temp_dir = TempDir::new().unwrap();
 
         // Create files
@@ -356,7 +356,7 @@ mod tests {
             .await
             .unwrap();
 
-        let config = MemoryConfig {
+        let config = ContextConfig {
             files: {
                 let mut m = FxHashMap::default();
                 m.insert("brand".to_string(), "brand.md".to_string());
@@ -366,14 +366,14 @@ mod tests {
             session: None,
         };
 
-        let memory = load_memory(&config, temp_dir.path()).await.unwrap();
-        assert_eq!(memory.file_count(), 2);
-        assert!(memory.get_file("brand").is_some());
-        assert!(memory.get_file("persona").is_some());
+        let context = load_context(&config, temp_dir.path()).await.unwrap();
+        assert_eq!(context.file_count(), 2);
+        assert!(context.get_file("brand").is_some());
+        assert!(context.get_file("persona").is_some());
     }
 
     #[tokio::test]
-    async fn test_load_memory_with_session() {
+    async fn test_load_context_with_session() {
         let temp_dir = TempDir::new().unwrap();
         let sessions_dir = temp_dir.path().join(".nika/sessions");
         fs::create_dir_all(&sessions_dir).await.unwrap();
@@ -384,36 +384,36 @@ mod tests {
         .await
         .unwrap();
 
-        let config = MemoryConfig {
+        let config = ContextConfig {
             files: FxHashMap::default(),
             session: Some(".nika/sessions/prev.json".to_string()),
         };
 
-        let memory = load_memory(&config, temp_dir.path()).await.unwrap();
-        assert!(memory.session.is_some());
-        let session = memory.session.as_ref().unwrap();
+        let context = load_context(&config, temp_dir.path()).await.unwrap();
+        assert!(context.session.is_some());
+        let session = context.session.as_ref().unwrap();
         assert!(session["focus_areas"].is_array());
     }
 
     #[tokio::test]
-    async fn test_load_memory_missing_session_ok() {
+    async fn test_load_context_missing_session_ok() {
         let temp_dir = TempDir::new().unwrap();
 
-        let config = MemoryConfig {
+        let config = ContextConfig {
             files: FxHashMap::default(),
             session: Some(".nika/sessions/nonexistent.json".to_string()),
         };
 
         // Missing session file is OK (not an error)
-        let memory = load_memory(&config, temp_dir.path()).await.unwrap();
-        assert!(memory.session.is_none());
+        let context = load_context(&config, temp_dir.path()).await.unwrap();
+        assert!(context.session.is_none());
     }
 
     #[tokio::test]
-    async fn test_load_memory_missing_file_error() {
+    async fn test_load_context_missing_file_error() {
         let temp_dir = TempDir::new().unwrap();
 
-        let config = MemoryConfig {
+        let config = ContextConfig {
             files: {
                 let mut m = FxHashMap::default();
                 m.insert("missing".to_string(), "nonexistent.md".to_string());
@@ -422,7 +422,7 @@ mod tests {
             session: None,
         };
 
-        let result = load_memory(&config, temp_dir.path()).await;
+        let result = load_context(&config, temp_dir.path()).await;
         assert!(result.is_err());
     }
 }

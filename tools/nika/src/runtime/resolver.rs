@@ -166,7 +166,7 @@ async fn resolve_agent(
             let content =
                 fs::read_to_string(&file_path)
                     .await
-                    .map_err(|e| NikaError::MemoryLoadError {
+                    .map_err(|e| NikaError::ContextLoadError {
                         alias: name.to_string(),
                         path: file_path.display().to_string(),
                         reason: e.to_string(),
@@ -229,13 +229,14 @@ async fn load_skill(name: &str, path: &SkillDef, base_path: &Path) -> Result<Str
     let file_path = base_path.join(path);
     debug!(skill = name, path = ?file_path, "Loading skill file");
 
-    let content = fs::read_to_string(&file_path)
-        .await
-        .map_err(|e| NikaError::MemoryLoadError {
-            alias: name.to_string(),
-            path: file_path.display().to_string(),
-            reason: e.to_string(),
-        })?;
+    let content =
+        fs::read_to_string(&file_path)
+            .await
+            .map_err(|e| NikaError::ContextLoadError {
+                alias: name.to_string(),
+                path: file_path.display().to_string(),
+                reason: e.to_string(),
+            })?;
 
     Ok(content)
 }
@@ -252,7 +253,8 @@ mod tests {
             provider: "claude".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: None,
             skills: None,
             tasks: vec![],
@@ -286,7 +288,8 @@ mod tests {
             provider: "claude".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: Some(agents),
             skills: None,
             tasks: vec![],
@@ -335,7 +338,8 @@ temperature: 0.5
             provider: "claude".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: Some(agents),
             skills: None,
             tasks: vec![],
@@ -374,7 +378,8 @@ temperature: 0.5
             provider: "claude".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: Some(agents),
             skills: None,
             tasks: vec![],
@@ -384,7 +389,7 @@ temperature: 0.5
         let result = resolve_assets(&workflow, dir.path()).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, NikaError::MemoryLoadError { .. }));
+        assert!(matches!(err, NikaError::ContextLoadError { .. }));
     }
 
     #[tokio::test]
@@ -413,7 +418,8 @@ You are an expert SEO content writer.
             provider: "claude".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: None,
             skills: Some(skills),
             tasks: vec![],
@@ -440,7 +446,8 @@ You are an expert SEO content writer.
             provider: "claude".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: None,
             skills: Some(skills),
             tasks: vec![],
@@ -450,7 +457,7 @@ You are an expert SEO content writer.
         let result = resolve_assets(&workflow, dir.path()).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, NikaError::MemoryLoadError { .. }));
+        assert!(matches!(err, NikaError::ContextLoadError { .. }));
     }
 
     #[tokio::test]
@@ -501,7 +508,8 @@ system: "You are a researcher."
             provider: "claude".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: Some(agents),
             skills: Some(skills),
             tasks: vec![],
@@ -558,7 +566,8 @@ system: "You are an agent with defaults."
             provider: "claude".to_string(),
             model: None,
             mcp: None,
-            memory: None,
+            context: None,
+            include: None,
             agents: Some(agents),
             skills: None,
             tasks: vec![],
