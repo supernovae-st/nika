@@ -2578,13 +2578,13 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
                 println!(
                     "{} Starting Jobs Daemon with {} jobs from {}",
                     "🚀".bold(),
-                    jobs_config.jobs.len().to_string().cyan(),
+                    jobs_config.definitions.len().to_string().cyan(),
                     config.display()
                 );
             }
 
             // Create and start daemon
-            let daemon = JobsDaemon::new(jobs_config).map_err(|e| NikaError::RuntimeError {
+            let mut daemon = JobsDaemon::new(jobs_config).map_err(|e| NikaError::RuntimeError {
                 reason: format!("Failed to create daemon: {}", e),
             })?;
 
@@ -2691,7 +2691,7 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
 
             if json {
                 let output: Vec<serde_json::Value> = jobs_config
-                    .jobs
+                    .definitions
                     .iter()
                     .map(|j| {
                         serde_json::json!({
@@ -2706,7 +2706,7 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
             } else {
                 println!("{}", "Configured Jobs".bold().cyan());
                 println!();
-                for job in &jobs_config.jobs {
+                for job in &jobs_config.definitions {
                     let status = if job.enabled {
                         "●".green()
                     } else {
@@ -2724,7 +2724,7 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
                 println!(
                     "{} {} jobs configured",
                     "Total:".dimmed(),
-                    jobs_config.jobs.len()
+                    jobs_config.definitions.len()
                 );
             }
         }
@@ -2737,7 +2737,7 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
                 })?;
 
             // Verify job exists
-            if !jobs_config.jobs.iter().any(|j| j.name == job_name) {
+            if !jobs_config.definitions.iter().any(|j| j.name == job_name) {
                 return Err(NikaError::ValidationError {
                     reason: format!("Job '{}' not found in config", job_name),
                 });
@@ -2776,7 +2776,6 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
             // Send pause command to daemon via IPC
             // For now, we'll use a simple approach via the daemon
             let daemon = JobsDaemon::from_config_file(&find_nika_dir()?.join("jobs.toml"))
-                .await
                 .map_err(|e| NikaError::RuntimeError {
                     reason: format!("Failed to connect to daemon: {}", e),
                 })?;
@@ -2803,7 +2802,6 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
             }
 
             let daemon = JobsDaemon::from_config_file(&find_nika_dir()?.join("jobs.toml"))
-                .await
                 .map_err(|e| NikaError::RuntimeError {
                     reason: format!("Failed to connect to daemon: {}", e),
                 })?;

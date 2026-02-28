@@ -3,9 +3,12 @@
 //! The daemon orchestrates job scheduling, execution, and persistence.
 //! It runs as a background process managed via PID file.
 
+// StateStore uses Arc<RwLock<Connection>> which is intentionally non-Sync
+#![allow(clippy::arc_with_non_send_sync)]
+
 use crate::jobs::config::JobsConfig;
 use crate::jobs::error::JobsError;
-use crate::jobs::scheduler::{JobScheduler, SchedulerCommand, SchedulerEvent, TriggerSource};
+use crate::jobs::scheduler::{JobScheduler, SchedulerCommand, SchedulerEvent};
 use crate::jobs::state::StateStore;
 use parking_lot::RwLock;
 use std::fs;
@@ -377,8 +380,6 @@ impl JobsDaemon {
     /// Check if a process is running.
     #[cfg(unix)]
     fn is_process_running(&self, pid: u32) -> bool {
-        use std::os::unix::process::CommandExt;
-
         // Use kill -0 to check if process exists
         std::process::Command::new("kill")
             .args(["-0", &pid.to_string()])
@@ -413,7 +414,6 @@ impl JobsDaemon {
         // Send SIGTERM
         #[cfg(unix)]
         {
-            use std::os::unix::process::CommandExt;
             std::process::Command::new("kill")
                 .args(["-TERM", &pid.to_string()])
                 .status()

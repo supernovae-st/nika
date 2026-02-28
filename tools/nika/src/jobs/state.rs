@@ -2,6 +2,9 @@
 //!
 //! Stores job execution history and statistics in a local SQLite database.
 
+// SQLite Connection is not Sync, but we wrap it in RwLock for safe access
+#![allow(clippy::arc_with_non_send_sync)]
+
 use crate::jobs::error::JobsError;
 use crate::jobs::JobsResult;
 use chrono::{DateTime, Utc};
@@ -50,8 +53,8 @@ impl JobExecutionStatus {
         }
     }
 
-    /// Parse from string.
-    pub fn from_str(s: &str) -> Option<Self> {
+    /// Parse from string representation.
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "queued" => Some(JobExecutionStatus::Queued),
             "running" => Some(JobExecutionStatus::Running),
@@ -169,7 +172,7 @@ impl StateStore {
             std::fs::create_dir_all(parent)?;
         }
 
-        let conn = Connection::open(path).map_err(|e| JobsError::DatabaseOpenFailed {
+        let conn = Connection::open(path).map_err(|_e| JobsError::DatabaseOpenFailed {
             path: path.to_path_buf(),
         })?;
 
@@ -277,8 +280,8 @@ impl StateStore {
             ],
         )?;
 
-        // Update stats
-        self.update_stats(&record.job_name, record)?;
+        // Update stats - pass the connection to avoid deadlock (RwLock is not reentrant)
+        self.update_stats_with_conn(&conn, &record.job_name, record)?;
 
         Ok(())
     }
@@ -302,31 +305,46 @@ impl StateStore {
         Ok(record)
     }
 
-    /// List recent executions for a job.
+    /// List recent executions, optionally filtered by job name.
     pub fn list_executions(
         &self,
-        job_name: &str,
+        job_name: Option<&str>,
         limit: usize,
     ) -> JobsResult<Vec<ExecutionRecord>> {
         let conn = self.conn.read();
-        let mut stmt = conn.prepare(
-            r#"
-            SELECT id, job_name, status, trigger, started_at, ended_at, duration_ms, error, attempt, output
-            FROM executions
-            WHERE job_name = ?1
-            ORDER BY started_at DESC
-            LIMIT ?2
-            "#,
-        )?;
 
-        let records = stmt
-            .query_map(params![job_name, limit as i64], |row| {
-                Ok(self.row_to_execution(row))
-            })?
-            .filter_map(|r| r.ok().flatten())
-            .collect();
-
-        Ok(records)
+        if let Some(name) = job_name {
+            let mut stmt = conn.prepare(
+                r#"
+                SELECT id, job_name, status, trigger, started_at, ended_at, duration_ms, error, attempt, output
+                FROM executions
+                WHERE job_name = ?1
+                ORDER BY started_at DESC
+                LIMIT ?2
+                "#,
+            )?;
+            let records: Vec<ExecutionRecord> = stmt
+                .query_map(params![name, limit as i64], |row| {
+                    Ok(self.row_to_execution(row))
+                })?
+                .filter_map(|r| r.ok().flatten())
+                .collect();
+            Ok(records)
+        } else {
+            let mut stmt = conn.prepare(
+                r#"
+                SELECT id, job_name, status, trigger, started_at, ended_at, duration_ms, error, attempt, output
+                FROM executions
+                ORDER BY started_at DESC
+                LIMIT ?1
+                "#,
+            )?;
+            let records: Vec<ExecutionRecord> = stmt
+                .query_map(params![limit as i64], |row| Ok(self.row_to_execution(row)))?
+                .filter_map(|r| r.ok().flatten())
+                .collect();
+            Ok(records)
+        }
     }
 
     /// Get all running executions.
@@ -387,10 +405,13 @@ impl StateStore {
         Ok(stats)
     }
 
-    /// Update stats after an execution.
-    fn update_stats(&self, job_name: &str, record: &ExecutionRecord) -> JobsResult<()> {
-        let conn = self.conn.write();
-
+    /// Update stats after an execution (uses existing connection to avoid deadlock).
+    fn update_stats_with_conn(
+        &self,
+        conn: &Connection,
+        job_name: &str,
+        record: &ExecutionRecord,
+    ) -> JobsResult<()> {
         // Upsert stats row
         conn.execute(
             r#"
@@ -471,7 +492,7 @@ impl StateStore {
         Some(ExecutionRecord {
             id: row.get(0).ok()?,
             job_name: row.get(1).ok()?,
-            status: JobExecutionStatus::from_str(&row.get::<_, String>(2).ok()?)?,
+            status: JobExecutionStatus::parse(&row.get::<_, String>(2).ok()?)?,
             trigger: row.get(3).ok()?,
             started_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(4).ok()?)
                 .ok()?
@@ -597,7 +618,7 @@ mod tests {
             store.insert_execution(&record).unwrap();
         }
 
-        let executions = store.list_executions("test-job", 3).unwrap();
+        let executions = store.list_executions(Some("test-job"), 3).unwrap();
         assert_eq!(executions.len(), 3);
     }
 
