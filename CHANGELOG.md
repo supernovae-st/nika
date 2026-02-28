@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.3] - 2026-02-28
+
+### Changed
+- Consolidated security release ensuring all v0.14.2 features are properly included
+
+### Notes
+- v0.14.2 tag was created before security PR was merged
+- v0.14.3 includes all features listed in v0.14.2 changelog plus complete security fixes
+
 ## [0.14.2] - 2026-02-28
 
 ### Added

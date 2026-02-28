@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.14.2 | context: + include: DAG fusion + Schema @0.9 | 3,188+ tests | Zero clippy warnings
+**Current version:** v0.14.3 | context: + include: DAG fusion + Schema @0.9 | 3,188+ tests | Zero clippy warnings
 
 ## Architecture
 
@@ -16,8 +16,8 @@ tools/nika/src/
 ├── ast/              # YAML → Rust structs
 │   ├── workflow.rs   # Workflow, Task
 │   ├── action.rs     # TaskAction (5 variants)
-│   ├── context.rs    # ✅ ContextSpec (v0.14.2 - file loading)
-│   ├── include.rs    # ✅ IncludeSpec (v0.14.2 - DAG fusion)
+│   ├── context.rs    # ✅ ContextSpec (v0.14.3 - file loading)
+│   ├── include.rs    # ✅ IncludeSpec (v0.14.3 - DAG fusion)
 │   ├── include_loader.rs # Include resolution + prefix
 │   ├── decompose.rs  # ✅ DecomposeSpec (v0.5 MVP 8)
 │   └── output.rs     # OutputSpec
@@ -102,16 +102,16 @@ yamllint -c .yamllint.yaml **/*.nika.yaml
 - `nika/workflow@0.6`: +multi-provider support (6 providers)
 - `nika/workflow@0.7`: +full streaming for all providers
 - `nika/workflow@0.8`: +Studio DX (edit history, sessions, themes, config)
-- `nika/workflow@0.9`: +context: file loading, +include: DAG fusion (v0.14.2)
+- `nika/workflow@0.9`: +context: file loading, +include: DAG fusion (v0.14.3)
 
-## v0.14.2 Changes (context: + include: DAG Fusion)
+## v0.14.3 Changes (context: + include: DAG Fusion)
 
 ### Statistics
 - **3,211 tests passing** (security path validation tests added)
 - **Zero clippy warnings**
 - **Path traversal protection** in include_loader.rs and context_loader.rs
 
-### context: Field (NEW in v0.14.2)
+### context: Field (NEW in v0.14.3)
 
 Load files at workflow start, accessible via `{{context.files.alias}}` bindings:
 
@@ -138,7 +138,7 @@ tasks:
 - Automatic content type detection (markdown, json, yaml, glob)
 - Path boundary validation prevents traversal attacks
 
-### include: DAG Fusion (NEW in v0.14.2)
+### include: DAG Fusion (NEW in v0.14.3)
 
 Merge tasks from external workflows into current DAG:
 
@@ -169,7 +169,7 @@ flows:
 - Task ID prefixing for namespace isolation
 - Path boundary validation prevents traversal attacks
 
-### Path Traversal Security (NEW in v0.14.2)
+### Path Traversal Security (NEW in v0.14.3)
 
 Both include_loader.rs and context_loader.rs now validate paths:
 
