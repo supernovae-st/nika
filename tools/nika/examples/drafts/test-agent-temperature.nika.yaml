@@ -1,26 +1,24 @@
 # Test: Agent with temperature control
 # Tests the temperature parameter for creativity control
-# Run with: nika examples/drafts/test-agent-temperature.nika.yaml
-# Updated: v0.15.0 - temperature now supported in AgentParams
+# Run with: nika examples/test-agent-temperature.nika.yaml
 
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.5"
 provider: mock
 
 tasks:
-  # High temperature for creative outputs
+  # Note: temperature is a proposed feature not yet in schema
   - id: creative_agent
     agent:
       prompt: "Generate a creative and unique tagline for QR Code AI"
-      temperature: 0.9
+      # temperature: 0.9  # Proposed - not yet supported
       max_turns: 2
     output:
       format: json
 
-  # Low temperature for precise outputs
   - id: precise_agent
     agent:
       prompt: "Generate a professional and precise tagline for QR Code AI"
-      temperature: 0.1
+      # temperature: 0.1  # Proposed - not yet supported
       max_turns: 2
     output:
       format: json

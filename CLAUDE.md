@@ -77,22 +77,20 @@ Cargo workspace for Nika — semantic YAML workflow engine for AI tasks.
 
 Nika is the "body" of the SuperNovae AGI architecture, executing workflows that leverage NovaNet's "brain".
 
-**Current Version**: v0.15.0 — Security + Infer LLM Control + Gemini Provider
-**Tests**: 4,369 passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
+**Current Version**: v0.14.6 — Full Test Validation + Draft Fixes
+**Tests**: 3,480+ passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
 **Target Application**: QR Code AI (https://qrcode-ai.com)
 
-**v0.15.0 Features:**
-- Security hardening: `exec:` defaults to `shell: false` (shlex parsing)
-- Infer LLM control: `temperature`, `system`, `max_tokens` support
-- Gemini provider (7th): `RigProvider::gemini()` with full streaming
-- File tools (5 new): `nika:read`, `nika:write`, `nika:edit`, `nika:glob`, `nika:grep`
-- 11 builtin tools total (6 core + 5 file)
+**v0.14.6 Features:**
+- Full validation of 148 example workflows (132 passing, 16 drafts/experimental)
+- Fixed draft workflows to use valid schema syntax
+- All E2E tests passing (exec, fetch, bindings, for_each, large DAG)
 - Zero clippy warnings, comprehensive test coverage
 
 ```
 CRITICAL: 5 Semantic Verbs Only
 
-infer:   → LLM generation (rig-core, 7 providers)
+infer:   → LLM generation (rig-core, 6 providers)
 exec:    → Shell command execution
 fetch:   → HTTP request
 invoke:  → MCP tool call
@@ -116,7 +114,7 @@ nika-dev/
 │   │   ├── binding/     # Data flow + lazy bindings
 │   │   └── provider/    # rig-core v0.31 wrapper
 │   ├── CLAUDE.md        # Tool-level detailed context
-│   └── Cargo.toml       # v0.15.0
+│   └── Cargo.toml       # v0.14.4
 └── docs/                # Plans + research
 ```
 
@@ -141,7 +139,7 @@ nika trace export <id>        # Export JSON/YAML
 
 # Development
 cd tools/nika
-cargo test                    # Run 4,369 tests
+cargo test                    # Run 3,230 tests
 cargo clippy -- -D warnings   # Lint
 cargo fmt                     # Format
 cargo install --path . --locked # Install binary
