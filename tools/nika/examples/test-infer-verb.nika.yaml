@@ -1,0 +1,148 @@
+# Test Workflow: infer: Verb Comprehensive Testing
+# Tests both shorthand and full form syntax, with bindings and edge cases.
+#
+# Run with: ANTHROPIC_API_KEY=sk-ant-... nika examples/test-infer-verb.nika.yaml
+# Or:       OPENAI_API_KEY=sk-... nika examples/test-infer-verb.nika.yaml
+
+schema: "nika/workflow@0.9"
+workflow: test-infer-verb
+description: |
+  Comprehensive test of the infer: verb with:
+  - Shorthand syntax (string form)
+  - Full form with model specification
+  - Multi-line prompts
+  - Binding interpolation
+  - Output format handling
+  - Chain of inference tasks
+
+provider: openai
+model: gpt-4o-mini
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Test 1: Shorthand Syntax (v0.5.1+)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: shorthand_basic
+    description: "Basic shorthand infer: with simple prompt"
+    infer: "Write exactly 3 words about programming."
+    output:
+      format: text
+
+  - id: shorthand_multiline
+    description: "Shorthand with multi-line prompt using YAML literal"
+    infer: |
+      List exactly 2 programming languages.
+      Format: "1. Language1\n2. Language2"
+      Nothing else.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Test 2: Full Form Syntax
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: fullform_with_model
+    description: "Full form with explicit model override"
+    infer:
+      prompt: "Say 'Hello from full form' exactly."
+      model: gpt-4o-mini
+
+  - id: fullform_json_output
+    description: "Full form requesting JSON output"
+    infer:
+      prompt: |
+        Return a JSON object with exactly these fields:
+        - "status": "ok"
+        - "count": 42
+        Output only valid JSON, no explanation.
+    output:
+      format: json
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Test 3: Binding Interpolation
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: setup_context
+    description: "Setup task to provide context for binding test"
+    exec: 'echo "Rust is a systems programming language"'
+
+  - id: infer_with_binding
+    description: "Infer using binding from previous task"
+    use:
+      context: setup_context
+    infer: |
+      Given this context: {{use.context}}
+
+      Answer in exactly one sentence: What type of language is described?
+
+  - id: chained_inference
+    description: "Second inference using first inference result"
+    use:
+      prev_answer: infer_with_binding
+    infer: |
+      Previous answer: {{use.prev_answer}}
+
+      Rewrite that answer to be more formal, in exactly one sentence.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Test 4: Edge Cases
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: empty_response_test
+    description: "Test that handles minimal output gracefully"
+    infer: "Reply with only the single character: X"
+
+  - id: special_chars_prompt
+    description: "Test with special characters in prompt"
+    infer: |
+      Parse this: "key": "value", 'single quotes', \backslash\
+      Reply with: "parsed successfully"
+
+  - id: unicode_prompt
+    description: "Test with unicode characters"
+    infer: |
+      Translate "hello" to French and Japanese.
+      Format: French: [word], Japanese: [word]
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Test 5: Final Aggregation
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: aggregate_results
+    description: "Aggregate all infer results"
+    use:
+      shorthand: shorthand_basic
+      fullform: fullform_with_model
+      json_out: fullform_json_output
+      chained: chained_inference
+    exec: |
+      echo "=== INFER VERB TEST RESULTS ==="
+      echo ""
+      echo "Shorthand result: {{use.shorthand}}"
+      echo ""
+      echo "Full form result: {{use.fullform}}"
+      echo ""
+      echo "JSON output: {{use.json_out}}"
+      echo ""
+      echo "Chained result: {{use.chained}}"
+      echo ""
+      echo "=== TEST COMPLETE ==="
+
+flows:
+  # Shorthand tests (no deps)
+  # Full form tests (no deps)
+
+  # Binding chain
+  - source: setup_context
+    target: infer_with_binding
+  - source: infer_with_binding
+    target: chained_inference
+
+  # Final aggregation
+  - source: shorthand_basic
+    target: aggregate_results
+  - source: fullform_with_model
+    target: aggregate_results
+  - source: fullform_json_output
+    target: aggregate_results
+  - source: chained_inference
+    target: aggregate_results

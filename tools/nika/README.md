@@ -1,9 +1,9 @@
 # Nika
 
 [![ARMADA](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml)
-[![Version](https://img.shields.io/badge/version-0.10.6-blue?logo=rust&logoColor=white)](Cargo.toml)
+[![Version](https://img.shields.io/badge/version-0.14.3-blue?logo=rust&logoColor=white)](Cargo.toml)
 [![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](../../docs/plans/2025-02-25-nika-fortress-design.md)
-[![Tests](https://img.shields.io/badge/tests-2793%20passing-brightgreen)](src/)
+[![Tests](https://img.shields.io/badge/tests-3211%20passing-brightgreen)](src/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](../../LICENSE)
 
 DAG workflow runner for AI tasks with MCP integration.
@@ -22,36 +22,95 @@ DAG workflow runner for AI tasks with MCP integration.
 
 ```bash
 # Run a workflow
-cargo run -- run examples/v03-parallel-locales.nika.yaml
+cargo run -- run examples/v09-context-loading.nika.yaml
 
 # Validate without executing
-cargo run -- validate examples/v03-agent-with-tools.nika.yaml
+cargo run -- check examples/v03-agent-with-tools.nika.yaml
 
 # Interactive TUI
-cargo run -- tui examples/invoke-novanet.nika.yaml
+cargo run -- tui
 ```
 
 ## Installation
 
 ```bash
 # From source
-git clone https://github.com/supernovae-st/nika-dev
-cd nika-dev/tools/nika
+git clone https://github.com/supernovae-st/nika
+cd nika/tools/nika
 cargo build --release
 
 # Binary location
 ./target/release/nika --help
 ```
 
-## v0.8.0 Studio DX Enhancements
+## v0.14.3 Features
 
-- **Edit History (Undo/Redo)** - Ctrl+Z/Ctrl+Y with intelligent 500ms coalescing
-- **Session Persistence** - Auto-save editor state to `.nika/sessions/*.json`
-- **Solarized Theme** - Third theme option (Light/Dark/Solarized) for unified color palette
-- **Config System** - `.nika/config.toml` for persistent user preferences
-- **Test Coverage** - 1,902 tests passing (comprehensive TUI coverage)
+- **context: Field (Schema @0.9)** - Load files at workflow start
+  ```yaml
+  schema: nika/workflow@0.9
+  context:
+    files:
+      brand: ./context/brand.md
+      config: ./context/settings.json
+  tasks:
+    - id: generate
+      infer: "Use brand guidelines: {{context.files.brand}}"
+  ```
+- **include: DAG Fusion** - Merge external workflows with prefix namespacing
+  ```yaml
+  schema: nika/workflow@0.9
+  include:
+    - path: ./partials/setup.nika.yaml
+      prefix: setup_
+  tasks:
+    - id: main
+      infer: "Main logic"
+      depends_on: [setup_init]
+  ```
+- **Schema @0.9** - Full support for context: and include: features
+- **Path Traversal Security** - `validate_path_boundary()` prevents `../../../` attacks
+- **3,211 tests passing** (path validation tests added)
 
 ## Features
+
+### context: File Loading (v0.14+)
+
+Load external files at workflow start:
+
+```yaml
+schema: nika/workflow@0.9
+context:
+  files:
+    brand: ./context/brand-guidelines.md
+    data: ./context/config.json
+    templates: ./context/*.yaml
+  session: .nika/sessions/previous.json
+tasks:
+  - id: generate
+    infer: |
+      Using brand guidelines: {{context.files.brand}}
+      With data: {{context.files.data}}
+```
+
+### include: DAG Fusion (v0.14+)
+
+Merge tasks from external workflows:
+
+```yaml
+schema: nika/workflow@0.9
+include:
+  - path: ./partials/setup.nika.yaml
+    prefix: setup_
+  - path: ./partials/teardown.nika.yaml
+    prefix: teardown_
+tasks:
+  - id: main_task
+    infer: "Main workflow logic"
+    depends_on: [setup_init]
+flows:
+  - source: main_task
+    target: teardown_cleanup
+```
 
 ### Parallel for_each (v0.3+)
 
@@ -106,7 +165,7 @@ tasks:
 Nika connects to MCP servers for tool calling:
 
 ```yaml
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.9"
 provider: claude
 
 mcp:
@@ -121,12 +180,13 @@ mcp:
 
 | Example | Description |
 |---------|-------------|
-| `v03-parallel-locales.yaml` | Parallel generation for 5 locales |
-| `v03-agent-with-tools.yaml` | Agent-driven competitive analysis |
-| `v03-denomination-forms.yaml` | Entity naming with denomination_forms |
-| `invoke-novanet.yaml` | Basic MCP invoke |
-| `agent-novanet.yaml` | Agent with NovaNet tools |
-| `uc1-*.yaml` to `uc10-*.yaml` | Production use cases |
+| `v09-context-loading.nika.yaml` | context: field demo (v0.14+) |
+| `v03-parallel-locales.nika.yaml` | Parallel generation for 5 locales |
+| `v03-agent-with-tools.nika.yaml` | Agent-driven competitive analysis |
+| `v05-lazy-bindings.nika.yaml` | Lazy bindings with defaults |
+| `v05-spawn-agent.nika.yaml` | Nested agent spawning |
+| `invoke-novanet.nika.yaml` | Basic MCP invoke |
+| `agent-novanet.nika.yaml` | Agent with NovaNet tools |
 
 ## Architecture
 
@@ -137,12 +197,14 @@ src/
 ├── runtime/      # Execution engine
 │   ├── executor.rs       # Task dispatch (5 verbs + for_each)
 │   ├── runner.rs         # Workflow orchestration
+│   ├── context_loader.rs # context: file loading
+│   ├── include_loader.rs # include: DAG fusion
 │   └── rig_agent_loop.rs # RigAgentLoop with rig::AgentBuilder
 ├── mcp/          # MCP client (rmcp v0.16)
 ├── provider/     # rig-core provider (RigProvider wrapper)
-├── event/        # Observability (16 event types)
-├── binding/      # Data flow ({{use.alias}})
-└── tui/          # Terminal UI
+├── event/        # Observability (22 event types)
+├── binding/      # Data flow ({{use.alias}}, {{context.files.*}})
+└── tui/          # Terminal UI (6 views, 39 widgets)
 ```
 
 ## Commands
@@ -150,8 +212,13 @@ src/
 ```bash
 # Workflow execution
 nika run <workflow.yaml>      # Execute workflow
-nika validate <workflow.yaml> # Validate syntax
-nika tui <workflow.yaml>      # Interactive TUI
+nika check <workflow.yaml>    # Validate syntax
+nika <workflow.yaml>          # Direct execution (positional)
+
+# Interactive modes
+nika                          # Home view (browse workflows)
+nika chat                     # Chat view (conversational agent)
+nika studio                   # Studio view (YAML editor)
 
 # Trace inspection
 nika trace list               # List traces
@@ -162,19 +229,16 @@ nika trace export <id>        # Export to JSON
 ## Testing
 
 ```bash
-cargo test                    # All 1,902 tests
+cargo test                    # All 3,211 tests
 cargo test mcp                # MCP tests
 cargo test --features integration  # Real MCP tests
-cargo test tui                # TUI widget tests (806 tests)
+cargo test tui                # TUI widget tests
 ```
 
-### Test Breakdown (v0.8.0)
-- **nika-core**: 516 tests (types, AST, DAG, events)
-- **nika-mcp**: 132 tests (MCP client integration)
-- **nika-provider**: 30 tests (LLM provider wrapper)
-- **nika-runtime**: 177 tests (executor, runner, agent loop)
-- **nika-tui**: 806 tests (UI components, widgets, views)
-- **nika-cli**: 241 tests (CLI integration, history, session, config)
+### Test Breakdown (v0.14.3)
+- **3,211 tests passing** (path validation tests added)
+- Zero clippy warnings
+- Schema @0.9 validation in CI
 
 ## ARMADA Quality System
 
@@ -185,7 +249,7 @@ Every contribution passes through the 10-station ARMADA checkpoint:
 ║  🏴‍☠️ ARMADA — 10 QUALITY STATIONS                                             ║
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║   Station 1: 🔧 Format       | Station 6: 🔒 Security                          ║
-║   Station 2: 📎 Lint         | Station 7: 🤖 CodeRabbit                        ║
+║   Station 2: 📎 Lint         | Station 7: 📐 Schema Validation (v0.1-v0.9)     ║
 ║   Station 3: 🧪 Tests        | Station 8: 🧠 Claude AI                         ║
 ║   Station 4: 📊 Coverage     | Station 9: 📝 Conventional                      ║
 ║   Station 5: 📖 Docs         | Station 10: ⚓ Version Lock                     ║

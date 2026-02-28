@@ -28,9 +28,14 @@ Cargo workspace for Nika — semantic YAML workflow engine for AI tasks.
 
 Nika is the "body" of the SuperNovae AGI architecture, executing workflows that leverage NovaNet's "brain".
 
-**Current Version**: v0.14.2 — context: + include: DAG fusion + Schema @0.9
-**Tests**: 3,188+ passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
+**Current Version**: v0.14.4 — 5 Verb Test Workflows + CI Enhancements
+**Tests**: 3,250+ passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
 **Target Application**: QR Code AI (https://qrcode-ai.com)
+
+**v0.14.4 Features:**
+- 5 comprehensive verb test workflows (test-{infer,exec,fetch,invoke,agent}-verb.nika.yaml)
+- Enhanced CI schema validation (validates v0.1-v0.9 + feature examples)
+- All v0.14.3 features: context:, include:, Schema @0.9, path security
 
 ```
 CRITICAL: 5 Semantic Verbs Only
@@ -59,7 +64,7 @@ nika-dev/
 │   │   ├── binding/     # Data flow + lazy bindings
 │   │   └── provider/    # rig-core v0.31 wrapper
 │   ├── CLAUDE.md        # Tool-level detailed context
-│   └── Cargo.toml       # v0.14.2
+│   └── Cargo.toml       # v0.14.4
 └── docs/                # Plans + research
 ```
 
@@ -84,7 +89,7 @@ nika trace export <id>        # Export JSON/YAML
 
 # Development
 cd tools/nika
-cargo test                    # Run 3,188+ tests
+cargo test                    # Run 3,230 tests
 cargo clippy -- -D warnings   # Lint
 cargo fmt                     # Format
 cargo install --path . --locked # Install binary
@@ -104,9 +109,12 @@ nk tl               → nika trace list
 |------|---------|
 | `tools/nika/CLAUDE.md` | Detailed tool context (architecture, verbs, ADRs) |
 | `tools/nika/src/ast/action.rs` | 5 verbs definition |
+| `tools/nika/src/ast/context.rs` | context: file loading (v0.14.3) |
+| `tools/nika/src/ast/include.rs` | include: DAG fusion (v0.14.3) |
 | `tools/nika/src/runtime/executor.rs` | Task dispatch |
 | `tools/nika/src/runtime/rig_agent_loop.rs` | Agent execution (rig-core) |
-| `tools/nika/schemas/nika-workflow.schema.json` | JSON Schema for YAML validation |
+| `tools/nika/src/core/security.rs` | Path traversal security (v0.14.3) |
+| `tools/nika/schemas/nika-workflow.schema.json` | JSON Schema @0.9 for YAML validation |
 | `docs/plans/` | MVP plans |
 | `docs/research/` | Research documents |
 

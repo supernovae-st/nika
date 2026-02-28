@@ -14,7 +14,7 @@
 <sup>✨ Transform YAML into intelligent AI workflows ✨</sup>
 
 <!-- Primary Badges -->
-[![Version](https://img.shields.io/badge/v0.14.0-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.14.3-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
 [![Website](https://img.shields.io/badge/🦋_nika.sh-8b5cf6?style=for-the-badge)](https://nika.sh)
@@ -22,7 +22,7 @@
 <!-- GitHub Badges -->
 [![CI](https://img.shields.io/github/actions/workflow/status/supernovae-st/nika/ci.yml?style=flat-square&logo=github&label=CI)](https://github.com/supernovae-st/nika/actions)
 [![Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=flat-square&logo=github&label=Stars)](https://github.com/supernovae-st/nika/stargazers)
-[![Tests](https://img.shields.io/badge/tests-2,720+_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/tests-3,211_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
 [![LOC](https://img.shields.io/badge/LOC-106k-0ea5e9?style=flat-square&logo=codeclimate)](https://github.com/supernovae-st/nika)
 
 <!-- Feature Badges -->
@@ -68,10 +68,10 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 <!-- TUI Screenshot as ASCII Art -->
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  🦋 Nika Studio                                                v0.12.0  ⌘K  ?  │
+│  🦋 Nika Studio                                                v0.14.3  ⌘K  ?  │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
 │ ┌─ 📁 Files ───────────┐ ┌─ 📝 Editor ──────────────────────────────────────────┐  │
-│ │ ▸ workflows/         │ │  1 │ schema: "nika/workflow@0.12"                    │  │
+│ │ ▸ workflows/         │ │  1 │ schema: "nika/workflow@0.9"                    │  │
 │ │   ├─ deploy.nika.yaml│ │  2 │ provider: claude                                │  │
 │ │   ├─ review.nika.yaml│ │  3 │                                                 │  │
 │ │   └─ test.nika.yaml  │ │  4 │ tasks:                                          │  │
@@ -97,39 +97,50 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 
 <br>
 
-## ✨ What's New in v0.12.0
+## ✨ What's New in v0.14.3
 
 <table>
 <tr>
 <td width="50%">
 
-### 🔗 Chat-as-DAG Architecture
+### 📄 context: File Loading
 
-```
-Every chat message = a DAG node
-with stable references (@mentions)
+```yaml
+schema: nika/workflow@0.9
+context:
+  files:
+    brand: ./context/brand.md
+    config: ./context/settings.json
+tasks:
+  - id: generate
+    infer: "Use {{context.files.brand}}"
 ```
 
-- **@mention Bindings** — `@1`, `@last`, `@all`, `@1..3`
-- **StableGraph** — NodeIndex survives deletions
-- **ChatWorkflow** — Thread-safe DAG wrapper
-- **4 Chat DAG Widgets** — Visual terminal DAG
+- **context.files** — Load markdown, JSON, YAML
+- **Session restore** — `context.session` field
+- **Path security** — Traversal attack prevention
+- **Schema @0.9** — Full context: support
 
 </td>
 <td width="50%">
 
-### 🎨 6-Views TUI
+### 🔗 include: DAG Fusion
 
-```
-Chat → Home → Studio → Monitor
-         ↓           ↓
-     Settings     Help
+```yaml
+schema: nika/workflow@0.9
+include:
+  - path: ./partials/setup.nika.yaml
+    prefix: setup_
+tasks:
+  - id: main
+    infer: "Main logic"
+    depends_on: [setup_init]
 ```
 
-- **Settings View** — Provider config, themes
-- **Help View** — Shortcuts, documentation
-- **MonitorView** — Real-time 4-panel execution
-- **6 Builtin Tools** — `nika:sleep`, `nika:log`...
+- **Modular workflows** — Split into partials
+- **Prefix namespacing** — Avoid ID collisions
+- **Recursive includes** — Nested workflow trees
+- **Cycle detection** — Prevents infinite loops
 
 </td>
 </tr>
@@ -242,7 +253,7 @@ flowchart LR
 | **Chat-as-DAG** | ✅ Native | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Type Safety** | ✅ Rust | ❌ Python | ❌ Python | ❌ Python | ❌ Python |
 | **Streaming** | ✅ All 6 | ✅ Yes | ✅ Yes | 🟡 Partial | 🟡 Partial |
-| **Production Ready** | ✅ 2,720 tests | 🟡 Varies | 🟡 Varies | 🟡 New | 🔴 Needs guardrails |
+| **Production Ready** | ✅ 3,211 tests | 🟡 Varies | 🟡 Varies | 🟡 New | 🔴 Needs guardrails |
 
 </div>
 
@@ -310,14 +321,14 @@ cd nika && cargo install --path tools/nika
 
 # ✅ Verify installation
 nika --version
-# nika 0.12.0
+# nika 0.14.3
 ```
 
 ### 👋 Hello World (30 seconds)
 
 ```yaml
 # 📄 hello.nika.yaml
-schema: "nika/workflow@0.12"
+schema: "nika/workflow@0.9"
 provider: claude
 
 tasks:
@@ -351,7 +362,7 @@ greet:
 
 ```yaml
 # 📄 code-review.nika.yaml
-schema: "nika/workflow@0.12"
+schema: "nika/workflow@0.9"
 provider: claude
 
 tasks:
@@ -520,7 +531,7 @@ flowchart TB
 │      └── animation.rs       AnimationTicker (60fps)                            │
 │                                                                                 │
 ├─────────────────────────────────────────────────────────────────────────────────┤
-│  📊 TOTALS: 172 files │ 106,000 LOC │ 2,720+ tests │ 0 clippy warnings         │
+│  📊 TOTALS: 172 files │ 106,000 LOC │ 3,211 tests │ 0 clippy warnings         │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1176,7 +1187,7 @@ flowchart LR
 ### 📝 Configuration Example
 
 ```yaml
-schema: "nika/workflow@0.12"
+schema: "nika/workflow@0.9"
 
 # 🔌 Define MCP servers
 mcp:
@@ -1232,7 +1243,7 @@ tasks:
 
 ```yaml
 # 📄 code-review-pipeline.nika.yaml
-schema: "nika/workflow@0.12"
+schema: "nika/workflow@0.9"
 provider: claude
 
 tasks:
@@ -1350,7 +1361,7 @@ flows:
 
 ```yaml
 # 📄 multi-locale.nika.yaml
-schema: "nika/workflow@0.12"
+schema: "nika/workflow@0.9"
 
 mcp:
   novanet:
@@ -1418,7 +1429,7 @@ flows:
 
 ```yaml
 # 📄 research-system.nika.yaml
-schema: "nika/workflow@0.12"
+schema: "nika/workflow@0.9"
 provider: claude
 
 mcp:
@@ -1504,7 +1515,7 @@ graph LR
 
 ```yaml
 # 📄 diamond-dag.nika.yaml
-schema: "nika/workflow@0.12"
+schema: "nika/workflow@0.9"
 provider: claude
 
 tasks:
@@ -1579,11 +1590,11 @@ flows:
 ```
 ╔═════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                 ║
-║                           🦋 NIKA v0.12.0 STATS                                 ║
+║                           🦋 NIKA v0.14.3 STATS                                 ║
 ║                                                                                 ║
 ╠═════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                 ║
-║   📊 Tests              │  2,720+ passing                                       ║
+║   📊 Tests              │  3,211 passing                                        ║
 ║   📝 Lines of Code      │  106,000+ LOC                                         ║
 ║   🔧 Clippy Warnings    │  0 (zero!)                                            ║
 ║   🔮 LLM Providers      │  6 (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama) ║
@@ -1604,7 +1615,7 @@ flows:
 ### 📈 Test Distribution by Module
 
 ```mermaid
-pie title 📊 Test Distribution (2,720+ tests)
+pie title 📊 Test Distribution (3,211 tests)
     "🖥️ TUI" : 1704
     "🔗 Binding" : 198
     "🔍 AST" : 171
@@ -1631,7 +1642,7 @@ pie title 📊 Test Distribution (2,720+ tests)
 | 🔮 `provider/` | 1,912 | 24 | rig-core wrapper |
 | 🔀 `dag/` | 1,914 | 60 | StableGraph, validation |
 | 📊 `event/` | 1,732 | 46 | Event log, traces |
-| **Total** | **106,000+** | **2,720+** | |
+| **Total** | **106,000+** | **3,211** | |
 
 <br>
 
@@ -1935,7 +1946,7 @@ cd nika
 # 🔨 Build
 cargo build
 
-# 🧪 Test (2,720+ tests)
+# 🧪 Test (3,211 tests)
 cargo test
 
 # 🔍 Lint
