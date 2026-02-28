@@ -30,6 +30,41 @@ use crate::serde_yaml;
 /// Maximum depth for recursive includes (prevent infinite loops)
 const MAX_INCLUDE_DEPTH: usize = 10;
 
+/// Validate that a path stays within the project boundary
+///
+/// Prevents path traversal attacks where include paths could escape
+/// the project directory using `../` or symlinks.
+///
+/// # Security
+///
+/// This is a security-critical function. The canonical path of the included
+/// file must be under the canonical base path to prevent:
+/// - Reading sensitive files outside project (e.g., `/etc/passwd`)
+/// - Including files from parent directories
+/// - Symlink attacks pointing outside project
+fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), NikaError> {
+    let canonical_base = base_path
+        .canonicalize()
+        .unwrap_or_else(|_| base_path.to_path_buf());
+    let canonical_target = target_path
+        .canonicalize()
+        .map_err(|e| NikaError::WorkflowNotFound {
+            path: format!("{}: {}", target_path.display(), e),
+        })?;
+
+    if !canonical_target.starts_with(&canonical_base) {
+        return Err(NikaError::ValidationError {
+            reason: format!(
+                "Path traversal detected: '{}' is outside project boundary '{}'",
+                target_path.display(),
+                base_path.display()
+            ),
+        });
+    }
+
+    Ok(())
+}
+
 /// Expand all includes in a workflow
 ///
 /// This function recursively loads included workflows and merges their tasks
@@ -83,6 +118,10 @@ fn expand_includes_recursive(
     for include_spec in includes {
         // Resolve the include path
         let include_path = base_path.join(&include_spec.path);
+
+        // Security: Validate path stays within project boundary
+        validate_path_boundary(base_path, &include_path)?;
+
         let canonical_path = include_path
             .canonicalize()
             .unwrap_or_else(|_| include_path.clone());
@@ -629,5 +668,66 @@ tasks:
         let ctx = result.context.unwrap();
         assert!(ctx.files.contains_key("main"));
         assert!(!ctx.files.contains_key("ignored"));
+    }
+
+    #[test]
+    fn test_expand_includes_path_traversal_detection() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a valid workflow file in a subdirectory
+        let sub_dir = temp_dir.path().join("project");
+        std::fs::create_dir(&sub_dir).unwrap();
+
+        // Create a file outside the project directory
+        let parent_file = temp_dir.path().join("secret.nika.yaml");
+        std::fs::write(
+            &parent_file,
+            r#"
+schema: nika/workflow@0.9
+provider: claude
+tasks:
+  - id: secret
+    infer: "Secret task"
+"#,
+        )
+        .unwrap();
+
+        // Try to include a file from parent directory using path traversal
+        let mut workflow = make_test_workflow();
+        workflow.include = Some(vec![IncludeSpec {
+            path: "../secret.nika.yaml".to_string(),
+            prefix: None,
+        }]);
+
+        let result = expand_includes(workflow, &sub_dir);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_str = err.to_string();
+        assert!(
+            err_str.contains("Path traversal") || err_str.contains("outside project"),
+            "Expected path traversal error, got: {}",
+            err_str
+        );
+    }
+
+    #[test]
+    fn test_validate_path_boundary() {
+        let temp_dir = TempDir::new().unwrap();
+        let project = temp_dir.path().join("project");
+        std::fs::create_dir_all(&project).unwrap();
+
+        // Create files
+        let valid_file = project.join("valid.yaml");
+        std::fs::write(&valid_file, "test").unwrap();
+
+        let outside_file = temp_dir.path().join("outside.yaml");
+        std::fs::write(&outside_file, "test").unwrap();
+
+        // Valid path within boundary
+        assert!(validate_path_boundary(&project, &valid_file).is_ok());
+
+        // Invalid path outside boundary
+        let result = validate_path_boundary(&project, &outside_file);
+        assert!(result.is_err());
     }
 }

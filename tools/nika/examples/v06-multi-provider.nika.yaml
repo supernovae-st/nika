@@ -1,0 +1,69 @@
+# ============================================================================
+# v0.6 — Multi-Provider Example
+# ============================================================================
+#
+# Demonstrates using multiple LLM providers in a single workflow.
+# Each task can specify its own provider.
+#
+# Features demonstrated:
+# - provider: field at task level
+# - model: field for specific models
+# - Auto-detection fallback
+#
+# Supported providers: claude, openai, mistral, groq, deepseek, ollama
+#
+# Run with: cargo run -- check examples/v06-multi-provider.nika.yaml
+# ============================================================================
+
+schema: "nika/workflow@0.6"
+workflow: multi-provider-demo
+description: "Demonstrate multi-provider support"
+
+# Default provider for workflow (can be overridden per-task)
+provider: claude
+
+tasks:
+  # --------------------------------------------------------------------------
+  # Task 1: Use Claude for creative writing
+  # --------------------------------------------------------------------------
+  - id: creative_writing
+    description: "Creative content with Claude"
+    infer:
+      prompt: "Write a creative short poem about AI and humanity"
+      provider: claude
+      model: claude-sonnet-4-6
+
+  # --------------------------------------------------------------------------
+  # Task 2: Use OpenAI for technical analysis
+  # --------------------------------------------------------------------------
+  - id: technical_analysis
+    description: "Technical analysis with OpenAI"
+    infer:
+      prompt: "Explain the technical architecture of a DAG workflow engine"
+      provider: openai
+      model: gpt-4o
+
+  # --------------------------------------------------------------------------
+  # Task 3: Use Mistral for multilingual
+  # --------------------------------------------------------------------------
+  - id: multilingual_task
+    description: "Multilingual content with Mistral"
+    infer:
+      prompt: "Translate 'Hello World' to French, Spanish, German, and Japanese"
+      provider: mistral
+      model: mistral-large-latest
+
+  # --------------------------------------------------------------------------
+  # Task 4: Use workflow default provider
+  # --------------------------------------------------------------------------
+  - id: default_provider_task
+    description: "Uses workflow default provider (claude)"
+    infer: "Summarize the benefits of multi-provider support in AI workflows"
+
+flows:
+  - source: creative_writing
+    target: default_provider_task
+  - source: technical_analysis
+    target: default_provider_task
+  - source: multilingual_task
+    target: default_provider_task

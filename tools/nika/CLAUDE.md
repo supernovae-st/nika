@@ -99,6 +99,97 @@ yamllint -c .yamllint.yaml **/*.nika.yaml
 - `nika/workflow@0.2`: +invoke, +agent verbs, +mcp config
 - `nika/workflow@0.3`: +for_each parallelism, rig-core integration
 - `nika/workflow@0.5`: +decompose, +lazy bindings, +spawn_agent (MVP 8)
+- `nika/workflow@0.6`: +multi-provider support (6 providers)
+- `nika/workflow@0.7`: +full streaming for all providers
+- `nika/workflow@0.8`: +Studio DX (edit history, sessions, themes, config)
+- `nika/workflow@0.9`: +context: file loading, +include: DAG fusion (v0.14.2)
+
+## v0.14.2 Changes (context: + include: DAG Fusion)
+
+### Statistics
+- **3,211 tests passing** (security path validation tests added)
+- **Zero clippy warnings**
+- **Path traversal protection** in include_loader.rs and context_loader.rs
+
+### context: Field (NEW in v0.14.2)
+
+Load files at workflow start, accessible via `{{context.files.alias}}` bindings:
+
+```yaml
+schema: nika/workflow@0.9
+workflow: context-demo
+
+context:
+  files:
+    brand: ./context/brand.md        # Markdown → string
+    persona: ./context/persona.json  # JSON → parsed object
+    examples: ./context/*.md         # Glob → array of strings
+  session: .nika/sessions/prev.json  # Session restore
+
+tasks:
+  - id: generate
+    infer: |
+      Using brand guidelines: {{context.files.brand}}
+      Generate content for our product.
+```
+
+**Implementation (`src/ast/context.rs` + `src/runtime/context_loader.rs`):**
+- `ContextConfig` struct with files hashmap and optional session
+- Automatic content type detection (markdown, json, yaml, glob)
+- Path boundary validation prevents traversal attacks
+
+### include: DAG Fusion (NEW in v0.14.2)
+
+Merge tasks from external workflows into current DAG:
+
+```yaml
+schema: nika/workflow@0.9
+workflow: main
+
+include:
+  - path: ./partials/setup.nika.yaml
+    prefix: setup_                    # Task ID prefix
+  - path: ./partials/cleanup.nika.yaml
+    prefix: cleanup_
+
+tasks:
+  - id: main_task
+    infer: "Main workflow logic"
+
+flows:
+  - source: setup_init        # From included workflow
+    target: main_task
+  - source: main_task
+    target: cleanup_finalize  # From included workflow
+```
+
+**Implementation (`src/ast/include.rs` + `src/ast/include_loader.rs`):**
+- `IncludeSpec` struct with path and optional prefix
+- Recursive include resolution with cycle detection
+- Task ID prefixing for namespace isolation
+- Path boundary validation prevents traversal attacks
+
+### Path Traversal Security (NEW in v0.14.2)
+
+Both include_loader.rs and context_loader.rs now validate paths:
+
+```rust
+fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), NikaError> {
+    let canonical_base = base_path.canonicalize()...;
+    let canonical_target = target_path.canonicalize()...;
+
+    if !canonical_target.starts_with(&canonical_base) {
+        return Err(NikaError::ValidationError {
+            reason: format!("Path traversal detected..."),
+        });
+    }
+    Ok(())
+}
+```
+
+- Prevents `../../../etc/passwd` style attacks
+- Validates both single files and glob patterns
+- Applies to session file paths as well
 
 ## v0.8.0 Changes (Studio DX Complete + Test Count Finalization)
 

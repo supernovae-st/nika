@@ -32,6 +32,45 @@ use serde_json::Value;
 use crate::ast::context::ContextConfig;
 use crate::error::NikaError;
 
+/// Validate that a path stays within the project boundary
+///
+/// Prevents path traversal attacks where context file paths could escape
+/// the project directory using `../` or symlinks.
+///
+/// # Security
+///
+/// This is a security-critical function. The canonical path of the loaded
+/// file must be under the canonical base path to prevent:
+/// - Reading sensitive files outside project (e.g., `/etc/passwd`)
+/// - Loading files from parent directories
+/// - Symlink attacks pointing outside project
+fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), NikaError> {
+    let canonical_base = base_path
+        .canonicalize()
+        .unwrap_or_else(|_| base_path.to_path_buf());
+    let canonical_target = target_path
+        .canonicalize()
+        .map_err(|e| NikaError::ContextLoadError {
+            alias: String::new(),
+            path: target_path.display().to_string(),
+            reason: format!("Cannot resolve path: {}", e),
+        })?;
+
+    if !canonical_target.starts_with(&canonical_base) {
+        return Err(NikaError::ContextLoadError {
+            alias: String::new(),
+            path: target_path.display().to_string(),
+            reason: format!(
+                "Path traversal detected: '{}' is outside project boundary '{}'",
+                target_path.display(),
+                base_path.display()
+            ),
+        });
+    }
+
+    Ok(())
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // LOADED CONTEXT
 // ═══════════════════════════════════════════════════════════════════════════
@@ -108,11 +147,12 @@ pub async fn load_context(
     // Load each file entry
     for (alias, path_pattern) in &config.files {
         let value = if is_glob_pattern(path_pattern) {
-            // Glob pattern → array of strings
+            // Glob pattern → array of strings (validation happens inside)
             load_glob_files(path_pattern, base_path).await?
         } else {
-            // Single file
+            // Single file - validate path boundary
             let full_path = base_path.join(path_pattern);
+            validate_path_boundary(base_path, &full_path)?;
             load_single_file(&full_path).await?
         };
         context.files.insert(alias.to_string(), value);
@@ -121,7 +161,9 @@ pub async fn load_context(
     // Load session if specified
     if let Some(session_path) = &config.session {
         let full_path = base_path.join(session_path);
+        // Security: Validate session path stays within project
         if full_path.exists() {
+            validate_path_boundary(base_path, &full_path)?;
             let content = tokio::fs::read_to_string(&full_path).await.map_err(|e| {
                 NikaError::ContextLoadError {
                     alias: "session".to_string(),
@@ -188,6 +230,11 @@ async fn load_glob_files(pattern: &str, base_path: &Path) -> Result<Value, NikaE
         .unwrap_or("*");
 
     let search_dir = base_path.join(parent);
+
+    // Security: Validate glob search directory stays within project
+    if search_dir.exists() {
+        validate_path_boundary(base_path, &search_dir)?;
+    }
 
     // Build glob matcher
     let glob = GlobBuilder::new(file_pattern)
@@ -423,6 +470,60 @@ mod tests {
         };
 
         let result = load_context(&config, temp_dir.path()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_load_context_path_traversal_detection() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a project subdirectory
+        let project_dir = temp_dir.path().join("project");
+        fs::create_dir(&project_dir).await.unwrap();
+
+        // Create a secret file outside project
+        fs::write(temp_dir.path().join("secret.md"), "# Secret content")
+            .await
+            .unwrap();
+
+        // Try to load file using path traversal
+        let config = ContextConfig {
+            files: {
+                let mut m = FxHashMap::default();
+                m.insert("secret".to_string(), "../secret.md".to_string());
+                m
+            },
+            session: None,
+        };
+
+        let result = load_context(&config, &project_dir).await;
+        assert!(result.is_err());
+        let err_str = result.unwrap_err().to_string();
+        assert!(
+            err_str.contains("Path traversal") || err_str.contains("outside project"),
+            "Expected path traversal error, got: {}",
+            err_str
+        );
+    }
+
+    #[test]
+    fn test_validate_path_boundary() {
+        let temp_dir = TempDir::new().unwrap();
+        let project = temp_dir.path().join("project");
+        std::fs::create_dir_all(&project).unwrap();
+
+        // Create files
+        let valid_file = project.join("valid.md");
+        std::fs::write(&valid_file, "test").unwrap();
+
+        let outside_file = temp_dir.path().join("outside.md");
+        std::fs::write(&outside_file, "test").unwrap();
+
+        // Valid path within boundary
+        assert!(validate_path_boundary(&project, &valid_file).is_ok());
+
+        // Invalid path outside boundary
+        let result = validate_path_boundary(&project, &outside_file);
         assert!(result.is_err());
     }
 }

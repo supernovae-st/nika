@@ -1,16 +1,16 @@
-# QR Code AI Style Guide
+# Style Guide
 
 ## Writing Style
 - Use active voice
-- Keep sentences short (max 20 words)
-- Use bullet points for lists
+- Keep sentences short
+- Be specific and precise
 
-## Formatting
-- Headers: Title Case
-- Code: backticks for inline, fenced blocks for multi-line
-- Links: descriptive text, not "click here"
+## Code Examples
+- Always include comments
+- Use meaningful variable names
+- Follow Rust conventions
 
-## SEO Guidelines
-- Primary keyword in first 100 words
-- H1 contains primary keyword
-- Meta description under 155 characters
+## Documentation
+- Start with an overview
+- Include examples
+- Document edge cases

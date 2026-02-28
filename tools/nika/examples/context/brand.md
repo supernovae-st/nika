@@ -1,28 +1,16 @@
-# QR Code AI — Brand Guidelines
+# Brand Guidelines
 
 ## Brand Voice
+- Professional yet approachable
+- Technical but accessible
+- Innovative and forward-thinking
 
-- **Tone:** Professional yet approachable
-- **Style:** Clear, concise, action-oriented
-- **Personality:** Innovative, trustworthy, user-focused
+## Core Values
+- Quality over quantity
+- User experience first
+- Open and transparent
 
-## Key Messages
-
-1. Transform any link into scannable art
-2. AI-powered QR codes that stand out
-3. Design meets functionality
-
-## Terminology
-
-| Use | Don't Use |
-|-----|-----------|
-| QR Code | QR code, qr code |
-| AI-powered | AI powered, Ai-powered |
-| Generate | Create, Make |
-
-## SEO Keywords
-
-- qr code generator
-- ai qr code
-- custom qr code design
-- qr code with logo
+## Tagline Style
+- Short and memorable
+- Action-oriented
+- Technology-focused
