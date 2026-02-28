@@ -1,0 +1,8 @@
+# Schema v0.3: Added for_each parallelism
+schema: nika/workflow@0.3
+workflow: v03-foreach-test
+description: "Test schema v0.3 - for_each parallelism"
+
+tasks:
+  - id: single_infer
+    infer: "Count from 1 to 3 in one sentence"

@@ -1,0 +1,8 @@
+# Schema v0.6: Multi-provider + chat history
+schema: nika/workflow@0.6
+workflow: v06-multiprovider-test
+description: "Test schema v0.6 - multi-provider support"
+
+tasks:
+  - id: provider_test
+    infer: "Name one planet in our solar system"

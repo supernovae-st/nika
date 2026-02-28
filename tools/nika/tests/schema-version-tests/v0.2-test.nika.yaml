@@ -1,0 +1,8 @@
+# Schema v0.2: Added invoke and agent verbs
+schema: nika/workflow@0.2
+workflow: v02-invoke-test
+description: "Test schema v0.2 - added invoke and agent verbs"
+
+tasks:
+  - id: generate
+    infer: "Generate a one-line haiku about Rust programming"

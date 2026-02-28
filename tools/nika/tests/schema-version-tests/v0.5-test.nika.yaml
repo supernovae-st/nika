@@ -1,0 +1,8 @@
+# Schema v0.5: Added decompose, lazy bindings, spawn_agent
+schema: nika/workflow@0.5
+workflow: v05-mvp8-test
+description: "Test schema v0.5 - MVP 8 features"
+
+tasks:
+  - id: lazy_test
+    infer: "What is 2 + 2? Answer with just the number."

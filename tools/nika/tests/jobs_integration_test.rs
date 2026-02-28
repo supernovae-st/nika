@@ -464,9 +464,10 @@ fn test_job_event_type_emoji() {
 fn test_job_event_type_slack_color() {
     use nika::jobs::notify::JobEventType;
 
-    assert_eq!(JobEventType::Success.slack_color(), "good");
-    assert_eq!(JobEventType::Failed.slack_color(), "danger");
-    assert_eq!(JobEventType::Retrying.slack_color(), "warning");
+    // Slack colors are hex values, not legacy names
+    assert_eq!(JobEventType::Success.slack_color(), "#2ecc71"); // green
+    assert_eq!(JobEventType::Failed.slack_color(), "#e74c3c"); // red
+    assert_eq!(JobEventType::Retrying.slack_color(), "#f39c12"); // orange
 }
 
 #[tokio::test]

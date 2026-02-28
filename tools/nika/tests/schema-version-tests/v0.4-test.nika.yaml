@@ -1,0 +1,8 @@
+# Schema v0.4: rig-core integration
+schema: nika/workflow@0.4
+workflow: v04-rig-test
+description: "Test schema v0.4 - rig-core integration"
+
+tasks:
+  - id: rig_infer
+    infer: "Name 3 programming languages in a comma-separated list"
