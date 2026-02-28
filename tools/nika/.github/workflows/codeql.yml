@@ -59,24 +59,17 @@ jobs:
       - name: Install cargo-deny
         uses: taiki-e/install-action@cargo-deny
 
-      # NovaNet Rust CLI
-      - name: Audit NovaNet dependencies
-        working-directory: novanet-dev/tools/novanet
-        run: cargo audit
-        continue-on-error: true
-
-      - name: Check NovaNet with cargo-deny
-        working-directory: novanet-dev/tools/novanet
-        run: cargo deny check
-        continue-on-error: true
+      # Clear advisory-db cache to prevent stale directory errors
+      - name: Clear advisory-db cache
+        run: rm -rf ~/.cargo/advisory-db
 
       # Nika workflow engine
       - name: Audit Nika dependencies
-        working-directory: nika-dev/tools/nika
+        working-directory: tools/nika
         run: cargo audit
         continue-on-error: true
 
       - name: Check Nika with cargo-deny
-        working-directory: nika-dev/tools/nika
+        working-directory: tools/nika
         run: cargo deny check
         continue-on-error: true
