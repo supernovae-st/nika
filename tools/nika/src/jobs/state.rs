@@ -258,6 +258,9 @@ impl StateStore {
             ],
         )?;
 
+        // Update stats - pass the connection to avoid deadlock (RwLock is not reentrant)
+        self.update_stats_with_conn(&conn, &record.job_name, record)?;
+
         Ok(())
     }
 
