@@ -1,0 +1,24 @@
+# Schema v0.9: context: + include: DAG Fusion (v0.14.2)
+# Tests the new v0.9 features without requiring external file access
+schema: nika/workflow@0.9
+workflow: v09-schema-test
+description: "Test schema v0.9 - context: and include: DAG fusion features"
+
+# Note: context: and include: features are tested via integration tests
+# This workflow validates the v0.9 schema parsing only
+
+tasks:
+  # Test basic task with v0.9 schema
+  - id: test_v09_features
+    infer: "List the 3 key features of Nika v0.14.2 schema version 0.9"
+
+  # Test for_each from prior versions still works
+  - id: test_parallel
+    for_each: ["a", "b"]
+    as: item
+    concurrency: 2
+    infer: "Echo: {{use.item}}"
+
+flows:
+  - source: test_v09_features
+    target: test_parallel

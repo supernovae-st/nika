@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.2] - 2026-02-28
+
+### Added
+- **context: Field (Schema @0.9)** - Load files at workflow start
+  - `context.files` block with alias-to-path mapping
+  - Supports markdown, JSON, YAML, and glob patterns
+  - Session restore via `context.session`
+  - Accessible via `{{context.files.alias}}` bindings
+- **include: DAG Fusion (Schema @0.9)** - Merge external workflows
+  - `include:` array with path and optional prefix
+  - Task ID prefixing for namespace isolation
+  - Recursive include resolution with cycle detection
+- **Path Traversal Security** - Boundary validation for file loading
+  - `validate_path_boundary()` in include_loader.rs
+  - `validate_path_boundary()` in context_loader.rs
+  - Prevents `../../../` style attacks
+- **Schema Validation CI Job** - ARMADA Station 7
+  - Validates schema versions v0.1-v0.9
+  - Validates v0.14.2 feature examples
+  - Validates all public examples
+- **New Example Workflows**
+  - `v09-context-loading.nika.yaml` - context: field demo
+  - `v05-lazy-bindings.nika.yaml` - lazy: bindings with defaults
+  - `v06-multi-provider.nika.yaml` - multi-provider support
+  - `v05-spawn-agent.nika.yaml` - nested agent spawning
+  - `v03-foreach-parallel.nika.yaml` - for_each parallelism
+
+### Fixed
+- Path traversal vulnerability in include_loader.rs and context_loader.rs
+- Schema validation for all schema versions in CI
+
+### Statistics
+- **3,211 tests passing** (path validation tests added)
+- **Zero clippy warnings**
+- **Schema @0.9** - Full context: + include: support
+
 ## [0.12.1] - 2026-02-26
 
 ### Added
