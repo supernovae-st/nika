@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.6] - 2026-02-28
+
+### Added
+- Full validation of 148 example workflows
+- E2E tests for all 5 verbs (exec, fetch, infer, invoke, agent)
+- Stress test for large DAG (96 tasks)
+- for_each parallel execution validation
+
+### Fixed
+- `test-agent-depth-limit.nika.yaml` - removed invalid `target: null` flow
+- `test-agent-temperature.nika.yaml` - commented out proposed temperature feature
+- `test-agent-with-thinking.nika.yaml` - commented out proposed thinking features
+
+### Statistics
+- **3,480+ tests passing** (comprehensive validation)
+- **132/148 example workflows valid** (16 are drafts/experimental)
+- **Zero clippy warnings**
+
+## [0.14.5] - 2026-02-28
+
+### Changed
+- Consolidated release merging all v0.14.x branches
+- Clean, up-to-date main branch after PR conflicts resolved
+
+### Statistics
+- **3,250+ tests passing**
+- **Zero clippy warnings**
+
+## [0.14.4] - 2026-02-28
+
+### Added
+- 5 verb test workflows (test-infer-verb.nika.yaml, test-exec-verb.nika.yaml, etc.)
+- CI schema validation job (ARMADA Station 7)
+- Comprehensive verb coverage examples
+
+### Statistics
+- **3,230+ tests passing**
+- **Zero clippy warnings**
+
 ## [0.14.3] - 2026-02-28
 
 ### Changed

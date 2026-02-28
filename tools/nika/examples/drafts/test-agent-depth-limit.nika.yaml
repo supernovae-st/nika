@@ -30,6 +30,4 @@ tasks:
     output:
       format: json
 
-flows:
-  - source: orchestrator_agent
-    target: null
+# No explicit flows needed - single task workflow
