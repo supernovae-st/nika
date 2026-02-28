@@ -43,10 +43,14 @@ const MAX_INCLUDE_DEPTH: usize = 10;
 /// - Including files from parent directories
 /// - Symlink attacks pointing outside project
 fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), NikaError> {
-    let canonical_base = base_path.canonicalize().unwrap_or_else(|_| base_path.to_path_buf());
-    let canonical_target = target_path.canonicalize().map_err(|e| NikaError::WorkflowNotFound {
-        path: format!("{}: {}", target_path.display(), e),
-    })?;
+    let canonical_base = base_path
+        .canonicalize()
+        .unwrap_or_else(|_| base_path.to_path_buf());
+    let canonical_target = target_path
+        .canonicalize()
+        .map_err(|e| NikaError::WorkflowNotFound {
+            path: format!("{}: {}", target_path.display(), e),
+        })?;
 
     if !canonical_target.starts_with(&canonical_base) {
         return Err(NikaError::ValidationError {
