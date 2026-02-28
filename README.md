@@ -152,6 +152,56 @@ tasks:
 
 ---
 
+## 🦋 Mascots & Hierarchy
+
+> **Nika is not an agent. Nika is the runtime that orchestrates agents.**
+
+```
+                            🦋 NIKA (Papillon)
+                                 Runtime
+                      Orchestrates the 5 semantic verbs
+                                    │
+        ┌───────────────┬───────────┼───────────┬───────────────┐
+        │               │           │           │               │
+        ▼               ▼           ▼           ▼               ▼
+     infer:          exec:       fetch:     invoke:        agent: 🐔
+      LLM           Shell        HTTP         MCP       (Space Chicken)
+                                                              │
+                                                        spawn_agent
+                                                              │
+                                                  ┌───────────┼───────────┐
+                                                  ▼           ▼           ▼
+                                                 🐤          🐤          🐤
+                                            (Subagents - Poussins)
+```
+
+| Mascot | Role | What it does |
+|--------|------|--------------|
+| 🦋 **Nika** | **Runtime** | Executes YAML workflows, runs chat UI, launches agents |
+| 🐔 **Agent** | **One of 5 verbs** | Multi-turn agentic loop with MCP tools, spawns subagents |
+| 🐤 **Subagent** | **Spawned by agent** | Executes subtask, returns result to parent, depth-limited |
+
+**In chat mode**, Nika 🦋 talks to the user and launches agents 🐔 when needed:
+
+```
+$ nika chat
+🦋 Hello! How can I help you today?
+
+User: /agent "Research AI papers and summarize"
+
+🦋 Launching an agent for this task...
+  ├─🐔 Agent: Searching for papers...
+  │   ├─🐤 Subagent: Fetching arxiv.org
+  │   └─🐤 Subagent: Parsing results
+  └─🐔 Agent: Done! Found 15 papers.
+
+🦋 The agent completed. Here are the results...
+```
+
+<br>
+
+---
+
 ## 💡 The Problem We Solve
 
 ### 🚨 AI Orchestration in 2025 is Broken
