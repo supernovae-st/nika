@@ -97,6 +97,20 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 
 <br>
 
+---
+
+## 🦋 🐔 🐤 Mascots
+
+| Mascot | Role | What it does |
+|--------|------|--------------|
+| 🦋 **Nika** | **Runtime** | Executes YAML workflows, runs chat UI, launches agents |
+| 🐔 **Agent** | **One of 5 verbs** | Multi-turn agentic loop with MCP tools, spawns subagents |
+| 🐤 **Subagent** | **Spawned by agent** | Executes subtask, returns result to parent, depth-limited |
+
+> **Nika is NOT an agent.** Nika is the runtime (🦋 papillon) that orchestrates agents (🐔 space chicken).
+
+---
+
 ## ✨ What's New in v0.14.3
 
 <table>
