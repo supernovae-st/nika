@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.14.0 | Enhanced nika_run + serde-saphyr + Schema @0.8 | 3,188+ tests | Zero clippy warnings
+**Current version:** v0.14.2 | context: + include: DAG fusion + Schema @0.9 | 3,188+ tests | Zero clippy warnings
 
 ## Architecture
 
@@ -16,6 +16,9 @@ tools/nika/src/
 ├── ast/              # YAML → Rust structs
 │   ├── workflow.rs   # Workflow, Task
 │   ├── action.rs     # TaskAction (5 variants)
+│   ├── context.rs    # ✅ ContextSpec (v0.14.2 - file loading)
+│   ├── include.rs    # ✅ IncludeSpec (v0.14.2 - DAG fusion)
+│   ├── include_loader.rs # Include resolution + prefix
 │   ├── decompose.rs  # ✅ DecomposeSpec (v0.5 MVP 8)
 │   └── output.rs     # OutputSpec
 ├── dag/              # DAG validation
