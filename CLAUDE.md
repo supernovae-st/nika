@@ -8,6 +8,55 @@ Cargo workspace for Nika — semantic YAML workflow engine for AI tasks.
 
 ---
 
+## 🦋 🐔 🐤 Mascots & Hierarchy
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                              SUPERNOVAE MASCOTS                               ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║   🦋 NIKA = LE RUNTIME (Papillon)                                             ║
+║   ─────────────────────────────────────────────────────────────────────────   ║
+║   • Orchestre les 5 verbes sémantiques                                        ║
+║   • Exécute les workflows YAML en DAG                                         ║
+║   • Chat UI ($ nika chat) où Nika parle à l'utilisateur                       ║
+║   • Lance les agents quand le verbe agent: est invoqué                        ║
+║                                                                               ║
+║   🐔 AGENT = UN VERBE (Space Chicken)                                         ║
+║   ─────────────────────────────────────────────────────────────────────────   ║
+║   • UN des 5 verbes (infer, exec, fetch, invoke, agent)                       ║
+║   • Multi-turn agentic loop avec MCP tools                                    ║
+║   • Peut spawner des subagents via spawn_agent                                ║
+║   • Protégé par depth_limit contre la récursion infinie                       ║
+║                                                                               ║
+║   🐤 SUBAGENT = Spawné par agent (Poussin)                                    ║
+║   ─────────────────────────────────────────────────────────────────────────   ║
+║   • Créé par l'agent via spawn_agent tool                                     ║
+║   • Exécute une sous-tâche spécifique                                         ║
+║   • Retourne son résultat à l'agent parent                                    ║
+║   • Hérite du depth_limit (décrémenté)                                        ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+  $ nika chat
+  ┌────────────────────────────────────────────────────────────────┐
+  │ 🦋 Bonjour! Je suis Nika. Comment puis-je vous aider?          │
+  │                                                                │
+  │ User: /agent "Research AI papers and summarize"                │
+  │                                                                │
+  │ 🦋 Je lance un agent pour cette tâche...                       │
+  │   │                                                            │
+  │   ├─🐔 Agent: Searching for AI papers...                       │
+  │   │   ├─🐤 Subagent: Fetching arxiv.org...                     │
+  │   │   └─🐤 Subagent: Parsing results...                        │
+  │   └─🐔 Agent: Done! Found 15 papers.                           │
+  │                                                                │
+  │ 🦋 L'agent a terminé. Voici les résultats...                   │
+  └────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Why Nika Exists
 
 **Problem**: Orchestrating multi-step AI workflows is fragile, opaque, and hard to debug.
