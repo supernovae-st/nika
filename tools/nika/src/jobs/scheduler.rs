@@ -2,10 +2,7 @@
 //!
 //! The scheduler manages job triggers and coordinates with the executor.
 
-use crate::jobs::config::{
-    CronTriggerConfig, IntervalTriggerConfig, JobDefinition, JobTrigger, JobsConfig, WatchEvent,
-    WatchTriggerConfig, WebhookTriggerConfig,
-};
+use crate::jobs::config::{JobDefinition, JobTrigger, JobsConfig, WatchEvent};
 use crate::jobs::error::JobsError;
 use crate::jobs::state::{ExecutionRecord, JobExecutionStatus, StateStore};
 use chrono::{DateTime, Utc};
@@ -583,7 +580,7 @@ fn glob_match_parts(pattern: &[&str], path: &[&str]) -> bool {
     } else if p.contains('*') {
         // Pattern like *.yaml
         let prefix = p.split('*').next().unwrap_or("");
-        let suffix = p.split('*').last().unwrap_or("");
+        let suffix = p.split('*').next_back().unwrap_or("");
         if path[0].starts_with(prefix) && path[0].ends_with(suffix) {
             glob_match_parts(&pattern[1..], &path[1..])
         } else {
@@ -596,8 +593,10 @@ fn glob_match_parts(pattern: &[&str], path: &[&str]) -> bool {
 }
 
 #[cfg(test)]
+#[allow(clippy::arc_with_non_send_sync)]
 mod tests {
     use super::*;
+    use crate::jobs::config::{CronTriggerConfig, IntervalTriggerConfig, WebhookTriggerConfig};
 
     #[test]
     fn test_glob_match_exact() {
@@ -637,8 +636,8 @@ mod tests {
 
     #[test]
     fn test_next_cron_time_valid() {
-        // Every minute
-        let result = JobScheduler::next_cron_time("* * * * *");
+        // Every minute (6-field cron: second minute hour day_of_month month day_of_week)
+        let result = JobScheduler::next_cron_time("0 * * * * *");
         assert!(result.is_ok());
         assert!(result.unwrap() > Utc::now());
     }
@@ -651,8 +650,9 @@ mod tests {
 
     #[test]
     fn test_calculate_next_run_cron() {
+        // 6-field cron: second minute hour day_of_month month day_of_week
         let trigger = JobTrigger::Cron(CronTriggerConfig {
-            expression: "* * * * *".to_string(),
+            expression: "0 * * * * *".to_string(),
             timezone: "UTC".to_string(),
         });
 

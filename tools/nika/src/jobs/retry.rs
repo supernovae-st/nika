@@ -50,7 +50,7 @@ impl RetryExecutor {
     {
         let mut builder = ConstantBuilder::default()
             .with_delay(self.config.initial_delay)
-            .with_max_times(self.config.max_attempts as usize);
+            .with_max_times(self.config.max_attempts.saturating_sub(1) as usize);
 
         if self.config.jitter {
             builder = builder.with_jitter();
@@ -77,7 +77,7 @@ impl RetryExecutor {
         let mut builder = FibonacciBuilder::default()
             .with_min_delay(self.config.initial_delay)
             .with_max_delay(self.config.max_delay)
-            .with_max_times(self.config.max_attempts as usize);
+            .with_max_times(self.config.max_attempts.saturating_sub(1) as usize);
 
         if self.config.jitter {
             builder = builder.with_jitter();
@@ -102,7 +102,7 @@ impl RetryExecutor {
         let mut builder = ExponentialBuilder::default()
             .with_min_delay(self.config.initial_delay)
             .with_max_delay(self.config.max_delay)
-            .with_max_times(self.config.max_attempts as usize)
+            .with_max_times(self.config.max_attempts.saturating_sub(1) as usize)
             .with_factor(2.0); // Double each retry
 
         if self.config.jitter {

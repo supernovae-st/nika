@@ -203,6 +203,7 @@ impl NotificationChannel for SlackNotifier {
 }
 
 /// Email notifier using SMTP.
+#[derive(Debug)]
 pub struct EmailNotifier {
     config: EmailConfig,
 }
@@ -254,9 +255,9 @@ impl EmailNotifier {
         body.push_str(&format!("Job: {}\n", event.job_name));
         body.push_str(&format!("Execution ID: {}\n", event.execution_id));
         body.push_str(&format!(
-            "Status: {} {}\n",
+            "Status: {} {:?}\n",
             event.event_type.emoji(),
-            format!("{:?}", event.event_type)
+            event.event_type
         ));
 
         if let Some(duration) = event.duration_secs {
