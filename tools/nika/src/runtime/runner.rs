@@ -930,6 +930,7 @@ mod tests {
                 action: TaskAction::Exec {
                     exec: ExecParams {
                         command: "echo {{use.item}}".to_string(),
+                        shell: None,
                     },
                 },
                 use_wiring: None,
@@ -989,6 +990,7 @@ mod tests {
                 action: TaskAction::Exec {
                     exec: ExecParams {
                         command: "echo {{use.x}}".to_string(),
+                        shell: None,
                     },
                 },
                 use_wiring: None,
@@ -1053,6 +1055,7 @@ mod tests {
                         action: TaskAction::Exec {
                             exec: ExecParams {
                                 command: cmd.to_string(),
+                                shell: None,
                             },
                         },
                     })
@@ -1474,6 +1477,7 @@ mod tests {
                 action: TaskAction::Exec {
                     exec: ExecParams {
                         command: "echo {{use.item}}".to_string(),
+                        shell: None,
                     },
                 },
                 use_wiring: None,
@@ -1523,6 +1527,7 @@ mod tests {
                     exec: ExecParams {
                         // Exit with error if item is "FAIL"
                         command: "test '{{use.item}}' != 'FAIL' && echo {{use.item}}".to_string(),
+                        shell: None,
                     },
                 },
                 use_wiring: None,
@@ -1562,6 +1567,7 @@ mod tests {
                 action: TaskAction::Exec {
                     exec: ExecParams {
                         command: "echo {{use.item}}".to_string(),
+                        shell: None,
                     },
                 },
                 use_wiring: None,

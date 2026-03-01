@@ -32,9 +32,9 @@
     },
     "provider": {
       "type": "string",
-      "enum": ["claude", "openai", "mistral", "groq", "deepseek", "ollama", "mock"],
+      "enum": ["claude", "openai", "mistral", "groq", "deepseek", "ollama", "gemini", "mock"],
       "default": "claude",
-      "description": "Default LLM provider for tasks (v0.6+: 6 providers via rig-core)"
+      "description": "Default LLM provider for tasks (v0.15.0: 7 providers via rig-core)"
     },
     "model": {
       "type": "string",
@@ -120,7 +120,7 @@
             },
             "provider": {
               "type": "string",
-              "enum": ["claude", "openai", "mistral", "groq", "deepseek", "ollama", "mock"],
+              "enum": ["claude", "openai", "mistral", "groq", "deepseek", "ollama", "gemini", "mock"],
               "default": "claude",
               "description": "LLM provider for this agent"
             },
@@ -310,6 +310,21 @@
             "model": {
               "type": "string",
               "description": "Override model for this task"
+            },
+            "temperature": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 2.0,
+              "description": "Sampling temperature (0.0 = deterministic, 2.0 = maximum randomness). v0.15.0+"
+            },
+            "max_tokens": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum tokens to generate. v0.15.0+"
+            },
+            "system": {
+              "type": "string",
+              "description": "System prompt to prepend for LLM context. v0.15.0+"
             }
           }
         }
@@ -319,7 +334,7 @@
       "oneOf": [
         {
           "type": "string",
-          "description": "Simple command string"
+          "description": "Simple command string (v0.15.0: shell-free by default)"
         },
         {
           "type": "object",
@@ -328,7 +343,12 @@
           "properties": {
             "command": {
               "type": "string",
-              "description": "Shell command to execute"
+              "description": "Command to execute (v0.15.0: shell-free by default, uses shlex parsing)"
+            },
+            "shell": {
+              "type": "boolean",
+              "description": "If true, execute via shell (sh -c). Default: false (shell-free, safer). Set to true for shell metacharacters like |, &&, ;, or variable expansion.",
+              "default": false
             }
           }
         }
@@ -459,6 +479,11 @@
           "enum": ["auto", "required", "none"],
           "default": "auto",
           "description": "Tool selection mode: auto (LLM decides), required (must use tool), none (no tools)"
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Builtin tools to make available to the agent (e.g., nika:read, nika:write, nika:log). v0.15.0+"
         }
       }
     },

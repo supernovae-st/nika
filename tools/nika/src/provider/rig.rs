@@ -28,7 +28,7 @@ use crate::util::STREAM_CHUNK_TIMEOUT;
 use futures::StreamExt;
 use rig::client::{CompletionClient, Nothing, ProviderClient};
 use rig::completion::{CompletionModel as _, GetTokenUsage, Prompt, PromptError, ToolDefinition};
-use rig::providers::{anthropic, deepseek, groq, mistral, ollama, openai};
+use rig::providers::{anthropic, deepseek, gemini, groq, mistral, ollama, openai};
 use rig::streaming::StreamedAssistantContent;
 use rig::tool::{ToolDyn, ToolError};
 use std::future::Future;
@@ -111,7 +111,22 @@ impl std::fmt::Display for McpToolError {
 
 impl std::error::Error for McpToolError {}
 
-/// Provider type enum for rig-core providers (v0.6: expanded provider support)
+/// Options for LLM inference (v0.15.0)
+///
+/// Provides fine-grained control over inference behavior.
+#[derive(Debug, Clone, Default)]
+pub struct InferOptions {
+    /// Model identifier (uses provider default if None)
+    pub model: Option<String>,
+    /// Temperature for sampling (0.0-2.0, lower = more deterministic)
+    pub temperature: Option<f64>,
+    /// Maximum tokens to generate
+    pub max_tokens: Option<u32>,
+    /// System prompt to prepend
+    pub system: Option<String>,
+}
+
+/// Provider type enum for rig-core providers (v0.6: expanded, v0.15.0: +Gemini)
 ///
 /// Nika leverages rig-core's native multi-provider support.
 /// Each variant wraps the corresponding rig-core client.
@@ -129,6 +144,8 @@ pub enum RigProvider {
     Groq(groq::Client),
     /// DeepSeek provider (v0.6) - DEEPSEEK_API_KEY
     DeepSeek(deepseek::Client),
+    /// Gemini (Google) provider (v0.15.0) - GEMINI_API_KEY
+    Gemini(gemini::Client),
 }
 
 impl RigProvider {
@@ -170,6 +187,12 @@ impl RigProvider {
         RigProvider::DeepSeek(client)
     }
 
+    /// Create a Gemini (Google) provider from environment variable GEMINI_API_KEY (v0.15.0)
+    pub fn gemini() -> Self {
+        let client = gemini::Client::from_env();
+        RigProvider::Gemini(client)
+    }
+
     /// Get the provider name
     pub fn name(&self) -> &'static str {
         match self {
@@ -179,6 +202,7 @@ impl RigProvider {
             RigProvider::Ollama(_) => "ollama",
             RigProvider::Groq(_) => "groq",
             RigProvider::DeepSeek(_) => "deepseek",
+            RigProvider::Gemini(_) => "gemini",
         }
     }
 
@@ -192,6 +216,7 @@ impl RigProvider {
     /// | Ollama | llama3.2 | Good balance of quality/speed |
     /// | Groq | llama-3.3-70b-versatile | Fast inference |
     /// | DeepSeek | deepseek-chat | Cost-effective |
+    /// | Gemini | gemini-2.0-flash | Latest stable (v0.15.0) |
     pub fn default_model(&self) -> &'static str {
         match self {
             // Note: rig-core's CLAUDE_3_5_SONNET constant is outdated
@@ -202,6 +227,7 @@ impl RigProvider {
             RigProvider::Ollama(_) => "llama3.2",
             RigProvider::Groq(_) => "llama-3.3-70b-versatile",
             RigProvider::DeepSeek(_) => "deepseek-chat",
+            RigProvider::Gemini(_) => "gemini-2.0-flash",
         }
     }
 
@@ -260,10 +286,135 @@ impl RigProvider {
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
+            RigProvider::Gemini(client) => {
+                let agent = client.agent(model_id).max_tokens(8192).build();
+                agent
+                    .prompt(prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
         }
     }
 
-    /// Auto-detect and create a provider from available environment variables (v0.6)
+    /// Text completion with full control over LLM parameters (v0.15.0)
+    ///
+    /// # Arguments
+    /// * `prompt` - The text prompt to send
+    /// * `options` - LLM control options (model, temperature, max_tokens, system)
+    ///
+    /// # Returns
+    /// The completion text from the model
+    ///
+    /// # Example
+    /// ```ignore
+    /// let options = InferOptions {
+    ///     temperature: Some(0.7),
+    ///     max_tokens: Some(2000),
+    ///     system: Some("You are a helpful assistant.".to_string()),
+    ///     ..Default::default()
+    /// };
+    /// let result = provider.infer_with_options("Explain Rust", &options).await?;
+    /// ```
+    pub async fn infer_with_options(
+        &self,
+        prompt: &str,
+        options: &InferOptions,
+    ) -> Result<String, RigInferError> {
+        let model_id = options
+            .model
+            .as_deref()
+            .unwrap_or_else(|| self.default_model());
+        let max_tokens = options.max_tokens.unwrap_or(8192);
+
+        // Build prompt with system message if provided
+        let full_prompt = if let Some(system) = &options.system {
+            format!("{}\n\n{}", system, prompt)
+        } else {
+            prompt.to_string()
+        };
+
+        match self {
+            RigProvider::Claude(client) => {
+                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(temp) = options.temperature {
+                    builder = builder.temperature(temp);
+                }
+                let agent = builder.build();
+                agent
+                    .prompt(&full_prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+            RigProvider::OpenAI(client) => {
+                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(temp) = options.temperature {
+                    builder = builder.temperature(temp);
+                }
+                let agent = builder.build();
+                agent
+                    .prompt(&full_prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+            RigProvider::Mistral(client) => {
+                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(temp) = options.temperature {
+                    builder = builder.temperature(temp);
+                }
+                let agent = builder.build();
+                agent
+                    .prompt(&full_prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+            RigProvider::Ollama(client) => {
+                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(temp) = options.temperature {
+                    builder = builder.temperature(temp);
+                }
+                let agent = builder.build();
+                agent
+                    .prompt(&full_prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+            RigProvider::Groq(client) => {
+                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(temp) = options.temperature {
+                    builder = builder.temperature(temp);
+                }
+                let agent = builder.build();
+                agent
+                    .prompt(&full_prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+            RigProvider::DeepSeek(client) => {
+                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(temp) = options.temperature {
+                    builder = builder.temperature(temp);
+                }
+                let agent = builder.build();
+                agent
+                    .prompt(&full_prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+            RigProvider::Gemini(client) => {
+                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(temp) = options.temperature {
+                    builder = builder.temperature(temp);
+                }
+                let agent = builder.build();
+                agent
+                    .prompt(&full_prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+        }
+    }
+
+    /// Auto-detect and create a provider from available environment variables (v0.6, v0.15.0: +Gemini)
     ///
     /// Provider detection order:
     /// 1. ANTHROPIC_API_KEY → Claude
@@ -271,7 +422,8 @@ impl RigProvider {
     /// 3. MISTRAL_API_KEY → Mistral
     /// 4. GROQ_API_KEY → Groq
     /// 5. DEEPSEEK_API_KEY → DeepSeek
-    /// 6. OLLAMA_API_BASE_URL → Ollama (opt-in, no key required)
+    /// 6. GEMINI_API_KEY → Gemini (v0.15.0)
+    /// 7. OLLAMA_API_BASE_URL → Ollama (opt-in, no key required)
     ///
     /// Returns None if no provider is available.
     /// Empty env vars are treated as unset.
@@ -293,6 +445,10 @@ impl RigProvider {
         }
         if has_key("DEEPSEEK_API_KEY") {
             return Some(Self::deepseek());
+        }
+        // Gemini (v0.15.0)
+        if has_key("GEMINI_API_KEY") {
+            return Some(Self::gemini());
         }
         // Ollama is opt-in: requires OLLAMA_API_BASE_URL to be explicitly set
         if has_key("OLLAMA_API_BASE_URL") {
@@ -373,7 +529,7 @@ impl RigProvider {
         }
     }
 
-    /// Quick check if provider credentials are configured (v0.8.2)
+    /// Quick check if provider credentials are configured (v0.8.2, v0.15.0: +Gemini)
     ///
     /// This is a fast, synchronous check that doesn't make network calls.
     /// Use `verify()` for actual connection testing.
@@ -386,6 +542,7 @@ impl RigProvider {
             RigProvider::Mistral(_) => has_key("MISTRAL_API_KEY"),
             RigProvider::Groq(_) => has_key("GROQ_API_KEY"),
             RigProvider::DeepSeek(_) => has_key("DEEPSEEK_API_KEY"),
+            RigProvider::Gemini(_) => has_key("GEMINI_API_KEY"),
             RigProvider::Ollama(_) => {
                 // Ollama doesn't need API key, so is always "configured"
                 // Actual server availability checked separately via check_ollama_available()
@@ -902,12 +1059,495 @@ impl RigProvider {
                     }
                 }
             }
+            // v0.15.0: Gemini provider streaming
+            RigProvider::Gemini(client) => {
+                let model = client.completion_model(model_id);
+                let request = model.completion_request(prompt).max_tokens(8192).build();
+
+                let mut stream = model
+                    .stream(request)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                loop {
+                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                        Ok(Some(result)) => result,
+                        Ok(None) => break,
+                        Err(_elapsed) => {
+                            let _ = tx.try_send(StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            )));
+                            return Err(RigInferError::Timeout {
+                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                            });
+                        }
+                    };
+
+                    match chunk_result {
+                        Ok(content) => match content {
+                            StreamedAssistantContent::Text(text) => {
+                                response_parts.push(text.text.clone());
+                                let _ = tx.try_send(StreamChunk::Token(text.text));
+                            }
+                            StreamedAssistantContent::Final(response) => {
+                                if let Some(usage) = response.token_usage() {
+                                    result.input_tokens = usage.input_tokens;
+                                    result.output_tokens = usage.output_tokens;
+                                    result.total_tokens = usage.total_tokens;
+                                    result.cached_input_tokens = usage.cached_input_tokens;
+                                }
+                            }
+                            _ => {}
+                        },
+                        Err(e) => {
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
+                }
+            }
         }
 
         let complete_response = response_parts.concat();
         let _ = tx.try_send(StreamChunk::Done(complete_response.clone()));
 
         // Send metrics after Done (v0.7.0) - use try_send to avoid blocking
+        let _ = tx.try_send(StreamChunk::Metrics {
+            input_tokens: result.input_tokens,
+            output_tokens: result.output_tokens,
+        });
+
+        result.text = complete_response;
+        Ok(result)
+    }
+
+    /// Stream inference with LLM control options (v0.15.0)
+    ///
+    /// Similar to `infer_stream` but accepts `InferOptions` for temperature,
+    /// max_tokens, and system prompt control.
+    ///
+    /// # Arguments
+    /// * `prompt` - The user prompt text
+    /// * `tx` - Channel sender for streaming chunks
+    /// * `options` - LLM control options (temperature, max_tokens, system)
+    ///
+    /// # Returns
+    /// `StreamResult` containing complete response text and token usage metrics
+    pub async fn infer_stream_with_options(
+        &self,
+        prompt: &str,
+        tx: mpsc::Sender<StreamChunk>,
+        options: &InferOptions,
+    ) -> Result<StreamResult, RigInferError> {
+        let model_id = options
+            .model
+            .as_deref()
+            .unwrap_or_else(|| self.default_model());
+        let max_tokens = options.max_tokens.unwrap_or(8192);
+        let mut response_parts: Vec<String> = Vec::new();
+        let mut result = StreamResult::default();
+
+        // Build prompt with system message if provided
+        let full_prompt = if let Some(system) = &options.system {
+            format!("{}\n\n{}", system, prompt)
+        } else {
+            prompt.to_string()
+        };
+
+        match self {
+            RigProvider::Claude(client) => {
+                let model = client.completion_model(model_id);
+                let mut request_builder = model
+                    .completion_request(&full_prompt)
+                    .max_tokens(max_tokens as u64);
+
+                if let Some(temp) = options.temperature {
+                    request_builder = request_builder.temperature(temp);
+                }
+
+                let request = request_builder.build();
+
+                let mut stream = model
+                    .stream(request)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                loop {
+                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                        Ok(Some(result)) => result,
+                        Ok(None) => break,
+                        Err(_elapsed) => {
+                            let _ = tx.try_send(StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            )));
+                            return Err(RigInferError::Timeout {
+                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                            });
+                        }
+                    };
+
+                    match chunk_result {
+                        Ok(content) => match content {
+                            StreamedAssistantContent::Text(text) => {
+                                response_parts.push(text.text.clone());
+                                let _ = tx.try_send(StreamChunk::Token(text.text));
+                            }
+                            StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
+                                let _ = tx.try_send(StreamChunk::Thinking(reasoning));
+                            }
+                            StreamedAssistantContent::Final(response) => {
+                                if let Some(usage) = response.token_usage() {
+                                    result.input_tokens = usage.input_tokens;
+                                    result.output_tokens = usage.output_tokens;
+                                    result.total_tokens = usage.total_tokens;
+                                    result.cached_input_tokens = usage.cached_input_tokens;
+                                }
+                            }
+                            _ => {}
+                        },
+                        Err(e) => {
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
+                }
+            }
+            RigProvider::OpenAI(client) => {
+                let model = client.completion_model(model_id);
+                let mut request_builder = model
+                    .completion_request(&full_prompt)
+                    .max_tokens(max_tokens as u64);
+
+                if let Some(temp) = options.temperature {
+                    request_builder = request_builder.temperature(temp);
+                }
+
+                let request = request_builder.build();
+
+                let mut stream = model
+                    .stream(request)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                loop {
+                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                        Ok(Some(result)) => result,
+                        Ok(None) => break,
+                        Err(_elapsed) => {
+                            let _ = tx.try_send(StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            )));
+                            return Err(RigInferError::Timeout {
+                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                            });
+                        }
+                    };
+
+                    match chunk_result {
+                        Ok(content) => match content {
+                            StreamedAssistantContent::Text(text) => {
+                                response_parts.push(text.text.clone());
+                                let _ = tx.try_send(StreamChunk::Token(text.text));
+                            }
+                            StreamedAssistantContent::Final(response) => {
+                                if let Some(usage) = response.token_usage() {
+                                    result.input_tokens = usage.input_tokens;
+                                    result.output_tokens = usage.output_tokens;
+                                    result.total_tokens = usage.total_tokens;
+                                    result.cached_input_tokens = usage.cached_input_tokens;
+                                }
+                            }
+                            _ => {}
+                        },
+                        Err(e) => {
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
+                }
+            }
+            RigProvider::Mistral(client) => {
+                let model = client.completion_model(model_id);
+                let mut request_builder = model
+                    .completion_request(&full_prompt)
+                    .max_tokens(max_tokens as u64);
+
+                if let Some(temp) = options.temperature {
+                    request_builder = request_builder.temperature(temp);
+                }
+
+                let request = request_builder.build();
+
+                let mut stream = model
+                    .stream(request)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                loop {
+                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                        Ok(Some(result)) => result,
+                        Ok(None) => break,
+                        Err(_elapsed) => {
+                            let _ = tx.try_send(StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            )));
+                            return Err(RigInferError::Timeout {
+                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                            });
+                        }
+                    };
+
+                    match chunk_result {
+                        Ok(content) => match content {
+                            StreamedAssistantContent::Text(text) => {
+                                response_parts.push(text.text.clone());
+                                let _ = tx.try_send(StreamChunk::Token(text.text));
+                            }
+                            StreamedAssistantContent::Final(response) => {
+                                if let Some(usage) = response.token_usage() {
+                                    result.input_tokens = usage.input_tokens;
+                                    result.output_tokens = usage.output_tokens;
+                                    result.total_tokens = usage.total_tokens;
+                                    result.cached_input_tokens = usage.cached_input_tokens;
+                                }
+                            }
+                            _ => {}
+                        },
+                        Err(e) => {
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
+                }
+            }
+            RigProvider::Ollama(client) => {
+                let model = client.completion_model(model_id);
+                let mut request_builder = model.completion_request(&full_prompt);
+
+                if let Some(temp) = options.temperature {
+                    request_builder = request_builder.temperature(temp);
+                }
+
+                let request = request_builder.build();
+
+                let mut stream = model
+                    .stream(request)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                loop {
+                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                        Ok(Some(result)) => result,
+                        Ok(None) => break,
+                        Err(_elapsed) => {
+                            let _ = tx.try_send(StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            )));
+                            return Err(RigInferError::Timeout {
+                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                            });
+                        }
+                    };
+
+                    match chunk_result {
+                        Ok(content) => match content {
+                            StreamedAssistantContent::Text(text) => {
+                                response_parts.push(text.text.clone());
+                                let _ = tx.try_send(StreamChunk::Token(text.text));
+                            }
+                            StreamedAssistantContent::Final(response) => {
+                                if let Some(usage) = response.token_usage() {
+                                    result.input_tokens = usage.input_tokens;
+                                    result.output_tokens = usage.output_tokens;
+                                    result.total_tokens = usage.total_tokens;
+                                    result.cached_input_tokens = usage.cached_input_tokens;
+                                }
+                            }
+                            _ => {}
+                        },
+                        Err(e) => {
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
+                }
+            }
+            RigProvider::Groq(client) => {
+                let model = client.completion_model(model_id);
+                let mut request_builder = model
+                    .completion_request(&full_prompt)
+                    .max_tokens(max_tokens as u64);
+
+                if let Some(temp) = options.temperature {
+                    request_builder = request_builder.temperature(temp);
+                }
+
+                let request = request_builder.build();
+
+                let mut stream = model
+                    .stream(request)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                loop {
+                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                        Ok(Some(result)) => result,
+                        Ok(None) => break,
+                        Err(_elapsed) => {
+                            let _ = tx.try_send(StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            )));
+                            return Err(RigInferError::Timeout {
+                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                            });
+                        }
+                    };
+
+                    match chunk_result {
+                        Ok(content) => match content {
+                            StreamedAssistantContent::Text(text) => {
+                                response_parts.push(text.text.clone());
+                                let _ = tx.try_send(StreamChunk::Token(text.text));
+                            }
+                            StreamedAssistantContent::Final(response) => {
+                                if let Some(usage) = response.token_usage() {
+                                    result.input_tokens = usage.input_tokens;
+                                    result.output_tokens = usage.output_tokens;
+                                    result.total_tokens = usage.total_tokens;
+                                    result.cached_input_tokens = usage.cached_input_tokens;
+                                }
+                            }
+                            _ => {}
+                        },
+                        Err(e) => {
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
+                }
+            }
+            RigProvider::DeepSeek(client) => {
+                let model = client.completion_model(model_id);
+                let mut request_builder = model
+                    .completion_request(&full_prompt)
+                    .max_tokens(max_tokens as u64);
+
+                if let Some(temp) = options.temperature {
+                    request_builder = request_builder.temperature(temp);
+                }
+
+                let request = request_builder.build();
+
+                let mut stream = model
+                    .stream(request)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                loop {
+                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                        Ok(Some(result)) => result,
+                        Ok(None) => break,
+                        Err(_elapsed) => {
+                            let _ = tx.try_send(StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            )));
+                            return Err(RigInferError::Timeout {
+                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                            });
+                        }
+                    };
+
+                    match chunk_result {
+                        Ok(content) => match content {
+                            StreamedAssistantContent::Text(text) => {
+                                response_parts.push(text.text.clone());
+                                let _ = tx.try_send(StreamChunk::Token(text.text));
+                            }
+                            StreamedAssistantContent::Final(response) => {
+                                if let Some(usage) = response.token_usage() {
+                                    result.input_tokens = usage.input_tokens;
+                                    result.output_tokens = usage.output_tokens;
+                                    result.total_tokens = usage.total_tokens;
+                                    result.cached_input_tokens = usage.cached_input_tokens;
+                                }
+                            }
+                            _ => {}
+                        },
+                        Err(e) => {
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
+                }
+            }
+            // v0.15.0: Gemini provider streaming with options
+            RigProvider::Gemini(client) => {
+                let model = client.completion_model(model_id);
+                let mut request_builder = model
+                    .completion_request(&full_prompt)
+                    .max_tokens(max_tokens as u64);
+
+                if let Some(temp) = options.temperature {
+                    request_builder = request_builder.temperature(temp);
+                }
+
+                let request = request_builder.build();
+
+                let mut stream = model
+                    .stream(request)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                loop {
+                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                        Ok(Some(result)) => result,
+                        Ok(None) => break,
+                        Err(_elapsed) => {
+                            let _ = tx.try_send(StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            )));
+                            return Err(RigInferError::Timeout {
+                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                            });
+                        }
+                    };
+
+                    match chunk_result {
+                        Ok(content) => match content {
+                            StreamedAssistantContent::Text(text) => {
+                                response_parts.push(text.text.clone());
+                                let _ = tx.try_send(StreamChunk::Token(text.text));
+                            }
+                            StreamedAssistantContent::Final(response) => {
+                                if let Some(usage) = response.token_usage() {
+                                    result.input_tokens = usage.input_tokens;
+                                    result.output_tokens = usage.output_tokens;
+                                    result.total_tokens = usage.total_tokens;
+                                    result.cached_input_tokens = usage.cached_input_tokens;
+                                }
+                            }
+                            _ => {}
+                        },
+                        Err(e) => {
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
+                }
+            }
+        }
+
+        let complete_response = response_parts.concat();
+        let _ = tx.try_send(StreamChunk::Done(complete_response.clone()));
+
         let _ = tx.try_send(StreamChunk::Metrics {
             input_tokens: result.input_tokens,
             output_tokens: result.output_tokens,
@@ -1877,5 +2517,86 @@ mod tests {
         assert!(RigProvider::groq().is_configured());
         assert!(RigProvider::deepseek().is_configured());
         assert!(RigProvider::ollama().is_configured());
+    }
+
+    // =========================================================================
+    // v0.15.0: InferOptions Tests
+    // =========================================================================
+
+    #[test]
+    fn test_infer_options_default() {
+        let opts = InferOptions::default();
+        assert!(opts.model.is_none());
+        assert!(opts.temperature.is_none());
+        assert!(opts.max_tokens.is_none());
+        assert!(opts.system.is_none());
+    }
+
+    #[test]
+    fn test_infer_options_with_all_fields() {
+        let opts = InferOptions {
+            model: Some("gpt-4o".to_string()),
+            temperature: Some(0.7),
+            max_tokens: Some(2000),
+            system: Some("You are a helpful assistant.".to_string()),
+        };
+        assert_eq!(opts.model.as_deref(), Some("gpt-4o"));
+        assert_eq!(opts.temperature, Some(0.7));
+        assert_eq!(opts.max_tokens, Some(2000));
+        assert_eq!(opts.system.as_deref(), Some("You are a helpful assistant."));
+    }
+
+    #[test]
+    fn test_infer_options_partial_fields() {
+        let opts = InferOptions {
+            temperature: Some(0.5),
+            ..Default::default()
+        };
+        assert!(opts.model.is_none());
+        assert_eq!(opts.temperature, Some(0.5));
+        assert!(opts.max_tokens.is_none());
+        assert!(opts.system.is_none());
+    }
+
+    #[test]
+    fn test_infer_options_temperature_zero() {
+        let opts = InferOptions {
+            temperature: Some(0.0),
+            ..Default::default()
+        };
+        assert_eq!(opts.temperature, Some(0.0));
+    }
+
+    #[test]
+    fn test_infer_options_max_tokens_small() {
+        let opts = InferOptions {
+            max_tokens: Some(1),
+            ..Default::default()
+        };
+        assert_eq!(opts.max_tokens, Some(1));
+    }
+
+    #[test]
+    fn test_infer_options_system_empty_string() {
+        let opts = InferOptions {
+            system: Some(String::new()),
+            ..Default::default()
+        };
+        assert_eq!(opts.system.as_deref(), Some(""));
+    }
+
+    #[test]
+    fn test_infer_options_clone() {
+        let opts = InferOptions {
+            model: Some("test-model".to_string()),
+            temperature: Some(0.8),
+            max_tokens: Some(1000),
+            system: Some("Test system".to_string()),
+        };
+        let cloned = opts.clone();
+        assert_eq!(opts.model, cloned.model);
+        assert_eq!(opts.temperature, cloned.temperature);
+        assert_eq!(opts.max_tokens, cloned.max_tokens);
+        assert_eq!(opts.system, cloned.system);
     }
 }

@@ -740,8 +740,7 @@ flows:
             action: TaskAction::Infer {
                 infer: InferParams {
                     prompt: "Generate based on {{use.data}}".to_string(),
-                    provider: None,
-                    model: None,
+                    ..Default::default()
                 },
             },
             use_wiring: Some({
@@ -768,8 +767,7 @@ flows:
             action: TaskAction::Infer {
                 infer: InferParams {
                     prompt: "Generate based on {{use.missing}}".to_string(),
-                    provider: None,
-                    model: None,
+                    ..Default::default()
                 },
             },
             use_wiring: Some({
@@ -798,8 +796,7 @@ flows:
             action: TaskAction::Infer {
                 infer: InferParams {
                     prompt: "Process {{use.item}}".to_string(),
-                    provider: None,
-                    model: None,
+                    ..Default::default()
                 },
             },
             use_wiring: None,

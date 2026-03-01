@@ -461,7 +461,9 @@ schema: "nika/workflow@0.5"
 provider: mock
 tasks:
   - id: timed
-    exec: "sleep 0.1 && echo done"
+    exec:
+      command: "sleep 0.1 && echo done"
+      shell: true
 "#,
     )
     .unwrap();

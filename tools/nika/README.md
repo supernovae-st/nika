@@ -1,9 +1,9 @@
 # Nika
 
 [![ARMADA](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml)
-[![Version](https://img.shields.io/badge/version-0.14.3-blue?logo=rust&logoColor=white)](Cargo.toml)
+[![Version](https://img.shields.io/badge/version-0.15.0-blue?logo=rust&logoColor=white)](Cargo.toml)
 [![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](../../docs/plans/2025-02-25-nika-fortress-design.md)
-[![Tests](https://img.shields.io/badge/tests-3211%20passing-brightgreen)](src/)
+[![Tests](https://img.shields.io/badge/tests-4369%20passing-brightgreen)](src/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](../../LICENSE)
 
 DAG workflow runner for AI tasks with MCP integration.
@@ -43,33 +43,36 @@ cargo build --release
 ./target/release/nika --help
 ```
 
-## v0.14.3 Features
+## v0.15.0 Features
 
-- **context: Field (Schema @0.9)** - Load files at workflow start
+- **Security Hardening: Shell-Free Execution** (BREAKING)
+  - `exec:` now defaults to `shell: false` for security
+  - Command parsing via shlex (no shell injection)
+  - New error code: `NIKA-053 BlockedCommand`
   ```yaml
-  schema: nika/workflow@0.9
-  context:
-    files:
-      brand: ./context/brand.md
-      config: ./context/settings.json
-  tasks:
-    - id: generate
-      infer: "Use brand guidelines: {{context.files.brand}}"
+  # Default: shell-free (v0.15.0)
+  - id: safe_exec
+    exec: "echo 'Hello World'"  # Parsed via shlex
+
+  # Opt-in shell mode for pipes/redirects
+  - id: pipeline
+    exec:
+      command: "cat file.txt | grep pattern"
+      shell: true
   ```
-- **include: DAG Fusion** - Merge external workflows with prefix namespacing
+- **Infer LLM Control Parity** - `temperature`, `system`, `max_tokens` support
   ```yaml
-  schema: nika/workflow@0.9
-  include:
-    - path: ./partials/setup.nika.yaml
-      prefix: setup_
-  tasks:
-    - id: main
-      infer: "Main logic"
-      depends_on: [setup_init]
+  - id: creative
+    infer:
+      prompt: "Generate tagline"
+      temperature: 0.9
+      system: "You are a marketing expert"
+      max_tokens: 100
   ```
-- **Schema @0.9** - Full support for context: and include: features
-- **Path Traversal Security** - `validate_path_boundary()` prevents `../../../` attacks
-- **3,211 tests passing** (path validation tests added)
+- **Gemini Provider (7th provider)** - `RigProvider::gemini()`, full streaming
+- **File Tools (5 new builtin)** - `nika:read`, `nika:write`, `nika:edit`, `nika:glob`, `nika:grep`
+- **11 builtin tools total** (6 core + 5 file)
+- **4,369 tests passing** (security + file tools tests)
 
 ## Features
 

@@ -1,0 +1,42 @@
+# Test: Gemini Provider (v0.15.0)
+# Tests the new Gemini provider integration via rig-core
+# Run with: GEMINI_API_KEY=... nika examples/v15-gemini-provider.nika.yaml
+
+schema: "nika/workflow@0.9"
+provider: gemini
+
+tasks:
+  # Test basic inference with Gemini
+  - id: generate_tagline
+    infer:
+      prompt: "Generate a catchy tagline for an AI-powered QR code generator. Be creative!"
+      temperature: 0.8
+      max_tokens: 100
+    output:
+      format: text
+
+  # Test Gemini with system prompt
+  - id: generate_description
+    use:
+      tagline: generate_tagline
+    infer:
+      prompt: "Write a 2-sentence product description using this tagline: {{use.tagline}}"
+      system: "You are a marketing copywriter. Be concise and impactful."
+      temperature: 0.6
+      max_tokens: 150
+    output:
+      format: text
+
+  # Test Gemini agent mode
+  - id: research_agent
+    agent:
+      prompt: "What are the top 3 use cases for QR codes in 2025? Be specific and practical."
+      provider: gemini
+      model: gemini-2.0-flash
+      max_turns: 2
+    output:
+      format: text
+
+flows:
+  - source: generate_tagline
+    target: generate_description

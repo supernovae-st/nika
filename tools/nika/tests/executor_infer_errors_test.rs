@@ -40,6 +40,9 @@ fn infer_params(prompt: &str) -> InferParams {
         prompt: prompt.to_string(),
         model: None,
         provider: None,
+        temperature: None,
+        max_tokens: None,
+        system: None,
     }
 }
 
@@ -301,6 +304,9 @@ async fn test_infer_unknown_provider() {
             prompt: "Test prompt".to_string(),
             model: None,
             provider: Some("unknown_provider".to_string()),
+            temperature: None,
+            max_tokens: None,
+            system: None,
         },
     };
     let bindings = ResolvedBindings::new();
