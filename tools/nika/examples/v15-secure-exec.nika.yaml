@@ -29,20 +29,18 @@ tasks:
     output:
       format: text
 
-  # Test 4: Working directory support
-  - id: check_cwd
+  # Test 4: Shell-free with multiple arguments
+  - id: echo_args
     exec:
-      command: "pwd"
-      cwd: "/tmp"
+      command: "echo arg1 arg2 arg3"
       shell: false
     output:
       format: text
 
-  # Test 5: Timeout protection
-  - id: quick_task
+  # Test 5: Shell-free with quotes (shlex parsing)
+  - id: quoted_echo
     exec:
-      command: "echo 'fast'"
-      timeout: 5
+      command: "echo 'quoted string with spaces'"
       shell: false
     output:
       format: text
@@ -52,8 +50,8 @@ tasks:
       files: list_files
       safe: safe_echo
       pipeline: pipeline_example
-      cwd: check_cwd
-      quick: quick_task
+      args: echo_args
+      quoted: quoted_echo
     exec: "echo 'All secure exec tests completed successfully'"
 
 flows:
@@ -63,7 +61,7 @@ flows:
     target: summary
   - source: pipeline_example
     target: summary
-  - source: check_cwd
+  - source: echo_args
     target: summary
-  - source: quick_task
+  - source: quoted_echo
     target: summary

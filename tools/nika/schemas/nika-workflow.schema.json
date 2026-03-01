@@ -32,9 +32,9 @@
     },
     "provider": {
       "type": "string",
-      "enum": ["claude", "openai", "mistral", "groq", "deepseek", "ollama", "mock"],
+      "enum": ["claude", "openai", "mistral", "groq", "deepseek", "ollama", "gemini", "mock"],
       "default": "claude",
-      "description": "Default LLM provider for tasks (v0.6+: 6 providers via rig-core)"
+      "description": "Default LLM provider for tasks (v0.15.0: 7 providers via rig-core)"
     },
     "model": {
       "type": "string",
@@ -120,7 +120,7 @@
             },
             "provider": {
               "type": "string",
-              "enum": ["claude", "openai", "mistral", "groq", "deepseek", "ollama", "mock"],
+              "enum": ["claude", "openai", "mistral", "groq", "deepseek", "ollama", "gemini", "mock"],
               "default": "claude",
               "description": "LLM provider for this agent"
             },
