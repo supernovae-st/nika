@@ -178,7 +178,8 @@ fn load_included_workflow(path: &Path) -> Result<Workflow, NikaError> {
 ///
 /// - Tasks are added with optional prefix
 /// - Flows are rewritten to use prefixed IDs
-/// - Other fields (agents, skills, context) are NOT merged (use top-level only)
+/// - Skills are merged (main workflow skills take precedence)
+/// - Other fields (agents, context) are NOT merged (use top-level only)
 fn merge_workflow(
     main: &mut Workflow,
     included: Workflow,
@@ -194,6 +195,22 @@ fn merge_workflow(
     for flow in included.flows {
         let prefixed_flow = prefix_flow(flow, prefix);
         main.flows.push(prefixed_flow);
+    }
+
+    // Merge skills (main workflow skills take precedence)
+    if let Some(included_skills) = included.skills {
+        match main.skills.as_mut() {
+            Some(main_skills) => {
+                // Insert included skills that don't exist in main
+                for (alias, skill_path) in included_skills {
+                    main_skills.entry(alias).or_insert(skill_path);
+                }
+            }
+            None => {
+                // Main has no skills, use included skills
+                main.skills = Some(included_skills);
+            }
+        }
     }
 
     Ok(())
@@ -729,5 +746,179 @@ tasks:
         // Invalid path outside boundary
         let result = validate_path_boundary(&project, &outside_file);
         assert!(result.is_err());
+    }
+
+    // ============================================================================
+    // SKILL MERGING TESTS (v0.15.1 - Sub-Plan 1: Wire Existing Skills)
+    // ============================================================================
+
+    #[test]
+    fn test_expand_includes_merges_skills_from_included_workflow() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create included workflow with skills
+        let included_yaml = r#"
+schema: nika/workflow@0.9
+provider: claude
+skills:
+  code_review: "./skills/code-review.md"
+  testing: "./skills/testing.md"
+tasks:
+  - id: helper
+    infer: "Help with something"
+"#;
+        std::fs::write(temp_dir.path().join("included.nika.yaml"), included_yaml).unwrap();
+
+        // Create main workflow WITHOUT skills, but with include
+        let mut workflow = make_test_workflow();
+        workflow.include = Some(vec![IncludeSpec {
+            path: "included.nika.yaml".to_string(),
+            prefix: None,
+        }]);
+
+        // Expand includes - this should merge skills from included workflow
+        let result = expand_includes(workflow, temp_dir.path()).unwrap();
+
+        // ASSERT: Skills from included workflow should be present
+        assert!(
+            result.skills.is_some(),
+            "Skills should be merged from included workflow"
+        );
+        let skills = result.skills.unwrap();
+        assert_eq!(
+            skills.len(),
+            2,
+            "Should have 2 skills from included workflow"
+        );
+        assert!(
+            skills.contains_key("code_review"),
+            "Should have code_review skill"
+        );
+        assert!(skills.contains_key("testing"), "Should have testing skill");
+    }
+
+    #[test]
+    fn test_expand_includes_main_workflow_skills_override_included() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create included workflow with skills
+        let included_yaml = r#"
+schema: nika/workflow@0.9
+provider: claude
+skills:
+  shared: "./skills/included-shared.md"
+  only_included: "./skills/only-included.md"
+tasks:
+  - id: helper
+    infer: "Help"
+"#;
+        std::fs::write(temp_dir.path().join("included.nika.yaml"), included_yaml).unwrap();
+
+        // Create main workflow WITH skills (including one that conflicts)
+        let mut workflow = make_test_workflow();
+        let mut main_skills = rustc_hash::FxHashMap::default();
+        main_skills.insert("shared".to_string(), "./skills/main-shared.md".to_string());
+        main_skills.insert("only_main".to_string(), "./skills/only-main.md".to_string());
+        workflow.skills = Some(main_skills);
+        workflow.include = Some(vec![IncludeSpec {
+            path: "included.nika.yaml".to_string(),
+            prefix: None,
+        }]);
+
+        // Expand includes
+        let result = expand_includes(workflow, temp_dir.path()).unwrap();
+
+        // ASSERT: Should have all skills, with main workflow taking precedence
+        let skills = result.skills.expect("Skills should be present");
+        assert_eq!(
+            skills.len(),
+            3,
+            "Should have 3 unique skills (merged + deduplicated)"
+        );
+
+        // Main workflow skill should override included
+        let shared_skill = skills.get("shared").expect("shared skill should exist");
+        assert!(
+            shared_skill.contains("main-shared"),
+            "Main workflow skill should take precedence over included: got {}",
+            shared_skill
+        );
+
+        // Both unique skills should be present
+        assert!(
+            skills.contains_key("only_main"),
+            "Main-only skill should be present"
+        );
+        assert!(
+            skills.contains_key("only_included"),
+            "Included-only skill should be present"
+        );
+    }
+
+    #[test]
+    fn test_expand_includes_skills_from_multiple_includes() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create first included workflow with skills
+        let included1_yaml = r#"
+schema: nika/workflow@0.9
+provider: claude
+skills:
+  skill_a: "./skills/a.md"
+  shared: "./skills/shared-from-first.md"
+tasks:
+  - id: task1
+    infer: "Task 1"
+"#;
+        std::fs::write(temp_dir.path().join("first.nika.yaml"), included1_yaml).unwrap();
+
+        // Create second included workflow with skills
+        let included2_yaml = r#"
+schema: nika/workflow@0.9
+provider: claude
+skills:
+  skill_b: "./skills/b.md"
+  shared: "./skills/shared-from-second.md"
+tasks:
+  - id: task2
+    infer: "Task 2"
+"#;
+        std::fs::write(temp_dir.path().join("second.nika.yaml"), included2_yaml).unwrap();
+
+        // Create main workflow with includes
+        let mut workflow = make_test_workflow();
+        workflow.include = Some(vec![
+            IncludeSpec {
+                path: "first.nika.yaml".to_string(),
+                prefix: Some("first_".to_string()),
+            },
+            IncludeSpec {
+                path: "second.nika.yaml".to_string(),
+                prefix: Some("second_".to_string()),
+            },
+        ]);
+
+        // Expand includes
+        let result = expand_includes(workflow, temp_dir.path()).unwrap();
+
+        // ASSERT: Should have skills from both includes
+        let skills = result.skills.expect("Skills should be present");
+
+        // Should have skill_a, skill_b, and one shared (first should win due to order)
+        assert_eq!(
+            skills.len(),
+            3,
+            "Should have 3 skills (skill_a + skill_b + one shared)"
+        );
+        assert!(skills.contains_key("skill_a"), "Should have skill_a");
+        assert!(skills.contains_key("skill_b"), "Should have skill_b");
+
+        // First include should win for shared skill (processed first)
+        let shared = skills.get("shared").expect("shared skill should exist");
+        assert!(
+            shared.contains("shared-from-first"),
+            "First included workflow's skill should take precedence: got {}",
+            shared
+        );
     }
 }
