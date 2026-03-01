@@ -1,0 +1,62 @@
+# Partial: Setup Phase
+# Included in main workflow via `include:` directive
+# All task IDs will be prefixed with "setup_" in main workflow
+#
+# v0.15.0: All exec tasks use shell: true since they rely on shell features
+# (tilde expansion, command substitution, environment variables)
+
+schema: nika/workflow@0.9
+workflow: setup-partial
+description: Setup tasks for feature-test-demo (included partial)
+
+tasks:
+  # Task 1: Create output directory
+  # Uses ~ (tilde expansion) which requires shell
+  - id: create_output_dir
+    exec:
+      command: mkdir -p ~/Desktop/output
+      shell: true
+
+  # Task 2: Fetch health check (test fetch: verb)
+  - id: health_check
+    depends_on:
+      - create_output_dir
+    fetch:
+      url: https://httpbin.org/get
+      method: GET
+      headers:
+        User-Agent: Nika-Feature-Test/1.0
+
+  # Task 3: Generate timestamp metadata
+  # Uses $() command substitution which requires shell
+  - id: generate_meta
+    depends_on:
+      - health_check
+    exec:
+      command: |
+        echo "{\"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\", \"workflow\": \"feature-test-demo\", \"version\": \"0.15.0\"}"
+      shell: true
+    output:
+      format: json
+
+  # Task 4: Validate environment (parallel with health_check)
+  # Uses $() and environment variables which require shell
+  - id: validate_env
+    depends_on:
+      - create_output_dir
+    exec:
+      command: |
+        echo "{\"anthropic_key\": \"$([ -n \"$ANTHROPIC_API_KEY\" ] && echo 'set' || echo 'missing')\", \"perplexity_key\": \"$([ -n \"$PERPLEXITY_API_KEY\" ] && echo 'set' || echo 'missing')\", \"firecrawl_key\": \"$([ -n \"$FIRECRAWL_API_KEY\" ] && echo 'set' || echo 'missing')\"}"
+      shell: true
+    output:
+      format: json
+
+flows:
+  # Parallel setup: health_check and validate_env run after dir creation
+  - source: create_output_dir
+    target: health_check
+  - source: create_output_dir
+    target: validate_env
+  # Meta generation happens after health check
+  - source: health_check
+    target: generate_meta

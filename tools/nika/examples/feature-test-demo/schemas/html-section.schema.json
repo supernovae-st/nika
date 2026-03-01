@@ -1,0 +1,143 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "nika://feature-test-demo/html-section",
+  "title": "HTMLSectionOutput",
+  "description": "Schema for HTML section generation with strict validation",
+  "type": "object",
+  "required": ["section_type", "html", "styles", "accessibility"],
+  "properties": {
+    "section_type": {
+      "type": "string",
+      "enum": ["header", "main", "footer", "nav", "aside", "article"]
+    },
+    "html": {
+      "type": "object",
+      "required": ["tag", "content"],
+      "properties": {
+        "tag": { "type": "string", "pattern": "^[a-z][a-z0-9]*$" },
+        "id": { "type": "string", "pattern": "^[a-zA-Z][a-zA-Z0-9-_]*$" },
+        "classes": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-zA-Z][a-zA-Z0-9-_]*$" }
+        },
+        "attributes": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "content": {
+          "oneOf": [
+            { "type": "string" },
+            {
+              "type": "array",
+              "items": { "$ref": "#/properties/html" }
+            }
+          ]
+        }
+      }
+    },
+    "styles": {
+      "type": "object",
+      "properties": {
+        "inline": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "classes_definition": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["selector", "rules"],
+            "properties": {
+              "selector": { "type": "string" },
+              "rules": {
+                "type": "object",
+                "additionalProperties": { "type": "string" }
+              },
+              "media_query": { "type": "string" }
+            }
+          }
+        },
+        "theme": {
+          "type": "object",
+          "properties": {
+            "primary_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+            "secondary_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+            "background_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+            "text_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+            "font_family": { "type": "string" },
+            "font_size_base": { "type": "string", "pattern": "^[0-9]+(px|rem|em)$" }
+          }
+        }
+      }
+    },
+    "accessibility": {
+      "type": "object",
+      "required": ["aria_labels", "semantic_structure"],
+      "properties": {
+        "aria_labels": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "semantic_structure": {
+          "type": "boolean"
+        },
+        "keyboard_navigable": {
+          "type": "boolean"
+        },
+        "screen_reader_hints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["element_id", "hint"],
+            "properties": {
+              "element_id": { "type": "string" },
+              "hint": { "type": "string" }
+            }
+          }
+        },
+        "contrast_ratio": {
+          "type": "number",
+          "minimum": 4.5,
+          "description": "WCAG AA minimum contrast ratio"
+        }
+      }
+    },
+    "scripts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "content"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["inline", "module", "external"]
+          },
+          "content": { "type": "string" },
+          "async": { "type": "boolean" },
+          "defer": { "type": "boolean" }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "properties": {
+        "css_frameworks": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "js_libraries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "version"],
+            "properties": {
+              "name": { "type": "string" },
+              "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+.*$" },
+              "cdn_url": { "type": "string", "format": "uri" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
