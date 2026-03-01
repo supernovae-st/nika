@@ -77,7 +77,7 @@ Cargo workspace for Nika — semantic YAML workflow engine for AI tasks.
 
 Nika is the "body" of the SuperNovae AGI architecture, executing workflows that leverage NovaNet's "brain".
 
-**Current Version**: v0.16.0 — Removed pkg commands (migrated to spn CLI) + TaskBox Inline Rendering
+**Current Version**: v0.16.1 — Documentation fixes, ARMADA validation complete
 **Tests**: 3,358+ passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
 **Target Application**: QR Code AI (https://qrcode-ai.com)
 

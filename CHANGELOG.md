@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-03-01
+
+### Added
+- Documentation and versioning consistency fixes
+- All v0.16.0 features verified and tested
+
+### Statistics
+- **3,358 tests passing**
+- **Zero clippy warnings**
+- **All ARMADA checkpoints passing**
+
 ## [0.16.0] - 2026-03-01
 
 ### Breaking Changes
