@@ -261,8 +261,7 @@ skills: [seo, brand]
     #[test]
     fn test_resolve_skill_path_pkg_uri() {
         let base_dir = Path::new("/project");
-        let result =
-            resolve_skill_path("pkg:@supernovae/skills@1.0.0/rust.md", base_dir).unwrap();
+        let result = resolve_skill_path("pkg:@supernovae/skills@1.0.0/rust.md", base_dir).unwrap();
         let expected = dirs::home_dir()
             .unwrap()
             .join(".spn/packages/@supernovae/skills/1.0.0/rust.md");

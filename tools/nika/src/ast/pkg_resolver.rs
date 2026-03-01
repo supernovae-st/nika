@@ -73,10 +73,12 @@ impl PkgUri {
     /// Returns `NikaError::InvalidPkgUri` if the URI is malformed.
     pub fn parse(uri: &str) -> Result<Self, NikaError> {
         // Must start with "pkg:"
-        let rest = uri.strip_prefix("pkg:").ok_or_else(|| NikaError::InvalidPkgUri {
-            uri: uri.to_string(),
-            reason: "URI must start with 'pkg:'".to_string(),
-        })?;
+        let rest = uri
+            .strip_prefix("pkg:")
+            .ok_or_else(|| NikaError::InvalidPkgUri {
+                uri: uri.to_string(),
+                reason: "URI must start with 'pkg:'".to_string(),
+            })?;
 
         // Empty after prefix
         if rest.is_empty() {
@@ -110,10 +112,12 @@ impl PkgUri {
 
         // Now parse name[@version]/path from after_scope
         // Find the first slash (separates name[@version] from path)
-        let first_slash = after_scope.find('/').ok_or_else(|| NikaError::InvalidPkgUri {
-            uri: uri.to_string(),
-            reason: "URI must include a path after package name".to_string(),
-        })?;
+        let first_slash = after_scope
+            .find('/')
+            .ok_or_else(|| NikaError::InvalidPkgUri {
+                uri: uri.to_string(),
+                reason: "URI must include a path after package name".to_string(),
+            })?;
 
         let name_version = &after_scope[..first_slash];
         let path = &after_scope[first_slash + 1..];
@@ -156,7 +160,12 @@ impl PkgUri {
         // Validate path doesn't escape package
         Self::validate_path(path, uri)?;
 
-        Ok(Self { scope, name, version, path: path.to_string() })
+        Ok(Self {
+            scope,
+            name,
+            version,
+            path: path.to_string(),
+        })
     }
 
     /// Resolve the URI to a filesystem path
@@ -476,8 +485,7 @@ mod tests {
         let resolved = uri.resolve().unwrap();
 
         let home = dirs::home_dir().unwrap();
-        let expected =
-            home.join(".spn/packages/@spn/writing/1.0.0/skills/mermaid/SKILL.md");
+        let expected = home.join(".spn/packages/@spn/writing/1.0.0/skills/mermaid/SKILL.md");
         assert_eq!(resolved, expected);
     }
 

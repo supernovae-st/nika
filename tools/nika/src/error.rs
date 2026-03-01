@@ -506,7 +506,6 @@ pub enum NikaError {
     )]
     PackageNotFound { name: String, version: String },
 
-
     // ═══════════════════════════════════════════
     // SKILL ERRORS (270-279) - v0.15.4 (Skill Injection)
     // ═══════════════════════════════════════════

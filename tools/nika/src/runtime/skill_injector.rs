@@ -72,7 +72,11 @@ impl SkillInjector {
     /// let injector = SkillInjector::new();
     /// let content = injector.load_skill("./skills/seo.skill.md", Path::new("/project")).await?;
     /// ```
-    pub async fn load_skill(&self, skill_path: &str, base_dir: &Path) -> Result<Arc<str>, NikaError> {
+    pub async fn load_skill(
+        &self,
+        skill_path: &str,
+        base_dir: &Path,
+    ) -> Result<Arc<str>, NikaError> {
         // Resolve the skill path (handles both local and pkg: URIs)
         let resolved_path = resolve_skill_path(skill_path, base_dir)?;
         let cache_key = resolved_path.to_string_lossy().to_string();
@@ -84,12 +88,13 @@ impl SkillInjector {
         }
 
         // Load file content
-        let content = fs::read_to_string(&resolved_path)
-            .await
-            .map_err(|e| NikaError::SkillLoadError {
-                skill: skill_path.to_string(),
-                reason: format!("Failed to read file '{}': {}", resolved_path.display(), e),
-            })?;
+        let content =
+            fs::read_to_string(&resolved_path)
+                .await
+                .map_err(|e| NikaError::SkillLoadError {
+                    skill: skill_path.to_string(),
+                    reason: format!("Failed to read file '{}': {}", resolved_path.display(), e),
+                })?;
 
         let content: Arc<str> = content.into();
 
@@ -143,16 +148,17 @@ impl SkillInjector {
         // Load each skill
         for skill_name in skill_names {
             // Get path from skills map
-            let skill_path = skills_map.get(*skill_name).ok_or_else(|| {
-                NikaError::SkillLoadError {
-                    skill: skill_name.to_string(),
-                    reason: format!(
-                        "Skill '{}' not found in workflow skills: block. Available: {:?}",
-                        skill_name,
-                        skills_map.keys().collect::<Vec<_>>()
-                    ),
-                }
-            })?;
+            let skill_path =
+                skills_map
+                    .get(*skill_name)
+                    .ok_or_else(|| NikaError::SkillLoadError {
+                        skill: skill_name.to_string(),
+                        reason: format!(
+                            "Skill '{}' not found in workflow skills: block. Available: {:?}",
+                            skill_name,
+                            skills_map.keys().collect::<Vec<_>>()
+                        ),
+                    })?;
 
             // Load skill content (uses cache)
             match self.load_skill(skill_path, base_dir).await {
@@ -224,14 +230,20 @@ mod tests {
 
         // Create test skill files
         let seo_path = skills_dir.join("seo.skill.md");
-        write(&seo_path, "# SEO Writer\n\nYou are an expert SEO content writer.\n")
-            .await
-            .unwrap();
+        write(
+            &seo_path,
+            "# SEO Writer\n\nYou are an expert SEO content writer.\n",
+        )
+        .await
+        .unwrap();
 
         let brand_path = skills_dir.join("brand.skill.md");
-        write(&brand_path, "# Brand Voice\n\nMaintain a friendly, professional tone.\n")
-            .await
-            .unwrap();
+        write(
+            &brand_path,
+            "# Brand Voice\n\nMaintain a friendly, professional tone.\n",
+        )
+        .await
+        .unwrap();
 
         let mut skills_map = HashMap::new();
         skills_map.insert("seo".to_string(), "./skills/seo.skill.md".to_string());
@@ -405,7 +417,10 @@ mod tests {
         assert!(!injector.is_cached(skill_path, temp_dir.path()));
 
         // Load skill
-        injector.load_skill(skill_path, temp_dir.path()).await.unwrap();
+        injector
+            .load_skill(skill_path, temp_dir.path())
+            .await
+            .unwrap();
 
         // Now cached
         assert!(injector.is_cached(skill_path, temp_dir.path()));
@@ -446,9 +461,9 @@ mod tests {
             let inj = Arc::clone(&injector);
             let path = skill_path.clone();
             let dir = base_dir.clone();
-            handles.push(tokio::spawn(async move {
-                inj.load_skill(&path, &dir).await
-            }));
+            handles.push(tokio::spawn(
+                async move { inj.load_skill(&path, &dir).await },
+            ));
         }
 
         // All should succeed

@@ -298,7 +298,11 @@ mod tests {
         assert!(index.is_empty());
         assert!(!index.is_installed("@test/pkg"));
 
-        let pkg = InstalledPackage::new("1.0.0", "2026-03-01T10:00:00Z", "packages/@test/pkg/1.0.0/manifest.yaml");
+        let pkg = InstalledPackage::new(
+            "1.0.0",
+            "2026-03-01T10:00:00Z",
+            "packages/@test/pkg/1.0.0/manifest.yaml",
+        );
         index.insert("@test/pkg", pkg.clone());
 
         assert!(!index.is_empty());

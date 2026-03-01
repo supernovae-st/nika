@@ -9,9 +9,11 @@
 use std::fs;
 use std::path::PathBuf;
 
-use crate::NikaError;
-use crate::registry::types::{InstalledPackage, Manifest, RegistryIndex};
+#[cfg(test)]
+use crate::registry::types::InstalledPackage;
+use crate::registry::types::{Manifest, RegistryIndex};
 use crate::serde_yaml;
+use crate::NikaError;
 
 /// Environment variable to override the default SPN directory.
 pub const SPN_HOME_ENV: &str = "SPN_HOME";
@@ -31,8 +33,14 @@ pub const MANIFEST_FILE: &str = "manifest.yaml";
 /// Get the SPN home directory.
 ///
 /// Priority:
-/// 1. `$SPN_HOME` environment variable
+/// 1. `$SPN_HOME` environment variable (validated)
 /// 2. `~/.spn/`
+///
+/// # Security
+///
+/// The `$SPN_HOME` environment variable is validated to ensure:
+/// - Path is absolute
+/// - Path does not contain traversal sequences (`..`)
 ///
 /// # Examples
 ///
@@ -46,7 +54,29 @@ pub const MANIFEST_FILE: &str = "manifest.yaml";
 pub fn spn_home() -> Result<PathBuf, NikaError> {
     // Check environment variable first
     if let Ok(custom_home) = std::env::var(SPN_HOME_ENV) {
-        return Ok(PathBuf::from(custom_home));
+        let path = PathBuf::from(&custom_home);
+
+        // Validate: must be absolute path
+        if !path.is_absolute() {
+            return Err(NikaError::ConfigError {
+                reason: format!(
+                    "${} must be an absolute path, got: {}",
+                    SPN_HOME_ENV, custom_home
+                ),
+            });
+        }
+
+        // Validate: no path traversal sequences
+        if custom_home.contains("..") {
+            return Err(NikaError::ConfigError {
+                reason: format!(
+                    "${} contains path traversal sequence (..): {}",
+                    SPN_HOME_ENV, custom_home
+                ),
+            });
+        }
+
+        return Ok(path);
     }
 
     // Fall back to ~/.spn/
@@ -283,11 +313,24 @@ pub fn list_installed() -> Result<Vec<(String, String)>, NikaError> {
 /// # Returns
 ///
 /// Absolute path to the skill file.
+///
+/// # Security
+///
+/// This function validates that the resolved path stays within the package
+/// directory to prevent path traversal attacks (e.g., `../../../etc/passwd`).
 pub fn resolve_skill_path(
     name: &str,
     version: &str,
     skill_path: &str,
 ) -> Result<PathBuf, NikaError> {
+    // Reject obvious traversal attempts early (before filesystem access)
+    if skill_path.contains("..") {
+        return Err(NikaError::SkillLoadError {
+            skill: format!("{}:{}", name, skill_path),
+            reason: "Skill path contains path traversal sequence (..)".into(),
+        });
+    }
+
     let pkg_dir = package_dir(name, version)?;
     let full_path = pkg_dir.join(skill_path);
 
@@ -298,7 +341,34 @@ pub fn resolve_skill_path(
         });
     }
 
-    Ok(full_path)
+    // Canonicalize paths to resolve symlinks and validate boundaries
+    let canonical_pkg = pkg_dir
+        .canonicalize()
+        .map_err(|e| NikaError::SkillLoadError {
+            skill: format!("{}:{}", name, skill_path),
+            reason: format!("Failed to canonicalize package directory: {}", e),
+        })?;
+
+    let canonical_skill = full_path
+        .canonicalize()
+        .map_err(|e| NikaError::SkillLoadError {
+            skill: format!("{}:{}", name, skill_path),
+            reason: format!("Failed to canonicalize skill path: {}", e),
+        })?;
+
+    // Ensure skill file is within package directory (prevents symlink attacks)
+    if !canonical_skill.starts_with(&canonical_pkg) {
+        return Err(NikaError::SkillLoadError {
+            skill: format!("{}:{}", name, skill_path),
+            reason: format!(
+                "Path traversal detected: skill file '{}' is outside package directory '{}'",
+                canonical_skill.display(),
+                canonical_pkg.display()
+            ),
+        });
+    }
+
+    Ok(canonical_skill)
 }
 
 #[cfg(test)]

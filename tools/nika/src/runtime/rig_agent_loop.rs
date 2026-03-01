@@ -334,11 +334,9 @@ impl RigAgentLoop {
         let base_prompt = self.params.system.as_deref();
 
         // Check if skill injection is configured
-        let (Some(injector), Some(skills_map), Some(base_dir)) = (
-            &self.skill_injector,
-            &self.skills_map,
-            &self.base_dir,
-        ) else {
+        let (Some(injector), Some(skills_map), Some(base_dir)) =
+            (&self.skill_injector, &self.skills_map, &self.base_dir)
+        else {
             // Not configured - return base prompt as-is
             return Ok(base_prompt.unwrap_or_default().to_string());
         };
