@@ -16,6 +16,7 @@
 //! - `policy`: Security policy enforcement for exec/fetch/tokens (v0.13.1)
 //! - `skill_injector`: Skill content injection into agent prompts (v0.15.4)
 //! - `security`: Command validation and blocklist (v0.15.0)
+//! - `skill_injector`: Skill content injection into agent prompts (v0.15.4)
 //!
 //! This module represents the "how" - runtime execution.
 //! For static structure, see the `ast` module.

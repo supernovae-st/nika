@@ -506,6 +506,7 @@ pub enum NikaError {
     )]
     PackageNotFound { name: String, version: String },
 
+
     // ═══════════════════════════════════════════
     // SKILL ERRORS (270-279) - v0.15.4 (Skill Injection)
     // ═══════════════════════════════════════════
@@ -619,6 +620,7 @@ impl NikaError {
             Self::InvalidPkgUri { .. } => "NIKA-260",
             // Package errors (v0.16.0)
             Self::PackageNotFound { .. } => "NIKA-261",
+
             // Skill errors (v0.15.4)
             Self::SkillLoadError { .. } => "NIKA-270",
             // Policy errors (v0.13.1)
