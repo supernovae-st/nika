@@ -492,6 +492,13 @@ pub enum NikaError {
     )]
     InvalidPkgUri { uri: String, reason: String },
 
+    #[error("[NIKA-261] Package '{name}@{version}' not found in registry")]
+    #[diagnostic(
+        code(nika::package_not_found),
+        help("Install the package with: spn pkg install {name}@{version}")
+    )]
+    PackageNotFound { name: String, version: String },
+
     // ═══════════════════════════════════════════
     // SKILL ERRORS (270-279) - v0.15.4 (Skill Injection)
     // ═══════════════════════════════════════════
@@ -602,6 +609,8 @@ impl NikaError {
             Self::ContextLoadError { .. } => "NIKA-250",
             // Pkg URI errors (v0.15.2)
             Self::InvalidPkgUri { .. } => "NIKA-260",
+            // Package errors (v0.16.0)
+            Self::PackageNotFound { .. } => "NIKA-261",
             // Skill errors (v0.15.4)
             Self::SkillLoadError { .. } => "NIKA-270",
             // Policy errors (v0.13.1)
@@ -808,6 +817,10 @@ impl FixSuggestion for NikaError {
             // Pkg URI errors (v0.15.2)
             NikaError::InvalidPkgUri { .. } => Some(
                 "Use format: pkg:@scope/name@version/path (e.g., pkg:@supernovae/skills@1.0.0/rust.md)",
+            ),
+            // Package errors (v0.16.0)
+            NikaError::PackageNotFound { .. } => Some(
+                "Check package name and version. Run 'spn pkg list' to see installed packages.",
             ),
             // Policy errors (v0.13.1)
             NikaError::PolicyViolation { .. } => Some(
