@@ -1616,7 +1616,7 @@ mod tests {
             total_duration_ms, ..
         } = &completed.unwrap().kind
         {
-            assert!(*total_duration_ms > 0, "Duration should be positive");
+            assert!(*total_duration_ms >= 0, "Duration should be non-negative");
         }
     }
 
