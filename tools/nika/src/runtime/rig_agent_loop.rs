@@ -1703,10 +1703,11 @@ impl RigAgentLoop {
                 "ollama" | "local" => return self.run_ollama().await,
                 "groq" => return self.run_groq().await,
                 "deepseek" => return self.run_deepseek().await,
+                "gemini" | "google" => return self.run_gemini().await, // v0.15.0
                 other => {
                     return Err(NikaError::AgentValidationError {
                         reason: format!(
-                            "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'ollama', 'groq', or 'deepseek'.",
+                            "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'ollama', 'groq', 'deepseek', or 'gemini'.",
                             other
                         ),
                     });
@@ -1738,12 +1739,17 @@ impl RigAgentLoop {
             return self.run_deepseek().await;
         }
 
+        // v0.15.0: Gemini support
+        if has_key("GEMINI_API_KEY") {
+            return self.run_gemini().await;
+        }
+
         if has_key("OLLAMA_API_BASE_URL") {
             return self.run_ollama().await;
         }
 
         Err(NikaError::AgentValidationError {
-            reason: "No API key found. Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or OLLAMA_API_BASE_URL.".to_string(),
+            reason: "No API key found. Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, GEMINI_API_KEY, or OLLAMA_API_BASE_URL.".to_string(),
         })
     }
 
@@ -1793,6 +1799,17 @@ impl RigAgentLoop {
             .clone()
             .unwrap_or_else(|| "deepseek-chat".to_string());
         let client = rig::providers::deepseek::Client::from_env();
+        self.run_generic_provider_impl(client, &model_name).await
+    }
+
+    /// Run with Gemini provider (requires GEMINI_API_KEY) - v0.15.0
+    pub async fn run_gemini(&mut self) -> Result<RigAgentLoopResult, NikaError> {
+        let model_name = self
+            .params
+            .model
+            .clone()
+            .unwrap_or_else(|| "gemini-2.0-flash".to_string());
+        let client = rig::providers::gemini::Client::from_env();
         self.run_generic_provider_impl(client, &model_name).await
     }
 

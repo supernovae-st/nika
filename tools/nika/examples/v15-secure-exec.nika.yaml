@@ -1,0 +1,67 @@
+# Test: Secure Shell Execution (v0.15.0)
+# Tests the new shell-free execution mode with shlex parsing
+# Run with: nika examples/v15-secure-exec.nika.yaml
+
+schema: "nika/workflow@0.9"
+provider: mock
+
+tasks:
+  # Test 1: Default behavior (shell: false) - safer, uses shlex
+  - id: list_files
+    exec:
+      command: "ls -la"
+    output:
+      format: text
+
+  # Test 2: Explicit shell: false (recommended for untrusted input)
+  - id: safe_echo
+    exec:
+      command: "echo 'Hello from shell-free mode!'"
+      shell: false
+    output:
+      format: text
+
+  # Test 3: Shell: true for complex commands requiring shell features
+  - id: pipeline_example
+    exec:
+      command: "echo 'data' | tr 'a-z' 'A-Z'"
+      shell: true
+    output:
+      format: text
+
+  # Test 4: Shell-free with multiple arguments
+  - id: echo_args
+    exec:
+      command: "echo arg1 arg2 arg3"
+      shell: false
+    output:
+      format: text
+
+  # Test 5: Shell-free with quotes (shlex parsing)
+  - id: quoted_echo
+    exec:
+      command: "echo 'quoted string with spaces'"
+      shell: false
+    output:
+      format: text
+
+  - id: summary
+    use:
+      files: list_files
+      safe: safe_echo
+      pipeline: pipeline_example
+      args: echo_args
+      quoted: quoted_echo
+    exec: "echo 'All secure exec tests completed successfully'"
+
+flows:
+  - source: list_files
+    target: summary
+  - source: safe_echo
+    target: summary
+  - source: pipeline_example
+    target: summary
+  - source: echo_args
+    target: summary
+  - source: quoted_echo
+    target: summary

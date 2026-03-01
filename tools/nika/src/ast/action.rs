@@ -30,13 +30,24 @@ use crate::ast::{AgentParams, InvokeParams};
 /// Infer action - one-shot LLM call
 ///
 /// Supports shorthand: `infer: "prompt"` or full form `infer: { prompt: "..." }`
-#[derive(Debug, Clone)]
+///
+/// ## LLM Control Options (v0.15.0)
+/// - `temperature`: Control randomness (0.0-2.0, default varies by model)
+/// - `max_tokens`: Limit output length
+/// - `system`: System prompt to prepend
+#[derive(Debug, Clone, Default)]
 pub struct InferParams {
     pub prompt: String,
     /// Override provider for this task
     pub provider: Option<String>,
     /// Override model for this task
     pub model: Option<String>,
+    /// Temperature for sampling (0.0 = deterministic, 2.0 = maximum randomness)
+    pub temperature: Option<f64>,
+    /// Maximum tokens to generate
+    pub max_tokens: Option<u32>,
+    /// System prompt to set context for the LLM
+    pub system: Option<String>,
 }
 
 impl<'de> Deserialize<'de> for InferParams {
@@ -54,6 +65,12 @@ impl<'de> Deserialize<'de> for InferParams {
                 provider: Option<String>,
                 #[serde(default)]
                 model: Option<String>,
+                #[serde(default)]
+                temperature: Option<f64>,
+                #[serde(default)]
+                max_tokens: Option<u32>,
+                #[serde(default)]
+                system: Option<String>,
             },
         }
 
@@ -62,15 +79,24 @@ impl<'de> Deserialize<'de> for InferParams {
                 prompt,
                 provider: None,
                 model: None,
+                temperature: None,
+                max_tokens: None,
+                system: None,
             }),
             InferParamsHelper::Full {
                 prompt,
                 provider,
                 model,
+                temperature,
+                max_tokens,
+                system,
             } => Ok(InferParams {
                 prompt,
                 provider,
                 model,
+                temperature,
+                max_tokens,
+                system,
             }),
         }
     }
@@ -78,10 +104,17 @@ impl<'de> Deserialize<'de> for InferParams {
 
 /// Exec action - shell command
 ///
-/// Supports shorthand: `exec: "command"` or full form `exec: { command: "..." }`
+/// Supports shorthand: `exec: "command"` or full form `exec: { command: "...", shell: true }`
+///
+/// ## Shell Field (v0.15.0 Security)
+/// - `shell: None` (default) → Shell-free execution via shlex parsing
+/// - `shell: Some(true)` → Execute via shell (opt-in for pipes, env vars)
+/// - `shell: Some(false)` → Explicitly shell-free
 #[derive(Debug, Clone)]
 pub struct ExecParams {
     pub command: String,
+    /// Whether to execute via shell. None means shell-free (default, secure).
+    pub shell: Option<bool>,
 }
 
 impl<'de> Deserialize<'de> for ExecParams {
@@ -93,12 +126,19 @@ impl<'de> Deserialize<'de> for ExecParams {
         #[serde(untagged)]
         enum ExecParamsHelper {
             Short(String),
-            Full { command: String },
+            Full {
+                command: String,
+                #[serde(default)]
+                shell: Option<bool>,
+            },
         }
 
         match ExecParamsHelper::deserialize(deserializer)? {
-            ExecParamsHelper::Short(command) => Ok(ExecParams { command }),
-            ExecParamsHelper::Full { command } => Ok(ExecParams { command }),
+            ExecParamsHelper::Short(command) => Ok(ExecParams {
+                command,
+                shell: None,
+            }),
+            ExecParamsHelper::Full { command, shell } => Ok(ExecParams { command, shell }),
         }
     }
 }
@@ -264,6 +304,128 @@ infer:
     }
 
     // =========================================================================
+    // InferParams LLM Control Options Tests (v0.15.0)
+    // =========================================================================
+
+    #[test]
+    fn test_infer_params_with_temperature() {
+        let yaml = r#"
+infer:
+  prompt: "Be creative"
+  temperature: 0.9
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Infer { infer } => {
+                assert_eq!(infer.prompt, "Be creative");
+                assert_eq!(infer.temperature, Some(0.9));
+                assert!(infer.max_tokens.is_none());
+                assert!(infer.system.is_none());
+            }
+            _ => panic!("Expected TaskAction::Infer"),
+        }
+    }
+
+    #[test]
+    fn test_infer_params_with_max_tokens() {
+        let yaml = r#"
+infer:
+  prompt: "Short answer"
+  max_tokens: 100
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Infer { infer } => {
+                assert_eq!(infer.prompt, "Short answer");
+                assert_eq!(infer.max_tokens, Some(100));
+                assert!(infer.temperature.is_none());
+            }
+            _ => panic!("Expected TaskAction::Infer"),
+        }
+    }
+
+    #[test]
+    fn test_infer_params_with_system_prompt() {
+        let yaml = r#"
+infer:
+  prompt: "Explain quantum computing"
+  system: "You are a physics professor explaining to undergraduates."
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Infer { infer } => {
+                assert_eq!(infer.prompt, "Explain quantum computing");
+                assert_eq!(
+                    infer.system,
+                    Some("You are a physics professor explaining to undergraduates.".to_string())
+                );
+            }
+            _ => panic!("Expected TaskAction::Infer"),
+        }
+    }
+
+    #[test]
+    fn test_infer_params_full_llm_control() {
+        let yaml = r#"
+infer:
+  prompt: "Write a haiku"
+  provider: openai
+  model: gpt-4o
+  temperature: 0.7
+  max_tokens: 50
+  system: "You are a Japanese poetry master."
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Infer { infer } => {
+                assert_eq!(infer.prompt, "Write a haiku");
+                assert_eq!(infer.provider, Some("openai".to_string()));
+                assert_eq!(infer.model, Some("gpt-4o".to_string()));
+                assert_eq!(infer.temperature, Some(0.7));
+                assert_eq!(infer.max_tokens, Some(50));
+                assert_eq!(
+                    infer.system,
+                    Some("You are a Japanese poetry master.".to_string())
+                );
+            }
+            _ => panic!("Expected TaskAction::Infer"),
+        }
+    }
+
+    #[test]
+    fn test_infer_params_shorthand_defaults_llm_options() {
+        let yaml = r#"
+infer: "Simple prompt"
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Infer { infer } => {
+                assert_eq!(infer.prompt, "Simple prompt");
+                assert!(infer.temperature.is_none());
+                assert!(infer.max_tokens.is_none());
+                assert!(infer.system.is_none());
+            }
+            _ => panic!("Expected TaskAction::Infer"),
+        }
+    }
+
+    #[test]
+    fn test_infer_params_temperature_zero() {
+        let yaml = r#"
+infer:
+  prompt: "Deterministic output"
+  temperature: 0.0
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Infer { infer } => {
+                assert_eq!(infer.temperature, Some(0.0));
+            }
+            _ => panic!("Expected TaskAction::Infer"),
+        }
+    }
+
+    // =========================================================================
     // ExecParams Tests
     // =========================================================================
 
@@ -320,6 +482,59 @@ exec: "cat file.txt | grep pattern > output.txt"
         match action {
             TaskAction::Exec { exec } => {
                 assert!(exec.command.contains("grep pattern"));
+            }
+            _ => panic!("Expected TaskAction::Exec"),
+        }
+    }
+
+    // =========================================================================
+    // ExecParams Shell Field Tests (v0.15.0 Security)
+    // =========================================================================
+
+    #[test]
+    fn test_exec_params_shell_field_default_none() {
+        let yaml = r#"
+exec:
+  command: "echo hello"
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Exec { exec } => {
+                assert_eq!(exec.command, "echo hello");
+                assert_eq!(exec.shell, None); // None means shell-free (default)
+            }
+            _ => panic!("Expected TaskAction::Exec"),
+        }
+    }
+
+    #[test]
+    fn test_exec_params_shell_true_explicit() {
+        let yaml = r#"
+exec:
+  command: "echo $HOME && ls | grep foo"
+  shell: true
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Exec { exec } => {
+                assert!(exec.command.contains("$HOME"));
+                assert_eq!(exec.shell, Some(true));
+            }
+            _ => panic!("Expected TaskAction::Exec"),
+        }
+    }
+
+    #[test]
+    fn test_exec_params_shell_false_explicit() {
+        let yaml = r#"
+exec:
+  command: "echo hello"
+  shell: false
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Exec { exec } => {
+                assert_eq!(exec.shell, Some(false));
             }
             _ => panic!("Expected TaskAction::Exec"),
         }
@@ -676,8 +891,7 @@ agent:
         let action = TaskAction::Infer {
             infer: InferParams {
                 prompt: "test".to_string(),
-                provider: None,
-                model: None,
+                ..Default::default()
             },
         };
         assert_eq!(action.verb_name(), "infer");
@@ -688,6 +902,7 @@ agent:
         let action = TaskAction::Exec {
             exec: ExecParams {
                 command: "echo test".to_string(),
+                shell: None,
             },
         };
         assert_eq!(action.verb_name(), "exec");
@@ -889,6 +1104,7 @@ fetch:
                 prompt: "test".to_string(),
                 provider: Some("claude".to_string()),
                 model: Some("claude-sonnet-4-6".to_string()),
+                ..Default::default()
             },
         };
         let cloned = action.clone();
@@ -900,13 +1116,13 @@ fetch:
         let infer = TaskAction::Infer {
             infer: InferParams {
                 prompt: "test".to_string(),
-                provider: None,
-                model: None,
+                ..Default::default()
             },
         };
         let exec = TaskAction::Exec {
             exec: ExecParams {
                 command: "echo".to_string(),
+                shell: None,
             },
         };
         let fetch = TaskAction::Fetch {

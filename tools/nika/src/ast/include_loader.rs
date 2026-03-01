@@ -327,8 +327,7 @@ mod tests {
             action: TaskAction::Infer {
                 infer: InferParams {
                     prompt: "test".to_string(),
-                    provider: None,
-                    model: None,
+                    ..Default::default()
                 },
             },
         });
@@ -382,8 +381,7 @@ mod tests {
             action: TaskAction::Infer {
                 infer: InferParams {
                     prompt: "test".to_string(),
-                    provider: None,
-                    model: None,
+                    ..Default::default()
                 },
             },
         });

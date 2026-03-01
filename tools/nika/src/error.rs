@@ -10,7 +10,7 @@
 //! - NIKA-020-029: DAG errors
 //! - NIKA-030-039: Provider errors
 //! - NIKA-040-049: Template/binding errors
-//! - NIKA-050-059: Path/task errors
+//! - NIKA-050-059: Path/task/security errors (v0.15: +NIKA-053 BlockedCommand)
 //! - NIKA-060-069: Output errors
 //! - NIKA-070-079: Use block validation errors
 //! - NIKA-080-089: DAG validation errors
@@ -182,6 +182,13 @@ pub enum NikaError {
 
     #[error("[NIKA-052] Path '{path}' not found (task may not have JSON output)")]
     PathNotFound { path: String },
+
+    #[error("[NIKA-053] Command blocked: '{command}' - {reason}")]
+    #[diagnostic(
+        code(nika::blocked_command),
+        help("Use shell: true to opt-in to shell execution, or use a different command")
+    )]
+    BlockedCommand { command: String, reason: String },
 
     #[error("[NIKA-055] Invalid task ID '{id}': {reason}")]
     InvalidTaskId { id: String, reason: String },
@@ -544,6 +551,7 @@ impl NikaError {
             Self::InvalidPath { .. } => "NIKA-050",
             Self::TaskNotFound { .. } => "NIKA-051",
             Self::PathNotFound { .. } => "NIKA-052",
+            Self::BlockedCommand { .. } => "NIKA-053",
             Self::InvalidTaskId { .. } => "NIKA-055",
             Self::InvalidDefault { .. } => "NIKA-056",
             // Output errors
@@ -679,6 +687,9 @@ impl FixSuggestion for NikaError {
                 Some("Verify task_id exists and has run successfully")
             }
             NikaError::PathNotFound { .. } => Some("Add '?? default' or ensure task outputs JSON"),
+            NikaError::BlockedCommand { .. } => {
+                Some("Use shell: true to opt-in to shell execution, or use a different command")
+            }
             NikaError::InvalidTaskId { .. } => {
                 Some("Task IDs must be snake_case: lowercase letters, digits, underscores")
             }
@@ -1155,6 +1166,19 @@ mod tests {
         assert_eq!(err.code(), "NIKA-056");
         let msg = err.to_string();
         assert!(msg.contains("[NIKA-056]"));
+    }
+
+    #[test]
+    fn test_blocked_command_error() {
+        let err = NikaError::BlockedCommand {
+            command: "rm -rf /".to_string(),
+            reason: "Destructive command blocked by security policy".to_string(),
+        };
+        assert_eq!(err.code(), "NIKA-053");
+        let msg = err.to_string();
+        assert!(msg.contains("[NIKA-053]"));
+        assert!(msg.contains("rm -rf /"));
+        assert!(msg.contains("blocked"));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

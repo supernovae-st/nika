@@ -47,6 +47,8 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "tools/nika -> target"
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -61,6 +63,8 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "tools/nika -> target"
       - uses: taiki-e/install-action@nextest
       - run: cargo nextest run --workspace --all-features
         env:
@@ -76,6 +80,8 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "tools/nika -> target"
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate coverage
         run: cargo llvm-cov --workspace --all-features --codecov --output-path codecov.json
@@ -99,6 +105,8 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "tools/nika -> target"
       - run: cargo doc --workspace --no-deps --all-features
         env:
           RUSTDOCFLAGS: "-D warnings"
@@ -112,6 +120,8 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "tools/nika -> target"
       - name: Install security tools
         run: |
           cargo install cargo-audit --locked || true
