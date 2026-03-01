@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.15.0 | Security + Infer LLM Control + Gemini Provider | 3,500+ tests | Zero clippy warnings
+**Current version:** v0.15.0 | Security + Infer LLM Control + Gemini Provider | 4,369 tests | Zero clippy warnings
 
 ## Architecture
 
@@ -239,7 +239,7 @@ let result = router.dispatch("nika:write", r#"{"file_path":"./test.txt","content
 ## v0.14.3 Changes (context: + include: DAG Fusion)
 
 ### Statistics
-- **3,211 tests passing** (security path validation tests added)
+- **4,369 tests passing** (security path validation tests added)
 - **Zero clippy warnings**
 - **Path traversal protection** in include_loader.rs and context_loader.rs
 
@@ -326,12 +326,7 @@ fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), Ni
 ## v0.8.0 Changes (Studio DX Complete + Test Count Finalization)
 
 ### Statistics
-- **2,997 tests passing** (v0.12.0 total)
-  - Edit History: 19 tests
-  - Session Persistence: 13 tests
-  - Theme System: 12 tests
-  - Config System: 10 tests
-  - Integration tests: 101 tests
+- **4,369 tests passing** (v0.15.0 total - up from 2,997 in v0.12.0)
 - **New modules:** `src/tui/edit_history.rs`, `src/tui/session.rs`, `src/tui/config.rs`
 - **Studio view:** 5,400+ lines of code
 - **Zero clippy warnings:** Full `-D warnings` compliance

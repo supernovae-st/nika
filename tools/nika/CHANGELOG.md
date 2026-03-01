@@ -7,6 +7,46 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-03-01
+
+### Added
+- **Security Hardening: Shell-Free Execution** (BREAKING)
+  - `exec:` now defaults to `shell: false` for security
+  - Command parsing via shlex (no shell injection)
+  - Command blocklist prevents dangerous binaries (`rm -rf`, `sudo`, etc.)
+  - New error code: `NIKA-053 BlockedCommand`
+  - Implementation: `src/core/security.rs`
+- **Infer LLM Control Parity**
+  - `infer:` now supports `temperature`, `system`, and `max_tokens`
+  - `InferParams` struct with optional parameters
+  - `InferOptions` struct in `provider/rig.rs`
+  - `infer_with_options()` method in `RigProvider`
+- **Gemini Provider (7th provider)**
+  - `RigProvider::gemini()` constructor
+  - `RigAgentLoop::run_gemini()` for agent mode
+  - Full streaming support with token tracking
+  - Auto-detection: `GEMINI_API_KEY` → Gemini (priority 6)
+- **File Tools (5 new builtin tools)**
+  - `nika:read` - Read file contents
+  - `nika:write` - Create/overwrite file
+  - `nika:edit` - Modify file with old/new string replacement
+  - `nika:glob` - Find files by pattern
+  - `nika:grep` - Search content with regex
+  - `ToolContext` and `PermissionMode` for security
+  - `BuiltinToolRouter::with_file_tools()` constructor
+- **11 builtin tools total** (6 core + 5 file)
+
+### Changed
+- **BREAKING:** `exec:` defaults to `shell: false` (use `shell: true` for pipes/redirects)
+- Auto-detection priority updated: Gemini is 6th (before Ollama)
+- Test count: **4,369 tests passing** (up from 3,480+)
+
+### Statistics
+- **4,369 tests passing**
+- **7 LLM providers** (Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, Ollama)
+- **11 builtin tools** (6 core + 5 file)
+- **Zero clippy warnings**
+
 ## [0.14.1] - 2026-02-28
 
 ### Fixed
