@@ -66,6 +66,7 @@ pub mod runtime;
 pub mod event;
 pub mod mcp;
 pub mod provider;
+pub mod registry;
 pub mod store;
 pub mod tools;
 pub mod tui;

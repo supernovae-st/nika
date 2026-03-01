@@ -31,6 +31,7 @@ pub mod resolver;
 mod rig_agent_loop;
 mod runner;
 pub mod security;
+mod skill_injector;
 pub mod spawn;
 
 // Re-export public types
@@ -49,6 +50,7 @@ pub use resolver::{
 };
 pub use rig_agent_loop::{RigAgentLoop, RigAgentLoopResult, RigAgentStatus};
 pub use runner::Runner;
+pub use skill_injector::SkillInjector;
 pub use spawn::{SpawnAgentParams, SpawnAgentTool};
 
 // v0.13.1: Boot sequence and policy enforcement

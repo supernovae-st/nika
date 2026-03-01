@@ -17,6 +17,7 @@
 //!   └── Emits events to EventLog for observability
 //! ```
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use futures::StreamExt;
@@ -37,6 +38,7 @@ use crate::error::NikaError;
 use crate::event::{AgentTurnMetadata, EventKind, EventLog};
 use crate::mcp::McpClient;
 use crate::provider::rig::{NikaMcpTool, NikaMcpToolDef};
+use crate::runtime::SkillInjector;
 use crate::util::STREAM_CHUNK_TIMEOUT;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -159,6 +161,12 @@ pub struct RigAgentLoop {
     history: Vec<Message>,
     /// Optional streaming channel for real-time token display (v0.8.1 TUI integration)
     stream_tx: Option<tokio::sync::mpsc::Sender<crate::provider::rig::StreamChunk>>,
+    /// Skill injector for loading and caching skills (v0.15.4)
+    skill_injector: Option<Arc<SkillInjector>>,
+    /// Skills map from workflow definition (skill_name -> path)
+    skills_map: Option<std::collections::HashMap<String, String>>,
+    /// Base directory for resolving skill paths
+    base_dir: Option<PathBuf>,
 }
 
 impl std::fmt::Debug for RigAgentLoop {
@@ -260,6 +268,9 @@ impl RigAgentLoop {
             tools,
             history: Vec::new(),
             stream_tx: None,
+            skill_injector: None,
+            skills_map: None,
+            base_dir: None,
         })
     }
 
@@ -273,6 +284,80 @@ impl RigAgentLoop {
     ) -> Self {
         self.stream_tx = Some(tx);
         self
+    }
+
+    /// Configure skill injection for this agent (v0.15.4)
+    ///
+    /// When set, skills defined in the workflow are loaded and prepended to
+    /// the agent's system prompt before LLM calls.
+    ///
+    /// # Arguments
+    /// * `injector` - Shared SkillInjector instance (with DashMap cache)
+    /// * `skills_map` - Mapping of skill names to file paths from workflow YAML
+    /// * `base_dir` - Base directory for resolving relative skill paths
+    ///
+    /// # Example
+    /// ```ignore
+    /// let agent = RigAgentLoop::new(task_id, params, log, mcp)?
+    ///     .with_skills(
+    ///         Arc::new(SkillInjector::new()),
+    ///         skills_map,
+    ///         PathBuf::from("/path/to/workflow"),
+    ///     );
+    /// ```
+    pub fn with_skills(
+        mut self,
+        injector: Arc<SkillInjector>,
+        skills_map: std::collections::HashMap<String, String>,
+        base_dir: PathBuf,
+    ) -> Self {
+        self.skill_injector = Some(injector);
+        self.skills_map = Some(skills_map);
+        self.base_dir = Some(base_dir);
+        self
+    }
+
+    // =========================================================================
+    // v0.15.4: Skill Injection
+    // =========================================================================
+
+    /// Inject skills into the system prompt (v0.15.4)
+    ///
+    /// If skills are configured via `with_skills()` and the agent has skills
+    /// defined in `AgentParams.skills`, this method loads and prepends skill
+    /// content to the base system prompt.
+    ///
+    /// # Returns
+    /// - Enhanced prompt with skill content prepended, or
+    /// - Original system prompt if no skills configured
+    async fn inject_skills_into_prompt(&self) -> Result<String, NikaError> {
+        let base_prompt = self.params.system.as_deref();
+
+        // Check if skill injection is configured
+        let (Some(injector), Some(skills_map), Some(base_dir)) =
+            (&self.skill_injector, &self.skills_map, &self.base_dir)
+        else {
+            // Not configured - return base prompt as-is
+            return Ok(base_prompt.unwrap_or_default().to_string());
+        };
+
+        // Check if agent has skills defined
+        let Some(skill_names) = &self.params.skills else {
+            // No skills on this agent - return base prompt
+            return Ok(base_prompt.unwrap_or_default().to_string());
+        };
+
+        if skill_names.is_empty() {
+            return Ok(base_prompt.unwrap_or_default().to_string());
+        }
+
+        // Convert Vec<String> to &[&str] for the inject() API
+        let skill_refs: Vec<&str> = skill_names.iter().map(|s| s.as_str()).collect();
+
+        // Inject skills into the prompt
+        injector
+            .inject(base_prompt, &skill_refs, skills_map, base_dir)
+            .await
     }
 
     // =========================================================================
@@ -384,8 +469,10 @@ impl RigAgentLoop {
 
         // Build agent and chat with history
         // Anthropic requires max_tokens to be set explicitly
+        // Inject skills into system prompt if configured (v0.15.4)
+        let preamble = self.inject_skills_into_prompt().await?;
         let mut builder = AgentBuilder::new(model)
-            .preamble(self.params.system.as_deref().unwrap_or(""))
+            .preamble(&preamble)
             .max_tokens(8192);
 
         // Apply temperature using native rig-core method (v0.8.0)
@@ -465,8 +552,10 @@ impl RigAgentLoop {
         });
 
         // Build agent and chat with history
+        // Inject skills into system prompt if configured (v0.15.4)
+        let preamble = self.inject_skills_into_prompt().await?;
         let mut builder = AgentBuilder::new(model)
-            .preamble(self.params.system.as_deref().unwrap_or(""))
+            .preamble(&preamble)
             .max_tokens(8192);
 
         // Apply temperature using native rig-core method (v0.8.0)
@@ -949,9 +1038,11 @@ impl RigAgentLoop {
         M: rig::completion::CompletionModel + Clone + 'static,
         <M as rig::completion::CompletionModel>::Response: Send,
     {
+        // Inject skills into system prompt if configured (v0.15.4)
+        let preamble = self.inject_skills_into_prompt().await?;
         if tools.is_empty() {
             // No tools - use pure streaming (full token tracking)
-            self.stream_completion_with_tokens(&model, prompt, self.params.system.as_deref())
+            self.stream_completion_with_tokens(&model, prompt, Some(&preamble))
                 .await
         } else {
             // v0.8.1: With tools - use REAL streaming if TUI mode (stream_tx set)
@@ -962,8 +1053,9 @@ impl RigAgentLoop {
             }
 
             // Fallback: No TUI (CLI mode) - use blocking agent.prompt()
+            // Use preamble with injected skills (v0.15.4)
             let mut builder = AgentBuilder::new(model)
-                .preamble(prompt)
+                .preamble(&preamble)
                 .tools(tools)
                 .max_tokens(8192);
 
@@ -1022,7 +1114,8 @@ impl RigAgentLoop {
         <M as rig::completion::CompletionModel>::Response: Send,
     {
         // Build agent with tools
-        let preamble = self.params.system.clone().unwrap_or_default();
+        // Inject skills into system prompt if configured (v0.15.4)
+        let preamble = self.inject_skills_into_prompt().await?;
         let mut builder = AgentBuilder::new(model)
             .preamble(&preamble)
             .tools(tools)
@@ -1373,9 +1466,11 @@ impl RigAgentLoop {
         });
 
         // Build request with native temperature method (v0.8.0)
+        // Inject skills into system prompt if configured (v0.15.4)
+        let preamble = self.inject_skills_into_prompt().await?;
         let mut request_builder = model
             .completion_request(&self.params.prompt)
-            .preamble(self.params.system.clone().unwrap_or_default())
+            .preamble(preamble)
             .max_tokens(8192)
             .additional_params(thinking_config);
 

@@ -24,8 +24,9 @@ pub mod include_loader;
 mod invoke;
 pub mod loader;
 mod output;
+pub mod pkg_resolver;
 pub mod schema_validator;
-mod skill_def;
+pub mod skill_def;
 mod workflow;
 
 // Re-export all public types
@@ -44,6 +45,8 @@ pub use include::IncludeSpec;
 pub use output::{OutputFormat, OutputPolicy};
 // SkillDef + SkillRef are defined in skill_def.rs (v0.6 - Prompt augmentation)
 pub use skill_def::{SkillDef, SkillRef};
+// PkgUri is defined in pkg_resolver.rs (v0.15.2 - Skill Ecosystem)
+pub use pkg_resolver::PkgUri;
 pub use workflow::{
     Flow, FlowEndpoint, McpConfigInline, Task, Workflow, SCHEMA_V01, SCHEMA_V02, SCHEMA_V03,
     SCHEMA_V04, SCHEMA_V05, SCHEMA_V06, SCHEMA_V07, SCHEMA_V08, SCHEMA_V09,

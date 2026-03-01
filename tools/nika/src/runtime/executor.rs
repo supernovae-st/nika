@@ -2028,6 +2028,7 @@ mod tests {
                 depth_limit: None,
                 tool_choice: None,
                 temperature: None,
+                skills: None,
             },
         };
         assert_eq!(action_type(&agent_action), "agent");

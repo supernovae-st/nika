@@ -1,0 +1,670 @@
+//! Registry operations for the SuperNovae package system.
+//!
+//! This module provides file system operations for the `~/.spn/` registry:
+//! - Package directory management
+//! - Registry index loading/saving
+//! - Manifest loading
+//! - Installation status checking
+
+use std::fs;
+use std::path::PathBuf;
+
+#[cfg(test)]
+use crate::registry::types::InstalledPackage;
+use crate::registry::types::{Manifest, RegistryIndex};
+use crate::serde_yaml;
+use crate::NikaError;
+
+/// Environment variable to override the default SPN directory.
+pub const SPN_HOME_ENV: &str = "SPN_HOME";
+
+/// Default SPN directory name under user home.
+pub const SPN_DIR_NAME: &str = ".spn";
+
+/// Registry index filename.
+pub const REGISTRY_INDEX_FILE: &str = "registry.yaml";
+
+/// Packages directory name.
+pub const PACKAGES_DIR_NAME: &str = "packages";
+
+/// Manifest filename within a package.
+pub const MANIFEST_FILE: &str = "manifest.yaml";
+
+/// Get the SPN home directory.
+///
+/// Priority:
+/// 1. `$SPN_HOME` environment variable (validated)
+/// 2. `~/.spn/`
+///
+/// # Security
+///
+/// The `$SPN_HOME` environment variable is validated to ensure:
+/// - Path is absolute
+/// - Path does not contain traversal sequences (`..`)
+///
+/// # Examples
+///
+/// ```no_run
+/// use nika::registry::operations::spn_home;
+///
+/// let home = spn_home()?;
+/// // Returns PathBuf like "/home/user/.spn" or value of $SPN_HOME
+/// # Ok::<(), nika::NikaError>(())
+/// ```
+pub fn spn_home() -> Result<PathBuf, NikaError> {
+    // Check environment variable first
+    if let Ok(custom_home) = std::env::var(SPN_HOME_ENV) {
+        let path = PathBuf::from(&custom_home);
+
+        // Validate: must be absolute path
+        if !path.is_absolute() {
+            return Err(NikaError::ConfigError {
+                reason: format!(
+                    "${} must be an absolute path, got: {}",
+                    SPN_HOME_ENV, custom_home
+                ),
+            });
+        }
+
+        // Validate: no path traversal sequences
+        if custom_home.contains("..") {
+            return Err(NikaError::ConfigError {
+                reason: format!(
+                    "${} contains path traversal sequence (..): {}",
+                    SPN_HOME_ENV, custom_home
+                ),
+            });
+        }
+
+        return Ok(path);
+    }
+
+    // Fall back to ~/.spn/
+    let home = dirs::home_dir().ok_or_else(|| NikaError::ConfigError {
+        reason: "Could not determine home directory".into(),
+    })?;
+
+    Ok(home.join(SPN_DIR_NAME))
+}
+
+/// Get the packages directory.
+///
+/// Returns `~/.spn/packages/` (or `$SPN_HOME/packages/`).
+pub fn packages_dir() -> Result<PathBuf, NikaError> {
+    Ok(spn_home()?.join(PACKAGES_DIR_NAME))
+}
+
+/// Get the registry index file path.
+///
+/// Returns `~/.spn/registry.yaml` (or `$SPN_HOME/registry.yaml`).
+pub fn registry_index_path() -> Result<PathBuf, NikaError> {
+    Ok(spn_home()?.join(REGISTRY_INDEX_FILE))
+}
+
+/// Get the directory path for a specific package version.
+///
+/// Returns `~/.spn/packages/@scope/name/version/`.
+///
+/// # Arguments
+///
+/// * `name` - Package name (e.g., "@supernovae/workflows")
+/// * `version` - Package version (e.g., "1.0.0")
+///
+/// # Examples
+///
+/// ```no_run
+/// use nika::registry::operations::package_dir;
+///
+/// let dir = package_dir("@supernovae/workflows", "1.0.0")?;
+/// // Returns PathBuf like "~/.spn/packages/@supernovae/workflows/1.0.0/"
+/// # Ok::<(), nika::NikaError>(())
+/// ```
+pub fn package_dir(name: &str, version: &str) -> Result<PathBuf, NikaError> {
+    let packages = packages_dir()?;
+
+    // Handle scoped packages (@scope/name → @scope/name)
+    let package_path = if name.starts_with('@') {
+        // @scope/name → packages/@scope/name/version
+        packages.join(name).join(version)
+    } else {
+        // Non-scoped: name → packages/name/version
+        packages.join(name).join(version)
+    };
+
+    Ok(package_path)
+}
+
+/// Get the manifest file path for a specific package version.
+///
+/// Returns `~/.spn/packages/@scope/name/version/manifest.yaml`.
+pub fn manifest_path(name: &str, version: &str) -> Result<PathBuf, NikaError> {
+    Ok(package_dir(name, version)?.join(MANIFEST_FILE))
+}
+
+/// Ensure the SPN home directory exists.
+///
+/// Creates `~/.spn/` and `~/.spn/packages/` if they don't exist.
+pub fn ensure_spn_home() -> Result<PathBuf, NikaError> {
+    let home = spn_home()?;
+
+    if !home.exists() {
+        fs::create_dir_all(&home).map_err(|e| NikaError::ValidationError {
+            reason: format!("Failed to create directory '{}': {}", home.display(), e),
+        })?;
+    }
+
+    let packages = home.join(PACKAGES_DIR_NAME);
+    if !packages.exists() {
+        fs::create_dir_all(&packages).map_err(|e| NikaError::ValidationError {
+            reason: format!("Failed to create directory '{}': {}", packages.display(), e),
+        })?;
+    }
+
+    Ok(home)
+}
+
+/// Load the registry index from disk.
+///
+/// Returns an empty index if the file doesn't exist.
+///
+/// # Examples
+///
+/// ```no_run
+/// use nika::registry::operations::load_registry;
+///
+/// let index = load_registry()?;
+/// println!("Installed packages: {}", index.len());
+/// # Ok::<(), nika::NikaError>(())
+/// ```
+pub fn load_registry() -> Result<RegistryIndex, NikaError> {
+    let path = registry_index_path()?;
+
+    if !path.exists() {
+        return Ok(RegistryIndex::new());
+    }
+
+    let content = fs::read_to_string(&path).map_err(|e| NikaError::ValidationError {
+        reason: format!("Failed to read registry file '{}': {}", path.display(), e),
+    })?;
+
+    serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
+        details: format!("Failed to parse registry YAML: {}", e),
+    })
+}
+
+/// Save the registry index to disk.
+///
+/// Creates parent directories if needed.
+///
+/// # Examples
+///
+/// ```no_run
+/// use nika::registry::operations::save_registry;
+/// use nika::registry::types::{RegistryIndex, InstalledPackage};
+///
+/// let mut index = RegistryIndex::new();
+/// index.insert("@test/pkg", InstalledPackage::now("1.0.0", "packages/@test/pkg/1.0.0/manifest.yaml"));
+///
+/// save_registry(&index)?;
+/// # Ok::<(), nika::NikaError>(())
+/// ```
+pub fn save_registry(index: &RegistryIndex) -> Result<(), NikaError> {
+    let path = registry_index_path()?;
+
+    // Ensure parent directory exists
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent).map_err(|e| NikaError::ValidationError {
+                reason: format!("Failed to create directory '{}': {}", parent.display(), e),
+            })?;
+        }
+    }
+
+    let content = serde_yaml::to_string(index).map_err(|e| NikaError::ParseError {
+        details: format!("Failed to serialize registry: {}", e),
+    })?;
+
+    fs::write(&path, content).map_err(|e| NikaError::ValidationError {
+        reason: format!("Failed to write registry file '{}': {}", path.display(), e),
+    })?;
+
+    Ok(())
+}
+
+/// Load a package manifest from disk.
+///
+/// # Arguments
+///
+/// * `name` - Package name (e.g., "@supernovae/workflows")
+/// * `version` - Package version (e.g., "1.0.0")
+///
+/// # Examples
+///
+/// ```no_run
+/// use nika::registry::operations::load_manifest;
+///
+/// let manifest = load_manifest("@supernovae/workflows", "1.0.0")?;
+/// println!("Package: {} v{}", manifest.name, manifest.version);
+/// # Ok::<(), nika::NikaError>(())
+/// ```
+pub fn load_manifest(name: &str, version: &str) -> Result<Manifest, NikaError> {
+    let path = manifest_path(name, version)?;
+
+    if !path.exists() {
+        return Err(NikaError::PackageNotFound {
+            name: name.to_string(),
+            version: version.to_string(),
+        });
+    }
+
+    let content = fs::read_to_string(&path).map_err(|e| NikaError::ValidationError {
+        reason: format!("Failed to read manifest file '{}': {}", path.display(), e),
+    })?;
+
+    serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
+        details: format!("Failed to parse manifest YAML: {}", e),
+    })
+}
+
+/// Check if a package is installed.
+///
+/// Uses the registry index for quick lookup.
+pub fn is_installed(name: &str) -> Result<bool, NikaError> {
+    let index = load_registry()?;
+    Ok(index.is_installed(name))
+}
+
+/// Check if a specific version of a package is installed.
+pub fn is_version_installed(name: &str, version: &str) -> Result<bool, NikaError> {
+    let index = load_registry()?;
+    match index.get(name) {
+        Some(pkg) => Ok(pkg.version == version),
+        None => Ok(false),
+    }
+}
+
+/// Get the installed version of a package.
+///
+/// Returns `None` if not installed.
+pub fn installed_version(name: &str) -> Result<Option<String>, NikaError> {
+    let index = load_registry()?;
+    Ok(index.get(name).map(|pkg| pkg.version.clone()))
+}
+
+/// List all installed packages.
+///
+/// Returns a vector of (name, version) tuples.
+pub fn list_installed() -> Result<Vec<(String, String)>, NikaError> {
+    let index = load_registry()?;
+    Ok(index
+        .iter()
+        .map(|(name, pkg)| (name.clone(), pkg.version.clone()))
+        .collect())
+}
+
+/// Resolve a skill path within an installed package.
+///
+/// # Arguments
+///
+/// * `name` - Package name
+/// * `version` - Package version
+/// * `skill_path` - Relative path to skill file (e.g., "skills/brainstorm.skill.md")
+///
+/// # Returns
+///
+/// Absolute path to the skill file.
+///
+/// # Security
+///
+/// This function validates that the resolved path stays within the package
+/// directory to prevent path traversal attacks (e.g., `../../../etc/passwd`).
+pub fn resolve_skill_path(
+    name: &str,
+    version: &str,
+    skill_path: &str,
+) -> Result<PathBuf, NikaError> {
+    // Reject obvious traversal attempts early (before filesystem access)
+    if skill_path.contains("..") {
+        return Err(NikaError::SkillLoadError {
+            skill: format!("{}:{}", name, skill_path),
+            reason: "Skill path contains path traversal sequence (..)".into(),
+        });
+    }
+
+    let pkg_dir = package_dir(name, version)?;
+    let full_path = pkg_dir.join(skill_path);
+
+    if !full_path.exists() {
+        return Err(NikaError::SkillLoadError {
+            skill: format!("{}:{}", name, skill_path),
+            reason: format!("Skill file not found at '{}'", full_path.display()),
+        });
+    }
+
+    // Canonicalize paths to resolve symlinks and validate boundaries
+    let canonical_pkg = pkg_dir
+        .canonicalize()
+        .map_err(|e| NikaError::SkillLoadError {
+            skill: format!("{}:{}", name, skill_path),
+            reason: format!("Failed to canonicalize package directory: {}", e),
+        })?;
+
+    let canonical_skill = full_path
+        .canonicalize()
+        .map_err(|e| NikaError::SkillLoadError {
+            skill: format!("{}:{}", name, skill_path),
+            reason: format!("Failed to canonicalize skill path: {}", e),
+        })?;
+
+    // Ensure skill file is within package directory (prevents symlink attacks)
+    if !canonical_skill.starts_with(&canonical_pkg) {
+        return Err(NikaError::SkillLoadError {
+            skill: format!("{}:{}", name, skill_path),
+            reason: format!(
+                "Path traversal detected: skill file '{}' is outside package directory '{}'",
+                canonical_skill.display(),
+                canonical_pkg.display()
+            ),
+        });
+    }
+
+    Ok(canonical_skill)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+    use std::env;
+    use std::path::Path;
+    use tempfile::TempDir;
+
+    fn with_temp_spn_home<F, T>(f: F) -> T
+    where
+        F: FnOnce(&Path) -> T,
+    {
+        let temp_dir = TempDir::new().unwrap();
+        let temp_path = temp_dir.path().to_path_buf();
+
+        // Set SPN_HOME to temp directory
+        env::set_var(SPN_HOME_ENV, &temp_path);
+
+        let result = f(&temp_path);
+
+        // Clean up env var
+        env::remove_var(SPN_HOME_ENV);
+
+        result
+    }
+
+    #[test]
+    #[serial]
+    fn test_spn_home_uses_env_var() {
+        with_temp_spn_home(|temp_path| {
+            let home = spn_home().unwrap();
+            assert_eq!(home, temp_path);
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_packages_dir() {
+        with_temp_spn_home(|temp_path| {
+            let dir = packages_dir().unwrap();
+            assert_eq!(dir, temp_path.join("packages"));
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_registry_index_path() {
+        with_temp_spn_home(|temp_path| {
+            let path = registry_index_path().unwrap();
+            assert_eq!(path, temp_path.join("registry.yaml"));
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_package_dir_scoped() {
+        with_temp_spn_home(|temp_path| {
+            let dir = package_dir("@supernovae/workflows", "1.0.0").unwrap();
+            assert_eq!(
+                dir,
+                temp_path
+                    .join("packages")
+                    .join("@supernovae/workflows")
+                    .join("1.0.0")
+            );
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_package_dir_unscoped() {
+        with_temp_spn_home(|temp_path| {
+            let dir = package_dir("my-package", "2.0.0").unwrap();
+            assert_eq!(
+                dir,
+                temp_path.join("packages").join("my-package").join("2.0.0")
+            );
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_manifest_path() {
+        with_temp_spn_home(|temp_path| {
+            let path = manifest_path("@test/pkg", "1.0.0").unwrap();
+            assert_eq!(
+                path,
+                temp_path
+                    .join("packages")
+                    .join("@test/pkg")
+                    .join("1.0.0")
+                    .join("manifest.yaml")
+            );
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_ensure_spn_home() {
+        with_temp_spn_home(|temp_path| {
+            // Remove any existing directories
+            let _ = fs::remove_dir_all(temp_path);
+
+            let home = ensure_spn_home().unwrap();
+            assert!(home.exists());
+            assert!(home.join("packages").exists());
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_load_registry_empty() {
+        with_temp_spn_home(|_| {
+            let index = load_registry().unwrap();
+            assert!(index.is_empty());
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_save_and_load_registry() {
+        with_temp_spn_home(|_| {
+            ensure_spn_home().unwrap();
+
+            let mut index = RegistryIndex::new();
+            index.insert(
+                "@test/pkg",
+                InstalledPackage::new(
+                    "1.0.0",
+                    "2026-03-01T10:00:00Z",
+                    "packages/@test/pkg/1.0.0/manifest.yaml",
+                ),
+            );
+
+            save_registry(&index).unwrap();
+
+            let loaded = load_registry().unwrap();
+            assert_eq!(loaded.len(), 1);
+            assert!(loaded.is_installed("@test/pkg"));
+            assert_eq!(loaded.get("@test/pkg").unwrap().version, "1.0.0");
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_is_installed() {
+        with_temp_spn_home(|_| {
+            ensure_spn_home().unwrap();
+
+            // Initially not installed
+            assert!(!is_installed("@test/pkg").unwrap());
+
+            // Install
+            let mut index = RegistryIndex::new();
+            index.insert(
+                "@test/pkg",
+                InstalledPackage::new("1.0.0", "2026-03-01T10:00:00Z", "path/to/manifest.yaml"),
+            );
+            save_registry(&index).unwrap();
+
+            // Now installed
+            assert!(is_installed("@test/pkg").unwrap());
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_is_version_installed() {
+        with_temp_spn_home(|_| {
+            ensure_spn_home().unwrap();
+
+            let mut index = RegistryIndex::new();
+            index.insert(
+                "@test/pkg",
+                InstalledPackage::new("1.0.0", "2026-03-01T10:00:00Z", "path"),
+            );
+            save_registry(&index).unwrap();
+
+            assert!(is_version_installed("@test/pkg", "1.0.0").unwrap());
+            assert!(!is_version_installed("@test/pkg", "2.0.0").unwrap());
+            assert!(!is_version_installed("@other/pkg", "1.0.0").unwrap());
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_installed_version() {
+        with_temp_spn_home(|_| {
+            ensure_spn_home().unwrap();
+
+            // Not installed
+            assert_eq!(installed_version("@test/pkg").unwrap(), None);
+
+            // Install
+            let mut index = RegistryIndex::new();
+            index.insert(
+                "@test/pkg",
+                InstalledPackage::new("2.1.0", "2026-03-01T10:00:00Z", "path"),
+            );
+            save_registry(&index).unwrap();
+
+            assert_eq!(
+                installed_version("@test/pkg").unwrap(),
+                Some("2.1.0".to_string())
+            );
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_list_installed() {
+        with_temp_spn_home(|_| {
+            ensure_spn_home().unwrap();
+
+            let mut index = RegistryIndex::new();
+            index.insert(
+                "@pkg/a",
+                InstalledPackage::new("1.0.0", "2026-03-01T10:00:00Z", "a"),
+            );
+            index.insert(
+                "@pkg/b",
+                InstalledPackage::new("2.0.0", "2026-03-01T10:00:00Z", "b"),
+            );
+            save_registry(&index).unwrap();
+
+            let list = list_installed().unwrap();
+            assert_eq!(list.len(), 2);
+
+            let names: Vec<_> = list.iter().map(|(n, _)| n.as_str()).collect();
+            assert!(names.contains(&"@pkg/a"));
+            assert!(names.contains(&"@pkg/b"));
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_load_manifest_not_found() {
+        with_temp_spn_home(|_| {
+            ensure_spn_home().unwrap();
+
+            let result = load_manifest("@nonexistent/pkg", "1.0.0");
+            assert!(result.is_err());
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_load_manifest_success() {
+        with_temp_spn_home(|_| {
+            ensure_spn_home().unwrap();
+
+            // Create package directory with manifest
+            let pkg_dir = package_dir("@test/pkg", "1.0.0").unwrap();
+            fs::create_dir_all(&pkg_dir).unwrap();
+
+            let manifest = Manifest::new("@test/pkg", "1.0.0");
+            let manifest_content = serde_yaml::to_string(&manifest).unwrap();
+            fs::write(pkg_dir.join("manifest.yaml"), manifest_content).unwrap();
+
+            let loaded = load_manifest("@test/pkg", "1.0.0").unwrap();
+            assert_eq!(loaded.name, "@test/pkg");
+            assert_eq!(loaded.version, "1.0.0");
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_skill_path() {
+        with_temp_spn_home(|_| {
+            ensure_spn_home().unwrap();
+
+            // Create package directory with skill file
+            let pkg_dir = package_dir("@test/pkg", "1.0.0").unwrap();
+            let skills_dir = pkg_dir.join("skills");
+            fs::create_dir_all(&skills_dir).unwrap();
+            fs::write(skills_dir.join("test.skill.md"), "# Test Skill").unwrap();
+
+            let path = resolve_skill_path("@test/pkg", "1.0.0", "skills/test.skill.md").unwrap();
+            assert!(path.exists());
+            assert!(path.ends_with("skills/test.skill.md"));
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_skill_path_not_found() {
+        with_temp_spn_home(|_| {
+            ensure_spn_home().unwrap();
+
+            let pkg_dir = package_dir("@test/pkg", "1.0.0").unwrap();
+            fs::create_dir_all(&pkg_dir).unwrap();
+
+            let result = resolve_skill_path("@test/pkg", "1.0.0", "skills/nonexistent.md");
+            assert!(result.is_err());
+        });
+    }
+}

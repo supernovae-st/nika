@@ -7,6 +7,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+- **Skill Merging Through DAG Fusion** (v0.15.1)
+  - Workflow-level `skills:` propagate through `include:` DAG fusion
+  - `SkillDef` AST type with path and optional alias
+  - `merge_skills()` function with deduplication and circular detection
+  - Skill definitions support local paths and `pkg:` URIs
+  - 11 tests for skill merging, deduplication, and error handling
+
 ## [0.15.0] - 2026-03-01
 
 ### Added
