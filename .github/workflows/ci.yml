@@ -69,6 +69,7 @@ jobs:
       - name: Cache cargo registry and build
         uses: Swatinem/rust-cache@v2
         with:
+          workspaces: "tools/nika -> target"
           cache-on-failure: true
           shared-key: check-${{ matrix.os }}
 
@@ -116,6 +117,7 @@ jobs:
       - name: Cache cargo registry and build
         uses: Swatinem/rust-cache@v2
         with:
+          workspaces: "tools/nika -> target"
           cache-on-failure: true
           shared-key: test-${{ matrix.rust }}-${{ matrix.os }}
 
@@ -162,6 +164,7 @@ jobs:
       - name: Cache cargo registry and build
         uses: Swatinem/rust-cache@v2
         with:
+          workspaces: "tools/nika -> target"
           cache-on-failure: true
           shared-key: coverage
 
@@ -232,6 +235,7 @@ jobs:
       - name: Cache cargo registry and build
         uses: Swatinem/rust-cache@v2
         with:
+          workspaces: "tools/nika -> target"
           cache-on-failure: true
           shared-key: schema-validation
 
@@ -315,6 +319,7 @@ jobs:
       - name: Cache cargo registry
         uses: Swatinem/rust-cache@v2
         with:
+          workspaces: "tools/nika -> target"
           cache-on-failure: true
           shared-key: security
 
@@ -386,6 +391,7 @@ jobs:
       - name: Cache cargo registry and build
         uses: Swatinem/rust-cache@v2
         with:
+          workspaces: "tools/nika -> target"
           cache-on-failure: true
           shared-key: build-${{ matrix.os }}
 
