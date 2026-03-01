@@ -351,11 +351,12 @@ jobs:
           # Run cargo audit with proper error handling
           cargo audit --json 2>&1 | tee audit-output.json || true
           cargo audit 2>&1 | tee audit-output.txt || true
-          # Count vulnerabilities safely (0 if file doesn't exist or no matches)
+          # Count vulnerabilities safely
+          # Note: grep -c outputs "0" AND exits with code 1 when no matches
+          # Using assignment with || true to capture the count without triggering || echo
+          VULNS=0
           if [ -f audit-output.txt ]; then
-            VULNS=$(grep -c "Vulnerability" audit-output.txt 2>/dev/null || echo "0")
-          else
-            VULNS="0"
+            VULNS=$(grep -c "Vulnerability" audit-output.txt 2>/dev/null) || VULNS=0
           fi
           echo "vulnerabilities=${VULNS}" >> "$GITHUB_OUTPUT"
 
