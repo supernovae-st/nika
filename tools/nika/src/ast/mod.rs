@@ -26,7 +26,7 @@ pub mod loader;
 mod output;
 pub mod pkg_resolver;
 pub mod schema_validator;
-mod skill_def;
+pub mod skill_def;
 mod workflow;
 
 // Re-export all public types

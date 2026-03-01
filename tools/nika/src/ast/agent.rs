@@ -164,6 +164,14 @@ pub struct AgentParams {
     /// If not set, uses the provider's default.
     #[serde(default)]
     pub temperature: Option<f32>,
+
+    /// Skills to inject into the agent's system prompt (v0.15.4)
+    ///
+    /// List of skill aliases that will be loaded and prepended to
+    /// the system prompt before each LLM call. Skills are resolved
+    /// from the workflow's `skills:` map.
+    #[serde(default)]
+    pub skills: Option<Vec<String>>,
 }
 
 impl AgentParams {

@@ -1,4 +1,4 @@
-//! Runtime Module - Workflow execution (v0.14.2)
+//! Runtime Module - Workflow execution (v0.15.4)
 //!
 //! Contains the runtime execution components:
 //! - `runner`: DAG execution with tokio concurrency
@@ -14,6 +14,7 @@
 //! - `resolver`: Agent and skill resolution (v0.13 Schema @0.6)
 //! - `boot`: Boot sequence with 6-phase initialization (v0.13.1)
 //! - `policy`: Security policy enforcement for exec/fetch/tokens (v0.13.1)
+//! - `skill_injector`: Skill content injection into agent prompts (v0.15.4)
 //!
 //! This module represents the "how" - runtime execution.
 //! For static structure, see the `ast` module.
@@ -29,6 +30,7 @@ pub mod policy;
 pub mod resolver;
 mod rig_agent_loop;
 mod runner;
+pub mod skill_injector;
 pub mod spawn;
 
 // Re-export public types
@@ -47,6 +49,7 @@ pub use resolver::{
 };
 pub use rig_agent_loop::{RigAgentLoop, RigAgentLoopResult, RigAgentStatus};
 pub use runner::Runner;
+pub use skill_injector::SkillInjector;
 pub use spawn::{SpawnAgentParams, SpawnAgentTool};
 
 // v0.13.1: Boot sequence and policy enforcement

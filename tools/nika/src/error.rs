@@ -491,6 +491,16 @@ pub enum NikaError {
         help("Format: pkg:@scope/name@version/path or pkg:@scope/name/path")
     )]
     InvalidPkgUri { uri: String, reason: String },
+
+    // ═══════════════════════════════════════════
+    // SKILL ERRORS (270-279) - v0.15.4 (Skill Injection)
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-270] Failed to load skill '{skill}': {reason}")]
+    #[diagnostic(
+        code(nika::skill_load_error),
+        help("Ensure skill file exists and is readable. Check pkg: URI format if using packages.")
+    )]
+    SkillLoadError { skill: String, reason: String },
 }
 
 impl NikaError {
@@ -592,6 +602,8 @@ impl NikaError {
             Self::ContextLoadError { .. } => "NIKA-250",
             // Pkg URI errors (v0.15.2)
             Self::InvalidPkgUri { .. } => "NIKA-260",
+            // Skill errors (v0.15.4)
+            Self::SkillLoadError { .. } => "NIKA-270",
             // Policy errors (v0.13.1)
             Self::PolicyViolation { .. } => "NIKA-160",
             Self::BootFailed { .. } => "NIKA-161",
@@ -806,6 +818,10 @@ impl FixSuggestion for NikaError {
             }
             NikaError::RuntimeError { .. } => {
                 Some("Check the runtime configuration and system resources.")
+            }
+            // Skill errors (v0.15.4)
+            NikaError::SkillLoadError { .. } => {
+                Some("Ensure skill file exists and is readable. Check pkg: URI format if using packages.")
             }
         }
     }
