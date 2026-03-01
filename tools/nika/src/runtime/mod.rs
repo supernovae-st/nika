@@ -31,6 +31,7 @@ pub mod resolver;
 mod rig_agent_loop;
 mod runner;
 pub mod security;
+mod skill_injector;
 pub mod spawn;
 
 // Re-export public types
