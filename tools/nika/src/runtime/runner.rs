@@ -1615,7 +1615,10 @@ mod tests {
         // Verify the event has a duration field (u64 is inherently non-negative)
         assert!(matches!(
             &completed.unwrap().kind,
-            EventKind::WorkflowCompleted { total_duration_ms: _, .. }
+            EventKind::WorkflowCompleted {
+                total_duration_ms: _,
+                ..
+            }
         ));
     }
 
