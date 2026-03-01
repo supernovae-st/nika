@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.15.0 | Security + Infer LLM Control + Gemini Provider | 4,369 tests | Zero clippy warnings
+**Current version:** v0.15.1 | Skill Merging + Security + Gemini | 4,380+ tests | Zero clippy warnings
 
 ## Architecture
 
@@ -18,7 +18,9 @@ tools/nika/src/
 │   ├── action.rs     # TaskAction (5 variants)
 │   ├── context.rs    # ✅ ContextSpec (v0.14.3 - file loading)
 │   ├── include.rs    # ✅ IncludeSpec (v0.14.3 - DAG fusion)
-│   ├── include_loader.rs # Include resolution + prefix
+│   ├── include_loader.rs # Include resolution + prefix + skill merging
+│   ├── skill_def.rs  # ✅ SkillDef struct (v0.15.1 - skill merging)
+│   ├── pkg_resolver.rs # ✅ pkg: URI resolution (v0.15.1)
 │   ├── decompose.rs  # ✅ DecomposeSpec (v0.5 MVP 8)
 │   └── output.rs     # OutputSpec
 ├── dag/              # DAG validation
@@ -103,6 +105,35 @@ yamllint -c .yamllint.yaml **/*.nika.yaml
 - `nika/workflow@0.7`: +full streaming for all providers
 - `nika/workflow@0.8`: +Studio DX (edit history, sessions, themes, config)
 - `nika/workflow@0.9`: +context: file loading, +include: DAG fusion (v0.14.3)
+
+## v0.15.1 Changes (Skill Merging Through DAG Fusion)
+
+Workflow-level skills propagate through `include:` DAG fusion:
+
+```yaml
+schema: nika/workflow@0.9
+
+skills:
+  - path: ./skills/writing.md
+    alias: writing
+  - path: pkg:@spn/core@1.0.0/skills/coding.md
+    alias: coding
+
+include:
+  - path: ./partials/setup.nika.yaml
+    # Skills from parent workflow are merged with included workflow skills
+```
+
+**Key features:**
+- `SkillDef` AST type with path and optional alias
+- `merge_skills()` function with deduplication and circular detection
+- Local paths and `pkg:` URIs supported
+- 11 tests for skill merging
+
+**Implementation:**
+- `src/ast/skill_def.rs` - SkillDef struct and parsing
+- `src/ast/pkg_resolver.rs` - pkg: URI resolution
+- `src/ast/include_loader.rs` - Skill merging during DAG fusion
 
 ## v0.15.0 Changes (Security + Infer LLM Control + Gemini)
 
