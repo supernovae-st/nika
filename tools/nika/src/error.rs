@@ -279,7 +279,9 @@ pub enum NikaError {
     #[error("[NIKA-095] YAML parse error: {0}")]
     #[diagnostic(
         code(nika::yaml_parse),
-        help("Check YAML syntax: indentation must be consistent, strings with special chars need quoting")
+        help(
+            "Check YAML syntax: indentation must be consistent, strings with special chars need quoting"
+        )
     )]
     YamlParse(#[from] serde_yaml::Error),
 
@@ -449,7 +451,9 @@ pub enum NikaError {
     #[error("[NIKA-211] Builtin tool '{tool}' not found")]
     #[diagnostic(
         code(nika::builtin_tool_not_found),
-        help("Valid builtin tools: nika:sleep, nika:log, nika:emit, nika:assert, nika:prompt, nika:run")
+        help(
+            "Valid builtin tools: nika:sleep, nika:log, nika:emit, nika:assert, nika:prompt, nika:run"
+        )
     )]
     BuiltinToolNotFound { tool: String },
 
@@ -477,6 +481,16 @@ pub enum NikaError {
         path: String,
         reason: String,
     },
+
+    // ═══════════════════════════════════════════
+    // PKG URI ERRORS (260-269) - v0.15.2 (Skill Ecosystem)
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-260] Invalid pkg: URI '{uri}': {reason}")]
+    #[diagnostic(
+        code(nika::invalid_pkg_uri),
+        help("Format: pkg:@scope/name@version/path or pkg:@scope/name/path")
+    )]
+    InvalidPkgUri { uri: String, reason: String },
 }
 
 impl NikaError {
@@ -576,6 +590,8 @@ impl NikaError {
             Self::AssertionFailed { .. } => "NIKA-213",
             // Context errors (v0.14.2)
             Self::ContextLoadError { .. } => "NIKA-250",
+            // Pkg URI errors (v0.15.2)
+            Self::InvalidPkgUri { .. } => "NIKA-260",
             // Policy errors (v0.13.1)
             Self::PolicyViolation { .. } => "NIKA-160",
             Self::BootFailed { .. } => "NIKA-161",
@@ -774,11 +790,17 @@ impl FixSuggestion for NikaError {
             }
             NikaError::AssertionFailed { .. } => Some("The condition evaluated to false"),
             // Context errors (v0.14.2)
-            NikaError::ContextLoadError { .. } => Some("Check the file path exists and is readable"),
-            // Policy errors (v0.13.1)
-            NikaError::PolicyViolation { .. } => {
-                Some("This action was blocked by security policy. Check .nika/config.toml policy section.")
+            NikaError::ContextLoadError { .. } => {
+                Some("Check the file path exists and is readable")
             }
+            // Pkg URI errors (v0.15.2)
+            NikaError::InvalidPkgUri { .. } => Some(
+                "Use format: pkg:@scope/name@version/path (e.g., pkg:@supernovae/skills@1.0.0/rust.md)",
+            ),
+            // Policy errors (v0.13.1)
+            NikaError::PolicyViolation { .. } => Some(
+                "This action was blocked by security policy. Check .nika/config.toml policy section.",
+            ),
             NikaError::BootFailed { .. } => {
                 Some("Boot sequence failed. Run 'nika doctor' to diagnose.")
             }
