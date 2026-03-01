@@ -193,6 +193,7 @@ async fn resolve_agent(
             model,
             max_turns,
             temperature,
+            skills: _, // v0.15.3: agent-level skills handled by skill injector
         } => Ok(ResolvedAgent {
             system: system.clone(),
             provider: provider.clone(),
@@ -280,6 +281,7 @@ mod tests {
                 model: Some("gpt-4o".to_string()),
                 max_turns: Some(5),
                 temperature: Some(0.7),
+                skills: None, // v0.15.3: agent-level skills
             },
         );
 
@@ -496,6 +498,7 @@ system: "You are a researcher."
                 model: None,
                 max_turns: None,
                 temperature: None,
+                skills: None, // v0.15.3: agent-level skills
             },
         );
 

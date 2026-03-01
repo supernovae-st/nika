@@ -66,6 +66,17 @@ pub enum AgentDef {
 
         /// Temperature for generation (optional)
         temperature: Option<f32>,
+
+        /// Skills to load for this agent (v0.15.3)
+        ///
+        /// Skills can be:
+        /// - Relative paths: `./skills/my-skill.md`
+        /// - pkg: URIs: `pkg:@scope/name@version/path`
+        ///
+        /// Agent-level skills override workflow-level skills when both define
+        /// the same skill path.
+        #[serde(default)]
+        skills: Option<Vec<String>>,
     },
 }
 
@@ -101,6 +112,17 @@ impl AgentDef {
     /// Get the source path (alias for file_path)
     pub fn source_path(&self) -> Option<&str> {
         self.file_path()
+    }
+
+    /// Get the skills list if this is an inline definition (v0.15.3)
+    ///
+    /// Agent-level skills override workflow-level skills when both define
+    /// the same skill path.
+    pub fn skills(&self) -> Option<&Vec<String>> {
+        match self {
+            AgentDef::Inline { skills, .. } => skills.as_ref(),
+            _ => None,
+        }
     }
 }
 
@@ -154,6 +176,7 @@ system: "You are a helpful assistant."
             model,
             max_turns,
             temperature,
+            skills,
         } = def
         {
             assert_eq!(system, "You are a helpful assistant.");
@@ -161,6 +184,7 @@ system: "You are a helpful assistant."
             assert!(model.is_none());
             assert!(max_turns.is_none());
             assert!(temperature.is_none());
+            assert!(skills.is_none()); // v0.15.3: no skills in minimal
         }
     }
 
@@ -181,6 +205,7 @@ temperature: 0.7
             model,
             max_turns,
             temperature,
+            skills,
         } = def
         {
             assert_eq!(system, "You are a translator.");
@@ -188,6 +213,7 @@ temperature: 0.7
             assert_eq!(model, Some("gpt-4o".to_string()));
             assert_eq!(max_turns, Some(5));
             assert_eq!(temperature, Some(0.7));
+            assert!(skills.is_none()); // v0.15.3: no skills in this test
         }
     }
 
@@ -205,6 +231,7 @@ temperature: 0.7
             model: None,
             max_turns: None,
             temperature: None,
+            skills: None,
         };
 
         assert!(external.is_external());
@@ -234,11 +261,148 @@ temperature: 0.7
             model: None,
             max_turns: None,
             temperature: None,
+            skills: None,
         };
 
         assert_eq!(external.file_path(), Some("path/to/agent.yaml"));
         assert_eq!(from.file_path(), Some("./agents/researcher"));
         assert_eq!(from.source_path(), Some("./agents/researcher"));
         assert_eq!(inline.file_path(), None);
+    }
+
+    // =========================================================================
+    // Skills Tests (v0.15.3 - Sub-Plan 3)
+    // =========================================================================
+
+    #[test]
+    fn test_agent_def_inline_with_skills_array() {
+        let yaml = r#"
+            system: "You are a helpful assistant"
+            provider: claude
+            skills:
+              - ./skills/research.md
+              - ./skills/writing.md
+        "#;
+        let agent: AgentDef = serde_yaml::from_str(yaml).unwrap();
+
+        assert!(agent.is_inline());
+        let skills = agent.skills().expect("skills should be Some");
+        assert_eq!(skills.len(), 2);
+        assert_eq!(skills[0], "./skills/research.md");
+        assert_eq!(skills[1], "./skills/writing.md");
+    }
+
+    #[test]
+    fn test_agent_def_skills_helper_returns_some() {
+        let inline = AgentDef::Inline {
+            system: "test".to_string(),
+            provider: "claude".to_string(),
+            model: None,
+            max_turns: None,
+            temperature: None,
+            skills: Some(vec!["./skill.md".to_string()]),
+        };
+
+        assert!(inline.skills().is_some());
+        assert_eq!(inline.skills().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_agent_def_skills_helper_returns_none_for_no_skills() {
+        let inline = AgentDef::Inline {
+            system: "test".to_string(),
+            provider: "claude".to_string(),
+            model: None,
+            max_turns: None,
+            temperature: None,
+            skills: None,
+        };
+
+        assert!(inline.skills().is_none());
+    }
+
+    #[test]
+    fn test_agent_def_skills_helper_returns_none_for_external() {
+        let external = AgentDef::External {
+            file: "agent.yaml".to_string(),
+        };
+
+        // External agents don't have inline skills
+        assert!(external.skills().is_none());
+    }
+
+    #[test]
+    fn test_agent_def_empty_skills_array() {
+        let yaml = r#"
+            system: "You are a helpful assistant"
+            provider: claude
+            skills: []
+        "#;
+        let agent: AgentDef = serde_yaml::from_str(yaml).unwrap();
+
+        let skills = agent.skills().expect("empty array should still be Some");
+        assert!(skills.is_empty());
+    }
+
+    #[test]
+    fn test_agent_def_skills_with_pkg_uri() {
+        let yaml = r#"
+            system: "You are a helpful assistant"
+            provider: claude
+            skills:
+              - pkg:@supernovae/research@1.0.0/skills/deep-research.md
+              - pkg:@supernovae/writing@2.0.0/skills/technical-writing.md
+        "#;
+        let agent: AgentDef = serde_yaml::from_str(yaml).unwrap();
+
+        let skills = agent.skills().expect("skills should be Some");
+        assert_eq!(skills.len(), 2);
+        assert!(skills[0].starts_with("pkg:@"));
+        assert!(skills[1].starts_with("pkg:@"));
+        assert!(skills[0].contains("@1.0.0"));
+        assert!(skills[1].contains("@2.0.0"));
+    }
+
+    #[test]
+    fn test_agent_def_skills_with_relative_paths() {
+        let yaml = r#"
+            system: "You are a helpful assistant"
+            provider: claude
+            skills:
+              - ./skills/local-skill.md
+              - ../shared/common-skill.md
+              - skills/nested/deep-skill.md
+        "#;
+        let agent: AgentDef = serde_yaml::from_str(yaml).unwrap();
+
+        let skills = agent.skills().expect("skills should be Some");
+        assert_eq!(skills.len(), 3);
+        assert_eq!(skills[0], "./skills/local-skill.md");
+        assert_eq!(skills[1], "../shared/common-skill.md");
+        assert_eq!(skills[2], "skills/nested/deep-skill.md");
+    }
+
+    #[test]
+    fn test_agent_def_skills_mixed_pkg_and_relative() {
+        // Agent-level skills can mix pkg: URIs and relative paths
+        // This tests the intended behavior documented in ADR:
+        // - Agent-level skills override workflow-level skills
+        // - Skills are loaded and injected into the agent's system prompt
+        let yaml = r#"
+            system: "You are a helpful assistant"
+            provider: claude
+            skills:
+              - ./skills/project-specific.md
+              - pkg:@supernovae/research@1.0.0/skills/research.md
+        "#;
+        let agent: AgentDef = serde_yaml::from_str(yaml).unwrap();
+
+        let skills = agent.skills().expect("skills should be Some");
+        assert_eq!(skills.len(), 2);
+
+        // First is relative path
+        assert!(skills[0].starts_with("./"));
+        // Second is pkg: URI
+        assert!(skills[1].starts_with("pkg:"));
     }
 }
