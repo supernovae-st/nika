@@ -151,10 +151,12 @@ schema: "nika/workflow@0.5"
 provider: mock
 tasks:
   - id: multiline
-    exec: |
-      A=10
-      B=20
-      echo $((A + B))
+    exec:
+      command: |
+        A=10
+        B=20
+        echo $((A + B))
+      shell: true
 "#,
     );
 
@@ -177,7 +179,9 @@ schema: "nika/workflow@0.5"
 provider: mock
 tasks:
   - id: env_test
-    exec: "echo $HOME"
+    exec:
+      command: "echo $HOME"
+      shell: true
 "#,
     );
 

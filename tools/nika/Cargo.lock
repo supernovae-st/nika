@@ -2267,7 +2267,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.14.5"
+version = "0.14.6"
 dependencies = [
  "arboard",
  "async-trait",
@@ -2312,6 +2312,7 @@ dependencies = [
  "serde-saphyr",
  "serde_json",
  "serial_test",
+ "shlex",
  "smallvec",
  "tempfile",
  "terminal_size",
