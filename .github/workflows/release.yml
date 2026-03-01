@@ -142,7 +142,7 @@ jobs:
           TARGET: ${{ matrix.target }}
           BINARY: ${{ matrix.binary }}
         run: |
-          BINARY_PATH="target/${TARGET}/release/${BINARY}"
+          BINARY_PATH="tools/nika/target/${TARGET}/release/${BINARY}"
           if [ -f "$BINARY_PATH" ] && ! echo "$TARGET" | grep -q "aarch64-unknown-linux"; then
             strip "$BINARY_PATH" || true
           fi
@@ -157,7 +157,7 @@ jobs:
         run: |
           ARCHIVE_NAME="${ARTIFACT}-${VERSION}"
           mkdir -p "dist/${ARCHIVE_NAME}"
-          cp "target/${TARGET}/release/${BINARY}" "dist/${ARCHIVE_NAME}/"
+          cp "tools/nika/target/${TARGET}/release/${BINARY}" "dist/${ARCHIVE_NAME}/"
           cp README.md LICENSE CHANGELOG.md "dist/${ARCHIVE_NAME}/" 2>/dev/null || true
           cd dist
           tar -czvf "${ARCHIVE_NAME}.tar.gz" "${ARCHIVE_NAME}"
@@ -174,7 +174,7 @@ jobs:
         run: |
           $ARCHIVE_NAME = "${env:ARTIFACT}-${env:VERSION}"
           New-Item -ItemType Directory -Force -Path "dist\$ARCHIVE_NAME"
-          Copy-Item "target\${env:TARGET}\release\${env:BINARY}" "dist\$ARCHIVE_NAME\"
+          Copy-Item "tools\nika\target\${env:TARGET}\release\${env:BINARY}" "dist\$ARCHIVE_NAME\"
           Copy-Item README.md, LICENSE, CHANGELOG.md "dist\$ARCHIVE_NAME\" -ErrorAction SilentlyContinue
           Compress-Archive -Path "dist\$ARCHIVE_NAME" -DestinationPath "dist\$ARCHIVE_NAME.zip"
           Get-FileHash "dist\$ARCHIVE_NAME.zip" -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $ARCHIVE_NAME.zip" } | Out-File -Encoding ascii "dist\$ARCHIVE_NAME.zip.sha256"
