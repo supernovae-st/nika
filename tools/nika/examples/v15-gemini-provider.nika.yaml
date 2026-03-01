@@ -34,9 +34,8 @@ tasks:
       provider: gemini
       model: gemini-2.0-flash
       max_turns: 2
-      temperature: 0.4
     output:
-      format: json
+      format: text
 
 flows:
   - source: generate_tagline
