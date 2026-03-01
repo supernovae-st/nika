@@ -3011,8 +3011,67 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
 }
 
 /// Handle package management commands (v0.16.1)
+///
+/// DEPRECATED in v0.15.3 - Use `spn` CLI instead.
+/// These commands will be removed in v0.16.0.
 async fn handle_pkg_command(action: PkgAction, quiet: bool) -> Result<(), NikaError> {
     use colored::Colorize;
+
+    // DEPRECATION WARNING (v0.15.3)
+    let action_name = match &action {
+        PkgAction::Install { .. } => "pkg install",
+        PkgAction::List { .. } => "pkg list",
+        PkgAction::Search { .. } => "pkg search",
+        PkgAction::Update { .. } => "pkg update",
+        PkgAction::Remove { .. } => "pkg remove",
+    };
+    let spn_command = match &action {
+        PkgAction::Install { .. } => "spn install",
+        PkgAction::List { .. } => "spn list",
+        PkgAction::Search { .. } => "spn search",
+        PkgAction::Update { .. } => "spn update",
+        PkgAction::Remove { .. } => "spn remove",
+    };
+
+    eprintln!(
+        "\n{}",
+        "╔═══════════════════════════════════════════════════════════════════════════════╗"
+            .yellow()
+    );
+    eprintln!(
+        "{}",
+        "║  ⚠️  DEPRECATED: 'nika pkg' commands are deprecated.                          ║"
+            .yellow()
+    );
+    eprintln!(
+        "{}",
+        format!(
+            "║  Use '{}' instead of 'nika {}'.{}",
+            spn_command,
+            action_name,
+            " ".repeat(37 - spn_command.len() - action_name.len())
+        )
+        .yellow()
+    );
+    eprintln!(
+        "{}",
+        "║  These commands will be REMOVED in v0.16.0.                                   ║"
+            .yellow()
+    );
+    eprintln!(
+        "{}",
+        "║                                                                               ║"
+            .yellow()
+    );
+    eprintln!(
+        "{}",
+        "║  Install spn CLI: cargo install --git https://github.com/supernovae-st/spn   ║".yellow()
+    );
+    eprintln!(
+        "{}",
+        "╚═══════════════════════════════════════════════════════════════════════════════╝\n"
+            .yellow()
+    );
 
     // Package registry base path: ~/.spn/packages/
     let pkg_dir = dirs::home_dir()
