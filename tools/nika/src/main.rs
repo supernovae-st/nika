@@ -264,13 +264,6 @@ enum Commands {
         format: String,
     },
 
-    /// Package management for Nika skills and workflows (v0.16.1)
-    #[command(visible_alias = "p")]
-    Pkg {
-        #[command(subcommand)]
-        action: PkgAction,
-    },
-
     /// Manage the Jobs Daemon for scheduled workflow execution (v0.14.0)
     #[cfg(feature = "jobs")]
     #[command(visible_alias = "j")]
@@ -422,71 +415,6 @@ enum ConfigAction {
 
     /// Reset config to defaults
     Reset {
-        /// Skip confirmation
-        #[arg(short, long)]
-        force: bool,
-    },
-}
-
-/// Package management actions (v0.16.1)
-#[derive(Subcommand)]
-enum PkgAction {
-    /// Install packages from registry
-    Install {
-        /// Package URI (pkg:@scope/name@version or @scope/name)
-        #[arg(required = true)]
-        packages: Vec<String>,
-
-        /// Install from lockfile only (no network)
-        #[arg(long)]
-        offline: bool,
-
-        /// Force reinstall even if already installed
-        #[arg(short, long)]
-        force: bool,
-    },
-
-    /// List installed packages
-    List {
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
-
-        /// Show only outdated packages
-        #[arg(long)]
-        outdated: bool,
-    },
-
-    /// Search packages in registry
-    Search {
-        /// Search query
-        query: String,
-
-        /// Limit number of results
-        #[arg(short, long, default_value = "20")]
-        limit: usize,
-
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
-    },
-
-    /// Update packages to latest versions
-    Update {
-        /// Specific packages to update (all if empty)
-        packages: Vec<String>,
-
-        /// Dry run - show what would be updated
-        #[arg(long)]
-        dry_run: bool,
-    },
-
-    /// Remove installed packages
-    Remove {
-        /// Package names to remove
-        #[arg(required = true)]
-        packages: Vec<String>,
-
         /// Skip confirmation
         #[arg(short, long)]
         force: bool,
@@ -725,9 +653,6 @@ async fn main() {
         Some(Commands::Doctor { full, format }) => {
             handle_doctor_command(full, &format, quiet).await
         }
-
-        // Package management (v0.16.1)
-        Some(Commands::Pkg { action }) => handle_pkg_command(action, quiet).await,
 
         // Jobs Daemon management (v0.14.0)
         #[cfg(feature = "jobs")]
@@ -3003,152 +2928,6 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
 
             if !quiet {
                 println!("{} Configuration reload signal sent", "✅".green());
-            }
-        }
-    }
-
-    Ok(())
-}
-
-/// Handle package management commands (v0.16.1)
-async fn handle_pkg_command(action: PkgAction, quiet: bool) -> Result<(), NikaError> {
-    use colored::Colorize;
-
-    // Package registry base path: ~/.spn/packages/
-    let pkg_dir = dirs::home_dir()
-        .ok_or_else(|| NikaError::ConfigError {
-            reason: "Could not determine home directory for ~/.spn/packages".into(),
-        })?
-        .join(".spn")
-        .join("packages");
-
-    match action {
-        PkgAction::Install {
-            packages,
-            offline,
-            force,
-        } => {
-            if !quiet {
-                println!("{} Installing packages...", "📦".bold());
-            }
-
-            for pkg in &packages {
-                if !quiet {
-                    println!("  {} {}", "→".cyan(), pkg);
-                }
-            }
-
-            if offline {
-                println!("  {} Using offline mode (lockfile only)", "📴".yellow());
-            }
-            if force {
-                println!("  {} Force reinstall enabled", "🔄".yellow());
-            }
-
-            // TODO: Implement actual package installation
-            // - Parse pkg:@scope/name@version URI
-            // - Resolve to ~/.spn/packages/@scope/name/version/
-            // - Download and extract package
-            // - Update spn.lock.yaml
-
-            if !quiet {
-                println!("{} Installed {} package(s)", "✅".green(), packages.len());
-            }
-        }
-
-        PkgAction::List { json, outdated } => {
-            if !pkg_dir.exists() {
-                if json {
-                    println!("[]");
-                } else if !quiet {
-                    println!("{} No packages installed", "📦".yellow());
-                }
-                return Ok(());
-            }
-
-            // TODO: Implement package listing
-            // - Scan ~/.spn/packages/@scope/name/version/
-            // - Parse manifest.yaml for each package
-            // - If outdated, check registry for newer versions
-
-            if json {
-                println!("[]"); // TODO: Return actual JSON
-            } else if !quiet {
-                if outdated {
-                    println!("{} Checking for outdated packages...", "🔍".bold());
-                } else {
-                    println!("{} Installed packages:", "📦".bold());
-                }
-                println!("  {} No packages installed yet", "→".cyan());
-            }
-        }
-
-        PkgAction::Search { query, limit, json } => {
-            if !quiet && !json {
-                println!("{} Searching for '{}'...", "🔍".bold(), query.cyan());
-            }
-
-            // TODO: Implement registry search
-            // - Query registry API with search term
-            // - Limit results
-            // - Return matching packages
-
-            if json {
-                println!("[]"); // TODO: Return actual JSON
-            } else if !quiet {
-                println!(
-                    "  {} No results found (registry not implemented)",
-                    "→".yellow()
-                );
-                println!("  {} Limit: {} results", "ℹ".blue(), limit);
-            }
-        }
-
-        PkgAction::Update { packages, dry_run } => {
-            if !quiet {
-                if packages.is_empty() {
-                    println!("{} Updating all packages...", "🔄".bold());
-                } else {
-                    println!("{} Updating {} package(s)...", "🔄".bold(), packages.len());
-                }
-            }
-
-            if dry_run {
-                println!("  {} Dry run mode - no changes will be made", "👁".yellow());
-            }
-
-            // TODO: Implement package updates
-            // - Check registry for newer versions
-            // - Download and install updates
-            // - Update spn.lock.yaml
-
-            if !quiet {
-                println!("{} No updates available", "✅".green());
-            }
-        }
-
-        PkgAction::Remove { packages, force } => {
-            if !quiet {
-                println!("{} Removing packages...", "🗑".bold());
-            }
-
-            for pkg in &packages {
-                if !quiet {
-                    println!("  {} {}", "→".red(), pkg);
-                }
-            }
-
-            if !force && !quiet {
-                println!("  {} Use --force to skip confirmation", "ℹ".blue());
-            }
-
-            // TODO: Implement package removal
-            // - Remove from ~/.spn/packages/@scope/name/
-            // - Update spn.lock.yaml
-            // - Clean up unused dependencies
-
-            if !quiet {
-                println!("{} Removed {} package(s)", "✅".green(), packages.len());
             }
         }
     }
