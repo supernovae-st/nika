@@ -479,6 +479,11 @@
           "enum": ["auto", "required", "none"],
           "default": "auto",
           "description": "Tool selection mode: auto (LLM decides), required (must use tool), none (no tools)"
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Builtin tools to make available to the agent (e.g., nika:read, nika:write, nika:log). v0.15.0+"
         }
       }
     },
