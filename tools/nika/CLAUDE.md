@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.14.6 | Full Test Validation + Draft Fixes | 3,480+ tests | Zero clippy warnings
+**Current version:** v0.15.0 | Security + Infer LLM Control + Gemini Provider | 4,369 tests | Zero clippy warnings
 
 ## Architecture
 
@@ -104,10 +104,142 @@ yamllint -c .yamllint.yaml **/*.nika.yaml
 - `nika/workflow@0.8`: +Studio DX (edit history, sessions, themes, config)
 - `nika/workflow@0.9`: +context: file loading, +include: DAG fusion (v0.14.3)
 
+## v0.15.0 Changes (Security + Infer LLM Control + Gemini)
+
+### Security Hardening: Shell-Free Execution
+
+**BREAKING:** `exec:` now defaults to `shell: false` for security:
+
+```yaml
+# Default: shell-free (v0.15.0) - uses shlex parsing
+- id: safe_exec
+  exec:
+    command: "echo 'Hello World'"
+    shell: false  # default, can be omitted
+
+# Opt-in shell mode for pipes/redirects
+- id: pipeline
+  exec:
+    command: "cat file.txt | grep pattern"
+    shell: true  # required for shell features
+```
+
+**Security features:**
+- `shell: false` (default) - Command parsed via shlex, no shell injection
+- Command blocklist prevents dangerous binaries (`rm -rf`, `sudo`, etc.)
+- New error code: `NIKA-053 BlockedCommand`
+- Implementation: `src/core/security.rs`
+
+### Infer LLM Control Parity
+
+`infer:` now supports temperature, system prompt, and max_tokens:
+
+```yaml
+- id: creative_output
+  infer:
+    prompt: "Generate a tagline"
+    temperature: 0.9      # 0.0-1.0, higher = more creative
+    system: "You are a marketing expert"
+    max_tokens: 100       # Limit output length
+
+- id: precise_output
+  infer:
+    prompt: "Technical summary"
+    temperature: 0.1      # Lower = more deterministic
+```
+
+**Implementation:**
+- `InferParams` struct: `temperature: Option<f64>`, `system: Option<String>`, `max_tokens: Option<u32>`
+- `InferOptions` struct in `provider/rig.rs` for passing to LLM
+- `infer_with_options()` method in `RigProvider`
+
+### Gemini Provider (7th provider)
+
+Google's Gemini is now available via rig-core:
+
+```yaml
+# Set GEMINI_API_KEY environment variable
+schema: "nika/workflow@0.9"
+provider: gemini
+
+tasks:
+  - id: generate
+    infer:
+      prompt: "Hello Gemini!"
+      model: gemini-2.0-flash
+```
+
+**Auto-detection priority (updated):**
+1. ANTHROPIC_API_KEY → Claude
+2. OPENAI_API_KEY → OpenAI
+3. MISTRAL_API_KEY → Mistral
+4. GROQ_API_KEY → Groq
+5. DEEPSEEK_API_KEY → DeepSeek
+6. **GEMINI_API_KEY → Gemini** (NEW)
+7. OLLAMA_API_BASE_URL → Ollama
+
+**Methods added:**
+- `RigProvider::gemini()` constructor
+- `RigAgentLoop::run_gemini()` for agent mode
+- Full streaming support with token tracking
+
+### Builtin Tools (11 total - v0.15.1)
+
+Nika provides 11 builtin tools via `BuiltinToolRouter`:
+
+**Core tools (6):**
+| Tool | Description | Example |
+|------|-------------|---------|
+| `nika:sleep` | Pause execution | `{"duration":"1s"}` |
+| `nika:log` | Emit log event | `{"level":"info","message":"..."}` |
+| `nika:emit` | Custom event | `{"name":"event","payload":{}}` |
+| `nika:assert` | Validate condition | `{"condition":true}` |
+| `nika:prompt` | HITL user input | `{"message":"Continue?"}` |
+| `nika:run` | Execute sub-workflow | `{"workflow":"sub.nika.yaml"}` |
+
+**File tools (5) - NEW in v0.15.1:**
+| Tool | Description | Example |
+|------|-------------|---------|
+| `nika:read` | Read file | `{"file_path":"./file.txt"}` |
+| `nika:write` | Create/overwrite file | `{"file_path":"./out.txt","content":"..."}` |
+| `nika:edit` | Modify file | `{"file_path":"./f.txt","old_string":"a","new_string":"b"}` |
+| `nika:glob` | Find files by pattern | `{"pattern":"*.yaml","path":"./"}` |
+| `nika:grep` | Search content | `{"pattern":"TODO","path":"./src"}` |
+
+**Usage:**
+
+```rust
+use nika::runtime::builtin::BuiltinToolRouter;
+use nika::tools::{ToolContext, PermissionMode};
+use std::sync::Arc;
+
+// Core tools only (6)
+let router = BuiltinToolRouter::new();
+
+// All 11 tools (core + file)
+let ctx = Arc::new(ToolContext::new(
+    std::env::current_dir().unwrap(),
+    PermissionMode::YoloMode,
+));
+let router = BuiltinToolRouter::with_file_tools(ctx);
+
+// Dispatch
+let result = router.dispatch("nika:write", r#"{"file_path":"./test.txt","content":"Hello"}"#.to_string()).await?;
+```
+
+**In workflows:**
+
+```yaml
+- id: write_result
+  agent:
+    prompt: "Generate a report and save it"
+    tools: [nika:write, nika:read]  # File tools available to agent
+```
+
 ## v0.14.3 Changes (context: + include: DAG Fusion)
 
 ### Statistics
-- **3,211 tests passing** (security path validation tests added)
+- **4,369 tests passing** (security path validation tests added)
 - **Zero clippy warnings**
 - **Path traversal protection** in include_loader.rs and context_loader.rs
 
@@ -194,12 +326,7 @@ fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), Ni
 ## v0.8.0 Changes (Studio DX Complete + Test Count Finalization)
 
 ### Statistics
-- **2,997 tests passing** (v0.12.0 total)
-  - Edit History: 19 tests
-  - Session Persistence: 13 tests
-  - Theme System: 12 tests
-  - Config System: 10 tests
-  - Integration tests: 101 tests
+- **4,369 tests passing** (v0.15.0 total - up from 2,997 in v0.12.0)
 - **New modules:** `src/tui/edit_history.rs`, `src/tui/session.rs`, `src/tui/config.rs`
 - **Studio view:** 5,400+ lines of code
 - **Zero clippy warnings:** Full `-D warnings` compliance
@@ -341,9 +468,9 @@ All 6 providers now support **real-time streaming** in the TUI:
 
 ## v0.6.0 Changes (Multi-Provider + Chat History)
 
-### 6 LLM Providers via rig-core
+### 7 LLM Providers via rig-core (v0.15.0: +Gemini)
 
-Nika now supports 6 providers natively via rig-core:
+Nika now supports 7 providers natively via rig-core:
 
 | Provider | Constructor | Env Var | Default Model |
 |----------|-------------|---------|---------------|
@@ -353,6 +480,7 @@ Nika now supports 6 providers natively via rig-core:
 | Ollama | `RigProvider::ollama()` | `OLLAMA_API_BASE_URL` | llama3.2 |
 | Groq | `RigProvider::groq()` | `GROQ_API_KEY` | llama-3.3-70b-versatile |
 | DeepSeek | `RigProvider::deepseek()` | `DEEPSEEK_API_KEY` | deepseek-chat |
+| **Gemini** | `RigProvider::gemini()` | `GEMINI_API_KEY` | gemini-2.0-flash |
 
 **Auto-detection** (priority order):
 ```rust
@@ -362,7 +490,8 @@ Nika now supports 6 providers natively via rig-core:
 // 3. MISTRAL_API_KEY → Mistral
 // 4. GROQ_API_KEY → Groq
 // 5. DEEPSEEK_API_KEY → DeepSeek
-// 6. OLLAMA_API_BASE_URL → Ollama (no key needed)
+// 6. GEMINI_API_KEY → Gemini (v0.15.0)
+// 7. OLLAMA_API_BASE_URL → Ollama (no key needed)
 
 let provider = RigProvider::auto(); // Returns Option<RigProvider>
 ```
@@ -379,6 +508,7 @@ let result = agent.run_mistral().await?;
 let result = agent.run_ollama().await?;
 let result = agent.run_groq().await?;
 let result = agent.run_deepseek().await?;
+let result = agent.run_gemini().await?;  // v0.15.0
 ```
 
 ### Chat History Support
@@ -562,6 +692,7 @@ let result = agent.run_mistral().await?;    // requires MISTRAL_API_KEY
 let result = agent.run_ollama().await?;     // requires OLLAMA_API_BASE_URL
 let result = agent.run_groq().await?;       // requires GROQ_API_KEY
 let result = agent.run_deepseek().await?;   // requires DEEPSEEK_API_KEY
+let result = agent.run_gemini().await?;     // requires GEMINI_API_KEY (v0.15.0)
 let result = agent.run_mock().await?;       // for testing (no API key needed)
 
 // Multi-turn with chat history (v0.6)

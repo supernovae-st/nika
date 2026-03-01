@@ -7,12 +7,11 @@ schema: "nika/workflow@0.9"
 provider: claude
 
 tasks:
-  # Note: extended_thinking and thinking_budget are proposed features not yet in schema
   - id: thinking_agent
     agent:
       prompt: "Analyze step by step: What are the 3 most important features for a QR Code generator?"
-      # extended_thinking: true  # Proposed - not yet supported
-      # thinking_budget: 2000    # Proposed - not yet supported
+      extended_thinking: true
+      thinking_budget: 2000
       max_turns: 2
     output:
       format: json
