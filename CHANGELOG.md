@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-03-01
+
+### Breaking Changes
+- **Remove nika pkg commands** - Migrated to `spn` CLI
+  - `nika pkg install/list/search/update/remove` → Use `spn pkg` instead
+  - Migration guide: `docs/MIGRATION-PKG-TO-SPN.md`
+
+### Added
+- **TaskBox Inline Rendering** - All 5 verbs now have inline task visualization
+- **rmcp 0.16 SDK** - Updated MCP client to latest SDK version
+
+### Changed
+- CLI cleanup: ~221 lines removed from pkg module
+- Dependency update: rmcp 0.14 → 0.16
+
+### Statistics
+- **3,358+ tests passing**
+- **Zero clippy warnings**
+- **7 LLM providers** (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini)
+
 ## [0.15.1] - 2026-03-01
 
 ### Added

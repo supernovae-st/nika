@@ -14,7 +14,7 @@
 <sup>✨ Transform YAML into intelligent AI workflows ✨</sup>
 
 <!-- Primary Badges -->
-[![Version](https://img.shields.io/badge/v0.14.3-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.16.0-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
 [![Website](https://img.shields.io/badge/🦋_nika.sh-8b5cf6?style=for-the-badge)](https://nika.sh)
@@ -22,11 +22,11 @@
 <!-- GitHub Badges -->
 [![CI](https://img.shields.io/github/actions/workflow/status/supernovae-st/nika/ci.yml?style=flat-square&logo=github&label=CI)](https://github.com/supernovae-st/nika/actions)
 [![Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=flat-square&logo=github&label=Stars)](https://github.com/supernovae-st/nika/stargazers)
-[![Tests](https://img.shields.io/badge/tests-3,211_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/tests-3,358_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
 [![LOC](https://img.shields.io/badge/LOC-106k-0ea5e9?style=flat-square&logo=codeclimate)](https://github.com/supernovae-st/nika)
 
 <!-- Feature Badges -->
-[![Providers](https://img.shields.io/badge/🤖_LLM_providers-6-ec4899?style=flat-square)](#-providers)
+[![Providers](https://img.shields.io/badge/🤖_LLM_providers-7-ec4899?style=flat-square)](#-providers)
 [![Views](https://img.shields.io/badge/🖥️_TUI_views-6-f59e0b?style=flat-square)](#-studio-tui)
 [![Widgets](https://img.shields.io/badge/🧩_widgets-39-06b6d4?style=flat-square)](#-chat-dag-widgets)
 [![MCP](https://img.shields.io/badge/🔌_MCP-native-8b5cf6?style=flat-square)](#-mcp-integration)
@@ -56,7 +56,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
     ║                                                                       ║
     ║       • Zero dependencies          • Full observability               ║
     ║       • Single Rust binary         • Native MCP client                ║
-    ║       • 5 semantic verbs           • 6 LLM providers                  ║
+    ║       • 5 semantic verbs           • 7 LLM providers                  ║
     ║                                                                       ║
     ╚═══════════════════════════════════════════════════════════════════════╝
 ```
@@ -68,7 +68,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 <!-- TUI Screenshot as ASCII Art -->
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  🦋 Nika Studio                                                v0.14.3  ⌘K  ?  │
+│  🦋 Nika Studio                                                v0.16.0  ⌘K  ?  │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
 │ ┌─ 📁 Files ───────────┐ ┌─ 📝 Editor ──────────────────────────────────────────┐  │
 │ │ ▸ workflows/         │ │  1 │ schema: "nika/workflow@0.9"                    │  │
@@ -97,7 +97,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 
 <br>
 
-## ✨ What's New in v0.14.3
+## ✨ What's New in v0.16.0
 
 <table>
 <tr>
@@ -303,7 +303,7 @@ flowchart LR
 | **Chat-as-DAG** | ✅ Native | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Type Safety** | ✅ Rust | ❌ Python | ❌ Python | ❌ Python | ❌ Python |
 | **Streaming** | ✅ All 6 | ✅ Yes | ✅ Yes | 🟡 Partial | 🟡 Partial |
-| **Production Ready** | ✅ 3,211 tests | 🟡 Varies | 🟡 Varies | 🟡 New | 🔴 Needs guardrails |
+| **Production Ready** | ✅ 3,358 tests | 🟡 Varies | 🟡 Varies | 🟡 New | 🔴 Needs guardrails |
 
 </div>
 
@@ -371,7 +371,7 @@ cd nika && cargo install --path tools/nika
 
 # ✅ Verify installation
 nika --version
-# nika 0.14.3
+# nika 0.16.0
 ```
 
 ### 👋 Hello World (30 seconds)
@@ -581,7 +581,7 @@ flowchart TB
 │      └── animation.rs       AnimationTicker (60fps)                            │
 │                                                                                 │
 ├─────────────────────────────────────────────────────────────────────────────────┤
-│  📊 TOTALS: 172 files │ 106,000 LOC │ 3,211 tests │ 0 clippy warnings         │
+│  📊 TOTALS: 172 files │ 106,000 LOC │ 3,358 tests │ 0 clippy warnings         │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1640,16 +1640,16 @@ flows:
 ```
 ╔═════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                 ║
-║                           🦋 NIKA v0.14.3 STATS                                 ║
+║                           🦋 NIKA v0.16.0 STATS                                 ║
 ║                                                                                 ║
 ╠═════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                 ║
-║   📊 Tests              │  3,211 passing                                        ║
+║   📊 Tests              │  3,358 passing                                        ║
 ║   📝 Lines of Code      │  106,000+ LOC                                         ║
 ║   🔧 Clippy Warnings    │  0 (zero!)                                            ║
-║   🔮 LLM Providers      │  6 (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama) ║
+║   🔮 LLM Providers      │  7 (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini) ║
 ║   ⚡ Semantic Verbs     │  5 (infer, exec, fetch, invoke, agent)               ║
-║   🔧 Builtin Tools      │  6 (nika:sleep, nika:log, nika:emit...)              ║
+║   🔧 Builtin Tools      │  11 (6 core + 5 file tools)                          ║
 ║   🖥️ TUI Views          │  6 (Chat, Home, Studio, Monitor, Settings, Help)     ║
 ║   🧩 TUI Widgets        │  39 widgets                                           ║
 ║   📋 Event Types        │  22 variants                                          ║
@@ -1665,7 +1665,7 @@ flows:
 ### 📈 Test Distribution by Module
 
 ```mermaid
-pie title 📊 Test Distribution (3,211 tests)
+pie title 📊 Test Distribution (3,358 tests)
     "🖥️ TUI" : 1704
     "🔗 Binding" : 198
     "🔍 AST" : 171
@@ -1692,7 +1692,7 @@ pie title 📊 Test Distribution (3,211 tests)
 | 🔮 `provider/` | 1,912 | 24 | rig-core wrapper |
 | 🔀 `dag/` | 1,914 | 60 | StableGraph, validation |
 | 📊 `event/` | 1,732 | 46 | Event log, traces |
-| **Total** | **106,000+** | **3,211** | |
+| **Total** | **106,000+** | **3,358** | |
 
 <br>
 
@@ -1996,7 +1996,7 @@ cd nika
 # 🔨 Build
 cargo build
 
-# 🧪 Test (3,211 tests)
+# 🧪 Test (3,358 tests)
 cargo test
 
 # 🔍 Lint

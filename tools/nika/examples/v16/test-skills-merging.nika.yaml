@@ -1,0 +1,23 @@
+# Test: Skill usage patterns
+# Note: skills: field is v0.15.1 feature (schema may not validate yet)
+schema: nika/workflow@0.9
+workflow: test-skills-usage
+
+tasks:
+  # Test 1: Task that would use skill context
+  - id: use_skill_context
+    infer: |
+      Generate a greeting following best practices.
+      Be concise and helpful.
+
+  # Test 2: Multiple skill patterns
+  - id: multi_skill_task
+    infer: |
+      Explain which approach would be best for documentation:
+      1. Markdown
+      2. HTML
+      3. Plain text
+
+  # Test 3: Verify patterns
+  - id: verify_patterns
+    exec: "echo 'Skill patterns can be used for prompt templates'"

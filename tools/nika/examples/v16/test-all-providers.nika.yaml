@@ -1,0 +1,55 @@
+# Test: All 7 LLM providers
+# Tests: Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini
+# NOTE: Requires respective API keys to be set
+schema: nika/workflow@0.9
+workflow: test-all-providers
+
+tasks:
+  # Test 1: Claude (default)
+  - id: test_claude
+    infer:
+      prompt: "Say 'Hello from Claude' exactly"
+      provider: claude
+      model: claude-sonnet-4-20250514
+
+  # Test 2: OpenAI
+  # - id: test_openai
+  #   infer:
+  #     prompt: "Say 'Hello from OpenAI' exactly"
+  #     provider: openai
+  #     model: gpt-4o
+
+  # Test 3: Mistral
+  # - id: test_mistral
+  #   infer:
+  #     prompt: "Say 'Hello from Mistral' exactly"
+  #     provider: mistral
+  #     model: mistral-large-latest
+
+  # Test 4: Groq
+  # - id: test_groq
+  #   infer:
+  #     prompt: "Say 'Hello from Groq' exactly"
+  #     provider: groq
+  #     model: llama-3.3-70b-versatile
+
+  # Test 5: DeepSeek
+  # - id: test_deepseek
+  #   infer:
+  #     prompt: "Say 'Hello from DeepSeek' exactly"
+  #     provider: deepseek
+  #     model: deepseek-chat
+
+  # Test 6: Ollama (local)
+  # - id: test_ollama
+  #   infer:
+  #     prompt: "Say 'Hello from Ollama' exactly"
+  #     provider: ollama
+  #     model: llama3.2
+
+  # Test 7: Gemini (v0.15.0)
+  # - id: test_gemini
+  #   infer:
+  #     prompt: "Say 'Hello from Gemini' exactly"
+  #     provider: gemini
+  #     model: gemini-2.0-flash

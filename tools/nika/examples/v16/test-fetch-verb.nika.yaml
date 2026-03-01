@@ -1,0 +1,35 @@
+# Test: fetch: verb - HTTP requests
+# Tests: GET, POST, headers
+schema: nika/workflow@0.9
+workflow: test-fetch-verb
+
+tasks:
+  # Test 1: Simple GET
+  - id: fetch_get
+    fetch:
+      url: "https://httpbin.org/get"
+      method: GET
+
+  # Test 2: GET with headers
+  - id: fetch_with_headers
+    fetch:
+      url: "https://httpbin.org/headers"
+      method: GET
+      headers:
+        X-Custom-Header: "NikaTest"
+        Accept: "application/json"
+
+  # Test 3: POST with body
+  - id: fetch_post
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      headers:
+        Content-Type: "application/json"
+      body: '{"message": "Hello from Nika", "version": "0.16.0"}'
+
+  # Test 4: JSON endpoint
+  - id: fetch_json
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET

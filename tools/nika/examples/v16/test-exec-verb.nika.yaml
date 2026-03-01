@@ -1,0 +1,50 @@
+# Test: exec: verb - Shell execution and security
+# Tests: shorthand, full form, shell-free (v0.15.0)
+schema: nika/workflow@0.9
+workflow: test-exec-verb
+
+tasks:
+  # Test 1: Shorthand syntax
+  - id: exec_shorthand
+    exec: "echo 'Hello from exec shorthand'"
+
+  # Test 2: Full form
+  - id: exec_full
+    exec:
+      command: "echo 'Hello from exec full form'"
+
+  # Test 3: Shell-free mode (v0.15.0 default)
+  - id: exec_shell_free
+    exec:
+      command: "echo 'Safe shell-free execution'"
+      shell: false
+
+  # Test 4: Shell mode for pipes
+  - id: exec_with_shell
+    exec:
+      command: "echo 'Line1' && echo 'Line2'"
+      shell: true
+
+  # Test 5: Complex command
+  - id: exec_complex
+    exec:
+      command: "ls -la | head -5"
+      shell: true
+
+  # Test 6: Working directory via shell
+  - id: exec_pwd
+    exec:
+      command: "cd /tmp && pwd"
+      shell: true
+
+  # Test 7: Binding template in command
+  - id: exec_with_binding
+    use:
+      msg: exec_shorthand
+    exec:
+      command: "echo 'Previous output was captured'"
+      shell: true
+
+flows:
+  - source: exec_shorthand
+    target: exec_with_binding
