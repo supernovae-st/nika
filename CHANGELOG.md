@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-03-01
+
+### Added
+- **Skill Merging Through DAG Fusion** - Workflow-level skills propagate through `include:` DAG fusion
+  - `SkillDef` AST type with path and optional alias
+  - `merge_skills()` function with deduplication and circular detection
+  - Local paths and `pkg:` URI support
+  - 11 tests for skill merging
+- **pkg: Protocol Support** - Reference skills from package registry
+  - `pkg:@scope/name@version/path` URI syntax
+  - Resolves to `~/.spn/packages/@scope/name/version/path`
+  - Implementation in `src/ast/pkg_resolver.rs`
+
+### Changed
+- Cargo.lock updated for rustls migration (removes native-tls dependencies)
+- All fix branches merged (cross-compilation, release workflow, rustls)
+
+### Statistics
+- **3,358 tests passing** (up from 3,480 in v0.14.6 - test consolidation)
+- **Zero clippy warnings**
+
+## [0.15.0] - 2026-02-28
+
+### Added
+- **Security Hardening: Shell-Free Execution**
+  - `exec:` defaults to `shell: false` (shlex parsing) for security
+  - Command blocklist prevents dangerous binaries (`rm -rf`, `sudo`, etc.)
+  - New error code: `NIKA-053 BlockedCommand`
+  - Implementation in `src/core/security.rs`
+- **Infer LLM Control Parity**
+  - `temperature` - 0.0-1.0 creativity control
+  - `system` - System prompt injection
+  - `max_tokens` - Output length limit
+  - `InferParams` and `InferOptions` structs
+- **Gemini Provider (7th provider)**
+  - `RigProvider::gemini()` constructor
+  - `RigAgentLoop::run_gemini()` for agent mode
+  - Full streaming support with token tracking
+  - Auto-detection via `GEMINI_API_KEY`
+- **File Tools (5 new builtin tools)**
+  - `nika:read` - Read file content
+  - `nika:write` - Create/overwrite file
+  - `nika:edit` - Modify file with old/new string replacement
+  - `nika:glob` - Find files by pattern
+  - `nika:grep` - Search content by pattern
+  - 11 builtin tools total (6 core + 5 file)
+
+### Breaking Changes
+- `exec:` now defaults to `shell: false` - Add `shell: true` for pipes/redirects
+
+### Statistics
+- **3,480+ tests passing**
+- **Zero clippy warnings**
+- **7 LLM providers** (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini)
+
 ## [0.14.6] - 2026-02-28
 
 ### Added

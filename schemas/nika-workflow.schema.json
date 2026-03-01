@@ -9,9 +9,9 @@
   "properties": {
     "schema": {
       "type": "string",
-      "pattern": "^nika/workflow@0\\.[1-4]$",
-      "description": "Workflow schema version (nika/workflow@0.1, @0.2, @0.3, or @0.4)",
-      "examples": ["nika/workflow@0.3", "nika/workflow@0.4"]
+      "pattern": "^nika/workflow@0\\.[1-9]$",
+      "description": "Workflow schema version (nika/workflow@0.1 through @0.9)",
+      "examples": ["nika/workflow@0.4", "nika/workflow@0.9"]
     },
     "workflow": {
       "type": "string",
@@ -25,14 +25,32 @@
     },
     "provider": {
       "type": "string",
-      "enum": ["claude", "openai", "mock"],
+      "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "ollama", "mock"],
       "default": "claude",
       "description": "Default LLM provider for infer and agent tasks"
     },
     "model": {
       "type": "string",
       "description": "Default model override (e.g., claude-sonnet-4-6, gpt-4o)",
-      "examples": ["claude-sonnet-4-6", "gpt-4o-mini"]
+      "examples": ["claude-sonnet-4-6", "gpt-4o-mini", "gemini-2.0-flash"]
+    },
+    "context": {
+      "$ref": "#/$defs/ContextSpec",
+      "description": "File loading at workflow start (v0.9+)"
+    },
+    "include": {
+      "type": "array",
+      "description": "External workflows to merge into DAG (v0.9+)",
+      "items": {
+        "$ref": "#/$defs/IncludeSpec"
+      }
+    },
+    "skills": {
+      "type": "array",
+      "description": "Workflow-level skills to inject (v0.15+)",
+      "items": {
+        "$ref": "#/$defs/SkillDef"
+      }
     },
     "mcp": {
       "type": "object",
@@ -58,6 +76,60 @@
     }
   },
   "$defs": {
+    "ContextSpec": {
+      "type": "object",
+      "description": "Context file loading configuration (v0.9+)",
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "type": "object",
+          "description": "File mappings (alias → path)",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "examples": [{"brand": "./context/brand.md", "config": "./settings.json"}]
+        },
+        "session": {
+          "type": "string",
+          "description": "Session file path for state restoration"
+        }
+      }
+    },
+    "IncludeSpec": {
+      "type": "object",
+      "description": "External workflow to merge (v0.9+)",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to external .nika.yaml file"
+        },
+        "prefix": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Prefix for included task IDs (namespace isolation)"
+        }
+      }
+    },
+    "SkillDef": {
+      "type": "object",
+      "description": "Skill definition with path and optional alias (v0.15+)",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to skill file (local or pkg: URI)",
+          "examples": ["./skills/writing.md", "pkg:@spn/core@1.0.0/skills/coding.md"]
+        },
+        "alias": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "Alias for the skill"
+        }
+      }
+    },
     "McpServerConfig": {
       "type": "object",
       "description": "Inline MCP server configuration",
@@ -67,7 +139,7 @@
         "command": {
           "type": "string",
           "description": "Command to spawn the MCP server",
-          "examples": ["cargo", "node", "python"]
+          "examples": ["cargo", "node", "python", "npx"]
         },
         "args": {
           "type": "array",
@@ -137,6 +209,10 @@
           "default": true,
           "description": "Stop all iterations on first error"
         },
+        "decompose": {
+          "$ref": "#/$defs/DecomposeSpec",
+          "description": "Runtime DAG expansion (v0.5+)"
+        },
         "infer": {
           "$ref": "#/$defs/InferParams",
           "description": "LLM inference task"
@@ -166,11 +242,38 @@
         { "required": ["id", "agent"] }
       ]
     },
+    "DecomposeSpec": {
+      "type": "object",
+      "description": "Runtime DAG expansion via MCP traversal (v0.5+)",
+      "required": ["strategy"],
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": ["semantic", "static", "nested"],
+          "description": "Expansion strategy"
+        },
+        "traverse": {
+          "type": "string",
+          "description": "Arc type to follow (for semantic strategy)"
+        },
+        "source": {
+          "type": "string",
+          "description": "Starting node reference (e.g., $entity)"
+        },
+        "max_items": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "Maximum items to expand"
+        }
+      }
+    },
     "InferParams": {
       "oneOf": [
         {
           "type": "string",
-          "description": "Simple prompt string"
+          "description": "Simple prompt string (shorthand)"
         },
         {
           "type": "object",
@@ -183,12 +286,28 @@
             },
             "provider": {
               "type": "string",
-              "enum": ["claude", "openai", "mock"],
+              "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "ollama", "mock"],
               "description": "Provider override for this task"
             },
             "model": {
               "type": "string",
               "description": "Model override for this task"
+            },
+            "temperature": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2,
+              "description": "LLM temperature (0.0-2.0, higher = more creative)"
+            },
+            "system": {
+              "type": "string",
+              "description": "System prompt (persona/behavior)"
+            },
+            "max_tokens": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "description": "Maximum output tokens"
             }
           }
         }
@@ -198,7 +317,7 @@
       "oneOf": [
         {
           "type": "string",
-          "description": "Simple command string"
+          "description": "Simple command string (shorthand)"
         },
         {
           "type": "object",
@@ -208,6 +327,20 @@
             "command": {
               "type": "string",
               "description": "Shell command to execute (supports {{use.alias}} templates)"
+            },
+            "shell": {
+              "type": "boolean",
+              "default": false,
+              "description": "Execute via shell (default: false for security, set true for pipes/redirects)"
+            },
+            "timeout": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Timeout in seconds"
+            },
+            "cwd": {
+              "type": "string",
+              "description": "Working directory for command"
             }
           }
         }
@@ -237,6 +370,11 @@
         "body": {
           "type": "string",
           "description": "Request body (for POST/PUT/PATCH)"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Request timeout in seconds"
         }
       }
     },
@@ -282,7 +420,7 @@
         },
         "provider": {
           "type": "string",
-          "enum": ["claude", "openai", "mock"],
+          "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "ollama", "mock"],
           "description": "Provider override"
         },
         "model": {
@@ -294,6 +432,11 @@
           "items": { "type": "string" },
           "description": "MCP servers the agent can access"
         },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Builtin tools the agent can use (nika:read, nika:write, etc.)"
+        },
         "max_turns": {
           "type": "integer",
           "minimum": 1,
@@ -301,11 +444,23 @@
           "default": 10,
           "description": "Maximum agentic turns"
         },
+        "depth_limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Maximum nested agent depth (spawn_agent protection)"
+        },
         "temperature": {
           "type": "number",
           "minimum": 0,
           "maximum": 2,
           "description": "LLM temperature"
+        },
+        "thinking": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable extended thinking (Claude only)"
         },
         "stop_sequences": {
           "type": "array",
@@ -327,9 +482,18 @@
     "WiringValue": {
       "type": "object",
       "properties": {
+        "path": {
+          "type": "string",
+          "description": "Source task.field reference (v0.5+ lazy bindings)"
+        },
         "from": {
           "type": "string",
-          "description": "Source task.field reference"
+          "description": "Source task.field reference (legacy)"
+        },
+        "lazy": {
+          "type": "boolean",
+          "default": false,
+          "description": "Defer resolution until first access (v0.5+)"
         },
         "default": {
           "description": "Default value if source is null"

@@ -346,10 +346,19 @@ jobs:
       - name: Run cargo-audit (vulnerabilities)
         id: audit
         run: |
+          # Clear advisory-db to avoid conflict with rust-cache
+          rm -rf ~/.cargo/advisory-db || true
+          # Run cargo audit with proper error handling
           cargo audit --json 2>&1 | tee audit-output.json || true
           cargo audit 2>&1 | tee audit-output.txt || true
-          VULNS=$(grep -c "Vulnerability" audit-output.txt || echo "0")
-          echo "vulnerabilities=$VULNS" >> "$GITHUB_OUTPUT"
+          # Count vulnerabilities safely
+          # Note: grep -c outputs "0" AND exits with code 1 when no matches
+          # Using assignment with || true to capture the count without triggering || echo
+          VULNS=0
+          if [ -f audit-output.txt ]; then
+            VULNS=$(grep -c "Vulnerability" audit-output.txt 2>/dev/null) || VULNS=0
+          fi
+          echo "vulnerabilities=${VULNS}" >> "$GITHUB_OUTPUT"
 
       - name: Upload security reports
         if: always()
