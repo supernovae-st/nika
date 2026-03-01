@@ -183,6 +183,59 @@ tasks:
 - `RigAgentLoop::run_gemini()` for agent mode
 - Full streaming support with token tracking
 
+### Builtin Tools (11 total - v0.15.1)
+
+Nika provides 11 builtin tools via `BuiltinToolRouter`:
+
+**Core tools (6):**
+| Tool | Description | Example |
+|------|-------------|---------|
+| `nika:sleep` | Pause execution | `{"duration":"1s"}` |
+| `nika:log` | Emit log event | `{"level":"info","message":"..."}` |
+| `nika:emit` | Custom event | `{"name":"event","payload":{}}` |
+| `nika:assert` | Validate condition | `{"condition":true}` |
+| `nika:prompt` | HITL user input | `{"message":"Continue?"}` |
+| `nika:run` | Execute sub-workflow | `{"workflow":"sub.nika.yaml"}` |
+
+**File tools (5) - NEW in v0.15.1:**
+| Tool | Description | Example |
+|------|-------------|---------|
+| `nika:read` | Read file | `{"file_path":"./file.txt"}` |
+| `nika:write` | Create/overwrite file | `{"file_path":"./out.txt","content":"..."}` |
+| `nika:edit` | Modify file | `{"file_path":"./f.txt","old_string":"a","new_string":"b"}` |
+| `nika:glob` | Find files by pattern | `{"pattern":"*.yaml","path":"./"}` |
+| `nika:grep` | Search content | `{"pattern":"TODO","path":"./src"}` |
+
+**Usage:**
+
+```rust
+use nika::runtime::builtin::BuiltinToolRouter;
+use nika::tools::{ToolContext, PermissionMode};
+use std::sync::Arc;
+
+// Core tools only (6)
+let router = BuiltinToolRouter::new();
+
+// All 11 tools (core + file)
+let ctx = Arc::new(ToolContext::new(
+    std::env::current_dir().unwrap(),
+    PermissionMode::YoloMode,
+));
+let router = BuiltinToolRouter::with_file_tools(ctx);
+
+// Dispatch
+let result = router.dispatch("nika:write", r#"{"file_path":"./test.txt","content":"Hello"}"#.to_string()).await?;
+```
+
+**In workflows:**
+
+```yaml
+- id: write_result
+  agent:
+    prompt: "Generate a report and save it"
+    tools: [nika:write, nika:read]  # File tools available to agent
+```
+
 ## v0.14.3 Changes (context: + include: DAG Fusion)
 
 ### Statistics

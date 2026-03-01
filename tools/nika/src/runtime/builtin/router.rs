@@ -1,7 +1,28 @@
 //! BuiltinToolRouter for nika:* tool dispatch.
+//!
+//! Provides routing for 11 builtin tools:
+//!
+//! **Core tools (6):**
+//! - `nika:sleep` - Pause execution for duration
+//! - `nika:log` - Emit log event at level
+//! - `nika:emit` - Emit custom event to EventLog
+//! - `nika:assert` - Validate condition, fail if false
+//! - `nika:prompt` - HITL - request user input
+//! - `nika:run` - Execute nested workflow
+//!
+//! **File tools (5) - requires ToolContext:**
+//! - `nika:read` - Read file with line numbers
+//! - `nika:write` - Create/overwrite file
+//! - `nika:edit` - Modify file (old_string → new_string)
+//! - `nika:glob` - Find files by pattern
+//! - `nika:grep` - Search content with regex
 
-use super::{AssertTool, BuiltinTool, EmitTool, LogTool, PromptTool, RunTool, SleepTool};
+use super::{
+    create_file_tool_adapters, AssertTool, BuiltinTool, EmitTool, LogTool, PromptTool, RunTool,
+    SleepTool,
+};
 use crate::error::NikaError;
+use crate::tools::ToolContext;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -25,11 +46,13 @@ pub struct BuiltinToolRouter {
 }
 
 impl BuiltinToolRouter {
-    /// Create a new router with all 6 builtin tools registered.
+    /// Create a new router with 6 core builtin tools (no file tools).
+    ///
+    /// For file tools (read, write, edit, glob, grep), use `with_file_tools()`.
     pub fn new() -> Self {
         let mut tools: HashMap<&'static str, Arc<dyn BuiltinTool>> = HashMap::new();
 
-        // Register all 6 builtin tools
+        // Register 6 core builtin tools
         tools.insert("sleep", Arc::new(SleepTool));
         tools.insert("log", Arc::new(LogTool));
         tools.insert("emit", Arc::new(EmitTool));
@@ -38,6 +61,37 @@ impl BuiltinToolRouter {
         tools.insert("run", Arc::new(RunTool));
 
         Self { tools }
+    }
+
+    /// Create a router with all 11 builtin tools (6 core + 5 file tools).
+    ///
+    /// File tools require a `ToolContext` for working directory and permissions.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use std::sync::Arc;
+    /// use nika::tools::{ToolContext, PermissionMode};
+    ///
+    /// let ctx = Arc::new(ToolContext::new(
+    ///     std::env::current_dir().unwrap(),
+    ///     PermissionMode::YoloMode,
+    /// ));
+    /// let router = BuiltinToolRouter::with_file_tools(ctx);
+    ///
+    /// // Now supports nika:read, nika:write, etc.
+    /// assert!(router.has_tool("read"));
+    /// assert!(router.has_tool("write"));
+    /// ```
+    pub fn with_file_tools(ctx: Arc<ToolContext>) -> Self {
+        let mut router = Self::new();
+
+        // Register 5 file tools via adapter
+        for tool in create_file_tool_adapters(ctx) {
+            router.tools.insert(tool.name(), Arc::from(tool));
+        }
+
+        router
     }
 
     /// Check if a tool name is a builtin (has nika: prefix).
@@ -117,6 +171,17 @@ impl Default for BuiltinToolRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tools::PermissionMode;
+    use tempfile::TempDir;
+
+    fn setup_test_context() -> (TempDir, Arc<ToolContext>) {
+        let temp_dir = TempDir::new().unwrap();
+        let ctx = Arc::new(ToolContext::new(
+            temp_dir.path().to_path_buf(),
+            PermissionMode::YoloMode,
+        ));
+        (temp_dir, ctx)
+    }
 
     #[test]
     fn test_router_is_builtin() {
@@ -126,6 +191,13 @@ mod tests {
         assert!(BuiltinToolRouter::is_builtin("nika:assert"));
         assert!(BuiltinToolRouter::is_builtin("nika:prompt"));
         assert!(BuiltinToolRouter::is_builtin("nika:run"));
+        // File tools
+        assert!(BuiltinToolRouter::is_builtin("nika:read"));
+        assert!(BuiltinToolRouter::is_builtin("nika:write"));
+        assert!(BuiltinToolRouter::is_builtin("nika:edit"));
+        assert!(BuiltinToolRouter::is_builtin("nika:glob"));
+        assert!(BuiltinToolRouter::is_builtin("nika:grep"));
+        // Non-builtin
         assert!(!BuiltinToolRouter::is_builtin("novanet:describe"));
         assert!(!BuiltinToolRouter::is_builtin("sleep"));
         assert!(!BuiltinToolRouter::is_builtin(""));
@@ -151,7 +223,7 @@ mod tests {
     }
 
     #[test]
-    fn test_router_new_has_all_tools() {
+    fn test_router_new_has_6_core_tools() {
         let router = BuiltinToolRouter::new();
         assert!(router.has_tool("sleep"));
         assert!(router.has_tool("log"));
@@ -159,7 +231,33 @@ mod tests {
         assert!(router.has_tool("assert"));
         assert!(router.has_tool("prompt"));
         assert!(router.has_tool("run"));
+        // new() does NOT include file tools
+        assert!(!router.has_tool("read"));
+        assert!(!router.has_tool("write"));
         assert_eq!(router.tool_names().len(), 6);
+    }
+
+    #[test]
+    fn test_router_with_file_tools_has_11_tools() {
+        let (_temp, ctx) = setup_test_context();
+        let router = BuiltinToolRouter::with_file_tools(ctx);
+
+        // 6 core tools
+        assert!(router.has_tool("sleep"));
+        assert!(router.has_tool("log"));
+        assert!(router.has_tool("emit"));
+        assert!(router.has_tool("assert"));
+        assert!(router.has_tool("prompt"));
+        assert!(router.has_tool("run"));
+
+        // 5 file tools
+        assert!(router.has_tool("read"));
+        assert!(router.has_tool("write"));
+        assert!(router.has_tool("edit"));
+        assert!(router.has_tool("glob"));
+        assert!(router.has_tool("grep"));
+
+        assert_eq!(router.tool_names().len(), 11);
     }
 
     #[test]
@@ -344,5 +442,100 @@ mod tests {
             err.to_string().contains("resolve workflow path")
                 || err.to_string().contains("not found")
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FILE TOOL DISPATCH TESTS (via with_file_tools router)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_router_dispatch_write_then_read() {
+        let (temp_dir, ctx) = setup_test_context();
+        let router = BuiltinToolRouter::with_file_tools(ctx);
+        let file_path = temp_dir.path().join("test.txt");
+
+        // Write file via router
+        let write_args = serde_json::json!({
+            "file_path": file_path.to_string_lossy(),
+            "content": "Hello from router!"
+        })
+        .to_string();
+
+        let result = router.dispatch("nika:write", write_args).await;
+        assert!(result.is_ok(), "Write failed: {:?}", result);
+
+        // Read file via router
+        let read_args = serde_json::json!({
+            "file_path": file_path.to_string_lossy()
+        })
+        .to_string();
+
+        let result = router.dispatch("nika:read", read_args).await;
+        assert!(result.is_ok(), "Read failed: {:?}", result);
+        assert!(result.unwrap().contains("Hello from router!"));
+    }
+
+    #[tokio::test]
+    async fn test_router_dispatch_glob() {
+        let (temp_dir, ctx) = setup_test_context();
+        let router = BuiltinToolRouter::with_file_tools(ctx);
+
+        // Create test files
+        std::fs::write(temp_dir.path().join("a.txt"), "a").unwrap();
+        std::fs::write(temp_dir.path().join("b.txt"), "b").unwrap();
+        std::fs::write(temp_dir.path().join("c.md"), "c").unwrap();
+
+        let glob_args = serde_json::json!({
+            "pattern": "*.txt",
+            "path": temp_dir.path().to_string_lossy()
+        })
+        .to_string();
+
+        let result = router.dispatch("nika:glob", glob_args).await;
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("a.txt"));
+        assert!(output.contains("b.txt"));
+        assert!(!output.contains("c.md"));
+    }
+
+    #[tokio::test]
+    async fn test_router_dispatch_grep() {
+        let (temp_dir, ctx) = setup_test_context();
+        let router = BuiltinToolRouter::with_file_tools(ctx);
+
+        // Create test file
+        std::fs::write(
+            temp_dir.path().join("search.txt"),
+            "Line 1: foo\nLine 2: bar\nLine 3: foo bar",
+        )
+        .unwrap();
+
+        let grep_args = serde_json::json!({
+            "pattern": "foo",
+            "path": temp_dir.path().to_string_lossy()
+        })
+        .to_string();
+
+        let result = router.dispatch("nika:grep", grep_args).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().contains("search.txt"));
+    }
+
+    #[tokio::test]
+    async fn test_router_dispatch_file_tool_not_found_without_context() {
+        // Router without file tools
+        let router = BuiltinToolRouter::new();
+
+        let result = router
+            .dispatch(
+                "nika:write",
+                r#"{"file_path":"x","content":"y"}"#.to_string(),
+            )
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Unknown builtin tool"));
     }
 }

@@ -1,0 +1,51 @@
+# v0.15.1 Builtin File Tools Demo
+#
+# Demonstrates the 5 new file tools available via BuiltinToolRouter:
+# - nika:read   - Read file with line numbers
+# - nika:write  - Create/overwrite file
+# - nika:edit   - Modify file content
+# - nika:glob   - Find files by pattern
+# - nika:grep   - Search content with regex
+#
+# These tools are available to agents when registered via:
+#   let router = BuiltinToolRouter::with_file_tools(ctx);
+
+schema: "nika/workflow@0.9"
+workflow: builtin-file-tools-demo
+description: "Demo of nika:read, nika:write, nika:edit, nika:glob, nika:grep"
+provider: claude
+
+tasks:
+  # Step 1: Write a file using exec (shell-based)
+  - id: write_initial_file
+    exec:
+      command: "echo 'Hello World\nThis is line 2\nFoo Bar Baz' > /tmp/nika-demo.txt"
+      shell: true
+
+  # Step 2: Agent reads and modifies the file using builtin tools
+  - id: file_agent
+    agent:
+      prompt: |
+        You have access to file tools. Please:
+        1. Use nika:read to read /tmp/nika-demo.txt
+        2. Use nika:write to create /tmp/nika-output.txt with a summary
+        3. Report what you did
+
+      tools:
+        - nika:read
+        - nika:write
+        - nika:log
+
+      max_turns: 5
+
+  # Step 3: Verify the output
+  - id: verify_output
+    exec:
+      command: "cat /tmp/nika-output.txt"
+      shell: true
+
+flows:
+  - source: write_initial_file
+    target: file_agent
+  - source: file_agent
+    target: verify_output

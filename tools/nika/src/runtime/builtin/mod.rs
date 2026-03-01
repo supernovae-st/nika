@@ -1,12 +1,21 @@
-//! Builtin Tools Module - nika_* tools for HITL and workflow composition (v0.14.0)
+//! Builtin Tools Module - nika_* tools for HITL, workflow composition, and file operations
 //!
-//! Provides 6 builtin tools with nika_ prefix:
+//! Provides 11 builtin tools with nika_ prefix:
+//!
+//! **Core tools (6):**
 //! - `nika_sleep` - Pause execution for duration
 //! - `nika_log` - Emit log event at level
 //! - `nika_emit` - Emit custom event to EventLog
 //! - `nika_assert` - Validate condition, fail if false
 //! - `nika_prompt` - HITL - request user input
-//! - `nika_run` - Execute nested workflow (v0.14.0: +timeout, +max_depth, +path security)
+//! - `nika_run` - Execute nested workflow
+//!
+//! **File tools (5) - v0.15.1:**
+//! - `nika_read` - Read file with line numbers
+//! - `nika_write` - Create/overwrite file
+//! - `nika_edit` - Modify file (old_string → new_string)
+//! - `nika_glob` - Find files by pattern
+//! - `nika_grep` - Search content with regex
 //!
 //! v0.12.1: Changed prefix from `nika:` to `nika_` for Anthropic API compatibility.
 //! Tool name pattern: ^[a-zA-Z0-9_-]{1,128}$ - colon is NOT allowed.
@@ -22,6 +31,7 @@
 
 mod assert;
 mod emit;
+mod file_adapter;
 mod log;
 mod prompt;
 mod rig_adapter;
@@ -32,6 +42,7 @@ mod r#trait;
 
 pub use assert::AssertTool;
 pub use emit::EmitTool;
+pub use file_adapter::{create_file_tool_adapters, FileToolAdapter};
 pub use log::{LogLevel, LogTool};
 pub use prompt::{PromptParams, PromptResponse, PromptTool};
 pub use r#trait::BuiltinTool;
