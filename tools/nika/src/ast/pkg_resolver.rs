@@ -20,11 +20,14 @@
 //! ```
 //! use nika::ast::pkg_resolver::PkgUri;
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let uri = PkgUri::parse("pkg:@supernovae/skills@1.0.0/rust.md")?;
-//! assert_eq!(uri.scope, Some("supernovae"));
+//! assert_eq!(uri.scope.as_deref(), Some("supernovae"));
 //! assert_eq!(uri.name, "skills");
-//! assert_eq!(uri.version, Some("1.0.0"));
+//! assert_eq!(uri.version.as_deref(), Some("1.0.0"));
 //! assert_eq!(uri.path, "rust.md");
+//! # Ok(())
+//! # }
 //! ```
 
 use std::path::PathBuf;

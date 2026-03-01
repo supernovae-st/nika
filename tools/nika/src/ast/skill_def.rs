@@ -51,16 +51,19 @@ use crate::error::NikaError;
 ///
 /// # Examples
 /// ```
-/// use std::path::Path;
+/// use std::path::{Path, PathBuf};
 /// use nika::ast::skill_def::resolve_skill_path;
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // Local path
 /// let path = resolve_skill_path("./skills/seo.skill.md", Path::new("/project"))?;
-/// assert_eq!(path, PathBuf::from("/project/skills/seo.skill.md"));
+/// assert_eq!(path, PathBuf::from("/project/./skills/seo.skill.md"));
 ///
 /// // pkg: URI
 /// let path = resolve_skill_path("pkg:@supernovae/skills@1.0.0/rust.md", Path::new("/project"))?;
 /// // Returns ~/.spn/packages/@supernovae/skills/1.0.0/rust.md
+/// # Ok(())
+/// # }
 /// ```
 pub fn resolve_skill_path(skill_path: &str, base_dir: &Path) -> Result<PathBuf, NikaError> {
     if skill_path.starts_with("pkg:") {
