@@ -1,0 +1,86 @@
+# Test: Builtin tools - All 11 nika:* tools
+# Tests: Core (6) + File (5) tools
+schema: nika/workflow@0.9
+workflow: test-builtin-tools
+
+tasks:
+  # ===== CORE TOOLS (6) =====
+
+  # Test 1: nika:sleep
+  - id: test_sleep
+    agent:
+      prompt: |
+        Use nika:sleep to pause for 500 milliseconds,
+        then confirm you waited.
+      tools: [nika:sleep]
+      max_turns: 3
+
+  # Test 2: nika:log
+  - id: test_log
+    agent:
+      prompt: |
+        Use nika:log to emit an info-level log message
+        saying "Test log from agent".
+      tools: [nika:log]
+      max_turns: 3
+
+  # Test 3: nika:emit
+  - id: test_emit
+    agent:
+      prompt: |
+        Use nika:emit to emit a custom event named "test_event"
+        with payload {"status": "success", "count": 42}.
+      tools: [nika:emit]
+      max_turns: 3
+
+  # Test 4: nika:assert
+  - id: test_assert
+    agent:
+      prompt: |
+        Use nika:assert to validate that true equals true.
+        This should pass without error.
+      tools: [nika:assert]
+      max_turns: 3
+
+  # ===== FILE TOOLS (5) =====
+
+  # Test 5: nika:write + nika:read
+  - id: test_write_read
+    agent:
+      prompt: |
+        1. Use nika:write to create /tmp/nika-test.txt with content "Hello from Nika"
+        2. Use nika:read to read the file back
+        3. Confirm the content matches
+      tools: [nika:write, nika:read]
+      max_turns: 5
+
+  # Test 6: nika:edit
+  - id: test_edit
+    agent:
+      prompt: |
+        Use nika:edit to change "Hello" to "Goodbye" in /tmp/nika-test.txt
+        Then read it back to confirm the change.
+      tools: [nika:edit, nika:read]
+      max_turns: 5
+
+  # Test 7: nika:glob
+  - id: test_glob
+    agent:
+      prompt: |
+        Use nika:glob to find all .yaml files in the current examples directory.
+        Report how many files were found.
+      tools: [nika:glob]
+      max_turns: 3
+
+  # Test 8: nika:grep
+  - id: test_grep
+    agent:
+      prompt: |
+        Use nika:grep to search for "schema:" in the current directory.
+        Report the first 3 matches found.
+      tools: [nika:grep]
+      max_turns: 3
+
+flows:
+  - source: test_write_read
+    target: test_edit

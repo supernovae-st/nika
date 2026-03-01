@@ -1,0 +1,49 @@
+# Test: infer: verb - All variants
+# Tests: shorthand, full form, temperature, system prompt, max_tokens
+schema: nika/workflow@0.9
+workflow: test-infer-verb
+
+tasks:
+  # Test 1: Shorthand syntax
+  - id: infer_shorthand
+    infer: "Say 'Hello from shorthand' exactly"
+
+  # Test 2: Full form with model override
+  - id: infer_full
+    infer:
+      prompt: "Say 'Hello from full form' exactly"
+      model: claude-sonnet-4-20250514
+
+  # Test 3: Temperature control (creative)
+  - id: infer_creative
+    infer:
+      prompt: "Generate a creative one-liner about Rust programming"
+      temperature: 0.9
+
+  # Test 4: Temperature control (precise)
+  - id: infer_precise
+    infer:
+      prompt: "What is 2 + 2? Answer with just the number."
+      temperature: 0.0
+
+  # Test 5: System prompt
+  - id: infer_with_system
+    infer:
+      prompt: "Introduce yourself briefly"
+      system: "You are a helpful butterfly named Nika. Be concise."
+
+  # Test 6: Max tokens limit
+  - id: infer_limited
+    infer:
+      prompt: "Write a long story about a butterfly"
+      max_tokens: 50
+
+  # Test 7: Binding from previous task
+  - id: infer_with_binding
+    use:
+      previous: infer_shorthand
+    infer: "Repeat exactly what was said before: {{use.previous}}"
+
+flows:
+  - source: infer_shorthand
+    target: infer_with_binding

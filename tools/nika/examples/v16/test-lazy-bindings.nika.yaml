@@ -1,0 +1,41 @@
+# Test: lazy: bindings - Deferred resolution
+# Tests: lazy flag, default values, binding timing
+schema: nika/workflow@0.9
+workflow: test-lazy-bindings
+
+tasks:
+  # Test 1: Standard eager binding
+  - id: producer
+    exec: "echo 'Produced value'"
+
+  - id: eager_consumer
+    use:
+      value: producer
+    exec: "echo 'Eagerly consumed: value captured'"
+
+  # Test 2: Lazy binding with default (references existing task)
+  - id: slow_producer
+    exec: "sleep 0.5 && echo 'Slow result'"
+
+  - id: lazy_with_default
+    use:
+      slow_data:
+        path: slow_producer
+        lazy: true
+        default: "fallback_value"
+    exec: "echo 'Got lazy data'"
+
+  # Test 3: Multiple bindings
+  - id: multi_binding
+    use:
+      a: producer
+      b: slow_producer
+    exec: "echo 'Combined A and B'"
+
+flows:
+  - source: producer
+    target: eager_consumer
+  - source: slow_producer
+    target: lazy_with_default
+  - source: [producer, slow_producer]
+    target: multi_binding

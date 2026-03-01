@@ -1,0 +1,54 @@
+# Test: for_each - Parallel iteration
+# Tests: static array, binding, concurrency, fail_fast
+schema: nika/workflow@0.9
+workflow: test-for-each
+
+tasks:
+  # Test 1: Simple static array
+  - id: foreach_simple
+    for_each: ["apple", "banana", "cherry"]
+    as: fruit
+    exec: "echo 'Processing: {{use.fruit}}'"
+
+  # Test 2: With concurrency
+  - id: foreach_parallel
+    for_each: ["task1", "task2", "task3", "task4", "task5"]
+    as: task
+    concurrency: 3
+    exec: "echo 'Parallel: {{use.task}}' && sleep 0.1"
+
+  # Test 3: With fail_fast disabled
+  - id: foreach_continue_on_error
+    for_each: ["a", "b", "c"]
+    as: letter
+    fail_fast: false
+    exec: "echo 'Letter: {{use.letter}}'"
+
+  # Test 4: Numeric range (as array)
+  - id: foreach_numeric
+    for_each: ["1", "2", "3", "4", "5"]
+    as: num
+    concurrency: 5
+    exec: "echo 'Number squared: {{use.num}}'"
+
+  # Test 5: With infer verb
+  - id: foreach_infer
+    for_each: ["English", "French", "Spanish"]
+    as: language
+    concurrency: 2
+    infer: "Say 'Hello World' in {{use.language}}. Just the translation, nothing else."
+
+  # Test 6: Generate items then iterate
+  - id: generate_items
+    exec: "echo 'red,green,blue'"
+
+  - id: foreach_from_exec
+    use:
+      colors: generate_items
+    for_each: ["red", "green", "blue"]
+    as: color
+    exec: "echo 'Color: {{use.color}}'"
+
+flows:
+  - source: generate_items
+    target: foreach_from_exec

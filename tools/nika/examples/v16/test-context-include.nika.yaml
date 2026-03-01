@@ -1,0 +1,28 @@
+# Test: context: - File loading
+# Tests: context.files loading markdown and json
+schema: nika/workflow@0.9
+workflow: test-context-loading
+
+# Context file loading (v0.14.3)
+# Note: Paths are relative to workflow file location
+context:
+  files:
+    readme: ../../README.md
+
+tasks:
+  # Test 1: Use context file content
+  - id: read_readme
+    infer: |
+      What is the version number mentioned in this README? Just say the version.
+      {{context.files.readme}}
+
+  # Test 2: Chain context to output
+  - id: summarize
+    use:
+      version: read_readme
+    infer: |
+      Confirm the version found: {{use.version}}
+
+flows:
+  - source: read_readme
+    target: summarize
