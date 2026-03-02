@@ -3323,8 +3323,8 @@ impl View for ChatView {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(2),            // ProStatusBar (2 lines - Claude Code inspired)
-                Constraint::Min(10),              // Main content area
+                Constraint::Length(2), // ProStatusBar (2 lines - Claude Code inspired)
+                Constraint::Min(10),   // Main content area
                 Constraint::Length(input_height), // v0.16.4: Dynamic input height (1-10 lines + borders)
                 Constraint::Length(1),            // Command hints
             ])
