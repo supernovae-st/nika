@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.3] - 2026-03-02
+
+### Fixed
+- **nika init** - All 4 example workflows now have correct syntax
+  - `01-hello-world.nika.yaml`: Fixed YAML syntax errors
+  - `02-parallel-pipeline.nika.yaml`: Fixed context file paths
+  - `03-agent-advanced.nika.yaml`: Fixed builtin tool references (`nika:read` not `read_file`)
+  - `04-production-pipeline.nika.yaml`: Fixed all syntax and reference issues
+
+### Changed
+- CI workflows updated with latest GitHub Actions versions
+
+### Statistics
+- **3,358 tests passing**
+- **Zero clippy warnings**
+- **All ARMADA checkpoints passing**
+
 ## [0.16.2] - 2026-03-02
 
 ### Added
