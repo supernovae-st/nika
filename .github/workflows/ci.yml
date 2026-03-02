@@ -9,7 +9,7 @@
 # 5. build: Release build verification
 # 6. summary: PR comment with results
 #
-# Nika v0.14.2 — Schema @0.9 + context: + include: DAG fusion | 3,188 tests
+# Nika v0.16.1 — Schema @0.9 + Registry + Security | 3,358 tests
 
 name: CI
 
@@ -34,7 +34,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
-  NIKA_VERSION: v0.14.2
+  NIKA_VERSION: v0.16.1
   # Minimum Rust version (matches Cargo.toml rust-version)
   # Note: Using stable to get latest; deps require 1.88+ (time crate)
   RUST_VERSION: stable
