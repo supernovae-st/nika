@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-03-02
+
+### Added
+- **pkg: Support for Workflow Includes** - Reference packages in include blocks
+  - `pkg` field in IncludeSpec for package references
+  - Support `@workflows/name` in include blocks
+  - JSON schema updated with oneOf for path/pkg
+  - Validation for mutually exclusive path/pkg
+  - Resolve packages via registry in include_loader
+- **Registry v0.17 Optimizations** - Performance and reproducibility improvements
+  - DashMap cache for package resolution (Arc-based caching)
+  - `spn.lock` support for reproducible builds
+  - `@jobs` package type detection
+  - `agents:` block added to JSON schema validation
+- **Runtime Package Support** - `@agents`, `@prompts`, `@skills` packages
+  - Package resolution integrated into `nika run` and `nika check`
+  - Registry-based package loading at runtime
+- **Complete AgentDef JSON Schema** - Full agent definition variants documented
+
+### Security
+- **3 Critical Vulnerabilities Fixed**
+  - Memory leak in package resolution cache
+  - File corruption prevention in concurrent writes
+  - TOCTOU race condition in file operations
+
+### Statistics
+- **3,358+ tests passing**
+- **Zero clippy warnings**
+- **All ARMADA checkpoints passing**
+
 ## [0.16.6] - 2026-03-02
 
 ### Added

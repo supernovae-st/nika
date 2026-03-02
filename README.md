@@ -14,7 +14,7 @@
 <sup>✨ Transform YAML into intelligent AI workflows ✨</sup>
 
 <!-- Primary Badges -->
-[![Version](https://img.shields.io/badge/v0.16.5-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.17.0-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
 [![Website](https://img.shields.io/badge/🦋_nika.sh-8b5cf6?style=for-the-badge)](https://nika.sh)
@@ -68,7 +68,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 <!-- TUI Screenshot as ASCII Art -->
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  🦋 Nika Studio                                                v0.16.5  ⌘K  ?  │
+│  🦋 Nika Studio                                                v0.17.0  ⌘K  ?  │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
 │ ┌─ 📁 Files ───────────┐ ┌─ 📝 Editor ──────────────────────────────────────────┐  │
 │ │ ▸ workflows/         │ │  1 │ schema: "nika/workflow@0.9"                    │  │
@@ -97,50 +97,52 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 
 <br>
 
-## ✨ What's New in v0.16.5
+## ✨ What's New in v0.17.0
 
 <table>
 <tr>
 <td width="50%">
 
-### 📄 context: File Loading
-
-```yaml
-schema: nika/workflow@0.9
-context:
-  files:
-    brand: ./context/brand.md
-    config: ./context/settings.json
-tasks:
-  - id: generate
-    infer: "Use {{context.files.brand}}"
-```
-
-- **context.files** — Load markdown, JSON, YAML
-- **Session restore** — `context.session` field
-- **Path security** — Traversal attack prevention
-- **Schema @0.9** — Full context: support
-
-</td>
-<td width="50%">
-
-### 🔗 include: DAG Fusion
+### 📦 pkg: Package Includes
 
 ```yaml
 schema: nika/workflow@0.9
 include:
-  - path: ./partials/setup.nika.yaml
+  - pkg: "@workflows/auth"
+    prefix: auth_
+  - path: ./local/setup.nika.yaml
     prefix: setup_
 tasks:
   - id: main
     infer: "Main logic"
-    depends_on: [setup_init]
+    depends_on: [auth_login, setup_init]
 ```
 
-- **Modular workflows** — Split into partials
-- **Prefix namespacing** — Avoid ID collisions
-- **Recursive includes** — Nested workflow trees
-- **Cycle detection** — Prevents infinite loops
+- **Package references** — `@workflows/name` in includes
+- **Registry resolution** — Packages from `~/.spn/packages/`
+- **spn.lock support** — Reproducible builds
+- **Path/pkg validation** — Mutually exclusive
+
+</td>
+<td width="50%">
+
+### ⚡ Registry Optimizations
+
+```yaml
+# Runtime package support
+agents:
+  - pkg: "@agents/researcher"
+    alias: research_agent
+
+skills:
+  - pkg: "@skills/coding"
+    alias: coding
+```
+
+- **Arc-based caching** — DashMap for fast resolution
+- **@jobs package type** — Job definitions support
+- **agents: block** — Full JSON schema validation
+- **3 security fixes** — Memory leak, TOCTOU, file corruption
 
 </td>
 </tr>
@@ -371,7 +373,7 @@ cd nika && cargo install --path tools/nika
 
 # ✅ Verify installation
 nika --version
-# nika 0.16.5
+# nika 0.17.0
 ```
 
 ### 👋 Hello World (30 seconds)
@@ -1640,7 +1642,7 @@ flows:
 ```
 ╔═════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                 ║
-║                           🦋 NIKA v0.16.5 STATS                                 ║
+║                           🦋 NIKA v0.17.0 STATS                                 ║
 ║                                                                                 ║
 ╠═════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                 ║

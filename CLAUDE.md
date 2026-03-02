@@ -77,14 +77,15 @@ Cargo workspace for Nika — semantic YAML workflow engine for AI tasks.
 
 Nika is the "body" of the SuperNovae AGI architecture, executing workflows that leverage NovaNet's "brain".
 
-**Current Version**: v0.16.5 — Chat TUI Improvements (dynamic input, scroll indicators, edit history)
+**Current Version**: v0.17.0 — Registry Optimizations + pkg: Includes + Security Fixes
 **Tests**: 3,358+ passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
 **Target Application**: QR Code AI (https://qrcode-ai.com)
 
-**v0.16.0 Changes:**
-- **BREAKING:** Removed `nika pkg` commands → Use `spn pkg` instead
-- TaskBox inline rendering for all 5 verbs
-- Updated to rmcp v0.16 SDK
+**v0.17.0 Changes:**
+- **pkg: Support for Workflow Includes** — `@workflows/name` in include blocks
+- **Registry v0.17 Optimizations** — Arc-based DashMap caching, spn.lock support
+- **Runtime Package Support** — @agents, @prompts, @skills packages
+- **3 Critical Security Fixes** — Memory leak, file corruption, TOCTOU race condition
 
 **v0.15.0 Features (inherited):**
 - Security hardening: `exec:` defaults to `shell: false` (shlex parsing)
@@ -121,7 +122,7 @@ nika-dev/
 │   │   ├── binding/     # Data flow + lazy bindings
 │   │   └── provider/    # rig-core v0.31 wrapper
 │   ├── CLAUDE.md        # Tool-level detailed context
-│   └── Cargo.toml       # v0.16.0
+│   └── Cargo.toml       # v0.17.0
 └── docs/                # Plans + research
 ```
 
