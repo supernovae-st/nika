@@ -51,6 +51,8 @@ url = "2"  # URL parsing and validation
 
 # Secure credential storage
 keyring = "3"
+secrecy = "0.8"    # SecretString wrapper
+zeroize = "1.8"    # Auto-clear memory on drop
 
 # Utilities
 bytes = "1.11.1"  # Force upgrade to fix RUSTSEC-2026-0007
