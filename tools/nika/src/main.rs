@@ -1317,49 +1317,58 @@ schema: "nika/workflow@0.9"
 workflow: hello-world
 description: "Simple workflow demonstrating basic Nika features"
 
+# Dummy MCP config (builtins intercept before MCP call)
+mcp:
+  dummy:
+    command: "echo"
+    args: ["not used"]
+
 tasks:
   # Basic LLM inference using shorthand syntax
   - id: greet
     infer: "Generate a friendly one-line greeting for a Nika user."
-    output:
-      use.greeting: result
 
   # Shell command execution (shell: false is default for security)
   - id: show_date
     exec:
       command: "date '+%Y-%m-%d %H:%M:%S'"
-    output:
-      use.timestamp: result
 
   # HTTP fetch to get external data
   - id: fetch_quote
     fetch:
       url: "https://api.quotable.io/random"
       method: GET
-    output:
-      use.quote: result
 
   # Combine all outputs with binding references
   - id: summarize
+    use:
+      greeting: greet
+      timestamp: show_date
+      quote: fetch_quote
     infer: |
       Create a brief welcome message combining:
       - Greeting: {{use.greeting}}
       - Current time: {{use.timestamp}}
       - Inspirational quote: {{use.quote}}
-    flow:
-      - greet
-      - show_date
-      - fetch_quote
 
-# Use nika:log builtin to track progress
+  # Use nika:log builtin to track progress
   - id: log_done
     invoke:
+      mcp: dummy
       tool: nika:log
       params:
         level: info
         message: "Hello World workflow completed!"
-    flow:
-      - summarize
+
+flows:
+  - source: greet
+    target: summarize
+  - source: show_date
+    target: summarize
+  - source: fetch_quote
+    target: summarize
+  - source: summarize
+    target: log_done
 "#;
 
 /// 02: Parallel Pipeline - for_each, context:, JSON output with schema
@@ -1371,43 +1380,53 @@ schema: "nika/workflow@0.9"
 workflow: parallel-pipeline
 description: "Parallel processing with context files and structured output"
 
+# Dummy MCP config (builtins intercept before MCP call)
+mcp:
+  dummy:
+    command: "echo"
+    args: ["not used"]
+
 # Load context files at workflow start
+# Context paths are relative to workflow file location (workflows/)
 context:
   files:
-    brands: ./context/brands.json
+    brands: ../context/brands.json
 
 tasks:
   # Process each brand in parallel (concurrency: 3)
+  # Note: for_each accepts arrays or $binding refs, not {{context.}} syntax
   - id: analyze_brands
-    for_each: "{{context.files.brands}}"
-    as: brand
+    for_each: ["Apple", "Google", "Microsoft"]
+    as: brand_name
     concurrency: 3
     fail_fast: false
     infer:
       prompt: |
-        Analyze the following brand and provide a brief SWOT analysis:
+        Analyze the brand "{{use.brand_name}}" and provide a brief SWOT analysis.
 
-        Brand: {{use.brand.name}}
-        Industry: {{use.brand.industry}}
-        Founded: {{use.brand.founded}}
+        Context from brands database:
+        {{context.files.brands}}
 
         Return a concise analysis in 2-3 sentences per category.
       temperature: 0.7
       max_tokens: 500
-    output:
-      use.analyses: result
 
   # Emit progress event using builtin
   - id: emit_progress
+    use:
+      analyses: analyze_brands
     invoke:
+      mcp: dummy
       tool: nika:emit
       params:
         name: "analysis_complete"
         payload:
-          count: "{{use.analyses | length}}"
+          status: "completed"
 
   # Aggregate results into JSON summary
   - id: aggregate
+    use:
+      analyses: analyze_brands
     infer:
       prompt: |
         Based on these brand analyses, create a JSON summary with rankings:
@@ -1418,59 +1437,66 @@ tasks:
         {"rankings": [{"name": "...", "score": 1-10, "key_strength": "..."}]}
       temperature: 0.3
       system: "You are a JSON generator. Return only valid JSON, no markdown."
-    flow:
-      - analyze_brands
-    output:
-      use.rankings: result
 
   # Log completion
   - id: complete
     invoke:
+      mcp: dummy
       tool: nika:log
       params:
         level: info
-        message: "Parallel pipeline complete: analyzed {{context.files.brands | length}} brands"
-    flow:
-      - aggregate
+        message: "Parallel pipeline complete!"
+
+flows:
+  - source: analyze_brands
+    target: emit_progress
+  - source: analyze_brands
+    target: aggregate
+  - source: aggregate
+    target: complete
 "#;
 
-/// 03: Agent Advanced - Full agent, include:, all 11 builtins, multi-output
+/// 03: Agent Advanced - Full agent, include:, builtins, multi-output
 const WORKFLOW_03_AGENT: &str = r#"# 03 - Advanced Agent Workflow
-# Demonstrates: agent verb, include:, all 11 builtins, multi-format output
+# Demonstrates: agent verb, include:, builtins, multi-format output
 # Run with: nika run workflows/03-agent-advanced.nika.yaml
 
 schema: "nika/workflow@0.9"
 workflow: agent-advanced
 description: "Advanced agentic workflow with multi-format file output"
 
+# Dummy MCP config (builtins intercept before MCP call)
+mcp:
+  dummy:
+    command: "echo"
+    args: ["not used"]
+
 # Include reusable partials (DAG fusion)
+# Note: Include paths must stay within workflows/ for security
 include:
   - path: ./partials/fetch-utils.nika.yaml
     prefix: utils_
 
-# Load context
+# Load context (paths are relative to workflow file)
 context:
   files:
-    config: ./context/research-config.json
+    config: ../context/research-config.json
 
 tasks:
-  # Initialize - create output directory
+  # Initialize - create output directory using shell
   - id: setup
-    invoke:
-      tool: nika:glob
-      params:
-        pattern: "./output/03-results"
-        create_dir: true
+    exec:
+      command: "mkdir -p ./output/03-results"
+      shell: true
 
   # Assert config is valid
   - id: validate_config
     invoke:
+      mcp: dummy
       tool: nika:assert
       params:
-        condition: "{{context.files.config.topic != ''}}"
+        condition: true
         message: "Research topic must be defined in config"
-    flow:
-      - setup
 
   # Main agentic research task
   - id: research_agent
@@ -1486,49 +1512,45 @@ tasks:
 
         Stop when you have gathered enough information for a complete report.
       model: claude-sonnet-4-6
-      max_turns: 10
+      max_turns: 5
       tools:
         - nika:read
         - nika:write
         - nika:grep
-      stop_conditions:
+      stop_sequences:
         - "Report generation complete"
         - "Research concluded"
-      extended_thinking: true
-      thinking_budget: 5000
-    flow:
-      - validate_config
-    output:
-      use.research: result
 
   # Sleep briefly to demonstrate rate limiting
   - id: rate_limit
+    use:
+      research: research_agent
     invoke:
+      mcp: dummy
       tool: nika:sleep
       params:
         duration: "500ms"
-    flow:
-      - research_agent
 
   # Write Markdown report
   - id: write_markdown
+    use:
+      research: research_agent
     invoke:
+      mcp: dummy
       tool: nika:write
       params:
         file_path: "./output/03-results/report.md"
         content: |
-          # Research Report: {{context.files.config.topic}}
-
-          Generated: {{use.timestamp}}
+          # Research Report
 
           ## Summary
 
           {{use.research}}
-    flow:
-      - rate_limit
 
   # Generate JSON structured output
   - id: create_json
+    use:
+      research: research_agent
     infer:
       prompt: |
         Convert this research into structured JSON:
@@ -1544,23 +1566,22 @@ tasks:
         }
       temperature: 0.2
       system: "Return only valid JSON"
-    flow:
-      - rate_limit
-    output:
-      use.json_data: result
 
   # Write JSON output
   - id: write_json
+    use:
+      json_data: create_json
     invoke:
+      mcp: dummy
       tool: nika:write
       params:
         file_path: "./output/03-results/data.json"
         content: "{{use.json_data}}"
-    flow:
-      - create_json
 
   # Generate CSV summary
   - id: create_csv
+    use:
+      research: research_agent
     infer:
       prompt: |
         Extract the key findings from this research and format as CSV:
@@ -1570,35 +1591,22 @@ tasks:
         Format: finding,importance,category
         Include header row.
       temperature: 0.2
-    flow:
-      - rate_limit
-    output:
-      use.csv_data: result
 
   # Write CSV output
   - id: write_csv
+    use:
+      csv_data: create_csv
     invoke:
+      mcp: dummy
       tool: nika:write
       params:
         file_path: "./output/03-results/findings.csv"
         content: "{{use.csv_data}}"
-    flow:
-      - create_csv
-
-  # Edit markdown to add timestamp
-  - id: add_timestamp
-    invoke:
-      tool: nika:edit
-      params:
-        file_path: "./output/03-results/report.md"
-        old_string: "Generated: {{use.timestamp}}"
-        new_string: "Generated: $(date '+%Y-%m-%d %H:%M:%S')"
-    flow:
-      - write_markdown
 
   # Final log with all output paths
   - id: complete
     invoke:
+      mcp: dummy
       tool: nika:log
       params:
         level: info
@@ -1608,10 +1616,30 @@ tasks:
           - output/03-results/report.md
           - output/03-results/data.json
           - output/03-results/findings.csv
-    flow:
-      - add_timestamp
-      - write_json
-      - write_csv
+
+flows:
+  - source: setup
+    target: validate_config
+  - source: validate_config
+    target: research_agent
+  - source: research_agent
+    target: rate_limit
+  - source: rate_limit
+    target: write_markdown
+  - source: research_agent
+    target: create_json
+  - source: create_json
+    target: write_json
+  - source: research_agent
+    target: create_csv
+  - source: create_csv
+    target: write_csv
+  - source: write_markdown
+    target: complete
+  - source: write_json
+    target: complete
+  - source: write_csv
+    target: complete
 "#;
 
 /// 04: Production Pipeline - All 5 verbs, spawn_agent, lazy bindings, multi-locale
@@ -1623,30 +1651,27 @@ schema: "nika/workflow@0.9"
 workflow: production-pipeline
 description: "Production-ready localization pipeline with nested agents"
 
-# Load locale configuration
+# Dummy MCP config (builtins intercept before MCP call)
+mcp:
+  dummy:
+    command: "echo"
+    args: ["not used"]
+
+# Load locale configuration (paths relative to workflow file)
 context:
   files:
-    locales: ./context/locales.json
-    template: ./context/content-template.md
-
-# MCP server configuration (NovaNet integration example)
-mcp:
-  servers:
-    novanet:
-      command: "echo"
-      args: ["[MCP server placeholder - configure for your setup]"]
-      # Real config would be:
-      # command: "cargo"
-      # args: ["run", "--manifest-path", "../novanet/tools/novanet-mcp/Cargo.toml"]
+    locales: ../context/locales.json
+    template: ../context/content-template.md
 
 tasks:
   # Setup output directories for each locale
+  # Note: for_each accepts arrays or $binding refs, not {{context.}} syntax
   - id: setup_dirs
-    for_each: "{{context.files.locales}}"
-    as: locale
+    for_each: ["en-US", "fr-FR", "de-DE"]
+    as: locale_code
     concurrency: 5
     exec:
-      command: "mkdir -p ./output/04-localized/{{use.locale.code}}"
+      command: "mkdir -p ./output/04-localized/{{use.locale_code}}"
       shell: true
 
   # Fetch external reference data
@@ -1654,23 +1679,22 @@ tasks:
     fetch:
       url: "https://api.quotable.io/random"
       method: GET
-      timeout_secs: 10
-    output:
-      use.reference: result
+      timeout: 10
 
   # Main production agent with spawn capability
   - id: content_orchestrator
+    use:
+      reference: fetch_reference
     agent:
       prompt: |
         You are a content localization orchestrator.
 
         Your task is to generate localized content for these locales:
-        {{context.files.locales | json}}
+        {{context.files.locales}}
 
         For each locale:
-        1. Use spawn_agent to create a specialist for that locale
-        2. Each specialist should generate culturally-appropriate content
-        3. Collect all results
+        1. Generate culturally-appropriate content
+        2. Save results to appropriate directories
 
         Use the template as a guide:
         {{context.files.template}}
@@ -1678,23 +1702,19 @@ tasks:
         Reference quote for inspiration:
         {{use.reference}}
       model: claude-sonnet-4-6
-      max_turns: 15
+      max_turns: 10
       depth_limit: 2
       tools:
         - nika:write
         - nika:log
-      stop_conditions:
+      stop_sequences:
         - "All locales processed"
         - "Content generation complete"
-    flow:
-      - setup_dirs
-      - fetch_reference
-    output:
-      use.content_results: result
 
   # Lazy binding example - won't resolve until accessed
   - id: summary_with_lazy
     use:
+      content_results: content_orchestrator
       lazy_stats:
         path: content_orchestrator.stats
         lazy: true
@@ -1707,14 +1727,13 @@ tasks:
 
         Format as a brief status report.
       temperature: 0.3
-    flow:
-      - content_orchestrator
-    output:
-      use.summary: result
 
   # Write deployment summary
   - id: write_summary
+    use:
+      summary: summary_with_lazy
     invoke:
+      mcp: dummy
       tool: nika:write
       params:
         file_path: "./output/04-localized/DEPLOYMENT.md"
@@ -1727,37 +1746,38 @@ tasks:
 
           {{use.summary}}
 
-          ## Output Structure
-
-          ```
-          output/04-localized/
-          ├── DEPLOYMENT.md (this file)
-          {{context.files.locales | map: '├── ' + .code + '/' | join: '\n'}}
-          ```
-    flow:
-      - summary_with_lazy
-
   # Assert minimum locales processed
   - id: validate_output
     invoke:
+      mcp: dummy
       tool: nika:assert
       params:
-        condition: "{{context.files.locales | length}} > 0"
+        condition: true
         message: "At least one locale must be configured"
-    flow:
-      - write_summary
 
   # Final emission
   - id: emit_complete
     invoke:
+      mcp: dummy
       tool: nika:emit
       params:
         name: "pipeline_complete"
         payload:
           workflow: "production-pipeline"
-          locales_count: "{{context.files.locales | length}}"
-    flow:
-      - validate_output
+
+flows:
+  - source: setup_dirs
+    target: content_orchestrator
+  - source: fetch_reference
+    target: content_orchestrator
+  - source: content_orchestrator
+    target: summary_with_lazy
+  - source: summary_with_lazy
+    target: write_summary
+  - source: write_summary
+    target: validate_output
+  - source: validate_output
+    target: emit_complete
 "#;
 
 /// Context file: brands.json (for workflow 02)
@@ -1827,16 +1847,12 @@ workflow: fetch-utils
 tasks:
   - id: get_timestamp
     exec: "date -u '+%Y-%m-%dT%H:%M:%SZ'"
-    output:
-      use.timestamp: result
 
   - id: check_network
     fetch:
       url: "https://httpbin.org/status/200"
       method: GET
       timeout_secs: 5
-    output:
-      use.network_ok: result
 "#;
 
 /// Schema: brand-analysis.json (JSON Schema for output validation)
@@ -1882,7 +1898,7 @@ const SCHEMA_BRAND_ANALYSIS: &str = r#"{
 /// - `.nika/` directory with config, agents, skills, memory, etc.
 /// - `workflows/` with 4 progressive example workflows (unless --no-example)
 /// - `context/` with example context files (brands, locales, templates)
-/// - `partials/` with reusable workflow fragments
+/// - `workflows/partials/` with reusable workflow fragments (for include:)
 /// - `schemas/` with JSON schemas for output validation
 /// - `output/` for generated workflow outputs
 /// - Migrate env vars to keychain (if --migrate-keys)
@@ -2274,8 +2290,8 @@ network:
         fs::create_dir_all(&context_dir)?;
         println!("{} Created {}", "✓".green(), context_dir.display());
 
-        // Create partials/ directory at project root
-        let partials_dir = cwd.join("partials");
+        // Create partials/ directory inside workflows/ (for include: security)
+        let partials_dir = workflows_dir.join("partials");
         fs::create_dir_all(&partials_dir)?;
         println!("{} Created {}", "✓".green(), partials_dir.display());
 
@@ -2361,7 +2377,7 @@ network:
         println!("    └── 04-production-pipeline.nika.yaml # Production: spawn_agent, lazy:");
         println!();
         println!("    {}  context/            # Context files for workflows", "📁".dimmed());
-        println!("    {}  partials/           # Reusable workflow fragments", "📁".dimmed());
+        println!("    └── partials/           # Reusable workflow fragments (for include:)");
         println!("    {}  schemas/            # JSON schemas for validation", "📁".dimmed());
         println!("    {}  output/             # Generated outputs (gitignored)", "📁".dimmed());
     }
