@@ -221,9 +221,6 @@ tasks:
       model: claude-sonnet-4-20250514
       mcp: []
       max_turns: 8
-      stop_conditions:
-        - "REVIEW_COMPLETE"
-        - "ERROR:"
     output:
       format: text
 

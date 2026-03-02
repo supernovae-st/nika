@@ -72,8 +72,6 @@ tasks:
       mcp:
         - playwright
       max_turns: 10
-      stop_conditions:
-        - "BROWSE_COMPLETE"
 
 flows:
   - source: input
