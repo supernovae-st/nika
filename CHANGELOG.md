@@ -76,6 +76,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Zero clippy warnings**
 - **7 LLM providers** (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini)
 
+## [0.15.2] - 2026-03-01
+
+### Changed
+- **Cargo.lock** - Updated for rustls migration (removes native-tls dependencies)
+- **Cross-compilation** - Fixed ARM64 builds via `cross` tool
+- **Release workflow** - Corrected archive paths and working directories
+
+### Security
+- **rustls-tls** - Switched from native-tls to rustls for consistent TLS across platforms
+
+### Fixed
+- ARM64 Linux builds now compile successfully (#43)
+- Release archives contain correct binary paths (#42)
+- CI jobs use proper working directory (#41)
+
+### Statistics
+- **3,358 tests passing**
+- Zero clippy warnings
+- Schema @0.9 fully supported
+- **7 LLM providers** (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini)
+
 ## [0.15.1] - 2026-03-01
 
 ### Added
