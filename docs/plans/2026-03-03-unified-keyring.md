@@ -1,3 +1,105 @@
+# Unified Keyring Implementation Plan
+
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** Unify keyring management so both `nika` and `spn` use the same keychain service `"spn"`.
+
+**Architecture:** Change Nika's service name from `"nika"` to `"spn"` and rename `NikaKeyring` to `SpnKeyring`. Add security features (zeroize, SecretString).
+
+**Tech Stack:** `keyring = "3"`, `secrecy`, `zeroize`, Rust
+
+---
+
+## What Changes
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           BEFORE → AFTER                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  BEFORE:                              AFTER:                                │
+│  ├── Service: "nika" (Nika)           └── Service: "spn" (both)            │
+│  └── Service: "spn"  (spn)                ├── anthropic: sk-ant-...        │
+│      ❌ DUPLICATED KEYS                    ├── openai: sk-...               │
+│                                           └── ✅ SINGLE SOURCE OF TRUTH    │
+│                                                                             │
+│  # Both use service "spn"                                                   │
+│  nika provider set anthropic                                                │
+│  # → Keychain: service="spn", account="anthropic"                          │
+│                                                                             │
+│  spn provider set anthropic                                                 │
+│  # → Keychain: service="spn", account="anthropic"                          │
+│  # ✅ SAME ENTRY!                                                           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Summary
+
+| Question | Answer |
+|----------|--------|
+| Nika garde provider/model selection ? | ✅ Oui, inchangé |
+| Nika garde MCP client ? | ✅ Oui, inchangé |
+| Qui gère les clés ? | Les deux lisent/écrivent au même endroit |
+| Où sont stockées les clés ? | `service="spn"` dans le keychain OS |
+| Pourquoi "spn" ? | Plus complet (+ de providers, + sécurisé) |
+
+**Le seul changement technique :** `SERVICE_NAME = "nika"` → `SERVICE_NAME = "spn"`
+
+---
+
+## Files to Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `tools/nika/Cargo.toml` | Modify | Add `secrecy`, `zeroize` deps |
+| `tools/nika/src/tui/widgets/provider_modal/keyring.rs` | Rewrite | Rename to SpnKeyring, change service name |
+| `tools/nika/src/tui/widgets/provider_modal/mod.rs` | Modify | Re-export SpnKeyring |
+| `tools/nika/src/main.rs` | Modify | Update to SpnKeyring |
+| `tools/nika/src/tui/views/chat.rs` | Modify | Update to SpnKeyring |
+| `tools/nika/src/tui/widgets/provider_modal/tabs/keys.rs` | Modify | Update to SpnKeyring |
+
+---
+
+## Task 1: Add Security Dependencies
+
+**Files:**
+- Modify: `tools/nika/Cargo.toml:53-54`
+
+**Step 1: Add secrecy and zeroize crates**
+
+After line 53 (`keyring = "3"`), add:
+
+```toml
+# Secure credential storage
+keyring = "3"
+secrecy = "0.8"    # SecretString wrapper
+zeroize = "1.8"    # Auto-clear memory on drop
+```
+
+**Step 2: Verify**
+
+```bash
+cd /Users/thibaut/dev/supernovae/nika/tools/nika && cargo check
+```
+
+**Step 3: Commit**
+
+```bash
+git add Cargo.toml Cargo.lock
+git commit -m "deps(nika): add secrecy and zeroize for secure keyring"
+```
+
+---
+
+## Task 2: Rewrite keyring.rs with SpnKeyring
+
+**Files:**
+- Rewrite: `tools/nika/src/tui/widgets/provider_modal/keyring.rs`
+
+**Step 1: Replace entire file content**
+
+```rust
 //! Secure API key storage via system keychain.
 //!
 //! Uses keyring-rs for cross-platform credential storage:
@@ -151,14 +253,7 @@ pub fn provider_env_var(provider: &str) -> &'static str {
 // MIGRATION (env → keyring)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const MIGRATEABLE_PROVIDERS: &[&str] = &[
-    "anthropic",
-    "openai",
-    "mistral",
-    "groq",
-    "deepseek",
-    "gemini",
-];
+const MIGRATEABLE_PROVIDERS: &[&str] = &["anthropic", "openai", "mistral", "groq", "deepseek", "gemini"];
 
 #[derive(Debug, Default)]
 pub struct MigrationReport {
@@ -248,8 +343,7 @@ mod tests {
 
     #[test]
     fn test_validate_anthropic_key_valid() {
-        let result =
-            validate_key_format("anthropic", "sk-ant-api03-abcdefghijklmnopqrstuvwxyz123456");
+        let result = validate_key_format("anthropic", "sk-ant-api03-abcdefghijklmnopqrstuvwxyz123456");
         assert!(result.is_ok());
     }
 
@@ -278,3 +372,178 @@ mod tests {
         assert_eq!(provider_env_var("gemini"), "GEMINI_API_KEY");
     }
 }
+```
+
+**Step 2: Verify**
+
+```bash
+cargo check
+```
+
+**Step 3: Commit**
+
+```bash
+git add src/tui/widgets/provider_modal/keyring.rs
+git commit -m "feat(keyring): rename to SpnKeyring with unified 'spn' service"
+```
+
+---
+
+## Task 3: Update mod.rs exports
+
+**Files:**
+- Modify: `tools/nika/src/tui/widgets/provider_modal/mod.rs:20`
+
+**Step 1: Change re-export**
+
+From:
+```rust
+pub use keyring::*;
+```
+
+To:
+```rust
+pub use keyring::{
+    mask_api_key, migrate_env_to_keyring, provider_env_var, validate_key_format,
+    KeyringError, MigrationReport, SpnKeyring,
+};
+```
+
+**Step 2: Commit**
+
+```bash
+git add src/tui/widgets/provider_modal/mod.rs
+git commit -m "refactor(keyring): explicit re-exports for SpnKeyring"
+```
+
+---
+
+## Task 4: Update main.rs
+
+**Files:**
+- Modify: `tools/nika/src/main.rs`
+
+**Step 1: Find and replace all `NikaKeyring` with `SpnKeyring`**
+
+Search for `NikaKeyring` (around lines 1184-1340) and replace with `SpnKeyring`.
+
+**Step 2: Verify**
+
+```bash
+cargo check
+```
+
+**Step 3: Commit**
+
+```bash
+git add src/main.rs
+git commit -m "refactor(cli): use SpnKeyring for unified keychain"
+```
+
+---
+
+## Task 5: Update chat.rs
+
+**Files:**
+- Modify: `tools/nika/src/tui/views/chat.rs`
+
+**Step 1: Find and replace all `NikaKeyring` with `SpnKeyring`**
+
+Around lines 4244-4280.
+
+**Step 2: Verify**
+
+```bash
+cargo check
+```
+
+**Step 3: Commit**
+
+```bash
+git add src/tui/views/chat.rs
+git commit -m "refactor(chat): use SpnKeyring for unified keychain"
+```
+
+---
+
+## Task 6: Update keys.rs
+
+**Files:**
+- Modify: `tools/nika/src/tui/widgets/provider_modal/tabs/keys.rs`
+
+**Step 1: Find and replace all `NikaKeyring` with `SpnKeyring`**
+
+Around lines 44 and 106.
+
+**Step 2: Verify**
+
+```bash
+cargo check
+```
+
+**Step 3: Commit**
+
+```bash
+git add src/tui/widgets/provider_modal/tabs/keys.rs
+git commit -m "refactor(keys): use SpnKeyring for unified keychain"
+```
+
+---
+
+## Task 7: Run Tests
+
+**Step 1: Run full test suite**
+
+```bash
+cargo test
+```
+
+Expected: All 3,375+ tests pass
+
+**Step 2: Run clippy**
+
+```bash
+cargo clippy -- -D warnings
+```
+
+Expected: No warnings
+
+**Step 3: Final commit**
+
+```bash
+git add -A
+git commit -m "test: verify unified keyring works"
+```
+
+---
+
+## Summary
+
+| Task | Description | Files |
+|------|-------------|-------|
+| 1 | Add secrecy/zeroize deps | Cargo.toml |
+| 2 | Rewrite keyring.rs with SpnKeyring | keyring.rs |
+| 3 | Update mod.rs exports | mod.rs |
+| 4 | Update main.rs | main.rs |
+| 5 | Update chat.rs | chat.rs |
+| 6 | Update keys.rs | keys.rs |
+| 7 | Run tests | - |
+
+**Total commits:** 7
+**Estimated time:** 30-45 minutes
+
+---
+
+## Changelog Entry
+
+```markdown
+## [0.17.3] - 2026-03-03
+
+### Changed
+- **Unified Keyring with spn CLI** - Both tools now share `"spn"` keychain service
+  - Renamed `NikaKeyring` → `SpnKeyring`
+  - Changed service name from `"nika"` to `"spn"`
+  - Added `Zeroizing<String>` return type for secure memory handling
+  - Added `SecretString` support for API safety
+  - Keys stored by either tool are accessible by both
+```

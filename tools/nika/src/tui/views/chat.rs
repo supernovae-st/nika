@@ -62,7 +62,7 @@ use crate::util::atomic_write;
 const SEPARATOR_20: &str = "────────────────────"; // 20 Unicode box chars (─), compile-time
 const SEPARATOR_20_ASCII: &str = "--------------------"; // 20 ASCII dashes (-), compile-time
 const SEPARATOR_52: &str = "╰───────────────────────────────────────────────────╯"; // MCP box bottom
-// PERF: 200-char separator for dynamic slicing (avoids .repeat() allocation)
+                                                                                    // PERF: 200-char separator for dynamic slicing (avoids .repeat() allocation)
 const SEPARATOR_200: &str = "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────";
 use crate::tui::utils::{truncate_str, wrap_text};
 use crate::tui::views::TuiView;

@@ -194,10 +194,7 @@ mod tests {
             checksum: None,
         });
 
-        assert_eq!(
-            lockfile.find_version("@workflows/seo-audit"),
-            Some("1.2.0")
-        );
+        assert_eq!(lockfile.find_version("@workflows/seo-audit"), Some("1.2.0"));
         assert_eq!(lockfile.find_version("@agents/researcher"), Some("2.0.0"));
         assert_eq!(lockfile.find_version("@workflows/missing"), None);
     }

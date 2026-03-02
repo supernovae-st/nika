@@ -24,8 +24,7 @@ use super::types::Manifest;
 ///
 /// Key: package reference (e.g., "@workflows/seo-audit@1.2.0")
 /// Value: Arc-wrapped ResolvedPackage (cheap to clone, ~8 bytes per ref)
-static PACKAGE_CACHE: LazyLock<DashMap<String, Arc<ResolvedPackage>>> =
-    LazyLock::new(DashMap::new);
+static PACKAGE_CACHE: LazyLock<DashMap<String, Arc<ResolvedPackage>>> = LazyLock::new(DashMap::new);
 
 /// Errors that can occur during package resolution.
 #[derive(Error, Debug)]

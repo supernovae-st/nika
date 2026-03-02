@@ -557,8 +557,12 @@ impl Widget for MatrixRain {
                             if x + glyph_width <= area.x + area.width {
                                 // Only render if not emoji or emoji fits
                                 if matches!(drop.glyph, RainGlyph::Char(_)) || trail_offset == 0 {
-                                    drop.glyph
-                                        .write_to_buf(buf, x, y_pos, Style::default().fg(color));
+                                    drop.glyph.write_to_buf(
+                                        buf,
+                                        x,
+                                        y_pos,
+                                        Style::default().fg(color),
+                                    );
                                 }
                             }
                         }
