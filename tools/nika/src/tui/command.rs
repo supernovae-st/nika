@@ -525,6 +525,21 @@ impl Command {
             Command::Export { .. } => false, // Export is never "empty"
         }
     }
+
+    /// Check if this command is a verb command that creates a TaskBox widget
+    /// (Infer, Exec, Fetch, Invoke, Agent) - these should NOT add a user message bubble
+    /// because the TaskBox already displays the command visually
+    pub fn is_verb_command(&self) -> bool {
+        matches!(
+            self,
+            Command::Infer { .. }
+                | Command::Exec { .. }
+                | Command::Fetch { .. }
+                | Command::FetchError { .. }
+                | Command::Invoke { .. }
+                | Command::Agent { .. }
+        )
+    }
 }
 
 impl ModelProvider {

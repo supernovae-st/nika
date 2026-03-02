@@ -11,7 +11,7 @@ use ratatui::{
     style::{Color, Style},
     widgets::{Block, Borders, Widget},
 };
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CHAT TASK STATE
@@ -98,7 +98,8 @@ pub struct ChatTaskQueueItem {
     verb: ChatTaskVerb,
     state: ChatTaskState,
     elapsed: Option<Duration>,
-    progress: f32, // 0.0 - 1.0
+    started_at: Option<Instant>, // For live elapsed time on running tasks
+    progress: f32,               // 0.0 - 1.0
 }
 
 impl ChatTaskQueueItem {
@@ -109,6 +110,7 @@ impl ChatTaskQueueItem {
             verb,
             state: ChatTaskState::default(),
             elapsed: None,
+            started_at: None,
             progress: 0.0,
         }
     }
@@ -128,6 +130,12 @@ impl ChatTaskQueueItem {
     /// Set the elapsed time
     pub fn with_elapsed(mut self, elapsed: Duration) -> Self {
         self.elapsed = Some(elapsed);
+        self
+    }
+
+    /// Set the start time (for live elapsed calculation)
+    pub fn with_started_at(mut self, started_at: Instant) -> Self {
+        self.started_at = Some(started_at);
         self
     }
 
@@ -157,6 +165,11 @@ impl ChatTaskQueueItem {
         self.elapsed
     }
 
+    /// Get the start time
+    pub fn started_at(&self) -> Option<Instant> {
+        self.started_at
+    }
+
     // v0.10.0: Mutable setters for ChatView integration
     /// Set the task state (mutable)
     pub fn set_state(&mut self, state: ChatTaskState) {
@@ -171,6 +184,11 @@ impl ChatTaskQueueItem {
     /// Set the progress (mutable)
     pub fn set_progress(&mut self, progress: f32) {
         self.progress = progress.clamp(0.0, 1.0);
+    }
+
+    /// Set the start time (mutable)
+    pub fn set_started_at(&mut self, started_at: Instant) {
+        self.started_at = Some(started_at);
     }
 }
 
@@ -323,11 +341,18 @@ impl Widget for ChatTaskQueue {
             let y = inner.y + i as u16;
             let style = Style::default().fg(item.state.color());
 
-            // Format elapsed time
-            let elapsed_str = item
-                .elapsed
-                .map(|d| format!("{:.1}s", d.as_secs_f32()))
-                .unwrap_or_else(|| "—".to_string());
+            // Format elapsed time - use live elapsed for running tasks
+            let elapsed_str = if item.state == ChatTaskState::Running {
+                // Live elapsed from start time
+                item.started_at
+                    .map(|start| format!("{:.1}s", start.elapsed().as_secs_f32()))
+                    .unwrap_or_else(|| "0.0s".to_string())
+            } else {
+                // Static elapsed for completed/failed tasks
+                item.elapsed
+                    .map(|d| format!("{:.1}s", d.as_secs_f32()))
+                    .unwrap_or_else(|| "—".to_string())
+            };
 
             // Render progress bar
             let progress_bar = render_progress_bar(item.progress, 10);

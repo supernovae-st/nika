@@ -7,8 +7,11 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Style},
-    widgets::Widget,
+    text::{Line, Span},
+    widgets::{ListItem, Widget},
 };
+
+use super::StreamingContext;
 
 use super::{BoxState, RenderMode, TaskBox, TokenVelocity, VerbColor};
 
@@ -283,6 +286,165 @@ impl AgentBox {
             format!("{:.1}K", tokens as f64 / 1_000.0)
         } else {
             tokens.to_string()
+        }
+    }
+
+    /// Convert to ListItem for scrollable List widget rendering
+    ///
+    /// Returns multiple lines based on render mode:
+    /// - Compact: Single line with icon, turn info, children icons, prompt preview
+    /// - Expanded/Full: Multiple lines with borders, metrics, children, response
+    pub fn to_list_items(&self, _ctx: &StreamingContext) -> Vec<ListItem<'static>> {
+        // Use Spawn color for subagents (lighter rose), Agent color for parent
+        let verb = if self.is_subagent {
+            VerbColor::Spawn
+        } else {
+            VerbColor::Agent
+        };
+        let verb_color = verb.rgb();
+        let border_color = self
+            .state
+            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
+        let border_style = Style::default().fg(border_color);
+        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
+        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
+        let metric_style = Style::default().fg(Color::Rgb(148, 163, 184));
+
+        let status_icon = self.state.icon();
+        let status_suffix = self.state.suffix();
+        let agent_icon = self.icon();
+
+        match self.render_mode {
+            RenderMode::Compact => {
+                // Single line: "🐔 ⣾ 3/5 [✅✅] Research competitors..."
+                let compact = self.compact_line(80);
+                vec![ListItem::new(Line::from(vec![Span::styled(
+                    compact,
+                    content_style,
+                )]))]
+            }
+            RenderMode::Expanded | RenderMode::Full => {
+                let mut items = Vec::new();
+
+                // Header label based on agent type
+                let header_label = if self.is_subagent {
+                    if self.depth > 1 {
+                        format!("{} SUBAGENT (d{})", agent_icon, self.depth)
+                    } else {
+                        format!("{} SUBAGENT", agent_icon)
+                    }
+                } else {
+                    format!("{} AGENT", agent_icon)
+                };
+
+                // Top border with label
+                let prompt_preview = Self::truncate(&self.prompt, 40);
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled("╭─ ", border_style),
+                    Span::styled(header_label, Style::default().fg(verb_color)),
+                    Span::styled(" ", border_style),
+                    Span::styled(prompt_preview, content_style),
+                    Span::styled(" ", border_style),
+                    Span::styled(status_icon, border_style),
+                    Span::styled(" ", border_style),
+                    Span::styled(status_suffix.to_string(), dim_style),
+                    Span::styled(" ─╮", border_style),
+                ])));
+
+                // Metrics bar: turn progress, tokens, cost, tool count
+                let turn_info = format!("turn {}/{}", self.turn, self.max_turns);
+                let tokens_str = format!(
+                    "{}↓ {}↑",
+                    Self::format_tokens(self.tokens_in),
+                    Self::format_tokens(self.tokens_out)
+                );
+                let cost_str = format!("${:.4}", self.cost);
+                let tools_str = format!("🔧{}", self.tool_calls);
+                let velocity_sparkline = self.velocity.sparkline_chars();
+
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled("│ ", border_style),
+                    Span::styled(turn_info, metric_style),
+                    Span::styled(" │ ", dim_style),
+                    Span::styled(tokens_str, metric_style),
+                    Span::styled(" │ ", dim_style),
+                    Span::styled(cost_str, metric_style),
+                    Span::styled(" │ ", dim_style),
+                    Span::styled(tools_str, metric_style),
+                    Span::styled(" │ ", dim_style),
+                    Span::styled(velocity_sparkline, metric_style),
+                    Span::styled(" │", border_style),
+                ])));
+
+                // Children section
+                if !self.children.is_empty() {
+                    let children_header = if self.expanded_children {
+                        format!("├─ Children ({}) ▼", self.children.len())
+                    } else {
+                        let icons = self.children_status_icons();
+                        format!("├─ Children ({}) ▶ [{}]", self.children.len(), icons)
+                    };
+                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                        children_header,
+                        dim_style,
+                    )])));
+
+                    // If expanded, show child summaries
+                    if self.expanded_children {
+                        for child in &self.children {
+                            let child_line = format!(
+                                "│   {} {} {}",
+                                child.verb_color().icon(),
+                                child.state().icon(),
+                                Self::truncate(child.task_id().unwrap_or("task"), 50)
+                            );
+                            items.push(ListItem::new(Line::from(vec![Span::styled(
+                                child_line, dim_style,
+                            )])));
+                        }
+                    }
+                }
+
+                // Response section
+                if let Some(ref response) = self.final_response {
+                    let response_header = if self.expanded_response {
+                        "├─ Response ▼".to_string()
+                    } else {
+                        let preview = Self::truncate(response.lines().next().unwrap_or(""), 40);
+                        format!("├─ Response ▶ {}", preview)
+                    };
+                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                        response_header,
+                        dim_style,
+                    )])));
+
+                    // If expanded, show response lines
+                    if self.expanded_response {
+                        for line in response.lines().take(10) {
+                            let response_line = format!("│   {}", Self::truncate(line, 70));
+                            items.push(ListItem::new(Line::from(vec![Span::styled(
+                                response_line,
+                                content_style,
+                            )])));
+                        }
+                        // Indicate if truncated
+                        if response.lines().count() > 10 {
+                            items.push(ListItem::new(Line::from(vec![Span::styled(
+                                "│   ... (truncated)",
+                                dim_style,
+                            )])));
+                        }
+                    }
+                }
+
+                // Bottom border
+                items.push(ListItem::new(Line::from(vec![Span::styled(
+                    "╰─────────────────────────────────────────────────────────╯",
+                    border_style,
+                )])));
+
+                items
+            }
         }
     }
 }

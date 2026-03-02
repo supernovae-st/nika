@@ -9,10 +9,11 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Style},
-    widgets::Widget,
+    text::{Line, Span},
+    widgets::{ListItem, Widget},
 };
 
-use super::{http, BoxState, RenderMode, VerbColor};
+use super::{http, BoxState, RenderMode, StreamingContext, VerbColor};
 
 /// FetchBox data and rendering
 #[derive(Debug, Clone)]
@@ -233,6 +234,166 @@ impl FetchBox {
         buf.set_string(x, area.y, &url, line_style);
         let x = area.x + (area.width as usize - suffix.chars().count()) as u16;
         buf.set_string(x, area.y, &suffix, dim_style);
+    }
+
+    /// Convert to list items for scrollable display
+    ///
+    /// Returns a vector of ListItem representing this FetchBox as styled lines
+    /// for use in a ratatui List widget.
+    pub fn to_list_items(&self, _ctx: &StreamingContext) -> Vec<ListItem<'static>> {
+        let verb = VerbColor::Fetch;
+        let border_color = self
+            .state
+            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
+        let border_style = Style::default().fg(border_color);
+        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
+        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
+        let method_style = Style::default().fg(Color::Rgb(34, 211, 238)); // Cyan
+
+        let status_icon = self.state.icon();
+        let status_suffix = self.state.suffix();
+
+        let mut items: Vec<ListItem<'static>> = Vec::new();
+
+        // Compact mode: single line
+        if self.render_mode == RenderMode::Compact {
+            let status_text = self
+                .status_code
+                .map(|c| format!("{}", c))
+                .unwrap_or_else(|| "...".to_string());
+
+            let line = Line::from(vec![
+                Span::styled(format!("{} ", verb.icon_label()), border_style),
+                Span::styled(format!("{} ", self.method), method_style),
+                Span::styled(Self::truncate(&self.url, 50), content_style),
+                Span::styled(format!("  {} {}", status_icon, status_text), dim_style),
+            ]);
+            items.push(ListItem::new(line));
+            return items;
+        }
+
+        // Top border: ╭─ 🛰️ FETCH ─────────────────────────── ✅ 0.5s ───╮
+        let top_border = Line::from(vec![
+            Span::styled("╭─ ", border_style),
+            Span::styled(format!("{} ", verb.icon_label()), border_style),
+            Span::styled(
+                format!("─────────────────── {} {} ─╮", status_icon, status_suffix),
+                border_style,
+            ),
+        ]);
+        items.push(ListItem::new(top_border));
+
+        // Method + URL line: │ GET https://api.example.com │
+        let url_display = Self::truncate(&self.url, 60);
+        let method_line = Line::from(vec![
+            Span::styled("│ ", border_style),
+            Span::styled(format!("{} ", self.method), method_style),
+            Span::styled(url_display, content_style),
+        ]);
+        items.push(ListItem::new(method_line));
+
+        // Separator
+        let separator = Line::from(vec![Span::styled(
+            "├───────────────────────────────────────┤",
+            border_style,
+        )]);
+        items.push(ListItem::new(separator.clone()));
+
+        // REQUEST section
+        let request_line = Line::from(vec![
+            Span::styled("│ ", border_style),
+            Span::styled("REQUEST", dim_style),
+        ]);
+        items.push(ListItem::new(request_line));
+
+        // Headers (if expanded)
+        if self.expanded_request {
+            for (key, value) in &self.request_headers {
+                let masked_value = Self::mask_header_value(key, value);
+                let header_line = Line::from(vec![
+                    Span::styled("│ ", border_style),
+                    Span::styled(format!("┊ {}: {}", key, masked_value), dim_style),
+                ]);
+                items.push(ListItem::new(header_line));
+            }
+        } else if !self.request_headers.is_empty() {
+            let collapsed_line = Line::from(vec![
+                Span::styled("│ ", border_style),
+                Span::styled(
+                    format!("┊ headers: {{ {} entries }}", self.request_headers.len()),
+                    dim_style,
+                ),
+            ]);
+            items.push(ListItem::new(collapsed_line));
+        }
+
+        // Request body (if any)
+        if let Some(ref body) = self.request_body {
+            let body_display = Self::truncate(body, 50);
+            let body_line = Line::from(vec![
+                Span::styled("│ ", border_style),
+                Span::styled(format!("┊ body: {}", body_display), dim_style),
+            ]);
+            items.push(ListItem::new(body_line));
+        }
+
+        // Separator before response
+        items.push(ListItem::new(separator.clone()));
+
+        // RESPONSE section with status code
+        let status_color = self
+            .status_code
+            .map(http::status_color)
+            .unwrap_or(Color::Rgb(100, 116, 139));
+        let status_text = self
+            .status_code
+            .map(|c| format!("{} {}", c, http::status_text(c)))
+            .unwrap_or_else(|| "...".to_string());
+
+        let response_line = Line::from(vec![
+            Span::styled("│ ", border_style),
+            Span::styled("RESPONSE ", dim_style),
+            Span::styled(status_text, Style::default().fg(status_color)),
+        ]);
+        items.push(ListItem::new(response_line));
+
+        // Response body (if expanded and present)
+        if self.expanded_response {
+            if let Some(ref body) = self.response_body {
+                let body_display = Self::truncate(body, 60);
+                let body_line = Line::from(vec![
+                    Span::styled("│ ", border_style),
+                    Span::styled(format!("┊ {}", body_display), content_style),
+                ]);
+                items.push(ListItem::new(body_line));
+            }
+        }
+
+        // Footer with metrics
+        let size_str = Self::format_bytes(self.response_size);
+        let retry_str = if self.retries > 0 {
+            format!(" │ 🔄 {}", self.retries)
+        } else {
+            String::new()
+        };
+
+        let footer_line = Line::from(vec![
+            Span::styled("│ ", border_style),
+            Span::styled(
+                format!("📦 {} │ ⏱️ {}ms{}", size_str, self.ttfb_ms, retry_str),
+                dim_style,
+            ),
+        ]);
+        items.push(ListItem::new(footer_line));
+
+        // Bottom border
+        let bottom_border = Line::from(vec![Span::styled(
+            "╰───────────────────────────────────────╯",
+            border_style,
+        )]);
+        items.push(ListItem::new(bottom_border));
+
+        items
     }
 }
 

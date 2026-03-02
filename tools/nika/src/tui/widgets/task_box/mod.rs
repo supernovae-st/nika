@@ -52,7 +52,24 @@ pub use infer::InferBox;
 pub use invoke::InvokeBox;
 
 use crossterm::event::KeyCode;
-use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
+use ratatui::{
+    buffer::Buffer,
+    layout::Rect,
+    widgets::{ListItem, Widget},
+};
+
+/// Context passed from ChatView for streaming-aware rendering
+#[derive(Debug, Clone)]
+pub struct StreamingContext<'a> {
+    /// Current render mode (Compact/Expanded/Full)
+    pub render_mode: RenderMode,
+    /// Whether the view is currently streaming a response
+    pub is_streaming: bool,
+    /// Partial response text during streaming
+    pub partial_response: &'a str,
+    /// Current frame counter for animations (pulse, cursor blink)
+    pub frame: u64,
+}
 
 /// Union type for all task boxes
 #[derive(Debug, Clone)]
@@ -219,6 +236,34 @@ impl TaskBox {
             TaskBox::Fetch(b) => b.render_mode = b.render_mode.cycle(),
             TaskBox::Invoke(b) => b.render_mode = b.render_mode.cycle(),
             TaskBox::Agent(b) => b.render_mode = b.render_mode.cycle(),
+        }
+    }
+
+    /// Convert this TaskBox into ListItem lines for scrollable rendering.
+    ///
+    /// This method delegates to each variant's implementation, allowing
+    /// the ChatView to use a ratatui List widget instead of inline rendering.
+    /// The StreamingContext provides animation frame, streaming state, and
+    /// partial response text for streaming-aware rendering.
+    pub fn to_list_items(&self, ctx: &StreamingContext) -> Vec<ListItem<'static>> {
+        match self {
+            Self::Infer(b) => b.to_list_items(ctx),
+            Self::Exec(b) => b.to_list_items(ctx),
+            Self::Fetch(b) => b.to_list_items(ctx),
+            Self::Invoke(b) => b.to_list_items(ctx),
+            Self::Agent(b) => b.to_list_items(ctx),
+        }
+    }
+
+    /// Calculate pulse intensity for running state animation.
+    ///
+    /// Returns a value between 0.0 and 1.0 based on the current frame,
+    /// creating a smooth sine wave animation for the pulse effect.
+    pub fn pulse_intensity(&self, frame: u64) -> f32 {
+        if self.state().is_running() {
+            ((frame as f32 / 30.0).sin() + 1.0) / 2.0
+        } else {
+            0.0
         }
     }
 }

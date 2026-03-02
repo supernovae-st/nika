@@ -7,10 +7,11 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Style},
-    widgets::Widget,
+    text::{Line, Span},
+    widgets::{ListItem, Widget},
 };
 
-use super::{exit, BoxState, RenderMode, VerbColor};
+use super::{exit, BoxState, RenderMode, StreamingContext, VerbColor};
 
 /// ExecBox data and rendering
 #[derive(Debug, Clone)]
@@ -160,6 +161,148 @@ impl ExecBox {
             Some(code) => format!("exit: {} ✗", code),
             None => "exit: ?".to_string(),
         }
+    }
+
+    /// Convert to list items for scrollable List widget
+    pub fn to_list_items(&self, _ctx: &StreamingContext) -> Vec<ListItem<'static>> {
+        let verb = VerbColor::Exec;
+        let border_color = self
+            .state
+            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
+        let border_style = Style::default().fg(border_color);
+        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
+        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
+        let stderr_style = Style::default().fg(Color::Rgb(251, 191, 36)); // Amber
+
+        let status_icon = self.state.icon();
+        let status_suffix = self.state.suffix();
+
+        let mut items: Vec<ListItem<'static>> = Vec::new();
+
+        // Header line: ╭─ 📟 EXEC ─────────── ✅ 0.3s ───╮
+        let header = Line::from(vec![
+            Span::styled("╭─ ", border_style),
+            Span::styled(verb.icon_label(), border_style),
+            Span::styled(" ─── ", border_style),
+            Span::styled(format!("{} {}", status_icon, status_suffix), border_style),
+            Span::styled(" ─╮", border_style),
+        ]);
+        items.push(ListItem::new(header));
+
+        // Command line: │ $ command
+        let cmd_display = Self::truncate(&self.command, 60);
+        let command_line = Line::from(vec![
+            Span::styled("│ ", border_style),
+            Span::styled("$ ", dim_style),
+            Span::styled(cmd_display, content_style),
+        ]);
+        items.push(ListItem::new(command_line));
+
+        // STDOUT section (if not empty)
+        if !self.stdout.is_empty() {
+            // Separator
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled("├─ ", border_style),
+                Span::styled("stdout", dim_style),
+                Span::styled(" ─", border_style),
+            ])));
+
+            // STDOUT content lines (limit to first 5 lines in compact mode)
+            let max_lines = match self.render_mode {
+                RenderMode::Compact => 3,
+                RenderMode::Expanded => 10,
+                RenderMode::Full => 50,
+            };
+            for line in self.stdout.lines().take(max_lines) {
+                let truncated = Self::truncate(line, 70);
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled("│   ", border_style),
+                    Span::styled(truncated, content_style),
+                ])));
+            }
+
+            // Overflow indicator
+            let line_count = self.stdout.lines().count();
+            if line_count > max_lines {
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled("│   ", border_style),
+                    Span::styled(
+                        format!("... +{} more lines", line_count - max_lines),
+                        dim_style,
+                    ),
+                ])));
+            }
+        }
+
+        // STDERR section (if not empty)
+        if !self.stderr.is_empty() {
+            // Separator
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled("├─ ", border_style),
+                Span::styled("stderr", stderr_style),
+                Span::styled(" ─", border_style),
+            ])));
+
+            // STDERR content lines with amber styling
+            let max_lines = match self.render_mode {
+                RenderMode::Compact => 3,
+                RenderMode::Expanded => 10,
+                RenderMode::Full => 50,
+            };
+            for line in self.stderr.lines().take(max_lines) {
+                let truncated = Self::truncate(line, 70);
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled("│   ", border_style),
+                    Span::styled(truncated, stderr_style),
+                ])));
+            }
+
+            // Overflow indicator
+            let line_count = self.stderr.lines().count();
+            if line_count > max_lines {
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled("│   ", border_style),
+                    Span::styled(
+                        format!("... +{} more lines", line_count - max_lines),
+                        dim_style,
+                    ),
+                ])));
+            }
+        }
+
+        // Footer: exit code, pid, cwd
+        let exit_style = Style::default().fg(exit::code_color(self.exit_code.unwrap_or(0)));
+        let exit_display = self.exit_display();
+        let pid_display = self.pid.map(|p| format!("pid: {}", p)).unwrap_or_default();
+        let cwd_display = self
+            .cwd
+            .as_ref()
+            .map(|c| {
+                let path = std::path::Path::new(c);
+                path.file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or(c)
+                    .to_string()
+            })
+            .unwrap_or_default();
+
+        let footer = Line::from(vec![
+            Span::styled("├─ ", border_style),
+            Span::styled(exit_display, exit_style),
+            Span::styled(" │ ", dim_style),
+            Span::styled(pid_display, dim_style),
+            Span::styled(" │ ", dim_style),
+            Span::styled(cwd_display, dim_style),
+        ]);
+        items.push(ListItem::new(footer));
+
+        // Bottom border
+        items.push(ListItem::new(Line::from(vec![Span::styled(
+            "╰────────────────────────────────────────────────────────────────╯",
+            border_style,
+        )])));
+
+        items
     }
 }
 
