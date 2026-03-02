@@ -432,6 +432,12 @@ pub struct ChatView {
     /// Edit history for input field (Ctrl+Z/Ctrl+Y)
     pub edit_history: EditHistory,
 
+    // === v0.16.4 Dynamic Input Height ===
+    /// Input scroll offset when content exceeds max visible lines
+    pub input_scroll_offset: usize,
+    /// Max visible lines for input area (excluding borders)
+    pub input_max_lines: usize,
+
     // === v0.8.1 Smart Auto-Scroll ===
     /// Whether user is "at the bottom" of conversation
     /// When true, new messages auto-scroll. When false (user scrolled up), they don't.
@@ -754,6 +760,10 @@ impl ChatView {
 
             // v0.16.4 Edit History (Undo/Redo)
             edit_history: EditHistory::default(),
+
+            // v0.16.4 Dynamic Input Height
+            input_scroll_offset: 0,
+            input_max_lines: 10, // Max visible lines (excluding borders)
 
             // v0.8.1 Smart Auto-Scroll
             user_at_bottom: true, // Start at bottom
@@ -3072,6 +3082,9 @@ impl ChatView {
     /// Insert character at cursor (delegates to tui-input)
     pub fn insert_char(&mut self, c: char) {
         self.input.handle(InputRequest::InsertChar(c));
+        // v0.16.4: Track mutation in edit history (coalesces rapid keystrokes)
+        self.edit_history
+            .push(self.input.value(), self.input.cursor());
         self.update_mode_from_input(); // v0.8.1: Sync mode indicator
         self.check_mention_trigger(); // v0.9 Phase 2: @ mention autocomplete
     }
@@ -3079,6 +3092,9 @@ impl ChatView {
     /// Delete character before cursor (delegates to tui-input)
     pub fn backspace(&mut self) {
         self.input.handle(InputRequest::DeletePrevChar);
+        // v0.16.4: Track mutation in edit history
+        self.edit_history
+            .push(self.input.value(), self.input.cursor());
         self.update_mode_from_input(); // v0.8.1: Sync mode indicator
         self.check_mention_trigger(); // v0.9 Phase 2: @ mention autocomplete
     }
@@ -3139,7 +3155,12 @@ impl ChatView {
 
     /// Delete previous word (Ctrl+Backspace)
     pub fn delete_prev_word(&mut self) {
+        // v0.16.4: Force checkpoint before word deletion (significant edit)
+        self.edit_history
+            .checkpoint(self.input.value(), self.input.cursor());
         self.input.handle(InputRequest::DeletePrevWord);
+        self.edit_history
+            .push(self.input.value(), self.input.cursor());
         self.update_mode_from_input(); // v0.8.1: Sync mode indicator
     }
 
@@ -3164,12 +3185,123 @@ impl ChatView {
     pub fn paste_from_clipboard(&mut self) {
         if let Some(clipboard) = &mut self.clipboard {
             if let Ok(text) = clipboard.get_text() {
+                // v0.16.4: Checkpoint before paste (significant edit)
+                self.edit_history
+                    .checkpoint(self.input.value(), self.input.cursor());
                 for c in text.chars() {
                     self.input.handle(InputRequest::InsertChar(c));
                 }
+                self.edit_history
+                    .push(self.input.value(), self.input.cursor());
                 self.update_mode_from_input(); // v0.8.1: Sync mode indicator
             }
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.16.4: Dynamic Input Height Helpers
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Calculate how many lines the input content requires with word wrapping
+    fn calculate_input_lines(&self, available_width: u16) -> usize {
+        let input_value = self.input.value();
+        if input_value.is_empty() {
+            return 1;
+        }
+
+        // Account for prefix (e.g., "🦋 nika > ") which takes ~12 chars
+        let prefix_width = 14_u16;
+        let content_width = available_width.saturating_sub(prefix_width + 2); // +2 for borders
+        if content_width == 0 {
+            return 1;
+        }
+
+        let mut total_lines = 0;
+        for line in input_value.split('\n') {
+            if line.is_empty() {
+                total_lines += 1;
+            } else {
+                // Calculate wrapped lines for this physical line
+                let char_count = line.chars().count();
+                let lines_needed = (char_count as u16 + content_width - 1) / content_width;
+                total_lines += lines_needed.max(1) as usize;
+            }
+        }
+        total_lines.max(1)
+    }
+
+    /// Ensure the cursor line is visible by adjusting scroll offset
+    fn ensure_input_cursor_visible(&mut self, cursor_line: usize, total_lines: usize) {
+        if total_lines <= self.input_max_lines {
+            self.input_scroll_offset = 0;
+            return;
+        }
+
+        // Keep a 1-line margin at top/bottom when scrolling
+        let margin = 1;
+
+        // If cursor is below visible area, scroll down
+        if cursor_line >= self.input_scroll_offset + self.input_max_lines - margin {
+            self.input_scroll_offset =
+                cursor_line.saturating_sub(self.input_max_lines - 1 - margin);
+        }
+
+        // If cursor is above visible area, scroll up
+        if cursor_line < self.input_scroll_offset + margin {
+            self.input_scroll_offset = cursor_line.saturating_sub(margin);
+        }
+
+        // Clamp scroll offset to valid range
+        let max_offset = total_lines.saturating_sub(self.input_max_lines);
+        self.input_scroll_offset = self.input_scroll_offset.min(max_offset);
+    }
+
+    /// Calculate the dynamic input height for layout
+    fn calculate_input_height(&self, available_width: u16) -> u16 {
+        let content_lines = self.calculate_input_lines(available_width);
+        let clamped_lines = content_lines.clamp(1, self.input_max_lines);
+        (clamped_lines as u16) + 2 // Add 2 for borders
+    }
+
+    /// Get the line number where the cursor is (for scroll tracking)
+    fn get_cursor_line(&self, available_width: u16) -> usize {
+        let input_value = self.input.value();
+        let cursor_pos = self.input.cursor();
+        if input_value.is_empty() {
+            return 0;
+        }
+
+        let prefix_width = 14_u16;
+        let content_width = available_width.saturating_sub(prefix_width + 2);
+        if content_width == 0 {
+            return 0;
+        }
+
+        let mut current_line = 0;
+        let mut char_index = 0;
+
+        for line in input_value.split('\n') {
+            let line_len = line.chars().count();
+
+            if char_index + line_len >= cursor_pos {
+                // Cursor is in this line - calculate wrapped position
+                let pos_in_line = cursor_pos - char_index;
+                let wrapped_line_offset = pos_in_line / content_width as usize;
+                return current_line + wrapped_line_offset;
+            }
+
+            // Add wrapped lines for this physical line
+            let lines_for_this = if line.is_empty() {
+                1
+            } else {
+                ((line_len as u16 + content_width - 1) / content_width).max(1) as usize
+            };
+
+            current_line += lines_for_this;
+            char_index += line_len + 1; // +1 for newline
+        }
+
+        current_line
     }
 }
 
@@ -3181,14 +3313,20 @@ impl Default for ChatView {
 
 impl View for ChatView {
     fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
-        // Layout v3: ProStatusBar (2 lines) | Messages + Mission Control | Input + Hints
+        // v0.16.4: Calculate dynamic input height and ensure cursor is visible
+        let input_height = self.calculate_input_height(area.width);
+        let cursor_line = self.get_cursor_line(area.width);
+        let total_lines = self.calculate_input_lines(area.width);
+        self.ensure_input_cursor_visible(cursor_line, total_lines);
+
+        // Layout v4: ProStatusBar (2 lines) | Messages + Mission Control | Input (dynamic) + Hints
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(2), // ProStatusBar (2 lines - Claude Code inspired)
-                Constraint::Min(10),   // Main content area
-                Constraint::Length(3), // Input field
-                Constraint::Length(1), // Command hints
+                Constraint::Length(2),            // ProStatusBar (2 lines - Claude Code inspired)
+                Constraint::Min(10),              // Main content area
+                Constraint::Length(input_height), // v0.16.4: Dynamic input height (1-10 lines + borders)
+                Constraint::Length(1),            // Command hints
             ])
             .split(area);
 
@@ -3541,6 +3679,46 @@ impl View for ChatView {
         if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('e') {
             self.cursor_end();
             return ViewAction::None;
+        }
+
+        // v0.16.4: Ctrl+Z = Undo (EditHistory)
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('z') {
+            if let Some((text, cursor)) = self.edit_history.undo() {
+                self.input = Input::new(text);
+                // Restore cursor position
+                self.input.handle(InputRequest::GoToStart);
+                for _ in 0..cursor {
+                    self.input.handle(InputRequest::GoToNextChar);
+                }
+                self.update_mode_from_input();
+            }
+            return ViewAction::None;
+        }
+
+        // v0.16.4: Ctrl+Y = Redo (EditHistory)
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('y') {
+            if let Some((text, cursor)) = self.edit_history.redo() {
+                self.input = Input::new(text);
+                // Restore cursor position
+                self.input.handle(InputRequest::GoToStart);
+                for _ in 0..cursor {
+                    self.input.handle(InputRequest::GoToNextChar);
+                }
+                self.update_mode_from_input();
+            }
+            return ViewAction::None;
+        }
+
+        // v0.16.4: Ctrl+j/k for vim-style panel navigation (works from any panel)
+        if key.modifiers.contains(KeyModifiers::CONTROL) {
+            if key.code == KeyCode::Char('j') {
+                self.focus_next_panel();
+                return ViewAction::None;
+            }
+            if key.code == KeyCode::Char('k') {
+                self.focus_prev_panel();
+                return ViewAction::None;
+            }
         }
 
         // F1 or ? = Toggle help overlay (global, works from any panel)
@@ -4696,11 +4874,35 @@ impl ChatView {
             theme.border_normal
         };
 
-        let paragraph = Paragraph::new(line).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(border_color)),
-        );
+        // v0.16.4: Build block with optional scroll indicator in title
+        let total_lines = self.calculate_input_lines(area.width);
+        let can_scroll_up = self.input_scroll_offset > 0;
+        let can_scroll_down = total_lines > self.input_max_lines
+            && self.input_scroll_offset < total_lines.saturating_sub(self.input_max_lines);
+
+        let mut block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(border_color));
+
+        // Add scroll indicator title if content exceeds max visible
+        if total_lines > self.input_max_lines {
+            let scroll_info = format!(
+                " {}/{} {}{}",
+                self.input_scroll_offset + 1,
+                total_lines.saturating_sub(self.input_max_lines) + 1,
+                if can_scroll_up { "↑" } else { " " },
+                if can_scroll_down { "↓" } else { " " }
+            );
+            block = block.title_top(Line::from(Span::styled(
+                scroll_info,
+                Style::default().fg(theme.text_muted),
+            )));
+        }
+
+        let paragraph = Paragraph::new(line)
+            .block(block)
+            .wrap(ratatui::widgets::Wrap { trim: false })
+            .scroll((self.input_scroll_offset as u16, 0));
 
         frame.render_widget(paragraph, area);
     }
