@@ -1,8 +1,11 @@
-//! Agent and Skill Resolver (v0.6)
+//! Agent and Skill Resolver (v0.6, v0.17)
 //!
 //! Resolves external agent definitions and loads skill files at workflow start.
 //! This module handles the loading and resolution of:
 //! - External agent definition files (.agent.yaml)
+//! - Package agent references (@agents/name) - v0.17
+//! - Package prompt references (@prompts/name) - v0.17
+//! - Package skill references (@skills/name) - v0.17
 //! - Skill files (.skill.md) for prompt augmentation
 //!
 //! # Example
@@ -10,19 +13,23 @@
 //! ```yaml
 //! agents:
 //!   researcher:
-//!     file: ./agents/researcher.agent.yaml  # Loaded from file
+//!     from: "@agents/researcher"              # v0.17: From package
+//!   local:
+//!     file: ./agents/local.agent.yaml        # Local file (legacy)
 //!   translator:
-//!     system: "You are a translator..."     # Already inline
+//!     system: "You are a translator..."      # Inline definition
 //!
 //! skills:
-//!   seo: ./skills/seo-writer.skill.md       # Loaded as string content
+//!   seo: "@prompts/seo-meta"                  # v0.17: From package
+//!   local: ./skills/seo-writer.skill.md      # Local file
 //! ```
 
 use crate::ast::{AgentDef, SkillDef, Workflow};
 use crate::error::NikaError;
+use crate::registry::resolver; // Package resolution
 use crate::serde_yaml;
 use rustc_hash::FxHashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 use tracing::debug;
 
@@ -142,10 +149,44 @@ async fn resolve_agent(
 ) -> Result<ResolvedAgent, NikaError> {
     match def {
         AgentDef::From { from } => {
-            // v0.13: Use multi-format loader
+            // v0.17: Support package references (@agents/name)
             use crate::ast::loader::{load_definition, DefinitionKind};
 
-            let source_path = base_path.join(from);
+            let source_path: PathBuf = if from.starts_with('@') {
+                // Package reference - resolve via registry
+                debug!(agent = name, package = from, "Resolving agent from package");
+
+                let resolved = resolver::resolve_package_path(from)
+                    .map_err(|e| NikaError::ContextLoadError {
+                        alias: name.to_string(),
+                        path: from.clone(),
+                        reason: format!("Package not found: {}. Try: spn add {}", e, from),
+                    })?;
+
+                // Agent packages should contain agent.md or agent.yaml
+                let agent_md = resolved.path.join("agent.md");
+                let agent_yaml = resolved.path.join("agent.yaml");
+
+                if agent_md.exists() {
+                    agent_md
+                } else if agent_yaml.exists() {
+                    agent_yaml
+                } else {
+                    return Err(NikaError::ContextLoadError {
+                        alias: name.to_string(),
+                        path: from.clone(),
+                        reason: format!(
+                            "Package {} exists but missing agent.md or agent.yaml at {}",
+                            from,
+                            resolved.path.display()
+                        ),
+                    });
+                }
+            } else {
+                // Regular filesystem path
+                base_path.join(from)
+            };
+
             debug!(agent = name, path = ?source_path, "Loading agent via multi-format loader");
 
             let loaded = load_definition(&source_path, DefinitionKind::Agent)?;
@@ -227,7 +268,42 @@ fn default_provider() -> String {
 
 /// Load a skill file content.
 async fn load_skill(name: &str, path: &SkillDef, base_path: &Path) -> Result<String, NikaError> {
-    let file_path = base_path.join(path);
+    // v0.17: Support package references (@prompts/name, @skills/name)
+    let file_path: PathBuf = if path.starts_with('@') {
+        // Package reference - resolve via registry
+        debug!(skill = name, package = path, "Resolving skill/prompt from package");
+
+        let resolved = resolver::resolve_package_path(path)
+            .map_err(|e| NikaError::ContextLoadError {
+                alias: name.to_string(),
+                path: path.to_string(),
+                reason: format!("Package not found: {}. Try: spn add {}", e, path),
+            })?;
+
+        // Skill/Prompt packages should contain skill.md or prompt.md
+        let skill_md = resolved.path.join("skill.md");
+        let prompt_md = resolved.path.join("prompt.md");
+
+        if skill_md.exists() {
+            skill_md
+        } else if prompt_md.exists() {
+            prompt_md
+        } else {
+            return Err(NikaError::ContextLoadError {
+                alias: name.to_string(),
+                path: path.to_string(),
+                reason: format!(
+                    "Package {} exists but missing skill.md or prompt.md at {}",
+                    path,
+                    resolved.path.display()
+                ),
+            });
+        }
+    } else {
+        // Regular filesystem path
+        base_path.join(path)
+    };
+
     debug!(skill = name, path = ?file_path, "Loading skill file");
 
     let content =
