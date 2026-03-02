@@ -38,7 +38,6 @@ mod matrix_rain;
 mod mcp_call_box;
 mod mcp_log;
 mod mention_system;
-mod message_bubble;
 mod mission_control;
 mod nika_intro;
 mod pro_status_bar;
@@ -107,8 +106,6 @@ pub use mission_control::{
     ContextItem, ContextStatus, CurrentVerb, MemoryFile, MemoryKind, MissionControlPanel,
     TurnMetrics,
 };
-// Message bubble for Chat view (v0.7.3)
-pub use message_bubble::{BubbleRole, MessageBubble, ThinkingBlock};
 // Verb input system for Chat view (v0.7.3)
 pub use verb_input::{ChatVerb, ParsedInput, SystemCommand, VerbIndicator, VerbPrompt};
 // Mention system for Chat view (v0.7.3)

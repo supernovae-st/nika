@@ -1511,6 +1511,7 @@ impl App {
             }
 
             // View navigation by number (when not capturing input)
+            // [1] = Chat, [2] = Home/Explorer (matches tab bar order: a=Chat, h=Home)
             KeyCode::Char('1') if !self.is_view_capturing_input() => {
                 return Action::SwitchView(TuiView::Chat);
             }

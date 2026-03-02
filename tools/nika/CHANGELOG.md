@@ -7,13 +7,123 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.16.3] - 2026-03-02
+
 ### Added
-- **Skill Merging Through DAG Fusion** (v0.15.1)
-  - Workflow-level `skills:` propagate through `include:` DAG fusion
+- **TUI Improvements** - Chat view simplification and TaskBox enhancements
+  - TaskBox inline rendering improvements for all 5 verbs
+  - Chat view simplified (143 lines removed from chat.rs)
+  - Dead code cleanup (message_bubble.rs deleted - 412 lines)
+  - 12 files changed, 857 insertions, 560 deletions
+
+### Fixed
+- **nika init** - All 4 example workflows now have correct syntax
+  - `01-hello-world.nika.yaml`: Fixed YAML syntax errors
+  - `02-parallel-pipeline.nika.yaml`: Fixed context file paths
+  - `03-agent-advanced.nika.yaml`: Fixed builtin tool references (`nika:read` not `read_file`)
+  - `04-production-pipeline.nika.yaml`: Fixed all syntax and reference issues
+
+### Changed
+- CI workflows updated with latest GitHub Actions versions
+
+### Statistics
+- **3,358 tests passing**
+- **Zero clippy warnings**
+- **All ARMADA checkpoints passing**
+
+## [0.16.2] - 2026-03-02
+
+### Added
+- **DX Consolidation** - Comprehensive documentation audit with 10 parallel agents
+  - All CLAUDE.md files aligned to v0.16.2
+  - Version references synchronized across 11 documentation files
+  - Test counts corrected to 3,358 (accurate count)
+  - Outdated feature references removed
+
+### Changed
+- Root CLAUDE.md: Updated version from v0.14.3 to v0.16.2
+- nika/CLAUDE.md: Version sync to v0.16.2
+- tools/nika/CLAUDE.md: Fixed version from v0.15.1 to v0.16.2, test count from 4,380 to 3,358
+- dx/.claude/rules/nika.md: Added v0.16.2 section
+
+### Statistics
+- **3,358 tests passing**
+- **Zero clippy warnings**
+- **All ARMADA checkpoints passing**
+- **11 CLAUDE.md files audited and synchronized**
+
+## [0.16.1] - 2026-03-01
+
+### Added
+- Documentation and versioning consistency fixes
+- All v0.16.0 features verified and tested
+
+### Statistics
+- **3,358 tests passing**
+- **Zero clippy warnings**
+- **All ARMADA checkpoints passing**
+
+## [0.16.0] - 2026-03-01
+
+### Breaking Changes
+- **Remove nika pkg commands** - Migrated to `spn` CLI
+  - `nika pkg install/list/search/update/remove` → Use `spn pkg` instead
+  - Migration guide: `docs/MIGRATION-PKG-TO-SPN.md`
+
+### Added
+- **TaskBox Inline Rendering** - All 5 verbs now have inline task visualization
+- **rmcp 0.16 SDK** - Updated MCP client to latest SDK version
+
+### Changed
+- CLI cleanup: ~221 lines removed from pkg module
+- Dependency update: rmcp 0.14 → 0.16
+
+### Statistics
+- **3,358+ tests passing**
+- **Zero clippy warnings**
+- **7 LLM providers** (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini)
+
+## [0.15.2] - 2026-03-01
+
+### Changed
+- **Cargo.lock** - Updated for rustls migration (removes native-tls dependencies)
+- **Cross-compilation** - Fixed ARM64 builds via `cross` tool
+- **Release workflow** - Corrected archive paths and working directories
+
+### Security
+- **rustls-tls** - Switched from native-tls to rustls for consistent TLS across platforms
+
+### Fixed
+- ARM64 Linux builds now compile successfully (#43)
+- Release archives contain correct binary paths (#42)
+- CI jobs use proper working directory (#41)
+
+### Statistics
+- **3,358 tests passing**
+- Zero clippy warnings
+- Schema @0.9 fully supported
+- **7 LLM providers** (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini)
+
+## [0.15.1] - 2026-03-01
+
+### Added
+- **Skill Merging Through DAG Fusion** - Workflow-level skills propagate through `include:` DAG fusion
   - `SkillDef` AST type with path and optional alias
   - `merge_skills()` function with deduplication and circular detection
-  - Skill definitions support local paths and `pkg:` URIs
-  - 11 tests for skill merging, deduplication, and error handling
+  - Local paths and `pkg:` URI support
+  - 11 tests for skill merging
+- **pkg: Protocol Support** - Reference skills from package registry
+  - `pkg:@scope/name@version/path` URI syntax
+  - Resolves to `~/.spn/packages/@scope/name/version/path`
+  - Implementation in `src/ast/pkg_resolver.rs`
+
+### Changed
+- Cargo.lock updated for rustls migration (removes native-tls dependencies)
+- All fix branches merged (cross-compilation, release workflow, rustls)
+
+### Statistics
+- **3,358 tests passing** (up from 3,480 in v0.14.6 - test consolidation)
+- **Zero clippy warnings**
 
 ## [0.15.0] - 2026-03-01
 

@@ -7,10 +7,11 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Style},
-    widgets::Widget,
+    text::{Line, Span},
+    widgets::{ListItem, Widget},
 };
 
-use super::{BoxState, RenderMode, VerbColor};
+use super::{BoxState, RenderMode, StreamingContext, VerbColor};
 
 /// InvokeBox data and rendering
 #[derive(Debug, Clone)]
@@ -216,6 +217,137 @@ impl InvokeBox {
         // Dim the server info portion
         let suffix_x = area.x + (line.chars().count() - suffix.chars().count()) as u16;
         buf.set_string(suffix_x, area.y, &suffix, dim_style);
+    }
+
+    /// Convert to ListItem for scrollable List widget
+    pub fn to_list_items(&self, _ctx: &StreamingContext) -> Vec<ListItem<'static>> {
+        let verb = VerbColor::Invoke;
+        let verb_color = verb.rgb();
+        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
+        let success_style = Style::default().fg(Color::Rgb(34, 197, 94));
+        let error_style = Style::default().fg(Color::Rgb(239, 68, 68));
+
+        // Compact mode: single line
+        if self.render_mode == RenderMode::Compact {
+            let status_icon = self.state.icon();
+            let line = Line::from(vec![
+                Span::styled(
+                    format!("{}: {} ", verb.icon_label(), self.tool),
+                    Style::default().fg(verb_color),
+                ),
+                Span::styled(status_icon, Style::default().fg(verb_color)),
+                Span::styled(format!(" server: {}", self.server), dim_style),
+            ]);
+            return vec![ListItem::new(line)];
+        }
+
+        // Expanded mode: multi-line box
+        let mut items = Vec::new();
+        let border_color = self
+            .state
+            .border_color_with_pulse(verb_color, self.pulse_intensity);
+        let border_style = Style::default().fg(border_color);
+
+        // Top border with verb icon and status
+        let status_icon = self.state.icon();
+        let status_suffix = self.state.suffix().into_owned();
+        items.push(ListItem::new(Line::from(vec![
+            Span::styled("┌─ ", border_style),
+            Span::styled(verb.icon_label(), Style::default().fg(verb_color)),
+            Span::styled(
+                format!(" {} ", status_icon),
+                Style::default().fg(verb_color),
+            ),
+            Span::styled(status_suffix, dim_style),
+        ])));
+
+        // Tool and server line
+        items.push(ListItem::new(Line::from(vec![
+            Span::styled("│ ", border_style),
+            Span::styled("Tool: ", dim_style),
+            Span::styled(self.tool.clone(), Style::default().fg(Color::White)),
+            Span::styled(" @ ", dim_style),
+            Span::styled(self.server.clone(), Style::default().fg(Color::Cyan)),
+        ])));
+
+        // PARAMS section
+        let params_indicator = if self.expanded_params { "▼" } else { "▶" };
+        if self.expanded_params && !self.params.is_null() {
+            // Expanded params - show pretty JSON
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled("│ ", border_style),
+                Span::styled(format!("{} PARAMS:", params_indicator), dim_style),
+            ])));
+            if let Some(ref pretty) = self.params_pretty_cached {
+                for line in pretty.lines().take(5) {
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::styled("│   ", border_style),
+                        Span::styled(line.to_string(), dim_style),
+                    ])));
+                }
+            }
+        } else {
+            // Collapsed params - show one-line
+            let params_preview = self
+                .params_oneline_cached
+                .as_ref()
+                .map(|s| Self::truncate(s, 50))
+                .unwrap_or_else(|| "null".to_string());
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled("│ ", border_style),
+                Span::styled(format!("{} PARAMS: ", params_indicator), dim_style),
+                Span::styled(params_preview, dim_style),
+            ])));
+        }
+
+        // RESULT section (if present)
+        if let Some(ref _result) = self.result {
+            let result_indicator = if self.expanded_result { "▼" } else { "▶" };
+            if self.expanded_result {
+                // Expanded result
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled("│ ", border_style),
+                    Span::styled(format!("{} RESULT:", result_indicator), success_style),
+                ])));
+                if let Some(ref pretty) = self.result_pretty_cached {
+                    for line in pretty.lines().take(5) {
+                        items.push(ListItem::new(Line::from(vec![
+                            Span::styled("│   ", border_style),
+                            Span::styled(line.to_string(), success_style),
+                        ])));
+                    }
+                }
+            } else {
+                // Collapsed result
+                let result_preview = self
+                    .result_oneline_cached
+                    .as_ref()
+                    .map(|s| Self::truncate(s, 50))
+                    .unwrap_or_else(|| "...".to_string());
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled("│ ", border_style),
+                    Span::styled(format!("{} RESULT: ", result_indicator), success_style),
+                    Span::styled(result_preview, success_style),
+                ])));
+            }
+        }
+
+        // ERROR section (if present)
+        if let Some(ref error) = self.error {
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled("│ ", border_style),
+                Span::styled("❌ ERROR: ", error_style),
+                Span::styled(Self::truncate(error, 60), error_style),
+            ])));
+        }
+
+        // Bottom border
+        items.push(ListItem::new(Line::from(vec![Span::styled(
+            "└─────────────────────────────────────────",
+            border_style,
+        )])));
+
+        items
     }
 }
 

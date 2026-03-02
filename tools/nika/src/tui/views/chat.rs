@@ -49,6 +49,7 @@ fn is_cmd_pressed(modifiers: KeyModifiers) -> bool {
     modifiers.contains(KeyModifiers::CONTROL) || modifiers.contains(KeyModifiers::SUPER)
 }
 use crate::runtime::chat_workflow::{ChatWorkflow, Role as WorkflowRole};
+use crate::tui::edit_history::EditHistory;
 use crate::tui::file_resolve::FileResolver;
 use crate::tui::state::{
     ChatOverlayMessage, ChatOverlayMessageRole, ChatOverlayState, ChatPanel, PanelScrollState,
@@ -427,6 +428,10 @@ pub struct ChatView {
     /// Help overlay state (toggle with ? or F1)
     pub help_overlay: HelpOverlayState,
 
+    // === v0.16.4 Edit History (Undo/Redo) ===
+    /// Edit history for input field (Ctrl+Z/Ctrl+Y)
+    pub edit_history: EditHistory,
+
     // === v0.8.1 Smart Auto-Scroll ===
     /// Whether user is "at the bottom" of conversation
     /// When true, new messages auto-scroll. When false (user scrolled up), they don't.
@@ -746,6 +751,9 @@ impl ChatView {
 
             // v0.8.1 Help Overlay
             help_overlay: HelpOverlayState::new(),
+
+            // v0.16.4 Edit History (Undo/Redo)
+            edit_history: EditHistory::default(),
 
             // v0.8.1 Smart Auto-Scroll
             user_at_bottom: true, // Start at bottom
@@ -2306,10 +2314,12 @@ impl ChatView {
     }
 
     /// Scroll to the current search result
+    /// v0.16.4 FIX: Uses ensure_cursor_visible() for consistent SCROLL_MARGIN behavior
     fn scroll_to_search_result(&mut self) {
         if let Some(&msg_idx) = self.search_results.get(self.search_current) {
-            // Set scroll to show the matching message
-            self.conversation_scroll.offset = msg_idx.saturating_sub(2);
+            // Set cursor to the matching message and ensure it's visible
+            self.conversation_scroll.cursor = msg_idx;
+            self.conversation_scroll.ensure_cursor_visible();
             self.user_at_bottom = false;
         }
     }
@@ -2938,12 +2948,23 @@ impl ChatView {
                 // User typing a command prefix, don't submit
                 return None;
             }
+            ParsedInput::Verb { .. } => {
+                // Verb command - check if explicit (starts with /)
+                // If explicit, TaskBox will display the command visually,
+                // so we don't need a user message bubble (avoids duplication)
+            }
             _ => {
-                // Regular message or verb command - send to agent
+                // Empty or other - don't process
+                return None;
             }
         }
 
-        self.add_user_message(message.clone());
+        // Only add user message bubble for implicit messages (no / prefix)
+        // Explicit verb commands like /exec, /infer etc. are shown in TaskBox
+        let is_explicit_verb_command = message.starts_with('/');
+        if !is_explicit_verb_command {
+            self.add_user_message(message.clone());
+        }
         self.input.reset();
         self.update_mode_from_input(); // v0.8.1: Preserve mode after submit
         Some(message)
@@ -3450,6 +3471,34 @@ impl View for ChatView {
         // Cmd/Ctrl+V = Paste from system clipboard
         if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('v') {
             self.paste_from_clipboard();
+            return ViewAction::None;
+        }
+
+        // v0.16.4: Ctrl+Z = Undo input edit
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('z') {
+            if let Some((text, cursor)) = self.edit_history.undo() {
+                self.input = Input::new(text);
+                // Move cursor to saved position (clamped to string length)
+                let pos = cursor.min(self.input.value().len());
+                self.input.handle(InputRequest::GoToStart);
+                for _ in 0..pos {
+                    self.input.handle(InputRequest::GoToNextChar);
+                }
+            }
+            return ViewAction::None;
+        }
+
+        // v0.16.4: Ctrl+Y = Redo input edit
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('y') {
+            if let Some((text, cursor)) = self.edit_history.redo() {
+                self.input = Input::new(text);
+                // Move cursor to saved position (clamped to string length)
+                let pos = cursor.min(self.input.value().len());
+                self.input.handle(InputRequest::GoToStart);
+                for _ in 0..pos {
+                    self.input.handle(InputRequest::GoToNextChar);
+                }
+            }
             return ViewAction::None;
         }
 
@@ -4079,132 +4128,6 @@ impl ChatView {
         }
 
         ViewAction::None
-    }
-
-    fn render_messages(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        let msg_count = self.messages.len();
-        let mut items: Vec<ListItem> = self
-            .messages
-            .iter()
-            .enumerate()
-            .flat_map(|(idx, msg)| {
-                // v0.8.1 FIX: Skip "Thinking..." placeholder during streaming
-                let is_last = idx == msg_count.saturating_sub(1);
-                if self.is_streaming && is_last && msg.content == "Thinking..." {
-                    return vec![];
-                }
-
-                // Color-coded message bubbles based on role
-                let (prefix, color) = match msg.role {
-                    // User: Cyan color
-                    MessageRole::User => ("[You]", theme.trait_retrieved),
-                    // AI/Nika: Green color
-                    MessageRole::Nika => ("[AI]", theme.status_success),
-                    // System: Yellow/Amber color
-                    MessageRole::System => ("[System]", theme.status_running),
-                    // Tool: Magenta/Pink color
-                    MessageRole::Tool => ("[Tool]", theme.mcp_traverse),
-                };
-
-                let style = Style::default().fg(color);
-
-                let mut lines = vec![ListItem::new(Line::from(vec![
-                    Span::styled(format!("{} ", prefix), style.add_modifier(Modifier::BOLD)),
-                    Span::styled(SEPARATOR_20_ASCII, Style::default().fg(theme.text_muted)),
-                ]))];
-
-                // Wrap message content with colored prefix indicator
-                for line in msg.content.lines() {
-                    lines.push(ListItem::new(Line::from(vec![
-                        Span::styled("  | ", Style::default().fg(color)),
-                        Span::raw(line.to_string()),
-                    ])));
-                }
-
-                // Add execution result if present
-                if let Some(exec) = &msg.execution {
-                    let (status_icon, status_color) = match exec.status {
-                        ExecutionStatus::Running => (">", theme.status_running),
-                        ExecutionStatus::Completed => ("+", theme.status_success),
-                        ExecutionStatus::Failed => ("x", theme.status_failed),
-                    };
-                    lines.push(ListItem::new(Line::from(vec![
-                        Span::raw("  "),
-                        Span::styled(
-                            format!(
-                                "|-- {} {} ({}/{}) ",
-                                status_icon,
-                                exec.workflow_name,
-                                exec.tasks_completed,
-                                exec.tasks_total
-                            ),
-                            Style::default().fg(status_color),
-                        ),
-                    ])));
-                }
-
-                lines.push(ListItem::new("")); // spacing
-                lines
-            })
-            .collect();
-
-        // Add streaming indicator if streaming is in progress
-        if self.is_streaming {
-            items.push(ListItem::new(Line::from(vec![
-                Span::styled(
-                    "[AI] ",
-                    Style::default()
-                        .fg(theme.status_success)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(SEPARATOR_20_ASCII, Style::default().fg(theme.text_muted)),
-            ])));
-
-            // Show partial response if any
-            if !self.partial_response.is_empty() {
-                // v0.8 WOW: Use matrix decrypt effect if enabled
-                if self.matrix_effect_enabled {
-                    for decrypt_line in self.streaming_decrypt.build_lines() {
-                        let mut spans = vec![Span::styled(
-                            "  | ",
-                            Style::default().fg(theme.status_success),
-                        )];
-                        spans.extend(decrypt_line.spans);
-                        items.push(ListItem::new(Line::from(spans)));
-                    }
-                } else {
-                    for line in self.partial_response.lines() {
-                        items.push(ListItem::new(Line::from(vec![
-                            Span::styled("  | ", Style::default().fg(theme.status_success)),
-                            Span::raw(line.to_string()),
-                        ])));
-                    }
-                }
-            }
-
-            // v0.8.1 FIX: Only show "Thinking..." if no content yet
-            // Once streaming starts, the Matrix effect replaces this indicator
-            if self.partial_response.is_empty() {
-                items.push(ListItem::new(Line::from(vec![
-                    Span::styled("  | ", Style::default().fg(theme.status_success)),
-                    Span::styled(
-                        "Thinking...",
-                        Style::default()
-                            .fg(theme.status_running)
-                            .add_modifier(Modifier::ITALIC),
-                    ),
-                ])));
-            }
-        }
-
-        let list = List::new(items).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" CONVERSATION ")
-                .border_style(Style::default().fg(theme.border_normal)),
-        );
-
-        frame.render_widget(list, area);
     }
 
     /// v0.8.2: Try to autocomplete verb command with Tab
@@ -4888,6 +4811,7 @@ impl ChatView {
         {
             task.set_state(ChatTaskState::Complete);
             task.set_elapsed(std::time::Duration::from_millis(elapsed_ms));
+            task.set_progress(1.0); // Fix: Mark as 100% complete
         }
     }
 
@@ -4902,6 +4826,7 @@ impl ChatView {
         {
             task.set_state(ChatTaskState::Failed);
             task.set_elapsed(std::time::Duration::from_millis(elapsed_ms));
+            task.set_progress(1.0); // Fix: Failed tasks are also 100% done
         }
     }
 
@@ -6460,9 +6385,17 @@ impl ChatView {
         let total_items = items.len();
         self.conversation_scroll.total = total_items;
 
+        // v0.16.4 FIX: Snap to actual bottom when user was at bottom
+        // This prevents jump caused by estimated vs actual total mismatch in auto_scroll_to_bottom()
+        // The estimated total (messages.len() * 4) differs from actual total (items.len())
+        let visible_count = viewport_height;
+        if self.user_at_bottom && total_items > visible_count {
+            self.conversation_scroll.offset = total_items.saturating_sub(visible_count);
+            self.conversation_scroll.cursor = total_items.saturating_sub(1);
+        }
+
         // v0.8.1 FIX (NovaNet pattern): Apply scroll using .skip().take() directly
         // This is more reliable than relying on ListState's internal offset mechanism
-        let visible_count = viewport_height;
         let scroll_offset = self.conversation_scroll.offset;
 
         // Clamp offset to valid range

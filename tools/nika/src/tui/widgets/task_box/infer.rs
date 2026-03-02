@@ -7,10 +7,11 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Style},
-    widgets::Widget,
+    text::{Line, Span},
+    widgets::{ListItem, Widget},
 };
 
-use super::{BoxState, RenderMode, TokenVelocity, VerbColor};
+use super::{BoxState, RenderMode, StreamingContext, TokenVelocity, VerbColor};
 
 /// InferBox data and rendering
 #[derive(Debug, Clone)]
@@ -204,6 +205,146 @@ impl InferBox {
         } else {
             "💬"
         }
+    }
+
+    /// Convert to list items for scrollable List widget
+    pub fn to_list_items(&self, ctx: &StreamingContext) -> Vec<ListItem<'static>> {
+        let verb = VerbColor::Infer;
+        let border_color = self
+            .state
+            .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
+        let border_style = Style::default().fg(border_color);
+        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
+        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
+
+        let status_icon = self.state.icon();
+        let status_suffix = self.state.suffix();
+
+        let mut items: Vec<ListItem<'static>> = Vec::new();
+
+        // Header line: ╭─ ⚡ INFER ─────────── ✅ 1.4s ───╮
+        let header = Line::from(vec![
+            Span::styled("╭─ ", border_style),
+            Span::styled(verb.icon_label(), border_style),
+            Span::styled(" ─── ", border_style),
+            Span::styled(format!("{} {}", status_icon, status_suffix), border_style),
+            Span::styled(" ─╮", border_style),
+        ]);
+        items.push(ListItem::new(header));
+
+        // Model line
+        let provider_icon = Self::provider_icon(&self.model);
+        let model_line = Line::from(vec![
+            Span::styled("│ ", border_style),
+            Span::styled(
+                format!("model: {} {}", provider_icon, self.model),
+                dim_style,
+            ),
+        ]);
+        items.push(ListItem::new(model_line));
+
+        // Separator
+        let sep = Line::from(vec![Span::styled(
+            "├────────────────────────────────────────┤",
+            border_style,
+        )]);
+        items.push(ListItem::new(sep));
+
+        // Prompt header
+        let prompt_header = Line::from(vec![
+            Span::styled("│ ", border_style),
+            Span::styled("PROMPT", dim_style),
+        ]);
+        items.push(ListItem::new(prompt_header));
+
+        // Prompt content - use streaming partial if available, otherwise stored prompt
+        let prompt_text = if ctx.is_streaming && !ctx.partial_response.is_empty() {
+            ctx.partial_response.to_string()
+        } else {
+            Self::truncate(&self.prompt.replace('\n', " "), 60)
+        };
+        let prompt_line = Line::from(vec![
+            Span::styled("│ ", border_style),
+            Span::styled(format!("┊ {}", prompt_text), content_style),
+        ]);
+        items.push(ListItem::new(prompt_line));
+
+        // Separator
+        items.push(ListItem::new(Line::from(vec![Span::styled(
+            "├────────────────────────────────────────┤",
+            border_style,
+        )])));
+
+        // Response header
+        let response_header_text = if self.streaming_cursor && self.state.is_running() {
+            "RESPONSE ▼ streaming...".to_string()
+        } else if !self.response.is_empty() {
+            format!("RESPONSE ▼ {} chars", self.response.len())
+        } else {
+            "RESPONSE".to_string()
+        };
+        let response_header = Line::from(vec![
+            Span::styled("│ ", border_style),
+            Span::styled(response_header_text, dim_style),
+        ]);
+        items.push(ListItem::new(response_header));
+
+        // Response content
+        let response_text = if self.response.is_empty() {
+            if self.state.is_running() {
+                "┊ ...".to_string()
+            } else {
+                "┊ (no response)".to_string()
+            }
+        } else {
+            let text = Self::truncate(&self.response.replace('\n', " "), 60);
+            let cursor = if self.streaming_cursor && self.state.is_running() {
+                "█"
+            } else {
+                ""
+            };
+            format!("┊ {}{}", text, cursor)
+        };
+        let response_line = Line::from(vec![
+            Span::styled("│ ", border_style),
+            Span::styled(response_text, content_style),
+        ]);
+        items.push(ListItem::new(response_line));
+
+        // Metrics footer
+        let cost_str = self
+            .cost
+            .map(|c| format!(" │ 💰 ${:.4}", c))
+            .unwrap_or_default();
+        let velocity_str = if self.state.is_running() && !self.velocity.is_empty() {
+            format!(
+                " │ {} {:.0} tok/s",
+                self.velocity.sparkline_chars(),
+                self.velocity.average()
+            )
+        } else {
+            String::new()
+        };
+        let metrics = format!(
+            "│ 📊 {} in │ {} out │ {} {}{}{}",
+            self.tokens_in,
+            self.tokens_out,
+            Self::provider_icon(&self.model),
+            Self::truncate(&self.model, 10),
+            cost_str,
+            velocity_str
+        );
+        let metrics_line = Line::from(vec![Span::styled(metrics, dim_style)]);
+        items.push(ListItem::new(metrics_line));
+
+        // Bottom border
+        let bottom = Line::from(vec![Span::styled(
+            "╰────────────────────────────────────────╯",
+            border_style,
+        )]);
+        items.push(ListItem::new(bottom));
+
+        items
     }
 }
 

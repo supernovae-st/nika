@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.4] - 2026-03-02
+
+### Added
+- **Extended Thinking Documentation** - Comprehensive guide for extended_thinking feature
+  - Field definitions and ranges (thinking_budget: 1024-65536, default 8192)
+  - Usage examples for `infer:` and `agent:` tasks
+  - Token budget guidelines (5 tiers from simple to maximum reasoning)
+  - Event structure with thinking capture details
+  - Best practices and limitations
+  - Debugging example with thinking process access
+  - Token tracking explanation
+  - 139 lines added to CLAUDE.md
+
+### Changed
+- **Unified MCP Management** - Merged feat/spn-mcp-config (#58)
+  - Centralized MCP server configuration in ~/.spn/mcp.yaml
+  - Shared config between Nika and other spn tools
+  - Better DX for MCP server management
+- **Template Bindings** - Merged fix/schema-validator-tests (#60)
+  - Extended thinking fields in schema @0.9
+  - Improved template binding validation
+
+### Statistics
+- **3,353 tests passing** (stable)
+- **Zero clippy warnings**
+- **All ARMADA checkpoints passing**
+- **3 PRs merged:** #58, #59, #60
+
 ## [0.16.3] - 2026-03-02
 
 ### Fixed

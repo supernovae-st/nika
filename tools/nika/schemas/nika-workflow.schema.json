@@ -187,6 +187,11 @@
               "type": "string",
               "pattern": "^\\$[a-z][a-z0-9_]*$",
               "description": "Binding reference to an array (e.g., $locales)"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\{\\{[^}]+\\}\\}$",
+              "description": "Template binding expression (e.g., {{use.items}})"
             }
           ],
           "description": "Array to iterate over in parallel (v0.3+)"
@@ -457,10 +462,17 @@
           "maximum": 2,
           "description": "LLM temperature"
         },
-        "thinking": {
+        "extended_thinking": {
           "type": "boolean",
           "default": false,
           "description": "Enable extended thinking (Claude only)"
+        },
+        "thinking_budget": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65536,
+          "default": 8192,
+          "description": "Token budget for extended thinking (Claude only)"
         },
         "stop_sequences": {
           "type": "array",

@@ -753,6 +753,145 @@ tasks:
 | `invoke:` | ❌ No shorthand | `invoke: { tool: "...", server: "..." }` |
 | `agent:` | ❌ No shorthand | `agent: { prompt: "...", mcp: [...] }` |
 
+## Extended Thinking (Claude-Specific Feature)
+
+**Available in:** `infer:` and `agent:` tasks
+**Provider:** Claude only (Anthropic API)
+**Schema version:** @0.9+
+
+### Overview
+
+Extended thinking enables Claude to "think through" complex problems step-by-step before providing a final answer. The reasoning process is captured in the `thinking` field of AgentTurn events.
+
+### Fields
+
+| Field | Type | Range | Default | Description |
+|-------|------|-------|---------|-------------|
+| `extended_thinking` | boolean | - | `false` | Enable extended thinking mode |
+| `thinking_budget` | integer | 1024-65536 | 8192 | Token budget for reasoning |
+
+### Usage in `infer:` Tasks
+
+```yaml
+tasks:
+  - id: complex_analysis
+    infer:
+      prompt: "Analyze this complex system design and identify potential issues"
+      extended_thinking: true          # Enable extended thinking
+      thinking_budget: 16384           # Allocate 16K tokens for reasoning
+      temperature: 0.3
+```
+
+### Usage in `agent:` Tasks
+
+```yaml
+tasks:
+  - id: research_agent
+    agent:
+      prompt: "Research and compile findings on quantum computing trends"
+      model: claude-sonnet-4-6
+      extended_thinking: true          # Agent uses extended thinking
+      thinking_budget: 32768           # Large budget for deep research
+      max_turns: 10
+      tools: [nika:write, nika:read]
+```
+
+### How It Works
+
+1. **Reasoning Phase**: Claude thinks through the problem step-by-step
+2. **Thinking Capture**: Reasoning is recorded in `AgentTurn` event metadata
+3. **Response Phase**: Claude provides the final answer after reasoning
+4. **Token Tracking**: Both thinking tokens and response tokens are counted
+
+### Event Structure
+
+```rust
+EventKind::AgentTurn {
+    metadata: Some(AgentTurnMetadata {
+        turn_number: 1,
+        input_tokens: 2500,      // Includes prompt
+        output_tokens: 18000,    // Includes thinking + response
+        thinking: Some("
+            Let me think through this step by step...
+            1. First, I need to understand the system architecture
+            2. Next, identify potential bottlenecks
+            3. Then, consider security implications
+            ...
+        ".to_string()),
+        tool_calls: vec![],
+    }),
+    // ...
+}
+```
+
+### Token Budget Guidelines
+
+| Budget | Use Case |
+|--------|----------|
+| 1024-4096 | Simple reasoning (basic analysis) |
+| 4096-8192 | Standard reasoning (default) |
+| 8192-16384 | Deep reasoning (complex problems) |
+| 16384-32768 | Very deep reasoning (research, planning) |
+| 32768-65536 | Maximum reasoning (architectural decisions) |
+
+### Best Practices
+
+1. **Use for complex tasks**: Extended thinking works best for multi-step reasoning
+2. **Set appropriate budget**: Larger budgets allow deeper reasoning but cost more
+3. **Capture reasoning**: Access `thinking` field in AgentTurn events for debugging
+4. **Temperature control**: Lower temperature (0.2-0.5) works well with extended thinking
+5. **Not always needed**: Simple tasks don't benefit from extended thinking
+
+### Limitations
+
+- **Claude only**: Other providers ignore these fields
+- **Token cost**: Extended thinking uses additional tokens
+- **Latency**: Reasoning phase adds processing time
+- **No streaming**: Thinking is delivered as a complete block
+
+### Example: Debugging with Thinking
+
+```yaml
+tasks:
+  - id: debug_agent
+    agent:
+      prompt: |
+        Debug this failing test and explain the root cause.
+
+        Error: {{use.error_message}}
+        Code: {{use.failing_code}}
+      extended_thinking: true
+      thinking_budget: 12288
+      max_turns: 3
+      tools: [nika:read, nika:grep]
+
+  - id: capture_reasoning
+    use:
+      thinking_process: debug_agent.thinking  # Access reasoning
+    infer: |
+      Summarize the debugging process:
+      {{use.thinking_process}}
+```
+
+### Token Tracking
+
+Extended thinking tokens are included in `output_tokens`:
+
+```
+Total cost = (input_tokens × input_price) + (output_tokens × output_price)
+Where: output_tokens = thinking_tokens + response_tokens
+```
+
+**Example:**
+- Input: 500 tokens
+- Thinking: 8000 tokens
+- Response: 200 tokens
+- **Total output**: 8200 tokens
+
+### Configuration in TUI
+
+Extended thinking can be configured per-workflow or per-task in Studio view with live schema validation.
+
 ## rig-core Integration (v0.4+)
 
 Nika uses [rig-core](https://github.com/0xPlaygrounds/rig) v0.31 for all LLM providers.
