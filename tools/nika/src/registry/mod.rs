@@ -50,8 +50,8 @@ pub use operations::{
 
 // Re-export resolver
 pub use resolver::{
-    cache_stats, clear_cache, parse_package_ref, resolve_package_path, PackageRef,
-    ResolvedPackage,
+    cache_stats, clear_cache, invalidate_package, parse_package_ref, resolve_package_path,
+    PackageRef, ResolvedPackage,
 };
 
 // Re-export lockfile

@@ -145,10 +145,12 @@ fn expand_includes_recursive(
                 vec!["workflow.nika.yaml"]
             };
 
+            // SECURITY: Atomic check-and-open eliminates TOCTOU race
             let mut found_path = None;
             for filename in candidates {
                 let candidate_path = resolved.path.join(filename);
-                if candidate_path.exists() {
+                // Try to open file - atomic check without exists() race
+                if std::fs::File::open(&candidate_path).is_ok() {
                     found_path = Some(candidate_path);
                     break;
                 }

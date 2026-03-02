@@ -144,7 +144,10 @@ impl Lockfile {
         }
     }
 
-    /// Save the lockfile to disk.
+    /// Save the lockfile to disk atomically.
+    ///
+    /// Uses temp+rename pattern from util::fs to ensure durability.
+    /// This prevents corruption if the process crashes during write.
     pub fn save(&self, path: Option<&Path>) -> Result<(), LockfileError> {
         let lockfile_path = if let Some(p) = path {
             p.to_path_buf()
@@ -155,7 +158,8 @@ impl Lockfile {
         let content = crate::serde_yaml::to_string(&self)
             .map_err(|e| LockfileError::YamlSerializeError(e.to_string()))?;
 
-        std::fs::write(&lockfile_path, content)?;
+        // SECURITY: Atomic write prevents corruption on crash
+        crate::util::fs::atomic_write(&lockfile_path, content.as_bytes())?;
         Ok(())
     }
 }

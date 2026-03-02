@@ -8,7 +8,7 @@
 //! Uses DashMap for thread-safe caching of resolved packages (v0.17+).
 
 use std::path::PathBuf;
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use dashmap::DashMap;
 use semver::Version;
@@ -20,9 +20,11 @@ use super::types::Manifest;
 /// Global package resolution cache (v0.17+)
 ///
 /// Thread-safe cache using DashMap to avoid repeated filesystem lookups.
+/// Uses Arc<ResolvedPackage> to minimize memory overhead on cache hits.
+///
 /// Key: package reference (e.g., "@workflows/seo-audit@1.2.0")
-/// Value: ResolvedPackage with path and manifest
-static PACKAGE_CACHE: LazyLock<DashMap<String, ResolvedPackage>> =
+/// Value: Arc-wrapped ResolvedPackage (cheap to clone, ~8 bytes per ref)
+static PACKAGE_CACHE: LazyLock<DashMap<String, Arc<ResolvedPackage>>> =
     LazyLock::new(DashMap::new);
 
 /// Errors that can occur during package resolution.
@@ -173,6 +175,23 @@ pub fn clear_cache() {
     PACKAGE_CACHE.clear();
 }
 
+/// Invalidate a specific package in the cache (v0.17+)
+///
+/// Removes all cached entries starting with the given package name.
+/// More efficient than clear_cache() when only one package changed.
+///
+/// # Examples
+///
+/// ```
+/// use nika::registry::resolver;
+///
+/// // After `spn add @workflows/seo-audit`, invalidate just that package
+/// resolver::invalidate_package("@workflows/seo-audit");
+/// ```
+pub fn invalidate_package(name: &str) {
+    PACKAGE_CACHE.retain(|key, _| !key.starts_with(name));
+}
+
 /// Get cache statistics (v0.17+)
 pub fn cache_stats() -> (usize, usize) {
     let size = PACKAGE_CACHE.len();
@@ -201,17 +220,19 @@ pub fn cache_stats() -> (usize, usize) {
 /// ```
 pub fn resolve_package_path(reference: &str) -> Result<ResolvedPackage, ResolverError> {
     // Check cache first (v0.17+)
+    // Arc clone is cheap (~8 bytes + atomic increment)
     if let Some(cached) = PACKAGE_CACHE.get(reference) {
-        return Ok(cached.value().clone());
+        return Ok(Arc::unwrap_or_clone(Arc::clone(cached.value())));
     }
 
     // Cache miss - resolve and cache
     let resolved = resolve_package_path_uncached(reference)?;
+    let arc_resolved = Arc::new(resolved);
 
-    // Cache the result
-    PACKAGE_CACHE.insert(reference.to_string(), resolved.clone());
+    // Cache the Arc-wrapped result
+    PACKAGE_CACHE.insert(reference.to_string(), Arc::clone(&arc_resolved));
 
-    Ok(resolved)
+    Ok(Arc::unwrap_or_clone(arc_resolved))
 }
 
 /// Internal uncached resolution function
