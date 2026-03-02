@@ -77,8 +77,6 @@ tasks:
         - perplexity
         - firecrawl
       max_turns: 10
-      stop_conditions:
-        - "RESEARCH_COMPLETE"
 
   # ========================================================================
   # PHASE 2: Ideation

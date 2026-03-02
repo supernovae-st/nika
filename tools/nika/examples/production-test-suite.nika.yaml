@@ -60,8 +60,6 @@ tasks:
         3. Say "TEST COMPLETE" and then "DONE"
       model: claude-sonnet-4-6
       max_turns: 3
-      stop_conditions:
-        - "DONE"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # FINAL: Aggregate all results

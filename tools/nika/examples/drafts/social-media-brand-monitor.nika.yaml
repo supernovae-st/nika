@@ -106,8 +106,6 @@ tasks:
       mcp:
         - perplexity
       max_turns: 3
-      stop_conditions:
-        - "SEARCH_COMPLETE"
     output:
       format: json
 
@@ -145,8 +143,6 @@ tasks:
       mcp:
         - firecrawl
       max_turns: 4
-      stop_conditions:
-        - "SCRAPE_COMPLETE"
     output:
       format: json
 
@@ -305,8 +301,6 @@ tasks:
       mcp:
         - perplexity
       max_turns: 5
-      stop_conditions:
-        - "STRATEGY_COMPLETE"
     output:
       format: json
 

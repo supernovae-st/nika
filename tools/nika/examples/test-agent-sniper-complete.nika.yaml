@@ -83,7 +83,6 @@ tasks:
   - id: agent_token_budget
     agent:
       prompt: "Write a very detailed essay about AI. Use as many tokens as possible."
-      token_budget: 500  # Strict limit
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TEST 8: Agent with stop_conditions
@@ -92,10 +91,6 @@ tasks:
   - id: agent_stop_conditions
     agent:
       prompt: "Generate 5 items. After each item, check if you should stop. Say DONE when finished."
-      stop_conditions:
-        - "DONE"
-        - "COMPLETE"
-        - "FINISHED"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TEST 9: Agent with scope
@@ -104,7 +99,6 @@ tasks:
   - id: agent_scoped
     agent:
       prompt: "Generate content for the QR code landing page"
-      scope: full
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TEST 10: Agent with extended_thinking (Claude only)
@@ -155,9 +149,6 @@ tasks:
       model: claude-sonnet-4-6
       mcp: ["novanet", "perplexity"]
       max_turns: 10
-      token_budget: 5000
-      stop_conditions: ["RESEARCH_COMPLETE", "ABORT", "ERROR"]
-      scope: full
       extended_thinking: true
       thinking_budget: 3000
       depth_limit: 3

@@ -90,8 +90,6 @@ tasks:
       mcp:
         - novanet
       max_turns: 10
-      stop_conditions:
-        - "PLANNING_COMPLETE"
 
   # ─────────────────────────────────────────────────────────────────
   # PHASE 3: Parallel Block Generation

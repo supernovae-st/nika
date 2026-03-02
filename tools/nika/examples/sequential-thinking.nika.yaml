@@ -74,8 +74,6 @@ tasks:
       mcp:
         - sequential-thinking
       max_turns: 15
-      stop_conditions:
-        - "ANALYSIS_COMPLETE"
 
 flows:
   - source: input

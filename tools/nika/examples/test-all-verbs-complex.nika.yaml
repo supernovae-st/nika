@@ -142,8 +142,6 @@ tasks:
       model: claude-sonnet-4-6
       max_turns: 5
       depth_limit: 2
-      stop_conditions:
-        - "ANALYSIS_COMPLETE"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # LAYER 5: Complex Aggregation (Fan-In)
@@ -187,8 +185,6 @@ tasks:
         Create a summary report and say "REPORT_COMPLETE" when done.
       model: claude-sonnet-4-6
       max_turns: 3
-      stop_conditions:
-        - "REPORT_COMPLETE"
 
 flows:
   # Layer 0 → Layer 2 (Diamond)

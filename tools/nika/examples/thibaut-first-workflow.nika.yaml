@@ -15,10 +15,6 @@ tasks:
         Termine par DONE.
       model: claude-sonnet-4-6
       max_turns: 1
-      stop_conditions:
-        - "DONE"
-
-  - id: generate_features
     agent:
       prompt: |
         Liste 3 features clés d'un générateur de QR codes IA, en français.
@@ -27,10 +23,6 @@ tasks:
         Termine par DONE.
       model: claude-sonnet-4-6
       max_turns: 1
-      stop_conditions:
-        - "DONE"
-
-  - id: assemble
     use:
       h: generate_headline
       f: generate_features
@@ -43,8 +35,6 @@ tasks:
         Génère un JSON final complet. Termine par DONE.
       model: claude-sonnet-4-6
       max_turns: 1
-      stop_conditions:
-        - "DONE"
 
 flows:
   - source: generate_headline

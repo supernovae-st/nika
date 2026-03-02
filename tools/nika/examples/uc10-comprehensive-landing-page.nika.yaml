@@ -124,8 +124,6 @@ tasks:
       mcp:
         - novanet
       max_turns: 8
-      stop_conditions:
-        - "COMPETITIVE_ANALYSIS_COMPLETE"
     output:
       format: json
 
@@ -215,8 +213,6 @@ tasks:
       mcp:
         - novanet
       max_turns: 10
-      stop_conditions:
-        - "STRATEGY_COMPLETE"
     output:
       format: json
 
@@ -647,8 +643,6 @@ tasks:
       mcp:
         - novanet
       max_turns: 8
-      stop_conditions:
-        - "SEO_OPTIMIZATION_COMPLETE"
     output:
       format: json
 

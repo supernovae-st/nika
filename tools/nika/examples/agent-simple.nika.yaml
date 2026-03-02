@@ -21,7 +21,5 @@ tasks:
         End your response with "SUMMARY_COMPLETE".
 
       max_turns: 3
-      stop_conditions:
-        - "SUMMARY_COMPLETE"
     output:
       format: json
