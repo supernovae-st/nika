@@ -26,6 +26,7 @@ use crate::runtime::boot::PolicyConfig;
 use crate::runtime::policy::{PolicyDecision, PolicyEnforcer};
 use crate::runtime::{BuiltinToolRouter, RigAgentLoop};
 use crate::store::DataStore;
+use crate::tools::{PermissionMode, ToolContext};
 use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
 
 /// Task executor with cached providers, shared HTTP client, and event logging
@@ -97,6 +98,14 @@ impl TaskExecutor {
 
         let policy_enforcer = PolicyEnforcer::new(policy_config.unwrap_or_default());
 
+        // Create ToolContext for file tools (v0.16.3 fix)
+        // Use current working directory and YoloMode for maximum compatibility
+        let working_dir = std::env::current_dir().unwrap_or_else(|_| {
+            tracing::warn!("Failed to get current directory, using /tmp");
+            std::path::PathBuf::from("/tmp")
+        });
+        let tool_ctx = Arc::new(ToolContext::new(working_dir, PermissionMode::YoloMode));
+
         Self {
             http_client,
             rig_provider_cache: Arc::new(DashMap::new()),
@@ -105,7 +114,7 @@ impl TaskExecutor {
             default_provider: provider.into(),
             default_model: model.map(Into::into),
             event_log,
-            builtin_router: Arc::new(BuiltinToolRouter::new()),
+            builtin_router: Arc::new(BuiltinToolRouter::with_file_tools(tool_ctx)),
             policy_enforcer: Arc::new(RwLock::new(policy_enforcer)),
         }
     }

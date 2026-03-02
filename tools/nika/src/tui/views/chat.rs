@@ -49,6 +49,7 @@ fn is_cmd_pressed(modifiers: KeyModifiers) -> bool {
     modifiers.contains(KeyModifiers::CONTROL) || modifiers.contains(KeyModifiers::SUPER)
 }
 use crate::runtime::chat_workflow::{ChatWorkflow, Role as WorkflowRole};
+use crate::tui::edit_history::EditHistory;
 use crate::tui::file_resolve::FileResolver;
 use crate::tui::state::{
     ChatOverlayMessage, ChatOverlayMessageRole, ChatOverlayState, ChatPanel, PanelScrollState,
@@ -427,6 +428,10 @@ pub struct ChatView {
     /// Help overlay state (toggle with ? or F1)
     pub help_overlay: HelpOverlayState,
 
+    // === v0.16.4 Edit History (Undo/Redo) ===
+    /// Edit history for input field (Ctrl+Z/Ctrl+Y)
+    pub edit_history: EditHistory,
+
     // === v0.8.1 Smart Auto-Scroll ===
     /// Whether user is "at the bottom" of conversation
     /// When true, new messages auto-scroll. When false (user scrolled up), they don't.
@@ -746,6 +751,9 @@ impl ChatView {
 
             // v0.8.1 Help Overlay
             help_overlay: HelpOverlayState::new(),
+
+            // v0.16.4 Edit History (Undo/Redo)
+            edit_history: EditHistory::default(),
 
             // v0.8.1 Smart Auto-Scroll
             user_at_bottom: true, // Start at bottom
@@ -2306,10 +2314,12 @@ impl ChatView {
     }
 
     /// Scroll to the current search result
+    /// v0.16.4 FIX: Uses ensure_cursor_visible() for consistent SCROLL_MARGIN behavior
     fn scroll_to_search_result(&mut self) {
         if let Some(&msg_idx) = self.search_results.get(self.search_current) {
-            // Set scroll to show the matching message
-            self.conversation_scroll.offset = msg_idx.saturating_sub(2);
+            // Set cursor to the matching message and ensure it's visible
+            self.conversation_scroll.cursor = msg_idx;
+            self.conversation_scroll.ensure_cursor_visible();
             self.user_at_bottom = false;
         }
     }
@@ -3461,6 +3471,34 @@ impl View for ChatView {
         // Cmd/Ctrl+V = Paste from system clipboard
         if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('v') {
             self.paste_from_clipboard();
+            return ViewAction::None;
+        }
+
+        // v0.16.4: Ctrl+Z = Undo input edit
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('z') {
+            if let Some((text, cursor)) = self.edit_history.undo() {
+                self.input = Input::new(text);
+                // Move cursor to saved position (clamped to string length)
+                let pos = cursor.min(self.input.value().len());
+                self.input.handle(InputRequest::GoToStart);
+                for _ in 0..pos {
+                    self.input.handle(InputRequest::GoToNextChar);
+                }
+            }
+            return ViewAction::None;
+        }
+
+        // v0.16.4: Ctrl+Y = Redo input edit
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('y') {
+            if let Some((text, cursor)) = self.edit_history.redo() {
+                self.input = Input::new(text);
+                // Move cursor to saved position (clamped to string length)
+                let pos = cursor.min(self.input.value().len());
+                self.input.handle(InputRequest::GoToStart);
+                for _ in 0..pos {
+                    self.input.handle(InputRequest::GoToNextChar);
+                }
+            }
             return ViewAction::None;
         }
 
@@ -6347,9 +6385,17 @@ impl ChatView {
         let total_items = items.len();
         self.conversation_scroll.total = total_items;
 
+        // v0.16.4 FIX: Snap to actual bottom when user was at bottom
+        // This prevents jump caused by estimated vs actual total mismatch in auto_scroll_to_bottom()
+        // The estimated total (messages.len() * 4) differs from actual total (items.len())
+        let visible_count = viewport_height;
+        if self.user_at_bottom && total_items > visible_count {
+            self.conversation_scroll.offset = total_items.saturating_sub(visible_count);
+            self.conversation_scroll.cursor = total_items.saturating_sub(1);
+        }
+
         // v0.8.1 FIX (NovaNet pattern): Apply scroll using .skip().take() directly
         // This is more reliable than relying on ListState's internal offset mechanism
-        let visible_count = viewport_height;
         let scroll_offset = self.conversation_scroll.offset;
 
         // Clamp offset to valid range
