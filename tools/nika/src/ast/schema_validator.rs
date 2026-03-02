@@ -152,7 +152,8 @@ fn classify_error(error: &jsonschema::ValidationError) -> SchemaErrorKind {
             expected: extract_type(&message).unwrap_or_else(|| "expected".to_string()),
             actual: "actual".to_string(),
         }
-    } else if error_str.contains("Enum") {
+    } else if error_str.contains("Enum") || error_str.contains("Pattern") {
+        // Pattern failures on constrained fields (like schema version) are semantically enums
         SchemaErrorKind::InvalidEnum {
             value: error.instance.to_string(),
             allowed: vec![],
