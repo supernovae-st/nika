@@ -41,7 +41,7 @@ const COLOR_STATUS_SUCCESS: Color = Color::Rgb(34, 197, 94); // Emerald-500
 /// Status: invalid (error)
 const COLOR_STATUS_ERROR: Color = Color::Rgb(239, 68, 68); // Red-500
 
-use super::super::keyring::{mask_api_key, provider_env_var, NikaKeyring};
+use super::super::keyring::{mask_api_key, provider_env_var, SpnKeyring};
 use super::super::state::ApiKeyState;
 
 /// Provider key entry for display
@@ -103,7 +103,7 @@ impl ProviderKeyEntry {
     fn detect_state(provider: &str) -> ApiKeyState {
         // Priority 1: Check keyring (v0.12.2)
         // v0.11.0: Use Stored variant to indicate secure keyring storage
-        if let Ok(key) = NikaKeyring::get(provider) {
+        if let Ok(key) = SpnKeyring::get(provider) {
             return ApiKeyState::Stored {
                 masked: mask_api_key(&key),
             };

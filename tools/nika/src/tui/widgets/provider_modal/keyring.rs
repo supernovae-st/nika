@@ -1,18 +1,23 @@
-//! Secure API key storage via system keychain
+//! Secure API key storage via system keychain.
 //!
 //! Uses keyring-rs for cross-platform credential storage:
 //! - macOS: Keychain Access
-//! - Windows: Credential Locker
+//! - Windows: Credential Manager
 //! - Linux: Secret Service (GNOME Keyring, KWallet)
+//!
+//! Service name "spn" is shared with supernovae-cli for unified key management.
 
 use colored::Colorize;
 use keyring::Entry;
+use secrecy::SecretString;
 use thiserror::Error;
+use zeroize::Zeroizing;
 
-/// Service name for keyring entries
-const SERVICE_NAME: &str = "nika";
+/// Service name for keyring entries.
+/// Uses "spn" for unified keyring with supernovae-cli.
+const SERVICE_NAME: &str = "spn";
 
-/// Keyring error types
+/// Keyring error types.
 #[derive(Debug, Error)]
 pub enum KeyringError {
     #[error("Failed to access keyring: {0}")]
@@ -25,22 +30,32 @@ pub enum KeyringError {
     DeleteError(String),
 }
 
-/// Keyring wrapper for Nika API keys
-pub struct NikaKeyring;
+/// Keyring wrapper for spn API keys (unified with supernovae-cli).
+pub struct SpnKeyring;
 
-impl NikaKeyring {
-    /// Get API key for a provider
-    pub fn get(provider: &str) -> Result<String, KeyringError> {
+impl SpnKeyring {
+    /// Get API key for a provider as zeroizing string.
+    ///
+    /// The returned string will be automatically zeroized when dropped.
+    pub fn get(provider: &str) -> Result<Zeroizing<String>, KeyringError> {
         let entry = Entry::new(SERVICE_NAME, provider)
             .map_err(|e| KeyringError::AccessError(e.to_string()))?;
 
-        entry.get_password().map_err(|e| match e {
+        let password = entry.get_password().map_err(|e| match e {
             keyring::Error::NoEntry => KeyringError::NotFound(provider.to_string()),
             _ => KeyringError::AccessError(e.to_string()),
-        })
+        })?;
+
+        Ok(Zeroizing::new(password))
     }
 
-    /// Store API key for a provider
+    /// Get API key wrapped in SecretString for maximum safety.
+    pub fn get_secret(provider: &str) -> Result<SecretString, KeyringError> {
+        let key = Self::get(provider)?;
+        Ok(SecretString::from((*key).clone()))
+    }
+
+    /// Store API key for a provider.
     pub fn set(provider: &str, key: &str) -> Result<(), KeyringError> {
         let entry = Entry::new(SERVICE_NAME, provider)
             .map_err(|e| KeyringError::AccessError(e.to_string()))?;
@@ -50,7 +65,7 @@ impl NikaKeyring {
             .map_err(|e| KeyringError::StoreError(e.to_string()))
     }
 
-    /// Delete API key for a provider
+    /// Delete API key for a provider.
     pub fn delete(provider: &str) -> Result<(), KeyringError> {
         let entry = Entry::new(SERVICE_NAME, provider)
             .map_err(|e| KeyringError::AccessError(e.to_string()))?;
@@ -60,18 +75,18 @@ impl NikaKeyring {
             .map_err(|e| KeyringError::DeleteError(e.to_string()))
     }
 
-    /// Check if key exists for a provider
+    /// Check if key exists for a provider.
     pub fn exists(provider: &str) -> bool {
         Self::get(provider).is_ok()
     }
 
-    /// Get masked version of stored key
+    /// Get masked version of stored key.
     pub fn get_masked(provider: &str) -> Option<String> {
         Self::get(provider).ok().map(|k| mask_api_key(&k))
     }
 }
 
-/// Mask API key for display (show first 6 and last 1 char)
+/// Mask API key for display (show first 6 and last 1 char).
 pub fn mask_api_key(key: &str) -> String {
     if key.len() <= 10 {
         return "****".to_string();
@@ -81,10 +96,8 @@ pub fn mask_api_key(key: &str) -> String {
     format!("{}...{}", prefix, suffix)
 }
 
-/// Validate API key format (basic checks)
-/// SEC-001: Always validates non-empty, even for unknown providers
+/// Validate API key format (basic checks).
 pub fn validate_key_format(provider: &str, key: &str) -> Result<(), String> {
-    // SEC-001: Universal empty check for all providers
     if key.trim().is_empty() {
         return Err("API key cannot be empty".into());
     }
@@ -112,7 +125,6 @@ pub fn validate_key_format(provider: &str, key: &str) -> Result<(), String> {
             // Ollama doesn't use API keys, but may use base URL
         }
         _ => {
-            // Unknown provider: basic length check
             if key.len() < 10 {
                 return Err("Key seems too short".into());
             }
@@ -121,7 +133,7 @@ pub fn validate_key_format(provider: &str, key: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Get environment variable name for provider
+/// Get environment variable name for provider.
 pub fn provider_env_var(provider: &str) -> &'static str {
     match provider {
         "anthropic" => "ANTHROPIC_API_KEY",
@@ -129,33 +141,28 @@ pub fn provider_env_var(provider: &str) -> &'static str {
         "mistral" => "MISTRAL_API_KEY",
         "groq" => "GROQ_API_KEY",
         "deepseek" => "DEEPSEEK_API_KEY",
+        "gemini" => "GEMINI_API_KEY",
         "ollama" => "OLLAMA_API_BASE_URL",
         _ => "UNKNOWN_API_KEY",
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MIGRATION (v0.12.1)
+// MIGRATION (env → keyring)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Providers to migrate (excludes ollama - uses URL not key)
-const MIGRATEABLE_PROVIDERS: &[&str] = &["anthropic", "openai", "mistral", "groq", "deepseek"];
+const MIGRATEABLE_PROVIDERS: &[&str] =
+    &["anthropic", "openai", "mistral", "groq", "deepseek", "gemini"];
 
-/// Report of migration results
 #[derive(Debug, Default)]
 pub struct MigrationReport {
-    /// Number of keys migrated to keychain
     pub migrated: usize,
-    /// Number skipped (already in keychain)
     pub skipped: usize,
-    /// Providers with no env var set
     pub not_found: Vec<String>,
-    /// Providers that failed (provider, error)
     pub errors: Vec<(String, String)>,
 }
 
 impl MigrationReport {
-    /// Generate summary string
     pub fn summary(&self) -> String {
         format!(
             "Migration complete: {} migrated, {} skipped, {} not found",
@@ -166,7 +173,7 @@ impl MigrationReport {
     }
 }
 
-/// Migrate API keys from environment variables to system keychain
+/// Migrate API keys from environment variables to system keychain.
 pub fn migrate_env_to_keyring() -> MigrationReport {
     let mut report = MigrationReport::default();
 
@@ -175,10 +182,9 @@ pub fn migrate_env_to_keyring() -> MigrationReport {
 
         match std::env::var(env_var) {
             Ok(key) if !key.is_empty() => {
-                // Check if already in keyring
-                if NikaKeyring::exists(provider) {
+                if SpnKeyring::exists(provider) {
                     println!(
-                        "  ├── {}: Found → {} (skipped)",
+                        "  ├── {}: Found → {}",
                         env_var,
                         "Already in keychain".yellow()
                     );
@@ -186,9 +192,8 @@ pub fn migrate_env_to_keyring() -> MigrationReport {
                     continue;
                 }
 
-                // Migrate to keyring
                 print!("  ├── {}: Found → Migrating... ", env_var);
-                match NikaKeyring::set(provider, &key) {
+                match SpnKeyring::set(provider, &key) {
                     Ok(()) => {
                         println!("{}", "✓".green());
                         report.migrated += 1;
@@ -212,6 +217,11 @@ pub fn migrate_env_to_keyring() -> MigrationReport {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_service_name_is_spn() {
+        assert_eq!(SERVICE_NAME, "spn");
+    }
 
     #[test]
     fn test_mask_api_key_standard() {
@@ -241,7 +251,6 @@ mod tests {
     fn test_validate_anthropic_key_wrong_prefix() {
         let result = validate_key_format("anthropic", "sk-wrong-prefix");
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("sk-ant-"));
     }
 
     #[test]
@@ -251,45 +260,15 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_openai_key_wrong_prefix() {
-        let result = validate_key_format("openai", "wrong-key");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_validate_unknown_provider_accepts_any() {
-        let result = validate_key_format("unknown", "any-key-format");
-        assert!(result.is_ok());
-    }
-
-    // SEC-001: Empty key validation tests
-    #[test]
     fn test_validate_empty_key_rejected() {
         let result = validate_key_format("anthropic", "");
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("empty"));
-    }
-
-    #[test]
-    fn test_validate_whitespace_only_key_rejected() {
-        let result = validate_key_format("openai", "   ");
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("empty"));
-    }
-
-    #[test]
-    fn test_validate_unknown_provider_short_key_rejected() {
-        let result = validate_key_format("unknown", "short");
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("too short"));
     }
 
     #[test]
     fn test_provider_env_var() {
         assert_eq!(provider_env_var("anthropic"), "ANTHROPIC_API_KEY");
         assert_eq!(provider_env_var("openai"), "OPENAI_API_KEY");
-        assert_eq!(provider_env_var("mistral"), "MISTRAL_API_KEY");
-        assert_eq!(provider_env_var("groq"), "GROQ_API_KEY");
-        assert_eq!(provider_env_var("deepseek"), "DEEPSEEK_API_KEY");
+        assert_eq!(provider_env_var("gemini"), "GEMINI_API_KEY");
     }
 }

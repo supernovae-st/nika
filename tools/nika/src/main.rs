@@ -1181,7 +1181,7 @@ const ALL_PROVIDERS: &[&str] = &[
 async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError> {
     use colored::Colorize;
     use nika::tui::widgets::provider_modal::{
-        mask_api_key, migrate_env_to_keyring, provider_env_var, validate_key_format, NikaKeyring,
+        mask_api_key, migrate_env_to_keyring, provider_env_var, validate_key_format, SpnKeyring,
     };
     use std::io::{self, Write};
 
@@ -1192,7 +1192,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
 
             for provider in ALL_PROVIDERS {
                 let env_var = provider_env_var(provider);
-                let has_keychain = NikaKeyring::exists(provider);
+                let has_keychain = SpnKeyring::exists(provider);
                 let has_env = std::env::var(env_var).is_ok();
 
                 let status = match (has_keychain, has_env) {
@@ -1203,7 +1203,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
                 };
 
                 let masked = if has_keychain {
-                    NikaKeyring::get_masked(provider).unwrap_or_default()
+                    SpnKeyring::get_masked(provider).unwrap_or_default()
                 } else if has_env {
                     std::env::var(env_var)
                         .ok()
@@ -1274,7 +1274,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
             }
 
             // Store in keychain
-            NikaKeyring::set(&provider, &api_key)
+            SpnKeyring::set(&provider, &api_key)
                 .map_err(|e| NikaError::Execution(format!("Failed to store key: {}", e)))?;
 
             println!(
@@ -1286,7 +1286,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
         }
 
         ProviderAction::Get { provider } => {
-            match NikaKeyring::get_masked(&provider) {
+            match SpnKeyring::get_masked(&provider) {
                 Some(masked) => {
                     println!("{}: {}", provider, masked);
                 }
@@ -1306,7 +1306,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
         }
 
         ProviderAction::Delete { provider } => {
-            match NikaKeyring::delete(&provider) {
+            match SpnKeyring::delete(&provider) {
                 Ok(()) => {
                     println!(
                         "{} API key for {} deleted from keychain",
@@ -1337,7 +1337,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
 
             // First check if API key is configured
             let env_var = provider_env_var(&provider);
-            let has_key = NikaKeyring::exists(&provider)
+            let has_key = SpnKeyring::exists(&provider)
                 || std::env::var(env_var).is_ok_and(|v| !v.is_empty());
 
             if !has_key && provider != "ollama" {

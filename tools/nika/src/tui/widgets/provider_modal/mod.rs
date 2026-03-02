@@ -17,7 +17,10 @@ mod tabs;
 
 pub use components::*;
 pub use handler::*;
-pub use keyring::*;
+pub use keyring::{
+    mask_api_key, migrate_env_to_keyring, provider_env_var, validate_key_format, KeyringError,
+    MigrationReport, SpnKeyring,
+};
 pub use loader::*;
 pub use ollama_client::*;
 pub use provider_checker::*;
