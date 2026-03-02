@@ -34,6 +34,7 @@
 //! ```
 
 pub mod operations;
+pub mod resolver;
 pub mod types;
 
 // Re-export core types
@@ -45,6 +46,9 @@ pub use operations::{
     load_manifest, load_registry, manifest_path, package_dir, packages_dir, registry_index_path,
     resolve_skill_path, save_registry, spn_home,
 };
+
+// Re-export resolver
+pub use resolver::{parse_package_ref, resolve_package_path, PackageRef, ResolvedPackage};
 
 #[cfg(test)]
 mod tests {
