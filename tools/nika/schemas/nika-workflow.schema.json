@@ -159,18 +159,80 @@
       }
     },
     "AgentDef": {
-      "type": "object",
-      "description": "Agent definition (v0.17+)",
-      "required": ["from"],
-      "additionalProperties": false,
-      "properties": {
-        "from": {
-          "type": "string",
-          "description": "Path or package reference to agent",
-          "pattern": "^(@[a-z0-9-]+/[a-z0-9-/]+(@[0-9.]+)?|\\./.*|.*\\.md)$",
-          "examples": ["@agents/researcher", "./agents/my-agent.md"]
+      "description": "Agent definition (v0.17+) - supports package reference, local file, or inline definition",
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "Package or path reference to external agent definition",
+          "required": ["from"],
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "type": "string",
+              "description": "Path or package reference to agent",
+              "pattern": "^(@[a-z0-9-]+/[a-z0-9-/]+(@[0-9.]+)?|\\./.*|.*\\.md)$",
+              "examples": ["@agents/researcher", "./agents/my-agent.md"]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "description": "Legacy file reference (backward compatibility)",
+          "required": ["file"],
+          "additionalProperties": false,
+          "properties": {
+            "file": {
+              "type": "string",
+              "description": "Local file path (legacy, use 'from' instead)",
+              "pattern": "^\\./.*\\.md$",
+              "examples": ["./agents/my-agent.md"]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "description": "Inline agent definition with system prompt and LLM configuration",
+          "required": ["system"],
+          "additionalProperties": false,
+          "properties": {
+            "system": {
+              "type": "string",
+              "description": "System prompt defining agent persona and behavior"
+            },
+            "provider": {
+              "type": "string",
+              "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "ollama", "mock"],
+              "default": "claude",
+              "description": "LLM provider for this agent"
+            },
+            "model": {
+              "type": "string",
+              "description": "Model override for this agent",
+              "examples": ["claude-sonnet-4-6", "gpt-4o", "gemini-2.0-flash"]
+            },
+            "max_turns": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum agentic turns"
+            },
+            "temperature": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2,
+              "description": "LLM temperature (0.0-2.0, higher = more creative)"
+            },
+            "skills": {
+              "type": "array",
+              "description": "Skill paths to inject into agent context (v0.15.3)",
+              "items": {
+                "type": "string",
+                "description": "Path to skill file (local or pkg: URI)",
+                "examples": ["./skills/research.md", "pkg:@spn/core@1.0.0/skills/coding.md"]
+              }
+            }
+          }
         }
-      }
+      ]
     },
     "McpServerConfig": {
       "type": "object",
