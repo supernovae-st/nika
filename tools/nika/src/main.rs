@@ -740,16 +740,23 @@ fn handle_result(result: Result<(), NikaError>) {
 async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
     // 1. Package reference (starts with @)
     if reference.starts_with('@') {
-        let resolved = resolver::resolve_package_path(reference)
-            .map_err(|e| NikaError::WorkflowNotFound {
-                path: format!("Package not found: {}. Error: {}. Try: spn add {}", reference, e, reference)
+        let resolved =
+            resolver::resolve_package_path(reference).map_err(|e| NikaError::WorkflowNotFound {
+                path: format!(
+                    "Package not found: {}. Error: {}. Try: spn add {}",
+                    reference, e, reference
+                ),
             })?;
 
         // Package should contain workflow.nika.yaml
         let workflow_path = resolved.path.join("workflow.nika.yaml");
         if !workflow_path.exists() {
             return Err(NikaError::WorkflowNotFound {
-                path: format!("Package {} exists but missing workflow.nika.yaml at {}", reference, workflow_path.display())
+                path: format!(
+                    "Package {} exists but missing workflow.nika.yaml at {}",
+                    reference,
+                    workflow_path.display()
+                ),
             });
         }
 
@@ -757,7 +764,10 @@ async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
     }
 
     // 2. Simple name without path separator or .yaml extension → try .nika/workflows/
-    if !reference.contains('/') && !reference.ends_with(".nika.yaml") && !reference.ends_with(".yaml") {
+    if !reference.contains('/')
+        && !reference.ends_with(".nika.yaml")
+        && !reference.ends_with(".yaml")
+    {
         let local_path = PathBuf::from(".nika")
             .join("workflows")
             .join(format!("{}.nika.yaml", reference));
@@ -778,7 +788,10 @@ async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
     let path = PathBuf::from(reference);
     if !path.exists() {
         return Err(NikaError::WorkflowNotFound {
-            path: format!("File not found: {}. Check the path or try: spn search {}", reference, reference)
+            path: format!(
+                "File not found: {}. Check the path or try: spn search {}",
+                reference, reference
+            ),
         });
     }
 

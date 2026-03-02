@@ -97,13 +97,34 @@
     },
     "IncludeSpec": {
       "type": "object",
-      "description": "External workflow to merge (v0.9+)",
-      "required": ["path"],
+      "description": "External workflow to merge (v0.9+, pkg: support v0.17+)",
       "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": ["path"],
+          "properties": {
+            "path": { "type": "string" },
+            "prefix": { "type": "string" }
+          }
+        },
+        {
+          "required": ["pkg"],
+          "properties": {
+            "pkg": { "type": "string" },
+            "prefix": { "type": "string" }
+          }
+        }
+      ],
       "properties": {
         "path": {
           "type": "string",
-          "description": "Path to external .nika.yaml file"
+          "description": "Path to external .nika.yaml file (relative to parent workflow)"
+        },
+        "pkg": {
+          "type": "string",
+          "pattern": "^@[a-z0-9-]+/[a-z0-9-/]+(@[0-9.]+)?$",
+          "description": "Package reference (e.g., @workflows/seo-audit) (v0.17+)",
+          "examples": ["@workflows/seo-audit", "@workflows/common@1.0.0"]
         },
         "prefix": {
           "type": "string",

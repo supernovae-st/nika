@@ -1,4 +1,4 @@
-//! Include Loader - DAG Fusion at Parse Time (v0.14.2 Schema @0.9)
+//! Include Loader - DAG Fusion at Parse Time (v0.17 Schema @0.9)
 //!
 //! Loads and merges external workflows into the main DAG.
 //! Tasks from included workflows share the same DataStore as the parent.
@@ -7,9 +7,12 @@
 //!
 //! ```yaml
 //! include:
+//!   # Filesystem path
 //!   - path: ./lib/seo-tasks.nika.yaml
 //!     prefix: seo_
-//!   - path: ./lib/common.nika.yaml
+//!   # Package reference (v0.17)
+//!   - pkg: "@workflows/common"
+//!     prefix: common_
 //! ```
 //!
 //! # Features
@@ -18,6 +21,7 @@
 //! - Task ID prefixing to prevent collisions
 //! - Flow dependency rewriting for prefixed IDs
 //! - Circular include detection
+//! - Package reference support (v0.17)
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -25,6 +29,7 @@ use std::sync::Arc;
 
 use crate::ast::{Flow, FlowEndpoint, Task, Workflow};
 use crate::error::NikaError;
+use crate::registry::resolver;
 use crate::serde_yaml;
 
 /// Maximum depth for recursive includes (prevent infinite loops)
@@ -116,11 +121,47 @@ fn expand_includes_recursive(
 
     // Process each include
     for include_spec in includes {
-        // Resolve the include path
-        let include_path = base_path.join(&include_spec.path);
+        // v0.17: Validate that exactly one of path/pkg is specified
+        include_spec
+            .validate()
+            .map_err(|e| NikaError::ValidationError { reason: e })?;
 
-        // Security: Validate path stays within project boundary
-        validate_path_boundary(base_path, &include_path)?;
+        // Resolve the include path (filesystem or package)
+        let include_path = if let Some(ref pkg) = include_spec.pkg {
+            // Package reference - resolve via registry (v0.17)
+            let resolved =
+                resolver::resolve_package_path(pkg).map_err(|e| NikaError::WorkflowNotFound {
+                    path: format!(
+                        "Package not found: {}. Error: {}. Try: spn add {}",
+                        pkg, e, pkg
+                    ),
+                })?;
+
+            let workflow_path = resolved.path.join("workflow.nika.yaml");
+            if !workflow_path.exists() {
+                return Err(NikaError::WorkflowNotFound {
+                    path: format!(
+                        "Package {} exists but missing workflow.nika.yaml at {}",
+                        pkg,
+                        workflow_path.display()
+                    ),
+                });
+            }
+            workflow_path
+        } else if let Some(ref path) = include_spec.path {
+            // Filesystem path (original behavior)
+            let resolved_path = base_path.join(path);
+
+            // Security: Validate path stays within project boundary
+            validate_path_boundary(base_path, &resolved_path)?;
+
+            resolved_path
+        } else {
+            // Should never happen due to validate() call above
+            return Err(NikaError::ValidationError {
+                reason: "Include spec must have either 'path' or 'pkg'".to_string(),
+            });
+        };
 
         let canonical_path = include_path
             .canonicalize()
@@ -129,8 +170,13 @@ fn expand_includes_recursive(
 
         // Check for circular includes
         if visited.contains(&path_str) {
+            let display_ref = include_spec
+                .pkg
+                .as_deref()
+                .or(include_spec.path.as_deref())
+                .unwrap_or("unknown");
             return Err(NikaError::ValidationError {
-                reason: format!("Circular include detected: {}", include_spec.path),
+                reason: format!("Circular include detected: {}", display_ref),
             });
         }
         visited.insert(path_str.clone());
@@ -446,7 +492,8 @@ tasks:
         // Create main workflow with include
         let mut workflow = make_test_workflow();
         workflow.include = Some(vec![IncludeSpec {
-            path: "helper.nika.yaml".to_string(),
+            path: Some("helper.nika.yaml".to_string()),
+            pkg: None,
             prefix: None,
         }]);
 
@@ -476,7 +523,8 @@ flows:
 
         let mut workflow = make_test_workflow();
         workflow.include = Some(vec![IncludeSpec {
-            path: "lib.nika.yaml".to_string(),
+            path: Some("lib.nika.yaml".to_string()),
+            pkg: None,
             prefix: Some("lib_".to_string()),
         }]);
 
@@ -523,11 +571,13 @@ tasks:
         let mut workflow = make_test_workflow();
         workflow.include = Some(vec![
             IncludeSpec {
-                path: "a.nika.yaml".to_string(),
+                path: Some("a.nika.yaml".to_string()),
+                pkg: None,
                 prefix: None,
             },
             IncludeSpec {
-                path: "b.nika.yaml".to_string(),
+                path: Some("b.nika.yaml".to_string()),
+                pkg: None,
                 prefix: None,
             },
         ]);
@@ -570,7 +620,8 @@ tasks:
 
         let mut workflow = make_test_workflow();
         workflow.include = Some(vec![IncludeSpec {
-            path: "lib.nika.yaml".to_string(),
+            path: Some("lib.nika.yaml".to_string()),
+            pkg: None,
             prefix: None,
         }]);
 
@@ -614,7 +665,8 @@ tasks: []
 
         let mut workflow = make_test_workflow();
         workflow.include = Some(vec![IncludeSpec {
-            path: "a.nika.yaml".to_string(),
+            path: Some("a.nika.yaml".to_string()),
+            pkg: None,
             prefix: None,
         }]);
 
@@ -630,7 +682,8 @@ tasks: []
 
         let mut workflow = make_test_workflow();
         workflow.include = Some(vec![IncludeSpec {
-            path: "nonexistent.nika.yaml".to_string(),
+            path: Some("nonexistent.nika.yaml".to_string()),
+            pkg: None,
             prefix: None,
         }]);
 
@@ -669,7 +722,8 @@ tasks:
             session: None,
         });
         workflow.include = Some(vec![IncludeSpec {
-            path: "lib.nika.yaml".to_string(),
+            path: Some("lib.nika.yaml".to_string()),
+            pkg: None,
             prefix: None,
         }]);
 
@@ -710,7 +764,8 @@ tasks:
         // Try to include a file from parent directory using path traversal
         let mut workflow = make_test_workflow();
         workflow.include = Some(vec![IncludeSpec {
-            path: "../secret.nika.yaml".to_string(),
+            path: Some("../secret.nika.yaml".to_string()),
+            pkg: None,
             prefix: None,
         }]);
 
@@ -770,7 +825,8 @@ tasks:
         // Create main workflow WITHOUT skills, but with include
         let mut workflow = make_test_workflow();
         workflow.include = Some(vec![IncludeSpec {
-            path: "included.nika.yaml".to_string(),
+            path: Some("included.nika.yaml".to_string()),
+            pkg: None,
             prefix: None,
         }]);
 
@@ -819,7 +875,8 @@ tasks:
         main_skills.insert("only_main".to_string(), "./skills/only-main.md".to_string());
         workflow.skills = Some(main_skills);
         workflow.include = Some(vec![IncludeSpec {
-            path: "included.nika.yaml".to_string(),
+            path: Some("included.nika.yaml".to_string()),
+            pkg: None,
             prefix: None,
         }]);
 
@@ -887,11 +944,13 @@ tasks:
         let mut workflow = make_test_workflow();
         workflow.include = Some(vec![
             IncludeSpec {
-                path: "first.nika.yaml".to_string(),
+                path: Some("first.nika.yaml".to_string()),
+                pkg: None,
                 prefix: Some("first_".to_string()),
             },
             IncludeSpec {
-                path: "second.nika.yaml".to_string(),
+                path: Some("second.nika.yaml".to_string()),
+                pkg: None,
                 prefix: Some("second_".to_string()),
             },
         ]);

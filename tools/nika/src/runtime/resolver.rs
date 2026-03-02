@@ -156,12 +156,13 @@ async fn resolve_agent(
                 // Package reference - resolve via registry
                 debug!(agent = name, package = from, "Resolving agent from package");
 
-                let resolved = resolver::resolve_package_path(from)
-                    .map_err(|e| NikaError::ContextLoadError {
+                let resolved = resolver::resolve_package_path(from).map_err(|e| {
+                    NikaError::ContextLoadError {
                         alias: name.to_string(),
                         path: from.clone(),
                         reason: format!("Package not found: {}. Try: spn add {}", e, from),
-                    })?;
+                    }
+                })?;
 
                 // Agent packages should contain agent.md or agent.yaml
                 let agent_md = resolved.path.join("agent.md");
@@ -271,10 +272,14 @@ async fn load_skill(name: &str, path: &SkillDef, base_path: &Path) -> Result<Str
     // v0.17: Support package references (@prompts/name, @skills/name)
     let file_path: PathBuf = if path.starts_with('@') {
         // Package reference - resolve via registry
-        debug!(skill = name, package = path, "Resolving skill/prompt from package");
+        debug!(
+            skill = name,
+            package = path,
+            "Resolving skill/prompt from package"
+        );
 
-        let resolved = resolver::resolve_package_path(path)
-            .map_err(|e| NikaError::ContextLoadError {
+        let resolved =
+            resolver::resolve_package_path(path).map_err(|e| NikaError::ContextLoadError {
                 alias: name.to_string(),
                 path: path.to_string(),
                 reason: format!("Package not found: {}. Try: spn add {}", e, path),
