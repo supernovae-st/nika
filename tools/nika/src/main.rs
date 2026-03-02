@@ -2132,7 +2132,7 @@ tasks:
         {{use.input}}
       model: claude-sonnet-4-20250514
     output:
-      use.summary: result
+      format: text
 
   - id: translate
     infer:
@@ -2142,7 +2142,7 @@ tasks:
         {{use.input}}
       model: claude-sonnet-4-20250514
     output:
-      use.translation: result
+      format: text
 
   - id: review_code
     infer:
@@ -2159,7 +2159,7 @@ tasks:
         3. Overall assessment
       model: claude-sonnet-4-20250514
     output:
-      use.review: result
+      format: text
 "#;
     fs::write(&example_subworkflow_path, example_subworkflow_content)?;
     println!(
