@@ -171,10 +171,18 @@ enum RainGlyph {
 }
 
 impl RainGlyph {
-    fn as_str(&self) -> String {
+    /// Write glyph to buffer at position. Avoids String allocation in render loop.
+    fn write_to_buf(&self, buf: &mut Buffer, x: u16, y: u16, style: Style) {
         match self {
-            RainGlyph::Char(c) => c.to_string(),
-            RainGlyph::Emoji(e) => (*e).to_string(),
+            RainGlyph::Char(c) => {
+                // Use encode_utf8 to avoid heap allocation
+                let mut char_buf = [0u8; 4];
+                let s = c.encode_utf8(&mut char_buf);
+                buf.set_string(x, y, s, style);
+            }
+            RainGlyph::Emoji(e) => {
+                buf.set_string(x, y, *e, style);
+            }
         }
     }
 
@@ -543,19 +551,14 @@ impl Widget for MatrixRain {
 
                             let color = self.apply_opacity(drop.color, brightness);
 
-                            // Render glyph
-                            let glyph_str = drop.glyph.as_str();
+                            // Render glyph (zero-allocation path)
                             let glyph_width = drop.glyph.width();
 
                             if x + glyph_width <= area.x + area.width {
                                 // Only render if not emoji or emoji fits
                                 if matches!(drop.glyph, RainGlyph::Char(_)) || trail_offset == 0 {
-                                    buf.set_string(
-                                        x,
-                                        y_pos,
-                                        &glyph_str,
-                                        Style::default().fg(color),
-                                    );
+                                    drop.glyph
+                                        .write_to_buf(buf, x, y_pos, Style::default().fg(color));
                                 }
                             }
                         }

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-03-03
+
+### Performance
+- **Matrix Rain Zero-Allocation Rendering** - Eliminated heap allocations in TUI hot path
+  - `RainGlyph::write_to_buf()` uses stack-allocated UTF-8 buffer instead of `to_string()`
+  - Removed `as_str() -> String` in favor of direct buffer writes
+  - `DecryptGlyph::as_str()` now returns `Cow<'static, str>` to avoid allocation for static strings
+- **Chat Message Separator Optimization** - Pre-computed separator eliminates `.repeat()` allocation
+  - Added `SEPARATOR_200` constant (200 Unicode box chars)
+  - Dynamic separator now uses slice instead of allocation
+  - Saves ~1 allocation per message per render frame
+
+### Fixed
+- **pkg_resolver Safety** - Replaced `unwrap()` with `expect()` on user input validation
+  - Line 227: `id.chars().next().unwrap()` → `.expect("id is non-empty")`
+  - Added SAFETY comment documenting the invariant
+  - Prevents potential panic if code is refactored
+
+### Statistics
+- **3,375 tests passing** (stable)
+- **Zero clippy warnings**
+
 ## [0.17.1] - 2026-03-03
 
 ### Security

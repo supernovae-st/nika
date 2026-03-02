@@ -224,7 +224,8 @@ impl PkgUri {
         }
 
         // First char must be alphanumeric
-        let first_char = id.chars().next().unwrap();
+        // SAFETY: id.is_empty() check above guarantees at least one char
+        let first_char = id.chars().next().expect("id is non-empty");
         if !first_char.is_ascii_alphanumeric() {
             return Err(NikaError::InvalidPkgUri {
                 uri: uri.to_string(),

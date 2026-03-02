@@ -10,6 +10,8 @@
 //! Frame 10: let block = Block::bordered().title("Welcome");
 //! ```
 
+use std::borrow::Cow;
+
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use ratatui::{
@@ -229,12 +231,13 @@ enum DecryptGlyph {
 }
 
 impl DecryptGlyph {
-    fn as_str(&self) -> String {
+    /// Returns glyph as string. Uses Cow to avoid allocation for static strings.
+    fn as_str(&self) -> Cow<'static, str> {
         match self {
-            DecryptGlyph::Char(c) => c.to_string(),
-            DecryptGlyph::Emoji(e) => e.to_string(),
-            DecryptGlyph::Kanji(k) => k.to_string(),
-            DecryptGlyph::Text(t) => t.to_string(),
+            DecryptGlyph::Char(c) => Cow::Owned(c.to_string()),
+            DecryptGlyph::Emoji(e) => Cow::Borrowed(*e),
+            DecryptGlyph::Kanji(k) => Cow::Owned(k.to_string()),
+            DecryptGlyph::Text(t) => Cow::Borrowed(*t),
         }
     }
 

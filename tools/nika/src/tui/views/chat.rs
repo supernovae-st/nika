@@ -62,6 +62,8 @@ use crate::util::atomic_write;
 const SEPARATOR_20: &str = "────────────────────"; // 20 Unicode box chars (─), compile-time
 const SEPARATOR_20_ASCII: &str = "--------------------"; // 20 ASCII dashes (-), compile-time
 const SEPARATOR_52: &str = "╰───────────────────────────────────────────────────╯"; // MCP box bottom
+// PERF: 200-char separator for dynamic slicing (avoids .repeat() allocation)
+const SEPARATOR_200: &str = "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────";
 use crate::tui::utils::{truncate_str, wrap_text};
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
@@ -5190,8 +5192,11 @@ impl ChatView {
 
                 // v0.9.5: Dynamic separator at 75% width for visual balance
                 // Leaves breathing room on the right side
+                // PERF: Use static slice instead of .repeat() to avoid allocation
                 let separator_len = (content_width * 75 / 100).saturating_sub(20); // 75% minus prefix+timestamp
-                let dynamic_separator = "─".repeat(separator_len);
+                let separator_chars = separator_len.min(200); // Cap at SEPARATOR_200 length
+                let separator_bytes = separator_chars * 3; // Each '─' is 3 UTF-8 bytes
+                let dynamic_separator = &SEPARATOR_200[..separator_bytes];
 
                 // v0.8 WOW: Add COPIED indicator when flashing
                 // v0.9.5: Clock emoji before timestamp
