@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.6] - 2026-03-02
+
+### Added
+- **Security Audit Report** - Comprehensive v0.16.5 security analysis
+  - Score: 92/100 - Zero CVE, zero unsafe blocks
+  - 1,332 unwrap() occurrences (90% in tests)
+  - Recommendations for branch protection and rmcp upgrade
+- **Examples Audit Report** - Validation of 164 example workflows
+  - 161/164 valid workflows
+  - 3 broken examples (stop_conditions field removed)
+  - Comprehensive test coverage analysis
+
+### Fixed
+- **README Version Corrections** - All version references updated to v0.16.5
+  - Version badge updated from v0.16.1 to v0.16.5
+  - TUI ASCII art header updated
+  - "What's New" section synchronized
+  - --version example corrected
+  - Stats box updated
+  - **PR #64 merged:** fix/readme-versions-v0.16.5
+
+- **Homebrew Formula Synchronization** - Package manager formula updated
+  - Version updated from 0.16.1 to 0.16.5
+  - SHA256 checksums updated for all 4 platforms
+    - macOS ARM64: `550350546a3e5b00148b9065ed2b3eda260ff63e84440edf0aae8db7aff8fc6b`
+    - macOS x64: `d85baceb8eb912846a5b9d292af2e23e758956b915d9c6cb2c28dd688fec92fe`
+    - Linux ARM64: `0fcbf61e97598826b374bc66a5a2f13df28658086ab2635a7c48f57b0efde4c2`
+    - Linux x64: `d80dfa28c1e8c6c2b23b6545ea01ef093140182b42a029bbba34a9937ba24eb1`
+  - **PR #1 merged** (supernovae-st/homebrew-tap)
+
+- **GitHub Releases Correction** - Missing releases and promotion
+  - Created GitHub release v0.16.4 with complete notes
+  - Promoted v0.16.5 from pre-release to Latest
+
+### Changed
+- **Branch Cleanup** - Removed 3 orphan branches from remote
+  - `docs/changelog-v0.16.3-tui` (already merged)
+  - `feat/spn-mcp-config` (already merged)
+  - `fix/schema-validator-tests` (already merged)
+
+### Documentation
+- `AUDIT-EXAMPLES-2026-03-02.md` - Examples validation report
+- `docs/SECURITY-AUDIT-v0.16.5.md` - Security audit findings
+- `.github/SECURITY.md` - Security policy reference
+
+### Statistics
+- **3,358 tests passing** (stable)
+- **Zero clippy warnings**
+- **All ARMADA checkpoints passing**
+- **2 PRs merged:** #64 (README), #1 (Homebrew)
+
 ## [0.16.5] - 2026-03-02
 
 ### Added
