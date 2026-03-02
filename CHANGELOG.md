@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.2] - 2026-03-02
+
+### Added
+- **DX Consolidation** - Comprehensive documentation audit with 10 parallel agents
+  - All CLAUDE.md files aligned to v0.16.2
+  - Version references synchronized across 11 documentation files
+  - Test counts corrected to 3,358 (accurate count)
+  - Outdated feature references removed
+
+### Changed
+- Root CLAUDE.md: Updated version from v0.14.3 to v0.16.2
+- nika/CLAUDE.md: Version sync to v0.16.2
+- tools/nika/CLAUDE.md: Fixed version from v0.15.1 to v0.16.2, test count from 4,380 to 3,358
+- dx/.claude/rules/nika.md: Added v0.16.2 section
+
+### Statistics
+- **3,358 tests passing**
+- **Zero clippy warnings**
+- **All ARMADA checkpoints passing**
+- **11 CLAUDE.md files audited and synchronized**
+
 ## [0.16.1] - 2026-03-01
 
 ### Added
