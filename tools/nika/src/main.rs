@@ -1483,6 +1483,10 @@ context:
     config: ./context/research-config.json
 
 tasks:
+  # Get working directory for absolute paths with nika:write
+  - id: get_pwd
+    exec: "pwd"
+
   # Initialize - create output directory using shell
   - id: setup
     exec:
@@ -1534,12 +1538,13 @@ tasks:
   # Write Markdown report
   - id: write_markdown
     use:
+      pwd: get_pwd
       research: research_agent
     invoke:
       mcp: dummy
       tool: nika:write
       params:
-        file_path: "./output/03-results/report.md"
+        file_path: "{{use.pwd}}/output/03-results/report.md"
         content: |
           # Research Report
 
@@ -1570,12 +1575,13 @@ tasks:
   # Write JSON output
   - id: write_json
     use:
+      pwd: get_pwd
       json_data: create_json
     invoke:
       mcp: dummy
       tool: nika:write
       params:
-        file_path: "./output/03-results/data.json"
+        file_path: "{{use.pwd}}/output/03-results/data.json"
         content: "{{use.json_data}}"
 
   # Generate CSV summary
@@ -1595,12 +1601,13 @@ tasks:
   # Write CSV output
   - id: write_csv
     use:
+      pwd: get_pwd
       csv_data: create_csv
     invoke:
       mcp: dummy
       tool: nika:write
       params:
-        file_path: "./output/03-results/findings.csv"
+        file_path: "{{use.pwd}}/output/03-results/findings.csv"
         content: "{{use.csv_data}}"
 
   # Final log with all output paths
@@ -1626,13 +1633,19 @@ flows:
     target: rate_limit
   - source: rate_limit
     target: write_markdown
+  - source: get_pwd
+    target: write_markdown
   - source: research_agent
     target: create_json
   - source: create_json
     target: write_json
+  - source: get_pwd
+    target: write_json
   - source: research_agent
     target: create_csv
   - source: create_csv
+    target: write_csv
+  - source: get_pwd
     target: write_csv
   - source: write_markdown
     target: complete
