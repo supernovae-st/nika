@@ -36,3 +36,4 @@ tools/nika/target/
 
 # Worktrees
 .worktrees/
+.claude
