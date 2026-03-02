@@ -106,6 +106,94 @@ yamllint -c .yamllint.yaml **/*.nika.yaml
 - `nika/workflow@0.8`: +Studio DX (edit history, sessions, themes, config)
 - `nika/workflow@0.9`: +context: file loading, +include: DAG fusion (v0.14.3)
 
+## Workflow Syntax Quick Reference
+
+### Correct Task Binding Pattern
+
+Use `use:` block on dependent tasks to reference outputs from upstream tasks:
+
+```yaml
+tasks:
+  - id: step1
+    infer: "Generate something"
+
+  - id: step2
+    use:
+      result: step1           # Bind step1's output to 'result' alias
+    infer: "Process: {{use.result}}"
+```
+
+**WRONG patterns to avoid:**
+- `output: use.xxx: result` - This syntax does not exist
+- `flow:` inside tasks - Use `flows:` at workflow level instead
+
+### Context Paths
+
+Context file paths are relative to **project root** (where `nika run` is executed), not to the workflow file:
+
+```yaml
+# Workflow at: workflows/my-workflow.nika.yaml
+context:
+  files:
+    data: ./context/data.json     # ✅ Correct - relative to project root
+    # data: ../context/data.json  # ❌ Wrong - relative to workflow file
+```
+
+### Builtin Tools via invoke:
+
+Core builtin tools (6) work in `invoke:` tasks with `mcp: dummy`:
+
+```yaml
+mcp:
+  dummy:
+    command: "echo"
+    args: ["not used"]
+
+tasks:
+  - id: log_it
+    invoke:
+      mcp: dummy
+      tool: nika:log
+      params:
+        level: info
+        message: "Hello!"
+```
+
+**Available core tools:** `nika:sleep`, `nika:log`, `nika:emit`, `nika:assert`, `nika:prompt`, `nika:run`
+
+**File tools** (`nika:read`, `nika:write`, `nika:edit`, `nika:glob`, `nika:grep`) are **only available inside `agent:` tasks**, not in `invoke:` tasks.
+
+### flows: Section
+
+Define task dependencies at workflow level, not inside tasks:
+
+```yaml
+tasks:
+  - id: a
+    infer: "Step A"
+  - id: b
+    infer: "Step B"
+
+flows:
+  - source: a
+    target: b
+```
+
+### for_each Parallelism
+
+`for_each` accepts arrays or `$binding` references (not `{{context.}}` syntax):
+
+```yaml
+tasks:
+  - id: parallel_task
+    for_each: ["item1", "item2", "item3"]  # ✅ Array
+    # for_each: "$items"                   # ✅ Binding ref
+    # for_each: "{{context.files.items}}"  # ❌ Invalid
+    as: item
+    concurrency: 3
+    infer: "Process {{use.item}}"
+```
+
 ## v0.15.1 Changes (Skill Merging Through DAG Fusion)
 
 Workflow-level skills propagate through `include:` DAG fusion:

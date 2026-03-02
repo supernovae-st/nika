@@ -1304,12 +1304,599 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
 // INIT COMMAND
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Initialize a new Nika project
+// ─────────────────────────────────────────────────────────────────────────────
+// Example Workflow Constants (v0.16.2 - Progressive Learning)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 01: Hello World - Basic verbs (infer, exec, fetch) + simple binding
+const WORKFLOW_01_HELLO_WORLD: &str = r#"# 01 - Hello World Workflow
+# Demonstrates: infer, exec, fetch verbs + basic binding
+# Run with: nika run workflows/01-hello-world.nika.yaml
+
+schema: "nika/workflow@0.9"
+workflow: hello-world
+description: "Simple workflow demonstrating basic Nika features"
+
+# Dummy MCP config (builtins intercept before MCP call)
+mcp:
+  dummy:
+    command: "echo"
+    args: ["not used"]
+
+tasks:
+  # Basic LLM inference using shorthand syntax
+  - id: greet
+    infer: "Generate a friendly one-line greeting for a Nika user."
+
+  # Shell command execution (shell: false is default for security)
+  - id: show_date
+    exec:
+      command: "date '+%Y-%m-%d %H:%M:%S'"
+
+  # HTTP fetch to get external data (httpbin returns sample JSON)
+  - id: fetch_data
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+
+  # Combine all outputs with binding references
+  - id: summarize
+    use:
+      greeting: greet
+      timestamp: show_date
+      external: fetch_data
+    infer: |
+      Create a brief welcome message combining:
+      - Greeting: {{use.greeting}}
+      - Current time: {{use.timestamp}}
+      - External data: {{use.external}}
+
+  # Use nika:log builtin to track progress
+  - id: log_done
+    invoke:
+      mcp: dummy
+      tool: nika:log
+      params:
+        level: info
+        message: "Hello World workflow completed!"
+
+flows:
+  - source: greet
+    target: summarize
+  - source: show_date
+    target: summarize
+  - source: fetch_data
+    target: summarize
+  - source: summarize
+    target: log_done
+"#;
+
+/// 02: Parallel Pipeline - for_each, context:, JSON output with schema
+const WORKFLOW_02_PARALLEL: &str = r#"# 02 - Parallel Pipeline Workflow
+# Demonstrates: for_each parallelism, context: file loading, JSON output
+# Run with: nika run workflows/02-parallel-pipeline.nika.yaml
+
+schema: "nika/workflow@0.9"
+workflow: parallel-pipeline
+description: "Parallel processing with context files and structured output"
+
+# Dummy MCP config (builtins intercept before MCP call)
+mcp:
+  dummy:
+    command: "echo"
+    args: ["not used"]
+
+# Load context files at workflow start
+# Context paths are relative to project root (where nika run is executed)
+context:
+  files:
+    brands: ./context/brands.json
+
+tasks:
+  # Process each brand in parallel (concurrency: 3)
+  # Note: for_each accepts arrays or $binding refs, not {{context.}} syntax
+  - id: analyze_brands
+    for_each: ["Apple", "Google", "Microsoft"]
+    as: brand_name
+    concurrency: 3
+    fail_fast: false
+    infer:
+      prompt: |
+        Analyze the brand "{{use.brand_name}}" and provide a brief SWOT analysis.
+
+        Context from brands database:
+        {{context.files.brands}}
+
+        Return a concise analysis in 2-3 sentences per category.
+      temperature: 0.7
+      max_tokens: 500
+
+  # Emit progress event using builtin
+  - id: emit_progress
+    use:
+      analyses: analyze_brands
+    invoke:
+      mcp: dummy
+      tool: nika:emit
+      params:
+        name: "analysis_complete"
+        payload:
+          status: "completed"
+
+  # Aggregate results into JSON summary
+  - id: aggregate
+    use:
+      analyses: analyze_brands
+    infer:
+      prompt: |
+        Based on these brand analyses, create a JSON summary with rankings:
+
+        {{use.analyses}}
+
+        Return ONLY valid JSON with structure:
+        {"rankings": [{"name": "...", "score": 1-10, "key_strength": "..."}]}
+      temperature: 0.3
+      system: "You are a JSON generator. Return only valid JSON, no markdown."
+
+  # Log completion
+  - id: complete
+    invoke:
+      mcp: dummy
+      tool: nika:log
+      params:
+        level: info
+        message: "Parallel pipeline complete!"
+
+flows:
+  - source: analyze_brands
+    target: emit_progress
+  - source: analyze_brands
+    target: aggregate
+  - source: aggregate
+    target: complete
+"#;
+
+/// 03: Agent Advanced - Full agent, include:, builtins, multi-output
+const WORKFLOW_03_AGENT: &str = r#"# 03 - Advanced Agent Workflow
+# Demonstrates: agent verb, include:, builtins, multi-format output
+# Run with: nika run workflows/03-agent-advanced.nika.yaml
+
+schema: "nika/workflow@0.9"
+workflow: agent-advanced
+description: "Advanced agentic workflow with multi-format file output"
+
+# Dummy MCP config (builtins intercept before MCP call)
+mcp:
+  dummy:
+    command: "echo"
+    args: ["not used"]
+
+# Include reusable partials (DAG fusion)
+# Note: Include paths must stay within workflows/ for security
+include:
+  - path: ./partials/fetch-utils.nika.yaml
+    prefix: utils_
+
+# Load context (paths are relative to project root)
+context:
+  files:
+    config: ./context/research-config.json
+
+tasks:
+  # Initialize - create output directory using shell
+  - id: setup
+    exec:
+      command: "mkdir -p ./output/03-results"
+      shell: true
+
+  # Assert config is valid
+  - id: validate_config
+    invoke:
+      mcp: dummy
+      tool: nika:assert
+      params:
+        condition: true
+        message: "Research topic must be defined in config"
+
+  # Main agentic research task
+  - id: research_agent
+    agent:
+      prompt: |
+        Research the following topic thoroughly:
+        {{context.files.config.topic}}
+
+        Use the available tools to:
+        1. Search for information
+        2. Analyze findings
+        3. Generate a comprehensive report
+
+        Stop when you have gathered enough information for a complete report.
+      model: claude-sonnet-4-6
+      max_turns: 5
+      tools:
+        - nika:read
+        - nika:write
+        - nika:grep
+      stop_sequences:
+        - "Report generation complete"
+        - "Research concluded"
+
+  # Sleep briefly to demonstrate rate limiting
+  - id: rate_limit
+    use:
+      research: research_agent
+    invoke:
+      mcp: dummy
+      tool: nika:sleep
+      params:
+        duration: "500ms"
+
+  # Write Markdown report
+  - id: write_markdown
+    use:
+      research: research_agent
+    invoke:
+      mcp: dummy
+      tool: nika:write
+      params:
+        file_path: "./output/03-results/report.md"
+        content: |
+          # Research Report
+
+          ## Summary
+
+          {{use.research}}
+
+  # Generate JSON structured output
+  - id: create_json
+    use:
+      research: research_agent
+    infer:
+      prompt: |
+        Convert this research into structured JSON:
+
+        {{use.research}}
+
+        Structure:
+        {
+          "topic": "...",
+          "key_findings": ["..."],
+          "sources": ["..."],
+          "confidence": 0.0-1.0
+        }
+      temperature: 0.2
+      system: "Return only valid JSON"
+
+  # Write JSON output
+  - id: write_json
+    use:
+      json_data: create_json
+    invoke:
+      mcp: dummy
+      tool: nika:write
+      params:
+        file_path: "./output/03-results/data.json"
+        content: "{{use.json_data}}"
+
+  # Generate CSV summary
+  - id: create_csv
+    use:
+      research: research_agent
+    infer:
+      prompt: |
+        Extract the key findings from this research and format as CSV:
+
+        {{use.research}}
+
+        Format: finding,importance,category
+        Include header row.
+      temperature: 0.2
+
+  # Write CSV output
+  - id: write_csv
+    use:
+      csv_data: create_csv
+    invoke:
+      mcp: dummy
+      tool: nika:write
+      params:
+        file_path: "./output/03-results/findings.csv"
+        content: "{{use.csv_data}}"
+
+  # Final log with all output paths
+  - id: complete
+    invoke:
+      mcp: dummy
+      tool: nika:log
+      params:
+        level: info
+        message: |
+          Agent workflow complete!
+          Outputs written to:
+          - output/03-results/report.md
+          - output/03-results/data.json
+          - output/03-results/findings.csv
+
+flows:
+  - source: setup
+    target: validate_config
+  - source: validate_config
+    target: research_agent
+  - source: research_agent
+    target: rate_limit
+  - source: rate_limit
+    target: write_markdown
+  - source: research_agent
+    target: create_json
+  - source: create_json
+    target: write_json
+  - source: research_agent
+    target: create_csv
+  - source: create_csv
+    target: write_csv
+  - source: write_markdown
+    target: complete
+  - source: write_json
+    target: complete
+  - source: write_csv
+    target: complete
+"#;
+
+/// 04: Production Pipeline - All 5 verbs, spawn_agent, lazy bindings, multi-locale
+const WORKFLOW_04_PRODUCTION: &str = r#"# 04 - Production Pipeline Workflow
+# Demonstrates: All 5 verbs, spawn_agent, lazy bindings, multi-locale output
+# Run with: nika run workflows/04-production-pipeline.nika.yaml
+
+schema: "nika/workflow@0.9"
+workflow: production-pipeline
+description: "Production-ready localization pipeline with nested agents"
+
+# Dummy MCP config (builtins intercept before MCP call)
+mcp:
+  dummy:
+    command: "echo"
+    args: ["not used"]
+
+# Load locale configuration (paths relative to project root)
+context:
+  files:
+    locales: ./context/locales.json
+    template: ./context/content-template.md
+
+tasks:
+  # Setup output directories for each locale
+  # Note: for_each accepts arrays or $binding refs, not {{context.}} syntax
+  - id: setup_dirs
+    for_each: ["en-US", "fr-FR", "de-DE"]
+    as: locale_code
+    concurrency: 5
+    exec:
+      command: "mkdir -p ./output/04-localized/{{use.locale_code}}"
+      shell: true
+
+  # Fetch external reference data
+  - id: fetch_reference
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+      timeout: 10
+
+  # Main production agent with spawn capability
+  - id: content_orchestrator
+    use:
+      reference: fetch_reference
+    agent:
+      prompt: |
+        You are a content localization orchestrator.
+
+        Your task is to generate localized content for these locales:
+        {{context.files.locales}}
+
+        For each locale:
+        1. Generate culturally-appropriate content
+        2. Save results to appropriate directories
+
+        Use the template as a guide:
+        {{context.files.template}}
+
+        Reference data for context:
+        {{use.reference}}
+      model: claude-sonnet-4-6
+      max_turns: 10
+      depth_limit: 2
+      tools:
+        - nika:write
+        - nika:log
+      stop_sequences:
+        - "All locales processed"
+        - "Content generation complete"
+
+  # Lazy binding example - won't resolve until accessed
+  - id: summary_with_lazy
+    use:
+      content_results: content_orchestrator
+      lazy_stats:
+        path: content_orchestrator.stats
+        lazy: true
+        default: '{"locales_processed": 0}'
+    infer:
+      prompt: |
+        Generate a deployment summary based on:
+        - Results: {{use.content_results}}
+        - Stats: {{use.lazy_stats}}
+
+        Format as a brief status report.
+      temperature: 0.3
+
+  # Log deployment summary (file tools require ToolContext, use log instead)
+  - id: write_summary
+    use:
+      summary: summary_with_lazy
+    invoke:
+      mcp: dummy
+      tool: nika:log
+      params:
+        level: info
+        message: |
+          # Localization Deployment Summary
+          Generated by Nika Production Pipeline v0.16.2
+          Status: {{use.summary}}
+
+  # Assert minimum locales processed
+  - id: validate_output
+    invoke:
+      mcp: dummy
+      tool: nika:assert
+      params:
+        condition: true
+        message: "At least one locale must be configured"
+
+  # Final emission
+  - id: emit_complete
+    invoke:
+      mcp: dummy
+      tool: nika:emit
+      params:
+        name: "pipeline_complete"
+        payload:
+          workflow: "production-pipeline"
+
+flows:
+  - source: setup_dirs
+    target: content_orchestrator
+  - source: fetch_reference
+    target: content_orchestrator
+  - source: content_orchestrator
+    target: summary_with_lazy
+  - source: summary_with_lazy
+    target: write_summary
+  - source: write_summary
+    target: validate_output
+  - source: validate_output
+    target: emit_complete
+"#;
+
+/// Context file: brands.json (for workflow 02)
+const CONTEXT_BRANDS_JSON: &str = r#"[
+  {
+    "name": "Apple",
+    "industry": "Technology",
+    "founded": 1976
+  },
+  {
+    "name": "Tesla",
+    "industry": "Automotive/Energy",
+    "founded": 2003
+  },
+  {
+    "name": "Nike",
+    "industry": "Sportswear",
+    "founded": 1964
+  }
+]
+"#;
+
+/// Context file: research-config.json (for workflow 03)
+const CONTEXT_RESEARCH_CONFIG: &str = r#"{
+  "topic": "The impact of AI on software development workflows",
+  "depth": "comprehensive",
+  "output_formats": ["markdown", "json", "csv"]
+}
+"#;
+
+/// Context file: locales.json (for workflow 04)
+const CONTEXT_LOCALES_JSON: &str = r#"[
+  {"code": "en-US", "name": "English (US)", "direction": "ltr"},
+  {"code": "fr-FR", "name": "French (France)", "direction": "ltr"},
+  {"code": "ja-JP", "name": "Japanese", "direction": "ltr"},
+  {"code": "ar-SA", "name": "Arabic (Saudi Arabia)", "direction": "rtl"}
+]
+"#;
+
+/// Context file: content-template.md (for workflow 04)
+const CONTEXT_TEMPLATE_MD: &str = r#"# Content Template
+
+## Hero Section
+- Headline: [Localized headline, culturally appropriate]
+- Subheadline: [Supporting text]
+- CTA: [Call to action button text]
+
+## Features
+1. Feature 1: [Description]
+2. Feature 2: [Description]
+3. Feature 3: [Description]
+
+## Localization Notes
+- Consider cultural context for {{locale.name}}
+- Adapt idioms and expressions appropriately
+- Maintain brand voice while respecting local customs
+"#;
+
+/// Partial: fetch-utils.nika.yaml (for workflow 03 include:)
+const PARTIAL_FETCH_UTILS: &str = r#"# Fetch Utilities Partial
+# Included via 'include:' in parent workflows
+# Tasks will be prefixed with the include prefix (e.g., utils_)
+
+schema: "nika/workflow@0.9"
+workflow: fetch-utils
+
+tasks:
+  - id: get_timestamp
+    exec: "date -u '+%Y-%m-%dT%H:%M:%SZ'"
+
+  - id: check_network
+    fetch:
+      url: "https://httpbin.org/status/200"
+      method: GET
+      timeout_secs: 5
+"#;
+
+/// Schema: brand-analysis.json (JSON Schema for output validation)
+const SCHEMA_BRAND_ANALYSIS: &str = r#"{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Brand Analysis Output",
+  "description": "Schema for validating brand analysis JSON output",
+  "type": "object",
+  "required": ["rankings"],
+  "properties": {
+    "rankings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "score", "key_strength"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Brand name"
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "description": "Overall brand score"
+          },
+          "key_strength": {
+            "type": "string",
+            "description": "Primary competitive advantage"
+          }
+        }
+      }
+    }
+  }
+}
+"#;
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Initialize a new Nika project (v0.16.2)
 ///
 /// Creates:
-/// - `.nika/` directory
-/// - `.nika/config.toml` with permission settings
-/// - Example workflow (unless --no-example)
+/// - `.nika/` directory with config, agents, skills, memory, etc.
+/// - `workflows/` with 4 progressive example workflows (unless --no-example)
+/// - `context/` with example context files (brands, locales, templates)
+/// - `workflows/partials/` with reusable workflow fragments (for include:)
+/// - `schemas/` with JSON schemas for output validation
+/// - `output/` for generated workflow outputs
 /// - Migrate env vars to keychain (if --migrate-keys)
 fn init_project(permission: &str, no_example: bool, migrate_keys: bool) -> Result<(), NikaError> {
     let cwd = std::env::current_dir()?;
@@ -1687,44 +2274,82 @@ network:
     fs::write(&policies_path, policies_content)?;
     println!("{} Created {}", "✓".green(), policies_path.display());
 
-    // Create example workflow unless --no-example
+    // Create progressive example workflows unless --no-example
     if !no_example {
-        let example_path = cwd.join("hello.nika.yaml");
-        if !example_path.exists() {
-            let example_content = r#"# Example Nika Workflow
-# Run with: nika run hello.nika.yaml
+        // Create workflows/ directory at project root
+        let workflows_dir = cwd.join("workflows");
+        fs::create_dir_all(&workflows_dir)?;
+        println!("{} Created {}", "✓".green(), workflows_dir.display());
 
-schema: "nika/workflow@0.6"
-workflow: hello-world
-description: "Simple hello world workflow demonstrating basic features"
+        // Create context/ directory at project root
+        let context_dir = cwd.join("context");
+        fs::create_dir_all(&context_dir)?;
+        println!("{} Created {}", "✓".green(), context_dir.display());
 
-# v0.13: Agents can be loaded from .nika/agents/ using 'from:'
-agents:
-  researcher:
-    from: .nika/agents/researcher  # Auto-detects .md, .agent.yaml, or folder
+        // Create partials/ directory inside workflows/ (for include: security)
+        let partials_dir = workflows_dir.join("partials");
+        fs::create_dir_all(&partials_dir)?;
+        println!("{} Created {}", "✓".green(), partials_dir.display());
 
-tasks:
-  - id: greet
-    infer: "Generate a friendly greeting message in one sentence."
+        // Create schemas/ directory at project root
+        let schemas_dir = cwd.join("schemas");
+        fs::create_dir_all(&schemas_dir)?;
+        println!("{} Created {}", "✓".green(), schemas_dir.display());
 
-  - id: expand
-    use:
-      greeting: greet
-    # v0.13: Use |shell modifier for safe shell command execution
-    infer: "Take this greeting and expand it into a motivational paragraph: {{use.greeting}}"
+        // Create output/ directory at project root with .gitkeep
+        let output_dir = cwd.join("output");
+        fs::create_dir_all(&output_dir)?;
+        fs::write(output_dir.join(".gitkeep"), "")?;
+        println!("{} Created {}", "✓".green(), output_dir.display());
 
-flows:
-  - source: greet
-    target: expand
-"#;
-            fs::write(&example_path, example_content)?;
-            println!("{} Created {}", "✓".green(), example_path.display());
-        }
+        // Write 4 progressive example workflows
+        let wf1_path = workflows_dir.join("01-hello-world.nika.yaml");
+        fs::write(&wf1_path, WORKFLOW_01_HELLO_WORLD)?;
+        println!("{} Created {}", "✓".green(), wf1_path.display());
+
+        let wf2_path = workflows_dir.join("02-parallel-pipeline.nika.yaml");
+        fs::write(&wf2_path, WORKFLOW_02_PARALLEL)?;
+        println!("{} Created {}", "✓".green(), wf2_path.display());
+
+        let wf3_path = workflows_dir.join("03-agent-advanced.nika.yaml");
+        fs::write(&wf3_path, WORKFLOW_03_AGENT)?;
+        println!("{} Created {}", "✓".green(), wf3_path.display());
+
+        let wf4_path = workflows_dir.join("04-production-pipeline.nika.yaml");
+        fs::write(&wf4_path, WORKFLOW_04_PRODUCTION)?;
+        println!("{} Created {}", "✓".green(), wf4_path.display());
+
+        // Write context files
+        let brands_path = context_dir.join("brands.json");
+        fs::write(&brands_path, CONTEXT_BRANDS_JSON)?;
+        println!("{} Created {}", "✓".green(), brands_path.display());
+
+        let research_config_path = context_dir.join("research-config.json");
+        fs::write(&research_config_path, CONTEXT_RESEARCH_CONFIG)?;
+        println!("{} Created {}", "✓".green(), research_config_path.display());
+
+        let locales_path = context_dir.join("locales.json");
+        fs::write(&locales_path, CONTEXT_LOCALES_JSON)?;
+        println!("{} Created {}", "✓".green(), locales_path.display());
+
+        let template_path = context_dir.join("content-template.md");
+        fs::write(&template_path, CONTEXT_TEMPLATE_MD)?;
+        println!("{} Created {}", "✓".green(), template_path.display());
+
+        // Write partial
+        let fetch_utils_path = partials_dir.join("fetch-utils.nika.yaml");
+        fs::write(&fetch_utils_path, PARTIAL_FETCH_UTILS)?;
+        println!("{} Created {}", "✓".green(), fetch_utils_path.display());
+
+        // Write schema
+        let schema_path = schemas_dir.join("brand-analysis.json");
+        fs::write(&schema_path, SCHEMA_BRAND_ANALYSIS)?;
+        println!("{} Created {}", "✓".green(), schema_path.display());
     }
 
     // Print summary
     println!();
-    println!("{}", "Nika project initialized!".green().bold());
+    println!("{}", "Nika project initialized! (v0.16.2)".green().bold());
     println!();
     println!(
         "  Permission mode: {}",
@@ -1733,26 +2358,49 @@ flows:
     println!("  Config: {}", config_path.display());
     println!();
     println!("  {} Project structure:", "📁".cyan());
-    println!("    .nika/");
-    println!("    ├── config.toml      # Main configuration");
-    println!("    ├── user.yaml        # User profile");
-    println!("    ├── memory.yaml      # Memory configuration");
-    println!("    ├── policies.yaml    # Security policies");
-    println!("    ├── agents/          # Agent definitions (.md or .agent.yaml)");
-    println!("    │   └── researcher.md");
-    println!("    ├── skills/          # Skill definitions (.md or .skill.yaml)");
-    println!("    │   └── code-review.md");
-    println!("    ├── context/         # Shared context files");
-    println!("    │   └── project.md");
-    println!("    ├── workflows/       # Sub-workflows (called via nika:run)");
-    println!("    │   └── helpers.nika.yaml");
-    println!("    ├── memory/          # Persistent memory storage");
-    println!("    ├── proposed/        # Agent-proposed changes");
-    println!("    └── cache/           # Temporary cache");
+    println!();
+    println!(
+        "    {}  .nika/             # Nika configuration",
+        "⚙️".dimmed()
+    );
+    println!("    ├── config.toml        # Main configuration");
+    println!("    ├── agents/            # Agent definitions");
+    println!("    ├── skills/            # Skill definitions");
+    println!("    └── ...");
     if !no_example {
         println!();
-        println!("  {} Run example workflow:", "→".cyan());
-        println!("    nika run hello.nika.yaml");
+        println!(
+            "    {}  workflows/          # Example workflows (progressive)",
+            "📂".cyan()
+        );
+        println!("    ├── 01-hello-world.nika.yaml        # Basic: infer, exec, fetch");
+        println!("    ├── 02-parallel-pipeline.nika.yaml  # Intermediate: for_each, context:");
+        println!("    ├── 03-agent-advanced.nika.yaml     # Advanced: agent, include:, builtins");
+        println!("    └── 04-production-pipeline.nika.yaml # Production: spawn_agent, lazy:");
+        println!();
+        println!(
+            "    {}  context/            # Context files for workflows",
+            "📁".dimmed()
+        );
+        println!("    └── partials/           # Reusable workflow fragments (for include:)");
+        println!(
+            "    {}  schemas/            # JSON schemas for validation",
+            "📁".dimmed()
+        );
+        println!(
+            "    {}  output/             # Generated outputs (gitignored)",
+            "📁".dimmed()
+        );
+    }
+    println!();
+    if !no_example {
+        println!("  {} Get started:", "→".cyan());
+        println!("    nika run workflows/01-hello-world.nika.yaml  # Simple");
+        println!("    nika run workflows/02-parallel-pipeline.nika.yaml  # With context");
+        println!();
+        println!("  {} Learn more:", "📖".cyan());
+        println!("    Each workflow demonstrates different Nika features");
+        println!("    Read comments in workflows/ for detailed explanations");
     }
 
     // Migrate API keys from env vars to keychain if requested
