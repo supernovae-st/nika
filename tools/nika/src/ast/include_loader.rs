@@ -48,9 +48,15 @@ const MAX_INCLUDE_DEPTH: usize = 10;
 /// - Including files from parent directories
 /// - Symlink attacks pointing outside project
 fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), NikaError> {
-    let canonical_base = base_path
-        .canonicalize()
-        .unwrap_or_else(|_| base_path.to_path_buf());
+    // SECURITY: Do NOT use unwrap_or_else fallback - that bypasses security validation
+    // If canonicalize fails, we must return an error, not proceed with unvalidated path
+    let canonical_base = base_path.canonicalize().map_err(|e| NikaError::ValidationError {
+        reason: format!(
+            "Failed to canonicalize base path '{}': {}. Cannot validate path boundary.",
+            base_path.display(),
+            e
+        ),
+    })?;
     let canonical_target = target_path
         .canonicalize()
         .map_err(|e| NikaError::WorkflowNotFound {
@@ -189,9 +195,17 @@ fn expand_includes_recursive(
             });
         };
 
-        let canonical_path = include_path
-            .canonicalize()
-            .unwrap_or_else(|_| include_path.clone());
+        // Canonicalize for reliable circular include detection
+        // If canonicalize fails after passing security checks, something is wrong
+        let canonical_path = include_path.canonicalize().map_err(|e| {
+            NikaError::WorkflowNotFound {
+                path: format!(
+                    "Failed to canonicalize include path '{}': {}",
+                    include_path.display(),
+                    e
+                ),
+            }
+        })?;
         let path_str = canonical_path.to_string_lossy().to_string();
 
         // Check for circular includes

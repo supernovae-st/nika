@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-03-03
+
+### Security
+- **Path Traversal Bypass Fixed** - Critical security fix in include_loader.rs
+  - Removed unsafe `unwrap_or_else` fallback that bypassed path boundary validation
+  - `canonicalize()` failures now properly return errors instead of proceeding with unvalidated paths
+  - Both `validate_path_boundary()` and circular include detection now fail safely
+
+### Fixed
+- **MCP Lock Contention** - Performance fix in rmcp_adapter.rs
+  - Clone `Peer` and release lock immediately to prevent lock contention during timeouts
+  - `call_tool()`, `read_resource()`, and `list_tools()` no longer hold mutex for 60s during timeout
+  - Concurrent MCP operations now execute without blocking each other
+- **Schema Version in Error Help** - Updated help messages from @0.5 to @0.9
+  - `InvalidSchemaVersion` error now suggests `nika/workflow@0.9` (current schema)
+  - `InvalidSchema` error help message updated
+  - Test assertions updated to match
+
+### Statistics
+- **3,375 tests passing** (stable)
+- **Zero clippy warnings**
+- **All ARMADA checkpoints passing**
+
 ## [0.17.0] - 2026-03-02
 
 ### Added

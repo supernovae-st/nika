@@ -257,10 +257,19 @@ impl RmcpClientAdapter {
     /// Returns `NikaError::McpNotConnected` if not connected.
     /// Returns `NikaError::McpToolError` if the tool call fails.
     pub async fn call_tool(&self, name: &str, params: Value) -> Result<ToolCallResult> {
-        let guard = self.service.lock().await;
-        let service = guard.as_ref().ok_or_else(|| NikaError::McpNotConnected {
-            name: self.name.clone(),
-        })?;
+        // FIX: Clone the Peer and release the lock immediately to prevent lock contention
+        // during the timeout period (60s). Without this, concurrent call_tool requests
+        // would block waiting for the mutex while one request times out.
+        let peer = {
+            let guard = self.service.lock().await;
+            let service = guard.as_ref().ok_or_else(|| NikaError::McpNotConnected {
+                name: self.name.clone(),
+            })?;
+            // Clone the Peer (Peer implements Clone via derive)
+            // RunningService derefs to Peer, and Peer is Clone
+            use std::ops::Deref;
+            service.deref().clone()
+        }; // Lock is released here
 
         // Convert params to object format expected by rmcp
         let arguments = params.as_object().cloned();
@@ -272,7 +281,7 @@ impl RmcpClientAdapter {
             task: None,
         };
 
-        let result = timeout(MCP_CALL_TIMEOUT, service.call_tool(request))
+        let result = timeout(MCP_CALL_TIMEOUT, peer.call_tool(request))
             .await
             .map_err(|_| NikaError::McpTimeout {
                 name: self.name.clone(),
@@ -315,17 +324,22 @@ impl RmcpClientAdapter {
     /// Returns `NikaError::McpNotConnected` if not connected.
     /// Returns `NikaError::McpResourceNotFound` if the resource doesn't exist.
     pub async fn read_resource(&self, uri: &str) -> Result<ResourceContent> {
-        let guard = self.service.lock().await;
-        let service = guard.as_ref().ok_or_else(|| NikaError::McpNotConnected {
-            name: self.name.clone(),
-        })?;
+        // FIX: Clone the Peer and release the lock immediately to prevent lock contention
+        let peer = {
+            let guard = self.service.lock().await;
+            let service = guard.as_ref().ok_or_else(|| NikaError::McpNotConnected {
+                name: self.name.clone(),
+            })?;
+            use std::ops::Deref;
+            service.deref().clone()
+        }; // Lock is released here
 
         let request = rmcp::model::ReadResourceRequestParams {
             meta: None,
             uri: uri.into(),
         };
 
-        let result = timeout(MCP_CALL_TIMEOUT, service.read_resource(request))
+        let result = timeout(MCP_CALL_TIMEOUT, peer.read_resource(request))
             .await
             .map_err(|_| NikaError::McpTimeout {
                 name: self.name.clone(),
@@ -378,13 +392,18 @@ impl RmcpClientAdapter {
     ///
     /// Returns `NikaError::McpNotConnected` if not connected.
     pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
-        let guard = self.service.lock().await;
-        let service = guard.as_ref().ok_or_else(|| NikaError::McpNotConnected {
-            name: self.name.clone(),
-        })?;
+        // FIX: Clone the Peer and release the lock immediately to prevent lock contention
+        let peer = {
+            let guard = self.service.lock().await;
+            let service = guard.as_ref().ok_or_else(|| NikaError::McpNotConnected {
+                name: self.name.clone(),
+            })?;
+            use std::ops::Deref;
+            service.deref().clone()
+        }; // Lock is released here
 
         let result: ListToolsResult =
-            timeout(MCP_CALL_TIMEOUT, service.list_tools(Default::default()))
+            timeout(MCP_CALL_TIMEOUT, peer.list_tools(Default::default()))
                 .await
                 .map_err(|_| NikaError::McpTimeout {
                     name: self.name.clone(),
