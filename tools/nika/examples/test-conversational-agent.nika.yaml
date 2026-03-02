@@ -1,5 +1,5 @@
 schema: nika/workflow@0.5
-workflow: test_conversational_agent
+workflow: test-conversational-agent
 description: |
   Tests conversational agent capabilities with multi-turn interactions.
   Validates context accumulation, tool calling, and spawn_agent.
