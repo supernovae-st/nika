@@ -52,6 +52,13 @@
         "$ref": "#/$defs/SkillDef"
       }
     },
+    "agents": {
+      "type": "object",
+      "description": "Agent definitions (v0.17+)",
+      "additionalProperties": {
+        "$ref": "#/$defs/AgentDef"
+      }
+    },
     "mcp": {
       "type": "object",
       "description": "MCP server configurations (v0.2+)",
@@ -148,6 +155,20 @@
           "type": "string",
           "pattern": "^[a-z][a-z0-9_-]*$",
           "description": "Alias for the skill"
+        }
+      }
+    },
+    "AgentDef": {
+      "type": "object",
+      "description": "Agent definition (v0.17+)",
+      "required": ["from"],
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Path or package reference to agent",
+          "pattern": "^(@[a-z0-9-]+/[a-z0-9-/]+(@[0-9.]+)?|\\./.*|.*\\.md)$",
+          "examples": ["@agents/researcher", "./agents/my-agent.md"]
         }
       }
     },

@@ -33,6 +33,7 @@
 //! }
 //! ```
 
+pub mod lockfile;
 pub mod operations;
 pub mod resolver;
 pub mod types;
@@ -48,7 +49,13 @@ pub use operations::{
 };
 
 // Re-export resolver
-pub use resolver::{parse_package_ref, resolve_package_path, PackageRef, ResolvedPackage};
+pub use resolver::{
+    cache_stats, clear_cache, parse_package_ref, resolve_package_path, PackageRef,
+    ResolvedPackage,
+};
+
+// Re-export lockfile
+pub use lockfile::{LockEntry, Lockfile, LockfileError};
 
 #[cfg(test)]
 mod tests {

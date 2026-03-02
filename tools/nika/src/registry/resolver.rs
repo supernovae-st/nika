@@ -2,13 +2,28 @@
 //!
 //! Resolves package references like `@workflows/seo-audit` or `@workflows/seo-audit@1.2.0`
 //! to actual filesystem paths in `~/.spn/packages/`.
+//!
+//! # Performance
+//!
+//! Uses DashMap for thread-safe caching of resolved packages (v0.17+).
 
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
+use dashmap::DashMap;
 use semver::Version;
 use thiserror::Error;
 
+use super::lockfile::Lockfile;
 use super::types::Manifest;
+
+/// Global package resolution cache (v0.17+)
+///
+/// Thread-safe cache using DashMap to avoid repeated filesystem lookups.
+/// Key: package reference (e.g., "@workflows/seo-audit@1.2.0")
+/// Value: ResolvedPackage with path and manifest
+static PACKAGE_CACHE: LazyLock<DashMap<String, ResolvedPackage>> =
+    LazyLock::new(DashMap::new);
 
 /// Errors that can occur during package resolution.
 #[derive(Error, Debug)]
@@ -151,13 +166,29 @@ pub fn parse_package_ref(input: &str) -> Result<PackageRef, ResolverError> {
     })
 }
 
+/// Clear the package resolution cache (v0.17+)
+///
+/// Useful for testing or when packages are installed/updated.
+pub fn clear_cache() {
+    PACKAGE_CACHE.clear();
+}
+
+/// Get cache statistics (v0.17+)
+pub fn cache_stats() -> (usize, usize) {
+    let size = PACKAGE_CACHE.len();
+    let capacity = PACKAGE_CACHE.capacity();
+    (size, capacity)
+}
+
 /// Resolve a package reference to its filesystem path and manifest.
 ///
 /// This function:
-/// 1. Parses the package reference
-/// 2. Looks up the package in `~/.spn/packages/`
-/// 3. If no version specified, finds the latest installed version
-/// 4. Loads and validates the package manifest
+/// 1. Checks the cache first (v0.17+)
+/// 2. Parses the package reference
+/// 3. Looks up the package in `~/.spn/packages/`
+/// 4. If no version specified, finds the latest installed version
+/// 5. Loads and validates the package manifest
+/// 6. Caches the result (v0.17+)
 ///
 /// # Examples
 ///
@@ -169,6 +200,22 @@ pub fn parse_package_ref(input: &str) -> Result<PackageRef, ResolverError> {
 /// println!("Version: {}", pkg.version);
 /// ```
 pub fn resolve_package_path(reference: &str) -> Result<ResolvedPackage, ResolverError> {
+    // Check cache first (v0.17+)
+    if let Some(cached) = PACKAGE_CACHE.get(reference) {
+        return Ok(cached.value().clone());
+    }
+
+    // Cache miss - resolve and cache
+    let resolved = resolve_package_path_uncached(reference)?;
+
+    // Cache the result
+    PACKAGE_CACHE.insert(reference.to_string(), resolved.clone());
+
+    Ok(resolved)
+}
+
+/// Internal uncached resolution function
+fn resolve_package_path_uncached(reference: &str) -> Result<ResolvedPackage, ResolverError> {
     let pkg_ref = parse_package_ref(reference)?;
 
     // Get base packages directory (~/.spn/packages/)
@@ -194,8 +241,25 @@ pub fn resolve_package_path(reference: &str) -> Result<ResolvedPackage, Resolver
             v.clone()
         }
         None => {
-            // No version - find latest
-            find_latest_version(&package_base)?
+            // No version - try lockfile first (v0.17+), then find latest
+            if let Ok(lockfile) = Lockfile::load(None) {
+                if let Some(locked_version) = lockfile.find_version(&pkg_ref.full_name()) {
+                    // Verify locked version exists
+                    let version_dir = package_base.join(locked_version);
+                    if version_dir.exists() {
+                        locked_version.to_string()
+                    } else {
+                        // Lockfile version missing, fall back to latest
+                        find_latest_version(&package_base)?
+                    }
+                } else {
+                    // Not in lockfile, find latest
+                    find_latest_version(&package_base)?
+                }
+            } else {
+                // Lockfile load failed, find latest
+                find_latest_version(&package_base)?
+            }
         }
     };
 
@@ -354,5 +418,30 @@ mod tests {
             version: Some("1.2.0".to_string()),
         };
         assert_eq!(pkg.full_ref(), "@workflows/seo-audit@1.2.0");
+    }
+
+    // ============================================================================
+    // CACHE TESTS (v0.17+)
+    // ============================================================================
+
+    #[test]
+    fn test_clear_cache() {
+        use super::clear_cache;
+
+        // Clear cache before test
+        clear_cache();
+
+        let (size, _) = cache_stats();
+        assert_eq!(size, 0, "Cache should be empty after clear");
+    }
+
+    #[test]
+    fn test_cache_stats() {
+        use super::{cache_stats, clear_cache};
+
+        clear_cache();
+
+        let (size, _capacity) = cache_stats();
+        assert_eq!(size, 0, "Cache should start empty");
     }
 }

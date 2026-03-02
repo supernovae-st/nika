@@ -137,17 +137,41 @@ fn expand_includes_recursive(
                     ),
                 })?;
 
-            let workflow_path = resolved.path.join("workflow.nika.yaml");
-            if !workflow_path.exists() {
-                return Err(NikaError::WorkflowNotFound {
-                    path: format!(
-                        "Package {} exists but missing workflow.nika.yaml at {}",
-                        pkg,
-                        workflow_path.display()
-                    ),
-                });
+            // Try different filenames based on package type (v0.17+)
+            // @jobs packages use job.nika.yaml, others use workflow.nika.yaml
+            let candidates = if pkg.starts_with("@jobs/") {
+                vec!["job.nika.yaml", "workflow.nika.yaml"]
+            } else {
+                vec!["workflow.nika.yaml"]
+            };
+
+            let mut found_path = None;
+            for filename in candidates {
+                let candidate_path = resolved.path.join(filename);
+                if candidate_path.exists() {
+                    found_path = Some(candidate_path);
+                    break;
+                }
             }
-            workflow_path
+
+            match found_path {
+                Some(path) => path,
+                None => {
+                    let expected = if pkg.starts_with("@jobs/") {
+                        "job.nika.yaml or workflow.nika.yaml"
+                    } else {
+                        "workflow.nika.yaml"
+                    };
+                    return Err(NikaError::WorkflowNotFound {
+                        path: format!(
+                            "Package {} exists but missing {} at {}",
+                            pkg,
+                            expected,
+                            resolved.path.display()
+                        ),
+                    });
+                }
+            }
         } else if let Some(ref path) = include_spec.path {
             // Filesystem path (original behavior)
             let resolved_path = base_path.join(path);
