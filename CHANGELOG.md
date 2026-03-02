@@ -18,8 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `SEPARATOR_200` constant (200 Unicode box chars)
   - Dynamic separator now uses slice instead of allocation
   - Saves ~1 allocation per message per render frame
+- **Agent History Pre-allocation** - Reduced reallocations during agent conversations
+  - History Vec pre-allocated with `capacity = max_turns * 2`
+  - Default 20 messages (10 turns) pre-allocated
+  - Documented rig-core API constraint requiring Vec clone per chat call
 
 ### Fixed
+- **MCP Connection State Race** - Eliminated stale AtomicBool in client.rs
+  - `is_connected()` now delegates to `adapter.is_connected_sync()`
+  - Made `RmcpClientAdapter::is_connected_sync()` public
+  - Prevents false positives when adapter connection drops unexpectedly
 - **pkg_resolver Safety** - Replaced `unwrap()` with `expect()` on user input validation
   - Line 227: `id.chars().next().unwrap()` → `.expect("id is non-empty")`
   - Added SAFETY comment documenting the invariant

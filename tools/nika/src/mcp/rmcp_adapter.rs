@@ -141,8 +141,14 @@ impl RmcpClientAdapter {
         &self.name
     }
 
-    /// Check if connected (sync version for Debug impl)
-    fn is_connected_sync(&self) -> bool {
+    /// Check if connected synchronously (non-blocking).
+    ///
+    /// Uses try_lock to avoid blocking. Returns false if:
+    /// - The lock is held by another task
+    /// - No service connection exists
+    ///
+    /// For accurate state, prefer `is_connected()` async method.
+    pub fn is_connected_sync(&self) -> bool {
         // Try to check without blocking - return false if lock is held
         self.service
             .try_lock()

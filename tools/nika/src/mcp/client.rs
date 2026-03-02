@@ -535,13 +535,18 @@ impl McpClient {
     }
 
     /// Check if the client is connected to the server.
+    ///
+    /// For real clients, delegates to adapter's sync check (non-blocking).
+    /// This avoids race conditions where AtomicBool becomes stale.
     pub fn is_connected(&self) -> bool {
         if self.is_mock {
             return self.connected.load(Ordering::SeqCst);
         }
-        // For real clients, check adapter state synchronously
-        // This is a best-effort check - use is_connected_async for accurate state
-        self.connected.load(Ordering::SeqCst)
+        // Delegate to adapter for accurate state (avoids stale AtomicBool)
+        self.adapter
+            .as_ref()
+            .map(|a| a.is_connected_sync())
+            .unwrap_or(false)
     }
 
     /// Check connection state asynchronously (accurate for real clients).

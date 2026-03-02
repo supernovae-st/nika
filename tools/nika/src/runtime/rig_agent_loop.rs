@@ -157,7 +157,11 @@ pub struct RigAgentLoop {
     mcp_clients: FxHashMap<String, Arc<McpClient>>,
     /// Pre-built tools from MCP clients
     tools: Vec<Box<dyn rig::tool::ToolDyn>>,
-    /// Conversation history for multi-turn chat (v0.6)
+    /// Conversation history for multi-turn chat (v0.6).
+    ///
+    /// NOTE: This Vec is cloned on each `chat()` call because rig-core's API
+    /// takes ownership. The clone is necessary to preserve history for future turns.
+    /// Pre-allocated with capacity based on `max_turns` to minimize reallocations.
     history: Vec<Message>,
     /// Optional streaming channel for real-time token display (v0.8.1 TUI integration)
     stream_tx: Option<tokio::sync::mpsc::Sender<crate::provider::rig::StreamChunk>>,
@@ -260,13 +264,18 @@ impl RigAgentLoop {
         ))));
         tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(RunTool))));
 
+        // PERF: Pre-allocate history capacity based on max_turns.
+        // Each turn adds 2 messages (user + assistant), so capacity = max_turns * 2.
+        // This reduces reallocations during conversation.
+        let history_capacity = params.max_turns.unwrap_or(10) as usize * 2;
+
         Ok(Self {
             task_id,
             params,
             event_log,
             mcp_clients,
             tools,
-            history: Vec::new(),
+            history: Vec::with_capacity(history_capacity),
             stream_tx: None,
             skill_injector: None,
             skills_map: None,
