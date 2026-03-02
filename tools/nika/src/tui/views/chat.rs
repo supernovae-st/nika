@@ -3223,7 +3223,7 @@ impl ChatView {
             } else {
                 // Calculate wrapped lines for this physical line
                 let char_count = line.chars().count();
-                let lines_needed = (char_count as u16 + content_width - 1) / content_width;
+                let lines_needed = (char_count as u16).div_ceil(content_width);
                 total_lines += lines_needed.max(1) as usize;
             }
         }
@@ -3294,7 +3294,7 @@ impl ChatView {
             let lines_for_this = if line.is_empty() {
                 1
             } else {
-                ((line_len as u16 + content_width - 1) / content_width).max(1) as usize
+                ((line_len as u16).div_ceil(content_width)).max(1) as usize
             };
 
             current_line += lines_for_this;
