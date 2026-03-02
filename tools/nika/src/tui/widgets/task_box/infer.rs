@@ -2,6 +2,8 @@
 //!
 //! LLM text generation box with streaming support.
 //! Shows model, prompt, response, and token metrics.
+//!
+//! v0.17.1: Integrated MatrixDecrypt for streaming text reveal effect.
 
 use ratatui::{
     buffer::Buffer,
@@ -12,6 +14,7 @@ use ratatui::{
 };
 
 use super::{BoxState, RenderMode, StreamingContext, TokenVelocity, VerbColor};
+use crate::tui::widgets::matrix_decrypt::{DecryptVerb, StreamingDecrypt};
 
 /// InferBox data and rendering
 #[derive(Debug, Clone)]
@@ -44,6 +47,10 @@ pub struct InferBox {
     pub velocity: TokenVelocity,
     /// Estimated cost in USD
     pub cost: Option<f64>,
+    /// Matrix decrypt effect for streaming response (v0.17.1)
+    pub decrypt: StreamingDecrypt,
+    /// Whether to use decrypt effect for streaming
+    pub use_decrypt_effect: bool,
 }
 
 impl InferBox {
@@ -64,6 +71,8 @@ impl InferBox {
             render_mode: RenderMode::default(),
             velocity: TokenVelocity::new(32),
             cost: None,
+            decrypt: StreamingDecrypt::new().with_verb(DecryptVerb::Infer),
+            use_decrypt_effect: true, // Enable by default
         }
     }
 
@@ -140,8 +149,43 @@ impl InferBox {
     }
 
     /// Append to response (streaming)
+    /// Also pushes text to decrypt effect for Matrix animation
     pub fn append_response(&mut self, text: &str) {
         self.response.push_str(text);
+        // Push to decrypt for Matrix animation effect
+        if self.use_decrypt_effect {
+            self.decrypt.push_text(text);
+        }
+    }
+
+    /// Advance the decrypt animation by one frame
+    /// Call this on each TUI tick (e.g., 60fps)
+    pub fn tick(&mut self) {
+        if self.use_decrypt_effect {
+            self.decrypt.tick();
+        }
+    }
+
+    /// Force complete reveal (skip animation)
+    pub fn reveal_response(&mut self) {
+        self.decrypt.reveal_all();
+    }
+
+    /// Enable/disable decrypt effect
+    pub fn with_decrypt_effect(mut self, enabled: bool) -> Self {
+        self.use_decrypt_effect = enabled;
+        self
+    }
+
+    /// Check if decrypt animation is complete
+    pub fn is_decrypt_complete(&self) -> bool {
+        !self.use_decrypt_effect || self.decrypt.is_complete()
+    }
+
+    /// Clear response and reset decrypt state
+    pub fn clear_response(&mut self) {
+        self.response.clear();
+        self.decrypt.clear();
     }
 
     /// Toggle prompt expansion
@@ -289,27 +333,44 @@ impl InferBox {
         ]);
         items.push(ListItem::new(response_header));
 
-        // Response content
-        let response_text = if self.response.is_empty() {
-            if self.state.is_running() {
+        // Response content - use decrypt effect when streaming, plain text otherwise
+        if self.response.is_empty() {
+            let response_text = if self.state.is_running() {
                 "┊ ...".to_string()
             } else {
                 "┊ (no response)".to_string()
+            };
+            let response_line = Line::from(vec![
+                Span::styled("│ ", border_style),
+                Span::styled(response_text, content_style),
+            ]);
+            items.push(ListItem::new(response_line));
+        } else if self.use_decrypt_effect && self.state.is_running() && !self.decrypt.is_complete()
+        {
+            // Use Matrix decrypt effect during streaming
+            let decrypt_line = self.decrypt.build_line();
+            // Prepend border and ┊ prefix
+            let mut spans = vec![Span::styled("│ ┊ ", border_style)];
+            spans.extend(decrypt_line.spans);
+            // Add streaming cursor if active
+            if self.streaming_cursor {
+                spans.push(Span::styled("█", content_style));
             }
+            items.push(ListItem::new(Line::from(spans)));
         } else {
+            // Plain text (completed or decrypt disabled)
             let text = Self::truncate(&self.response.replace('\n', " "), 60);
             let cursor = if self.streaming_cursor && self.state.is_running() {
                 "█"
             } else {
                 ""
             };
-            format!("┊ {}{}", text, cursor)
-        };
-        let response_line = Line::from(vec![
-            Span::styled("│ ", border_style),
-            Span::styled(response_text, content_style),
-        ]);
-        items.push(ListItem::new(response_line));
+            let response_line = Line::from(vec![
+                Span::styled("│ ", border_style),
+                Span::styled(format!("┊ {}{}", text, cursor), content_style),
+            ]);
+            items.push(ListItem::new(response_line));
+        }
 
         // Metrics footer
         let cost_str = self
@@ -454,18 +515,41 @@ impl Widget for InferBox {
             y += 1;
         }
 
-        // Response content
+        // Response content - use decrypt effect when streaming, plain text otherwise
         if y < area.y + area.height - 2 {
             buf.set_string(area.x, y, "│", border_style);
             buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
-            let response_display = if self.response.is_empty() {
-                if self.state.is_running() {
+            if self.response.is_empty() {
+                let response_display = if self.state.is_running() {
                     "┊ ...".to_string()
                 } else {
                     "┊ (no response)".to_string()
+                };
+                buf.set_string(area.x + 2, y, &response_display, content_style);
+            } else if self.use_decrypt_effect
+                && self.state.is_running()
+                && !self.decrypt.is_complete()
+            {
+                // Use Matrix decrypt effect during streaming
+                buf.set_string(area.x + 2, y, "┊ ", border_style);
+                // Render decrypt effect directly to buffer
+                let decrypt_area = Rect::new(
+                    area.x + 4,
+                    y,
+                    (inner_width - 4).min(area.width.saturating_sub(4) as usize) as u16,
+                    1,
+                );
+                self.decrypt.render(decrypt_area, buf);
+                // Add streaming cursor
+                if self.streaming_cursor {
+                    let cursor_x = area.x + 4 + self.decrypt.text().chars().count().min(inner_width - 6) as u16;
+                    if cursor_x < area.x + area.width - 1 {
+                        buf.set_string(cursor_x, y, "█", content_style);
+                    }
                 }
             } else {
+                // Plain text (completed or decrypt disabled)
                 let text = if self.expanded_response {
                     self.response.clone()
                 } else {
@@ -476,9 +560,8 @@ impl Widget for InferBox {
                 } else {
                     ""
                 };
-                format!("┊ {}{}", text, cursor)
-            };
-            buf.set_string(area.x + 2, y, &response_display, content_style);
+                buf.set_string(area.x + 2, y, format!("┊ {}{}", text, cursor), content_style);
+            }
             y += 1;
         }
 
@@ -693,5 +776,85 @@ mod tests {
         box_.update_cost();
         assert!(box_.cost.is_some());
         assert!((box_.cost.unwrap() - 0.0105).abs() < 0.0001);
+    }
+
+    // === Matrix Decrypt Integration Tests (v0.17.1) ===
+
+    #[test]
+    fn test_decrypt_effect_enabled_by_default() {
+        let box_ = InferBox::new("model", "prompt");
+        assert!(box_.use_decrypt_effect);
+    }
+
+    #[test]
+    fn test_decrypt_effect_can_be_disabled() {
+        let box_ = InferBox::new("model", "prompt").with_decrypt_effect(false);
+        assert!(!box_.use_decrypt_effect);
+    }
+
+    #[test]
+    fn test_append_response_pushes_to_decrypt() {
+        let mut box_ = InferBox::new("model", "prompt");
+        box_.append_response("Hello");
+
+        // Both response string and decrypt state should have the text
+        assert_eq!(box_.response, "Hello");
+        assert_eq!(box_.decrypt.text(), "Hello");
+    }
+
+    #[test]
+    fn test_tick_advances_decrypt_animation() {
+        use crate::tui::widgets::matrix_decrypt::StreamingDecrypt;
+
+        let mut box_ = InferBox::new("model", "prompt");
+        // Configure faster reveal for test (default is slow: 0.025 speed + 8 chaos frames)
+        box_.decrypt = StreamingDecrypt::new()
+            .with_reveal_speed(0.5) // Fast reveal
+            .with_wave_factor(0.0); // No cascade delay
+        box_.append_response("Test");
+
+        // Initially not complete
+        assert!(!box_.decrypt.is_complete());
+
+        // Tick many times to reveal (8 chaos frames + reveal frames)
+        for _ in 0..20 {
+            box_.tick();
+        }
+
+        // Should be complete after enough ticks
+        assert!(box_.is_decrypt_complete());
+    }
+
+    #[test]
+    fn test_reveal_response_skips_animation() {
+        let mut box_ = InferBox::new("model", "prompt");
+        box_.append_response("Test text");
+
+        // Initially not complete
+        assert!(!box_.decrypt.is_complete());
+
+        // Force reveal
+        box_.reveal_response();
+
+        // Should be immediately complete
+        assert!(box_.is_decrypt_complete());
+    }
+
+    #[test]
+    fn test_clear_response_resets_decrypt() {
+        let mut box_ = InferBox::new("model", "prompt");
+        box_.append_response("Test text");
+        box_.clear_response();
+
+        assert!(box_.response.is_empty());
+        assert!(box_.decrypt.text().is_empty());
+    }
+
+    #[test]
+    fn test_decrypt_verb_is_infer() {
+        use crate::tui::widgets::matrix_decrypt::DecryptVerb;
+        let box_ = InferBox::new("model", "prompt");
+        // The decrypt should be themed for Infer verb (violet color)
+        assert_eq!(box_.decrypt.verb(), DecryptVerb::Infer);
     }
 }

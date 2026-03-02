@@ -476,7 +476,7 @@ impl Widget for MatrixDecrypt<'_> {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Stateful wrapper for streaming text with decrypt effect
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct StreamingDecrypt {
     /// Full text received so far
     text: String,
@@ -621,6 +621,11 @@ impl StreamingDecrypt {
     /// Get current text
     pub fn text(&self) -> &str {
         &self.text
+    }
+
+    /// Get current verb (v0.17.1)
+    pub fn verb(&self) -> DecryptVerb {
+        self.verb
     }
 
     /// Clear state for new message
