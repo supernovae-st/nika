@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.5] - 2026-03-02
+
+### Added
+- **Chat View TUI Improvements** - Enhanced chat input experience
+  - **Dynamic Input Height** - Input area automatically expands from 1-10 lines based on content
+  - **Scroll Indicators** - Visual indicators (↑↓) show when chat history is scrollable
+  - **Edit History Integration** - Full undo/redo support (Ctrl+Z/Ctrl+Y) in chat input
+  - **Vim Navigation** - Ctrl+j/k for scrolling chat history (Vim-style bindings)
+
+### Fixed
+- **Formatting** - Fixed comment alignment in Layout constraints (cargo fmt compliance)
+- **Clippy Warnings** - Replaced manual ceiling division with `.div_ceil()` method (Rust 1.93+)
+  - Line 3226: `(char_count as u16).div_ceil(content_width)`
+  - Line 3297: `((line_len as u16).div_ceil(content_width))`
+
+### Changed
+- `src/tui/views/chat.rs` - 210 insertions, 8 deletions
+
+### Statistics
+- **3,358 tests passing** (stable)
+- **Zero clippy warnings**
+- **All ARMADA checkpoints passing**
+- **PR #62 merged:** feat/tui-v0.16.5
+
 ## [0.16.4] - 2026-03-02
 
 ### Added
