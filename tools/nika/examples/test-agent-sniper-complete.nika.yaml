@@ -92,10 +92,6 @@ tasks:
   - id: agent_stop_conditions
     agent:
       prompt: "Generate 5 items. After each item, check if you should stop. Say DONE when finished."
-      stop_conditions:
-        - "DONE"
-        - "COMPLETE"
-        - "FINISHED"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TEST 9: Agent with scope

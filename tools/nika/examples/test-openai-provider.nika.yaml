@@ -39,8 +39,6 @@ tasks:
         3. Say "OPENAI TEST COMPLETE" and then "DONE"
       model: gpt-4o
       max_turns: 3
-      stop_conditions:
-        - "DONE"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # FINAL: Report

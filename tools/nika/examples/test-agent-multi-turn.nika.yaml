@@ -17,10 +17,6 @@ tasks:
         You are a helpful AI assistant specialized in QR code technology.
         Always be concise and factual.
       max_turns: 5
-      stop_conditions:
-        - "RESEARCH_COMPLETE"
-        - "DONE"
-        - "END"
     output:
       format: json
 

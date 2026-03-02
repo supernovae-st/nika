@@ -182,8 +182,6 @@ tasks:
       mcp:
         - perplexity
       max_turns: 6
-      stop_conditions:
-        - "REPORT_COMPLETE"
       model: claude-sonnet-4-6
 
   # ============================================================================

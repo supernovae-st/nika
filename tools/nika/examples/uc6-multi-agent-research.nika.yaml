@@ -63,8 +63,6 @@ tasks:
       mcp:
         - novanet
       max_turns: 15
-      stop_conditions:
-        - "RESEARCH_COMPLETE"
 
   # ─────────────────────────────────────────────────────────────────
   # PHASE 3: Market Analysis (synthesis)

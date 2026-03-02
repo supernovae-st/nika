@@ -217,8 +217,6 @@ tasks:
       mcp: ["perplexity"]
       model: claude-sonnet-4-6
       max_turns: 5
-      stop_conditions:
-        - "BRIEFING_COMPLETE"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # LAYER 6: Output & Archive
