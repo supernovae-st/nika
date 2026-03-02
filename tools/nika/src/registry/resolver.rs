@@ -5,6 +5,7 @@
 
 use std::path::PathBuf;
 
+use semver::Version;
 use thiserror::Error;
 
 use super::types::Manifest;
@@ -234,30 +235,35 @@ fn get_packages_dir() -> Result<PathBuf, ResolverError> {
 
 /// Find the latest installed version in a package directory.
 ///
-/// Scans subdirectories and returns the lexicographically latest version.
+/// Scans subdirectories and returns the semantically latest version.
+/// Uses semantic versioning (semver) to correctly handle versions like 1.10.0 > 1.9.0.
 fn find_latest_version(package_base: &PathBuf) -> Result<String, ResolverError> {
-    let mut versions = Vec::new();
+    let mut versions: Vec<(Version, String)> = Vec::new();
 
     for entry in std::fs::read_dir(package_base)? {
         let entry = entry?;
         if entry.file_type()?.is_dir() {
-            if let Some(version) = entry.file_name().to_str() {
-                versions.push(version.to_string());
+            if let Some(version_str) = entry.file_name().to_str() {
+                // Try to parse as semantic version, skip invalid versions
+                if let Ok(version) = Version::parse(version_str) {
+                    versions.push((version, version_str.to_string()));
+                }
             }
         }
     }
 
     if versions.is_empty() {
         return Err(ResolverError::PackageNotFound(format!(
-            "No versions found in {}",
+            "No valid semantic versions found in {}",
             package_base.display()
         )));
     }
 
-    // Sort versions (lexicographic for now, could use semver later)
-    versions.sort();
+    // Sort by semantic version (correctly handles 1.10.0 > 1.9.0)
+    versions.sort_by(|a, b| a.0.cmp(&b.0));
 
-    Ok(versions.last().unwrap().clone())
+    // Return the latest version string
+    Ok(versions.last().unwrap().1.clone())
 }
 
 #[cfg(test)]

@@ -58,6 +58,7 @@ regex = "1.11"
 colored = "2.1"
 dotenvy = "0.15"
 dashmap = "6.1"
+semver = "1.0"  # Semantic version parsing for package resolution
 parking_lot = "0.12"
 smallvec = "1.13"
 rustc-hash = "2.1"

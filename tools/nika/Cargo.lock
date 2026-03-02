@@ -2248,7 +2248,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.16.6"
+version = "0.16.7"
 dependencies = [
  "arboard",
  "async-trait",
@@ -2289,6 +2289,7 @@ dependencies = [
  "rmcp 0.16.0",
  "rusqlite",
  "rustc-hash",
+ "semver",
  "serde",
  "serde-saphyr",
  "serde_json",

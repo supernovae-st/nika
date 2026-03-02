@@ -12,6 +12,7 @@ use nika::dag::{validate_use_wiring, Dag};
 use nika::error::NikaError;
 use nika::mcp::validation::{McpValidator, ValidationConfig};
 use nika::mcp::{McpClient, McpConfig};
+use nika::registry::resolver; // Package resolution
 use nika::runtime::Runner;
 use nika::serde_yaml; // serde-saphyr alias (replaces deprecated serde_yaml)
 use nika::tools::PermissionMode;
@@ -619,7 +620,7 @@ async fn main() {
             if strict {
                 validate_workflow_strict(&file).await
             } else {
-                validate_workflow(&file)
+                validate_workflow(&file).await
             }
         }
 
@@ -724,13 +725,76 @@ fn handle_result(result: Result<(), NikaError>) {
 // WORKFLOW COMMANDS
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// Resolve a workflow reference to an actual file path.
+///
+/// Resolution order:
+/// 1. If starts with '@' (e.g., @workflows/seo-audit) → Package resolution from ~/.spn/packages/
+/// 2. If simple name without path/extension → Search in .nika/workflows/{name}.nika.yaml
+/// 3. Otherwise → Use as-is (filesystem path)
+///
+/// # Examples
+///
+/// - `@workflows/seo-audit` → `~/.spn/packages/workflows/seo-audit/1.0.0/workflow.nika.yaml`
+/// - `custom` → `.nika/workflows/custom.nika.yaml` (if exists) or error
+/// - `./local.nika.yaml` → `./local.nika.yaml` (direct path)
+async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
+    // 1. Package reference (starts with @)
+    if reference.starts_with('@') {
+        let resolved = resolver::resolve_package_path(reference)
+            .map_err(|e| NikaError::WorkflowNotFound {
+                path: format!("Package not found: {}. Error: {}. Try: spn add {}", reference, e, reference)
+            })?;
+
+        // Package should contain workflow.nika.yaml
+        let workflow_path = resolved.path.join("workflow.nika.yaml");
+        if !workflow_path.exists() {
+            return Err(NikaError::WorkflowNotFound {
+                path: format!("Package {} exists but missing workflow.nika.yaml at {}", reference, workflow_path.display())
+            });
+        }
+
+        return Ok(workflow_path);
+    }
+
+    // 2. Simple name without path separator or .yaml extension → try .nika/workflows/
+    if !reference.contains('/') && !reference.ends_with(".nika.yaml") && !reference.ends_with(".yaml") {
+        let local_path = PathBuf::from(".nika")
+            .join("workflows")
+            .join(format!("{}.nika.yaml", reference));
+
+        if local_path.exists() {
+            return Ok(local_path);
+        }
+
+        // If not found locally and not an absolute path, suggest package search
+        if !PathBuf::from(reference).exists() {
+            return Err(NikaError::WorkflowNotFound {
+                path: format!("Workflow '{}' not found in .nika/workflows/ or current directory. Try: spn search {}", reference, reference)
+            });
+        }
+    }
+
+    // 3. Direct filesystem path
+    let path = PathBuf::from(reference);
+    if !path.exists() {
+        return Err(NikaError::WorkflowNotFound {
+            path: format!("File not found: {}. Check the path or try: spn search {}", reference, reference)
+        });
+    }
+
+    Ok(path)
+}
+
 async fn run_workflow(
     file: &str,
     provider_override: Option<String>,
     model_override: Option<String>,
 ) -> Result<(), NikaError> {
+    // Resolve workflow path (package resolution + local lookup)
+    let resolved_path = resolve_workflow_path(file).await?;
+
     // Read and parse (async to not block runtime)
-    let yaml = tokio::fs::read_to_string(file).await?;
+    let yaml = tokio::fs::read_to_string(&resolved_path).await?;
 
     // Validate YAML against JSON Schema (catches structural errors early)
     let validator = WorkflowSchemaValidator::new()?;
@@ -740,7 +804,7 @@ async fn run_workflow(
     let workflow: Workflow = serde_yaml::from_str(&yaml)?;
 
     // Expand includes (v0.14.2 - DAG fusion)
-    let base_path = Path::new(file).parent().unwrap_or(Path::new("."));
+    let base_path = resolved_path.parent().unwrap_or(Path::new("."));
     let mut workflow = expand_includes(workflow, base_path)?;
 
     // Validate schema version and task config
@@ -774,8 +838,11 @@ async fn run_workflow(
     Ok(())
 }
 
-fn validate_workflow(file: &str) -> Result<(), NikaError> {
-    let yaml = fs::read_to_string(file)?;
+async fn validate_workflow(file: &str) -> Result<(), NikaError> {
+    // Resolve workflow path (package resolution + local lookup)
+    let resolved_path = resolve_workflow_path(file).await?;
+
+    let yaml = tokio::fs::read_to_string(&resolved_path).await?;
 
     // Validate YAML against JSON Schema (catches structural errors early)
     let validator = WorkflowSchemaValidator::new()?;
@@ -785,7 +852,7 @@ fn validate_workflow(file: &str) -> Result<(), NikaError> {
     let workflow: Workflow = serde_yaml::from_str(&yaml)?;
 
     // Expand includes (v0.14.2 - DAG fusion)
-    let base_path = Path::new(file).parent().unwrap_or(Path::new("."));
+    let base_path = resolved_path.parent().unwrap_or(Path::new("."));
     let workflow = expand_includes(workflow, base_path)?;
 
     // Validate schema version and task config
@@ -809,7 +876,10 @@ fn validate_workflow(file: &str) -> Result<(), NikaError> {
 
 /// Validate a workflow with --strict mode (connects to MCP servers)
 async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
-    let yaml = tokio::fs::read_to_string(file).await?;
+    // Resolve workflow path (package resolution + local lookup)
+    let resolved_path = resolve_workflow_path(file).await?;
+
+    let yaml = tokio::fs::read_to_string(&resolved_path).await?;
 
     // Phase 1: JSON Schema validation
     let schema_validator = WorkflowSchemaValidator::new()?;
@@ -819,7 +889,7 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
     let workflow: Workflow = serde_yaml::from_str(&yaml)?;
 
     // Expand includes (v0.14.2 - DAG fusion)
-    let base_path = Path::new(file).parent().unwrap_or(Path::new("."));
+    let base_path = resolved_path.parent().unwrap_or(Path::new("."));
     let workflow = expand_includes(workflow, base_path)?;
 
     // Validate schema version and task config
