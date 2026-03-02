@@ -1,5 +1,5 @@
 schema: nika/workflow@0.5
-workflow: test_chat_ux_integration
+workflow: test-chat-ux-integration
 description: |
   Tests Chat UX v2 integration scenarios.
   Validates event emissions for session context, activity tracking,
