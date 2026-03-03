@@ -1,0 +1,109 @@
+# Test Full Pipeline: MCP + Binding + Output Files
+#
+# This workflow tests:
+# 1. MCP Perplexity search
+# 2. Data binding between steps
+# 3. LLM inference with context
+# 4. File output via exec
+#
+# Usage:
+#   cd tools/nika && cargo run -- run ../../examples/test-full-pipeline-mcp.nika.yaml
+
+schema: "nika/workflow@0.3"
+workflow: test-full-pipeline-mcp
+description: Test MCP integration with binding and file output
+provider: claude
+
+# MCP servers
+mcp:
+  perplexity:
+    command: npx
+    args: ["-y", "@perplexity-ai/mcp-server"]
+    env:
+      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
+
+tasks:
+  # Step 1: Create output directory
+  - id: setup
+    exec:
+      command: "mkdir -p /tmp/nika-test-output && echo 'Output dir: /tmp/nika-test-output'"
+      shell: true
+
+  # Step 2: Search with Perplexity MCP
+  - id: search_topic
+    invoke:
+      mcp: perplexity
+      tool: perplexity_search_web
+      params:
+        query: "knowledge graphs AI 2024 trends"
+        recency: month
+
+  # Step 3: Extract key points using LLM (binding from step 2)
+  - id: extract_points
+    use:
+      search_results: search_topic
+    infer: |
+      Based on these search results about knowledge graphs for AI:
+
+      {{use.search_results}}
+
+      Extract the top 3 most important trends. Format as a numbered list.
+
+  # Step 4: Save search results to file
+  - id: save_search
+    use:
+      results: search_topic
+    exec:
+      command: "echo {{use.results|shell}} > /tmp/nika-test-output/01-search-results.txt && echo 'Saved search results'"
+      shell: true
+
+  # Step 5: Save extracted points to file
+  - id: save_points
+    use:
+      points: extract_points
+    exec:
+      command: "echo {{use.points|shell}} > /tmp/nika-test-output/02-key-points.txt && echo 'Saved key points'"
+      shell: true
+
+  # Step 6: Generate final summary (binding from previous steps)
+  - id: generate_summary
+    use:
+      points: extract_points
+    infer: |
+      Create a 2-sentence executive summary based on:
+
+      {{use.points}}
+
+  # Step 7: Save summary to file
+  - id: save_summary
+    use:
+      summary: generate_summary
+    exec:
+      command: "echo {{use.summary|shell}} > /tmp/nika-test-output/03-summary.txt && echo 'Saved summary'"
+      shell: true
+
+  # Step 8: List output files
+  - id: list_output
+    exec:
+      command: "echo '=== Output Files ===' && ls -la /tmp/nika-test-output/"
+      shell: true
+
+flows:
+  - source: setup
+    target: search_topic
+  - source: search_topic
+    target: extract_points
+  - source: search_topic
+    target: save_search
+  - source: extract_points
+    target: save_points
+  - source: extract_points
+    target: generate_summary
+  - source: generate_summary
+    target: save_summary
+  - source: save_search
+    target: list_output
+  - source: save_points
+    target: list_output
+  - source: save_summary
+    target: list_output

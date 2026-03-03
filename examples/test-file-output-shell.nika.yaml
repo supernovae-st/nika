@@ -1,0 +1,80 @@
+# Test File Output: MCP + Files with Shell Mode
+#
+# Tests file output with proper shell: true for metacharacters
+#
+# Usage:
+#   cd tools/nika && cargo run -- run ../../examples/test-file-output-shell.nika.yaml
+
+schema: "nika/workflow@0.3"
+workflow: test-file-output-shell
+description: Test MCP with file output (shell mode)
+provider: mock
+
+mcp:
+  novanet:
+    command: /Users/thibaut/.cargo/bin/novanet-mcp
+    args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+
+tasks:
+  # Step 1: Setup with shell mode for complex command
+  - id: setup
+    exec:
+      command: "mkdir -p /tmp/nika-shell-output && echo 'Directory created'"
+      shell: true
+
+  # Step 2: Get stats
+  - id: get_stats
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: stats
+
+  # Step 3: Search
+  - id: search
+    invoke:
+      mcp: novanet
+      tool: novanet_search
+      params:
+        query: "qr"
+        limit: 5
+
+  # Step 4: Save stats using tee with shell mode
+  - id: save_stats
+    use:
+      data: get_stats
+    exec:
+      command: "echo {{use.data|shell}} > /tmp/nika-shell-output/stats.txt && echo 'Stats saved'"
+      shell: true
+
+  # Step 5: Save search using tee with shell mode
+  - id: save_search
+    use:
+      data: search
+    exec:
+      command: "echo {{use.data|shell}} > /tmp/nika-shell-output/search.txt && echo 'Search saved'"
+      shell: true
+
+  # Step 6: Show files with shell mode
+  - id: show_files
+    exec:
+      command: "echo '=== Files created ===' && ls -la /tmp/nika-shell-output/ && echo '=== stats.txt ===' && cat /tmp/nika-shell-output/stats.txt | head -c 500"
+      shell: true
+
+flows:
+  - source: setup
+    target: get_stats
+  - source: setup
+    target: search
+  - source: get_stats
+    target: save_stats
+  - source: search
+    target: save_search
+  - source: save_stats
+    target: show_files
+  - source: save_search
+    target: show_files
