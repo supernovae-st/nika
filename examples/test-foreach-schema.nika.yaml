@@ -1,0 +1,162 @@
+# Test Workflow: for_each with Binding References + Schema Validation
+#
+# Demonstrates the new for_each binding reference feature:
+# - $alias format: for_each: "$locales"
+# - Template format: for_each: "{{use.locales}}"
+#
+# Combined with structured output validation for each iteration.
+#
+# Usage:
+#   cd tools/nika && cargo run -- run ../../examples/test-foreach-schema.nika.yaml
+
+schema: "nika/workflow@0.9"
+workflow: test-foreach-schema
+description: for_each binding references with schema validation
+provider: claude
+model: claude-sonnet-4-20250514
+
+tasks:
+  # Step 1: Generate a list of locales to process
+  - id: generate_locales
+    infer:
+      prompt: |
+        Generate a list of 3 target locales for a multilingual QR code landing page.
+
+        Include locales from different regions (Europe, Americas, Asia).
+        Return the locales in BCP-47 format (e.g., "fr-FR", "es-MX", "ja-JP").
+      temperature: 0.2
+    output:
+      format: json
+      max_retries: 2
+      schema:
+        type: object
+        additionalProperties: false
+        properties:
+          locales:
+            type: array
+            minItems: 3
+            maxItems: 3
+            items:
+              type: object
+              additionalProperties: false
+              properties:
+                code:
+                  type: string
+                  pattern: "^[a-z]{2}-[A-Z]{2}$"
+                  description: BCP-47 locale code
+                language:
+                  type: string
+                  description: Human-readable language name
+                region:
+                  type: string
+                  description: Geographic region
+              required: [code, language, region]
+        required: [locales]
+
+  # Step 2: Process each locale using $alias binding reference
+  # This demonstrates the new for_each: "$locales" syntax
+  - id: process_locales
+    use:
+      locales: generate_locales
+    for_each: "$locales"
+    for_each_var: locale
+    infer:
+      prompt: |
+        Generate a localized tagline for a QR code generator app.
+
+        Target locale: {{locale.code}}
+        Language: {{locale.language}}
+        Region: {{locale.region}}
+
+        The tagline should:
+        1. Be culturally appropriate for the target region
+        2. Be catchy and memorable
+        3. Mention QR codes in the local language
+
+        Return the tagline with metadata.
+      temperature: 0.4
+    output:
+      format: json
+      max_retries: 2
+      schema:
+        type: object
+        additionalProperties: false
+        properties:
+          locale_code:
+            type: string
+            pattern: "^[a-z]{2}-[A-Z]{2}$"
+          tagline:
+            type: string
+            minLength: 10
+            maxLength: 100
+          word_count:
+            type: integer
+            minimum: 2
+            maximum: 15
+          tone:
+            type: string
+            enum: [professional, friendly, playful, elegant, bold]
+        required: [locale_code, tagline, word_count, tone]
+
+  # Step 3: Aggregate all taglines into a summary
+  - id: aggregate_taglines
+    use:
+      all_taglines: process_locales
+    infer:
+      prompt: |
+        Review these localized taglines:
+        {{use.all_taglines}}
+
+        Analyze the collection and provide:
+        1. Overall quality assessment
+        2. Consistency check across locales
+        3. Recommendations for improvement
+
+        Return a structured analysis.
+      temperature: 0
+    output:
+      format: json
+      max_retries: 2
+      schema:
+        type: object
+        additionalProperties: false
+        properties:
+          total_taglines:
+            type: integer
+          locales_covered:
+            type: array
+            items:
+              type: string
+          quality_assessment:
+            type: object
+            properties:
+              overall_score:
+                type: integer
+                minimum: 0
+                maximum: 100
+              consistency_score:
+                type: integer
+                minimum: 0
+                maximum: 100
+              cultural_fit_score:
+                type: integer
+                minimum: 0
+                maximum: 100
+            required: [overall_score, consistency_score, cultural_fit_score]
+          recommendations:
+            type: array
+            items:
+              type: object
+              properties:
+                locale:
+                  type: string
+                suggestion:
+                  type: string
+              required: [locale, suggestion]
+        required: [total_taglines, locales_covered, quality_assessment, recommendations]
+
+flows:
+  - source: generate_locales
+    target: process_locales
+  - source: process_locales
+    target: aggregate_taglines

@@ -1,0 +1,131 @@
+# Test Workflow: Schema Validation with Retry Loop
+#
+# Demonstrates the 3-layer structured output enforcement:
+# 1. DynamicSubmitTool: LLM-side schema injection
+# 2. jsonschema validation: Code-side validation
+# 3. Retry loop: Re-prompt with error feedback on failure
+#
+# The schema has strict constraints that may require retry:
+# - Enum values for intent (must be exact match)
+# - Pattern for slug (lowercase, alphanumeric, dashes only)
+# - Integer ranges for volume (0+) and difficulty (0-100)
+#
+# Usage:
+#   cd tools/nika && cargo run -- run ../../examples/test-schema-retry.nika.yaml
+
+schema: "nika/workflow@0.9"
+workflow: test-schema-retry
+description: Test structured output enforcement with retry loop
+provider: claude
+model: claude-sonnet-4-20250514
+
+tasks:
+  # Task 1: Generate keywords with strict schema validation
+  # This task may require retry if the LLM generates:
+  # - Wrong enum value (e.g., "info" instead of "informational")
+  # - Invalid slug (e.g., "QR Code" instead of "qr-code")
+  # - Out-of-range values (e.g., difficulty: 150)
+  - id: generate_keywords
+    infer:
+      prompt: |
+        Generate 3 SEO keywords for "QR code generator" product.
+
+        IMPORTANT: Follow the exact schema. Common mistakes to avoid:
+        - intent must be exactly one of: informational, navigational, transactional, commercial
+        - slug_form must be lowercase with only letters, numbers, and hyphens
+        - difficulty must be between 0 and 100 inclusive
+        - volume must be a positive integer
+
+        Return a JSON object with the keywords array.
+      temperature: 0.3
+    output:
+      format: json
+      max_retries: 3
+      schema:
+        type: object
+        additionalProperties: false
+        properties:
+          keywords:
+            type: array
+            minItems: 3
+            maxItems: 3
+            items:
+              type: object
+              additionalProperties: false
+              properties:
+                value:
+                  type: string
+                  minLength: 3
+                  description: The keyword phrase
+                slug_form:
+                  type: string
+                  pattern: "^[a-z0-9-]+$"
+                  description: URL-safe slug form (lowercase only)
+                volume:
+                  type: integer
+                  minimum: 0
+                  description: Monthly search volume
+                difficulty:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  description: SEO difficulty score (0-100)
+                intent:
+                  type: string
+                  enum: [informational, navigational, transactional, commercial]
+                  description: Search intent classification
+              required: [value, slug_form, volume, difficulty, intent]
+        required: [keywords]
+
+  # Task 2: Analyze the keywords and produce a structured report
+  - id: analyze_keywords
+    use:
+      keywords: generate_keywords
+    infer:
+      prompt: |
+        Analyze these SEO keywords:
+        {{use.keywords}}
+
+        Calculate statistics and provide recommendations.
+        Return the analysis in the exact JSON structure specified.
+      temperature: 0
+    output:
+      format: json
+      max_retries: 2
+      schema:
+        type: object
+        additionalProperties: false
+        properties:
+          stats:
+            type: object
+            properties:
+              total_volume:
+                type: integer
+                minimum: 0
+              avg_difficulty:
+                type: number
+                minimum: 0
+                maximum: 100
+              intent_distribution:
+                type: object
+                additionalProperties:
+                  type: integer
+            required: [total_volume, avg_difficulty, intent_distribution]
+          recommendations:
+            type: array
+            items:
+              type: object
+              properties:
+                keyword:
+                  type: string
+                action:
+                  type: string
+                  enum: [target, monitor, ignore, high_priority]
+                reason:
+                  type: string
+              required: [keyword, action, reason]
+        required: [stats, recommendations]
+
+flows:
+  - source: generate_keywords
+    target: analyze_keywords

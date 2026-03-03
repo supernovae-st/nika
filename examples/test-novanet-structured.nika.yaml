@@ -1,0 +1,199 @@
+# Test Workflow: NovaNet MCP Integration with Structured Outputs
+#
+# Demonstrates complete NovaNet + Nika integration:
+# 1. novanet_describe: Load entity context
+# 2. novanet_atoms: Get locale-specific terms
+# 3. novanet_generate: Full RLM-on-KG context assembly
+# 4. Structured output with inline schema validation
+#
+# This workflow creates EntityNative content for fr-FR locale
+# using real NovaNet knowledge graph data.
+#
+# Prerequisites:
+#   - NovaNet MCP server running (cargo run in novanet-mcp/)
+#   - Neo4j database with qr-code entity seeded
+#
+# Usage:
+#   cd tools/nika && cargo run -- run ../../examples/test-novanet-structured.nika.yaml
+
+schema: "nika/workflow@0.9"
+workflow: test-novanet-structured
+description: NovaNet MCP integration with structured output enforcement
+provider: claude
+model: claude-sonnet-4-20250514
+
+mcp:
+  novanet:
+    command: /Users/thibaut/.cargo/bin/novanet-mcp
+    args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+
+tasks:
+  # Step 1: Describe the entity to get base context
+  - id: describe_entity
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: entity
+        entity_key: qr-code
+
+  # Step 2: Get knowledge atoms for fr-FR locale
+  - id: get_terms
+    invoke:
+      mcp: novanet
+      tool: novanet_atoms
+      params:
+        locale: fr-FR
+        atom_type: term
+        domain: technology
+
+  # Step 3: Get generation context with RLM-on-KG
+  - id: get_generation_context
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        focus_key: qr-code
+        locale: fr-FR
+        mode: block
+        token_budget: 4000
+        spreading_depth: 2
+
+  # Step 4: Generate EntityNative content with structured output
+  - id: generate_native_content
+    use:
+      entity: describe_entity
+      terms: get_terms
+      context: get_generation_context
+    infer:
+      prompt: |
+        # Task: Generate EntityNative Content
+
+        ## Entity Context
+        {{use.entity}}
+
+        ## Locale Terms (fr-FR)
+        {{use.terms}}
+
+        ## Generation Context
+        {{use.context}}
+
+        ## Instructions
+        Generate the EntityNative content for qr-code@fr-FR.
+
+        Use the denomination_forms from the generation context.
+        Include proper SEO metadata using locale-appropriate terms.
+        Follow French language conventions and cultural context.
+
+        Return structured JSON matching the schema exactly.
+      temperature: 0.2
+    output:
+      format: json
+      max_retries: 2
+      schema:
+        type: object
+        additionalProperties: false
+        properties:
+          key:
+            type: string
+            pattern: "^entity-native:[a-z0-9-]+@[a-z]{2}-[A-Z]{2}$"
+            description: "EntityNative key in format entity-native:slug@locale"
+          denomination_forms:
+            type: object
+            properties:
+              text:
+                type: string
+                description: Prose form for body content
+              title:
+                type: string
+                description: Capitalized form for headings
+              abbrev:
+                type: string
+                description: Short form after first mention
+              url:
+                type: string
+                pattern: "^[a-z0-9-]+$"
+                description: URL-safe slug form
+            required: [text, title, abbrev, url]
+          meta:
+            type: object
+            properties:
+              title:
+                type: string
+                maxLength: 60
+              description:
+                type: string
+                maxLength: 160
+              keywords:
+                type: array
+                items:
+                  type: string
+            required: [title, description, keywords]
+          content:
+            type: object
+            properties:
+              headline:
+                type: string
+              tagline:
+                type: string
+              intro_paragraph:
+                type: string
+            required: [headline, tagline, intro_paragraph]
+        required: [key, denomination_forms, meta, content]
+
+  # Step 5: Validate and summarize the generated content
+  - id: validate_content
+    use:
+      native: generate_native_content
+    infer:
+      prompt: |
+        Validate this EntityNative content:
+        {{use.native}}
+
+        Check for:
+        1. Proper French language usage
+        2. SEO best practices (title length, description length)
+        3. Consistency between denomination_forms and content
+        4. URL slug validity
+
+        Return validation results.
+      temperature: 0
+    output:
+      format: json
+      max_retries: 1
+      schema:
+        type: object
+        properties:
+          is_valid:
+            type: boolean
+          checks:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                passed:
+                  type: boolean
+                message:
+                  type: string
+              required: [name, passed, message]
+          quality_score:
+            type: integer
+            minimum: 0
+            maximum: 100
+        required: [is_valid, checks, quality_score]
+
+flows:
+  - source: describe_entity
+    target: generate_native_content
+  - source: get_terms
+    target: generate_native_content
+  - source: get_generation_context
+    target: generate_native_content
+  - source: generate_native_content
+    target: validate_content

@@ -1,0 +1,207 @@
+# Test Workflow: Extended Thinking with Schema Validation
+#
+# Demonstrates extended_thinking for complex reasoning tasks
+# combined with strict schema validation and retry loop.
+#
+# extended_thinking enables Claude's deep reasoning mode,
+# useful for tasks requiring multi-step analysis.
+#
+# Usage:
+#   cd tools/nika && cargo run -- run ../../examples/test-extended-thinking.nika.yaml
+
+schema: "nika/workflow@0.9"
+workflow: test-extended-thinking
+description: Extended thinking for complex analysis with structured output
+provider: claude
+model: claude-sonnet-4-20250514
+
+tasks:
+  # Step 1: Complex SEO competitive analysis with extended thinking
+  - id: competitive_analysis
+    infer:
+      prompt: |
+        # SEO Competitive Analysis Task
+
+        Analyze the competitive landscape for "QR code generator" keywords.
+
+        Consider:
+        1. Search intent variations (informational vs transactional)
+        2. Long-tail keyword opportunities
+        3. Competitive difficulty estimation
+        4. Content gap analysis
+        5. Monetization potential
+
+        Think through each aspect carefully before providing your analysis.
+        Use your extended thinking to explore different angles.
+      temperature: 0.3
+      extended_thinking: true
+      thinking_budget: 8000
+    output:
+      format: json
+      max_retries: 2
+      schema:
+        type: object
+        additionalProperties: false
+        properties:
+          market_overview:
+            type: object
+            properties:
+              total_search_volume_estimate:
+                type: integer
+                minimum: 0
+              competition_level:
+                type: string
+                enum: [low, medium, high, very_high]
+              growth_trend:
+                type: string
+                enum: [declining, stable, growing, rapidly_growing]
+            required: [total_search_volume_estimate, competition_level, growth_trend]
+          keyword_opportunities:
+            type: array
+            minItems: 3
+            maxItems: 5
+            items:
+              type: object
+              additionalProperties: false
+              properties:
+                keyword:
+                  type: string
+                search_intent:
+                  type: string
+                  enum: [informational, navigational, transactional, commercial]
+                difficulty_score:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                opportunity_score:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                rationale:
+                  type: string
+              required: [keyword, search_intent, difficulty_score, opportunity_score, rationale]
+          content_gaps:
+            type: array
+            items:
+              type: object
+              properties:
+                gap:
+                  type: string
+                priority:
+                  type: string
+                  enum: [low, medium, high, critical]
+                suggested_content_type:
+                  type: string
+              required: [gap, priority, suggested_content_type]
+          strategic_recommendations:
+            type: array
+            minItems: 2
+            maxItems: 4
+            items:
+              type: object
+              properties:
+                recommendation:
+                  type: string
+                expected_impact:
+                  type: string
+                  enum: [low, medium, high]
+                effort_required:
+                  type: string
+                  enum: [low, medium, high]
+                timeline:
+                  type: string
+              required: [recommendation, expected_impact, effort_required, timeline]
+        required: [market_overview, keyword_opportunities, content_gaps, strategic_recommendations]
+
+  # Step 2: Generate content strategy based on analysis
+  - id: content_strategy
+    use:
+      analysis: competitive_analysis
+    infer:
+      prompt: |
+        # Content Strategy Development
+
+        Based on this competitive analysis:
+        {{use.analysis}}
+
+        Develop a comprehensive content strategy that:
+        1. Addresses identified content gaps
+        2. Targets high-opportunity keywords
+        3. Considers resource constraints
+        4. Provides actionable next steps
+
+        Think deeply about how to prioritize and sequence the content.
+      temperature: 0.2
+      extended_thinking: true
+      thinking_budget: 6000
+    output:
+      format: json
+      max_retries: 2
+      schema:
+        type: object
+        additionalProperties: false
+        properties:
+          strategy_name:
+            type: string
+            maxLength: 50
+          executive_summary:
+            type: string
+            maxLength: 500
+          content_pillars:
+            type: array
+            minItems: 2
+            maxItems: 4
+            items:
+              type: object
+              properties:
+                pillar_name:
+                  type: string
+                description:
+                  type: string
+                target_keywords:
+                  type: array
+                  items:
+                    type: string
+                content_pieces:
+                  type: integer
+                  minimum: 1
+              required: [pillar_name, description, target_keywords, content_pieces]
+          quarterly_roadmap:
+            type: array
+            minItems: 4
+            maxItems: 4
+            items:
+              type: object
+              properties:
+                quarter:
+                  type: string
+                  pattern: "^Q[1-4]$"
+                focus:
+                  type: string
+                deliverables:
+                  type: array
+                  items:
+                    type: string
+                success_metrics:
+                  type: array
+                  items:
+                    type: string
+              required: [quarter, focus, deliverables, success_metrics]
+          kpis:
+            type: array
+            items:
+              type: object
+              properties:
+                metric:
+                  type: string
+                target:
+                  type: string
+                measurement_frequency:
+                  type: string
+                  enum: [daily, weekly, monthly, quarterly]
+              required: [metric, target, measurement_frequency]
+        required: [strategy_name, executive_summary, content_pillars, quarterly_roadmap, kpis]
+
+flows:
+  - source: competitive_analysis
+    target: content_strategy
