@@ -439,6 +439,15 @@ pub enum NikaError {
     )]
     RuntimeError { reason: String },
 
+    #[error(
+        "[NIKA-171] Decompose expansion timed out for task '{task_id}': exceeded {timeout_secs}s"
+    )]
+    #[diagnostic(
+        code(nika::decompose_timeout),
+        help("The decompose operation took too long. Consider reducing max_depth or max_items, or check MCP server performance.")
+    )]
+    DecomposeTimeout { task_id: String, timeout_secs: u64 },
+
     // ═══════════════════════════════════════════
     // TOOL ERRORS (200-209) - NEW v0.6
     // ═══════════════════════════════════════════
@@ -627,6 +636,7 @@ impl NikaError {
             Self::BootFailed { .. } => "NIKA-161",
             // Runtime errors (v0.14)
             Self::RuntimeError { .. } => "NIKA-170",
+            Self::DecomposeTimeout { .. } => "NIKA-171",
         }
     }
 
@@ -847,6 +857,10 @@ impl FixSuggestion for NikaError {
             // Skill errors (v0.15.4)
             NikaError::SkillLoadError { .. } => {
                 Some("Ensure skill file exists and is readable. Check pkg: URI format if using packages.")
+            }
+            // Decompose timeout (v0.17.5)
+            NikaError::DecomposeTimeout { .. } => {
+                Some("Decompose expansion timed out. Try reducing max_items or check MCP server performance.")
             }
         }
     }

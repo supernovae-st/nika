@@ -25,6 +25,11 @@ pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 /// v0.12.1: Increased from 30s to 60s for complex MCP operations
 pub const MCP_CALL_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// Timeout for decompose expansion (nested BFS traversal)
+/// v0.17.5: Added to prevent silent hangs during graph traversal
+/// Set higher than MCP_CALL_TIMEOUT to allow multiple MCP calls in BFS loop
+pub const DECOMPOSE_TIMEOUT: Duration = Duration::from_secs(120);
+
 /// v0.8.5: Timeout for complete MCP server initialization (connect + list_tools + overhead)
 /// Prevents hanging on slow/unresponsive MCP servers during startup.
 /// Should be > CONNECT_TIMEOUT + MCP_CALL_TIMEOUT to allow sequential operations.
@@ -63,6 +68,7 @@ mod tests {
         assert!(MCP_INIT_TIMEOUT.as_secs() > 0);
         assert!(STREAM_CHUNK_TIMEOUT.as_secs() > 0);
         assert!(WORKFLOW_TIMEOUT.as_secs() > 0);
+        assert!(DECOMPOSE_TIMEOUT.as_secs() > 0);
     }
 
     #[test]
@@ -105,5 +111,12 @@ mod tests {
         };
         // Runtime assertion for test visibility
         assert_eq!(REDIRECT_LIMIT, 5);
+    }
+
+    #[test]
+    fn decompose_timeout_allows_multiple_mcp_calls() {
+        // v0.17.5: Decompose can make multiple MCP calls in BFS traversal
+        // The overall timeout should be > single MCP call timeout
+        assert!(DECOMPOSE_TIMEOUT > MCP_CALL_TIMEOUT);
     }
 }
