@@ -35,6 +35,10 @@ use crate::ast::{AgentParams, InvokeParams};
 /// - `temperature`: Control randomness (0.0-2.0, default varies by model)
 /// - `max_tokens`: Limit output length
 /// - `system`: System prompt to prepend
+///
+/// ## Extended Thinking (v0.18.0)
+/// - `extended_thinking`: Enable Claude's extended thinking for deeper reasoning
+/// - `thinking_budget`: Token budget for extended thinking (1024-65536, default 4096)
 #[derive(Debug, Clone, Default)]
 pub struct InferParams {
     pub prompt: String,
@@ -48,6 +52,10 @@ pub struct InferParams {
     pub max_tokens: Option<u32>,
     /// System prompt to set context for the LLM
     pub system: Option<String>,
+    /// Enable extended thinking for deeper reasoning (Claude only, v0.18.0)
+    pub extended_thinking: Option<bool>,
+    /// Token budget for extended thinking (1024-65536, default 4096, Claude only, v0.18.0)
+    pub thinking_budget: Option<u64>,
 }
 
 impl<'de> Deserialize<'de> for InferParams {
@@ -71,6 +79,10 @@ impl<'de> Deserialize<'de> for InferParams {
                 max_tokens: Option<u32>,
                 #[serde(default)]
                 system: Option<String>,
+                #[serde(default)]
+                extended_thinking: Option<bool>,
+                #[serde(default)]
+                thinking_budget: Option<u64>,
             },
         }
 
@@ -82,6 +94,8 @@ impl<'de> Deserialize<'de> for InferParams {
                 temperature: None,
                 max_tokens: None,
                 system: None,
+                extended_thinking: None,
+                thinking_budget: None,
             }),
             InferParamsHelper::Full {
                 prompt,
@@ -90,6 +104,8 @@ impl<'de> Deserialize<'de> for InferParams {
                 temperature,
                 max_tokens,
                 system,
+                extended_thinking,
+                thinking_budget,
             } => Ok(InferParams {
                 prompt,
                 provider,
@@ -97,6 +113,8 @@ impl<'de> Deserialize<'de> for InferParams {
                 temperature,
                 max_tokens,
                 system,
+                extended_thinking,
+                thinking_budget,
             }),
         }
     }
@@ -110,9 +128,14 @@ impl InferParams {
     /// Returns an error string if:
     /// - `prompt` is empty or whitespace-only
     /// - `temperature` is outside valid range (0.0..=2.0)
+    /// - `extended_thinking` is true with non-Claude provider
+    /// - `thinking_budget` is outside valid range (1024..=65536)
     ///
     /// # v0.17.5
     /// Added to prevent confusing LLM errors from empty prompts.
+    ///
+    /// # v0.18.0
+    /// Added extended_thinking and thinking_budget validation.
     pub fn validate(&self) -> Result<(), String> {
         if self.prompt.trim().is_empty() {
             return Err("Infer prompt cannot be empty".to_string());
@@ -127,7 +150,38 @@ impl InferParams {
             }
         }
 
+        // Validate extended_thinking requires Claude provider (v0.18.0)
+        if self.extended_thinking == Some(true) {
+            if let Some(ref provider) = self.provider {
+                if provider != "claude" {
+                    return Err(format!(
+                        "extended_thinking only supported for claude provider, got '{}'",
+                        provider
+                    ));
+                }
+            }
+            // If provider is None, will inherit workflow default (validation deferred to runtime)
+        }
+
+        // Validate thinking_budget range (v0.18.0)
+        if let Some(budget) = self.thinking_budget {
+            if !(1024..=65536).contains(&budget) {
+                return Err(format!(
+                    "thinking_budget must be between 1024 and 65536, got {}",
+                    budget
+                ));
+            }
+        }
+
         Ok(())
+    }
+
+    /// Get effective thinking budget (v0.18.0).
+    ///
+    /// Returns the configured `thinking_budget` if set, otherwise returns
+    /// the default value (4096).
+    pub fn effective_thinking_budget(&self) -> u64 {
+        self.thinking_budget.unwrap_or(4096)
     }
 }
 
@@ -378,6 +432,8 @@ infer:
             temperature: Some(0.7),
             max_tokens: None,
             system: None,
+            extended_thinking: None,
+            thinking_budget: None,
         };
         assert!(params.validate().is_ok());
     }

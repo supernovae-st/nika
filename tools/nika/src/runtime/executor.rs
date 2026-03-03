@@ -848,7 +848,9 @@ impl TaskExecutor {
             // Get the request for this attempt
             let req = if attempt == 1 {
                 // First attempt: use the original request
-                current_request.take().expect("request should exist on first attempt")
+                current_request
+                    .take()
+                    .expect("request should exist on first attempt")
             } else {
                 // Subsequent attempts: we already verified we can clone
                 // The original request was moved, but we stored a clone
@@ -883,10 +885,9 @@ impl TaskExecutor {
                     }
 
                     // Success or non-retryable error status
-                    return response
-                        .text()
-                        .await
-                        .map_err(|e| NikaError::Execution(format!("Failed to read response: {}", e)));
+                    return response.text().await.map_err(|e| {
+                        NikaError::Execution(format!("Failed to read response: {}", e))
+                    });
                 }
                 Err(e) => {
                     // Network errors are retryable
@@ -897,7 +898,8 @@ impl TaskExecutor {
                             error = %e,
                             "fetch: request failed, retrying..."
                         );
-                        last_error = Some(NikaError::Execution(format!("HTTP request failed: {}", e)));
+                        last_error =
+                            Some(NikaError::Execution(format!("HTTP request failed: {}", e)));
 
                         // Exponential backoff
                         let delay_ms = backoff_ms * (multiplier.powi((attempt - 1) as i32) as u64);
@@ -2145,6 +2147,7 @@ mod tests {
                 depth_limit: None,
                 tool_choice: None,
                 temperature: None,
+                max_tokens: None,
                 skills: None,
             },
         };

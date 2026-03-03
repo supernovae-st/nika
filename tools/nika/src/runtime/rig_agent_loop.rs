@@ -1477,10 +1477,18 @@ impl RigAgentLoop {
         // Build request with native temperature method (v0.8.0)
         // Inject skills into system prompt if configured (v0.15.4)
         let preamble = self.inject_skills_into_prompt().await?;
+
+        // v0.18.0: Use effective_max_tokens (required for extended thinking)
+        // Claude requires max_tokens > thinking_budget
+        let max_tokens = self
+            .params
+            .effective_max_tokens()
+            .unwrap_or((thinking_budget as u32) + 8192);
+
         let mut request_builder = model
             .completion_request(&self.params.prompt)
             .preamble(preamble)
-            .max_tokens(8192)
+            .max_tokens(max_tokens as u64)
             .additional_params(thinking_config);
 
         // Apply temperature using native rig-core method (v0.8.0)

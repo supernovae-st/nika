@@ -165,6 +165,14 @@ pub struct AgentParams {
     #[serde(default)]
     pub temperature: Option<f32>,
 
+    /// Maximum tokens to generate per turn (v0.18.0)
+    ///
+    /// Required when using `extended_thinking: true` with Claude.
+    /// Must be greater than `thinking_budget`. If not set with extended
+    /// thinking enabled, defaults to `thinking_budget + 8192`.
+    #[serde(default)]
+    pub max_tokens: Option<u32>,
+
     /// Skills to inject into the agent's system prompt (v0.15.4)
     ///
     /// List of skill aliases that will be loaded and prepended to
@@ -209,6 +217,26 @@ impl AgentParams {
     #[inline]
     pub fn effective_depth_limit(&self) -> u32 {
         self.depth_limit.unwrap_or(DEFAULT_DEPTH_LIMIT)
+    }
+
+    /// Get effective max tokens for LLM calls.
+    ///
+    /// When `extended_thinking` is enabled, Claude requires `max_tokens > thinking_budget`.
+    /// If `max_tokens` is not set but extended thinking is enabled, this returns
+    /// `thinking_budget + 8192` to ensure valid configuration.
+    ///
+    /// Returns `None` if neither max_tokens is set nor extended_thinking is enabled.
+    #[inline]
+    pub fn effective_max_tokens(&self) -> Option<u32> {
+        if let Some(max_tokens) = self.max_tokens {
+            Some(max_tokens)
+        } else if self.extended_thinking.unwrap_or(false) {
+            // Claude requires max_tokens > thinking_budget for extended thinking
+            let thinking_budget = self.effective_thinking_budget() as u32;
+            Some(thinking_budget + 8192)
+        } else {
+            None
+        }
     }
 
     /// Get effective tool choice behavior (v0.8.0).
@@ -588,6 +616,58 @@ thinking_budget: 8192
     fn thinking_budget_defaults_to_none() {
         let params = AgentParams::default();
         assert!(params.thinking_budget.is_none());
+    }
+
+    // ========================================================================
+    // MaxTokens Tests (v0.18.0)
+    // ========================================================================
+
+    #[test]
+    fn effective_max_tokens_explicit() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            max_tokens: Some(16384),
+            ..Default::default()
+        };
+        assert_eq!(params.effective_max_tokens(), Some(16384));
+    }
+
+    #[test]
+    fn effective_max_tokens_with_extended_thinking() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            extended_thinking: Some(true),
+            thinking_budget: Some(8192),
+            max_tokens: None, // Not set explicitly
+            ..Default::default()
+        };
+        // Should return thinking_budget + 8192
+        assert_eq!(params.effective_max_tokens(), Some(8192 + 8192));
+    }
+
+    #[test]
+    fn effective_max_tokens_explicit_overrides_auto() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            extended_thinking: Some(true),
+            thinking_budget: Some(8192),
+            max_tokens: Some(32768), // Explicitly set
+            ..Default::default()
+        };
+        // Explicit value should be used
+        assert_eq!(params.effective_max_tokens(), Some(32768));
+    }
+
+    #[test]
+    fn effective_max_tokens_none_without_thinking() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            extended_thinking: None,
+            max_tokens: None,
+            ..Default::default()
+        };
+        // Should return None (no override needed)
+        assert_eq!(params.effective_max_tokens(), None);
     }
 
     // ========================================================================
