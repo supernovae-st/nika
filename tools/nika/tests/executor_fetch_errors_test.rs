@@ -30,6 +30,7 @@ fn fetch_params(url: &str) -> FetchParams {
         method: "GET".to_string(),
         headers: FxHashMap::default(),
         body: None,
+        timeout: None,
     }
 }
 

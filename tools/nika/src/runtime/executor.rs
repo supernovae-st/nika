@@ -1402,6 +1402,7 @@ mod tests {
                 method: "GET".to_string(),
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
+                timeout: None,
             },
         };
 
@@ -1426,6 +1427,7 @@ mod tests {
                 method: "GET".to_string(),
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
+                timeout: None,
             },
         };
 
@@ -2012,6 +2014,7 @@ mod tests {
                 method: "GET".to_string(),
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
+                timeout: None,
             },
         };
         assert_eq!(action_type(&fetch_action), "fetch");
@@ -2172,6 +2175,7 @@ mod tests {
                 method: "GET".to_string(),
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
+                timeout: None,
             },
         };
 
@@ -2207,6 +2211,7 @@ mod tests {
                 method: "GET".to_string(),
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
+                timeout: None,
             },
         };
 

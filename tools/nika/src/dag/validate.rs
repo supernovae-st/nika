@@ -822,6 +822,7 @@ flows:
                     method: "GET".to_string(),
                     headers: rustc_hash::FxHashMap::default(),
                     body: None,
+                    timeout: None,
                 },
             },
             use_wiring: Some({

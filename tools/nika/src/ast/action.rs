@@ -918,6 +918,7 @@ agent:
                 method: "GET".to_string(),
                 headers: FxHashMap::default(),
                 body: None,
+                timeout: None,
             },
         };
         assert_eq!(action.verb_name(), "fetch");
@@ -1133,6 +1134,7 @@ fetch:
                 method: "GET".to_string(),
                 headers: FxHashMap::default(),
                 body: None,
+                timeout: None,
             },
         };
 
