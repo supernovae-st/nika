@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `validate_schema_ref()`: async schema validation using jsonschema crate
   - `DynamicSubmitTool`: LLM-side schema enforcement via tool injection
   - `format_validation_errors()`: formatted error feedback for retry loops
+  - **Retry loop**: Auto-retries infer tasks on validation failure with error feedback
+    - Configurable via `max_retries: N` in output policy (default: 0)
+    - Retry prompt includes schema, previous output, and validation errors
+    - Error codes: NIKA-060 (invalid JSON), NIKA-061 (schema validation failed)
 - **for_each binding references** — Dynamic iteration over task outputs
   - `$alias` format: `for_each: "$locales"`
   - Template format: `for_each: "{{use.locales}}"`
