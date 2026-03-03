@@ -309,14 +309,8 @@ use std::path::Path;
 
 /// Check if NovaNet MCP server binary exists
 pub fn novanet_mcp_path() -> Option<String> {
-    let paths = [
-        std::env::var("NOVANET_MCP_PATH").ok(),
-        Some("/Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp".to_string()),
-    ];
-
-    paths.into_iter()
-        .flatten()
-        .find(|p| Path::new(p).exists())
+    std::env::var("NOVANET_MCP_PATH").ok()
+        .filter(|p| Path::new(p).exists())
 }
 
 /// Check if Neo4j is available

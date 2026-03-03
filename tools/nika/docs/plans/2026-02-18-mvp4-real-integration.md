@@ -484,7 +484,7 @@ use std::time::Duration;
 pub fn is_novanet_available() -> bool {
     // Check if novanet-mcp binary exists
     let novanet_path = std::env::var("NOVANET_MCP_PATH")
-        .unwrap_or_else(|_| "/Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp".to_string());
+        .expect("NOVANET_MCP_PATH must be set to the novanet-mcp binary path");
 
     std::path::Path::new(&novanet_path).exists()
 }
@@ -554,7 +554,7 @@ async fn test_invoke_novanet_describe() {
     helpers::require_integration!();
 
     let novanet_path = std::env::var("NOVANET_MCP_PATH")
-        .unwrap_or_else(|_| "/Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp".to_string());
+        .expect("NOVANET_MCP_PATH must be set to the novanet-mcp binary path");
 
     let config = McpConfig::new("novanet", &novanet_path)
         .with_env("NOVANET_MCP_NEO4J_PASSWORD", "novanetpassword");
@@ -583,7 +583,7 @@ async fn test_invoke_novanet_query() {
     helpers::require_integration!();
 
     let novanet_path = std::env::var("NOVANET_MCP_PATH")
-        .unwrap_or_else(|_| "/Users/thibaut/supernovae-st/supernovae-agi/novanet-dev/tools/novanet-mcp/target/release/novanet-mcp".to_string());
+        .expect("NOVANET_MCP_PATH must be set to the novanet-mcp binary path");
 
     let config = McpConfig::new("novanet", &novanet_path)
         .with_env("NOVANET_MCP_NEO4J_PASSWORD", "novanetpassword");
