@@ -7,6 +7,23 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-03-03
+
+### Fixed
+- **Agentic Workflow Examples** - Refactored all 4 test workflows to be truly agentic
+  - `test-schema-retry.nika.yaml` - Entity discovery via Cypher, not hardcoded
+  - `test-novanet-structured.nika.yaml` - 4-phase architecture with parallel discovery
+  - `test-foreach-schema.nika.yaml` - Locales discovered via novanet_query, dynamic for_each
+  - `test-extended-thinking.nika.yaml` - 4 parallel MCP discovery calls
+- **Proper Parallelization** - Discovery tasks now run in parallel via DAG flows
+- **Correct Bindings** - All prompts use `{{use.xxx}}` template bindings from upstream
+- **No Hardcoded Values** - Entity names, locales discovered dynamically from NovaNet
+
+### Changed
+- Workflows no longer assume specific entity keys (e.g., "qr-code")
+- All MCP tool calls use proper parameter bindings
+- Prompts reference discovered context instead of hardcoded values
+
 ## [0.19.0] - 2026-03-03
 
 ### Added
@@ -795,7 +812,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **TUI** - Terminal UI with ratatui (feature-gated)
 - **Schema v0.1** - `nika/workflow@0.1`
 
-[Unreleased]: https://github.com/supernovae-st/nika/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/supernovae-st/nika/compare/v0.19.1...HEAD
+[0.19.1]: https://github.com/supernovae-st/nika/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/supernovae-st/nika/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/supernovae-st/nika/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/supernovae-st/nika/compare/v0.16.3...v0.17.0
