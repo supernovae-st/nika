@@ -315,7 +315,9 @@ impl Runner {
             };
 
             // Execute
-            let result = executor.execute(task_id, &action, bindings, datastore).await;
+            let result = executor
+                .execute(task_id, &action, bindings, datastore)
+                .await;
             let duration = start.elapsed();
 
             match result {

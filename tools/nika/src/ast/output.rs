@@ -51,8 +51,7 @@ impl<'de> Deserialize<'de> for SchemaRef {
             where
                 A: MapAccess<'de>,
             {
-                let value =
-                    JsonValue::deserialize(de::value::MapAccessDeserializer::new(map))?;
+                let value = JsonValue::deserialize(de::value::MapAccessDeserializer::new(map))?;
                 Ok(SchemaRef::Inline(value))
             }
         }
@@ -114,7 +113,9 @@ mod tests {
         "#;
         let policy: OutputPolicy = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(policy.format, OutputFormat::Json);
-        assert!(matches!(policy.schema, Some(SchemaRef::File(ref p)) if p == ".nika/schemas/result.json"));
+        assert!(
+            matches!(policy.schema, Some(SchemaRef::File(ref p)) if p == ".nika/schemas/result.json")
+        );
     }
 
     #[test]

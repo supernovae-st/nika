@@ -877,7 +877,11 @@ Enjoy your reading!"#;
         let result = validate_schema_ref(&value, &SchemaRef::Inline(schema)).await;
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
-        assert!(err.contains("required") || err.contains("name"), "Error should mention missing required field: {}", err);
+        assert!(
+            err.contains("required") || err.contains("name"),
+            "Error should mention missing required field: {}",
+            err
+        );
     }
 
     #[test]
