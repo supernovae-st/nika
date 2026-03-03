@@ -7,7 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-## [0.18.0] - 2026-03-03
+## [0.19.0] - 2026-03-03
 
 ### Added
 - **Structured Output Enforcement** - 3-layer validation system for LLM outputs
@@ -795,8 +795,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **TUI** - Terminal UI with ratatui (feature-gated)
 - **Schema v0.1** - `nika/workflow@0.1`
 
-[Unreleased]: https://github.com/supernovae-st/nika-dev/compare/v0.13.0...HEAD
-[0.13.0]: https://github.com/supernovae-st/nika-dev/compare/v0.12.1...v0.13.0
+[Unreleased]: https://github.com/supernovae-st/nika/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/supernovae-st/nika/compare/v0.18.0...v0.19.0
+[0.18.0]: https://github.com/supernovae-st/nika/compare/v0.17.0...v0.18.0
+[0.17.0]: https://github.com/supernovae-st/nika/compare/v0.16.3...v0.17.0
+[0.16.3]: https://github.com/supernovae-st/nika/compare/v0.16.2...v0.16.3
+[0.16.2]: https://github.com/supernovae-st/nika/compare/v0.16.1...v0.16.2
+[0.16.1]: https://github.com/supernovae-st/nika/compare/v0.16.0...v0.16.1
+[0.16.0]: https://github.com/supernovae-st/nika/compare/v0.15.2...v0.16.0
+[0.15.2]: https://github.com/supernovae-st/nika/compare/v0.15.1...v0.15.2
+[0.15.1]: https://github.com/supernovae-st/nika/compare/v0.15.0...v0.15.1
+[0.15.0]: https://github.com/supernovae-st/nika/compare/v0.14.6...v0.15.0
+[0.14.6]: https://github.com/supernovae-st/nika/compare/v0.14.5...v0.14.6
+[0.14.5]: https://github.com/supernovae-st/nika/compare/v0.14.0...v0.14.5
+[0.14.0]: https://github.com/supernovae-st/nika/compare/v0.13.0...v0.14.0
+[0.13.0]: https://github.com/supernovae-st/nika/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/supernovae-st/nika-dev/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/supernovae-st/nika-dev/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/supernovae-st/nika-dev/compare/v0.10.5...v0.11.0
