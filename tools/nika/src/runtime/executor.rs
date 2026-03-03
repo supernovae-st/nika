@@ -545,8 +545,23 @@ impl TaskExecutor {
         bindings: &ResolvedBindings,
         datastore: &DataStore,
     ) -> Result<String, NikaError> {
+        // v0.17.5: Validate infer params (empty prompt, invalid temperature)
+        infer
+            .validate()
+            .map_err(|e| NikaError::ValidationError { reason: e })?;
+
         // Resolve {{use.alias}} templates (v0.5: supports lazy bindings)
         let prompt = template_resolve(&infer.prompt, bindings, datastore)?;
+
+        // v0.17.5: Validate resolved prompt is not empty (could happen if template resolves to empty)
+        if prompt.trim().is_empty() {
+            return Err(NikaError::ValidationError {
+                reason: format!(
+                    "Resolved prompt is empty (task: {}). Check your template bindings.",
+                    task_id
+                ),
+            });
+        }
 
         // EMIT: TemplateResolved
         self.event_log.emit(EventKind::TemplateResolved {
