@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.4] - 2026-03-03
+
+### Fixed
+- **Keyring macOS Backend** - Critical fix for credential storage
+  - Added platform features to keyring crate: `apple-native`, `windows-native`, `sync-secret-service`
+  - Previously used MockCredential (in-memory only), now uses real macOS Keychain
+  - Enables unified keyring between `nika` and `spn` CLI with service name "spn"
+  - Keys now persist across sessions and are shared between tools
+- **VerbColor::User Patterns** - Added missing enum variant handling
+  - Added User variant to all VerbColor methods: `icon()`, `rgb_tuple()`, `glow_tuple()`, `muted_tuple()`, `icon_ascii()`, `hex()`, `label()`, `border_rgb()`
+  - Fixed chat.rs CurrentVerb mapping for User variant
+  - Fixed placeholder text for User verb type
+- **Example Workflows** - Fixed field names in init templates
+  - Changed `stop_sequences` to `stop_conditions` in agent task examples
+
+### Statistics
+- **3,381 tests passing**
+- **Zero clippy warnings**
+
+## [0.17.3] - 2026-03-03
+
+### Added
+- **StreamingDecrypt Integration** - InferBox now uses streaming decrypt animation
+  - Integrated StreamingDecrypt widget into InferBox for progressive text reveal
+  - Matrix-style decryption effect during LLM inference
+
+### Fixed
+- **Tab Bar Keybindings** - Corrected [1]/[2] keybindings to match tab bar order
+
+### Statistics
+- **3,378 tests passing**
+- **Zero clippy warnings**
+
 ## [0.17.2] - 2026-03-03
 
 ### Performance

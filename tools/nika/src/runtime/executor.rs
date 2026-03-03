@@ -806,6 +806,11 @@ impl TaskExecutor {
             request = request.body(resolved_body.into_owned());
         }
 
+        // Apply per-request timeout if specified (overrides client default)
+        if let Some(timeout_secs) = fetch.timeout {
+            request = request.timeout(std::time::Duration::from_secs(timeout_secs));
+        }
+
         let response = request
             .send()
             .await

@@ -1604,7 +1604,7 @@ tasks:
         - nika:read
         - nika:write
         - nika:grep
-      stop_sequences:
+      stop_conditions:
         - "Report generation complete"
         - "Research concluded"
 
@@ -1803,7 +1803,7 @@ tasks:
       tools:
         - nika:write
         - nika:log
-      stop_sequences:
+      stop_conditions:
         - "All locales processed"
         - "Content generation complete"
 

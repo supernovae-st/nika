@@ -152,6 +152,8 @@ pub struct FetchParams {
     #[serde(default)]
     pub headers: FxHashMap<String, String>,
     pub body: Option<String>,
+    /// Request timeout in seconds (matches JSON schema)
+    pub timeout: Option<u64>,
 }
 
 fn default_method() -> String {

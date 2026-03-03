@@ -1,6 +1,6 @@
 [package]
 name = "nika"
-version = "0.17.3"
+version = "0.17.4"
 edition = "2021"
 description = "DAG workflow runner for AI tasks with MCP integration"
 license = "AGPL-3.0-or-later"
@@ -50,7 +50,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "str
 url = "2"  # URL parsing and validation
 
 # Secure credential storage
-keyring = "3"
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 secrecy = "0.8"    # SecretString wrapper
 zeroize = "1.8"    # Auto-clear memory on drop
 

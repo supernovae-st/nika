@@ -3126,6 +3126,7 @@ impl ChatView {
                     VerbColor::Invoke => CurrentVerb::Invoke,
                     VerbColor::Agent => CurrentVerb::Agent,
                     VerbColor::Spawn => CurrentVerb::Spawn,
+                    VerbColor::User => CurrentVerb::None, // User is not a verb command
                 };
             }
         } else if input.is_empty() || !input.starts_with('/') {
@@ -4569,6 +4570,10 @@ impl ChatView {
                     "Spawn: create sample data for testing",
                 ];
                 HINTS[idx % HINTS.len()]
+            }
+            VerbColor::User => {
+                // User messages don't have verb placeholders
+                "Type your message..."
             }
         }
     }

@@ -291,6 +291,7 @@ impl VerbColor {
             Self::Invoke => Color::Rgb(16, 185, 129), // Emerald 500
             Self::Agent => Color::Rgb(244, 63, 94),   // Rose 500
             Self::Spawn => Color::Rgb(253, 164, 175), // Rose 300
+            Self::User => Color::Rgb(14, 165, 233),   // Sky 500
         }
     }
 
@@ -303,6 +304,7 @@ impl VerbColor {
             Self::Invoke => Color::Rgb(52, 211, 153), // Emerald 400
             Self::Agent => Color::Rgb(251, 113, 133), // Rose 400
             Self::Spawn => Color::Rgb(254, 205, 211), // Rose 200
+            Self::User => Color::Rgb(56, 189, 248),   // Sky 400
         }
     }
 
@@ -315,6 +317,7 @@ impl VerbColor {
             Self::Invoke => Color::Rgb(11, 129, 90),
             Self::Agent => Color::Rgb(170, 44, 66),
             Self::Spawn => Color::Rgb(177, 115, 122), // ~0.7x Rose 300
+            Self::User => Color::Rgb(10, 115, 163),   // ~0.7x Sky 500
         }
     }
 
@@ -327,6 +330,7 @@ impl VerbColor {
             Self::Invoke => Color::Rgb(20, 61, 47), // Emerald 950/50
             Self::Agent => Color::Rgb(68, 32, 41),  // Rose 950/50
             Self::Spawn => Color::Rgb(70, 45, 48),  // Rose 950/50 (lighter)
+            Self::User => Color::Rgb(12, 51, 70),   // Sky 950/50
         }
     }
 
@@ -347,6 +351,7 @@ impl VerbColor {
             Self::Invoke => icons_verb::INVOKE,
             Self::Agent => icons_verb::AGENT,
             Self::Spawn => icons_verb::SUBAGENT,
+            Self::User => "👤",
         }
     }
 
@@ -364,6 +369,7 @@ impl VerbColor {
             Self::Invoke => (16, 185, 129), // Emerald 500
             Self::Agent => (244, 63, 94),   // Rose 500
             Self::Spawn => (253, 164, 175), // Rose 300
+            Self::User => (14, 165, 233),   // Sky 500
         }
     }
 
@@ -376,6 +382,7 @@ impl VerbColor {
             Self::Invoke => (52, 211, 153), // Emerald 400
             Self::Agent => (251, 113, 133), // Rose 400
             Self::Spawn => (254, 205, 211), // Rose 200
+            Self::User => (56, 189, 248),   // Sky 400
         }
     }
 
@@ -388,6 +395,7 @@ impl VerbColor {
             Self::Invoke => (11, 129, 90),  // Muted emerald
             Self::Agent => (170, 44, 66),   // Muted rose
             Self::Spawn => (177, 115, 122), // Muted rose 300
+            Self::User => (10, 115, 163),   // Muted sky
         }
     }
 
@@ -401,6 +409,7 @@ impl VerbColor {
             Self::Invoke => icons_verb::INVOKE_ASCII,
             Self::Agent => icons_verb::AGENT_ASCII,
             Self::Spawn => icons_verb::SUBAGENT_ASCII,
+            Self::User => "[U]",
         }
     }
 
@@ -413,6 +422,7 @@ impl VerbColor {
             Self::Invoke => "#10b981",
             Self::Agent => "#f43f5e",
             Self::Spawn => "#fda4af",
+            Self::User => "#0ea5e9",
         }
     }
 
@@ -425,6 +435,7 @@ impl VerbColor {
             Self::Invoke => "INVOKE",
             Self::Agent => "AGENT",
             Self::Spawn => "SPAWN",
+            Self::User => "USER",
         }
     }
 
@@ -442,6 +453,7 @@ impl VerbColor {
             Self::Invoke => Color::Rgb(5, 150, 105),  // Emerald 600
             Self::Agent => Color::Rgb(225, 29, 72),   // Rose 600
             Self::Spawn => Color::Rgb(251, 113, 133), // Rose 400
+            Self::User => Color::Rgb(2, 132, 199),    // Sky 600
         }
     }
 
@@ -457,6 +469,8 @@ impl VerbColor {
             Self::Agent => resolver.verb_agent(),
             // Spawn uses direct RGB (Rose 300) - lighter than Agent
             Self::Spawn => self.rgb(),
+            // User uses direct RGB (Sky 500)
+            Self::User => self.rgb(),
         }
     }
 
