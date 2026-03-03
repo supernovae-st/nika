@@ -1,77 +1,102 @@
 # Test Workflow: for_each with Binding References + Schema Validation
 #
-# Demonstrates the new for_each binding reference feature:
+# Demonstrates the for_each binding reference feature:
 # - $alias format: for_each: "$locales"
 # - Template format: for_each: "{{use.locales}}"
 #
-# Combined with structured output validation for each iteration.
+# This workflow is AGENTIC:
+# - Discovers locales from NovaNet (not hardcoded or LLM-generated)
+# - Discovers entities from NovaNet for context
+# - Parallelizes independent MCP calls
+# - Uses proper bindings between tasks
+#
+# Prerequisites:
+#   - NovaNet MCP server running (novanet-mcp binary)
+#   - Neo4j database seeded with locales
 #
 # Usage:
 #   cd tools/nika && cargo run -- run ../../examples/test-foreach-schema.nika.yaml
 
 schema: "nika/workflow@0.9"
 workflow: test-foreach-schema
-description: for_each binding references with schema validation
+description: for_each binding references with schema validation and NovaNet discovery
 provider: claude
 model: claude-sonnet-4-20250514
 
-tasks:
-  # Step 1: Generate a list of locales to process
-  - id: generate_locales
-    infer:
-      prompt: |
-        Generate a list of 3 target locales for a multilingual QR code landing page.
+mcp:
+  novanet:
+    command: /Users/thibaut/.cargo/bin/novanet-mcp
+    args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
 
-        Include locales from different regions (Europe, Americas, Asia).
-        Return the locales in BCP-47 format (e.g., "fr-FR", "es-MX", "ja-JP").
-      temperature: 0.2
-    output:
-      format: json
-      max_retries: 2
-      schema:
-        type: object
-        additionalProperties: false
-        properties:
-          locales:
-            type: array
-            minItems: 3
-            maxItems: 3
-            items:
-              type: object
-              additionalProperties: false
-              properties:
-                code:
-                  type: string
-                  pattern: "^[a-z]{2}-[A-Z]{2}$"
-                  description: BCP-47 locale code
-                language:
-                  type: string
-                  description: Human-readable language name
-                region:
-                  type: string
-                  description: Geographic region
-              required: [code, language, region]
-        required: [locales]
+tasks:
+  # ============================================================================
+  # PHASE 1: Discovery (parallel tasks)
+  # ============================================================================
+
+  # Step 1a: Discover locales from NovaNet with regional diversity
+  - id: discover_locales
+    invoke:
+      mcp: novanet
+      tool: novanet_query
+      params:
+        cypher: |
+          MATCH (l:Locale)
+          WITH l,
+               CASE
+                 WHEN l.code STARTS WITH 'fr' THEN 'Europe'
+                 WHEN l.code STARTS WITH 'es' THEN 'Americas'
+                 WHEN l.code STARTS WITH 'ja' OR l.code STARTS WITH 'zh' THEN 'Asia'
+                 ELSE 'Other'
+               END AS region
+          RETURN l.code AS code, l.name AS language, region
+          ORDER BY region, l.code
+          LIMIT 6
+
+  # Step 1b: Discover an entity for tagline context (parallel with 1a)
+  - id: discover_entity
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: entity
+        entity_key: qr-code
+
+  # ============================================================================
+  # PHASE 2: Locale Processing (for_each over discovered locales)
+  # ============================================================================
 
   # Step 2: Process each locale using $alias binding reference
-  # This demonstrates the new for_each: "$locales" syntax
+  # This demonstrates for_each: "$locales" syntax with NovaNet data
   - id: process_locales
     use:
-      locales: generate_locales
-    for_each: "$locales"
+      locales: discover_locales
+      entity: discover_entity
+    for_each: "$locales.rows"
     for_each_var: locale
     infer:
       prompt: |
-        Generate a localized tagline for a QR code generator app.
+        # Tagline Generation Task
 
-        Target locale: {{locale.code}}
+        ## Entity Context from NovaNet
+        {{use.entity}}
+
+        ## Target Locale
+        Code: {{locale.code}}
         Language: {{locale.language}}
         Region: {{locale.region}}
 
+        ## Instructions
+        Generate a localized tagline for the entity's product/service.
+
         The tagline should:
-        1. Be culturally appropriate for the target region
-        2. Be catchy and memorable
-        3. Mention QR codes in the local language
+        1. Be culturally appropriate for {{locale.region}}
+        2. Be catchy and memorable in {{locale.language}}
+        3. Reference the entity's core concept in the local language
+        4. Feel native, not translated
 
         Return the tagline with metadata.
       temperature: 0.4
@@ -85,6 +110,10 @@ tasks:
           locale_code:
             type: string
             pattern: "^[a-z]{2}-[A-Z]{2}$"
+          language:
+            type: string
+          region:
+            type: string
           tagline:
             type: string
             minLength: 10
@@ -96,21 +125,37 @@ tasks:
           tone:
             type: string
             enum: [professional, friendly, playful, elegant, bold]
-        required: [locale_code, tagline, word_count, tone]
+        required: [locale_code, language, region, tagline, word_count, tone]
+
+  # ============================================================================
+  # PHASE 3: Aggregation (depends on all locale processing)
+  # ============================================================================
 
   # Step 3: Aggregate all taglines into a summary
   - id: aggregate_taglines
     use:
       all_taglines: process_locales
+      entity: discover_entity
+      original_locales: discover_locales
     infer:
       prompt: |
-        Review these localized taglines:
+        # Tagline Aggregation Task
+
+        ## Entity Context
+        {{use.entity}}
+
+        ## Discovered Locales from NovaNet
+        {{use.original_locales}}
+
+        ## Generated Taglines
         {{use.all_taglines}}
 
-        Analyze the collection and provide:
+        ## Instructions
+        Analyze the collection of localized taglines and provide:
         1. Overall quality assessment
         2. Consistency check across locales
-        3. Recommendations for improvement
+        3. Regional pattern analysis (do taglines reflect regional preferences?)
+        4. Recommendations for improvement
 
         Return a structured analysis.
       temperature: 0
@@ -121,9 +166,15 @@ tasks:
         type: object
         additionalProperties: false
         properties:
+          entity_key:
+            type: string
           total_taglines:
             type: integer
           locales_covered:
+            type: array
+            items:
+              type: string
+          regions_covered:
             type: array
             items:
               type: string
@@ -142,7 +193,21 @@ tasks:
                 type: integer
                 minimum: 0
                 maximum: 100
-            required: [overall_score, consistency_score, cultural_fit_score]
+              native_feel_score:
+                type: integer
+                minimum: 0
+                maximum: 100
+            required: [overall_score, consistency_score, cultural_fit_score, native_feel_score]
+          regional_patterns:
+            type: array
+            items:
+              type: object
+              properties:
+                region:
+                  type: string
+                observation:
+                  type: string
+              required: [region, observation]
           recommendations:
             type: array
             items:
@@ -152,11 +217,26 @@ tasks:
                   type: string
                 suggestion:
                   type: string
-              required: [locale, suggestion]
-        required: [total_taglines, locales_covered, quality_assessment, recommendations]
+                priority:
+                  type: string
+                  enum: [low, medium, high]
+              required: [locale, suggestion, priority]
+        required: [entity_key, total_taglines, locales_covered, regions_covered, quality_assessment, recommendations]
 
 flows:
-  - source: generate_locales
+  # Phase 1: Discovery tasks run in parallel (no edges = parallel)
+  # discover_locales and discover_entity have no dependencies
+
+  # Phase 2: Processing depends on both discoveries
+  - source: discover_locales
     target: process_locales
+  - source: discover_entity
+    target: process_locales
+
+  # Phase 3: Aggregation depends on processing and original context
   - source: process_locales
+    target: aggregate_taglines
+  - source: discover_entity
+    target: aggregate_taglines
+  - source: discover_locales
     target: aggregate_taglines

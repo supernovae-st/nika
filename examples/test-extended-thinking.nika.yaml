@@ -3,36 +3,121 @@
 # Demonstrates extended_thinking for complex reasoning tasks
 # combined with strict schema validation and retry loop.
 #
+# This workflow is AGENTIC:
+# - Discovers entities and categories from NovaNet (not hardcoded)
+# - Uses knowledge graph context for competitive analysis
+# - Parallelizes independent MCP calls
+# - Uses proper bindings between tasks
+#
 # extended_thinking enables Claude's deep reasoning mode,
 # useful for tasks requiring multi-step analysis.
+#
+# Prerequisites:
+#   - NovaNet MCP server running (novanet-mcp binary)
+#   - Neo4j database seeded
 #
 # Usage:
 #   cd tools/nika && cargo run -- run ../../examples/test-extended-thinking.nika.yaml
 
 schema: "nika/workflow@0.9"
 workflow: test-extended-thinking
-description: Extended thinking for complex analysis with structured output
+description: Extended thinking for complex analysis with NovaNet context
 provider: claude
 model: claude-sonnet-4-20250514
 
+mcp:
+  novanet:
+    command: /Users/thibaut/.cargo/bin/novanet-mcp
+    args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+
 tasks:
-  # Step 1: Complex SEO competitive analysis with extended thinking
+  # ============================================================================
+  # PHASE 1: Discovery (parallel tasks)
+  # ============================================================================
+
+  # Step 1a: Discover entity from NovaNet
+  - id: discover_entity
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: entity
+        entity_key: qr-code
+
+  # Step 1b: Get entity category context (parallel with 1a)
+  - id: discover_category
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: category
+        category_key: technology
+
+  # Step 1c: Get related entities via graph traversal (parallel with 1a, 1b)
+  - id: discover_relations
+    invoke:
+      mcp: novanet
+      tool: novanet_traverse
+      params:
+        start_key: qr-code
+        max_depth: 2
+        direction: both
+        arc_families:
+          - semantic
+
+  # Step 1d: Get schema introspection for SEO nodes (parallel)
+  - id: get_seo_schema
+    invoke:
+      mcp: novanet
+      tool: novanet_introspect
+      params:
+        target: classes
+        layer: semantic
+
+  # ============================================================================
+  # PHASE 2: Complex Analysis with Extended Thinking
+  # ============================================================================
+
+  # Step 2: Complex SEO competitive analysis with extended thinking
   - id: competitive_analysis
+    use:
+      entity: discover_entity
+      category: discover_category
+      relations: discover_relations
+      seo_schema: get_seo_schema
     infer:
       prompt: |
         # SEO Competitive Analysis Task
 
-        Analyze the competitive landscape for "QR code generator" keywords.
+        ## Entity Context from NovaNet
+        {{use.entity}}
 
-        Consider:
-        1. Search intent variations (informational vs transactional)
-        2. Long-tail keyword opportunities
+        ## Category Context
+        {{use.category}}
+
+        ## Related Entities (Graph Traversal)
+        {{use.relations}}
+
+        ## SEO Schema Context
+        {{use.seo_schema}}
+
+        ## Task
+        Analyze the competitive landscape for this entity's keywords.
+
+        Using the knowledge graph context, consider:
+        1. Search intent variations based on entity semantics
+        2. Long-tail keyword opportunities from related entities
         3. Competitive difficulty estimation
-        4. Content gap analysis
-        5. Monetization potential
+        4. Content gap analysis based on category coverage
+        5. Monetization potential for this entity type
 
         Think through each aspect carefully before providing your analysis.
-        Use your extended thinking to explore different angles.
+        Use your extended thinking to explore different angles informed
+        by the knowledge graph structure.
       temperature: 0.3
       extended_thinking: true
       thinking_budget: 8000
@@ -43,6 +128,10 @@ tasks:
         type: object
         additionalProperties: false
         properties:
+          entity_key:
+            type: string
+          category_key:
+            type: string
           market_overview:
             type: object
             properties:
@@ -55,7 +144,10 @@ tasks:
               growth_trend:
                 type: string
                 enum: [declining, stable, growing, rapidly_growing]
-            required: [total_search_volume_estimate, competition_level, growth_trend]
+              related_entities_count:
+                type: integer
+                minimum: 0
+            required: [total_search_volume_estimate, competition_level, growth_trend, related_entities_count]
           keyword_opportunities:
             type: array
             minItems: 3
@@ -66,6 +158,9 @@ tasks:
               properties:
                 keyword:
                   type: string
+                derived_from:
+                  type: string
+                  description: Entity or relation this keyword derives from
                 search_intent:
                   type: string
                   enum: [informational, navigational, transactional, commercial]
@@ -79,13 +174,15 @@ tasks:
                   maximum: 100
                 rationale:
                   type: string
-              required: [keyword, search_intent, difficulty_score, opportunity_score, rationale]
+              required: [keyword, derived_from, search_intent, difficulty_score, opportunity_score, rationale]
           content_gaps:
             type: array
             items:
               type: object
               properties:
                 gap:
+                  type: string
+                related_entity:
                   type: string
                 priority:
                   type: string
@@ -102,6 +199,9 @@ tasks:
               properties:
                 recommendation:
                   type: string
+                leverages_graph:
+                  type: boolean
+                  description: Whether this recommendation uses knowledge graph insights
                 expected_impact:
                   type: string
                   enum: [low, medium, high]
@@ -110,27 +210,42 @@ tasks:
                   enum: [low, medium, high]
                 timeline:
                   type: string
-              required: [recommendation, expected_impact, effort_required, timeline]
-        required: [market_overview, keyword_opportunities, content_gaps, strategic_recommendations]
+              required: [recommendation, leverages_graph, expected_impact, effort_required, timeline]
+        required: [entity_key, category_key, market_overview, keyword_opportunities, content_gaps, strategic_recommendations]
 
-  # Step 2: Generate content strategy based on analysis
+  # ============================================================================
+  # PHASE 3: Strategy Generation (depends on analysis)
+  # ============================================================================
+
+  # Step 3: Generate content strategy based on analysis
   - id: content_strategy
     use:
       analysis: competitive_analysis
+      entity: discover_entity
+      category: discover_category
     infer:
       prompt: |
         # Content Strategy Development
 
-        Based on this competitive analysis:
+        ## Competitive Analysis Results
         {{use.analysis}}
 
+        ## Entity Context
+        {{use.entity}}
+
+        ## Category Context
+        {{use.category}}
+
+        ## Task
         Develop a comprehensive content strategy that:
         1. Addresses identified content gaps
         2. Targets high-opportunity keywords
-        3. Considers resource constraints
-        4. Provides actionable next steps
+        3. Leverages the entity's semantic relationships
+        4. Considers resource constraints
+        5. Provides actionable next steps aligned with category positioning
 
-        Think deeply about how to prioritize and sequence the content.
+        Think deeply about how to prioritize and sequence the content
+        based on the knowledge graph structure and semantic relationships.
       temperature: 0.2
       extended_thinking: true
       thinking_budget: 6000
@@ -141,6 +256,10 @@ tasks:
         type: object
         additionalProperties: false
         properties:
+          entity_key:
+            type: string
+          category_key:
+            type: string
           strategy_name:
             type: string
             maxLength: 50
@@ -158,6 +277,8 @@ tasks:
                   type: string
                 description:
                   type: string
+                aligned_with_entity:
+                  type: boolean
                 target_keywords:
                   type: array
                   items:
@@ -165,7 +286,7 @@ tasks:
                 content_pieces:
                   type: integer
                   minimum: 1
-              required: [pillar_name, description, target_keywords, content_pieces]
+              required: [pillar_name, description, aligned_with_entity, target_keywords, content_pieces]
           quarterly_roadmap:
             type: array
             minItems: 4
@@ -200,8 +321,26 @@ tasks:
                   type: string
                   enum: [daily, weekly, monthly, quarterly]
               required: [metric, target, measurement_frequency]
-        required: [strategy_name, executive_summary, content_pillars, quarterly_roadmap, kpis]
+        required: [entity_key, category_key, strategy_name, executive_summary, content_pillars, quarterly_roadmap, kpis]
 
 flows:
+  # Phase 1: All discovery tasks run in parallel (no edges = parallel)
+  # discover_entity, discover_category, discover_relations, get_seo_schema
+
+  # Phase 2: Competitive analysis depends on all discovery tasks
+  - source: discover_entity
+    target: competitive_analysis
+  - source: discover_category
+    target: competitive_analysis
+  - source: discover_relations
+    target: competitive_analysis
+  - source: get_seo_schema
+    target: competitive_analysis
+
+  # Phase 3: Strategy depends on analysis and context
   - source: competitive_analysis
+    target: content_strategy
+  - source: discover_entity
+    target: content_strategy
+  - source: discover_category
     target: content_strategy

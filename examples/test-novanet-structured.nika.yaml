@@ -6,12 +6,14 @@
 # 3. novanet_generate: Full RLM-on-KG context assembly
 # 4. Structured output with inline schema validation
 #
-# This workflow creates EntityNative content for fr-FR locale
-# using real NovaNet knowledge graph data.
+# This workflow is AGENTIC:
+# - Discovers entities and locales from NovaNet (not hardcoded)
+# - Parallelizes independent MCP calls
+# - Uses proper bindings between tasks
 #
 # Prerequisites:
-#   - NovaNet MCP server running (cargo run in novanet-mcp/)
-#   - Neo4j database with qr-code entity seeded
+#   - NovaNet MCP server running (novanet-mcp binary)
+#   - Neo4j database seeded
 #
 # Usage:
 #   cd tools/nika && cargo run -- run ../../examples/test-novanet-structured.nika.yaml
@@ -32,43 +34,79 @@ mcp:
       NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
 
 tasks:
-  # Step 1: Describe the entity to get base context
+  # ============================================================================
+  # PHASE 1: Discovery (parallel tasks - no dependencies)
+  # ============================================================================
+
+  # Step 1a: Discover available entities from NovaNet
+  - id: discover_entities
+    invoke:
+      mcp: novanet
+      tool: novanet_query
+      params:
+        cypher: "MATCH (e:Entity) RETURN e.key AS key, e.name AS name ORDER BY e.key LIMIT 5"
+
+  # Step 1b: Discover available locales from NovaNet (parallel with 1a)
+  - id: discover_locales
+    invoke:
+      mcp: novanet
+      tool: novanet_query
+      params:
+        cypher: "MATCH (l:Locale) RETURN l.code AS code, l.name AS name ORDER BY l.code LIMIT 5"
+
+  # ============================================================================
+  # PHASE 2: Context Assembly (depends on discovery)
+  # ============================================================================
+
+  # Step 2a: Describe the first discovered entity
   - id: describe_entity
+    use:
+      entities: discover_entities
     invoke:
       mcp: novanet
       tool: novanet_describe
       params:
         describe: entity
-        entity_key: qr-code
+        entity_key: "{{use.entities.rows[0].key}}"
 
-  # Step 2: Get knowledge atoms for fr-FR locale
+  # Step 2b: Get knowledge atoms for first discovered locale (parallel with 2a)
   - id: get_terms
+    use:
+      locales: discover_locales
     invoke:
       mcp: novanet
       tool: novanet_atoms
       params:
-        locale: fr-FR
+        locale: "{{use.locales.rows[0].code}}"
         atom_type: term
         domain: technology
 
-  # Step 3: Get generation context with RLM-on-KG
+  # Step 2c: Get generation context with RLM-on-KG (depends on both discoveries)
   - id: get_generation_context
+    use:
+      entities: discover_entities
+      locales: discover_locales
     invoke:
       mcp: novanet
       tool: novanet_generate
       params:
-        focus_key: qr-code
-        locale: fr-FR
+        focus_key: "{{use.entities.rows[0].key}}"
+        locale: "{{use.locales.rows[0].code}}"
         mode: block
         token_budget: 4000
         spreading_depth: 2
 
-  # Step 4: Generate EntityNative content with structured output
+  # ============================================================================
+  # PHASE 3: Content Generation (depends on all context)
+  # ============================================================================
+
+  # Step 3: Generate EntityNative content with structured output
   - id: generate_native_content
     use:
       entity: describe_entity
       terms: get_terms
       context: get_generation_context
+      locales: discover_locales
     infer:
       prompt: |
         # Task: Generate EntityNative Content
@@ -76,18 +114,20 @@ tasks:
         ## Entity Context
         {{use.entity}}
 
-        ## Locale Terms (fr-FR)
+        ## Locale Terms
         {{use.terms}}
 
-        ## Generation Context
+        ## Generation Context (RLM-on-KG)
         {{use.context}}
 
         ## Instructions
-        Generate the EntityNative content for qr-code@fr-FR.
+        Generate the EntityNative content for this entity in the target locale.
 
         Use the denomination_forms from the generation context.
         Include proper SEO metadata using locale-appropriate terms.
-        Follow French language conventions and cultural context.
+        Follow the language conventions and cultural context from the locale data.
+
+        The locale code is: {{use.locales.rows[0].code}}
 
         Return structured JSON matching the schema exactly.
       temperature: 0.2
@@ -145,20 +185,35 @@ tasks:
             required: [headline, tagline, intro_paragraph]
         required: [key, denomination_forms, meta, content]
 
-  # Step 5: Validate and summarize the generated content
+  # ============================================================================
+  # PHASE 4: Validation (depends on generated content)
+  # ============================================================================
+
+  # Step 4: Validate and summarize the generated content
   - id: validate_content
     use:
       native: generate_native_content
+      entity: describe_entity
+      locales: discover_locales
     infer:
       prompt: |
-        Validate this EntityNative content:
+        # Validation Task
+
+        ## Generated EntityNative Content
         {{use.native}}
 
-        Check for:
-        1. Proper French language usage
+        ## Original Entity Context
+        {{use.entity}}
+
+        ## Target Locale
+        {{use.locales.rows[0].code}}
+
+        Validate this EntityNative content against:
+        1. Proper language usage for the target locale
         2. SEO best practices (title length, description length)
         3. Consistency between denomination_forms and content
         4. URL slug validity
+        5. Alignment with the original entity semantics
 
         Return validation results.
       temperature: 0
@@ -170,6 +225,10 @@ tasks:
         properties:
           is_valid:
             type: boolean
+          entity_key:
+            type: string
+          locale_code:
+            type: string
           checks:
             type: array
             items:
@@ -186,14 +245,36 @@ tasks:
             type: integer
             minimum: 0
             maximum: 100
-        required: [is_valid, checks, quality_score]
+        required: [is_valid, entity_key, locale_code, checks, quality_score]
 
 flows:
+  # Phase 1: Discovery tasks run in parallel (no edges = parallel)
+  # discover_entities and discover_locales have no dependencies
+
+  # Phase 2: Context assembly depends on discovery
+  - source: discover_entities
+    target: describe_entity
+  - source: discover_locales
+    target: get_terms
+  - source: discover_entities
+    target: get_generation_context
+  - source: discover_locales
+    target: get_generation_context
+
+  # Phase 3: Generation depends on all context
   - source: describe_entity
     target: generate_native_content
   - source: get_terms
     target: generate_native_content
   - source: get_generation_context
     target: generate_native_content
+  - source: discover_locales
+    target: generate_native_content
+
+  # Phase 4: Validation depends on generated content
   - source: generate_native_content
+    target: validate_content
+  - source: describe_entity
+    target: validate_content
+  - source: discover_locales
     target: validate_content

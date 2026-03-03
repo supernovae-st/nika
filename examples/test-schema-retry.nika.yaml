@@ -5,36 +5,91 @@
 # 2. jsonschema validation: Code-side validation
 # 3. Retry loop: Re-prompt with error feedback on failure
 #
-# The schema has strict constraints that may require retry:
-# - Enum values for intent (must be exact match)
-# - Pattern for slug (lowercase, alphanumeric, dashes only)
-# - Integer ranges for volume (0+) and difficulty (0-100)
+# This workflow is AGENTIC:
+# - Discovers entities from NovaNet (not hardcoded)
+# - Uses proper bindings between tasks
+# - Parallelizes independent MCP calls
+#
+# Prerequisites:
+#   - NovaNet MCP server running (novanet-mcp binary)
+#   - Neo4j database seeded
 #
 # Usage:
 #   cd tools/nika && cargo run -- run ../../examples/test-schema-retry.nika.yaml
 
 schema: "nika/workflow@0.9"
 workflow: test-schema-retry
-description: Test structured output enforcement with retry loop
+description: Test structured output enforcement with retry loop and NovaNet discovery
 provider: claude
 model: claude-sonnet-4-20250514
 
+mcp:
+  novanet:
+    command: /Users/thibaut/.cargo/bin/novanet-mcp
+    args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+
 tasks:
-  # Task 1: Generate keywords with strict schema validation
-  # This task may require retry if the LLM generates:
-  # - Wrong enum value (e.g., "info" instead of "informational")
-  # - Invalid slug (e.g., "QR Code" instead of "qr-code")
-  # - Out-of-range values (e.g., difficulty: 150)
+  # Step 1: Discover available entities from NovaNet
+  - id: discover_entities
+    invoke:
+      mcp: novanet
+      tool: novanet_query
+      params:
+        cypher: "MATCH (e:Entity) RETURN e.key AS key, e.name AS name LIMIT 5"
+
+  # Step 2: Get schema introspection (parallel with entity discovery)
+  - id: get_schema_context
+    invoke:
+      mcp: novanet
+      tool: novanet_introspect
+      params:
+        target: classes
+        realm: org
+        layer: semantic
+
+  # Step 3: Select target entity and get its full context
+  - id: get_entity_context
+    use:
+      entities: discover_entities
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: entity
+        # Use first discovered entity dynamically
+        entity_key: "{{use.entities.rows[0].key}}"
+
+  # Step 4: Generate keywords with strict schema validation
+  # Uses discovered entity context, not hardcoded "QR code"
   - id: generate_keywords
+    use:
+      entity: get_entity_context
+      schema: get_schema_context
     infer:
       prompt: |
-        Generate 3 SEO keywords for "QR code generator" product.
+        # SEO Keyword Generation Task
+
+        ## Entity Context from NovaNet
+        {{use.entity}}
+
+        ## Schema Context
+        {{use.schema}}
+
+        ## Task
+        Generate 3 SEO keywords for this entity's product/service.
 
         IMPORTANT: Follow the exact schema. Common mistakes to avoid:
         - intent must be exactly one of: informational, navigational, transactional, commercial
         - slug_form must be lowercase with only letters, numbers, and hyphens
         - difficulty must be between 0 and 100 inclusive
         - volume must be a positive integer
+
+        Use the entity's denomination_forms and semantic context to generate
+        culturally-appropriate keywords.
 
         Return a JSON object with the keywords array.
       temperature: 0.3
@@ -45,6 +100,9 @@ tasks:
         type: object
         additionalProperties: false
         properties:
+          entity_key:
+            type: string
+            description: The entity key from NovaNet
           keywords:
             type: array
             minItems: 3
@@ -64,7 +122,7 @@ tasks:
                 volume:
                   type: integer
                   minimum: 0
-                  description: Monthly search volume
+                  description: Monthly search volume estimate
                 difficulty:
                   type: integer
                   minimum: 0
@@ -75,18 +133,29 @@ tasks:
                   enum: [informational, navigational, transactional, commercial]
                   description: Search intent classification
               required: [value, slug_form, volume, difficulty, intent]
-        required: [keywords]
+        required: [entity_key, keywords]
 
-  # Task 2: Analyze the keywords and produce a structured report
+  # Step 5: Analyze the keywords and produce a structured report
   - id: analyze_keywords
     use:
+      entity: get_entity_context
       keywords: generate_keywords
     infer:
       prompt: |
-        Analyze these SEO keywords:
+        # Keyword Analysis Task
+
+        ## Entity Context
+        {{use.entity}}
+
+        ## Generated Keywords
         {{use.keywords}}
 
-        Calculate statistics and provide recommendations.
+        Analyze these SEO keywords in the context of the entity.
+        Calculate statistics and provide recommendations based on:
+        1. Relevance to the entity's semantic meaning
+        2. Search intent alignment with entity usage
+        3. Competitive landscape
+
         Return the analysis in the exact JSON structure specified.
       temperature: 0
     output:
@@ -96,6 +165,8 @@ tasks:
         type: object
         additionalProperties: false
         properties:
+          entity_key:
+            type: string
           stats:
             type: object
             properties:
@@ -124,8 +195,24 @@ tasks:
                 reason:
                   type: string
               required: [keyword, action, reason]
-        required: [stats, recommendations]
+        required: [entity_key, stats, recommendations]
 
 flows:
+  # Parallel discovery tasks (no dependencies)
+  # discover_entities and get_schema_context run in parallel
+
+  # get_entity_context depends on discover_entities
+  - source: discover_entities
+    target: get_entity_context
+
+  # generate_keywords depends on both entity and schema context
+  - source: get_entity_context
+    target: generate_keywords
+  - source: get_schema_context
+    target: generate_keywords
+
+  # analyze_keywords depends on entity context and generated keywords
+  - source: get_entity_context
+    target: analyze_keywords
   - source: generate_keywords
     target: analyze_keywords
