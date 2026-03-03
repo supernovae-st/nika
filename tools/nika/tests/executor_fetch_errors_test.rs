@@ -31,6 +31,7 @@ fn fetch_params(url: &str) -> FetchParams {
         headers: FxHashMap::default(),
         body: None,
         timeout: None,
+        retry: None,
     }
 }
 

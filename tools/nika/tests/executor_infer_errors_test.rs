@@ -43,6 +43,8 @@ fn infer_params(prompt: &str) -> InferParams {
         temperature: None,
         max_tokens: None,
         system: None,
+        extended_thinking: None,
+        thinking_budget: None,
     }
 }
 
@@ -307,6 +309,8 @@ async fn test_infer_unknown_provider() {
             temperature: None,
             max_tokens: None,
             system: None,
+            extended_thinking: None,
+            thinking_budget: None,
         },
     };
     let bindings = ResolvedBindings::new();
