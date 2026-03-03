@@ -45,6 +45,7 @@ use tokio::sync::Mutex as AsyncMutex;
 use tokio::time::timeout;
 
 use crate::error::{NikaError, Result};
+use crate::mcp::retry::{retry_mcp_call, McpRetryConfig};
 use crate::mcp::types::{
     ContentBlock, McpConfig, McpErrorCode, ResourceContent, ToolCallResult, ToolDefinition,
 };
@@ -317,6 +318,48 @@ impl RmcpClientAdapter {
             content,
             is_error: result.is_error.unwrap_or(false),
         })
+    }
+
+    /// Call a tool on the MCP server with automatic retry on transient failures.
+    ///
+    /// Uses exponential backoff with jitter for retries. Only retryable errors
+    /// (timeouts, connection issues) trigger retries. Validation errors and
+    /// resource-not-found errors fail immediately.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Tool name (e.g., "novanet_generate")
+    /// * `params` - Tool parameters as JSON value
+    /// * `retry_config` - Optional retry configuration (uses defaults if None)
+    ///
+    /// # Errors
+    ///
+    /// Returns `NikaError::McpNotConnected` if not connected.
+    /// Returns `NikaError::McpToolError` if the tool call fails after all retries.
+    #[allow(dead_code)] // Available for future use in invoke: verb retry logic
+    pub async fn call_tool_with_retry(
+        &self,
+        name: &str,
+        params: Value,
+        retry_config: Option<McpRetryConfig>,
+    ) -> Result<ToolCallResult> {
+        let config = retry_config.unwrap_or_default();
+        let name_owned = name.to_string();
+        let server_name = self.name.clone();
+
+        tracing::debug!(
+            mcp_server = %server_name,
+            tool = %name_owned,
+            max_retries = config.max_retries,
+            "Calling MCP tool with retry"
+        );
+
+        retry_mcp_call(config, || {
+            let params = params.clone();
+            let name = name_owned.clone();
+            async move { self.call_tool(&name, params).await }
+        })
+        .await
     }
 
     /// Read a resource from the MCP server.
