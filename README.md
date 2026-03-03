@@ -14,7 +14,7 @@
 <sup>✨ Transform YAML into intelligent AI workflows ✨</sup>
 
 <!-- Primary Badges -->
-[![Version](https://img.shields.io/badge/v0.17.0-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.17.5-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
 [![Website](https://img.shields.io/badge/🦋_nika.sh-8b5cf6?style=for-the-badge)](https://nika.sh)
@@ -22,7 +22,7 @@
 <!-- GitHub Badges -->
 [![CI](https://img.shields.io/github/actions/workflow/status/supernovae-st/nika/ci.yml?style=flat-square&logo=github&label=CI)](https://github.com/supernovae-st/nika/actions)
 [![Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=flat-square&logo=github&label=Stars)](https://github.com/supernovae-st/nika/stargazers)
-[![Tests](https://img.shields.io/badge/tests-3,358_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/tests-3,449_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
 [![LOC](https://img.shields.io/badge/LOC-106k-0ea5e9?style=flat-square&logo=codeclimate)](https://github.com/supernovae-st/nika)
 
 <!-- Feature Badges -->
@@ -68,7 +68,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 <!-- TUI Screenshot as ASCII Art -->
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  🦋 Nika Studio                                                v0.17.0  ⌘K  ?  │
+│  🦋 Nika Studio                                                v0.17.5  ⌘K  ?  │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
 │ ┌─ 📁 Files ───────────┐ ┌─ 📝 Editor ──────────────────────────────────────────┐  │
 │ │ ▸ workflows/         │ │  1 │ schema: "nika/workflow@0.9"                    │  │
@@ -97,7 +97,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 
 <br>
 
-## ✨ What's New in v0.17.0
+## ✨ What's New in v0.17.5
 
 <table>
 <tr>
@@ -305,7 +305,7 @@ flowchart LR
 | **Chat-as-DAG** | ✅ Native | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Type Safety** | ✅ Rust | ❌ Python | ❌ Python | ❌ Python | ❌ Python |
 | **Streaming** | ✅ All 6 | ✅ Yes | ✅ Yes | 🟡 Partial | 🟡 Partial |
-| **Production Ready** | ✅ 3,358 tests | 🟡 Varies | 🟡 Varies | 🟡 New | 🔴 Needs guardrails |
+| **Production Ready** | ✅ 3,449 tests | 🟡 Varies | 🟡 Varies | 🟡 New | 🔴 Needs guardrails |
 
 </div>
 
@@ -373,7 +373,7 @@ cd nika && cargo install --path tools/nika
 
 # ✅ Verify installation
 nika --version
-# nika 0.17.0
+# nika 0.17.5
 ```
 
 ### 👋 Hello World (30 seconds)
@@ -583,7 +583,7 @@ flowchart TB
 │      └── animation.rs       AnimationTicker (60fps)                            │
 │                                                                                 │
 ├─────────────────────────────────────────────────────────────────────────────────┤
-│  📊 TOTALS: 172 files │ 106,000 LOC │ 3,358 tests │ 0 clippy warnings         │
+│  📊 TOTALS: 172 files │ 106,000 LOC │ 3,449 tests │ 0 clippy warnings         │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1642,11 +1642,11 @@ flows:
 ```
 ╔═════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                 ║
-║                           🦋 NIKA v0.17.0 STATS                                 ║
+║                           🦋 NIKA v0.17.5 STATS                                 ║
 ║                                                                                 ║
 ╠═════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                 ║
-║   📊 Tests              │  3,358 passing                                        ║
+║   📊 Tests              │  3,449 passing                                        ║
 ║   📝 Lines of Code      │  106,000+ LOC                                         ║
 ║   🔧 Clippy Warnings    │  0 (zero!)                                            ║
 ║   🔮 LLM Providers      │  7 (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini) ║
@@ -1667,7 +1667,7 @@ flows:
 ### 📈 Test Distribution by Module
 
 ```mermaid
-pie title 📊 Test Distribution (3,358 tests)
+pie title 📊 Test Distribution (3,449 tests)
     "🖥️ TUI" : 1704
     "🔗 Binding" : 198
     "🔍 AST" : 171
@@ -1694,7 +1694,7 @@ pie title 📊 Test Distribution (3,358 tests)
 | 🔮 `provider/` | 1,912 | 24 | rig-core wrapper |
 | 🔀 `dag/` | 1,914 | 60 | StableGraph, validation |
 | 📊 `event/` | 1,732 | 46 | Event log, traces |
-| **Total** | **106,000+** | **3,358** | |
+| **Total** | **106,000+** | **3,449** | |
 
 <br>
 
@@ -1998,7 +1998,7 @@ cd nika
 # 🔨 Build
 cargo build
 
-# 🧪 Test (3,358 tests)
+# 🧪 Test (3,449 tests)
 cargo test
 
 # 🔍 Lint
