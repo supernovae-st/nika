@@ -179,8 +179,8 @@ jobs:
 
       - name: Build NovaNet MCP server
         run: |
-          if [ -d "../novanet-dev/tools/novanet-mcp" ]; then
-            cargo build --release --manifest-path ../novanet-dev/tools/novanet-mcp/Cargo.toml
+          if [ -d "../novanet/tools/novanet-mcp" ]; then
+            cargo build --release --manifest-path ../novanet/tools/novanet-mcp/Cargo.toml
           else
             echo "NovaNet MCP not found in submodules, skipping build"
           fi
