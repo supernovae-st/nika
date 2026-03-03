@@ -46,10 +46,11 @@
       }
     },
     "skills": {
-      "type": "array",
-      "description": "Workflow-level skills to inject (v0.15+)",
-      "items": {
-        "$ref": "#/$defs/SkillDef"
+      "type": "object",
+      "description": "Workflow-level skills to inject (v0.15+). Format: alias: path",
+      "additionalProperties": {
+        "type": "string",
+        "description": "Path to skill file (local or pkg: URI)"
       }
     },
     "agents": {
@@ -417,6 +418,18 @@
               "minimum": 1,
               "maximum": 1000000,
               "description": "Maximum output tokens"
+            },
+            "extended_thinking": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable extended thinking for deeper reasoning (Claude only)"
+            },
+            "thinking_budget": {
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65536,
+              "default": 4096,
+              "description": "Token budget for extended thinking (Claude only)"
             }
           }
         }
@@ -596,6 +609,12 @@
           "maximum": 2,
           "description": "LLM temperature"
         },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000,
+          "description": "Maximum output tokens (required when extended_thinking is true, must be > thinking_budget)"
+        },
         "extended_thinking": {
           "type": "boolean",
           "default": false,
@@ -608,10 +627,10 @@
           "default": 8192,
           "description": "Token budget for extended thinking (Claude only)"
         },
-        "stop_sequences": {
+        "stop_conditions": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Sequences that stop generation"
+          "description": "Conditions that trigger early stop (if output contains any)"
         }
       }
     },
@@ -662,8 +681,24 @@
           "description": "Expected output format"
         },
         "schema": {
-          "type": "object",
-          "description": "JSON Schema for output validation"
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Path to JSON Schema file"
+            },
+            {
+              "type": "object",
+              "description": "Inline JSON Schema object"
+            }
+          ],
+          "description": "JSON Schema for output validation (file path or inline object)"
+        },
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "default": 2,
+          "description": "Maximum retry attempts on validation failure"
         },
         "save": {
           "type": "string",
