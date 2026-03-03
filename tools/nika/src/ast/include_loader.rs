@@ -380,6 +380,8 @@ mod tests {
             include: None,
             agents: None,
             skills: None,
+            artifacts: None,
+            log: None,
             tasks: vec![],
             flows: vec![],
         }
@@ -419,6 +421,8 @@ mod tests {
                     ..Default::default()
                 },
             },
+            artifact: None,
+            log: None,
         });
 
         let prefixed = prefix_task(Arc::clone(&task), Some("seo_"));
@@ -473,6 +477,8 @@ mod tests {
                     ..Default::default()
                 },
             },
+            artifact: None,
+            log: None,
         });
 
         let prefixed = prefix_task(task, Some("lib_"));

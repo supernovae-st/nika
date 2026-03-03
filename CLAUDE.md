@@ -77,15 +77,19 @@ Cargo workspace for Nika — semantic YAML workflow engine for AI tasks.
 
 Nika is the "body" of the SuperNovae AGI architecture, executing workflows that leverage NovaNet's "brain".
 
-**Current Version**: v0.17.0 — Registry Optimizations + pkg: Includes + Security Fixes
-**Tests**: 3,358+ passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
+**Current Version**: v0.18.0 — Artifacts System + Security Hardening
+**Tests**: 3,500+ passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
 **Target Application**: QR Code AI (https://qrcode-ai.com)
 
-**v0.17.0 Changes:**
-- **pkg: Support for Workflow Includes** — `@workflows/name` in include blocks
-- **Registry v0.17 Optimizations** — Arc-based DashMap caching, spn.lock support
-- **Runtime Package Support** — @agents, @prompts, @skills packages
-- **3 Critical Security Fixes** — Memory leak, file corruption, TOCTOU race condition
+**v0.18.0 Changes:**
+- **Artifact System** — Complete file persistence for task outputs
+  - `io::atomic` — Atomic writes with temp+fsync+rename pattern
+  - `io::security` — Path validation, traversal prevention
+  - `io::template` — Variable interpolation (`{{task_id}}`, `{{date}}`, etc.)
+  - `io::writer` — `ArtifactWriter` combining all modules
+- **Security Hardening** — Template injection prevention, TOCTOU mitigation, JSON validation
+- **Artifact Events** — `ArtifactWritten`, `ArtifactFailed` for observability
+- **Error Codes NIKA-280-289** — New artifact error variants
 
 **v0.15.0 Features (inherited):**
 - Security hardening: `exec:` defaults to `shell: false` (shlex parsing)

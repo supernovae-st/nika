@@ -383,6 +383,30 @@ pub enum EventKind {
         #[serde(skip_serializing_if = "Option::is_none")]
         task_id: Option<Arc<str>>,
     },
+
+    // ═══════════════════════════════════════════
+    // ARTIFACT EVENTS (v0.18)
+    // ═══════════════════════════════════════════
+    /// Artifact successfully written to disk
+    ArtifactWritten {
+        /// Task that produced this artifact
+        task_id: Arc<str>,
+        /// Final resolved path
+        path: String,
+        /// Size in bytes
+        size: u64,
+        /// Output format (text, json)
+        format: String,
+    },
+    /// Artifact write failed
+    ArtifactFailed {
+        /// Task that produced this artifact
+        task_id: Arc<str>,
+        /// Intended path
+        path: String,
+        /// Error reason
+        reason: String,
+    },
 }
 
 impl EventKind {
@@ -403,7 +427,9 @@ impl EventKind {
             | Self::McpRetry { task_id, .. }  // P2 Fix: Added McpRetry
             | Self::AgentStart { task_id, .. }
             | Self::AgentTurn { task_id, .. }
-            | Self::AgentComplete { task_id, .. } => Some(task_id),
+            | Self::AgentComplete { task_id, .. }
+            | Self::ArtifactWritten { task_id, .. }
+            | Self::ArtifactFailed { task_id, .. } => Some(task_id),
             // AgentSpawned uses parent_task_id as the primary task reference
             Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
             // Log and Custom may optionally have task_id

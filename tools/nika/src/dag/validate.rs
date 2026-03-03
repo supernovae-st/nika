@@ -754,6 +754,8 @@ flows:
             decompose: None,
             concurrency: None,
             fail_fast: None,
+            artifact: None,
+            log: None,
         };
 
         let result = validate_template_refs(&task);
@@ -781,6 +783,8 @@ flows:
             decompose: None,
             concurrency: None,
             fail_fast: None,
+            artifact: None,
+            log: None,
         };
 
         let result = validate_template_refs(&task);
@@ -806,6 +810,8 @@ flows:
             decompose: None,
             concurrency: None,
             fail_fast: None,
+            artifact: None,
+            log: None,
         };
 
         let result = validate_template_refs(&task);
@@ -836,6 +842,8 @@ flows:
             decompose: None,
             concurrency: None,
             fail_fast: None,
+            artifact: None,
+            log: None,
         };
 
         let result = validate_template_refs(&task);
@@ -869,6 +877,8 @@ flows:
             decompose: None,
             concurrency: None,
             fail_fast: None,
+            artifact: None,
+            log: None,
         };
 
         let result = validate_template_refs(&task);

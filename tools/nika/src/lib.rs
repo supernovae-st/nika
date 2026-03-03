@@ -64,6 +64,7 @@ pub mod runtime;
 // INFRASTRUCTURE LAYER - Storage, events, providers
 // ═══════════════════════════════════════════════════════════════
 pub mod event;
+pub mod io;
 pub mod mcp;
 pub mod provider;
 pub mod registry;

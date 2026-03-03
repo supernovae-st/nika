@@ -27,6 +27,9 @@
 //! - NIKA-230-239: Session persistence errors (v0.9.5)
 //! - NIKA-240-249: Animation/Export errors (v0.9.5)
 //!
+//! v0.18 ranges:
+//! - NIKA-280-289: Artifact errors (path validation, write, size limits)
+//!
 //! v0.6.1: Added miette for fancy error display with source spans
 
 use crate::mcp::types::McpErrorCode;
@@ -524,6 +527,34 @@ pub enum NikaError {
         help("Ensure skill file exists and is readable. Check pkg: URI format if using packages.")
     )]
     SkillLoadError { skill: String, reason: String },
+
+    // ═══════════════════════════════════════════
+    // ARTIFACT ERRORS (280-289) - v0.18 (File Persistence)
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-280] Artifact path error for '{path}': {reason}")]
+    #[diagnostic(
+        code(nika::artifact_path_error),
+        help("Check the artifact path is within the workflow directory and does not contain path traversal patterns")
+    )]
+    ArtifactPathError { path: String, reason: String },
+
+    #[error("[NIKA-281] Artifact write failed for '{path}': {reason}")]
+    #[diagnostic(
+        code(nika::artifact_write_error),
+        help("Check file permissions and disk space")
+    )]
+    ArtifactWriteError { path: String, reason: String },
+
+    #[error("[NIKA-282] Artifact size exceeds limit: {size} bytes > {max_size} bytes")]
+    #[diagnostic(
+        code(nika::artifact_size_exceeded),
+        help("Increase artifacts.max_size in workflow or reduce output size")
+    )]
+    ArtifactSizeExceeded {
+        path: String,
+        size: u64,
+        max_size: u64,
+    },
 }
 
 impl NikaError {
@@ -631,6 +662,10 @@ impl NikaError {
 
             // Skill errors (v0.15.4)
             Self::SkillLoadError { .. } => "NIKA-270",
+            // Artifact errors (v0.18)
+            Self::ArtifactPathError { .. } => "NIKA-280",
+            Self::ArtifactWriteError { .. } => "NIKA-281",
+            Self::ArtifactSizeExceeded { .. } => "NIKA-282",
             // Policy errors (v0.13.1)
             Self::PolicyViolation { .. } => "NIKA-160",
             Self::BootFailed { .. } => "NIKA-161",
@@ -861,6 +896,16 @@ impl FixSuggestion for NikaError {
             // Decompose timeout (v0.17.5)
             NikaError::DecomposeTimeout { .. } => {
                 Some("Decompose expansion timed out. Try reducing max_items or check MCP server performance.")
+            }
+            // Artifact errors (v0.18)
+            NikaError::ArtifactPathError { .. } => {
+                Some("Check the artifact path is within the workflow directory and does not contain path traversal patterns")
+            }
+            NikaError::ArtifactWriteError { .. } => {
+                Some("Check file permissions and disk space")
+            }
+            NikaError::ArtifactSizeExceeded { .. } => {
+                Some("Increase artifacts.max_size in workflow or reduce output size")
             }
         }
     }

@@ -339,6 +339,8 @@ mod tests {
             include: None,
             agents: None,
             skills: None,
+            artifacts: None,
+            log: None,
             tasks: vec![],
             flows: vec![],
         };
@@ -375,6 +377,8 @@ mod tests {
             include: None,
             agents: Some(agents),
             skills: None,
+            artifacts: None,
+            log: None,
             tasks: vec![],
             flows: vec![],
         };
@@ -425,6 +429,8 @@ temperature: 0.5
             include: None,
             agents: Some(agents),
             skills: None,
+            artifacts: None,
+            log: None,
             tasks: vec![],
             flows: vec![],
         };
@@ -465,6 +471,8 @@ temperature: 0.5
             include: None,
             agents: Some(agents),
             skills: None,
+            artifacts: None,
+            log: None,
             tasks: vec![],
             flows: vec![],
         };
@@ -505,6 +513,8 @@ You are an expert SEO content writer.
             include: None,
             agents: None,
             skills: Some(skills),
+            artifacts: None,
+            log: None,
             tasks: vec![],
             flows: vec![],
         };
@@ -533,6 +543,8 @@ You are an expert SEO content writer.
             include: None,
             agents: None,
             skills: Some(skills),
+            artifacts: None,
+            log: None,
             tasks: vec![],
             flows: vec![],
         };
@@ -596,6 +608,8 @@ system: "You are a researcher."
             include: None,
             agents: Some(agents),
             skills: Some(skills),
+            artifacts: None,
+            log: None,
             tasks: vec![],
             flows: vec![],
         };
@@ -654,6 +668,8 @@ system: "You are an agent with defaults."
             include: None,
             agents: Some(agents),
             skills: None,
+            artifacts: None,
+            log: None,
             tasks: vec![],
             flows: vec![],
         };

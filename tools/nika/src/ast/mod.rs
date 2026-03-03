@@ -10,6 +10,8 @@
 //! - `agent_def`: AgentDef (v0.6 - Reusable agent configurations)
 //! - `skill_def`: SkillDef, SkillRef (v0.6 - Prompt augmentation)
 //! - `include`: IncludeSpec (v0.9 - DAG fusion)
+//! - `artifact`: ArtifactSpec, ArtifactsConfig (v0.18 - File persistence)
+//! - `logging`: LogConfig, LogLevel (v0.18 - Level-filtered logging)
 //!
 //! These types represent the "what" - static structure parsed from YAML.
 //! For runtime execution, see the `runtime` module.
@@ -17,12 +19,14 @@
 mod action;
 mod agent;
 mod agent_def;
+pub mod artifact;
 pub mod context;
 pub mod decompose;
 pub mod include;
 pub mod include_loader;
 mod invoke;
 pub mod loader;
+pub mod logging;
 mod output;
 pub mod pkg_resolver;
 pub mod schema_validator;
@@ -49,7 +53,7 @@ pub use skill_def::{SkillDef, SkillRef};
 pub use pkg_resolver::PkgUri;
 pub use workflow::{
     Flow, FlowEndpoint, McpConfigInline, Task, Workflow, SCHEMA_V01, SCHEMA_V02, SCHEMA_V03,
-    SCHEMA_V04, SCHEMA_V05, SCHEMA_V06, SCHEMA_V07, SCHEMA_V08, SCHEMA_V09,
+    SCHEMA_V04, SCHEMA_V05, SCHEMA_V06, SCHEMA_V07, SCHEMA_V08, SCHEMA_V09, SCHEMA_V10,
 };
 // DecomposeSpec is defined in decompose.rs (v0.5 - Runtime DAG expansion)
 pub use decompose::{DecomposeSpec, DecomposeStrategy};

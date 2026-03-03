@@ -855,6 +855,8 @@ mod tests {
             include: None,
             agents: None,
             skills: None,
+            artifacts: None,
+            log: None,
             tasks: vec![],
             flows: vec![],
         }
@@ -936,6 +938,8 @@ mod tests {
             include: None,
             agents: None,
             skills: None,
+            artifacts: None,
+            log: None,
             tasks: vec![Arc::new(Task {
                 id: "echo_items".to_string(),
                 for_each: Some(serde_json::json!(["a", "b", "c"])),
@@ -951,6 +955,8 @@ mod tests {
                 },
                 use_wiring: None,
                 output: None,
+                artifact: None,
+                log: None,
             })],
             flows: vec![],
         };
@@ -996,6 +1002,8 @@ mod tests {
             include: None,
             agents: None,
             skills: None,
+            artifacts: None,
+            log: None,
             tasks: vec![Arc::new(Task {
                 id: "ordered".to_string(),
                 for_each: Some(serde_json::json!(["first", "second", "third"])),
@@ -1011,6 +1019,8 @@ mod tests {
                 },
                 use_wiring: None,
                 output: None,
+                artifact: None,
+                log: None,
             })],
             flows: vec![],
         };
@@ -1056,6 +1066,8 @@ mod tests {
             include: None,
             agents: None,
             skills: None,
+            artifacts: None,
+            log: None,
             tasks: tasks
                 .into_iter()
                 .map(|(id, cmd)| {
@@ -1074,6 +1086,8 @@ mod tests {
                                 shell: None,
                             },
                         },
+                        artifact: None,
+                        log: None,
                     })
                 })
                 .collect(),
@@ -1483,6 +1497,8 @@ mod tests {
             include: None,
             agents: None,
             skills: None,
+            artifacts: None,
+            log: None,
             tasks: vec![Arc::new(Task {
                 id: "concurrent".to_string(),
                 for_each: Some(serde_json::json!(["a", "b", "c", "d"])),
@@ -1498,6 +1514,8 @@ mod tests {
                 },
                 use_wiring: None,
                 output: None,
+                artifact: None,
+                log: None,
             })],
             flows: vec![],
         };
@@ -1532,6 +1550,8 @@ mod tests {
             include: None,
             agents: None,
             skills: None,
+            artifacts: None,
+            log: None,
             tasks: vec![Arc::new(Task {
                 id: "failfast".to_string(),
                 for_each: Some(serde_json::json!(["ok1", "FAIL", "ok2", "ok3"])),
@@ -1548,6 +1568,8 @@ mod tests {
                 },
                 use_wiring: None,
                 output: None,
+                artifact: None,
+                log: None,
             })],
             flows: vec![],
         };
@@ -1573,6 +1595,8 @@ mod tests {
             include: None,
             agents: None,
             skills: None,
+            artifacts: None,
+            log: None,
             tasks: vec![Arc::new(Task {
                 id: "continue".to_string(),
                 for_each: Some(serde_json::json!(["ok1", "ok2"])),
@@ -1588,6 +1612,8 @@ mod tests {
                 },
                 use_wiring: None,
                 output: None,
+                artifact: None,
+                log: None,
             })],
             flows: vec![],
         };

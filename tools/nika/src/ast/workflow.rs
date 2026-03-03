@@ -48,6 +48,9 @@ pub const SCHEMA_V08: &str = "nika/workflow@0.8";
 /// Expected schema version for v0.9 workflows (context:, include: DAG fusion)
 pub const SCHEMA_V09: &str = "nika/workflow@0.9";
 
+/// Expected schema version for v0.10 workflows (artifacts:, log:)
+pub const SCHEMA_V10: &str = "nika/workflow@0.10";
+
 /// Inline MCP server configuration (v0.2)
 ///
 /// Allows workflows to define MCP servers directly in YAML.
@@ -100,6 +103,12 @@ struct WorkflowRaw {
     /// Skill file mappings for prompt augmentation (v0.6)
     #[serde(default)]
     pub skills: Option<FxHashMap<String, super::skill_def::SkillDef>>,
+    /// Artifact configuration for file persistence (v0.18)
+    #[serde(default)]
+    pub artifacts: Option<super::artifact::ArtifactsConfig>,
+    /// Log configuration (v0.18)
+    #[serde(default)]
+    pub log: Option<super::logging::LogConfig>,
     pub tasks: Vec<Task>,
     #[serde(default)]
     pub flows: Vec<Flow>,
@@ -136,6 +145,14 @@ pub struct Workflow {
     ///
     /// Named skill files that can be injected into agent system prompts.
     pub skills: Option<FxHashMap<String, super::skill_def::SkillDef>>,
+    /// Artifact configuration for file persistence (v0.18)
+    ///
+    /// Workflow-level defaults for artifact output.
+    pub artifacts: Option<super::artifact::ArtifactsConfig>,
+    /// Log configuration (v0.18)
+    ///
+    /// Workflow-level logging configuration.
+    pub log: Option<super::logging::LogConfig>,
     pub tasks: Vec<Arc<Task>>,
     pub flows: Vec<Flow>,
 }
@@ -155,6 +172,8 @@ impl<'de> Deserialize<'de> for Workflow {
             include: raw.include,
             agents: raw.agents,
             skills: raw.skills,
+            artifacts: raw.artifacts,
+            log: raw.log,
             tasks: raw.tasks.into_iter().map(Arc::new).collect(),
             flows: raw.flows,
         })
@@ -204,10 +223,11 @@ impl Workflow {
             && self.schema != SCHEMA_V07
             && self.schema != SCHEMA_V08
             && self.schema != SCHEMA_V09
+            && self.schema != SCHEMA_V10
         {
             return Err(NikaError::InvalidSchema {
                 expected: format!(
-                    "{} or {} or {} or {} or {} or {} or {} or {} or {}",
+                    "{} or {} or {} or {} or {} or {} or {} or {} or {} or {}",
                     SCHEMA_V01,
                     SCHEMA_V02,
                     SCHEMA_V03,
@@ -216,7 +236,8 @@ impl Workflow {
                     SCHEMA_V06,
                     SCHEMA_V07,
                     SCHEMA_V08,
-                    SCHEMA_V09
+                    SCHEMA_V09,
+                    SCHEMA_V10
                 ),
                 actual: self.schema.clone(),
             });
@@ -313,6 +334,17 @@ pub struct Task {
     pub fail_fast: Option<bool>,
     #[serde(flatten)]
     pub action: TaskAction,
+    /// Artifact output configuration for this task (v0.18)
+    ///
+    /// Can be a simple boolean to enable/disable, a single output spec,
+    /// or an array of output specs for multiple artifacts.
+    #[serde(default)]
+    pub artifact: Option<super::artifact::ArtifactSpec>,
+    /// Task-level logging configuration (v0.18)
+    ///
+    /// Overrides workflow-level log settings for this task.
+    #[serde(default)]
+    pub log: Option<super::logging::LogConfig>,
 }
 
 impl Task {

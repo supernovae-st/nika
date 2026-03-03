@@ -2338,6 +2338,41 @@ impl TuiState {
                 ));
                 self.dirty.notifications = true;
             }
+
+            // ═══════════════════════════════════════════
+            // ARTIFACT EVENTS (v0.18)
+            // ═══════════════════════════════════════════
+            EventKind::ArtifactWritten {
+                task_id,
+                path,
+                size,
+                ..
+            } => {
+                let size_str = if *size < 1024 {
+                    format!("{} B", size)
+                } else if *size < 1024 * 1024 {
+                    format!("{:.1} KB", *size as f64 / 1024.0)
+                } else {
+                    format!("{:.1} MB", *size as f64 / (1024.0 * 1024.0))
+                };
+                self.add_notification(Notification::success(
+                    format!("💾 [{}] Artifact written: {} ({})", task_id, path, size_str),
+                    timestamp_ms,
+                ));
+                self.dirty.notifications = true;
+            }
+
+            EventKind::ArtifactFailed {
+                task_id,
+                path,
+                reason,
+            } => {
+                self.add_notification(Notification::error(
+                    format!("💾 [{}] Artifact failed: {} - {}", task_id, path, reason),
+                    timestamp_ms,
+                ));
+                self.dirty.notifications = true;
+            }
         }
     }
 
