@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Structured Output Enforcement** — 3-layer validation for JSON output
+  - `SchemaRef` enum: supports inline JSON Schema objects or file path references
+  - `validate_schema_ref()`: async schema validation using jsonschema crate
+  - `DynamicSubmitTool`: LLM-side schema enforcement via tool injection
+  - `format_validation_errors()`: formatted error feedback for retry loops
+- **for_each binding references** — Dynamic iteration over task outputs
+  - `$alias` format: `for_each: "$locales"`
+  - Template format: `for_each: "{{use.locales}}"`
+- **extended_thinking support** — Claude deep reasoning for infer and agent verbs
+  - `extended_thinking: true` to enable thinking mode
+  - `thinking_budget: 10000` to set token budget for thinking
+
+### Fixed
+
+- **Empty parent path handling** — Include expansion now handles relative filenames
+  with empty parent paths correctly
+
+### Changed
+
+- **OutputPolicy schema** — Updated JSON Schema with `oneOf` for schema field
+  supporting both inline objects and file path strings
+- **Test helpers** — Updated FetchParams and InferParams with new required fields
+
 ## [0.18.0] - 2026-03-03
 
 ```
