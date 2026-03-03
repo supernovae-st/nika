@@ -826,15 +826,97 @@ impl TaskExecutor {
             request = request.timeout(std::time::Duration::from_secs(timeout_secs));
         }
 
-        let response = request
-            .send()
-            .await
-            .map_err(|e| NikaError::Execution(format!("HTTP request failed: {}", e)))?;
+        // Retry configuration (v0.17.2)
+        let max_attempts = fetch.retry.as_ref().map_or(1, |r| r.max_attempts.max(1));
+        let backoff_ms = fetch.retry.as_ref().map_or(1000, |r| r.backoff_ms);
+        let multiplier = fetch.retry.as_ref().map_or(2.0, |r| r.multiplier);
 
-        response
-            .text()
-            .await
-            .map_err(|e| NikaError::Execution(format!("Failed to read response: {}", e)))
+        // Check if request can be cloned (required for retry)
+        let can_retry = request.try_clone().is_some();
+        if !can_retry && max_attempts > 1 {
+            tracing::debug!(
+                task_id = %task_id,
+                "fetch: retry disabled (request body cannot be cloned)"
+            );
+        }
+
+        let effective_max_attempts = if can_retry { max_attempts } else { 1 };
+        let mut last_error: Option<NikaError> = None;
+        let mut current_request = Some(request);
+
+        for attempt in 1..=effective_max_attempts {
+            // Get the request for this attempt
+            let req = if attempt == 1 {
+                // First attempt: use the original request
+                current_request.take().expect("request should exist on first attempt")
+            } else {
+                // Subsequent attempts: we already verified we can clone
+                // The original request was moved, but we stored a clone
+                current_request.take().expect("cloned request should exist")
+            };
+
+            // Clone for potential next retry (before sending consumes the request)
+            if attempt < effective_max_attempts {
+                current_request = req.try_clone();
+            }
+
+            match req.send().await {
+                Ok(response) => {
+                    // Check for server errors that should be retried
+                    if response.status().is_server_error() && attempt < effective_max_attempts {
+                        let status = response.status();
+                        tracing::warn!(
+                            task_id = %task_id,
+                            attempt = attempt,
+                            status = %status,
+                            "fetch: server error, retrying..."
+                        );
+                        last_error = Some(NikaError::Execution(format!(
+                            "HTTP server error: {}",
+                            status
+                        )));
+
+                        // Exponential backoff
+                        let delay_ms = backoff_ms * (multiplier.powi((attempt - 1) as i32) as u64);
+                        tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                        continue;
+                    }
+
+                    // Success or non-retryable error status
+                    return response
+                        .text()
+                        .await
+                        .map_err(|e| NikaError::Execution(format!("Failed to read response: {}", e)));
+                }
+                Err(e) => {
+                    // Network errors are retryable
+                    if attempt < effective_max_attempts {
+                        tracing::warn!(
+                            task_id = %task_id,
+                            attempt = attempt,
+                            error = %e,
+                            "fetch: request failed, retrying..."
+                        );
+                        last_error = Some(NikaError::Execution(format!("HTTP request failed: {}", e)));
+
+                        // Exponential backoff
+                        let delay_ms = backoff_ms * (multiplier.powi((attempt - 1) as i32) as u64);
+                        tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                        continue;
+                    }
+
+                    return Err(NikaError::Execution(format!(
+                        "HTTP request failed after {} attempts: {}",
+                        effective_max_attempts, e
+                    )));
+                }
+            }
+        }
+
+        // Should not reach here, but just in case
+        Err(last_error.unwrap_or_else(|| {
+            NikaError::Execution("HTTP request failed: unknown error".to_string())
+        }))
     }
 
     /// Execute an invoke action (MCP tool call or resource read)
@@ -1418,6 +1500,7 @@ mod tests {
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
                 timeout: None,
+                retry: None,
             },
         };
 
@@ -1443,6 +1526,7 @@ mod tests {
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
                 timeout: None,
+                retry: None,
             },
         };
 
@@ -2030,6 +2114,7 @@ mod tests {
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
                 timeout: None,
+                retry: None,
             },
         };
         assert_eq!(action_type(&fetch_action), "fetch");
@@ -2191,6 +2276,7 @@ mod tests {
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
                 timeout: None,
+                retry: None,
             },
         };
 
@@ -2227,6 +2313,7 @@ mod tests {
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
                 timeout: None,
+                retry: None,
             },
         };
 

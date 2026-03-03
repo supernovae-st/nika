@@ -829,6 +829,7 @@ flows:
                     headers: rustc_hash::FxHashMap::default(),
                     body: None,
                     timeout: None,
+                    retry: None,
                 },
             },
             use_wiring: Some({

@@ -172,6 +172,34 @@ impl<'de> Deserialize<'de> for ExecParams {
     }
 }
 
+/// Configuration for retry behavior with exponential backoff
+#[derive(Debug, Clone, Deserialize, Default, PartialEq)]
+pub struct RetryConfig {
+    /// Maximum number of retry attempts (default: 3)
+    #[serde(default = "default_max_attempts")]
+    pub max_attempts: u32,
+
+    /// Initial backoff in milliseconds (default: 1000)
+    #[serde(default = "default_backoff_ms")]
+    pub backoff_ms: u64,
+
+    /// Backoff multiplier for exponential backoff (default: 2.0)
+    #[serde(default = "default_multiplier")]
+    pub multiplier: f64,
+}
+
+fn default_max_attempts() -> u32 {
+    3
+}
+
+fn default_backoff_ms() -> u64 {
+    1000
+}
+
+fn default_multiplier() -> f64 {
+    2.0
+}
+
 /// Fetch action - HTTP request
 #[derive(Debug, Clone, Deserialize)]
 pub struct FetchParams {
@@ -183,6 +211,9 @@ pub struct FetchParams {
     pub body: Option<String>,
     /// Request timeout in seconds (matches JSON schema)
     pub timeout: Option<u64>,
+    /// Optional retry configuration for failed requests
+    #[serde(default)]
+    pub retry: Option<RetryConfig>,
 }
 
 fn default_method() -> String {
@@ -1029,6 +1060,7 @@ agent:
                 headers: FxHashMap::default(),
                 body: None,
                 timeout: None,
+                retry: None,
             },
         };
         assert_eq!(action.verb_name(), "fetch");
@@ -1245,6 +1277,7 @@ fetch:
                 headers: FxHashMap::default(),
                 body: None,
                 timeout: None,
+                retry: None,
             },
         };
 
