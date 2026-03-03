@@ -1,15 +1,18 @@
-//! Output Handling - task result processing (v0.1)
+//! Output Handling - task result processing (v0.2)
 //!
 //! Extracted from runner.rs for cleaner separation:
 //! - `make_task_result`: Convert raw output to TaskResult with format handling
 //! - `validate_schema`: Validate JSON output against JSON Schema (with caching)
+//! - `validate_schema_ref`: Validate against SchemaRef (inline or file)
 //! - `extract_json_from_output`: Extract JSON from markdown code blocks (v0.7.2)
+//! - `format_validation_errors`: Format errors for retry feedback
 
 use std::sync::{Arc, LazyLock};
 
 use dashmap::DashMap;
 use serde_json::Value;
 
+use crate::ast::output::SchemaRef;
 use crate::ast::OutputFormat;
 use crate::error::NikaError;
 use crate::store::TaskResult;
@@ -136,8 +139,8 @@ pub async fn make_task_result(
             };
 
             // Validate against schema if declared
-            if let Some(schema_path) = &policy.schema {
-                if let Err(e) = validate_schema(&json_value, schema_path).await {
+            if let Some(schema_ref) = &policy.schema {
+                if let Err(e) = validate_schema_ref(&json_value, schema_ref).await {
                     return TaskResult::failed(e.to_string(), duration);
                 }
             }
@@ -192,6 +195,65 @@ pub async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), Nik
     }
 }
 
+/// Validate a JSON value against a SchemaRef (inline or file)
+pub async fn validate_schema_ref(value: &Value, schema_ref: &SchemaRef) -> Result<(), NikaError> {
+    match schema_ref {
+        SchemaRef::File(path) => validate_schema(value, path).await,
+        SchemaRef::Inline(schema) => validate_inline_schema(value, schema),
+    }
+}
+
+/// Validate against an inline JSON Schema
+pub fn validate_inline_schema(value: &Value, schema: &Value) -> Result<(), NikaError> {
+    let compiled = jsonschema::validator_for(schema).map_err(|e| NikaError::SchemaFailed {
+        details: format!("Invalid inline schema: {e}"),
+    })?;
+
+    let errors: Vec<_> = compiled.iter_errors(value).collect();
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        let error_msgs: Vec<String> = errors
+            .iter()
+            .map(|e| format!("- {}: {}", e.instance_path, e))
+            .collect();
+        Err(NikaError::SchemaFailed {
+            details: format!("Output validation failed:\n{}", error_msgs.join("\n")),
+        })
+    }
+}
+
+/// Format validation errors for retry feedback to LLM
+pub fn format_validation_errors(value: &Value, schema: &Value) -> String {
+    let compiled = match jsonschema::validator_for(schema) {
+        Ok(c) => c,
+        Err(e) => return format!("Invalid schema: {e}"),
+    };
+
+    let errors: Vec<_> = compiled.iter_errors(value).collect();
+    if errors.is_empty() {
+        return "No validation errors".to_string();
+    }
+
+    errors
+        .iter()
+        .map(|e| {
+            format!(
+                "- Path '{}': {} (got: {})",
+                e.instance_path,
+                e,
+                serde_json::to_string(&*e.instance).unwrap_or_default()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Extract JSON from LLM output - public version for executor retry loop
+pub fn extract_json(output: &str) -> Result<Value, String> {
+    extract_json_from_output(output)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,7 +299,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn make_task_result_validates_json() {
+    async fn make_task_result_validates_json_file_schema() {
         use crate::ast::OutputPolicy;
 
         let mut schema_file = NamedTempFile::new().unwrap();
@@ -246,7 +308,9 @@ mod tests {
 
         let policy = OutputPolicy {
             format: OutputFormat::Json,
-            schema: Some(schema_path),
+            schema: Some(SchemaRef::File(schema_path)),
+            max_retries: None,
+            save: None,
         };
 
         // Valid JSON object
@@ -261,6 +325,44 @@ mod tests {
         // Invalid JSON
         let result = make_task_result(
             "not json".to_string(),
+            Some(&policy),
+            Duration::from_millis(100),
+        )
+        .await;
+        assert!(!result.is_success());
+    }
+
+    #[tokio::test]
+    async fn make_task_result_validates_json_inline_schema() {
+        use crate::ast::OutputPolicy;
+
+        let inline_schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" }
+            },
+            "required": ["name"]
+        });
+
+        let policy = OutputPolicy {
+            format: OutputFormat::Json,
+            schema: Some(SchemaRef::Inline(inline_schema)),
+            max_retries: None,
+            save: None,
+        };
+
+        // Valid JSON with required field
+        let result = make_task_result(
+            r#"{"name": "test"}"#.to_string(),
+            Some(&policy),
+            Duration::from_millis(100),
+        )
+        .await;
+        assert!(result.is_success());
+
+        // Invalid JSON missing required field
+        let result = make_task_result(
+            r#"{"other": "value"}"#.to_string(),
             Some(&policy),
             Duration::from_millis(100),
         )
@@ -296,6 +398,8 @@ mod tests {
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None, // No schema validation
+            max_retries: None,
+            save: None,
         };
 
         let result = make_task_result(
@@ -319,6 +423,8 @@ mod tests {
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None,
+            max_retries: None,
+            save: None,
         };
 
         let result = make_task_result(
@@ -345,6 +451,8 @@ mod tests {
         let policy = OutputPolicy {
             format: OutputFormat::Text,
             schema: None,
+            max_retries: None,
+            save: None,
         };
 
         // Even valid JSON should be treated as text
@@ -465,6 +573,8 @@ mod tests {
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None,
+            max_retries: None,
+            save: None,
         };
 
         // Generate large JSON array
@@ -485,6 +595,8 @@ mod tests {
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None,
+            max_retries: None,
+            save: None,
         };
 
         // JSON with various Unicode characters
@@ -543,6 +655,8 @@ mod tests {
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None,
+            max_retries: None,
+            save: None,
         };
 
         let result = make_task_result(
@@ -658,6 +772,8 @@ This is based on ancient wisdom."#;
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None,
+            max_retries: None,
+            save: None,
         };
 
         // Simulate LLM output with markdown code block
@@ -692,6 +808,8 @@ Enjoy your reading!"#;
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None,
+            max_retries: None,
+            save: None,
         };
 
         // v0.12.1: Empty output with JSON format returns null
@@ -709,6 +827,8 @@ Enjoy your reading!"#;
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None,
+            max_retries: None,
+            save: None,
         };
 
         // v0.12.1: Whitespace-only output also returns null
@@ -724,5 +844,53 @@ Enjoy your reading!"#;
             result.output.is_null(),
             "Whitespace-only output should return null"
         );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // INLINE SCHEMA VALIDATION TESTS
+    // ══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn validate_schema_ref_inline_success() {
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" }
+            },
+            "required": ["name"]
+        });
+        let value = serde_json::json!({"name": "test"});
+        let result = validate_schema_ref(&value, &SchemaRef::Inline(schema)).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn validate_schema_ref_inline_failure() {
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" }
+            },
+            "required": ["name"]
+        });
+        let value = serde_json::json!({"other": "field"});
+        let result = validate_schema_ref(&value, &SchemaRef::Inline(schema)).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("required") || err.contains("name"), "Error should mention missing required field: {}", err);
+    }
+
+    #[test]
+    fn format_validation_errors_shows_details() {
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "age": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["age"]
+        });
+        let value = serde_json::json!({"age": -5});
+        let errors = format_validation_errors(&value, &schema);
+        assert!(errors.contains("-5"), "Should show the invalid value");
     }
 }

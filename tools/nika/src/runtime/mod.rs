@@ -25,7 +25,7 @@ pub mod chat_workflow;
 pub mod context_loader;
 mod executor;
 pub mod hitl;
-mod output;
+pub mod output;
 pub mod policy;
 pub mod resolver;
 mod rig_agent_loop;
