@@ -129,6 +129,10 @@ jobs:
           cache-on-failure: true
           shared-key: release-${{ matrix.target }}
 
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
       - name: Build release binary (native)
         if: ${{ !matrix.cross }}
         run: cargo build --manifest-path tools/nika/Cargo.toml --release --target ${{ matrix.target }}
