@@ -7,7 +7,7 @@
 # Generate culturally-native content from the knowledge graph.
 #
 # Setup:
-#   1. Start Neo4j: cd ../novanet-dev && pnpm infra:up && pnpm infra:seed
+#   1. Start Neo4j: cd ../novanet && pnpm infra:up && pnpm infra:seed
 #   2. Run: cargo run -- run examples/quickstart-multilang.nika.yaml
 #
 # Expected output: Content generated in English, French, and Spanish
