@@ -23,7 +23,7 @@ use crate::dag::{validate_use_wiring, Dag};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog, TraceWriter};
 use crate::store::{DataStore, TaskResult};
-use crate::util::intern;
+use crate::util::{intern, DECOMPOSE_TIMEOUT};
 
 use super::context_loader::load_context;
 use super::executor::TaskExecutor;
@@ -510,41 +510,57 @@ impl Runner {
 
                 // Check if task has decompose (v0.5) - expands to for_each items
                 // decompose takes priority over for_each (they're mutually exclusive)
-                let for_each_items: Option<Vec<Value>> =
-                    if let Some(decompose) = task.decompose_spec() {
-                        debug!(
-                            task_id = %task.id,
-                            strategy = ?decompose.strategy,
-                            traverse = %decompose.traverse,
-                            "Expanding decompose modifier"
-                        );
-                        // Resolve bindings for decompose source
-                        let bindings = ResolvedBindings::from_wiring_spec(
-                            task.use_wiring.as_ref(),
-                            &self.datastore,
-                        )
-                        .unwrap_or_default();
-                        // Expand decompose using executor
-                        match self
-                            .executor
-                            .expand_decompose(decompose, &bindings, &self.datastore)
-                            .await
-                        {
-                            Ok(items) => Some(items),
-                            Err(e) => {
-                                // Store error and continue to next task
-                                self.datastore.insert(
-                                    intern(&task.id),
-                                    TaskResult::failed(e.to_string(), std::time::Duration::ZERO),
-                                );
-                                continue;
-                            }
+                let for_each_items: Option<Vec<Value>> = if let Some(decompose) =
+                    task.decompose_spec()
+                {
+                    debug!(
+                        task_id = %task.id,
+                        strategy = ?decompose.strategy,
+                        traverse = %decompose.traverse,
+                        "Expanding decompose modifier"
+                    );
+                    // Resolve bindings for decompose source
+                    let bindings = ResolvedBindings::from_wiring_spec(
+                        task.use_wiring.as_ref(),
+                        &self.datastore,
+                    )
+                    .unwrap_or_default();
+                    // Expand decompose using executor (with timeout to prevent silent hangs)
+                    let decompose_result = tokio::time::timeout(
+                        DECOMPOSE_TIMEOUT,
+                        self.executor
+                            .expand_decompose(decompose, &bindings, &self.datastore),
+                    )
+                    .await;
+
+                    match decompose_result {
+                        Ok(Ok(items)) => Some(items),
+                        Ok(Err(e)) => {
+                            // Decompose expansion failed
+                            self.datastore.insert(
+                                intern(&task.id),
+                                TaskResult::failed(e.to_string(), std::time::Duration::ZERO),
+                            );
+                            continue;
                         }
-                    } else if let Some(for_each) = &task.for_each {
-                        for_each.as_array().cloned()
-                    } else {
-                        None
-                    };
+                        Err(_timeout) => {
+                            // Decompose expansion timed out (v0.17.5)
+                            let timeout_error = NikaError::DecomposeTimeout {
+                                task_id: task.id.clone(),
+                                timeout_secs: DECOMPOSE_TIMEOUT.as_secs(),
+                            };
+                            self.datastore.insert(
+                                intern(&task.id),
+                                TaskResult::failed(timeout_error.to_string(), DECOMPOSE_TIMEOUT),
+                            );
+                            continue;
+                        }
+                    }
+                } else if let Some(for_each) = &task.for_each {
+                    for_each.as_array().cloned()
+                } else {
+                    None
+                };
 
                 // Check if task has for_each (v0.3 parallelism) or decompose items
                 if let Some(items) = for_each_items {
