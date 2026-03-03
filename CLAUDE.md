@@ -99,6 +99,46 @@ Nika is the "body" of the SuperNovae AGI architecture, executing workflows that 
 - 11 builtin tools total (6 core + 5 file)
 - Zero clippy warnings, comprehensive test coverage
 
+---
+
+## Release Strategy
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  📦 RELEASE GRANULARITY RULES                                                  ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  RULE 1: 1 Module = 1 Release                                                 ║
+║  ─────────────────────────────────────────────────────────────────────────    ║
+║  Each logical module gets its own PATCH release.                              ║
+║  Example: io::atomic, io::security, io::template → 3 separate releases        ║
+║                                                                               ║
+║  RULE 2: Milestone Tags                                                       ║
+║  ─────────────────────────────────────────────────────────────────────────    ║
+║  When a feature has multiple milestones, create milestone tags:               ║
+║  v0.X.0-m1-name, v0.X.0-m2-name, v0.X.0-m3-name, v0.X.0 (release)            ║
+║                                                                               ║
+║  RULE 3: Beautiful CHANGELOGs                                                 ║
+║  ─────────────────────────────────────────────────────────────────────────    ║
+║  Major releases use ASCII art boxes for visual clarity.                       ║
+║  Each milestone documented with its own section.                              ║
+║                                                                               ║
+║  RULE 4: Version Lock                                                         ║
+║  ─────────────────────────────────────────────────────────────────────────    ║
+║  Nika will NEVER be v1.0.0. Forever 0.x.x.                                    ║
+║  PATCH = bug fixes, MINOR = new features, no MAJOR.                           ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+**Tag Naming Convention:**
+
+| Type | Format | Example |
+|------|--------|---------|
+| Release | `vX.Y.Z` | `v0.18.0` |
+| Milestone | `vX.Y.Z-mN-name` | `v0.18.0-m1-atomic` |
+| Pre-release | `vX.Y.Z-rc.N` | `v0.18.0-rc.1` |
+
 ```
 CRITICAL: 5 Semantic Verbs Only
 

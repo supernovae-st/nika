@@ -9,59 +9,174 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.18.0] - 2026-03-03
 
-### Added
-- **Artifact System** - Complete file persistence infrastructure for task outputs (v0.18)
-  - `io::atomic` module: Atomic file writes with temp+fsync+rename pattern for crash safety
-    - `write_atomic()`: Guaranteed atomic overwrites
-    - `write_unique()`: Auto-suffix for collision avoidance
-    - `write_fail()`: Fail if file already exists
-    - `write_append()`: Append to existing files
-  - `io::security` module: Path validation to prevent traversal attacks
-    - `validate_artifact_path()`: Validates paths stay within artifact directory
-    - `validate_path_components()`: Rejects null bytes and control characters
-    - `normalize_path()`: Safe path normalization without filesystem access
-    - Max path length enforcement (4096 chars)
-  - `io::template` module: Variable interpolation for artifact paths
-    - Built-in variables: `{{task_id}}`, `{{workflow_name}}`, `{{date}}`, `{{time}}`, `{{timestamp}}`, `{{uuid}}`
-    - Custom format specifiers: `{{date.YYYY-MM-DD}}`, `{{time.HH-mm-ss}}`
-    - Custom variables via `with_var()` and `with_vars()`
-  - `io::writer` module: Main `ArtifactWriter` combining all io modules
-    - `WriteRequest` builder with content, format, and custom variables
-    - `WriteResult` with final path, size, and format metadata
-    - Configurable size limits (default 10 MB)
-- **Artifact Events** - Event sourcing for artifact operations
-  - `ArtifactWritten` event with task_id, path, size, format
-  - `ArtifactFailed` event with task_id, path, reason
-  - TUI notifications for artifact operations
-- **Error Codes (NIKA-280-289)** - New error variants for artifacts
-  - `NIKA-280`: ArtifactPathError (path traversal detected)
-  - `NIKA-281`: ArtifactSizeExceeded (content exceeds limit)
-  - `NIKA-282`: ArtifactWriteError (write operation failed)
-  - FixSuggestion hints for all artifact errors
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🦋 NIKA v0.18.0 — ARTIFACTS SYSTEM                                           ║
+║  Complete file persistence infrastructure for task outputs                     ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  ┌─────────────────────────────────────────────────────────────────────────┐  ║
+║  │  MILESTONES                                                             │  ║
+║  ├─────────────────────────────────────────────────────────────────────────┤  ║
+║  │  M1 🔧 io::atomic    — Atomic writes with crash safety                  │  ║
+║  │  M2 🔒 io::security  — Path validation, traversal prevention            │  ║
+║  │  M3 📝 io::template  — Variable interpolation ({{task_id}}, etc.)       │  ║
+║  │  M4 ✨ io::writer    — ArtifactWriter combining all modules             │  ║
+║  └─────────────────────────────────────────────────────────────────────────┘  ║
+║                                                                               ║
+║  Tags: v0.18.0-m1-atomic, v0.18.0-m2-security, v0.18.0-m3-template,          ║
+║        v0.18.0-m4-writer, v0.18.0 (release)                                   ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
 
-### Security
-- **Template Injection Prevention** - Custom variable values sanitized
-  - Rejects `/`, `\`, `\0`, `..`, `~` in custom variable values
-  - Prevents path traversal via template variable injection
-  - `with_var()` and `with_vars()` now return `Result<Self, NikaError>`
-- **TOCTOU Mitigation** - Double validation for path security
-  - Initial validation before directory creation
-  - Final validation with canonicalize() after directories exist
-  - Reduces window between validation and write
-- **JSON Format Validation** - Content validation before write
-  - `OutputFormat::Json` content validated with serde_json
-  - Invalid JSON rejected with descriptive error
-- **Empty Variable Name Rejection** - Edge case hardening
-  - Empty variable names now rejected with clear error
+### M1: io::atomic — Atomic File Writes
 
-### Changed
-- `io` module now exported in `lib.rs` infrastructure layer
-- Error code documentation updated for v0.18 ranges
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  🔧 ATOMIC WRITES                                 Tag: v0.18.0-m1-atomic       │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Pattern: temp file → fsync → atomic rename                                     │
+│                                                                                 │
+│  Functions:                                                                     │
+│  ├── write_atomic()   — Guaranteed atomic overwrites                            │
+│  ├── write_unique()   — Auto-suffix for collision avoidance                     │
+│  ├── write_fail()     — Fail if file already exists                             │
+│  └── write_append()   — Append to existing files                                │
+│                                                                                 │
+│  Tests: 16 new                                                                  │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### M2: io::security — Path Validation
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  🔒 PATH SECURITY                                 Tag: v0.18.0-m2-security     │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Prevents traversal attacks and malicious paths                                 │
+│                                                                                 │
+│  Functions:                                                                     │
+│  ├── validate_artifact_path()     — Stays within artifact directory             │
+│  ├── validate_path_components()   — Rejects null bytes, control chars           │
+│  ├── normalize_path()             — Safe normalization (no fs access)           │
+│  └── Max path length              — 4096 chars enforced                         │
+│                                                                                 │
+│  Tests: 17 new                                                                  │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### M3: io::template — Variable Interpolation
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  📝 TEMPLATE RESOLUTION                           Tag: v0.18.0-m3-template     │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Built-in Variables:                                                            │
+│  ├── {{task_id}}        — Current task identifier                               │
+│  ├── {{workflow_name}}  — Workflow name                                         │
+│  ├── {{date}}           — ISO date (YYYY-MM-DD)                                 │
+│  ├── {{time}}           — ISO time (HH-mm-ss)                                   │
+│  ├── {{timestamp}}      — Unix timestamp                                        │
+│  └── {{uuid}}           — Random UUID v4                                        │
+│                                                                                 │
+│  Custom Formats:                                                                │
+│  ├── {{date.YYYY-MM-DD}}                                                        │
+│  └── {{time.HH-mm-ss}}                                                          │
+│                                                                                 │
+│  API: with_var(), with_vars()                                                   │
+│  Tests: 20 new                                                                  │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### M4: io::writer — ArtifactWriter
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  ✨ ARTIFACT WRITER                               Tag: v0.18.0-m4-writer       │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Main entry point combining all io modules                                      │
+│                                                                                 │
+│  API:                                                                           │
+│  ├── ArtifactWriter::new()    — Create with base directory                      │
+│  ├── WriteRequest builder     — Content, format, custom vars                    │
+│  ├── WriteResult              — Path, size, format metadata                     │
+│  └── with_max_size()          — Configurable limits (default 10 MB)             │
+│                                                                                 │
+│  Tests: 15 new                                                                  │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Security Hardening
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  🛡️ SECURITY HARDENING                                                         │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Template Injection Prevention:                                                 │
+│  ├── Rejects /, \, \0, .., ~ in custom variable values                          │
+│  ├── with_var() now returns Result<Self, NikaError>                             │
+│  └── Prevents path traversal via template injection                             │
+│                                                                                 │
+│  TOCTOU Mitigation:                                                             │
+│  ├── Initial validation before directory creation                               │
+│  ├── Final validation with canonicalize() after dirs exist                      │
+│  └── Reduces window between validation and write                                │
+│                                                                                 │
+│  JSON Format Validation:                                                        │
+│  ├── OutputFormat::Json validated with serde_json                               │
+│  └── Invalid JSON rejected with descriptive error                               │
+│                                                                                 │
+│  Edge Cases:                                                                    │
+│  └── Empty variable names rejected with clear error                             │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Events & Errors
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  📊 EVENTS                              │  ❌ ERROR CODES (NIKA-280-289)       │
+├─────────────────────────────────────────┼─────────────────────────────────────────┤
+│                                         │                                         │
+│  ArtifactWritten                        │  NIKA-280: ArtifactPathError            │
+│  ├── task_id                            │  └── Path traversal detected            │
+│  ├── path                               │                                         │
+│  ├── size                               │  NIKA-281: ArtifactSizeExceeded         │
+│  └── format                             │  └── Content exceeds max_size           │
+│                                         │                                         │
+│  ArtifactFailed                         │  NIKA-282: ArtifactWriteError           │
+│  ├── task_id                            │  └── Write operation failed             │
+│  ├── path                               │                                         │
+│  └── reason                             │  All errors include FixSuggestion       │
+│                                         │                                         │
+└─────────────────────────────────────────┴─────────────────────────────────────────┘
+```
 
 ### Statistics
-- **68+ new tests** (atomic: 16, security: 17, template: 20, writer: 15)
-- **Zero clippy warnings**
-- **All existing tests passing**
+
+```
+╭─────────────────────────────────────────────────────────────────────────────────╮
+│  📊 v0.18.0 STATISTICS                                                          │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Tests:    68 new (atomic: 16, security: 17, template: 20, writer: 15)          │
+│  Total:    4,328 tests passing                                                  │
+│  Clippy:   Zero warnings                                                        │
+│  Coverage: All existing tests passing                                           │
+│                                                                                 │
+╰─────────────────────────────────────────────────────────────────────────────────╯
+```
 
 ## [0.17.5] - 2026-03-03
 

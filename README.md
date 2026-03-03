@@ -14,7 +14,7 @@
 <sup>✨ Transform YAML into intelligent AI workflows ✨</sup>
 
 <!-- Primary Badges -->
-[![Version](https://img.shields.io/badge/v0.17.5-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.18.0-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
 [![Website](https://img.shields.io/badge/🦋_nika.sh-8b5cf6?style=for-the-badge)](https://nika.sh)
@@ -22,7 +22,7 @@
 <!-- GitHub Badges -->
 [![CI](https://img.shields.io/github/actions/workflow/status/supernovae-st/nika/ci.yml?style=flat-square&logo=github&label=CI)](https://github.com/supernovae-st/nika/actions)
 [![Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=flat-square&logo=github&label=Stars)](https://github.com/supernovae-st/nika/stargazers)
-[![Tests](https://img.shields.io/badge/tests-3,449_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/tests-4,328_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
 [![LOC](https://img.shields.io/badge/LOC-106k-0ea5e9?style=flat-square&logo=codeclimate)](https://github.com/supernovae-st/nika)
 
 <!-- Feature Badges -->
@@ -68,7 +68,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 <!-- TUI Screenshot as ASCII Art -->
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  🦋 Nika Studio                                                v0.17.5  ⌘K  ?  │
+│  🦋 Nika Studio                                                v0.18.0  ⌘K  ?  │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
 │ ┌─ 📁 Files ───────────┐ ┌─ 📝 Editor ──────────────────────────────────────────┐  │
 │ │ ▸ workflows/         │ │  1 │ schema: "nika/workflow@0.9"                    │  │
@@ -97,52 +97,67 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 
 <br>
 
-## ✨ What's New in v0.17.5
+## ✨ What's New in v0.18.0
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🦋 v0.18.0 — ARTIFACTS SYSTEM                                                ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  MILESTONES:                                                                  ║
+║  ├── M1 🔧 io::atomic    — Atomic writes with crash safety                   ║
+║  ├── M2 🔒 io::security  — Path validation, traversal prevention             ║
+║  ├── M3 📝 io::template  — Variable interpolation ({{task_id}}, etc.)        ║
+║  └── M4 ✨ io::writer    — ArtifactWriter combining all modules              ║
+║                                                                               ║
+║  SECURITY:                                                                    ║
+║  ├── Template injection prevention                                           ║
+║  ├── TOCTOU mitigation (double validation)                                   ║
+║  └── JSON format validation before write                                     ║
+║                                                                               ║
+║  STATS: 68 new tests | 4,328 total | Zero clippy warnings                    ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
 
 <table>
 <tr>
 <td width="50%">
 
-### 📦 pkg: Package Includes
+### 📦 Artifact Writer
 
-```yaml
-schema: nika/workflow@0.9
-include:
-  - pkg: "@workflows/auth"
-    prefix: auth_
-  - path: ./local/setup.nika.yaml
-    prefix: setup_
-tasks:
-  - id: main
-    infer: "Main logic"
-    depends_on: [auth_login, setup_init]
+```rust
+let writer = ArtifactWriter::new(
+    "/project/.nika/artifacts",
+    "my-workflow"
+)?;
+
+let request = WriteRequest::new(
+    "generate_page",
+    "pages/{{task_id}}.json"
+)
+.with_content(r#"{"title": "Hello"}"#)
+.with_format(OutputFormat::Json);
+
+writer.write(request).await?;
 ```
-
-- **Package references** — `@workflows/name` in includes
-- **Registry resolution** — Packages from `~/.spn/packages/`
-- **spn.lock support** — Reproducible builds
-- **Path/pkg validation** — Mutually exclusive
 
 </td>
 <td width="50%">
 
-### ⚡ Registry Optimizations
+### 🔒 Security Hardening
 
-```yaml
-# Runtime package support
-agents:
-  - pkg: "@agents/researcher"
-    alias: research_agent
-
-skills:
-  - pkg: "@skills/coding"
-    alias: coding
 ```
+Template Injection Prevention:
+├── Rejects /, \, \0, .., ~ in vars
+├── with_var() returns Result
+└── No path traversal via templates
 
-- **Arc-based caching** — DashMap for fast resolution
-- **@jobs package type** — Job definitions support
-- **agents: block** — Full JSON schema validation
-- **3 security fixes** — Memory leak, TOCTOU, file corruption
+TOCTOU Mitigation:
+├── Initial validation
+├── Final canonicalize()
+└── Reduces race window
+```
 
 </td>
 </tr>
@@ -1642,19 +1657,19 @@ flows:
 ```
 ╔═════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                 ║
-║                           🦋 NIKA v0.17.5 STATS                                 ║
+║                           🦋 NIKA v0.18.0 STATS                                 ║
 ║                                                                                 ║
 ╠═════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                 ║
-║   📊 Tests              │  3,449 passing                                        ║
-║   📝 Lines of Code      │  106,000+ LOC                                         ║
+║   📊 Tests              │  4,328 passing                                        ║
+║   📝 Lines of Code      │  110,000+ LOC                                         ║
 ║   🔧 Clippy Warnings    │  0 (zero!)                                            ║
 ║   🔮 LLM Providers      │  7 (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini) ║
 ║   ⚡ Semantic Verbs     │  5 (infer, exec, fetch, invoke, agent)               ║
 ║   🔧 Builtin Tools      │  11 (6 core + 5 file tools)                          ║
 ║   🖥️ TUI Views          │  6 (Chat, Home, Studio, Monitor, Settings, Help)     ║
 ║   🧩 TUI Widgets        │  39 widgets                                           ║
-║   📋 Event Types        │  22 variants                                          ║
+║   📋 Event Types        │  24 variants (+2 artifact events)                     ║
 ║   🦀 Rust Edition       │  2021                                                 ║
 ║   📦 Binary Size        │  ~15 MB                                               ║
 ║   🚀 Startup Time       │  < 50ms                                               ║
@@ -1667,8 +1682,9 @@ flows:
 ### 📈 Test Distribution by Module
 
 ```mermaid
-pie title 📊 Test Distribution (3,449 tests)
+pie title 📊 Test Distribution (4,328 tests)
     "🖥️ TUI" : 1704
+    "📁 IO" : 68
     "🔗 Binding" : 198
     "🔍 AST" : 171
     "⚡ Runtime" : 124
