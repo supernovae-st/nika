@@ -817,7 +817,11 @@ async fn run_workflow(
     let workflow: Workflow = serde_yaml::from_str(&yaml)?;
 
     // Expand includes (v0.14.2 - DAG fusion)
-    let base_path = resolved_path.parent().unwrap_or(Path::new("."));
+    // Handle case where parent() returns empty path for relative filenames
+    let base_path = resolved_path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
     let mut workflow = expand_includes(workflow, base_path)?;
 
     // Validate schema version and task config
@@ -865,7 +869,10 @@ async fn validate_workflow(file: &str) -> Result<(), NikaError> {
     let workflow: Workflow = serde_yaml::from_str(&yaml)?;
 
     // Expand includes (v0.14.2 - DAG fusion)
-    let base_path = resolved_path.parent().unwrap_or(Path::new("."));
+    let base_path = resolved_path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
     let workflow = expand_includes(workflow, base_path)?;
 
     // Validate schema version and task config
@@ -902,7 +909,10 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
     let workflow: Workflow = serde_yaml::from_str(&yaml)?;
 
     // Expand includes (v0.14.2 - DAG fusion)
-    let base_path = resolved_path.parent().unwrap_or(Path::new("."));
+    let base_path = resolved_path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
     let workflow = expand_includes(workflow, base_path)?;
 
     // Validate schema version and task config
