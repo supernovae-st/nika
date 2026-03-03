@@ -56,6 +56,7 @@ mod glob;
 mod grep;
 mod read;
 mod rig_adapter;
+mod submit_tool;
 mod write;
 
 pub use context::{PermissionMode, ToolContext, ToolEvent, ToolOperation};
@@ -64,6 +65,7 @@ pub use glob::{GlobParams, GlobResult, GlobTool};
 pub use grep::{GrepOutputMode, GrepParams, GrepResult, GrepTool};
 pub use read::{ReadParams, ReadResult, ReadTool};
 pub use rig_adapter::{create_rig_file_tools, RigFileTool};
+pub use submit_tool::{DynamicSubmitTool, ToolDefinition};
 pub use write::{WriteParams, WriteResult, WriteTool};
 
 use crate::error::NikaError;
