@@ -50,6 +50,10 @@ pub mod verb {
     pub const SUBAGENT: &str = "🐤";
     pub const SUBAGENT_ASCII: &str = "[a]";
 
+    /// User - User message in chat (👤)
+    pub const USER: &str = "👤";
+    pub const USER_ASCII: &str = "[U]";
+
     /// Get icon for verb name
     pub fn icon(verb: &str) -> &'static str {
         match verb.to_lowercase().as_str() {

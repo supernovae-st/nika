@@ -1511,12 +1511,12 @@ impl App {
             }
 
             // View navigation by number (when not capturing input)
-            // [1] = Chat, [2] = Home/Explorer (matches tab bar order: a=Chat, h=Home)
+            // [1] = Explorer, [2] = Chat (matches tab bar order in header.rs)
             KeyCode::Char('1') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Chat);
+                return Action::SwitchView(TuiView::Explorer);
             }
             KeyCode::Char('2') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Explorer);
+                return Action::SwitchView(TuiView::Chat);
             }
             KeyCode::Char('3') if !self.is_view_capturing_input() => {
                 return Action::SwitchView(TuiView::Editor);
@@ -4559,12 +4559,12 @@ mod tests {
         app.current_view = TuiView::Explorer;
         app.input_mode = InputMode::Normal;
 
-        // Number keys 1-4 should still switch views
+        // Number keys 1-6 should switch views (matches tab bar order)
         let action = app.handle_unified_key(KeyCode::Char('1'), KeyModifiers::empty());
         assert_eq!(
             action,
-            Action::SwitchView(TuiView::Chat),
-            "Key '1' should switch to Chat view"
+            Action::SwitchView(TuiView::Explorer),
+            "Key '1' should switch to Explorer view"
         );
 
         let action = app.handle_unified_key(KeyCode::Char('3'), KeyModifiers::empty());
@@ -4598,22 +4598,22 @@ mod tests {
     }
 
     #[test]
-    fn test_number_key_2_switches_to_home() {
+    fn test_number_key_2_switches_to_chat() {
         let temp_dir = tempfile::tempdir().unwrap();
         let workflow_path = temp_dir.path().join("test.yaml");
         std::fs::write(&workflow_path, "schema: test").unwrap();
         let mut app = App::new(&workflow_path).unwrap();
 
-        // Start in Chat view
-        app.current_view = TuiView::Chat;
+        // Start in Explorer view
+        app.current_view = TuiView::Explorer;
         app.input_mode = InputMode::Normal;
 
-        // Key '2' should switch to Home view
+        // Key '2' should switch to Chat view (matches tab bar order)
         let action = app.handle_unified_key(KeyCode::Char('2'), KeyModifiers::empty());
         assert_eq!(
             action,
-            Action::SwitchView(TuiView::Explorer),
-            "Key '2' should switch to Home view"
+            Action::SwitchView(TuiView::Chat),
+            "Key '2' should switch to Chat view"
         );
     }
 

@@ -278,6 +278,7 @@ pub enum VerbColor {
     Invoke, // Emerald #10B981
     Agent,  // Rose #F43F5E
     Spawn,  // Rose 300 #FDA4AF (spawned sub-agent)
+    User,   // Sky #0EA5E9 (user message in chat)
 }
 
 impl VerbColor {
