@@ -543,7 +543,9 @@ impl Widget for InferBox {
                 self.decrypt.render(decrypt_area, buf);
                 // Add streaming cursor
                 if self.streaming_cursor {
-                    let cursor_x = area.x + 4 + self.decrypt.text().chars().count().min(inner_width - 6) as u16;
+                    let cursor_x = area.x
+                        + 4
+                        + self.decrypt.text().chars().count().min(inner_width - 6) as u16;
                     if cursor_x < area.x + area.width - 1 {
                         buf.set_string(cursor_x, y, "█", content_style);
                     }
@@ -560,7 +562,12 @@ impl Widget for InferBox {
                 } else {
                     ""
                 };
-                buf.set_string(area.x + 2, y, format!("┊ {}{}", text, cursor), content_style);
+                buf.set_string(
+                    area.x + 2,
+                    y,
+                    format!("┊ {}{}", text, cursor),
+                    content_style,
+                );
             }
             y += 1;
         }
