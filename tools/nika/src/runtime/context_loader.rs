@@ -526,4 +526,154 @@ mod tests {
         let result = validate_path_boundary(&project, &outside_file);
         assert!(result.is_err());
     }
+
+    // =========================================================================
+    // v0.17.5: Additional Error Path Tests
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_load_single_file_invalid_json() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("invalid.json");
+        fs::write(&file_path, "{ not valid json ]").await.unwrap();
+
+        let result = load_single_file(&file_path).await;
+        assert!(result.is_err());
+        let err_str = result.unwrap_err().to_string();
+        assert!(
+            err_str.contains("Invalid JSON"),
+            "Expected Invalid JSON error, got: {}",
+            err_str
+        );
+    }
+
+    #[tokio::test]
+    async fn test_load_single_file_invalid_yaml() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("invalid.yaml");
+        // Invalid YAML: indentation error
+        fs::write(&file_path, "name: test\n  bad: indent\n key: value")
+            .await
+            .unwrap();
+
+        let result = load_single_file(&file_path).await;
+        assert!(result.is_err());
+        let err_str = result.unwrap_err().to_string();
+        assert!(
+            err_str.contains("Invalid YAML"),
+            "Expected Invalid YAML error, got: {}",
+            err_str
+        );
+    }
+
+    #[tokio::test]
+    async fn test_load_single_file_not_found() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("nonexistent.txt");
+
+        let result = load_single_file(&file_path).await;
+        assert!(result.is_err());
+        let err_str = result.unwrap_err().to_string();
+        assert!(
+            err_str.contains("No such file") || err_str.contains("nonexistent"),
+            "Expected file not found error, got: {}",
+            err_str
+        );
+    }
+
+    #[tokio::test]
+    async fn test_load_context_invalid_session_json() {
+        let temp_dir = TempDir::new().unwrap();
+        let sessions_dir = temp_dir.path().join(".nika/sessions");
+        fs::create_dir_all(&sessions_dir).await.unwrap();
+        fs::write(sessions_dir.join("bad.json"), "{ invalid json }")
+            .await
+            .unwrap();
+
+        let config = ContextConfig {
+            files: FxHashMap::default(),
+            session: Some(".nika/sessions/bad.json".to_string()),
+        };
+
+        let result = load_context(&config, temp_dir.path()).await;
+        assert!(result.is_err());
+        let err_str = result.unwrap_err().to_string();
+        assert!(
+            err_str.contains("Invalid JSON"),
+            "Expected Invalid JSON error for session, got: {}",
+            err_str
+        );
+    }
+
+    #[tokio::test]
+    async fn test_load_glob_files_nonexistent_directory() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Try to glob in a directory that doesn't exist
+        let result = load_glob_files("nonexistent_dir/*.md", temp_dir.path()).await;
+        // Should return empty array, not error
+        assert!(result.is_ok());
+        let arr = result.unwrap();
+        assert!(arr.is_array());
+        assert_eq!(arr.as_array().unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_load_glob_files_no_matches() {
+        let temp_dir = TempDir::new().unwrap();
+        let context_dir = temp_dir.path().join("context");
+        fs::create_dir(&context_dir).await.unwrap();
+
+        // Create a file that doesn't match the pattern
+        fs::write(context_dir.join("file.txt"), "content")
+            .await
+            .unwrap();
+
+        let result = load_glob_files("context/*.md", temp_dir.path()).await;
+        assert!(result.is_ok());
+        let arr = result.unwrap().as_array().unwrap().clone();
+        assert_eq!(arr.len(), 0);
+    }
+
+    #[test]
+    fn test_validate_path_boundary_nonexistent_target() {
+        let temp_dir = TempDir::new().unwrap();
+        let project = temp_dir.path().join("project");
+        std::fs::create_dir_all(&project).unwrap();
+
+        // Try to validate a path that doesn't exist
+        let nonexistent = project.join("does_not_exist.txt");
+        let result = validate_path_boundary(&project, &nonexistent);
+        assert!(result.is_err());
+        let err_str = result.unwrap_err().to_string();
+        assert!(
+            err_str.contains("Cannot resolve path"),
+            "Expected cannot resolve error, got: {}",
+            err_str
+        );
+    }
+
+    #[tokio::test]
+    async fn test_load_context_error_contains_alias() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let config = ContextConfig {
+            files: {
+                let mut m = FxHashMap::default();
+                m.insert("my_alias".to_string(), "nonexistent.md".to_string());
+                m
+            },
+            session: None,
+        };
+
+        let result = load_context(&config, temp_dir.path()).await;
+        assert!(result.is_err());
+        // The error should include the file path for debugging
+        let err_str = result.unwrap_err().to_string();
+        assert!(
+            err_str.contains("nonexistent.md"),
+            "Error should include file path, got: {}",
+            err_str
+        );
+    }
 }

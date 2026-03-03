@@ -310,4 +310,152 @@ mod tests {
         let result = adapter.call(args).await;
         assert!(result.is_err());
     }
+
+    // =========================================================================
+    // v0.17.5: Additional Edge Case Tests
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_read_nonexistent_file() {
+        let (temp_dir, ctx) = setup_test().await;
+        let adapter = FileToolAdapter::new(ReadTool::new(ctx));
+
+        let args = serde_json::json!({
+            "file_path": temp_dir.path().join("does_not_exist.txt").to_string_lossy()
+        })
+        .to_string();
+
+        let result = adapter.call(args).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("read") || err.to_string().contains("File"));
+    }
+
+    #[tokio::test]
+    async fn test_edit_nonexistent_file() {
+        let (temp_dir, ctx) = setup_test().await;
+        let adapter = FileToolAdapter::new(EditTool::new(ctx));
+
+        let args = serde_json::json!({
+            "file_path": temp_dir.path().join("nonexistent.txt").to_string_lossy(),
+            "old_string": "foo",
+            "new_string": "bar"
+        })
+        .to_string();
+
+        let result = adapter.call(args).await;
+        // Should error because file doesn't exist or wasn't read first
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_edit_old_string_not_found() {
+        let (temp_dir, ctx) = setup_test().await;
+        let file_path = temp_dir.path().join("edit-miss.txt");
+
+        // Create file with known content
+        std::fs::write(&file_path, "Hello World").unwrap();
+
+        // Read first (required by EditTool)
+        let read_adapter = FileToolAdapter::new(ReadTool::new(Arc::clone(&ctx)));
+        let read_args = serde_json::json!({
+            "file_path": file_path.to_string_lossy()
+        })
+        .to_string();
+        read_adapter.call(read_args).await.unwrap();
+
+        // Try to edit with non-matching old_string
+        let edit_adapter = FileToolAdapter::new(EditTool::new(ctx));
+        let edit_args = serde_json::json!({
+            "file_path": file_path.to_string_lossy(),
+            "old_string": "NONEXISTENT_STRING",
+            "new_string": "replaced"
+        })
+        .to_string();
+
+        let result = edit_adapter.call(edit_args).await;
+        // Should error because old_string not found
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("not found")
+                || err.to_string().contains("does not exist")
+                || err.to_string().contains("old_string")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_write_missing_content_param() {
+        let (temp_dir, ctx) = setup_test().await;
+        let adapter = FileToolAdapter::new(WriteTool::new(ctx));
+
+        // Missing "content" field
+        let args = serde_json::json!({
+            "file_path": temp_dir.path().join("test.txt").to_string_lossy()
+        })
+        .to_string();
+
+        let result = adapter.call(args).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_glob_no_matches() {
+        let (temp_dir, ctx) = setup_test().await;
+
+        // Create only .txt files
+        std::fs::write(temp_dir.path().join("file.txt"), "content").unwrap();
+
+        let adapter = FileToolAdapter::new(GlobTool::new(ctx));
+        let args = serde_json::json!({
+            "pattern": "*.rs",  // No .rs files exist
+            "path": temp_dir.path().to_string_lossy()
+        })
+        .to_string();
+
+        let result = adapter.call(args).await;
+        // Should succeed but return empty or "no matches" message
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        // Either empty result or message indicating no matches
+        assert!(
+            output.is_empty()
+                || output.contains("[]")
+                || output.contains("No files")
+                || !output.contains(".rs")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_grep_no_matches() {
+        let (temp_dir, ctx) = setup_test().await;
+
+        // Create file without the search pattern
+        std::fs::write(temp_dir.path().join("search.txt"), "Hello World").unwrap();
+
+        let adapter = FileToolAdapter::new(GrepTool::new(ctx));
+        let args = serde_json::json!({
+            "pattern": "NONEXISTENT_PATTERN_12345",
+            "path": temp_dir.path().to_string_lossy()
+        })
+        .to_string();
+
+        let result = adapter.call(args).await;
+        // Should succeed but return no matches
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(!output.contains("Hello"));
+    }
+
+    #[tokio::test]
+    async fn test_read_missing_file_path_param() {
+        let (_temp, ctx) = setup_test().await;
+        let adapter = FileToolAdapter::new(ReadTool::new(ctx));
+
+        // Missing file_path field
+        let args = serde_json::json!({}).to_string();
+
+        let result = adapter.call(args).await;
+        assert!(result.is_err());
+    }
 }
