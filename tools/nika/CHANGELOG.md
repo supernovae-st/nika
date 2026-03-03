@@ -7,6 +7,53 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-03-03
+
+### Added
+- **Structured Output Enforcement** - 3-layer validation system for LLM outputs
+  - Layer 1: **DynamicSubmitTool** - LLM-side schema injection via tool definition
+  - Layer 2: **jsonschema crate** - Code-side validation with JSON Schema Draft 7
+  - Layer 3: **Retry Loop** - Re-prompts LLM with error feedback on validation failure
+- **SchemaRef enum** - Polymorphic support for inline JSON Schema or file path references
+  - `schema: { type: object, ... }` for inline schemas
+  - `schema: "file://./schemas/my-schema.json"` for external files
+- **Extended Thinking** - Claude deep reasoning mode for complex analysis
+  - `extended_thinking: true` with configurable `thinking_budget`
+  - Works with both `infer:` and `agent:` verbs
+- **for_each Binding References** - Dynamic iteration from upstream task outputs
+  - `$alias` format: `for_each: "$locales"` references bound variable
+  - Template format: `for_each: "{{use.locales}}"` for template interpolation
+- **4 Complex Test Workflows** for structured output validation
+  - `test-schema-retry.nika.yaml` - Strict constraints with retry loop
+  - `test-novanet-structured.nika.yaml` - Full NovaNet MCP integration
+  - `test-foreach-schema.nika.yaml` - Binding reference with per-item schema
+  - `test-extended-thinking.nika.yaml` - Extended thinking + structured output
+
+### Changed
+- `OutputPolicy` now supports `max_retries` field (default: 0)
+- Error codes added: NIKA-060 (invalid JSON), NIKA-061 (schema validation failed)
+- Retry prompts include schema, previous output, and validation errors
+
+### Fixed
+- Empty parent path handling in include expansion
+- Template interpolation in for_each iterator binding
+
+### Statistics
+- **3,500+ tests passing**
+- **Zero clippy warnings**
+- **jsonschema v0.26** for JSON Schema validation
+
+## [0.17.0] - 2026-03-02
+
+### Added
+- **Registry Optimizations** - Improved package resolution performance
+- **pkg: Includes** - Support for `includes:` in workflow definitions
+- **Security Fixes** - Dependency updates and vulnerability patches
+
+### Statistics
+- **3,358 tests passing**
+- **Zero clippy warnings**
+
 ## [0.16.3] - 2026-03-02
 
 ### Added
