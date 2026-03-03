@@ -75,7 +75,9 @@
 
 pub mod client;
 pub mod protocol;
+pub mod retry;
 pub mod rmcp_adapter;
+pub mod spn_config;
 pub mod types;
 pub mod validation;
 
@@ -83,6 +85,7 @@ pub mod validation;
 pub use client::{CacheConfig, McpClient, McpPingError, McpPingResult, ResponseCacheStats};
 pub use protocol::{JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 // Note: RmcpClientAdapter is pub(crate) - access MCP via McpClient
+pub use retry::{is_retryable_mcp_error, retry_mcp_call, McpRetryConfig};
 pub use types::{
     ContentBlock, McpConfig, McpErrorCode, ResourceContent, ToolCallRequest, ToolCallResult,
     ToolDefinition,
@@ -90,4 +93,10 @@ pub use types::{
 pub use validation::{
     CacheStats, CachedSchema, ErrorEnhancer, McpValidator, ToolSchemaCache, ValidationConfig,
     ValidationError, ValidationErrorKind, ValidationResult,
+};
+// spn CLI integration
+pub use spn_config::{
+    list_spn_mcp_servers, load_spn_mcp_servers, load_spn_mcp_servers_by_name,
+    load_spn_mcp_servers_with_manager, spn_mcp_config_exists, SpnMcpConfig, SpnMcpConfigManager,
+    SpnMcpServer, SpnMcpSource,
 };
