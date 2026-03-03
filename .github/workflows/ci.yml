@@ -360,6 +360,12 @@ jobs:
           fi
           echo "vulnerabilities=${VULNS}" >> "$GITHUB_OUTPUT"
 
+      - name: Check for secrets in code (TruffleHog)
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          extra_args: --only-verified
+
       - name: Upload security reports
         if: always()
         uses: actions/upload-artifact@v7
