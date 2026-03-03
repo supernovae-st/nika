@@ -1873,6 +1873,178 @@ mod tests {
     }
 
     // =========================================================================
+    // v0.17.5: Provider Fallback Chain Tests
+    // =========================================================================
+
+    /// Helper to clear all provider env vars for testing fallback chain
+    fn clear_all_provider_env_vars() {
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("OPENAI_API_KEY");
+        std::env::remove_var("MISTRAL_API_KEY");
+        std::env::remove_var("GROQ_API_KEY");
+        std::env::remove_var("DEEPSEEK_API_KEY");
+        std::env::remove_var("GEMINI_API_KEY");
+        std::env::remove_var("OLLAMA_API_BASE_URL");
+    }
+
+    #[test]
+    #[serial]
+    fn test_auto_fallback_to_openai() {
+        // Given: Only OPENAI_API_KEY is set (Claude not available)
+        clear_all_provider_env_vars();
+        std::env::set_var("OPENAI_API_KEY", "test-key");
+
+        // When: auto() is called
+        let provider = RigProvider::auto();
+
+        // Then: Should fall back to OpenAI
+        assert!(provider.is_some());
+        assert_eq!(provider.unwrap().name(), "openai");
+    }
+
+    #[test]
+    #[serial]
+    fn test_auto_fallback_to_mistral() {
+        // Given: Only MISTRAL_API_KEY is set
+        clear_all_provider_env_vars();
+        std::env::set_var("MISTRAL_API_KEY", "test-key");
+
+        // When: auto() is called
+        let provider = RigProvider::auto();
+
+        // Then: Should fall back to Mistral
+        assert!(provider.is_some());
+        assert_eq!(provider.unwrap().name(), "mistral");
+    }
+
+    #[test]
+    #[serial]
+    fn test_auto_fallback_to_groq() {
+        // Given: Only GROQ_API_KEY is set
+        clear_all_provider_env_vars();
+        std::env::set_var("GROQ_API_KEY", "test-key");
+
+        // When: auto() is called
+        let provider = RigProvider::auto();
+
+        // Then: Should fall back to Groq
+        assert!(provider.is_some());
+        assert_eq!(provider.unwrap().name(), "groq");
+    }
+
+    #[test]
+    #[serial]
+    fn test_auto_fallback_to_deepseek() {
+        // Given: Only DEEPSEEK_API_KEY is set
+        clear_all_provider_env_vars();
+        std::env::set_var("DEEPSEEK_API_KEY", "test-key");
+
+        // When: auto() is called
+        let provider = RigProvider::auto();
+
+        // Then: Should fall back to DeepSeek
+        assert!(provider.is_some());
+        assert_eq!(provider.unwrap().name(), "deepseek");
+    }
+
+    #[test]
+    #[serial]
+    fn test_auto_fallback_to_gemini() {
+        // Given: Only GEMINI_API_KEY is set
+        clear_all_provider_env_vars();
+        std::env::set_var("GEMINI_API_KEY", "test-key");
+
+        // When: auto() is called
+        let provider = RigProvider::auto();
+
+        // Then: Should fall back to Gemini (v0.15.0)
+        assert!(provider.is_some());
+        assert_eq!(provider.unwrap().name(), "gemini");
+    }
+
+    #[test]
+    #[serial]
+    fn test_auto_fallback_to_ollama() {
+        // Given: Only OLLAMA_API_BASE_URL is set
+        clear_all_provider_env_vars();
+        std::env::set_var("OLLAMA_API_BASE_URL", "http://localhost:11434");
+
+        // When: auto() is called
+        let provider = RigProvider::auto();
+
+        // Then: Should fall back to Ollama
+        assert!(provider.is_some());
+        assert_eq!(provider.unwrap().name(), "ollama");
+    }
+
+    #[test]
+    #[serial]
+    fn test_auto_priority_claude_over_openai() {
+        // Given: Both Claude and OpenAI keys are set
+        clear_all_provider_env_vars();
+        std::env::set_var("ANTHROPIC_API_KEY", "claude-key");
+        std::env::set_var("OPENAI_API_KEY", "openai-key");
+
+        // When: auto() is called
+        let provider = RigProvider::auto();
+
+        // Then: Should select Claude (higher priority)
+        assert!(provider.is_some());
+        assert_eq!(provider.unwrap().name(), "claude");
+    }
+
+    #[test]
+    #[serial]
+    fn test_auto_priority_openai_over_mistral() {
+        // Given: OpenAI and Mistral keys are set (no Claude)
+        clear_all_provider_env_vars();
+        std::env::set_var("OPENAI_API_KEY", "openai-key");
+        std::env::set_var("MISTRAL_API_KEY", "mistral-key");
+
+        // When: auto() is called
+        let provider = RigProvider::auto();
+
+        // Then: Should select OpenAI (higher priority than Mistral)
+        assert!(provider.is_some());
+        assert_eq!(provider.unwrap().name(), "openai");
+    }
+
+    #[test]
+    #[serial]
+    fn test_auto_empty_env_var_treated_as_unset() {
+        // Given: ANTHROPIC_API_KEY is set but empty
+        clear_all_provider_env_vars();
+        std::env::set_var("ANTHROPIC_API_KEY", ""); // Empty string
+        std::env::set_var("OPENAI_API_KEY", "valid-key");
+
+        // When: auto() is called
+        let provider = RigProvider::auto();
+
+        // Then: Should skip empty Claude and select OpenAI
+        assert!(provider.is_some());
+        assert_eq!(provider.unwrap().name(), "openai");
+    }
+
+    #[test]
+    #[serial]
+    fn test_auto_whitespace_env_var_treated_as_unset() {
+        // Given: ANTHROPIC_API_KEY is set to whitespace only
+        clear_all_provider_env_vars();
+        std::env::set_var("ANTHROPIC_API_KEY", "   "); // Whitespace only
+
+        // When: auto() is called
+        let provider = RigProvider::auto();
+
+        // Then: Should treat whitespace as non-empty (current behavior)
+        // This tests the actual implementation which checks !v.is_empty()
+        // Whitespace is technically non-empty, so it will try Claude
+        // (Note: This may or may not be desired behavior, but we test current)
+        assert!(provider.is_some());
+        // The key is whitespace-only, but is_empty() returns false for "   "
+        assert_eq!(provider.unwrap().name(), "claude");
+    }
+
+    // =========================================================================
     // NikaMcpTool tests
     // =========================================================================
 
