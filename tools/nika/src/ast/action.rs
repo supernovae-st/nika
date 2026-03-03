@@ -102,6 +102,35 @@ impl<'de> Deserialize<'de> for InferParams {
     }
 }
 
+impl InferParams {
+    /// Validate infer parameters.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if:
+    /// - `prompt` is empty or whitespace-only
+    /// - `temperature` is outside valid range (0.0..=2.0)
+    ///
+    /// # v0.17.5
+    /// Added to prevent confusing LLM errors from empty prompts.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.prompt.trim().is_empty() {
+            return Err("Infer prompt cannot be empty".to_string());
+        }
+
+        if let Some(temp) = self.temperature {
+            if !(0.0..=2.0).contains(&temp) {
+                return Err(format!(
+                    "temperature must be between 0.0 and 2.0, got {}",
+                    temp
+                ));
+            }
+        }
+
+        Ok(())
+    }
+}
+
 /// Exec action - shell command
 ///
 /// Supports shorthand: `exec: "command"` or full form `exec: { command: "...", shell: true }`
@@ -303,6 +332,87 @@ infer:
             }
             _ => panic!("Expected TaskAction::Infer"),
         }
+    }
+
+    // =========================================================================
+    // InferParams Validation Tests (v0.17.5)
+    // =========================================================================
+
+    #[test]
+    fn test_infer_params_validate_ok() {
+        let params = InferParams {
+            prompt: "Generate something".to_string(),
+            provider: None,
+            model: None,
+            temperature: Some(0.7),
+            max_tokens: None,
+            system: None,
+        };
+        assert!(params.validate().is_ok());
+    }
+
+    #[test]
+    fn test_infer_params_validate_empty_prompt() {
+        let params = InferParams {
+            prompt: "".to_string(),
+            ..Default::default()
+        };
+        let result = params.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("empty"));
+    }
+
+    #[test]
+    fn test_infer_params_validate_whitespace_only_prompt() {
+        let params = InferParams {
+            prompt: "   \n\t  ".to_string(),
+            ..Default::default()
+        };
+        let result = params.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("empty"));
+    }
+
+    #[test]
+    fn test_infer_params_validate_temperature_too_low() {
+        let params = InferParams {
+            prompt: "Test".to_string(),
+            temperature: Some(-0.1),
+            ..Default::default()
+        };
+        let result = params.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("temperature"));
+    }
+
+    #[test]
+    fn test_infer_params_validate_temperature_too_high() {
+        let params = InferParams {
+            prompt: "Test".to_string(),
+            temperature: Some(2.5),
+            ..Default::default()
+        };
+        let result = params.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("temperature"));
+    }
+
+    #[test]
+    fn test_infer_params_validate_temperature_boundary_valid() {
+        // 0.0 and 2.0 are valid boundary values
+        let params_min = InferParams {
+            prompt: "Test".to_string(),
+            temperature: Some(0.0),
+            ..Default::default()
+        };
+        assert!(params_min.validate().is_ok());
+
+        let params_max = InferParams {
+            prompt: "Test".to_string(),
+            temperature: Some(2.0),
+            ..Default::default()
+        };
+        assert!(params_max.validate().is_ok());
     }
 
     // =========================================================================

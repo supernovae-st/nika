@@ -50,15 +50,35 @@ pub struct InvokeParams {
 }
 
 impl InvokeParams {
-    /// Validate that exactly one of `tool` or `resource` is specified.
+    /// Validate invoke parameters.
     ///
     /// # Errors
     ///
     /// Returns an error string if:
+    /// - `mcp` server name is empty
     /// - Both `tool` and `resource` are `Some` (mutually exclusive)
     /// - Both `tool` and `resource` are `None` (one is required)
+    /// - `tool` is Some but empty string
+    /// - `resource` is Some but empty string
+    ///
+    /// # v0.17.5
+    /// Enhanced to validate empty strings, not just presence.
     pub fn validate(&self) -> Result<(), String> {
+        // v0.17.5: Validate MCP server name is not empty
+        if self.mcp.trim().is_empty() {
+            return Err("'mcp' server name cannot be empty".to_string());
+        }
+
         match (&self.tool, &self.resource) {
+            (Some(tool), Some(_)) if !tool.trim().is_empty() => {
+                Err("'tool' and 'resource' are mutually exclusive - specify only one".to_string())
+            }
+            (Some(tool), None) if tool.trim().is_empty() => {
+                Err("'tool' name cannot be empty".to_string())
+            }
+            (None, Some(resource)) if resource.trim().is_empty() => {
+                Err("'resource' URI cannot be empty".to_string())
+            }
             (Some(_), Some(_)) => {
                 Err("'tool' and 'resource' are mutually exclusive - specify only one".to_string())
             }
@@ -163,5 +183,87 @@ resource: entity://qr-code/fr-FR
         let result = params.validate();
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("must be specified"));
+    }
+
+    // =========================================================================
+    // v0.17.5: Empty String Validation Tests
+    // =========================================================================
+
+    #[test]
+    fn validate_err_empty_mcp() {
+        let params = InvokeParams {
+            mcp: "".to_string(),
+            tool: Some("test_tool".to_string()),
+            params: None,
+            resource: None,
+        };
+        let result = params.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("mcp"));
+    }
+
+    #[test]
+    fn validate_err_whitespace_mcp() {
+        let params = InvokeParams {
+            mcp: "   ".to_string(),
+            tool: Some("test_tool".to_string()),
+            params: None,
+            resource: None,
+        };
+        let result = params.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("mcp"));
+    }
+
+    #[test]
+    fn validate_err_empty_tool() {
+        let params = InvokeParams {
+            mcp: "test".to_string(),
+            tool: Some("".to_string()),
+            params: None,
+            resource: None,
+        };
+        let result = params.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("tool"));
+    }
+
+    #[test]
+    fn validate_err_whitespace_tool() {
+        let params = InvokeParams {
+            mcp: "test".to_string(),
+            tool: Some("  \t  ".to_string()),
+            params: None,
+            resource: None,
+        };
+        let result = params.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("tool"));
+    }
+
+    #[test]
+    fn validate_err_empty_resource() {
+        let params = InvokeParams {
+            mcp: "test".to_string(),
+            tool: None,
+            params: None,
+            resource: Some("".to_string()),
+        };
+        let result = params.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("resource"));
+    }
+
+    #[test]
+    fn validate_err_whitespace_resource() {
+        let params = InvokeParams {
+            mcp: "test".to_string(),
+            tool: None,
+            params: None,
+            resource: Some("   ".to_string()),
+        };
+        let result = params.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("resource"));
     }
 }
