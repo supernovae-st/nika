@@ -27,7 +27,7 @@ pub mod include_loader;
 mod invoke;
 pub mod loader;
 pub mod logging;
-mod output;
+pub mod output;
 pub mod pkg_resolver;
 pub mod schema_validator;
 pub mod skill_def;
@@ -46,7 +46,7 @@ pub use invoke::InvokeParams;
 pub use context::ContextConfig;
 // IncludeSpec is defined in include.rs (v0.9 - DAG fusion)
 pub use include::IncludeSpec;
-pub use output::{OutputFormat, OutputPolicy};
+pub use output::{OutputFormat, OutputPolicy, SchemaRef};
 // SkillDef + SkillRef are defined in skill_def.rs (v0.6 - Prompt augmentation)
 pub use skill_def::{SkillDef, SkillRef};
 // PkgUri is defined in pkg_resolver.rs (v0.15.2 - Skill Ecosystem)
