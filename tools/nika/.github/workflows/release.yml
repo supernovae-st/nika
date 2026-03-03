@@ -32,6 +32,9 @@ jobs:
           workspaces: tools/nika -> target
       - uses: taiki-e/install-action@nextest
 
+      - name: Install Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
       - name: Run all tests
         run: cargo nextest run --all-features
 
@@ -85,6 +88,9 @@ jobs:
           workspaces: tools/nika -> target
       - uses: taiki-e/install-action@nextest
 
+      - name: Install Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
       - name: Wait for Neo4j
         run: |
           for i in {1..30}; do
@@ -129,6 +135,9 @@ jobs:
           workspaces: tools/nika -> target
       - uses: taiki-e/install-action@nextest
 
+      - name: Install Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
       - name: Phase 1 - Reasoning Capture
         run: cargo nextest run --all-features test_phase1 test_reasoning
 
@@ -163,6 +172,9 @@ jobs:
         with:
           workspaces: tools/nika -> target
       - uses: taiki-e/install-action@nextest
+
+      - name: Install Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
 
       - name: Run Chat UX widget tests
         run: cargo nextest run --all-features --test chat_ux_test
@@ -213,6 +225,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: tools/nika -> target
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
