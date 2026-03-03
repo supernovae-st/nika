@@ -17,7 +17,7 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument};
 
-use crate::ast::{Task, Workflow};
+use crate::ast::{InferParams, OutputFormat, Task, TaskAction, Workflow};
 use crate::binding::ResolvedBindings;
 use crate::dag::{validate_use_wiring, Dag};
 use crate::error::NikaError;
@@ -27,7 +27,7 @@ use crate::util::{intern, DECOMPOSE_TIMEOUT};
 
 use super::context_loader::load_context;
 use super::executor::TaskExecutor;
-use super::output::make_task_result;
+use super::output::{extract_json, format_validation_errors, make_task_result};
 use super::resolver::{resolve_assets, ResolvedAssets};
 
 /// Result of executing a task iteration
@@ -247,6 +247,223 @@ impl Runner {
         }
     }
 
+    /// Check if a task qualifies for schema validation retry
+    ///
+    /// Returns Some((schema, max_retries, infer_params)) if:
+    /// - Task action is Infer
+    /// - Output format is JSON
+    /// - Output has inline schema
+    /// - max_retries > 0
+    fn get_retry_config(task: &Task) -> Option<(Value, u8, InferParams)> {
+        // Must be an infer action
+        let infer = match &task.action {
+            TaskAction::Infer { infer } => infer,
+            _ => return None,
+        };
+
+        // Must have output policy with JSON format and inline schema
+        let output_policy = task.output.as_ref()?;
+        if output_policy.format != OutputFormat::Json {
+            return None;
+        }
+
+        // Must have inline schema (file schemas don't support retry feedback)
+        let schema = match &output_policy.schema {
+            Some(crate::ast::output::SchemaRef::Inline(s)) => s.clone(),
+            _ => return None,
+        };
+
+        // max_retries must be > 0 (default is 0)
+        let max_retries = output_policy.max_retries.unwrap_or(0);
+        if max_retries == 0 {
+            return None;
+        }
+
+        Some((schema, max_retries, infer.clone()))
+    }
+
+    /// Execute an infer task with schema validation and retry loop
+    ///
+    /// When LLM output fails schema validation, builds a feedback prompt with:
+    /// - Original prompt
+    /// - Schema that must be matched
+    /// - Previous output
+    /// - Validation errors
+    ///
+    /// Retries up to max_retries times before failing.
+    #[allow(clippy::too_many_arguments)]
+    async fn execute_with_retry(
+        task_id: &Arc<str>,
+        original_infer: InferParams,
+        schema: &Value,
+        max_retries: u8,
+        bindings: &ResolvedBindings,
+        datastore: &DataStore,
+        executor: &TaskExecutor,
+        event_log: &EventLog,
+        start: Instant,
+    ) -> TaskResult {
+        let mut current_infer = original_infer;
+        let mut attempts = 0u8;
+
+        loop {
+            attempts += 1;
+
+            // Create action for this attempt
+            let action = TaskAction::Infer {
+                infer: current_infer.clone(),
+            };
+
+            // Execute
+            let result = executor.execute(task_id, &action, bindings, datastore).await;
+            let duration = start.elapsed();
+
+            match result {
+                Ok(output) => {
+                    // Try to extract JSON from output
+                    let json_value = match extract_json(&output) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            if attempts > max_retries {
+                                // Max retries exhausted
+                                event_log.emit(EventKind::TaskFailed {
+                                    task_id: Arc::clone(task_id),
+                                    error: format!(
+                                        "NIKA-060: Invalid JSON after {} attempts: {}",
+                                        attempts, e
+                                    ),
+                                    duration_ms: duration.as_millis() as u64,
+                                });
+                                return TaskResult::failed(
+                                    format!(
+                                        "NIKA-060: Invalid JSON output after {} attempts: {}",
+                                        attempts, e
+                                    ),
+                                    duration,
+                                );
+                            }
+
+                            // Build retry prompt with JSON parsing error
+                            tracing::debug!(
+                                task_id = %task_id,
+                                attempt = attempts,
+                                "JSON parsing failed, retrying"
+                            );
+                            current_infer.prompt = Self::build_retry_prompt(
+                                &current_infer.prompt,
+                                schema,
+                                &output,
+                                &format!("JSON parsing failed: {}", e),
+                            );
+                            continue;
+                        }
+                    };
+
+                    // Validate against schema
+                    let compiled = match jsonschema::validator_for(schema) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            event_log.emit(EventKind::TaskFailed {
+                                task_id: Arc::clone(task_id),
+                                error: format!("Invalid schema: {}", e),
+                                duration_ms: duration.as_millis() as u64,
+                            });
+                            return TaskResult::failed(
+                                format!("Invalid inline schema: {}", e),
+                                duration,
+                            );
+                        }
+                    };
+
+                    let errors: Vec<_> = compiled.iter_errors(&json_value).collect();
+                    if errors.is_empty() {
+                        // Validation passed
+                        event_log.emit(EventKind::TaskCompleted {
+                            task_id: Arc::clone(task_id),
+                            output: Arc::new(json_value.clone()),
+                            duration_ms: duration.as_millis() as u64,
+                        });
+                        return TaskResult::success(json_value, duration);
+                    }
+
+                    // Validation failed
+                    if attempts > max_retries {
+                        let error_feedback = format_validation_errors(&json_value, schema);
+                        event_log.emit(EventKind::TaskFailed {
+                            task_id: Arc::clone(task_id),
+                            error: format!(
+                                "Schema validation failed after {} attempts:\n{}",
+                                attempts, error_feedback
+                            ),
+                            duration_ms: duration.as_millis() as u64,
+                        });
+                        return TaskResult::failed(
+                            format!(
+                                "NIKA-061: Schema validation failed after {} attempts:\n{}",
+                                attempts, error_feedback
+                            ),
+                            duration,
+                        );
+                    }
+
+                    // Build retry prompt with validation errors
+                    let error_feedback = format_validation_errors(&json_value, schema);
+                    tracing::debug!(
+                        task_id = %task_id,
+                        attempt = attempts,
+                        errors = %error_feedback,
+                        "Schema validation failed, retrying"
+                    );
+                    current_infer.prompt = Self::build_retry_prompt(
+                        &current_infer.prompt,
+                        schema,
+                        &output,
+                        &error_feedback,
+                    );
+                }
+                Err(e) => {
+                    // Executor error (not validation error) - don't retry
+                    event_log.emit(EventKind::TaskFailed {
+                        task_id: Arc::clone(task_id),
+                        error: e.to_string(),
+                        duration_ms: duration.as_millis() as u64,
+                    });
+                    return TaskResult::failed(e.to_string(), duration);
+                }
+            }
+        }
+    }
+
+    /// Build a retry prompt with error feedback
+    fn build_retry_prompt(
+        original_prompt: &str,
+        schema: &Value,
+        previous_output: &str,
+        error_feedback: &str,
+    ) -> String {
+        format!(
+            r#"{original_prompt}
+
+---
+RETRY: Your previous response did not match the required JSON schema.
+
+REQUIRED SCHEMA:
+{schema}
+
+YOUR PREVIOUS OUTPUT:
+{previous_output}
+
+VALIDATION ERRORS:
+{error_feedback}
+
+Please provide a corrected JSON response that strictly matches the schema."#,
+            original_prompt = original_prompt,
+            schema = serde_json::to_string_pretty(schema).unwrap_or_else(|_| schema.to_string()),
+            previous_output = previous_output,
+            error_feedback = error_feedback
+        )
+    }
+
     /// Execute a single task iteration (used for both regular tasks and for_each items)
     ///
     /// # Arguments
@@ -307,40 +524,59 @@ impl Runner {
             inputs: bindings.to_value(),
         });
 
-        // Execute via TaskExecutor (v0.5: pass datastore for lazy binding support)
-        let result = executor
-            .execute(&task_id, &task.action, &bindings, &datastore)
-            .await;
-        let duration = start.elapsed();
+        // Check if task qualifies for schema validation retry (v0.19: structured output enforcement)
+        // Conditions: infer action + JSON output + inline schema + max_retries > 0
+        let retry_config = Self::get_retry_config(&task);
 
-        // Convert result to TaskResult with output policy
-        let task_result = match result {
-            Ok(output) => {
-                let tr = make_task_result(output, task.output.as_ref(), duration).await;
-                // EMIT: TaskCompleted or TaskFailed (based on result)
-                if tr.is_success() {
-                    event_log.emit(EventKind::TaskCompleted {
-                        task_id: Arc::clone(&task_id),
-                        output: Arc::clone(&tr.output), // O(1) Arc clone
-                        duration_ms: duration.as_millis() as u64,
-                    });
-                } else {
+        // Execute with retry loop if configured
+        let task_result = if let Some((schema, max_retries, original_infer)) = retry_config {
+            Self::execute_with_retry(
+                &task_id,
+                original_infer,
+                &schema,
+                max_retries,
+                &bindings,
+                &datastore,
+                &executor,
+                &event_log,
+                start,
+            )
+            .await
+        } else {
+            // Standard execution without retry
+            let result = executor
+                .execute(&task_id, &task.action, &bindings, &datastore)
+                .await;
+            let duration = start.elapsed();
+
+            match result {
+                Ok(output) => {
+                    let tr = make_task_result(output, task.output.as_ref(), duration).await;
+                    // EMIT: TaskCompleted or TaskFailed (based on result)
+                    if tr.is_success() {
+                        event_log.emit(EventKind::TaskCompleted {
+                            task_id: Arc::clone(&task_id),
+                            output: Arc::clone(&tr.output), // O(1) Arc clone
+                            duration_ms: duration.as_millis() as u64,
+                        });
+                    } else {
+                        event_log.emit(EventKind::TaskFailed {
+                            task_id: Arc::clone(&task_id),
+                            error: tr.error().unwrap_or("Unknown error").to_string(),
+                            duration_ms: duration.as_millis() as u64,
+                        });
+                    }
+                    tr
+                }
+                Err(e) => {
+                    // EMIT: TaskFailed
                     event_log.emit(EventKind::TaskFailed {
                         task_id: Arc::clone(&task_id),
-                        error: tr.error().unwrap_or("Unknown error").to_string(),
+                        error: e.to_string(),
                         duration_ms: duration.as_millis() as u64,
                     });
+                    TaskResult::failed(e.to_string(), duration)
                 }
-                tr
-            }
-            Err(e) => {
-                // EMIT: TaskFailed
-                event_log.emit(EventKind::TaskFailed {
-                    task_id: Arc::clone(&task_id),
-                    error: e.to_string(),
-                    duration_ms: duration.as_millis() as u64,
-                });
-                TaskResult::failed(e.to_string(), duration)
             }
         };
 
