@@ -557,7 +557,70 @@ impl Runner {
                         }
                     }
                 } else if let Some(for_each) = &task.for_each {
-                    for_each.as_array().cloned()
+                    // v0.18: Handle binding references ($alias or {{use.alias}})
+                    if let Some(binding_str) = for_each.as_str() {
+                        // Resolve bindings from use: wiring to access the referenced array
+                        let bindings = ResolvedBindings::from_wiring_spec(
+                            task.use_wiring.as_ref(),
+                            &self.datastore,
+                        )
+                        .unwrap_or_default();
+
+                        if let Some(alias) = binding_str.strip_prefix('$') {
+                            // $alias format (e.g., "$locales")
+                            match bindings.get_resolved(alias, &self.datastore) {
+                                Ok(value) => value.as_array().cloned(),
+                                Err(e) => {
+                                    // Binding not found - fail the task
+                                    self.datastore.insert(
+                                        intern(&task.id),
+                                        TaskResult::failed(
+                                            format!(
+                                                "for_each binding '{}' not found: {}",
+                                                alias, e
+                                            ),
+                                            std::time::Duration::ZERO,
+                                        ),
+                                    );
+                                    continue;
+                                }
+                            }
+                        } else if binding_str.contains("{{use.") {
+                            // Template format (e.g., "{{use.locales}}")
+                            // Extract alias from template pattern
+                            if let Some(start) = binding_str.find("{{use.") {
+                                let after = &binding_str[start + 6..];
+                                if let Some(end) = after.find("}}") {
+                                    let alias = &after[..end];
+                                    match bindings.get_resolved(alias, &self.datastore) {
+                                        Ok(value) => value.as_array().cloned(),
+                                        Err(e) => {
+                                            self.datastore.insert(
+                                                intern(&task.id),
+                                                TaskResult::failed(
+                                                    format!(
+                                                        "for_each binding '{}' not found: {}",
+                                                        alias, e
+                                                    ),
+                                                    std::time::Duration::ZERO,
+                                                ),
+                                            );
+                                            continue;
+                                        }
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        // Direct array value
+                        for_each.as_array().cloned()
+                    }
                 } else {
                     None
                 };
