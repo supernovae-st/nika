@@ -261,7 +261,11 @@ impl SpnMcpConfigManager {
         }
 
         let content = std::fs::read_to_string(path).map_err(|e| NikaError::ConfigError {
-            reason: format!("Failed to read spn MCP config at '{}': {}", path.display(), e),
+            reason: format!(
+                "Failed to read spn MCP config at '{}': {}",
+                path.display(),
+                e
+            ),
         })?;
 
         serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
@@ -639,10 +643,7 @@ servers:
     fn test_config_manager_paths() {
         let manager = SpnMcpConfigManager::new();
 
-        let expected_global = dirs::home_dir()
-            .unwrap()
-            .join(".spn")
-            .join("mcp.yaml");
+        let expected_global = dirs::home_dir().unwrap().join(".spn").join("mcp.yaml");
         assert_eq!(manager.global_path, expected_global);
         assert!(manager.project_root.is_none());
     }
@@ -657,5 +658,287 @@ servers:
             manager.project_path(),
             Some(PathBuf::from("/my/project/.spn/mcp.yaml"))
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Tests for spn ↔ Nika secrets sharing
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_secrets_env_var_references_preserved() {
+        // Verify that ${VAR} references from spn are preserved when loading into Nika
+        let yaml = r#"
+version: 1
+servers:
+  perplexity:
+    command: npx
+    args: ["-y", "@anthropic/mcp-server-perplexity"]
+    env:
+      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
+    enabled: true
+"#;
+
+        let (_temp, manager) = create_test_config(yaml);
+        let config = manager.load_global().unwrap();
+
+        let server = config.servers.get("perplexity").unwrap();
+        // The ${VAR} reference should be preserved as-is (shell will expand it)
+        assert_eq!(
+            server.env.get("PERPLEXITY_API_KEY"),
+            Some(&"${PERPLEXITY_API_KEY}".to_string())
+        );
+    }
+
+    #[test]
+    fn test_multiple_secrets_per_server() {
+        // Test that servers with multiple secrets (like Neo4j) load correctly
+        let yaml = r#"
+version: 1
+servers:
+  neo4j:
+    command: npx
+    args: ["-y", "@neo4j/mcp-server-neo4j"]
+    env:
+      NEO4J_URI: bolt://localhost:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD}"
+    enabled: true
+"#;
+
+        let (_temp, manager) = create_test_config(yaml);
+        let servers = load_spn_mcp_servers_with_manager(&manager).unwrap();
+
+        let mcp_config = servers.get("neo4j").unwrap();
+        assert_eq!(
+            mcp_config.env.get("NEO4J_URI"),
+            Some(&"bolt://localhost:7687".to_string())
+        );
+        assert_eq!(mcp_config.env.get("NEO4J_USER"), Some(&"neo4j".to_string()));
+        assert_eq!(
+            mcp_config.env.get("NEO4J_PASSWORD"),
+            Some(&"${NEO4J_PASSWORD}".to_string())
+        );
+    }
+
+    #[test]
+    fn test_spn_mcp_server_types_with_secrets() {
+        // Test all common MCP server types that use secrets from spn
+        let yaml = r#"
+version: 1
+servers:
+  neo4j:
+    command: npx
+    args: ["-y", "@neo4j/mcp-server-neo4j"]
+    env:
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD}"
+    enabled: true
+  perplexity:
+    command: npx
+    args: ["-y", "@anthropic/mcp-server-perplexity"]
+    env:
+      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
+    enabled: true
+  firecrawl:
+    command: npx
+    args: ["-y", "@anthropic/mcp-server-firecrawl"]
+    env:
+      FIRECRAWL_API_KEY: "${FIRECRAWL_API_KEY}"
+    enabled: true
+  supadata:
+    command: npx
+    args: ["-y", "@supadata/mcp-server"]
+    env:
+      SUPADATA_API_KEY: "${SUPADATA_API_KEY}"
+    enabled: true
+  github:
+    command: npx
+    args: ["-y", "@anthropic/mcp-server-github"]
+    env:
+      GITHUB_TOKEN: "${GITHUB_TOKEN}"
+    enabled: true
+  slack:
+    command: npx
+    args: ["-y", "@anthropic/mcp-server-slack"]
+    env:
+      SLACK_BOT_TOKEN: "${SLACK_BOT_TOKEN}"
+      SLACK_TEAM_ID: "${SLACK_TEAM_ID}"
+    enabled: true
+"#;
+
+        let (_temp, manager) = create_test_config(yaml);
+        let servers = load_spn_mcp_servers_with_manager(&manager).unwrap();
+
+        // Verify all 6 servers loaded
+        assert_eq!(servers.len(), 6);
+
+        // Verify each server has its secret reference preserved
+        assert!(servers
+            .get("neo4j")
+            .unwrap()
+            .env
+            .contains_key("NEO4J_PASSWORD"));
+        assert!(servers
+            .get("perplexity")
+            .unwrap()
+            .env
+            .contains_key("PERPLEXITY_API_KEY"));
+        assert!(servers
+            .get("firecrawl")
+            .unwrap()
+            .env
+            .contains_key("FIRECRAWL_API_KEY"));
+        assert!(servers
+            .get("supadata")
+            .unwrap()
+            .env
+            .contains_key("SUPADATA_API_KEY"));
+        assert!(servers
+            .get("github")
+            .unwrap()
+            .env
+            .contains_key("GITHUB_TOKEN"));
+        assert!(servers
+            .get("slack")
+            .unwrap()
+            .env
+            .contains_key("SLACK_BOT_TOKEN"));
+        assert!(servers
+            .get("slack")
+            .unwrap()
+            .env
+            .contains_key("SLACK_TEAM_ID"));
+    }
+
+    #[test]
+    fn test_mcp_config_conversion_preserves_secrets() {
+        // Test that to_mcp_config() preserves secret references
+        let server = SpnMcpServer {
+            command: "npx".to_string(),
+            args: vec!["-y".to_string(), "@test/server".to_string()],
+            env: {
+                let mut env = HashMap::new();
+                env.insert("API_KEY".to_string(), "${API_KEY}".to_string());
+                env.insert("STATIC_VALUE".to_string(), "fixed_value".to_string());
+                env
+            },
+            description: None,
+            enabled: true,
+            source: None,
+        };
+
+        let mcp_config = server.to_mcp_config("test");
+
+        // Secret reference preserved
+        assert_eq!(
+            mcp_config.env.get("API_KEY"),
+            Some(&"${API_KEY}".to_string())
+        );
+        // Static value preserved
+        assert_eq!(
+            mcp_config.env.get("STATIC_VALUE"),
+            Some(&"fixed_value".to_string())
+        );
+    }
+
+    #[test]
+    fn test_project_config_merges_with_global_secrets() {
+        // Test that project MCP config can override/extend global config with secrets
+        let temp = TempDir::new().unwrap();
+
+        // Create global config
+        let global_path = temp.path().join("global_mcp.yaml");
+        std::fs::write(
+            &global_path,
+            r#"
+version: 1
+servers:
+  perplexity:
+    command: npx
+    args: ["-y", "@anthropic/mcp-server-perplexity"]
+    env:
+      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
+    enabled: true
+"#,
+        )
+        .unwrap();
+
+        // Create project config with additional server
+        let project_root = temp.path().join("project");
+        std::fs::create_dir_all(project_root.join(".spn")).unwrap();
+        let project_path = project_root.join(".spn/mcp.yaml");
+        std::fs::write(
+            &project_path,
+            r#"
+version: 1
+servers:
+  neo4j:
+    command: npx
+    args: ["-y", "@neo4j/mcp-server-neo4j"]
+    env:
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD}"
+    enabled: true
+"#,
+        )
+        .unwrap();
+
+        // Create manager with both paths
+        let mut manager = SpnMcpConfigManager::with_global_path(global_path);
+        manager.project_root = Some(project_root);
+
+        let merged = manager.load_merged().unwrap();
+
+        // Both servers should be present
+        assert_eq!(merged.servers.len(), 2);
+        assert!(merged.servers.contains_key("perplexity"));
+        assert!(merged.servers.contains_key("neo4j"));
+
+        // Both secrets should be preserved
+        assert_eq!(
+            merged
+                .servers
+                .get("perplexity")
+                .unwrap()
+                .env
+                .get("PERPLEXITY_API_KEY"),
+            Some(&"${PERPLEXITY_API_KEY}".to_string())
+        );
+        assert_eq!(
+            merged
+                .servers
+                .get("neo4j")
+                .unwrap()
+                .env
+                .get("NEO4J_PASSWORD"),
+            Some(&"${NEO4J_PASSWORD}".to_string())
+        );
+    }
+
+    #[test]
+    fn test_disabled_server_secrets_not_loaded() {
+        // Verify that disabled servers (and their secrets) are not loaded
+        let yaml = r#"
+version: 1
+servers:
+  active:
+    command: npx
+    env:
+      SECRET: "${SECRET}"
+    enabled: true
+  disabled:
+    command: npx
+    env:
+      DISABLED_SECRET: "${DISABLED_SECRET}"
+    enabled: false
+"#;
+
+        let (_temp, manager) = create_test_config(yaml);
+        let servers = load_spn_mcp_servers_with_manager(&manager).unwrap();
+
+        assert_eq!(servers.len(), 1);
+        assert!(servers.contains_key("active"));
+        assert!(!servers.contains_key("disabled"));
+
+        // Active server secret is present
+        assert!(servers.get("active").unwrap().env.contains_key("SECRET"));
     }
 }
