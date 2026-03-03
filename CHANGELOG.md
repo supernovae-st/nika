@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.5] - 2026-03-03
+
+### Added
+- **MCP Retry Module** - Exponential backoff for transient failures
+  - `McpRetryConfig` for configurable retry behavior
+  - `retry_mcp_call()` for automatic retry on timeouts/connection issues
+  - `is_retryable_mcp_error()` to classify error types
+  - Defaults: 3 retries, 100ms initial delay, 5s max delay, jitter enabled
+- **call_tool_with_retry()** - MCP adapter method with automatic retry
+- **DecomposeTimeout Error (NIKA-171)** - New error variant for decompose timeouts
+  - `DECOMPOSE_TIMEOUT` constant (120s) for BFS graph traversal
+  - Timeout protection in runner.rs prevents silent hangs
+- **InferParams Validation** - Validate prompt and temperature before execution
+  - Empty/whitespace prompts now rejected early
+  - Temperature validated in range 0.0..=2.0
+- **InvokeParams Validation** - Enhanced empty string detection
+  - MCP server name, tool name, resource URI validated
+- **Prompt Validation in Executor** - Validate resolved prompts after template expansion
+- **spn_config Public Exports** - Module now exported in MCP public API
+  - `SpnMcpConfig`, `SpnMcpServer`, `SpnMcpSource`, `SpnMcpConfigManager`
+- **Provider Fallback Chain Tests** - 12 new tests for auto-detection priority
+- **Error Path Tests** - 11 new tests for context_loader and file_adapter
+- **MCP Secrets Integration Tests** - 6 new tests for spn ↔ Nika secrets flow
+- **Test Example Workflows** - 5 new workflow examples for testing
+
+### Changed
+- **backon** moved to default dependencies (used by MCP retry, not just jobs)
+- **Example Paths** - Updated to relative cargo run commands (portable)
+- **CI Paths** - Updated novanet-dev to novanet
+- **Plan Docs** - Removed hardcoded absolute paths
+
+### Statistics
+- **3,449 tests passing** (up from 3,381 in v0.17.4)
+- **Zero clippy warnings**
+- **All ARMADA checkpoints passing**
+- **17 commits in this release**
+
 ## [0.17.4] - 2026-03-03
 
 ### Fixed
