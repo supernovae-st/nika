@@ -19,7 +19,7 @@
 //! │              │                                │      └─────┘               │
 //! │              │                                │                            │
 //! ├──────────────┴────────────────────────────────┴────────────────────────────┤
-//! │ [Tab: Switch Panel] [Ctrl+]: Ratio] [F10: Exit to Browse]                  │
+//! │ [Tab] Panel • [Ctrl+]] Ratio • [F10] Exit                                  │
 //! └────────────────────────────────────────────────────────────────────────────┘
 //! ```
 //!
@@ -310,7 +310,7 @@ impl View for WorkspaceView {
                 return ViewAction::None;
             }
             // Shift+Tab: Previous panel
-            (KeyCode::BackTab, KeyModifiers::SHIFT) => {
+            (KeyCode::BackTab, _) => {
                 self.focus = self.focus.prev();
                 return ViewAction::None;
             }
@@ -343,7 +343,7 @@ impl View for WorkspaceView {
 
     fn status_line(&self, _state: &TuiState) -> String {
         format!(
-            "Workspace | {} | {} | [Tab: Panel] [Ctrl+]: Ratio] [F10: Exit]",
+            "Workspace | {} | {} | [Tab] Panel • [Ctrl+]] Ratio • [F10] Exit",
             self.focus.title(),
             self.ratio.label()
         )
