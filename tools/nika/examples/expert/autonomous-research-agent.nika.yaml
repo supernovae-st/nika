@@ -1,0 +1,459 @@
+# Expert Workflow: Autonomous Research Agent
+# Demonstrates: agent verb + spawn_agent + MCP tools + extended_thinking + artifacts
+#
+# This workflow creates an autonomous research agent that:
+# 1. Plans a research strategy
+# 2. Spawns sub-agents to investigate different angles
+# 3. Synthesizes findings with deep reasoning
+# 4. Generates structured reports with schema validation
+#
+# Features demonstrated:
+# - Agent verb with max_turns and depth_limit
+# - spawn_agent for delegating to specialized sub-agents
+# - Extended thinking for complex reasoning
+# - MCP tool integration (Perplexity for web search)
+# - Structured outputs with JSON Schema
+# - Multi-format artifact output (JSON + Markdown)
+#
+# Usage:
+#   nika examples/expert/autonomous-research-agent.nika.yaml -- topic="AI regulation 2026"
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY
+#   - PERPLEXITY_API_KEY (optional, for web search)
+
+schema: "nika/workflow@0.10"
+workflow: autonomous-research-agent
+description: "Autonomous multi-agent research system with deep reasoning"
+
+provider: claude
+model: claude-sonnet-4-6
+
+# Workflow-level artifacts configuration
+artifacts:
+  dir: ./research/{{date}}/{{timestamp}}
+  format: json
+  manifest: true
+
+# MCP Servers for agent tools
+mcp:
+  perplexity:
+    command: npx
+    args: ["-y", "@anthropic/perplexity-mcp"]
+    env:
+      PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY}
+
+# Input parameters
+inputs:
+  topic:
+    type: string
+    description: "Research topic to investigate"
+    default: "Emerging trends in AI safety research"
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Stage 1: Research Planning Agent
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: research_planner
+    description: "Plan the research strategy with sub-investigations"
+
+    agent:
+      prompt: |
+        You are a Research Director planning a comprehensive investigation.
+
+        TOPIC: {{inputs.topic}}
+
+        Your task:
+        1. Analyze the topic and identify key research dimensions
+        2. Break down into 3-5 focused investigation areas
+        3. For each area, define:
+           - Investigation focus
+           - Key questions to answer
+           - Suggested sources/approaches
+           - Expected output type
+
+        Think deeply about what angles would provide the most valuable insights.
+
+        Return your research plan as a structured JSON object.
+
+      max_turns: 5
+      extended_thinking: true
+      thinking_budget: 8000
+
+    output:
+      format: json
+      schema:
+        type: object
+        required: [topic, summary, investigations, timeline]
+        properties:
+          topic:
+            type: string
+          summary:
+            type: string
+            maxLength: 500
+          investigations:
+            type: array
+            items:
+              type: object
+              required: [id, focus, questions, approach, output_type]
+              properties:
+                id:
+                  type: string
+                focus:
+                  type: string
+                questions:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 2
+                approach:
+                  type: string
+                output_type:
+                  type: string
+                  enum: [analysis, comparison, timeline, summary]
+            minItems: 3
+            maxItems: 5
+          timeline:
+            type: string
+      max_retries: 2
+
+    artifact:
+      path: planning/research-plan.json
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Stage 2: Parallel Investigation Agents
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: run_investigations
+    description: "Execute parallel investigations using spawned agents"
+
+    use:
+      plan: research_planner
+
+    for_each: "{{use.plan.investigations}}"
+    as: investigation
+    concurrency: 3
+    fail_fast: false
+
+    agent:
+      prompt: |
+        You are a specialized Research Investigator.
+
+        INVESTIGATION ASSIGNMENT:
+        - Focus: {{use.investigation.focus}}
+        - Questions to Answer:
+        {{use.investigation.questions | to_yaml}}
+        - Approach: {{use.investigation.approach}}
+        - Expected Output: {{use.investigation.output_type}}
+
+        You have access to spawn_agent to delegate specific sub-tasks if needed.
+        Use spawn_agent for:
+        - Fact-checking specific claims
+        - Deep-diving into technical details
+        - Gathering additional perspectives
+
+        Your investigation should be thorough and evidence-based.
+        Cite sources where possible.
+        Flag any areas of uncertainty or conflicting information.
+
+        Return your findings as structured JSON matching the expected output type.
+
+      mcp: [perplexity]
+      max_turns: 10
+      depth_limit: 2       # Spawned agents can spawn once more
+      stop_conditions:
+        - pattern: "INVESTIGATION_COMPLETE"
+          action: complete
+
+    output:
+      format: json
+      schema:
+        type: object
+        required: [investigation_id, focus, findings, sources, confidence, uncertainties]
+        properties:
+          investigation_id:
+            type: string
+          focus:
+            type: string
+          findings:
+            type: array
+            items:
+              type: object
+              required: [claim, evidence, importance]
+              properties:
+                claim:
+                  type: string
+                evidence:
+                  type: string
+                importance:
+                  type: string
+                  enum: [critical, high, medium, low]
+            minItems: 1
+          sources:
+            type: array
+            items:
+              type: object
+              properties:
+                title:
+                  type: string
+                url:
+                  type: string
+                credibility:
+                  type: string
+          confidence:
+            type: number
+            minimum: 0
+            maximum: 1
+          uncertainties:
+            type: array
+            items:
+              type: string
+      max_retries: 2
+
+    artifact:
+      - path: investigations/{{use.investigation.id}}.json
+        format: json
+      - path: investigations/{{use.investigation.id}}.md
+        format: text
+
+    flow: [research_planner]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Stage 3: Synthesis Agent with Extended Thinking
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: synthesize_findings
+    description: "Synthesize all investigation findings into coherent analysis"
+
+    use:
+      plan: research_planner
+      investigations: run_investigations
+
+    agent:
+      prompt: |
+        You are a Senior Research Analyst synthesizing multi-source findings.
+
+        ORIGINAL RESEARCH PLAN:
+        {{use.plan | to_yaml}}
+
+        INVESTIGATION RESULTS:
+        {{use.investigations | to_yaml}}
+
+        Your synthesis tasks:
+        1. Cross-reference findings across investigations
+        2. Identify convergent themes and divergent perspectives
+        3. Assess overall confidence in conclusions
+        4. Highlight key insights and their implications
+        5. Note gaps in the research and areas needing further investigation
+
+        Use extended thinking to reason through complex relationships.
+
+        Produce a comprehensive synthesis that:
+        - Answers the original research questions
+        - Weighs conflicting evidence appropriately
+        - Provides actionable insights
+        - Acknowledges limitations
+
+      max_turns: 8
+      extended_thinking: true
+      thinking_budget: 16000    # More thinking for synthesis
+
+    output:
+      format: json
+      schema:
+        type: object
+        required: [topic, executive_summary, key_findings, cross_cutting_themes, confidence_assessment, research_gaps, recommendations]
+        properties:
+          topic:
+            type: string
+          executive_summary:
+            type: string
+            maxLength: 1000
+          key_findings:
+            type: array
+            items:
+              type: object
+              required: [finding, evidence_strength, sources]
+              properties:
+                finding:
+                  type: string
+                evidence_strength:
+                  type: string
+                  enum: [strong, moderate, weak, conflicting]
+                sources:
+                  type: array
+                  items:
+                    type: string
+          cross_cutting_themes:
+            type: array
+            items:
+              type: string
+          confidence_assessment:
+            type: object
+            required: [overall, by_area]
+            properties:
+              overall:
+                type: number
+                minimum: 0
+                maximum: 1
+              by_area:
+                type: object
+                additionalProperties:
+                  type: number
+          research_gaps:
+            type: array
+            items:
+              type: string
+          recommendations:
+            type: array
+            items:
+              type: object
+              required: [action, priority, rationale]
+              properties:
+                action:
+                  type: string
+                priority:
+                  type: string
+                  enum: [immediate, short-term, long-term]
+                rationale:
+                  type: string
+      max_retries: 2
+
+    artifact:
+      path: synthesis/analysis.json
+
+    flow: [run_investigations]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Stage 4: Report Generation
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: generate_report
+    description: "Generate final research report in multiple formats"
+
+    use:
+      plan: research_planner
+      synthesis: synthesize_findings
+
+    infer:
+      prompt: |
+        Generate a professional research report in Markdown format.
+
+        RESEARCH TOPIC: {{use.plan.topic}}
+
+        SYNTHESIS:
+        {{use.synthesis | to_yaml}}
+
+        Structure the report as:
+
+        # Research Report: {{use.plan.topic}}
+
+        ## Executive Summary
+        (Key findings in 3-5 sentences)
+
+        ## Background
+        (Context and why this matters)
+
+        ## Methodology
+        (How the research was conducted)
+
+        ## Key Findings
+        (Detailed findings with evidence)
+
+        ## Analysis
+        (Cross-cutting themes and insights)
+
+        ## Confidence Assessment
+        (Reliability of conclusions)
+
+        ## Recommendations
+        (Actionable next steps, prioritized)
+
+        ## Limitations & Future Research
+        (Acknowledged gaps)
+
+        ## Sources
+        (Cited references)
+
+        ---
+        *Generated by Nika Autonomous Research Agent on {{date}}*
+
+    artifact:
+      - path: final/research-report.md
+        format: text
+      - path: final/research-report.json
+        format: json
+
+    flow: [synthesize_findings]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Stage 5: Final Output
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: output_summary
+    description: "Output execution summary"
+
+    use:
+      plan: research_planner
+      synthesis: synthesize_findings
+
+    exec: |
+      echo "═══════════════════════════════════════════════════════════════"
+      echo "  🔬 AUTONOMOUS RESEARCH AGENT COMPLETE"
+      echo "═══════════════════════════════════════════════════════════════"
+      echo ""
+      echo "Topic: {{use.plan.topic}}"
+      echo "Investigations completed: {{use.plan.investigations | length}}"
+      echo "Overall confidence: {{use.synthesis.confidence_assessment.overall}}"
+      echo ""
+      echo "Key findings:"
+      echo "{{use.synthesis.key_findings | length}} findings documented"
+      echo ""
+      echo "Artifacts generated:"
+      echo "  - planning/research-plan.json"
+      echo "  - investigations/*.json"
+      echo "  - investigations/*.md"
+      echo "  - synthesis/analysis.json"
+      echo "  - final/research-report.md"
+      echo "  - final/research-report.json"
+      echo "  - artifacts.json (manifest)"
+      echo ""
+      echo "═══════════════════════════════════════════════════════════════"
+
+    flow: [generate_report]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXECUTION FLOW DIAGRAM
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   ┌─────────────────┐
+#   │ research_planner│ (extended_thinking)
+#   └────────┬────────┘
+#            │
+#            ▼
+#   ┌─────────────────────────────────────────────────┐
+#   │         run_investigations (for_each)           │
+#   │  ┌──────────┐ ┌──────────┐ ┌──────────┐        │
+#   │  │ Agent 1  │ │ Agent 2  │ │ Agent 3  │        │
+#   │  │(spawn_   │ │(spawn_   │ │(spawn_   │        │
+#   │  │ agent)   │ │ agent)   │ │ agent)   │        │
+#   │  └──────────┘ └──────────┘ └──────────┘        │
+#   └─────────────────────┬───────────────────────────┘
+#                         │
+#                         ▼
+#   ┌─────────────────────────────────────────────────┐
+#   │         synthesize_findings                      │
+#   │         (extended_thinking: 16k tokens)          │
+#   └─────────────────────┬───────────────────────────┘
+#                         │
+#                         ▼
+#   ┌─────────────────┐   │
+#   │ generate_report │◄──┘
+#   └────────┬────────┘
+#            │
+#            ▼
+#   ┌─────────────────┐
+#   │ output_summary  │
+#   └─────────────────┘
+#

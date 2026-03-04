@@ -1,0 +1,608 @@
+# Expert Workflow: Knowledge Graph Content Generation
+# Demonstrates: NovaNet MCP + structured outputs + artifacts + agentic patterns
+#
+# This workflow generates native content from the NovaNet knowledge graph:
+# 1. Introspects the schema to understand available entities
+# 2. Assembles locale-aware context with denomination forms
+# 3. Generates culturally-native content (NOT translation)
+# 4. Validates against EntityNative schema
+# 5. Persists with comprehensive audit trail
+#
+# Features demonstrated:
+# - Full NovaNet MCP tool suite (8 tools)
+# - Context assembly with token budget
+# - ADR-033 denomination forms (text/title/abbrev/url)
+# - Structured output validation
+# - Multi-locale parallel generation
+# - Comprehensive artifact tracking
+#
+# Usage:
+#   nika examples/expert/knowledge-graph-content-gen.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY
+#   - NovaNet MCP server running (cargo run in tools/novanet-mcp)
+#   - Neo4j database with NovaNet schema
+
+schema: "nika/workflow@0.10"
+workflow: knowledge-graph-content-gen
+description: "Generate native content from NovaNet knowledge graph with RLM-on-KG"
+
+provider: claude
+model: claude-sonnet-4-6
+
+# MCP Server configuration
+mcp:
+  novanet:
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../novanet/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+# Workflow artifacts configuration
+artifacts:
+  dir: ./generated/{{date}}/{{workflow_name}}
+  format: json
+  manifest: true
+  max_size: 10485760
+
+# Input parameters
+inputs:
+  entity_key:
+    type: string
+    description: "Entity key to generate content for"
+    default: "qr-code-generator"
+  target_locales:
+    type: array
+    description: "Locales to generate content for"
+    default: ["en-US", "fr-FR", "de-DE", "es-MX"]
+  token_budget:
+    type: integer
+    description: "Token budget for context assembly"
+    default: 4000
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 1: Schema Introspection
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: introspect_schema
+    description: "Understand available node classes and relationships"
+
+    invoke:
+      server: novanet
+      tool: novanet_introspect
+      params:
+        target: classes
+        realm: org
+        layer: semantic
+        include_arcs: true
+
+    output:
+      format: json
+
+    artifact:
+      path: context/schema-introspection.json
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 2: Entity Discovery
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: describe_entity
+    description: "Get detailed entity information"
+
+    invoke:
+      server: novanet
+      tool: novanet_describe
+      params:
+        describe: entity
+        entity_key: "{{inputs.entity_key}}"
+
+    output:
+      format: json
+
+    artifact:
+      path: context/entity-description.json
+
+  - id: traverse_relations
+    description: "Traverse entity relationships to find related content"
+
+    invoke:
+      server: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "{{inputs.entity_key}}"
+        max_depth: 2
+        direction: both
+        arc_families: [semantic, localization, ownership]
+        target_kinds: [Entity, Page, Block]
+
+    output:
+      format: json
+
+    artifact:
+      path: context/entity-relations.json
+
+    flow: [describe_entity]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 3: Locale Knowledge Retrieval
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: retrieve_locale_atoms
+    description: "Retrieve knowledge atoms for each target locale"
+
+    for_each: "{{inputs.target_locales}}"
+    as: locale
+    concurrency: 4
+    fail_fast: false
+
+    invoke:
+      server: novanet
+      tool: novanet_atoms
+      params:
+        locale: "{{use.locale}}"
+        atom_type: all
+        limit: 50
+
+    output:
+      format: json
+      schema:
+        type: object
+        required: [locale, atoms, containers, total_count]
+        properties:
+          locale:
+            type: string
+          atoms:
+            type: array
+          containers:
+            type: array
+          total_count:
+            type: integer
+      max_retries: 1
+
+    artifact:
+      path: atoms/{{use.locale}}-atoms.json
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 4: Context Assembly
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: assemble_context
+    description: "Assemble generation context for each locale"
+
+    for_each: "{{inputs.target_locales}}"
+    as: locale
+    concurrency: 2
+    fail_fast: false
+
+    use:
+      entity: describe_entity
+      relations: traverse_relations
+      atoms: retrieve_locale_atoms
+
+    invoke:
+      server: novanet
+      tool: novanet_generate
+      params:
+        focus_key: "{{inputs.entity_key}}"
+        locale: "{{use.locale}}"
+        mode: block
+        token_budget: "{{inputs.token_budget}}"
+        spreading_depth: 2
+
+    output:
+      format: json
+      schema:
+        type: object
+        required: [prompt, evidence_summary, locale_context, denomination_forms]
+        properties:
+          prompt:
+            type: string
+          evidence_summary:
+            type: string
+          locale_context:
+            type: object
+          denomination_forms:
+            type: object
+            required: [text, title]
+            properties:
+              text:
+                type: string
+              title:
+                type: string
+              abbrev:
+                type: string
+              url:
+                type: string
+          context_anchors:
+            type: array
+          context_build_log:
+            type: object
+      max_retries: 2
+
+    artifact:
+      - path: context/assembled/{{use.locale}}-context.json
+        format: json
+      - path: context/assembled/{{use.locale}}-build-log.json
+        format: json
+
+    flow: [traverse_relations, retrieve_locale_atoms]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 5: Native Content Generation
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: generate_native_content
+    description: "Generate native content for each locale using assembled context"
+
+    for_each: "{{inputs.target_locales}}"
+    as: locale
+    concurrency: 3
+    fail_fast: false
+
+    use:
+      context: assemble_context
+      entity: describe_entity
+
+    agent:
+      prompt: |
+        You are a native {{use.locale}} content writer for NovaNet.
+
+        CRITICAL: You are GENERATING content natively, NOT translating.
+        Write as a native speaker would write, with local idioms and cultural nuances.
+
+        ENTITY CONTEXT:
+        {{use.entity | to_yaml}}
+
+        ASSEMBLED GENERATION CONTEXT:
+        {{use.context | to_yaml}}
+
+        DENOMINATION FORMS (from ADR-033):
+        {{use.context.denomination_forms | to_yaml}}
+
+        Use these exact denomination forms when referring to the entity:
+        - text: for body content, prose
+        - title: for H1, H2, meta_title
+        - abbrev: after first mention
+        - url: for URL-safe slugs
+
+        GENERATE an EntityNative record with:
+
+        1. **denomination_forms**: Use the provided forms exactly
+        2. **description**: 150-200 words, compelling product description
+        3. **meta_title**: Exactly 60 characters, include primary keyword
+        4. **meta_description**: Exactly 160 characters, with clear CTA
+        5. **key_features**: 5 features with title + description
+        6. **benefits**: 3 key benefits
+        7. **faq**: 5 questions and answers
+
+        Write ENTIRELY in {{use.locale}}. Match local formality conventions.
+
+      mcp: [novanet]
+      max_turns: 8
+      extended_thinking: true
+      thinking_budget: 8000
+
+    output:
+      format: json
+      schema:
+        type: object
+        required: [locale, entity_key, denomination_forms, description, meta_title, meta_description, key_features, benefits, faq]
+        properties:
+          locale:
+            type: string
+            pattern: "^[a-z]{2}-[A-Z]{2}$"
+          entity_key:
+            type: string
+          denomination_forms:
+            type: object
+            required: [text, title]
+            properties:
+              text:
+                type: string
+              title:
+                type: string
+              abbrev:
+                type: string
+              url:
+                type: string
+          description:
+            type: string
+            minLength: 100
+            maxLength: 1000
+          meta_title:
+            type: string
+            maxLength: 65
+          meta_description:
+            type: string
+            maxLength: 165
+          key_features:
+            type: array
+            items:
+              type: object
+              required: [title, description]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+            minItems: 5
+            maxItems: 5
+          benefits:
+            type: array
+            items:
+              type: string
+            minItems: 3
+            maxItems: 5
+          faq:
+            type: array
+            items:
+              type: object
+              required: [question, answer]
+              properties:
+                question:
+                  type: string
+                answer:
+                  type: string
+            minItems: 5
+            maxItems: 7
+      max_retries: 3
+
+    artifact:
+      - path: content/{{use.locale}}/entity-native.json
+        format: json
+      - path: content/{{use.locale}}/entity-native.yaml
+        format: yaml
+
+    flow: [assemble_context]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 6: Quality Validation
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: validate_content_quality
+    description: "Validate generated content quality across locales"
+
+    use:
+      content: generate_native_content
+      entity: describe_entity
+
+    agent:
+      prompt: |
+        You are a Quality Assurance specialist for multilingual content.
+
+        ENTITY: {{use.entity.name}}
+        CONTENT GENERATED FOR: {{inputs.target_locales | length}} locales
+
+        GENERATED CONTENT:
+        {{use.content | to_yaml}}
+
+        Validate each locale's content for:
+
+        1. **Cultural Authenticity**
+           - Native phrasing (not translated)
+           - Appropriate formality level
+           - Local idioms used correctly
+
+        2. **SEO Compliance**
+           - meta_title within 60 chars
+           - meta_description within 160 chars
+           - Primary keyword present
+
+        3. **Brand Consistency**
+           - Denomination forms used correctly
+           - Value proposition aligned
+           - Tone appropriate for locale
+
+        4. **Completeness**
+           - All required fields present
+           - Minimum content lengths met
+           - FAQ quality
+
+        Return structured validation results.
+
+      max_turns: 5
+
+    output:
+      format: json
+      schema:
+        type: object
+        required: [overall_score, locale_validations, issues, recommendations, approval_status]
+        properties:
+          overall_score:
+            type: number
+            minimum: 0
+            maximum: 100
+          locale_validations:
+            type: array
+            items:
+              type: object
+              required: [locale, score, passed_checks, failed_checks]
+              properties:
+                locale:
+                  type: string
+                score:
+                  type: number
+                passed_checks:
+                  type: array
+                  items:
+                    type: string
+                failed_checks:
+                  type: array
+                  items:
+                    type: object
+          issues:
+            type: array
+            items:
+              type: object
+              required: [locale, severity, issue, suggestion]
+              properties:
+                locale:
+                  type: string
+                severity:
+                  type: string
+                  enum: [critical, high, medium, low]
+                issue:
+                  type: string
+                suggestion:
+                  type: string
+          recommendations:
+            type: array
+            items:
+              type: string
+          approval_status:
+            type: string
+            enum: [approved, needs_revision, rejected]
+      max_retries: 2
+
+    artifact:
+      path: validation/quality-report.json
+
+    flow: [generate_native_content]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 7: Generate Final Report
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: generate_final_report
+    description: "Generate comprehensive generation report"
+
+    use:
+      entity: describe_entity
+      validation: validate_content_quality
+      content: generate_native_content
+
+    infer:
+      prompt: |
+        Generate a comprehensive content generation report in Markdown.
+
+        # Content Generation Report
+
+        **Entity**: {{use.entity.name}}
+        **Entity Key**: {{inputs.entity_key}}
+        **Generated**: {{date}}
+
+        ## Executive Summary
+        - Locales generated: {{inputs.target_locales | length}}
+        - Overall quality score: {{use.validation.overall_score}}/100
+        - Approval status: {{use.validation.approval_status}}
+
+        ## Per-Locale Breakdown
+        {{use.validation.locale_validations | to_yaml}}
+
+        ## Quality Issues
+        {{use.validation.issues | to_yaml}}
+
+        ## Recommendations
+        {{use.validation.recommendations | to_yaml}}
+
+        ## Content Preview
+        (Include first 200 chars of each locale's description)
+
+        ## Artifacts Generated
+        - Schema introspection
+        - Entity context
+        - Per-locale atoms
+        - Assembled contexts with build logs
+        - Generated EntityNative content (JSON + YAML)
+        - Quality validation report
+        - This summary report
+
+        ---
+        *Generated by Nika Knowledge Graph Content Generator*
+        *Powered by NovaNet MCP (v0.15.1)*
+
+    artifact:
+      - path: reports/generation-report.md
+        format: text
+      - path: reports/generation-report.json
+        format: json
+
+    flow: [validate_content_quality]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 8: Final Output
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: final_output
+    description: "Output generation summary"
+
+    use:
+      validation: validate_content_quality
+      entity: describe_entity
+
+    exec: |
+      echo "═══════════════════════════════════════════════════════════════"
+      echo "  🌐 KNOWLEDGE GRAPH CONTENT GENERATION COMPLETE"
+      echo "═══════════════════════════════════════════════════════════════"
+      echo ""
+      echo "Entity: {{use.entity.name}}"
+      echo "Locales: {{inputs.target_locales | length}}"
+      echo "Quality Score: {{use.validation.overall_score}}/100"
+      echo "Status: {{use.validation.approval_status}}"
+      echo ""
+      echo "Generated artifacts:"
+      echo "  📂 context/          - Schema, entity, relations, atoms"
+      echo "  📂 context/assembled - Per-locale assembled context"
+      echo "  📂 content/{locale}/ - EntityNative (JSON + YAML)"
+      echo "  📂 validation/       - Quality report"
+      echo "  📂 reports/          - Final report (MD + JSON)"
+      echo ""
+      echo "NovaNet MCP Tools Used:"
+      echo "  • novanet_introspect  - Schema discovery"
+      echo "  • novanet_describe    - Entity details"
+      echo "  • novanet_traverse    - Relationship mapping"
+      echo "  • novanet_atoms       - Knowledge retrieval"
+      echo "  • novanet_generate    - Context assembly (ADR-033)"
+      echo ""
+      echo "═══════════════════════════════════════════════════════════════"
+
+    flow: [generate_final_report]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PIPELINE FLOW
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   introspect_schema
+#         │
+#         ▼
+#   describe_entity ──────────────────────────────────────┐
+#         │                                               │
+#         ▼                                               │
+#   traverse_relations                                    │
+#         │                                               │
+#         ├──────────────────┐                            │
+#         │                  │                            │
+#         ▼                  ▼                            │
+#   retrieve_locale_atoms    │                            │
+#   (for_each: locales)      │                            │
+#         │                  │                            │
+#         └──────────┬───────┘                            │
+#                    │                                    │
+#                    ▼                                    │
+#            assemble_context                             │
+#            (for_each: locales)                          │
+#            [novanet_generate]                           │
+#                    │                                    │
+#                    ▼                                    │
+#         generate_native_content ◄───────────────────────┘
+#         (for_each: locales)
+#         [agent + extended_thinking]
+#                    │
+#                    ▼
+#         validate_content_quality
+#         [agent]
+#                    │
+#                    ▼
+#         generate_final_report
+#                    │
+#                    ▼
+#            final_output
+#

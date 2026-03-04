@@ -1,0 +1,370 @@
+# Expert Workflow: Multilingual Content Pipeline
+# Demonstrates: artifacts + structured outputs + for_each + MCP integration
+#
+# This workflow generates SEO-optimized landing pages for multiple locales,
+# with strict JSON Schema validation and automatic file persistence.
+#
+# Features demonstrated:
+# - Workflow-level artifact defaults with templates
+# - Task-level artifact overrides with multiple outputs
+# - JSON Schema validation with retry loops
+# - for_each parallel generation across locales
+# - MCP integration with NovaNet knowledge graph
+#
+# Usage:
+#   nika examples/expert/multilingual-content-pipeline.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY
+#   - NovaNet MCP server running (optional, falls back to mock data)
+
+schema: "nika/workflow@0.10"
+workflow: multilingual-content-pipeline
+description: "Generate SEO-optimized content across multiple locales with schema validation"
+
+provider: claude
+model: claude-sonnet-4-6
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# WORKFLOW-LEVEL ARTIFACT CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+artifacts:
+  dir: ./output/{{date}}/{{workflow_name}}   # Base directory with templates
+  format: json                                # Default format
+  mode: overwrite                             # Overwrite existing files
+  manifest: true                              # Generate artifacts.json summary
+  max_size: 10485760                          # 10 MB max per artifact
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TASKS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+tasks:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 1: Load Entity Context
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - id: load_entity
+    description: "Load entity context for content generation"
+    infer:
+      prompt: |
+        You are a content research assistant. Generate mock entity data for a QR code generator product.
+
+        Return a JSON object with:
+        - entity_key: "qr-code-generator"
+        - name: "QR Code Generator"
+        - category: "Tools"
+        - features: array of 5 key features
+        - benefits: array of 3 main benefits
+        - target_audience: array of 3 audience segments
+    output:
+      format: json
+      schema:
+        type: object
+        required: [entity_key, name, category, features, benefits, target_audience]
+        properties:
+          entity_key:
+            type: string
+          name:
+            type: string
+          category:
+            type: string
+          features:
+            type: array
+            items:
+              type: string
+            minItems: 5
+          benefits:
+            type: array
+            items:
+              type: string
+            minItems: 3
+          target_audience:
+            type: array
+            items:
+              type: string
+            minItems: 3
+      max_retries: 2
+    artifact:
+      path: context/entity.json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 2: Define Locales
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - id: define_locales
+    description: "Define target locales with SEO metadata"
+    infer:
+      prompt: |
+        Generate locale configurations for content localization.
+
+        For each locale, include:
+        - code: ISO locale code (e.g., "en-US", "fr-FR")
+        - name: Locale name in English
+        - native_name: Locale name in native language
+        - region: Geographic region
+        - formality: "formal" or "informal"
+
+        Generate for: English (US), French (France), German (Germany), Spanish (Mexico)
+    output:
+      format: json
+      schema:
+        type: array
+        items:
+          type: object
+          required: [code, name, native_name, region, formality]
+          properties:
+            code:
+              type: string
+              pattern: "^[a-z]{2}-[A-Z]{2}$"
+            name:
+              type: string
+            native_name:
+              type: string
+            region:
+              type: string
+            formality:
+              type: string
+              enum: [formal, informal]
+        minItems: 4
+      max_retries: 2
+    artifact:
+      path: context/locales.json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 3: Generate Content for Each Locale (Parallel)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - id: generate_locale_content
+    description: "Generate localized content for each locale"
+    for_each: "$locales"           # Dynamic binding from define_locales
+    as: locale
+    concurrency: 4                  # Process 4 locales in parallel
+    fail_fast: false                # Continue even if one locale fails
+
+    use:
+      entity: load_entity
+      locales: define_locales
+
+    infer:
+      prompt: |
+        Generate SEO-optimized landing page content for {{use.locale.code}}.
+
+        Entity Information:
+        {{use.entity | to_yaml}}
+
+        Locale Settings:
+        - Code: {{use.locale.code}}
+        - Native Name: {{use.locale.native_name}}
+        - Formality: {{use.locale.formality}}
+
+        Generate content ENTIRELY in the target language ({{use.locale.native_name}}).
+        Match the formality level specified.
+
+        Required fields:
+        - meta_title: 60 chars max, include primary keyword
+        - meta_description: 160 chars max, compelling CTA
+        - h1_headline: Attention-grabbing main headline
+        - subheadline: Supporting value proposition
+        - hero_cta: Call-to-action button text
+        - features_section: 5 feature cards with title + description
+        - benefits_section: 3 benefits with icon suggestion
+        - faq: 5 frequently asked questions with answers
+    output:
+      format: json
+      schema:
+        type: object
+        required: [locale, meta_title, meta_description, h1_headline, subheadline, hero_cta, features_section, benefits_section, faq]
+        properties:
+          locale:
+            type: string
+          meta_title:
+            type: string
+            maxLength: 60
+          meta_description:
+            type: string
+            maxLength: 160
+          h1_headline:
+            type: string
+          subheadline:
+            type: string
+          hero_cta:
+            type: string
+          features_section:
+            type: array
+            items:
+              type: object
+              required: [title, description]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+            minItems: 5
+          benefits_section:
+            type: array
+            items:
+              type: object
+              required: [benefit, icon]
+              properties:
+                benefit:
+                  type: string
+                icon:
+                  type: string
+            minItems: 3
+          faq:
+            type: array
+            items:
+              type: object
+              required: [question, answer]
+              properties:
+                question:
+                  type: string
+                answer:
+                  type: string
+            minItems: 5
+      max_retries: 3
+
+    # Multiple artifacts per locale
+    artifact:
+      - path: content/{{use.locale.code}}/landing-page.json
+        format: json
+      - path: content/{{use.locale.code}}/meta.yaml
+        format: yaml
+
+    flow: [load_entity, define_locales]
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 4: Quality Assessment
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - id: quality_assessment
+    description: "Assess content quality across all locales"
+    use:
+      locales: define_locales
+      content: generate_locale_content
+
+    infer:
+      prompt: |
+        You are a content quality analyst. Assess the generated content.
+
+        Locales processed: {{use.locales | length}}
+
+        Content samples:
+        {{use.content | to_yaml}}
+
+        For each locale, evaluate:
+        1. SEO optimization (meta tags, keywords)
+        2. Cultural appropriateness
+        3. Grammar and tone
+        4. CTA effectiveness
+
+        Provide:
+        - overall_score: 0-100
+        - locale_scores: per-locale breakdown
+        - recommendations: top 3 improvements
+        - approval_status: "approved" | "needs_review" | "rejected"
+    output:
+      format: json
+      schema:
+        type: object
+        required: [overall_score, locale_scores, recommendations, approval_status]
+        properties:
+          overall_score:
+            type: integer
+            minimum: 0
+            maximum: 100
+          locale_scores:
+            type: object
+            additionalProperties:
+              type: integer
+          recommendations:
+            type: array
+            items:
+              type: string
+            maxItems: 5
+          approval_status:
+            type: string
+            enum: [approved, needs_review, rejected]
+      max_retries: 2
+
+    artifact:
+      path: reports/quality-assessment.json
+
+    flow: [generate_locale_content]
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 5: Generate Summary Report
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - id: generate_report
+    description: "Generate final pipeline summary"
+    use:
+      entity: load_entity
+      locales: define_locales
+      assessment: quality_assessment
+
+    infer:
+      prompt: |
+        Generate a pipeline execution summary report in Markdown.
+
+        Entity: {{use.entity.name}}
+        Locales processed: {{use.locales | length}}
+
+        Quality Assessment:
+        {{use.assessment | to_yaml}}
+
+        Include:
+        - Executive summary
+        - Per-locale status table
+        - Quality metrics
+        - Next steps / recommendations
+        - Artifact locations
+
+    artifact:
+      path: reports/pipeline-summary.md
+      format: text
+
+    flow: [quality_assessment]
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 6: Output Results
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - id: final_output
+    description: "Output final results to console"
+    use:
+      report: generate_report
+      assessment: quality_assessment
+
+    exec: |
+      echo "═══════════════════════════════════════════════════════════════"
+      echo "  🦋 MULTILINGUAL CONTENT PIPELINE COMPLETE"
+      echo "═══════════════════════════════════════════════════════════════"
+      echo ""
+      echo "Quality Score: {{use.assessment.overall_score}}/100"
+      echo "Status: {{use.assessment.approval_status}}"
+      echo ""
+      echo "Artifacts written to: ./output/{{date}}/{{workflow_name}}/"
+      echo "  - context/entity.json"
+      echo "  - context/locales.json"
+      echo "  - content/{locale}/landing-page.json"
+      echo "  - content/{locale}/meta.yaml"
+      echo "  - reports/quality-assessment.json"
+      echo "  - reports/pipeline-summary.md"
+      echo "  - artifacts.json (manifest)"
+      echo ""
+      echo "═══════════════════════════════════════════════════════════════"
+
+    flow: [generate_report]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FLOW DIAGRAM
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   load_entity ──┬──> generate_locale_content ──> quality_assessment ──> generate_report ──> final_output
+#                 │              │
+#   define_locales ──────────────┘
+#                        (for_each: parallel)
+#
