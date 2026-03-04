@@ -46,7 +46,7 @@ use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
-    tree::TreeState,
+    tree::{TreeAction, TreeState},
     AnimatedLatencySparkline, DagAscii, MatrixRain, NodeBoxData, NodeBoxMode, SparklineAnimation,
     Timeline, TimelineEntry,
 };
@@ -239,6 +239,112 @@ impl HomeView {
                         entry.expanded = !entry.expanded;
                     }
                 }
+            }
+        }
+    }
+
+    /// Handle tree navigation action (v0.20 tree widget)
+    ///
+    /// Maps TreeAction variants to HomeView operations.
+    /// Returns Some(ViewAction) if action was handled, None otherwise.
+    fn handle_tree_action(&mut self, action: TreeAction) -> Option<ViewAction> {
+        let max = self.filtered_indices.len();
+
+        match action {
+            TreeAction::Up => {
+                self.select_prev();
+                Some(ViewAction::None)
+            }
+            TreeAction::Down => {
+                self.select_next();
+                Some(ViewAction::None)
+            }
+            TreeAction::Left => {
+                // Collapse folder if expanded, otherwise move to parent
+                if let Some(entry) = self.selected_entry() {
+                    if entry.is_dir && entry.expanded {
+                        self.toggle_folder();
+                    }
+                    // TODO: move to parent when implemented
+                }
+                Some(ViewAction::None)
+            }
+            TreeAction::Right => {
+                // Expand folder if collapsed, otherwise move into
+                if let Some(entry) = self.selected_entry() {
+                    if entry.is_dir && !entry.expanded {
+                        self.toggle_folder();
+                    }
+                    // TODO: move into children when implemented
+                }
+                Some(ViewAction::None)
+            }
+            TreeAction::Toggle => {
+                if let Some(entry) = self.selected_entry() {
+                    if entry.is_dir {
+                        self.toggle_folder();
+                        Some(ViewAction::None)
+                    } else {
+                        Some(ViewAction::RunWorkflow(entry.path.clone()))
+                    }
+                } else {
+                    Some(ViewAction::None)
+                }
+            }
+            TreeAction::Select => {
+                // 'o' to open in Studio
+                if let Some(entry) = self.selected_entry() {
+                    if !entry.is_dir {
+                        return Some(ViewAction::OpenInStudio(entry.path.clone()));
+                    }
+                }
+                Some(ViewAction::None)
+            }
+            TreeAction::First => {
+                // Jump to first entry
+                if max > 0 {
+                    self.tree_state.select_index(0);
+                    if let Some(&idx) = self.filtered_indices.first() {
+                        self.standalone.browser_index = idx;
+                        self.standalone.update_preview();
+                    }
+                }
+                Some(ViewAction::None)
+            }
+            TreeAction::Last => {
+                // Jump to last entry
+                if max > 0 {
+                    self.tree_state.select_index(max - 1);
+                    if let Some(&idx) = self.filtered_indices.last() {
+                        self.standalone.browser_index = idx;
+                        self.standalone.update_preview();
+                    }
+                }
+                Some(ViewAction::None)
+            }
+            TreeAction::PageUp => {
+                // Move up 10 items
+                if let Some(selected) = self.tree_state.selection_index() {
+                    let new_idx = selected.saturating_sub(10);
+                    self.tree_state.select_index(new_idx);
+                    if let Some(&idx) = self.filtered_indices.get(new_idx) {
+                        self.standalone.browser_index = idx;
+                        self.standalone.update_preview();
+                    }
+                }
+                Some(ViewAction::None)
+            }
+            TreeAction::PageDown => {
+                // Move down 10 items
+                if let Some(selected) = self.tree_state.selection_index() {
+                    let new_idx = (selected + 10).min(max.saturating_sub(1));
+                    self.tree_state.select_index(new_idx);
+                    if let Some(&idx) = self.filtered_indices.get(new_idx) {
+                        self.standalone.browser_index = idx;
+                        self.standalone.update_preview();
+                    }
+                }
+                Some(ViewAction::None)
             }
         }
     }
@@ -871,69 +977,52 @@ impl View for HomeView {
         }
 
         // Normal mode key handling
+        //
+        // v0.20: Priority order:
+        // 1. Reserved keys (s, T, /, e, E, d, h, c, number keys)
+        // 2. TreeAction navigation (j/k, Up/Down, Left/Right, Enter, g/G, etc.)
+        // 3. Fallback to ViewAction::None
+
+        // 1. Reserved keys - check these first before TreeAction
         match key.code {
-            // v0.8.1: Removed 'q' to quit - use Ctrl+C (double-tap) instead
             // 's' opens Settings view
-            KeyCode::Char('s') => ViewAction::OpenSettings,
-            // Shift+T or Ctrl+t toggles theme (v0.8.1 - consistent across all views)
-            KeyCode::Char('T') => ViewAction::ToggleTheme,
+            KeyCode::Char('s') => return ViewAction::OpenSettings,
+
+            // Shift+T or Ctrl+t toggles theme
+            KeyCode::Char('T') => return ViewAction::ToggleTheme,
             KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                ViewAction::ToggleTheme
+                return ViewAction::ToggleTheme;
             }
 
             // Start search with / or Ctrl+P
             KeyCode::Char('/') => {
                 self.search_active = true;
                 self.search_query.clear();
-                ViewAction::None
+                return ViewAction::None;
             }
             KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.search_active = true;
                 self.search_query.clear();
-                ViewAction::None
+                return ViewAction::None;
             }
 
-            // Navigation: j/k or up/down
-            KeyCode::Up | KeyCode::Char('k') => {
-                self.select_prev();
-                ViewAction::None
-            }
-            KeyCode::Down | KeyCode::Char('j') => {
-                self.select_next();
-                ViewAction::None
-            }
-
-            // Enter: run workflow or toggle folder
-            KeyCode::Enter => {
-                if let Some(entry) = self.selected_entry() {
-                    if entry.is_dir {
-                        self.toggle_folder();
-                        ViewAction::None
-                    } else {
-                        ViewAction::RunWorkflow(entry.path.clone())
-                    }
-                } else {
-                    ViewAction::None
-                }
-            }
-
-            // Edit: open in Studio
+            // Edit: open in Studio (e key)
             KeyCode::Char('e') if !key.modifiers.contains(KeyModifiers::SHIFT) => {
                 if let Some(entry) = self.selected_entry() {
                     if !entry.is_dir {
                         return ViewAction::OpenInStudio(entry.path.clone());
                     }
                 }
-                ViewAction::None
+                return ViewAction::None;
             }
 
             // Toggle DAG expand mode (Shift+E)
             KeyCode::Char('E') => {
                 self.dag_expanded = !self.dag_expanded;
-                ViewAction::None
+                return ViewAction::None;
             }
 
-            // Toggle preview mode: DAG ↔ YAML (D key)
+            // Toggle preview mode: DAG ↔ YAML (D key, not Ctrl+D)
             KeyCode::Char('d') | KeyCode::Char('D')
                 if !key.modifiers.contains(KeyModifiers::SHIFT)
                     && !key.modifiers.contains(KeyModifiers::CONTROL) =>
@@ -942,24 +1031,24 @@ impl View for HomeView {
                     PreviewMode::Dag => PreviewMode::Yaml,
                     PreviewMode::Yaml => PreviewMode::Dag,
                 };
-                ViewAction::None
+                return ViewAction::None;
             }
 
-            // Toggle history expansion
+            // 'h' toggles history (reserved, not TreeAction::Left)
             KeyCode::Char('h') => {
                 self.history_expanded = !self.history_expanded;
-                ViewAction::None
+                return ViewAction::None;
             }
 
             // Chat overlay toggle
-            KeyCode::Char('c') => ViewAction::ToggleChatOverlay,
+            KeyCode::Char('c') => return ViewAction::ToggleChatOverlay,
 
             // View switching: number keys (v0.12 6-Views)
-            KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Chat),
-            KeyCode::Char('3') => ViewAction::SwitchView(TuiView::Editor),
-            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Runner),
-            KeyCode::Char('5') => ViewAction::SwitchView(TuiView::Scheduler),
-            KeyCode::Char('6') => ViewAction::SwitchView(TuiView::Settings),
+            KeyCode::Char('2') => return ViewAction::SwitchView(TuiView::Chat),
+            KeyCode::Char('3') => return ViewAction::SwitchView(TuiView::Editor),
+            KeyCode::Char('4') => return ViewAction::SwitchView(TuiView::Runner),
+            KeyCode::Char('5') => return ViewAction::SwitchView(TuiView::Scheduler),
+            KeyCode::Char('6') => return ViewAction::SwitchView(TuiView::Settings),
 
             // v0.11.0: Validate selected workflow
             KeyCode::Char('v') => {
@@ -968,14 +1057,25 @@ impl View for HomeView {
                         return ViewAction::ValidateWorkflow(entry.path.clone());
                     }
                 }
-                ViewAction::None
+                return ViewAction::None;
             }
 
             // Tab: handled at app level for view cycling
-            KeyCode::Tab => ViewAction::None,
+            KeyCode::Tab => return ViewAction::None,
 
-            _ => ViewAction::None,
+            _ => {} // Fall through to TreeAction handling
         }
+
+        // 2. TreeAction navigation (v0.20)
+        // Convert key to TreeAction and delegate to handle_tree_action
+        if let Some(action) = TreeAction::from_key_event(key) {
+            if let Some(view_action) = self.handle_tree_action(action) {
+                return view_action;
+            }
+        }
+
+        // 3. Fallback
+        ViewAction::None
     }
 
     fn status_line(&self, _state: &TuiState) -> String {
