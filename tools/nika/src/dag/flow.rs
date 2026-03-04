@@ -56,7 +56,7 @@ impl Dag {
             predecessors.insert(id, DepVec::new());
         }
 
-        // Build from flows (lookup Arc from set or intern)
+        // Build from workflow-level flows: (lookup Arc from set or intern)
         for flow in &workflow.flows {
             let sources = flow.source.as_vec();
             let targets = flow.target.as_vec();
@@ -78,6 +78,33 @@ impl Dag {
                         .or_default()
                         .push(Arc::clone(&tgt_arc));
                     predecessors.entry(tgt_arc).or_default().push(src_arc);
+                }
+            }
+        }
+
+        // Build from task-level flow: (v0.1+)
+        // flow: [dep1, dep2] means dep1 -> this_task, dep2 -> this_task
+        for task in &workflow.tasks {
+            if let Some(ref deps) = task.flow {
+                let tgt_arc = task_set
+                    .get(task.id.as_str())
+                    .cloned()
+                    .unwrap_or_else(|| intern(&task.id));
+
+                for dep in deps {
+                    let src_arc = task_set
+                        .get(dep.as_str())
+                        .cloned()
+                        .unwrap_or_else(|| intern(dep));
+
+                    adjacency
+                        .entry(Arc::clone(&src_arc))
+                        .or_default()
+                        .push(Arc::clone(&tgt_arc));
+                    predecessors
+                        .entry(Arc::clone(&tgt_arc))
+                        .or_default()
+                        .push(src_arc);
                 }
             }
         }

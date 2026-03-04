@@ -1317,6 +1317,7 @@ mod tests {
                 output: None,
                 artifact: None,
                 log: None,
+                flow: None,
             })],
             flows: vec![],
         };
@@ -1381,6 +1382,7 @@ mod tests {
                 output: None,
                 artifact: None,
                 log: None,
+                flow: None,
             })],
             flows: vec![],
         };
@@ -1448,6 +1450,7 @@ mod tests {
                         },
                         artifact: None,
                         log: None,
+                        flow: None,
                     })
                 })
                 .collect(),
@@ -1876,6 +1879,7 @@ mod tests {
                 output: None,
                 artifact: None,
                 log: None,
+                flow: None,
             })],
             flows: vec![],
         };
@@ -1930,6 +1934,7 @@ mod tests {
                 output: None,
                 artifact: None,
                 log: None,
+                flow: None,
             })],
             flows: vec![],
         };
@@ -1974,6 +1979,7 @@ mod tests {
                 output: None,
                 artifact: None,
                 log: None,
+                flow: None,
             })],
             flows: vec![],
         };

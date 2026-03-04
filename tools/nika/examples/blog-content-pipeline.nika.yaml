@@ -97,6 +97,7 @@ tasks:
 
     output:
       format: json
+      max_retries: 2
       schema:
         type: object
         required: [trends]
@@ -114,7 +115,6 @@ tasks:
                   enum: [high, medium, low]
                 description:
                   type: string
-      max_retries: 2
 
   - id: scrape_competitors
     description: "Analyze competitor blog posts"
@@ -170,6 +170,7 @@ tasks:
 
     output:
       format: json
+      max_retries: 2
       schema:
         type: object
         required: [topic, seo_keywords, research_summary, sections]
@@ -192,7 +193,6 @@ tasks:
             items:
               type: string
             minItems: 4
-      max_retries: 2
 
     artifact:
       path: research/topic-research.json
@@ -252,6 +252,7 @@ tasks:
 
     output:
       format: json
+      max_retries: 2
       schema:
         type: object
         required: [seo_title, meta_description, meta_keywords]
@@ -271,7 +272,6 @@ tasks:
             type: string
           twitter_description:
             type: string
-      max_retries: 2
 
     artifact:
       path: metadata/seo-metadata.json
@@ -396,6 +396,7 @@ tasks:
 
     output:
       format: json
+      max_retries: 1
       schema:
         type: object
         required: [overall_score, ready_to_publish, issues]
@@ -422,7 +423,6 @@ tasks:
             type: array
             items:
               type: string
-      max_retries: 1
 
     artifact:
       path: validation/quality-report.json

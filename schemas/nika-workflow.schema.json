@@ -9,9 +9,9 @@
   "properties": {
     "schema": {
       "type": "string",
-      "pattern": "^nika/workflow@0\\.[1-9]$",
-      "description": "Workflow schema version (nika/workflow@0.1 through @0.9)",
-      "examples": ["nika/workflow@0.4", "nika/workflow@0.9"]
+      "pattern": "^nika/workflow@0\\.(10|[1-9])$",
+      "description": "Workflow schema version (nika/workflow@0.1 through @0.10)",
+      "examples": ["nika/workflow@0.9", "nika/workflow@0.10"]
     },
     "workflow": {
       "type": "string",
@@ -73,6 +73,26 @@
       "items": {
         "$ref": "#/$defs/Flow"
       }
+    },
+    "artifacts": {
+      "$ref": "#/$defs/ArtifactsConfig",
+      "description": "Workflow-level artifact defaults (v0.10+)"
+    },
+    "log": {
+      "$ref": "#/$defs/LogConfig",
+      "description": "Workflow-level logging configuration (v0.10+)"
+    },
+    "agents": {
+      "type": "object",
+      "description": "Reusable agent definitions (v0.6+)",
+      "additionalProperties": {
+        "$ref": "#/$defs/AgentDef"
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "description": "Workflow input parameters (v0.10+)",
+      "additionalProperties": {}
     }
   },
   "$defs": {
@@ -97,20 +117,28 @@
     },
     "IncludeSpec": {
       "type": "object",
-      "description": "External workflow to merge (v0.9+)",
-      "required": ["path"],
+      "description": "External workflow to merge (v0.9+ path, v0.17+ pkg)",
       "additionalProperties": false,
       "properties": {
         "path": {
           "type": "string",
           "description": "Path to external .nika.yaml file"
         },
+        "pkg": {
+          "type": "string",
+          "pattern": "^[a-z@][a-z0-9@/_.-]*$",
+          "description": "Package reference (v0.17+) e.g., pkg:@spn/workflows@1.0.0/seo.nika.yaml"
+        },
         "prefix": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$",
           "description": "Prefix for included task IDs (namespace isolation)"
         }
-      }
+      },
+      "oneOf": [
+        { "required": ["path"] },
+        { "required": ["pkg"] }
+      ]
     },
     "SkillDef": {
       "type": "object",
@@ -232,6 +260,18 @@
         "agent": {
           "$ref": "#/$defs/AgentParams",
           "description": "Agentic execution task (v0.2+)"
+        },
+        "artifact": {
+          "$ref": "#/$defs/ArtifactSpec",
+          "description": "Task-level artifact output (v0.10+)"
+        },
+        "log": {
+          "$ref": "#/$defs/LogConfig",
+          "description": "Task-level logging override (v0.10+)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable task description"
         }
       },
       "oneOf": [
@@ -308,6 +348,23 @@
               "minimum": 1,
               "maximum": 1000000,
               "description": "Maximum output tokens"
+            },
+            "response_format": {
+              "type": "string",
+              "enum": ["json", "text", "markdown"],
+              "description": "Expected response format (v0.10+)"
+            },
+            "extended_thinking": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable extended thinking (Claude only, v0.4+)"
+            },
+            "thinking_budget": {
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 32768,
+              "default": 4096,
+              "description": "Token budget for thinking (requires extended_thinking: true)"
             }
           }
         }
@@ -380,12 +437,15 @@
     },
     "InvokeParams": {
       "type": "object",
-      "required": ["mcp"],
       "additionalProperties": false,
       "properties": {
         "mcp": {
           "type": "string",
           "description": "MCP server name (must match a key in workflow's mcp config)"
+        },
+        "server": {
+          "type": "string",
+          "description": "MCP server name (legacy alias for 'mcp', deprecated)"
         },
         "tool": {
           "type": "string",
@@ -402,7 +462,9 @@
       },
       "oneOf": [
         { "required": ["mcp", "tool"] },
-        { "required": ["mcp", "resource"] }
+        { "required": ["mcp", "resource"] },
+        { "required": ["server", "tool"] },
+        { "required": ["server", "resource"] }
       ]
     },
     "AgentParams": {
@@ -457,15 +519,61 @@
           "maximum": 2,
           "description": "LLM temperature"
         },
-        "thinking": {
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000,
+          "description": "Maximum output tokens per turn (v0.18+)"
+        },
+        "token_budget": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total token budget for agent execution (v0.5+)"
+        },
+        "extended_thinking": {
           "type": "boolean",
           "default": false,
-          "description": "Enable extended thinking (Claude only)"
+          "description": "Enable extended thinking (Claude only, v0.4+)"
+        },
+        "thinking_budget": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 32768,
+          "default": 4096,
+          "description": "Token budget for thinking (requires extended_thinking: true)"
+        },
+        "tool_choice": {
+          "type": "string",
+          "enum": ["auto", "required", "none"],
+          "default": "auto",
+          "description": "Tool selection behavior (v0.8+)"
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Skills to inject into agent context (v0.15.4+)"
         },
         "stop_sequences": {
           "type": "array",
           "items": { "type": "string" },
           "description": "Sequences that stop generation"
+        },
+        "stop_conditions": {
+          "type": "array",
+          "description": "Structured stop conditions (v0.10+)",
+          "items": {
+            "oneOf": [
+              { "type": "string", "description": "Simple string pattern" },
+              {
+                "type": "object",
+                "required": ["pattern"],
+                "properties": {
+                  "pattern": { "type": "string", "description": "Pattern to match" },
+                  "action": { "type": "string", "enum": ["complete", "fail", "continue"], "description": "Action on match" }
+                }
+              }
+            ]
+          }
         }
       }
     },
@@ -516,12 +624,22 @@
           "description": "Expected output format"
         },
         "schema": {
-          "type": "object",
-          "description": "JSON Schema for output validation"
+          "oneOf": [
+            { "type": "object", "description": "Inline JSON Schema object" },
+            { "type": "string", "description": "Path to JSON Schema file" }
+          ],
+          "description": "JSON Schema for output validation (inline object or file path)"
         },
         "save": {
           "type": "string",
           "description": "File path to save output"
+        },
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 2,
+          "description": "Maximum retry attempts on validation failure (v0.10)"
         }
       }
     },
@@ -553,6 +671,185 @@
           "description": "Multiple task IDs"
         }
       ]
+    },
+    "ArtifactsConfig": {
+      "type": "object",
+      "description": "Workflow-level artifact defaults (v0.10+)",
+      "additionalProperties": false,
+      "properties": {
+        "dir": {
+          "type": "string",
+          "description": "Base directory for artifacts (supports templates)"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["text", "json", "yaml"],
+          "default": "text",
+          "description": "Default output format"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["overwrite", "append", "unique", "fail"],
+          "default": "overwrite",
+          "description": "Default write mode"
+        },
+        "manifest": {
+          "type": "boolean",
+          "default": false,
+          "description": "Generate artifacts.json manifest at workflow end"
+        },
+        "max_size": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 104857600,
+          "description": "Maximum artifact size in bytes (default: 100MB)"
+        }
+      }
+    },
+    "ArtifactSpec": {
+      "oneOf": [
+        {
+          "type": "boolean",
+          "description": "Enable/disable artifact using workflow defaults"
+        },
+        {
+          "type": "object",
+          "description": "Single artifact with options",
+          "additionalProperties": false,
+          "required": ["path"],
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Output path (supports templates)"
+            },
+            "source": {
+              "type": "string",
+              "description": "Which binding to save (default: task result)"
+            },
+            "format": {
+              "type": "string",
+              "enum": ["text", "json", "yaml"],
+              "description": "Output format override"
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["overwrite", "append", "unique", "fail"],
+              "description": "Write mode override"
+            }
+          }
+        },
+        {
+          "type": "array",
+          "description": "Multiple artifacts",
+          "items": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string" },
+              "source": { "type": "string" },
+              "format": { "type": "string", "enum": ["text", "json", "yaml"] },
+              "mode": { "type": "string", "enum": ["overwrite", "append", "unique", "fail"] }
+            }
+          }
+        }
+      ]
+    },
+    "LogConfig": {
+      "type": "object",
+      "description": "Logging configuration (v0.10+)",
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["trace", "debug", "info", "warn", "error"],
+          "default": "info",
+          "description": "Log level"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["text", "json"],
+          "default": "text",
+          "description": "Log output format"
+        },
+        "file": {
+          "type": "string",
+          "description": "Log file path"
+        }
+      }
+    },
+    "AgentDef": {
+      "type": "object",
+      "description": "Reusable agent definition (v0.6+)",
+      "properties": {
+        "system": {
+          "type": "string",
+          "description": "System prompt (agent persona/behavior)"
+        },
+        "provider": {
+          "type": "string",
+          "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "ollama", "mock"],
+          "description": "Provider override"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model override"
+        },
+        "mcp": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "MCP servers the agent can access"
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Builtin tools the agent can use"
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Skills to inject into agent"
+        },
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "description": "Maximum agentic turns"
+        },
+        "depth_limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Maximum nested agent depth"
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "description": "LLM temperature"
+        },
+        "extended_thinking": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable extended thinking (Claude only, v0.4+)"
+        },
+        "thinking_budget": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 32768,
+          "default": 4096,
+          "description": "Token budget for thinking"
+        },
+        "from": {
+          "type": "string",
+          "description": "Reference to another agent definition (v0.13+)"
+        },
+        "file": {
+          "type": "string",
+          "description": "External agent definition file (legacy, use from: instead)"
+        }
+      }
     }
   }
 }

@@ -345,6 +345,20 @@ pub struct Task {
     /// Overrides workflow-level log settings for this task.
     #[serde(default)]
     pub log: Option<super::logging::LogConfig>,
+    /// Explicit task dependencies (v0.1)
+    ///
+    /// Task IDs that must complete before this task can execute.
+    /// Alternative to workflow-level `flows:` declaration.
+    ///
+    /// # Example
+    ///
+    /// ```yaml
+    /// - id: process
+    ///   flow: [fetch_data, validate]
+    ///   infer: "Process {{use.data}}"
+    /// ```
+    #[serde(default)]
+    pub flow: Option<Vec<String>>,
 }
 
 impl Task {

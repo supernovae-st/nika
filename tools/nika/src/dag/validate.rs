@@ -756,6 +756,7 @@ flows:
             fail_fast: None,
             artifact: None,
             log: None,
+            flow: None,
         };
 
         let result = validate_template_refs(&task);
@@ -785,6 +786,7 @@ flows:
             fail_fast: None,
             artifact: None,
             log: None,
+            flow: None,
         };
 
         let result = validate_template_refs(&task);
@@ -812,6 +814,7 @@ flows:
             fail_fast: None,
             artifact: None,
             log: None,
+            flow: None,
         };
 
         let result = validate_template_refs(&task);
@@ -845,6 +848,7 @@ flows:
             fail_fast: None,
             artifact: None,
             log: None,
+            flow: None,
         };
 
         let result = validate_template_refs(&task);
@@ -880,6 +884,7 @@ flows:
             fail_fast: None,
             artifact: None,
             log: None,
+            flow: None,
         };
 
         let result = validate_template_refs(&task);

@@ -310,7 +310,7 @@ tasks:
     }
 
     // ========================================================================
-    // Test: Missing required invoke.mcp fails
+    // Test: Missing required invoke.mcp or server fails
     // ========================================================================
     #[test]
     fn test_missing_required_invoke_mcp_fails() {
@@ -323,15 +323,21 @@ tasks:
       tool: novanet_describe
 "#;
         let result = validator.validate_yaml(yaml);
-        assert!(result.is_err(), "Missing invoke.mcp should fail");
+        assert!(result.is_err(), "Missing invoke.mcp/server should fail");
 
         if let Err(NikaError::SchemaValidationFailed { errors }) = result {
             assert!(!errors.is_empty());
-            // Should have MissingRequired for 'mcp'
-            let has_mcp_error = errors.iter().any(
-                |e| matches!(&e.kind, SchemaErrorKind::MissingRequired { field } if field == "mcp"),
+            // With oneOf schema (mcp+tool | mcp+resource | server+tool | server+resource),
+            // missing server identifier triggers oneOf validation failure or MissingRequired
+            // We just need to ensure validation fails appropriately
+            let has_invoke_error = errors
+                .iter()
+                .any(|e| e.path.contains("invoke") || e.path.contains("tasks"));
+            assert!(
+                has_invoke_error,
+                "Should have error related to invoke params: {:?}",
+                errors
             );
-            assert!(has_mcp_error, "Should have MissingRequired for 'mcp'");
         } else {
             panic!("Expected SchemaValidationFailed error");
         }

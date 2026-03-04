@@ -34,6 +34,9 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Deserialize)]
 pub struct InvokeParams {
     /// MCP server name (must match a key in workflow's `mcp` config)
+    ///
+    /// Also accepts `server` as a legacy alias for backwards compatibility.
+    #[serde(alias = "server")]
     pub mcp: String,
 
     /// Tool name to call (mutually exclusive with `resource`)
