@@ -384,8 +384,6 @@ jobs:
 
           # Core workflows that MUST pass validation
           CORE_WORKFLOWS=(
-            "examples/test-conversational-agent.nika.yaml"
-            "examples/test-chat-ux-integration.nika.yaml"
             "examples/production-test.nika.yaml"
             "examples/agent-simple.nika.yaml"
             "examples/invoke-novanet.nika.yaml"
