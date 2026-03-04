@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 use crate::ast::{
     decompose::{DecomposeSpec, DecomposeStrategy},
+    output::{OutputFormat, OutputPolicy, SchemaRef},
     AgentParams, ExecParams, FetchParams, InferParams, InvokeParams, McpConfigInline, TaskAction,
 };
 use crate::binding::{template_resolve, ResolvedBindings};
@@ -450,21 +451,65 @@ impl TaskExecutor {
         .to_string()
     }
 
-    /// Run a task action with the given bindings (v0.5)
+    /// Build JSON schema instruction for LLM prompts (v0.19.4)
+    ///
+    /// When output policy requires JSON format with a schema, this generates
+    /// an instruction string to append to the prompt, telling the LLM to
+    /// output valid JSON conforming to the schema.
+    fn build_json_schema_instruction(output_policy: Option<&OutputPolicy>) -> Option<String> {
+        let policy = output_policy?;
+        if policy.format != OutputFormat::Json {
+            return None;
+        }
+        let schema_ref = policy.schema.as_ref()?;
+        let schema_json = match schema_ref {
+            SchemaRef::Inline(v) => v.clone(),
+            SchemaRef::File(_) => {
+                return Some(
+                    "\n\n---\n\
+                     CRITICAL OUTPUT REQUIREMENT:\n\
+                     Your response MUST be valid JSON.\n\n\
+                     Rules:\n\
+                     - Output ONLY the JSON object, no additional text\n\
+                     - Do NOT wrap in markdown code blocks (no ```json)\n\
+                     - Ensure all JSON is properly formatted and valid"
+                        .to_string(),
+                );
+            }
+        };
+        let schema_str = serde_json::to_string_pretty(&schema_json).unwrap_or_default();
+        Some(format!(
+            "\n\n---\n\
+             CRITICAL OUTPUT REQUIREMENT:\n\
+             Your response MUST be valid JSON that conforms to this schema:\n\n\
+             ```json\n{}\n```\n\n\
+             Rules:\n\
+             - Output ONLY the JSON object, no additional text before or after\n\
+             - Do NOT wrap your response in markdown code blocks (no ```json)\n\
+             - All required fields must be present\n\
+             - Field types must match the schema exactly",
+            schema_str
+        ))
+    }
+
+    /// Run a task action with the given bindings (v0.5, updated v0.19.4)
     ///
     /// The datastore is required for resolving lazy bindings during template substitution.
-    #[instrument(skip(self, bindings, datastore), fields(action_type = %action_type(action)))]
+    /// The output_policy is used to inject JSON schema instructions into prompts for infer/agent.
+    #[instrument(skip(self, bindings, datastore, output_policy), fields(action_type = %action_type(action)))]
     pub async fn execute(
         &self,
         task_id: &Arc<str>,
         action: &TaskAction,
         bindings: &ResolvedBindings,
         datastore: &DataStore,
+        output_policy: Option<&OutputPolicy>,
     ) -> Result<String, NikaError> {
         debug!("Running task action");
         match action {
             TaskAction::Infer { infer } => {
-                self.run_infer(task_id, infer, bindings, datastore).await
+                self.run_infer(task_id, infer, bindings, datastore, output_policy)
+                    .await
             }
             TaskAction::Exec { exec: e } => self.run_exec(task_id, e, bindings, datastore).await,
             TaskAction::Fetch { fetch } => {
@@ -474,7 +519,8 @@ impl TaskExecutor {
                 self.run_invoke(task_id, invoke, bindings, datastore).await
             }
             TaskAction::Agent { agent } => {
-                self.run_agent(task_id, agent, bindings, datastore).await
+                self.run_agent(task_id, agent, bindings, datastore, output_policy)
+                    .await
             }
         }
     }
@@ -527,9 +573,7 @@ impl TaskExecutor {
                     }
                     "gemini" | "google" => {
                         if std::env::var("GEMINI_API_KEY").is_err() {
-                            return Err(NikaError::Provider(
-                                "GEMINI_API_KEY not set".to_string(),
-                            ));
+                            return Err(NikaError::Provider("GEMINI_API_KEY not set".to_string()));
                         }
                         RigProvider::gemini()
                     }
@@ -552,6 +596,7 @@ impl TaskExecutor {
         infer: &InferParams,
         bindings: &ResolvedBindings,
         datastore: &DataStore,
+        output_policy: Option<&OutputPolicy>,
     ) -> Result<String, NikaError> {
         // v0.17.5: Validate infer params (empty prompt, invalid temperature)
         infer
@@ -559,7 +604,7 @@ impl TaskExecutor {
             .map_err(|e| NikaError::ValidationError { reason: e })?;
 
         // Resolve {{use.alias}} templates (v0.5: supports lazy bindings)
-        let prompt = template_resolve(&infer.prompt, bindings, datastore)?;
+        let mut prompt = template_resolve(&infer.prompt, bindings, datastore)?.into_owned();
 
         // v0.17.5: Validate resolved prompt is not empty (could happen if template resolves to empty)
         if prompt.trim().is_empty() {
@@ -569,6 +614,12 @@ impl TaskExecutor {
                     task_id
                 ),
             });
+        }
+
+        // v0.19.4: Inject JSON schema instruction if output policy requires JSON with schema
+        if let Some(schema_instruction) = Self::build_json_schema_instruction(output_policy) {
+            prompt.push_str(&schema_instruction);
+            debug!(task_id = %task_id, "Injected JSON schema instruction into infer prompt");
         }
 
         // EMIT: TemplateResolved
@@ -1147,16 +1198,24 @@ impl TaskExecutor {
     /// 6. Create and run AgentLoop
     /// 7. Emit AgentComplete event
     /// 8. Return final output as JSON string
-    #[instrument(skip(self, bindings, datastore), fields(max_turns = %agent.effective_max_turns()))]
+    #[instrument(skip(self, bindings, datastore, output_policy), fields(max_turns = %agent.effective_max_turns()))]
     async fn run_agent(
         &self,
         task_id: &Arc<str>,
         agent: &AgentParams,
         bindings: &ResolvedBindings,
         datastore: &DataStore,
+        output_policy: Option<&OutputPolicy>,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates in prompt (v0.5: supports lazy bindings)
-        let resolved_prompt = template_resolve(&agent.prompt, bindings, datastore)?;
+        let mut resolved_prompt =
+            template_resolve(&agent.prompt, bindings, datastore)?.into_owned();
+
+        // v0.19.4: Inject JSON schema instruction if output policy requires JSON with schema
+        if let Some(schema_instruction) = Self::build_json_schema_instruction(output_policy) {
+            resolved_prompt.push_str(&schema_instruction);
+            debug!(task_id = %task_id, "Injected JSON schema instruction into agent prompt");
+        }
 
         // EMIT: TemplateResolved event
         self.event_log.emit(EventKind::TemplateResolved {
@@ -1167,7 +1226,7 @@ impl TaskExecutor {
 
         // Create agent params with resolved prompt
         let resolved_agent = AgentParams {
-            prompt: resolved_prompt.into_owned(),
+            prompt: resolved_prompt,
             ..agent.clone()
         };
 
@@ -1457,7 +1516,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_echo");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await
             .unwrap();
         assert_eq!(result, "hello");
@@ -1481,7 +1540,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_template");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await
             .unwrap();
         assert_eq!(result, "world");
@@ -1505,7 +1564,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_fail");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -1539,7 +1598,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_event");
         executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await
             .unwrap();
 
@@ -1581,7 +1640,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_fetch_fail");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
         // Result is error because the URL cannot be resolved/connected
         assert!(result.is_err());
@@ -1608,13 +1667,13 @@ mod tests {
         let task_id: Arc<str> = Arc::from("test_fetch_template");
         // This will connect to the real httpbin, so we expect success if network is available
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
         // Just verify template was resolved (regardless of network success/failure)
         let events = EventLog::new();
         let executor2 = TaskExecutor::new("mock", None, None, events.clone());
         let result2 = executor2
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
         // Both should have same result status (both succeed or both fail due to network)
         assert_eq!(result.is_ok(), result2.is_ok());
@@ -1643,7 +1702,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_invoke");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
 
         assert!(result.is_ok(), "Invoke should succeed: {:?}", result.err());
@@ -1673,7 +1732,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_resource");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
 
         assert!(
@@ -1707,7 +1766,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_mcp_events");
         executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await
             .unwrap();
 
@@ -1753,7 +1812,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_invoke_template");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
 
         assert!(
@@ -1781,7 +1840,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_invalid");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
 
         assert!(result.is_err(), "Should fail with validation error");
@@ -1811,7 +1870,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_neither");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
 
         assert!(result.is_err(), "Should fail with validation error");
@@ -1841,7 +1900,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_unconfigured");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
 
         assert!(result.is_err(), "Should fail with McpNotConfigured");
@@ -1875,7 +1934,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_binding");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await
             .unwrap();
         assert_eq!(result, "value123");
@@ -1900,7 +1959,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_multi");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await
             .unwrap();
         assert_eq!(result, "hello world");
@@ -1923,7 +1982,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_static");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await
             .unwrap();
         assert_eq!(result, "static");
@@ -1947,7 +2006,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_json");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await
             .unwrap();
         // JSON should be serialized and echoed
@@ -1978,7 +2037,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_store");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await
             .unwrap();
         assert!(result.contains("success"));
@@ -2164,7 +2223,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_timeout");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
 
         assert!(result.is_err(), "Should timeout");
@@ -2271,7 +2330,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_policy_exec");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
 
         assert!(result.is_err(), "Should be blocked by policy");
@@ -2309,7 +2368,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_policy_exec_allowed");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
 
         assert!(result.is_ok(), "Should be allowed: {:?}", result.err());
@@ -2339,7 +2398,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_policy_exec_disabled");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
 
         assert!(result.is_err(), "Should be blocked when exec is disabled");
@@ -2380,7 +2439,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_policy_fetch");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
 
         assert!(result.is_err(), "Should be blocked by policy");
@@ -2417,7 +2476,7 @@ mod tests {
 
         let task_id: Arc<str> = Arc::from("test_policy_fetch_disabled");
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
 
         assert!(
