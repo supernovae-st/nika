@@ -1,4 +1,5 @@
 //! Test fixtures and helpers
+#![allow(dead_code)]
 
 use std::path::PathBuf;
 

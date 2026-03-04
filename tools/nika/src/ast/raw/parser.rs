@@ -1099,9 +1099,7 @@ tasks:
         assert!(!schema_span.is_dummy());
 
         // Check span bounds are reasonable
-        assert!(
-            schema_span.start.0 < schema_span.end.0 || schema_span.start.0 == schema_span.end.0
-        );
+        assert!(schema_span.start.0 <= schema_span.end.0);
     }
 
     // =========================================================================

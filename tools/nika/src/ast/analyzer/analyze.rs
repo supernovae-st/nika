@@ -690,22 +690,24 @@ mod tests {
     }
 
     fn make_raw_workflow(schema: &str, tasks: Vec<RawTask>) -> RawWorkflow {
-        let mut workflow = RawWorkflow::default();
-        workflow.schema = Spanned::new(schema.to_string(), make_span(0, 20));
-        workflow.tasks = Spanned::new(
-            tasks
-                .into_iter()
-                .map(|t| Spanned::new(t, make_span(0, 50)))
-                .collect(),
-            make_span(0, 100),
-        );
-        workflow
+        RawWorkflow {
+            schema: Spanned::new(schema.to_string(), make_span(0, 20)),
+            tasks: Spanned::new(
+                tasks
+                    .into_iter()
+                    .map(|t| Spanned::new(t, make_span(0, 50)))
+                    .collect(),
+                make_span(0, 100),
+            ),
+            ..Default::default()
+        }
     }
 
     fn make_raw_task(id: &str) -> RawTask {
-        let mut task = RawTask::default();
-        task.id = Spanned::new(id.to_string(), make_span(0, id.len() as u32));
-        task
+        RawTask {
+            id: Spanned::new(id.to_string(), make_span(0, id.len() as u32)),
+            ..Default::default()
+        }
     }
 
     #[test]

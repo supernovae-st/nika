@@ -217,7 +217,7 @@ mod tests {
         assert_eq!(anim.kind, AnimationKind::Pulse);
         // Intensity should be in valid range
         let intensity = anim.intensity();
-        assert!(intensity >= 0.0 && intensity <= 1.0);
+        assert!((0.0..=1.0).contains(&intensity));
     }
 
     #[test]
@@ -245,7 +245,7 @@ mod tests {
         let anim = GlowAnimation::pulse();
         let factor = anim.glow_factor();
         // Glow factor should be in [0.7, 1.0]
-        assert!(factor >= 0.7 && factor <= 1.0);
+        assert!((0.7..=1.0).contains(&factor));
     }
 
     #[test]
@@ -278,7 +278,7 @@ mod tests {
         let ticker = AnimationTicker::new();
         let factor = ticker.glow_factor();
         // Should be in valid range
-        assert!(factor >= 0.7 && factor <= 1.0);
+        assert!((0.7..=1.0).contains(&factor));
     }
 
     #[test]
@@ -307,6 +307,6 @@ mod tests {
         anim.reset();
         // After reset, intensity should be near starting point
         let intensity = anim.intensity();
-        assert!(intensity >= 0.0 && intensity <= 1.0);
+        assert!((0.0..=1.0).contains(&intensity));
     }
 }

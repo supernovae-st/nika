@@ -469,39 +469,54 @@ mod tests {
 
     #[test]
     fn test_analyzed_for_each_is_binding() {
-        let mut for_each = AnalyzedForEach::default();
-
-        for_each.items = "{{use.items}}".to_string();
+        let for_each = AnalyzedForEach {
+            items: "{{use.items}}".to_string(),
+            ..Default::default()
+        };
         assert!(for_each.is_binding());
 
-        for_each.items = "$items".to_string();
+        let for_each = AnalyzedForEach {
+            items: "$items".to_string(),
+            ..Default::default()
+        };
         assert!(for_each.is_binding());
 
-        for_each.items = r#"["a", "b", "c"]"#.to_string();
+        let for_each = AnalyzedForEach {
+            items: r#"["a", "b", "c"]"#.to_string(),
+            ..Default::default()
+        };
         assert!(!for_each.is_binding());
     }
 
     #[test]
     fn test_analyzed_for_each_is_array() {
-        let mut for_each = AnalyzedForEach::default();
-
-        for_each.items = r#"["a", "b", "c"]"#.to_string();
+        let for_each = AnalyzedForEach {
+            items: r#"["a", "b", "c"]"#.to_string(),
+            ..Default::default()
+        };
         assert!(for_each.is_array());
 
-        for_each.items = "{{use.items}}".to_string();
+        let for_each = AnalyzedForEach {
+            items: "{{use.items}}".to_string(),
+            ..Default::default()
+        };
         assert!(!for_each.is_array());
     }
 
     #[test]
     fn test_analyzed_for_each_parse_items() {
-        let mut for_each = AnalyzedForEach::default();
-
-        for_each.items = r#"["a", "b", "c"]"#.to_string();
+        let for_each = AnalyzedForEach {
+            items: r#"["a", "b", "c"]"#.to_string(),
+            ..Default::default()
+        };
         let items = for_each.parse_items().unwrap();
         assert_eq!(items.len(), 3);
         assert_eq!(items[0], serde_json::Value::String("a".to_string()));
 
-        for_each.items = "{{use.items}}".to_string();
+        let for_each = AnalyzedForEach {
+            items: "{{use.items}}".to_string(),
+            ..Default::default()
+        };
         assert!(for_each.parse_items().is_none());
     }
 

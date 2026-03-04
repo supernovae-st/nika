@@ -73,11 +73,13 @@ mod tests {
 
     #[test]
     fn test_analyze_empty_workflow() {
-        let mut raw = RawWorkflow::default();
-        raw.schema = Spanned::new(
-            "nika/workflow@0.10".to_string(),
-            Span::new(FileId(0), 0, 18),
-        );
+        let raw = RawWorkflow {
+            schema: Spanned::new(
+                "nika/workflow@0.10".to_string(),
+                Span::new(FileId(0), 0, 18),
+            ),
+            ..Default::default()
+        };
 
         let result = analyze(raw);
         assert!(result.is_ok());

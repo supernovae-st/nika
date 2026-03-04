@@ -759,7 +759,7 @@ mod tests {
         let path = create_from_template(
             "my-simple",
             Template::SimpleInfer,
-            &temp_dir.path().to_path_buf(),
+            temp_dir.path(),
         )
         .unwrap();
 
