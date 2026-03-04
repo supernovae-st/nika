@@ -1,18 +1,32 @@
 # QR Code AI: Multi-Language Landing Page Generation
-# Real-world use case: Generate landing pages for 5 locales in parallel
 #
-# This workflow demonstrates:
+# Generate landing pages for 5 locales in parallel using NovaNet.
+#
+# Features:
 # - invoke: verb for MCP tool calling
-# - for_each: parallel execution
+# - for_each: parallel execution across locales
 # - use: bindings for data flow
-# - Full NovaNet integration
+# - Full NovaNet MCP integration
+#
+# Usage:
+#   nika examples/qrcode-ai-multilang.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY
+#   - NovaNet MCP server running
+#   - Neo4j database with NovaNet schema
 
-schema: nika/workflow@0.5
+schema: "nika/workflow@0.10"
 workflow: qrcode-ai-multilang
 description: "Generate QR Code AI landing pages for multiple locales"
 
 provider: claude
 model: claude-sonnet-4-6
+
+artifacts:
+  dir: ./landing-pages/{{date}}
+  format: json
+  manifest: true
 
 mcp:
   novanet:
@@ -20,74 +34,119 @@ mcp:
     args:
       - run
       - --manifest-path
-      - ../../../../novanet/tools/novanet-mcp/Cargo.toml
+      - ../../../novanet/tools/novanet-mcp/Cargo.toml
     env:
       NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
       NOVANET_MCP_NEO4J_USER: neo4j
       NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
 
+inputs:
+  entity_key:
+    type: string
+    description: "Entity to generate content for"
+    default: "qr-code-generator"
+  locales:
+    type: array
+    description: "Target locales"
+    default: ["fr-FR", "en-US", "de-DE", "es-ES", "ja-JP"]
+
 tasks:
   # Step 1: Get entity context for the main product
   - id: get_entity
+    description: "Describe the target entity"
     invoke:
-      mcp: novanet
+      server: novanet
       tool: novanet_describe
       params:
-        entity: "qr-code-generator"
-
-  # Step 2: Generate locale-specific content in parallel
-  - id: generate_locales
-    for_each: ["fr-FR", "en-US", "de-DE", "es-ES", "ja-JP"]
-    as: locale
-    concurrency: 5
-    invoke:
-      mcp: novanet
-      tool: novanet_generate
-      params:
-        focus_key: "entity:qr-code-generator"
-        locale: "{{use.locale}}"
-        mode: block
-
-  # Step 3: Generate hero section for French (primary locale)
-  - id: generate_hero_fr
-    use:
-      entity: get_entity
-      content: generate_locales
-    infer: |
-      Tu es un copywriter expert pour QR Code AI.
-
-      Génère une section hero percutante pour la landing page française.
-
-      Contexte de l'entité:
-      - Nom: {{use.entity.name}}
-      - Description: {{use.entity.description}}
-
-      Contenu localisé disponible:
-      {{use.content | to_yaml}}
-
-      Retourne un JSON avec:
-      {
-        "headline": "Titre accrocheur (max 10 mots)",
-        "subheadline": "Sous-titre explicatif (max 20 mots)",
-        "cta_text": "Texte du bouton CTA",
-        "cta_url": "/signup"
-      }
+        describe: entity
+        entity_key: "{{inputs.entity_key}}"
     output:
       format: json
 
+    artifact:
+      path: entity-context.json
+
+  # Step 2: Generate locale-specific content in parallel
+  - id: generate_locales
+    description: "Generate content for each locale"
+    for_each: "{{inputs.locales}}"
+    as: locale
+    concurrency: 5
+    fail_fast: false
+    invoke:
+      server: novanet
+      tool: novanet_generate
+      params:
+        focus_key: "entity:{{inputs.entity_key}}"
+        locale: "{{use.locale}}"
+        mode: block
+        token_budget: 2000
+    output:
+      format: json
+
+    artifact:
+      path: locales/{{use.locale}}.json
+
+    flow: [get_entity]
+
+  # Step 3: Generate hero section for French (primary locale)
+  - id: generate_hero_fr
+    description: "Generate French hero section"
+    use:
+      entity: get_entity
+      content: generate_locales
+    infer:
+      prompt: |
+        Tu es un copywriter expert pour QR Code AI.
+
+        Genere une section hero percutante pour la landing page francaise.
+
+        Contexte de l'entite:
+        {{use.entity | to_yaml}}
+
+        Contenu localise disponible:
+        {{use.content | to_yaml}}
+
+        Retourne un JSON avec:
+        - headline: Titre accrocheur (max 10 mots)
+        - subheadline: Sous-titre explicatif (max 20 mots)
+        - cta_text: Texte du bouton CTA
+        - cta_url: /signup
+
+    output:
+      format: json
+      schema:
+        type: object
+        required: [headline, subheadline, cta_text, cta_url]
+        properties:
+          headline:
+            type: string
+            maxLength: 60
+          subheadline:
+            type: string
+            maxLength: 120
+          cta_text:
+            type: string
+            maxLength: 30
+          cta_url:
+            type: string
+      max_retries: 2
+
+    artifact:
+      path: hero-fr.json
+
+    flow: [generate_locales]
+
   # Step 4: Log results
   - id: log_output
+    description: "Output generation summary"
     use:
       hero: generate_hero_fr
+      locales: generate_locales
     exec: |
       echo "=== QR Code AI Landing Page Generated ==="
-      echo "Hero: {{use.hero}}"
-      echo "Locales processed: 5"
+      echo "Hero (FR): {{use.hero | to_yaml}}"
+      echo "Locales processed: {{inputs.locales | length}}"
+      echo "Artifacts written to: ./landing-pages/{{date}}/"
 
-flows:
-  - source: get_entity
-    target: generate_locales
-  - source: generate_locales
-    target: generate_hero_fr
-  - source: generate_hero_fr
-    target: log_output
+    flow: [generate_hero_fr]

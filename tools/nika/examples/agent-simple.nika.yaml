@@ -1,15 +1,24 @@
-# Example: Simple Agent without MCP tools
+# Simple Agent Workflow
 #
-# This workflow demonstrates the agent: verb in its simplest form.
-# The agent completes in one turn since no tools are available.
+# Demonstrates the agent verb in its simplest form.
+# The agent operates without MCP tools, using only reasoning.
 #
-# Run with: cargo run -- run examples/agent-simple.yaml
+# Usage:
+#   nika examples/agent-simple.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY environment variable
 
-schema: "nika/workflow@0.5"
-provider: mock
+schema: "nika/workflow@0.10"
+workflow: agent-simple
+description: "Simple agent demonstration without MCP tools"
+
+provider: claude
+model: claude-sonnet-4-6
 
 tasks:
   - id: summarize
+    description: "Summarize YAML configuration benefits"
     agent:
       prompt: |
         Summarize the key benefits of using YAML for configuration files.
@@ -21,5 +30,19 @@ tasks:
         End your response with "SUMMARY_COMPLETE".
 
       max_turns: 3
+
     output:
       format: json
+      schema:
+        type: object
+        required: [benefits, recommendation]
+        properties:
+          benefits:
+            type: array
+            items:
+              type: string
+            minItems: 3
+            maxItems: 5
+          recommendation:
+            type: string
+      max_retries: 2

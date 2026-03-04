@@ -1,15 +1,25 @@
 # Claude API Test Workflow
 #
-# Tests real Anthropic/Claude integration with Nika v0.5.
-# Run with: cargo run -- run examples/claude-test.nika.yaml
+# Simple test to verify Anthropic/Claude API integration with Nika.
+# This is the most basic workflow - one infer task with text output.
+#
+# Usage:
+#   nika examples/claude-test.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY environment variable
 
-schema: "nika/workflow@0.4"
+schema: "nika/workflow@0.10"
+workflow: claude-test
+description: "Test Claude API connectivity with a simple inference"
+
 provider: claude
+model: claude-sonnet-4-6
 
 tasks:
   - id: hello_claude
+    description: "Simple Claude API test"
     infer:
       prompt: "Say hello and tell me one fun fact about croissants. Keep it under 50 words."
-      model: claude-sonnet-4-6
     output:
       format: text

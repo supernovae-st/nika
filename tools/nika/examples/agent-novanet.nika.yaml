@@ -1,17 +1,26 @@
-# Example: Agent with NovaNet MCP tools
+# Agent with NovaNet MCP Tools
 #
-# This workflow demonstrates the agent: verb for agentic execution.
-# The agent autonomously calls MCP tools to gather context and generate content.
+# Demonstrates agentic execution with MCP tool integration.
+# The agent autonomously calls NovaNet tools to gather context
+# and generate native content.
 #
-# Run with: cargo run -- run examples/agent-novanet.yaml
+# Usage:
+#   nika examples/agent-novanet.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY environment variable
+#   - NovaNet MCP server running (cargo run in tools/novanet-mcp)
+#   - Neo4j database with NovaNet schema
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
+workflow: agent-novanet
+description: "Agent with NovaNet MCP tool integration"
+
 provider: claude
+model: claude-sonnet-4-6
 
 mcp:
   novanet:
-    # Use cargo to run MCP server from source (development mode)
-    # Run from nika-dev/tools/nika/ directory
     command: cargo
     args:
       - run
@@ -21,11 +30,10 @@ mcp:
       NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
       NOVANET_MCP_NEO4J_USER: neo4j
       NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
-      # RUST_LOG: info  # Disabled to avoid TUI pollution
 
 tasks:
-  # Single-step agent that uses tools autonomously
   - id: generate_content
+    description: "Generate native French content for QR Code hero block"
     agent:
       prompt: |
         Generate native French content for the QR Code homepage hero block.
@@ -41,10 +49,22 @@ tasks:
 
         When complete, output the JSON and say "GENERATION_COMPLETE".
 
-      provider: claude
-      model: claude-sonnet-4-6
-      mcp:
-        - novanet
+      mcp: [novanet]
       max_turns: 5
+      extended_thinking: false
+
     output:
       format: json
+      schema:
+        type: object
+        required: [title, subtitle, description, cta_text]
+        properties:
+          title:
+            type: string
+          subtitle:
+            type: string
+          description:
+            type: string
+          cta_text:
+            type: string
+      max_retries: 2

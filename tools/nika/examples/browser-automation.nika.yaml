@@ -3,38 +3,59 @@
 # Uses Playwright MCP for browser automation tasks.
 # Screenshots, scraping, E2E testing, UI verification.
 #
-# Run with: cargo run -- run examples/browser-automation.nika.yaml
+# Usage:
+#   nika examples/browser-automation.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY
+#   - Playwright MCP server
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: browser-automation
 description: "Browser automation using Playwright MCP"
+
 provider: claude
+model: claude-sonnet-4-6
+
+artifacts:
+  dir: ./browser/{{date}}
+  format: json
+  manifest: true
 
 mcp:
   playwright:
     command: npx
-    args:
-      - "@playwright/mcp@latest"
+    args: ["@playwright/mcp@latest"]
+
+inputs:
+  url:
+    type: string
+    description: "Target URL"
+    default: "https://qrcode-ai.com"
+  task:
+    type: string
+    description: "Browser task to perform"
+    default: "capture_screenshot"
+    enum: [capture_screenshot, scrape_content, verify_ui, test_form]
+  viewport_width:
+    type: integer
+    description: "Viewport width"
+    default: 1280
+  viewport_height:
+    type: integer
+    description: "Viewport height"
+    default: 720
 
 tasks:
-  - id: input
-    description: "Define browser task parameters"
-    exec: |
-      echo '{"url": "https://qrcode-ai.com", "task": "capture_screenshot", "viewport": {"width": 1280, "height": 720}}'
-    output:
-      format: json
-
   - id: browse
     description: "Execute browser automation"
-    use:
-      params: input
     agent:
       prompt: |
         You are a browser automation specialist with Playwright MCP tools.
 
-        TARGET URL: {{use.params.url}}
-        TASK: {{use.params.task}}
-        VIEWPORT: {{use.params.viewport}}
+        TARGET URL: {{inputs.url}}
+        TASK: {{inputs.task}}
+        VIEWPORT: {{inputs.viewport_width}}x{{inputs.viewport_height}}
 
         AVAILABLE PLAYWRIGHT TOOLS:
         - browser_navigate: Go to a URL
@@ -54,25 +75,41 @@ tasks:
         - Note any interesting UI elements
         - Report page load time and any errors
 
-        OUTPUT FORMAT:
-        ```json
-        {
-          "url": "...",
-          "task_completed": true,
-          "page_title": "...",
-          "screenshot_path": "...",
-          "observations": ["..."],
-          "errors": []
-        }
-        ```
-
         Say "BROWSE_COMPLETE" when done.
 
-      model: claude-sonnet-4-6
-      mcp:
-        - playwright
+      mcp: [playwright]
       max_turns: 10
 
-flows:
-  - source: input
-    target: browse
+    output:
+      format: json
+      schema:
+        type: object
+        required: [url, task_completed, page_title]
+        properties:
+          url:
+            type: string
+          task_completed:
+            type: boolean
+          page_title:
+            type: string
+          screenshot_path:
+            type: string
+          observations:
+            type: array
+            items:
+              type: string
+          errors:
+            type: array
+            items:
+              type: string
+          performance:
+            type: object
+            properties:
+              load_time_ms:
+                type: integer
+              dom_content_loaded_ms:
+                type: integer
+      max_retries: 2
+
+    artifact:
+      path: browser-result.json

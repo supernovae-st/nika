@@ -1,18 +1,32 @@
 # QR Code AI: Research Agent with spawn_agent
-# Real-world use case: AI-driven competitive research and content strategy
 #
-# This workflow demonstrates:
+# AI-driven competitive research and content strategy agent.
+#
+# Features:
 # - agent: with spawn_agent for nested agents
 # - depth_limit: for recursion control
 # - novanet_introspect: for schema-aware research
-# - Complex multi-turn reasoning
+# - Complex multi-turn reasoning with extended thinking
+#
+# Usage:
+#   nika examples/qrcode-ai-research-agent.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY
+#   - NovaNet MCP server running
+#   - Neo4j database with NovaNet schema
 
-schema: nika/workflow@0.5
+schema: "nika/workflow@0.10"
 workflow: qrcode-ai-research-agent
 description: "AI-driven research agent for QR Code AI content strategy"
 
 provider: claude
 model: claude-sonnet-4-6
+
+artifacts:
+  dir: ./research/{{date}}
+  format: json
+  manifest: true
 
 mcp:
   novanet:
@@ -20,7 +34,7 @@ mcp:
     args:
       - run
       - --manifest-path
-      - ../../../../novanet/tools/novanet-mcp/Cargo.toml
+      - ../../../novanet/tools/novanet-mcp/Cargo.toml
     env:
       NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
       NOVANET_MCP_NEO4J_USER: neo4j
@@ -29,6 +43,7 @@ mcp:
 tasks:
   # Step 1: Orchestrator agent with spawn capability
   - id: research_orchestrator
+    description: "Research orchestrator with spawn_agent capability"
     agent:
       prompt: |
         You are a Content Strategy Researcher for QR Code AI.
@@ -51,55 +66,108 @@ tasks:
 
         Important: You have a depth_limit of 2, so spawned agents cannot spawn further.
 
-        Return your final analysis as structured JSON:
-        {
-          "schema_insights": [...],
-          "entity_analysis": [...],
-          "recommendations": [...]
-        }
+        Return your final analysis as structured JSON.
 
       mcp: [novanet]
       depth_limit: 2
       max_turns: 15
+      extended_thinking: true
+      thinking_budget: 8000
+
     output:
       format: json
+      schema:
+        type: object
+        required: [schema_insights, entity_analysis, recommendations]
+        properties:
+          schema_insights:
+            type: array
+            items:
+              type: object
+              properties:
+                insight:
+                  type: string
+                relevance:
+                  type: string
+          entity_analysis:
+            type: array
+            items:
+              type: object
+              properties:
+                entity:
+                  type: string
+                status:
+                  type: string
+                gaps:
+                  type: array
+                  items:
+                    type: string
+          recommendations:
+            type: array
+            items:
+              type: object
+              required: [recommendation, priority, rationale]
+              properties:
+                recommendation:
+                  type: string
+                priority:
+                  type: string
+                  enum: [high, medium, low]
+                rationale:
+                  type: string
+      max_retries: 2
+
+    artifact:
+      path: research-analysis.json
 
   # Step 2: Generate strategic brief from research
   - id: generate_brief
+    description: "Generate content strategy brief"
     use:
       research: research_orchestrator
-    infer: |
-      Based on this research analysis:
+    infer:
+      prompt: |
+        Based on this research analysis:
 
-      {{use.research | to_yaml}}
+        {{use.research | to_yaml}}
 
-      Generate a 1-page Content Strategy Brief for QR Code AI with:
+        Generate a 1-page Content Strategy Brief for QR Code AI with:
 
-      ## Executive Summary
-      (2-3 sentences on key findings)
+        ## Executive Summary
+        (2-3 sentences on key findings)
 
-      ## Top 5 Content Opportunities
-      (Prioritized list with rationale)
+        ## Top 5 Content Opportunities
+        (Prioritized list with rationale)
 
-      ## Recommended Actions
-      (Specific next steps for the content team)
+        ## Recommended Actions
+        (Specific next steps for the content team)
 
-      ## Metrics to Track
-      (KPIs to measure success)
+        ## Metrics to Track
+        (KPIs to measure success)
 
-      Write in a professional consulting style.
+        Write in a professional consulting style.
 
-  # Step 3: Save output
-  - id: save_brief
+    output:
+      format: text
+
+    artifact:
+      path: content-strategy-brief.md
+      format: text
+
+    flow: [research_orchestrator]
+
+  # Step 3: Output summary
+  - id: output_summary
+    description: "Output generation summary"
     use:
       brief: generate_brief
     exec: |
-      echo "{{use.brief}}" > content-strategy-brief.md
       echo "=== Content Strategy Brief Generated ==="
-      echo "Output: content-strategy-brief.md"
+      echo "Output: ./research/{{date}}/content-strategy-brief.md"
+      echo ""
+      echo "Artifacts:"
+      echo "  - research-analysis.json"
+      echo "  - content-strategy-brief.md"
+      echo "  - artifacts.json (manifest)"
 
-flows:
-  - source: research_orchestrator
-    target: generate_brief
-  - source: generate_brief
-    target: save_brief
+    flow: [generate_brief]
