@@ -20,13 +20,13 @@ use unicode_width::UnicodeWidthStr;
 use crate::tui::theme::Theme;
 use crate::tui::views::TuiView;
 
-/// Tab names for each view (6-Views Architecture v0.12.0)
-/// Uses plan-defined names: Explorer, Chat, Editor, Runner, Scheduler, Settings
+/// Tab names for each view (6-Views Architecture v0.20.0)
+/// Order: Browse, Editor, Runner, Chat, Scheduler, Settings
 const TAB_NAMES: &[(&str, TuiView)] = &[
-    ("Explorer", TuiView::Explorer),
-    ("Chat", TuiView::Chat),
+    ("Browse", TuiView::Browse),
     ("Editor", TuiView::Editor),
     ("Runner", TuiView::Runner),
+    ("Chat", TuiView::Chat),
     ("Scheduler", TuiView::Scheduler),
     ("⚙", TuiView::Settings), // Settings uses icon for brevity
 ];
@@ -208,8 +208,8 @@ mod tests {
     #[test]
     fn test_header_new() {
         let theme = Theme::dark();
-        let header = Header::new(TuiView::Explorer, &theme);
-        assert_eq!(header.view, TuiView::Explorer);
+        let header = Header::new(TuiView::Browse, &theme);
+        assert_eq!(header.view, TuiView::Browse);
         assert!(header.context.is_none());
         assert!(header.status.is_none());
     }
@@ -265,13 +265,13 @@ mod tests {
     }
 
     #[test]
-    fn test_tab_names_v012() {
-        // Verify v0.12 view names are correct
+    fn test_tab_names_v020() {
+        // Verify v0.20 view names and order are correct
         assert_eq!(TAB_NAMES.len(), 6);
-        assert_eq!(TAB_NAMES[0], ("Explorer", TuiView::Explorer));
-        assert_eq!(TAB_NAMES[1], ("Chat", TuiView::Chat));
-        assert_eq!(TAB_NAMES[2], ("Editor", TuiView::Editor));
-        assert_eq!(TAB_NAMES[3], ("Runner", TuiView::Runner));
+        assert_eq!(TAB_NAMES[0], ("Browse", TuiView::Browse));
+        assert_eq!(TAB_NAMES[1], ("Editor", TuiView::Editor));
+        assert_eq!(TAB_NAMES[2], ("Runner", TuiView::Runner));
+        assert_eq!(TAB_NAMES[3], ("Chat", TuiView::Chat));
         assert_eq!(TAB_NAMES[4], ("Scheduler", TuiView::Scheduler));
         assert_eq!(TAB_NAMES[5], ("⚙", TuiView::Settings));
     }

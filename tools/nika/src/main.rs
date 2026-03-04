@@ -633,7 +633,7 @@ async fn main() {
                 Some("runner") | Some("r") | Some("monitor") => Some(TuiView::Runner),
                 Some("scheduler") | Some("s") => Some(TuiView::Scheduler),
                 Some("settings") | Some(",") => Some(TuiView::Settings),
-                Some("explorer") | Some("e") | Some("home") => Some(TuiView::Explorer),
+                Some("explorer") | Some("e") | Some("home") => Some(TuiView::Browse),
                 Some(unknown) => {
                     eprintln!(
                         "{} Unknown view '{}'. Valid: explorer, chat, editor, runner, scheduler, settings",

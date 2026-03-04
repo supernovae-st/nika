@@ -320,14 +320,14 @@ impl View for SchedulerView {
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
         match (key.code, key.modifiers) {
             // View switching
-            (KeyCode::Char('1'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Explorer),
+            (KeyCode::Char('1'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Browse),
             (KeyCode::Char('2'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Chat),
             (KeyCode::Char('3'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Editor),
             (KeyCode::Char('4'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Runner),
             (KeyCode::Char('5'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Scheduler),
             (KeyCode::Char('6'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Settings),
             // Letter shortcuts (v0.12)
-            (KeyCode::Char('e'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Explorer),
+            (KeyCode::Char('e'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Browse),
             (KeyCode::Char('c'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Chat),
             (KeyCode::Char('d'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Editor),
             (KeyCode::Char('r'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Runner),
@@ -428,7 +428,7 @@ mod tests {
                 KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE),
                 &mut state
             ),
-            ViewAction::SwitchView(TuiView::Explorer)
+            ViewAction::SwitchView(TuiView::Browse)
         ));
         assert!(matches!(
             view.handle_key(
@@ -444,7 +444,7 @@ mod tests {
                 KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE),
                 &mut state
             ),
-            ViewAction::SwitchView(TuiView::Explorer)
+            ViewAction::SwitchView(TuiView::Browse)
         ));
     }
 

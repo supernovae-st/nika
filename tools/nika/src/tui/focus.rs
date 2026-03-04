@@ -1,16 +1,16 @@
 //! Focus State for Panel Navigation
 //!
 //! Manages which panel is currently focused and provides Tab/Shift+Tab navigation.
-//! Updated for 6-Views Architecture (v0.12)
+//! Updated for 7-Views Architecture (v0.20)
 
 use super::views::TuiView;
 
-/// Panel identifiers for 6-view architecture (v0.12)
+/// Panel identifiers for 7-view architecture (v0.20)
 ///
 /// Each view has its own set of panels that can receive focus.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PanelId {
-    // ═══ Explorer View (1) ═══
+    // ═══ Browse View (1) ═══
     /// File browser panel
     ExplorerFiles,
     /// DAG preview panel
@@ -20,15 +20,7 @@ pub enum PanelId {
     /// Execution history panel
     ExplorerHistory,
 
-    // ═══ Chat View (2) ═══
-    /// Conversation history
-    ChatConversation,
-    /// Text input field
-    ChatInput,
-    /// Context/files panel
-    ChatContext,
-
-    // ═══ Editor View (3) ═══
+    // ═══ Editor View (2) ═══
     /// File explorer
     EditorFiles,
     /// YAML editor
@@ -36,7 +28,7 @@ pub enum PanelId {
     /// Diagnostics panel
     EditorDiagnostics,
 
-    // ═══ Runner View (4) ═══
+    // ═══ Runner View (3) ═══
     /// Mission control panel
     RunnerMission,
     /// DAG visualization
@@ -45,6 +37,14 @@ pub enum PanelId {
     RunnerNovanet,
     /// Agent reasoning panel
     RunnerReasoning,
+
+    // ═══ Chat Playground (4) ═══
+    /// Conversation history
+    ChatConversation,
+    /// Text input field
+    ChatInput,
+    /// Context/files panel
+    ChatContext,
 
     // ═══ Scheduler View (5) ═══
     /// Schedule list panel
@@ -61,7 +61,7 @@ impl PanelId {
     /// Get all panels for a specific view
     pub fn panels_for_view(view: TuiView) -> &'static [PanelId] {
         match view {
-            TuiView::Explorer => &[
+            TuiView::Browse => &[
                 PanelId::ExplorerFiles,
                 PanelId::ExplorerDag,
                 PanelId::ExplorerYaml,
@@ -102,7 +102,7 @@ impl PanelId {
             PanelId::ExplorerFiles
             | PanelId::ExplorerDag
             | PanelId::ExplorerYaml
-            | PanelId::ExplorerHistory => TuiView::Explorer,
+            | PanelId::ExplorerHistory => TuiView::Browse,
             PanelId::ChatConversation | PanelId::ChatInput | PanelId::ChatContext => TuiView::Chat,
             PanelId::EditorFiles | PanelId::EditorEditor | PanelId::EditorDiagnostics => {
                 TuiView::Editor
@@ -121,7 +121,7 @@ impl PanelId {
     /// Get the default panel for a view
     pub fn default_for_view(view: TuiView) -> PanelId {
         match view {
-            TuiView::Explorer => PanelId::ExplorerFiles,
+            TuiView::Browse => PanelId::ExplorerFiles,
             TuiView::Chat => PanelId::ChatInput,
             TuiView::Editor => PanelId::EditorEditor,
             TuiView::Runner => PanelId::RunnerMission,
@@ -269,7 +269,7 @@ mod tests {
 
     #[test]
     fn test_panels_for_view() {
-        let explorer_panels = PanelId::panels_for_view(TuiView::Explorer);
+        let explorer_panels = PanelId::panels_for_view(TuiView::Browse);
         assert_eq!(explorer_panels.len(), 4);
 
         let chat_panels = PanelId::panels_for_view(TuiView::Chat);
@@ -284,7 +284,7 @@ mod tests {
 
     #[test]
     fn test_panel_view() {
-        assert_eq!(PanelId::ExplorerFiles.view(), TuiView::Explorer);
+        assert_eq!(PanelId::ExplorerFiles.view(), TuiView::Browse);
         assert_eq!(PanelId::ChatInput.view(), TuiView::Chat);
         assert_eq!(PanelId::EditorEditor.view(), TuiView::Editor);
         assert_eq!(PanelId::RunnerDag.view(), TuiView::Runner);

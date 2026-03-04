@@ -46,6 +46,7 @@ use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
 use crate::tui::widgets::{
+    tree::TreeState,
     AnimatedLatencySparkline, DagAscii, MatrixRain, NodeBoxData, NodeBoxMode, SparklineAnimation,
     Timeline, TimelineEntry,
 };
@@ -78,6 +79,9 @@ pub struct HomeView {
     pub preview_mode: PreviewMode,
     /// Animation frame counter (0-255, wraps)
     pub frame: u8,
+    // === v0.20: Tree Widget ===
+    /// Tree state for selection and expansion
+    pub tree_state: TreeState,
     // === v0.9.1: Matrix Rain Effect ===
     /// Matrix rain background opacity (0.0 = invisible, 1.0 = full)
     pub rain_opacity: f32,
@@ -98,6 +102,9 @@ impl HomeView {
         if !standalone.browser_entries.is_empty() {
             list_state.select(Some(0));
         }
+        // v0.20: Initialize tree state with visible nodes count
+        let tree_state = TreeState::new_with_count(entry_count);
+
         Self {
             standalone,
             list_state,
@@ -112,6 +119,7 @@ impl HomeView {
             dag_expanded: false,
             preview_mode: PreviewMode::Dag,
             frame: 0,
+            tree_state,
             // v0.9.1: Matrix Rain starts visible and fades
             rain_opacity: 1.0,
             rain_fading: true,
@@ -183,7 +191,7 @@ impl HomeView {
 
     /// Get currently selected entry (respects filter)
     pub fn selected_entry(&self) -> Option<&BrowserEntry> {
-        self.list_state.selected().and_then(|i| {
+        self.tree_state.selection_index().and_then(|i| {
             self.filtered_indices
                 .get(i)
                 .and_then(|&idx| self.standalone.browser_entries.get(idx))
@@ -192,9 +200,9 @@ impl HomeView {
 
     /// Move selection up
     pub fn select_prev(&mut self) {
-        if let Some(selected) = self.list_state.selected() {
+        if let Some(selected) = self.tree_state.selection_index() {
             if selected > 0 {
-                self.list_state.select(Some(selected - 1));
+                self.tree_state.select_prev_index();
                 // Update preview based on filtered index
                 if let Some(&idx) = self.filtered_indices.get(selected - 1) {
                     self.standalone.browser_index = idx;
@@ -206,9 +214,10 @@ impl HomeView {
 
     /// Move selection down
     pub fn select_next(&mut self) {
-        if let Some(selected) = self.list_state.selected() {
-            if selected < self.filtered_indices.len().saturating_sub(1) {
-                self.list_state.select(Some(selected + 1));
+        if let Some(selected) = self.tree_state.selection_index() {
+            let max = self.filtered_indices.len();
+            if selected < max.saturating_sub(1) {
+                self.tree_state.select_next_index(max);
                 // Update preview based on filtered index
                 if let Some(&idx) = self.filtered_indices.get(selected + 1) {
                     self.standalone.browser_index = idx;
@@ -222,7 +231,7 @@ impl HomeView {
     ///
     /// BUG FIX: Use filtered_indices to map list selection to actual entry index
     pub fn toggle_folder(&mut self) {
-        if let Some(selected) = self.list_state.selected() {
+        if let Some(selected) = self.tree_state.selection_index() {
             // Map list selection index to actual browser_entries index via filtered_indices
             if let Some(&idx) = self.filtered_indices.get(selected) {
                 if let Some(entry) = self.standalone.browser_entries.get_mut(idx) {
@@ -992,8 +1001,11 @@ mod tests {
     fn test_home_view_new_creates_valid_state() {
         let view = HomeView::new(PathBuf::from("."));
         assert!(!view.history_expanded);
-        // ListState is initialized
-        assert!(view.list_state.selected().is_none() || view.list_state.selected().is_some());
+        // TreeState selection index may or may not be set depending on entries
+        assert!(
+            view.tree_state.selection_index().is_none()
+                || view.tree_state.selection_index().is_some()
+        );
     }
 
     #[test]
@@ -1010,19 +1022,21 @@ mod tests {
             PathBuf::from("test2.nika.yaml"),
             &PathBuf::from("."),
         ));
-        view.list_state.select(Some(0));
+        // Set up filtered indices to match entries
+        view.filtered_indices = vec![0, 1];
+        view.tree_state.set_selection_index(Some(0));
 
         // Navigate down
         view.select_next();
-        assert_eq!(view.list_state.selected(), Some(1));
+        assert_eq!(view.tree_state.selection_index(), Some(1));
 
         // Navigate up
         view.select_prev();
-        assert_eq!(view.list_state.selected(), Some(0));
+        assert_eq!(view.tree_state.selection_index(), Some(0));
 
         // Navigate up at top (should stay at 0)
         view.select_prev();
-        assert_eq!(view.list_state.selected(), Some(0));
+        assert_eq!(view.tree_state.selection_index(), Some(0));
     }
 
     #[test]

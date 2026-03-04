@@ -282,7 +282,7 @@ impl<'a> StatusBar<'a> {
                 KeyHint::new("Ctrl+L", "Clear"),
                 KeyHint::new("q", "Quit"),
             ],
-            TuiView::Explorer => vec![
+            TuiView::Browse => vec![
                 KeyHint::new("Up/Down", "Navigate"),
                 KeyHint::new("Enter", "Run"),
                 KeyHint::new("e", "Edit"),
@@ -536,7 +536,7 @@ mod tests {
     #[test]
     fn test_status_bar_default_hints_explorer() {
         let theme = Theme::dark();
-        let bar = StatusBar::new(TuiView::Explorer, &theme);
+        let bar = StatusBar::new(TuiView::Browse, &theme);
         let hints = bar.default_hints();
         assert!(hints
             .iter()

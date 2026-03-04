@@ -290,7 +290,7 @@ impl View for HelpView {
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
         match key.code {
             // Escape returns to previous view (Home)
-            KeyCode::Esc | KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Explorer),
+            KeyCode::Esc | KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Browse),
 
             // Scroll down
             KeyCode::Char('j') | KeyCode::Down => {
@@ -458,7 +458,7 @@ mod tests {
         let mut state = TuiState::new("test");
         let key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
         let action = view.handle_key(key, &mut state);
-        assert!(matches!(action, ViewAction::SwitchView(TuiView::Explorer)));
+        assert!(matches!(action, ViewAction::SwitchView(TuiView::Browse)));
     }
 
     #[test]

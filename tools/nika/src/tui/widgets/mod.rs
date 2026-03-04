@@ -51,6 +51,7 @@ mod status_message;
 pub mod task_box;
 mod terminal_size;
 mod timeline;
+pub mod tree;
 mod verb_input;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
@@ -139,3 +140,5 @@ pub use task_box::{
     exit, http, status, AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,
     TaskBoxWidget, VerbColor, BRAILLE_SPINNER,
 };
+// Tree widget (v0.20 - VS Code-like file tree)
+pub use tree::{GitStatus, NodeId, NodeKind, TreeAction, TreeColors, TreeNode, TreeState};

@@ -77,30 +77,30 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
         category: KeyCategory::Global,
     });
 
-    // View navigation (in Normal mode) - 6-Views Architecture v0.12
+    // View navigation (in Normal mode) - 7-Views Architecture v0.20
     if mode == InputMode::Normal {
         bindings.push(Keybinding {
             code: KeyCode::Char('1'),
             modifiers: KeyModifiers::NONE,
-            description: "Explorer view",
+            description: "Browse view",
             category: KeyCategory::ViewNav,
         });
         bindings.push(Keybinding {
             code: KeyCode::Char('2'),
             modifiers: KeyModifiers::NONE,
-            description: "Chat view",
+            description: "Editor view",
             category: KeyCategory::ViewNav,
         });
         bindings.push(Keybinding {
             code: KeyCode::Char('3'),
             modifiers: KeyModifiers::NONE,
-            description: "Editor view",
+            description: "Runner view",
             category: KeyCategory::ViewNav,
         });
         bindings.push(Keybinding {
             code: KeyCode::Char('4'),
             modifiers: KeyModifiers::NONE,
-            description: "Runner view",
+            description: "Chat Playground",
             category: KeyCategory::ViewNav,
         });
         bindings.push(Keybinding {
@@ -308,7 +308,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 });
             }
         }
-        TuiView::Explorer => {
+        TuiView::Browse => {
             if mode == InputMode::Normal {
                 bindings.push(Keybinding {
                     code: KeyCode::Enter,

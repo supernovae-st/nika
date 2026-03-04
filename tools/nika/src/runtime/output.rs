@@ -310,7 +310,6 @@ mod tests {
             format: OutputFormat::Json,
             schema: Some(SchemaRef::File(schema_path)),
             max_retries: None,
-            save: None,
         };
 
         // Valid JSON object
@@ -348,7 +347,6 @@ mod tests {
             format: OutputFormat::Json,
             schema: Some(SchemaRef::Inline(inline_schema)),
             max_retries: None,
-            save: None,
         };
 
         // Valid JSON with required field
@@ -399,7 +397,6 @@ mod tests {
             format: OutputFormat::Json,
             schema: None, // No schema validation
             max_retries: None,
-            save: None,
         };
 
         let result = make_task_result(
@@ -424,7 +421,6 @@ mod tests {
             format: OutputFormat::Json,
             schema: None,
             max_retries: None,
-            save: None,
         };
 
         let result = make_task_result(
@@ -452,7 +448,6 @@ mod tests {
             format: OutputFormat::Text,
             schema: None,
             max_retries: None,
-            save: None,
         };
 
         // Even valid JSON should be treated as text
@@ -574,7 +569,6 @@ mod tests {
             format: OutputFormat::Json,
             schema: None,
             max_retries: None,
-            save: None,
         };
 
         // Generate large JSON array
@@ -596,7 +590,6 @@ mod tests {
             format: OutputFormat::Json,
             schema: None,
             max_retries: None,
-            save: None,
         };
 
         // JSON with various Unicode characters
@@ -656,7 +649,6 @@ mod tests {
             format: OutputFormat::Json,
             schema: None,
             max_retries: None,
-            save: None,
         };
 
         let result = make_task_result(
@@ -773,7 +765,6 @@ This is based on ancient wisdom."#;
             format: OutputFormat::Json,
             schema: None,
             max_retries: None,
-            save: None,
         };
 
         // Simulate LLM output with markdown code block
@@ -809,7 +800,6 @@ Enjoy your reading!"#;
             format: OutputFormat::Json,
             schema: None,
             max_retries: None,
-            save: None,
         };
 
         // v0.12.1: Empty output with JSON format returns null
@@ -828,7 +818,6 @@ Enjoy your reading!"#;
             format: OutputFormat::Json,
             schema: None,
             max_retries: None,
-            save: None,
         };
 
         // v0.12.1: Whitespace-only output also returns null

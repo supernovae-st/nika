@@ -623,7 +623,7 @@ impl View for StudioView {
 impl StudioView {
     fn handle_normal_mode(&mut self, key: KeyEvent) -> ViewAction {
         match key.code {
-            KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Explorer),
+            KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Browse),
             // Ctrl+S to save file (must be before plain 's')
             KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 if let Err(e) = self.save_file() {
@@ -675,7 +675,7 @@ impl StudioView {
                 }
             }
             // View switching: number keys (v0.12 6-Views)
-            KeyCode::Char('1') => ViewAction::SwitchView(TuiView::Explorer),
+            KeyCode::Char('1') => ViewAction::SwitchView(TuiView::Browse),
             KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Chat),
             KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Runner),
             KeyCode::Char('5') => ViewAction::SwitchView(TuiView::Scheduler),
@@ -1459,7 +1459,7 @@ unknown_field: "should fail""#;
         let key = KeyEvent::from(KeyCode::Char('q'));
         let action = view.handle_key(key, &mut state);
         match action {
-            ViewAction::SwitchView(TuiView::Explorer) => {}
+            ViewAction::SwitchView(TuiView::Browse) => {}
             _ => panic!("Expected SwitchView(Explorer)"),
         }
     }

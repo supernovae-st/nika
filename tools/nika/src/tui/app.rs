@@ -436,7 +436,7 @@ impl App {
             status_message: None,
             retry_requested: false,
             // 4-view architecture - start in Home mode for standalone
-            current_view: TuiView::Explorer,
+            current_view: TuiView::Browse,
             input_mode: InputMode::Normal,
             focus_state: FocusState::new(NavPanelId::ExplorerFiles),
             chat_view,
@@ -1344,7 +1344,7 @@ impl App {
             // Get custom status text from current view (using pre-computed values)
             let status_text = match current_view {
                 TuiView::Chat => chat_status,
-                TuiView::Explorer => home_status,
+                TuiView::Browse => home_status,
                 TuiView::Editor => studio_status,
                 TuiView::Runner => monitor_status,
                 TuiView::Scheduler => scheduler_status,
@@ -1403,7 +1403,7 @@ impl App {
                         TuiView::Chat => {
                             chat_view.render(frame, chunks[1], state, theme);
                         }
-                        TuiView::Explorer => {
+                        TuiView::Browse => {
                             if let Some(ref mut hv) = home_view {
                                 hv.render(frame, chunks[1], state, theme);
                             } else {
@@ -1513,7 +1513,7 @@ impl App {
             // View navigation by number (when not capturing input)
             // [1] = Explorer, [2] = Chat (matches tab bar order in header.rs)
             KeyCode::Char('1') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Explorer);
+                return Action::SwitchView(TuiView::Browse);
             }
             KeyCode::Char('2') if !self.is_view_capturing_input() => {
                 return Action::SwitchView(TuiView::Chat);
@@ -1573,7 +1573,7 @@ impl App {
                 let view_action = self.chat_view.handle_key(key_event, &mut self.state);
                 self.convert_view_action(view_action)
             }
-            TuiView::Explorer => {
+            TuiView::Browse => {
                 if let Some(ref mut home_view) = self.home_view {
                     let view_action = home_view.handle_key(key_event, &mut self.state);
                     self.convert_view_action(view_action)
@@ -2321,7 +2321,7 @@ impl App {
                     // Call on_leave for the old view
                     match old_view {
                         TuiView::Chat => self.chat_view.on_leave(&mut self.state),
-                        TuiView::Explorer => {
+                        TuiView::Browse => {
                             if let Some(ref mut home) = self.home_view {
                                 home.on_leave(&mut self.state);
                             }
@@ -2339,7 +2339,7 @@ impl App {
                 if old_view != view {
                     match view {
                         TuiView::Chat => self.chat_view.on_enter(&mut self.state),
-                        TuiView::Explorer => {
+                        TuiView::Browse => {
                             if let Some(ref mut home) = self.home_view {
                                 home.on_enter(&mut self.state);
                             }
@@ -4417,7 +4417,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let state = StandaloneState::new(temp_dir.path().to_path_buf());
         let app = App::new_standalone(state).unwrap();
-        assert_eq!(app.current_view, TuiView::Explorer);
+        assert_eq!(app.current_view, TuiView::Browse);
     }
 
     #[test]
@@ -4440,8 +4440,8 @@ mod tests {
         assert_eq!(app.current_view, TuiView::Runner);
 
         // Switch to Home
-        app.switch_view(TuiView::Explorer);
-        assert_eq!(app.current_view, TuiView::Explorer);
+        app.switch_view(TuiView::Browse);
+        assert_eq!(app.current_view, TuiView::Browse);
 
         // Switch to Chat
         app.switch_view(TuiView::Chat);
@@ -4463,18 +4463,18 @@ mod tests {
         std::fs::write(&workflow_path, "schema: test").unwrap();
         let mut app = App::new(&workflow_path).unwrap();
 
-        // Start at Explorer (v0.12 default)
-        app.current_view = TuiView::Explorer;
+        // Start at Browse (v0.20 default)
+        app.current_view = TuiView::Browse;
 
-        // Next should go Explorer -> Chat -> Editor -> Runner -> Scheduler -> Settings -> Explorer
-        app.current_view = app.current_view.next();
-        assert_eq!(app.current_view, TuiView::Chat);
-
+        // Next should go Browse -> Editor -> Runner -> Chat -> Scheduler -> Settings -> Browse
         app.current_view = app.current_view.next();
         assert_eq!(app.current_view, TuiView::Editor);
 
         app.current_view = app.current_view.next();
         assert_eq!(app.current_view, TuiView::Runner);
+
+        app.current_view = app.current_view.next();
+        assert_eq!(app.current_view, TuiView::Chat);
 
         app.current_view = app.current_view.next();
         assert_eq!(app.current_view, TuiView::Scheduler);
@@ -4483,9 +4483,9 @@ mod tests {
         assert_eq!(app.current_view, TuiView::Settings);
 
         app.current_view = app.current_view.next();
-        assert_eq!(app.current_view, TuiView::Explorer);
+        assert_eq!(app.current_view, TuiView::Browse);
 
-        // Prev should go Explorer -> Settings
+        // Prev should go Browse -> Settings
         app.current_view = app.current_view.prev();
         assert_eq!(app.current_view, TuiView::Settings);
     }
@@ -4516,7 +4516,7 @@ mod tests {
         assert!(app.is_view_capturing_input());
 
         // Home and Monitor never capture
-        app.current_view = TuiView::Explorer;
+        app.current_view = TuiView::Browse;
         assert!(!app.is_view_capturing_input());
 
         app.current_view = TuiView::Runner;
@@ -4535,7 +4535,7 @@ mod tests {
         let mut app = App::new(&workflow_path).unwrap();
 
         // Start in Home view
-        app.current_view = TuiView::Explorer;
+        app.current_view = TuiView::Browse;
         app.input_mode = InputMode::Normal;
 
         // Tab should be routed to view (returns Continue, not SwitchView)
@@ -4556,14 +4556,14 @@ mod tests {
         let mut app = App::new(&workflow_path).unwrap();
 
         // Start in Home view
-        app.current_view = TuiView::Explorer;
+        app.current_view = TuiView::Browse;
         app.input_mode = InputMode::Normal;
 
         // Number keys 1-6 should switch views (matches tab bar order)
         let action = app.handle_unified_key(KeyCode::Char('1'), KeyModifiers::empty());
         assert_eq!(
             action,
-            Action::SwitchView(TuiView::Explorer),
+            Action::SwitchView(TuiView::Browse),
             "Key '1' should switch to Explorer view"
         );
 
@@ -4605,7 +4605,7 @@ mod tests {
         let mut app = App::new(&workflow_path).unwrap();
 
         // Start in Explorer view
-        app.current_view = TuiView::Explorer;
+        app.current_view = TuiView::Browse;
         app.input_mode = InputMode::Normal;
 
         // Key '2' should switch to Chat view (matches tab bar order)
@@ -4646,8 +4646,8 @@ mod tests {
         std::fs::write(&workflow_path, "schema: test").unwrap();
         let mut app = App::new(&workflow_path).unwrap();
 
-        let action = app.convert_view_action(ViewAction::SwitchView(TuiView::Explorer));
-        assert_eq!(action, Action::SwitchView(TuiView::Explorer));
+        let action = app.convert_view_action(ViewAction::SwitchView(TuiView::Browse));
+        assert_eq!(action, Action::SwitchView(TuiView::Browse));
     }
 
     #[tokio::test]
