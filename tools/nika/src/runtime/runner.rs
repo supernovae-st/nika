@@ -1311,6 +1311,8 @@ mod tests {
                     exec: ExecParams {
                         command: "echo {{use.item}}".to_string(),
                         shell: None,
+                        timeout: None,
+                        cwd: None,
                     },
                 },
                 use_wiring: None,
@@ -1376,6 +1378,8 @@ mod tests {
                     exec: ExecParams {
                         command: "echo {{use.x}}".to_string(),
                         shell: None,
+                        timeout: None,
+                        cwd: None,
                     },
                 },
                 use_wiring: None,
@@ -1446,6 +1450,8 @@ mod tests {
                             exec: ExecParams {
                                 command: cmd.to_string(),
                                 shell: None,
+                                timeout: None,
+                                cwd: None,
                             },
                         },
                         artifact: None,
@@ -1873,6 +1879,8 @@ mod tests {
                     exec: ExecParams {
                         command: "echo {{use.item}}".to_string(),
                         shell: None,
+                        timeout: None,
+                        cwd: None,
                     },
                 },
                 use_wiring: None,
@@ -1928,6 +1936,8 @@ mod tests {
                         // Exit with error if item is "FAIL"
                         command: "test '{{use.item}}' != 'FAIL' && echo {{use.item}}".to_string(),
                         shell: None,
+                        timeout: None,
+                        cwd: None,
                     },
                 },
                 use_wiring: None,
@@ -1973,6 +1983,8 @@ mod tests {
                     exec: ExecParams {
                         command: "echo {{use.item}}".to_string(),
                         shell: None,
+                        timeout: None,
+                        cwd: None,
                     },
                 },
                 use_wiring: None,

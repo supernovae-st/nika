@@ -90,6 +90,12 @@ pub enum OutputFormat {
 
     /// JSON parsed output
     Json,
+
+    /// YAML formatted output (v0.10+)
+    Yaml,
+
+    /// Markdown formatted output (v0.10+)
+    Markdown,
 }
 
 #[cfg(test)]

@@ -46,11 +46,14 @@
       }
     },
     "skills": {
-      "type": "array",
-      "description": "Workflow-level skills to inject (v0.15+)",
-      "items": {
-        "$ref": "#/$defs/SkillDef"
-      }
+      "type": "object",
+      "description": "Workflow-level skills for prompt augmentation (v0.6+). Map of alias → skill file path.",
+      "additionalProperties": {
+        "type": "string",
+        "description": "Path to skill file (local or pkg: URI)",
+        "examples": ["./skills/writing.skill.md", "pkg:@spn/core@1.0.0/skills/coding.md"]
+      },
+      "examples": [{"seo": "./skills/seo.skill.md", "brand": "./skills/brand.skill.md"}]
     },
     "mcp": {
       "type": "object",
@@ -139,24 +142,6 @@
         { "required": ["path"] },
         { "required": ["pkg"] }
       ]
-    },
-    "SkillDef": {
-      "type": "object",
-      "description": "Skill definition with path and optional alias (v0.15+)",
-      "required": ["path"],
-      "additionalProperties": false,
-      "properties": {
-        "path": {
-          "type": "string",
-          "description": "Path to skill file (local or pkg: URI)",
-          "examples": ["./skills/writing.md", "pkg:@spn/core@1.0.0/skills/coding.md"]
-        },
-        "alias": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9_-]*$",
-          "description": "Alias for the skill"
-        }
-      }
     },
     "McpServerConfig": {
       "type": "object",
@@ -314,11 +299,23 @@
           "type": "string",
           "description": "Starting node reference (e.g., $entity)"
         },
+        "mcp_server": {
+          "type": "string",
+          "default": "novanet",
+          "description": "MCP server to use for traversal (default: novanet)"
+        },
         "max_items": {
           "type": "integer",
           "minimum": 1,
           "maximum": 1000,
           "description": "Maximum items to expand"
+        },
+        "max_depth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Maximum recursion depth for nested strategy (default: 3)"
         }
       }
     },
@@ -445,6 +442,38 @@
           "type": "integer",
           "minimum": 1,
           "description": "Request timeout in seconds"
+        },
+        "retry": {
+          "$ref": "#/$defs/RetryConfig",
+          "description": "Retry configuration for failed requests (v0.19+)"
+        }
+      }
+    },
+    "RetryConfig": {
+      "type": "object",
+      "description": "Retry configuration with exponential backoff (v0.19+)",
+      "additionalProperties": false,
+      "properties": {
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Maximum retry attempts (default: 3)"
+        },
+        "backoff_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 60000,
+          "default": 1000,
+          "description": "Initial backoff in milliseconds (default: 1000)"
+        },
+        "multiplier": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 5,
+          "default": 2,
+          "description": "Backoff multiplier for exponential backoff (default: 2.0)"
         }
       }
     },
@@ -570,6 +599,11 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Sequences that stop generation"
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["full", "minimal", "debug"],
+          "description": "Scope preset for agent capabilities (v0.10+)"
         },
         "stop_conditions": {
           "type": "array",
@@ -784,9 +818,14 @@
           "default": "text",
           "description": "Log output format"
         },
+        "console": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show logs in console output"
+        },
         "file": {
           "type": "string",
-          "description": "Log file path"
+          "description": "Log file path (supports {{context.meta.*}} templates)"
         }
       }
     },

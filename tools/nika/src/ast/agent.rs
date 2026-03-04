@@ -104,6 +104,10 @@ pub struct AgentParams {
     #[serde(default)]
     pub mcp: Vec<String>,
 
+    /// Builtin tools the agent can use (nika:read, nika:write, etc.)
+    #[serde(default)]
+    pub tools: Vec<String>,
+
     /// Maximum agentic turns before stopping
     #[serde(default)]
     pub max_turns: Option<u32>,
@@ -116,6 +120,10 @@ pub struct AgentParams {
     /// Conditions that trigger early stop (if output contains any)
     #[serde(default)]
     pub stop_conditions: Vec<String>,
+
+    /// Sequences that stop generation (passed to LLM)
+    #[serde(default)]
+    pub stop_sequences: Vec<String>,
 
     /// Scope preset (full, minimal, debug)
     #[serde(default)]

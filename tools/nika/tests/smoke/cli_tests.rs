@@ -81,9 +81,13 @@ fn test_cli_version() {
 
 #[test]
 fn test_cli_check_valid_workflow() {
-    // Create a temp valid workflow
+    // Create a temp valid workflow with unique name
     let tmp_dir = std::env::temp_dir();
-    let workflow_path = tmp_dir.join("test-valid.nika.yaml");
+    let unique_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let workflow_path = tmp_dir.join(format!("test-valid-{}.nika.yaml", unique_id));
 
     std::fs::write(
         &workflow_path,
@@ -113,8 +117,13 @@ tasks:
 
 #[test]
 fn test_cli_check_invalid_workflow() {
+    // Create a temp invalid workflow with unique name
     let tmp_dir = std::env::temp_dir();
-    let workflow_path = tmp_dir.join("test-invalid.nika.yaml");
+    let unique_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let workflow_path = tmp_dir.join(format!("test-invalid-{}.nika.yaml", unique_id));
 
     // Missing required field
     std::fs::write(
@@ -250,8 +259,13 @@ fn test_cli_invalid_args() {
 
 #[test]
 fn test_cli_run_exec_only_workflow() {
+    // Create a temp exec-only workflow with unique name
     let tmp_dir = std::env::temp_dir();
-    let workflow_path = tmp_dir.join("test-exec-only.nika.yaml");
+    let unique_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let workflow_path = tmp_dir.join(format!("test-exec-only-{}.nika.yaml", unique_id));
 
     std::fs::write(
         &workflow_path,
@@ -285,8 +299,13 @@ tasks:
 
 #[test]
 fn test_cli_run_fetch_workflow() {
+    // Create a temp fetch workflow with unique name
     let tmp_dir = std::env::temp_dir();
-    let workflow_path = tmp_dir.join("test-fetch.nika.yaml");
+    let unique_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let workflow_path = tmp_dir.join(format!("test-fetch-{}.nika.yaml", unique_id));
 
     std::fs::write(
         &workflow_path,
