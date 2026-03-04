@@ -328,6 +328,12 @@ impl<'a> StatusBar<'a> {
                 KeyHint::new("Esc", "Exit"),
                 KeyHint::new("F9", "Exit"),
             ],
+            // v0.20: Workspace view (Browser + Editor + DAG)
+            TuiView::Workspace => vec![
+                KeyHint::new("Tab", "Panel"),
+                KeyHint::new("Ctrl+]", "Ratio"),
+                KeyHint::new("F10", "Exit"),
+            ],
         }
     }
 

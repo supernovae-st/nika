@@ -34,6 +34,7 @@ mod settings;
 mod split;
 mod studio;
 mod trait_view;
+mod workspace;
 
 // Main view exports (v0.20 names)
 #[allow(unused_imports)]
@@ -55,6 +56,8 @@ pub use settings::SettingsView;
 // Split = NEW in v0.13 (Editor + Runner side-by-side)
 #[allow(unused_imports)]
 pub use split::{SplitFocus, SplitRatio, SplitView};
+// Workspace = NEW in v0.20 (Browser + Editor + DAG unified)
+pub use workspace::{WorkspaceFocus, WorkspaceRatio, WorkspaceView};
 
 // Internal re-exports (original struct names used internally)
 // v0.20: Removed ExplorerView alias (unused deprecated alias)
@@ -203,6 +206,8 @@ pub enum TuiView {
     Settings,
     /// Split - side-by-side Editor + Runner (F9 key)
     Split,
+    /// Workspace - Browser + Editor + DAG unified (F10 key) [v0.20]
+    Workspace,
 }
 
 impl TuiView {
@@ -219,7 +224,7 @@ impl TuiView {
         ]
     }
 
-    /// Get all 7 views including Split
+    /// Get all 8 views including Split and Workspace
     pub fn all_including_split() -> &'static [TuiView] {
         &[
             TuiView::Browse,
@@ -229,6 +234,7 @@ impl TuiView {
             TuiView::Scheduler,
             TuiView::Settings,
             TuiView::Split,
+            TuiView::Workspace,
         ]
     }
 
@@ -247,7 +253,12 @@ impl TuiView {
         matches!(self, TuiView::Split)
     }
 
-    /// Get next view (cycling through main 6 views, Split returns to Editor)
+    /// Check if this is the workspace view (v0.20)
+    pub fn is_workspace(&self) -> bool {
+        matches!(self, TuiView::Workspace)
+    }
+
+    /// Get next view (cycling through main 6 views, Split/Workspace exit to Editor/Browse)
     pub fn next(&self) -> Self {
         match self {
             TuiView::Browse => TuiView::Editor,
@@ -256,11 +267,12 @@ impl TuiView {
             TuiView::Chat => TuiView::Scheduler,
             TuiView::Scheduler => TuiView::Settings,
             TuiView::Settings => TuiView::Browse,
-            TuiView::Split => TuiView::Editor, // Split exits to Editor
+            TuiView::Split => TuiView::Editor,     // Split exits to Editor
+            TuiView::Workspace => TuiView::Browse, // Workspace exits to Browse
         }
     }
 
-    /// Get previous view (cycling through main 6 views, Split returns to Editor)
+    /// Get previous view (cycling through main 6 views, Split/Workspace exit to Editor/Browse)
     pub fn prev(&self) -> Self {
         match self {
             TuiView::Browse => TuiView::Settings,
@@ -269,11 +281,12 @@ impl TuiView {
             TuiView::Chat => TuiView::Runner,
             TuiView::Scheduler => TuiView::Chat,
             TuiView::Settings => TuiView::Scheduler,
-            TuiView::Split => TuiView::Editor, // Split exits to Editor
+            TuiView::Split => TuiView::Editor,     // Split exits to Editor
+            TuiView::Workspace => TuiView::Browse, // Workspace exits to Browse
         }
     }
 
-    /// Get view number (1-indexed for display, Split is 7)
+    /// Get view number (1-indexed for display, Split is 7, Workspace is 8)
     pub fn number(&self) -> u8 {
         match self {
             TuiView::Browse => 1,
@@ -283,6 +296,7 @@ impl TuiView {
             TuiView::Scheduler => 5,
             TuiView::Settings => 6,
             TuiView::Split => 7,
+            TuiView::Workspace => 8,
         }
     }
 
@@ -296,6 +310,7 @@ impl TuiView {
             TuiView::Scheduler => "NIKA SCHEDULER",
             TuiView::Settings => "NIKA SETTINGS",
             TuiView::Split => "NIKA SPLIT",
+            TuiView::Workspace => "NIKA WORKSPACE",
         }
     }
 
@@ -309,11 +324,12 @@ impl TuiView {
             TuiView::Scheduler => "📅",
             TuiView::Settings => "⚙",
             TuiView::Split => "⊞",
+            TuiView::Workspace => "🗂",
         }
     }
 
     /// Get the letter shortcut for the view (v0.20)
-    /// Note: Split uses F9, not a letter shortcut
+    /// Note: Split uses F9, Workspace uses F10
     pub fn shortcut(&self) -> char {
         match self {
             TuiView::Browse => 'b',
@@ -322,7 +338,8 @@ impl TuiView {
             TuiView::Chat => 'c',
             TuiView::Scheduler => 's',
             TuiView::Settings => ',',
-            TuiView::Split => '/', // Placeholder - Split uses F9
+            TuiView::Split => '/',     // Placeholder - Split uses F9
+            TuiView::Workspace => 'w', // Workspace uses F10, 'w' is backup
         }
     }
 
@@ -520,12 +537,13 @@ mod tests {
     #[test]
     fn test_tui_view_all_including_split() {
         let views = TuiView::all_including_split();
-        assert_eq!(views.len(), 7);
+        assert_eq!(views.len(), 8);
         assert_eq!(views[6], TuiView::Split);
+        assert_eq!(views[7], TuiView::Workspace);
     }
 
     #[test]
-    fn test_view_action_switch_to_all_seven_views() {
+    fn test_view_action_switch_to_all_eight_views() {
         let actions = [
             ViewAction::SwitchView(TuiView::Browse),
             ViewAction::SwitchView(TuiView::Editor),
@@ -534,8 +552,9 @@ mod tests {
             ViewAction::SwitchView(TuiView::Scheduler),
             ViewAction::SwitchView(TuiView::Settings),
             ViewAction::SwitchView(TuiView::Split),
+            ViewAction::SwitchView(TuiView::Workspace),
         ];
-        assert_eq!(actions.len(), 7);
+        assert_eq!(actions.len(), 8);
     }
 
     #[test]

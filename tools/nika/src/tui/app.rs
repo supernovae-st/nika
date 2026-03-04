@@ -63,7 +63,7 @@ use super::utils::truncate_str;
 use super::verification::{VerificationCache, VerificationEntry};
 use super::views::{
     ChatView, HelpView, HomeView, McpAction, MonitorView, SchedulerView, SettingsView, SplitView,
-    StudioView, TuiView, View, ViewAction,
+    StudioView, TuiView, View, ViewAction, WorkspaceView,
 };
 use super::widgets::task_box::{
     AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,
@@ -251,6 +251,8 @@ pub struct App {
     scheduler_view: SchedulerView,
     /// Split view state (v0.13 - side-by-side Editor + Runner)
     split_view: SplitView,
+    /// Workspace view state (v0.20 - unified 3-panel: Browser+Editor+DAG)
+    workspace_view: WorkspaceView,
     // ═══ LLM Integration for ChatOverlay ═══
     /// Channel for receiving LLM responses (complete responses)
     llm_response_rx: mpsc::Receiver<String>,
@@ -321,6 +323,7 @@ impl App {
         let monitor_view = MonitorView::new();
         let scheduler_view = SchedulerView::new();
         let split_view = SplitView::new();
+        let workspace_view = WorkspaceView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -368,6 +371,7 @@ impl App {
             monitor_view,
             scheduler_view,
             split_view,
+            workspace_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -400,6 +404,7 @@ impl App {
         let monitor_view = MonitorView::new();
         let scheduler_view = SchedulerView::new();
         let split_view = SplitView::new();
+        let workspace_view = WorkspaceView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -447,6 +452,7 @@ impl App {
             monitor_view,
             scheduler_view,
             split_view,
+            workspace_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -1314,6 +1320,7 @@ impl App {
             };
             let scheduler_status = self.scheduler_view.status_line(&self.state);
             let split_status = self.split_view.status_line(&self.state); // v0.13: Split view
+            let workspace_status = self.workspace_view.status_line(&self.state); // v0.20: Workspace view
 
             // Extract references to avoid borrow issues with the closure
             let theme = &self.theme;
@@ -1326,6 +1333,7 @@ impl App {
             let monitor_view = &mut self.monitor_view;
             let scheduler_view = &mut self.scheduler_view;
             let split_view = &mut self.split_view; // v0.13: Split view
+            let workspace_view = &mut self.workspace_view; // v0.20: Workspace view
             let workflow_path = &self.state.workflow.path;
             let intro_state = &self.intro_state; // v0.12: Intro animation state
                                                  // P0 Fix: Use is_paused() accessor for unified pause state
@@ -1352,6 +1360,8 @@ impl App {
                 TuiView::Split => split_status,
                 // Auxiliary views use their own status (v0.11)
                 TuiView::Settings => settings_view.status_line(state),
+                // v0.20: Workspace view (Browser + Editor + DAG unified)
+                TuiView::Workspace => workspace_status,
             };
 
             terminal
@@ -1431,6 +1441,10 @@ impl App {
                         // v0.11: Auxiliary views (Settings)
                         TuiView::Settings => {
                             settings_view.render(frame, chunks[1], state, theme);
+                        }
+                        TuiView::Workspace => {
+                            // v0.20: Workspace view (Browser + Editor + DAG unified)
+                            workspace_view.render(frame, chunks[1], state, theme);
                         }
                     }
 
@@ -1599,6 +1613,11 @@ impl App {
             // v0.11: Auxiliary views - delegate to view handlers
             TuiView::Settings => {
                 let view_action = self.settings_view.handle_key(key_event, &mut self.state);
+                self.convert_view_action(view_action)
+            }
+            TuiView::Workspace => {
+                // v0.20: Workspace view (Browser + Editor + DAG unified)
+                let view_action = self.workspace_view.handle_key(key_event, &mut self.state);
                 self.convert_view_action(view_action)
             }
         }

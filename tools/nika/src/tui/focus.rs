@@ -93,6 +93,8 @@ impl PanelId {
             TuiView::Settings => &[],
             // Split view has its own focus management (v0.13)
             TuiView::Split => &[],
+            // Workspace view has its own internal focus (v0.20)
+            TuiView::Workspace => &[],
         }
     }
 
@@ -130,6 +132,8 @@ impl PanelId {
             TuiView::Settings => PanelId::ExplorerFiles,
             // Split view has its own focus management (v0.13)
             TuiView::Split => PanelId::ExplorerFiles,
+            // Workspace view has its own internal focus (v0.20)
+            TuiView::Workspace => PanelId::ExplorerFiles,
         }
     }
 }

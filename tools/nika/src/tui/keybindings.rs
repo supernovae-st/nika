@@ -382,6 +382,27 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 category: KeyCategory::ViewNav,
             });
         }
+        // v0.20: Workspace view (similar to Split)
+        TuiView::Workspace => {
+            bindings.push(Keybinding {
+                code: KeyCode::Tab,
+                modifiers: KeyModifiers::NONE,
+                description: "Switch panel",
+                category: KeyCategory::PanelNav,
+            });
+            bindings.push(Keybinding {
+                code: KeyCode::Char(']'),
+                modifiers: KeyModifiers::CONTROL,
+                description: "Cycle ratio",
+                category: KeyCategory::PanelNav,
+            });
+            bindings.push(Keybinding {
+                code: KeyCode::F(10),
+                modifiers: KeyModifiers::NONE,
+                description: "Exit workspace",
+                category: KeyCategory::ViewNav,
+            });
+        }
     }
 
     bindings
