@@ -20,12 +20,12 @@
 //! and cache secrets in memory (with mlock protection against swap).
 
 use crate::tui::widgets::provider_modal::{provider_env_var, SpnKeyring};
-use secrecy::SecretString;
 #[cfg(feature = "spn-daemon")]
 use secrecy::ExposeSecret;
-use tracing::{debug, info, trace};
+use secrecy::SecretString;
 #[cfg(feature = "spn-daemon")]
 use tracing::warn;
+use tracing::{debug, info, trace};
 
 /// Provider names we try to load from daemon.
 const PROVIDERS: &[&str] = &[
