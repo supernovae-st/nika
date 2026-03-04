@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.4] - 2026-03-04
+
+### Added
+
+- **Output Policy for JSON Schema Injection** — Runtime schema enforcement
+  - `OutputPolicy` parameter added to `execute()` function
+  - `build_json_schema_instruction()` for structured output prompts
+  - Schema requirements injected into infer/agent prompts
+- **{{inputs.*}} Template Resolution** — Access workflow inputs in templates
+  - Third resolution pass after `use.*` and `context.*`
+  - Enables dynamic workflow parameterization
+
+### Fixed
+
+- **Benchmark thresholds** — Relaxed for debug builds
+  - Parse simple: 500µs → 2000µs
+  - DAG construction small: 50µs → 500µs
+- **Execute signature migration** — Updated all tests for 5-argument signature
+- **Clippy warning** — Fixed unnecessary_lazy_evaluations in executor.rs
+
+### Changed
+
+- **autonomous-research-agent** — Moved to experimental/ (uses future features)
+
+## [0.19.3] - 2026-03-04
+
+### Added
+
+- **`nika new` Command** — Interactive workflow creation wizard
+  - Templates: minimal, infer, agent, pipeline, mcp
+  - CLI flags for non-interactive mode
+- **103 Test Suite Workflows** — Comprehensive coverage for all features
+- **Task-level flow** — `flow:` field on individual tasks
+- **Server alias** — `alias:` field in MCP server configuration
+
+### Fixed
+
+- **Schema/code coherence** — All schema definitions match runtime behavior
+- **20 critical workflows** — Updated to schema@0.10
+
+## [0.19.2] - 2026-03-03
+
 ### Added
 
 - **Structured Output Enforcement** — 3-layer validation for JSON output
@@ -35,6 +77,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **OutputPolicy schema** — Updated JSON Schema with `oneOf` for schema field
   supporting both inline objects and file path strings
 - **Test helpers** — Updated FetchParams and InferParams with new required fields
+
+## [0.19.1] - 2026-03-03
+
+### Added
+
+- **Artifact Processor** — Workflow output persistence system
+- **Expert Workflows** — Showcasing v0.19 features with NovaNet integration
+
+### Fixed
+
+- **Workflow examples** — Made agentic with proper NovaNet integration
+
+## [0.19.0] - 2026-03-03
+
+### Added
+
+- **Initial v0.19 release** — Structured outputs foundation
+- **Retry loop** — For structured output validation
+- **Binding references in for_each** — Dynamic iteration support
 
 ## [0.18.0] - 2026-03-03
 
