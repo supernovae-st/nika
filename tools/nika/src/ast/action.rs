@@ -23,9 +23,22 @@
 //! ```
 
 use rustc_hash::FxHashMap;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::ast::{AgentParams, InvokeParams};
+
+/// Expected response format for infer tasks (v0.10+)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ResponseFormat {
+    /// Plain text response (default)
+    #[default]
+    Text,
+    /// JSON response
+    Json,
+    /// Markdown response
+    Markdown,
+}
 
 /// Infer action - one-shot LLM call
 ///
@@ -52,6 +65,8 @@ pub struct InferParams {
     pub max_tokens: Option<u32>,
     /// System prompt to set context for the LLM
     pub system: Option<String>,
+    /// Expected response format (v0.10+): json, text, markdown
+    pub response_format: Option<ResponseFormat>,
     /// Enable extended thinking for deeper reasoning (Claude only, v0.18.0)
     pub extended_thinking: Option<bool>,
     /// Token budget for extended thinking (1024-65536, default 4096, Claude only, v0.18.0)
@@ -80,6 +95,8 @@ impl<'de> Deserialize<'de> for InferParams {
                 #[serde(default)]
                 system: Option<String>,
                 #[serde(default)]
+                response_format: Option<ResponseFormat>,
+                #[serde(default)]
                 extended_thinking: Option<bool>,
                 #[serde(default)]
                 thinking_budget: Option<u64>,
@@ -94,6 +111,7 @@ impl<'de> Deserialize<'de> for InferParams {
                 temperature: None,
                 max_tokens: None,
                 system: None,
+                response_format: None,
                 extended_thinking: None,
                 thinking_budget: None,
             }),
@@ -104,6 +122,7 @@ impl<'de> Deserialize<'de> for InferParams {
                 temperature,
                 max_tokens,
                 system,
+                response_format,
                 extended_thinking,
                 thinking_budget,
             } => Ok(InferParams {
@@ -113,6 +132,7 @@ impl<'de> Deserialize<'de> for InferParams {
                 temperature,
                 max_tokens,
                 system,
+                response_format,
                 extended_thinking,
                 thinking_budget,
             }),
@@ -198,6 +218,10 @@ pub struct ExecParams {
     pub command: String,
     /// Whether to execute via shell. None means shell-free (default, secure).
     pub shell: Option<bool>,
+    /// Timeout in seconds for command execution
+    pub timeout: Option<u64>,
+    /// Working directory for command execution
+    pub cwd: Option<String>,
 }
 
 impl<'de> Deserialize<'de> for ExecParams {
@@ -213,6 +237,10 @@ impl<'de> Deserialize<'de> for ExecParams {
                 command: String,
                 #[serde(default)]
                 shell: Option<bool>,
+                #[serde(default)]
+                timeout: Option<u64>,
+                #[serde(default)]
+                cwd: Option<String>,
             },
         }
 
@@ -220,8 +248,20 @@ impl<'de> Deserialize<'de> for ExecParams {
             ExecParamsHelper::Short(command) => Ok(ExecParams {
                 command,
                 shell: None,
+                timeout: None,
+                cwd: None,
             }),
-            ExecParamsHelper::Full { command, shell } => Ok(ExecParams { command, shell }),
+            ExecParamsHelper::Full {
+                command,
+                shell,
+                timeout,
+                cwd,
+            } => Ok(ExecParams {
+                command,
+                shell,
+                timeout,
+                cwd,
+            }),
         }
     }
 }
@@ -432,6 +472,7 @@ infer:
             temperature: Some(0.7),
             max_tokens: None,
             system: None,
+            response_format: None,
             extended_thinking: None,
             thinking_budget: None,
         };
@@ -1102,6 +1143,8 @@ agent:
             exec: ExecParams {
                 command: "echo test".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
         assert_eq!(action.verb_name(), "exec");
@@ -1324,6 +1367,8 @@ fetch:
             exec: ExecParams {
                 command: "echo".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
         let fetch = TaskAction::Fetch {

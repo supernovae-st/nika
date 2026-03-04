@@ -1385,6 +1385,8 @@ mod tests {
             exec: ExecParams {
                 command: "echo hello".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
 
@@ -1407,6 +1409,8 @@ mod tests {
             exec: ExecParams {
                 command: "echo {{use.name}}".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
 
@@ -1429,6 +1433,8 @@ mod tests {
             exec: ExecParams {
                 command: "false".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
 
@@ -1461,6 +1467,8 @@ mod tests {
             exec: ExecParams {
                 command: "echo {{use.greeting}}".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
 
@@ -1795,6 +1803,8 @@ mod tests {
             exec: ExecParams {
                 command: "echo {{use.key}}".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
 
@@ -1818,6 +1828,8 @@ mod tests {
             exec: ExecParams {
                 command: "echo {{use.first}} {{use.second}}".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
 
@@ -1839,6 +1851,8 @@ mod tests {
             exec: ExecParams {
                 command: "echo static".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
 
@@ -1861,6 +1875,8 @@ mod tests {
             exec: ExecParams {
                 command: "echo {{use.data}}".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
 
@@ -1890,6 +1906,8 @@ mod tests {
             exec: ExecParams {
                 command: "echo {{use.task_output}}".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
 
@@ -2074,6 +2092,8 @@ mod tests {
             exec: ExecParams {
                 command: "sleep 100".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
 
@@ -2105,6 +2125,8 @@ mod tests {
             exec: ExecParams {
                 command: "echo test".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
         assert_eq!(action_type(&exec_action), "exec");
@@ -2138,8 +2160,10 @@ mod tests {
                 model: None,
                 system: None,
                 mcp: vec![],
+                tools: vec![],
                 max_turns: None,
                 stop_conditions: vec![],
+                stop_sequences: vec![],
                 scope: None,
                 token_budget: None,
                 extended_thinking: None,
@@ -2175,6 +2199,8 @@ mod tests {
             exec: ExecParams {
                 command: "sudo apt install".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
 
@@ -2211,6 +2237,8 @@ mod tests {
             exec: ExecParams {
                 command: "echo hello".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
 
@@ -2239,6 +2267,8 @@ mod tests {
             exec: ExecParams {
                 command: "echo safe".to_string(),
                 shell: None,
+                timeout: None,
+                cwd: None,
             },
         };
 
@@ -2402,6 +2432,8 @@ mod tests {
         let params = ExecParams {
             command: "echo hello; echo world".to_string(),
             shell: None, // Default: shell-free
+            timeout: None,
+            cwd: None,
         };
 
         let result = executor
@@ -2428,6 +2460,8 @@ mod tests {
         let params = ExecParams {
             command: "echo hello && echo world".to_string(),
             shell: Some(true), // Opt-in to shell mode
+            timeout: None,
+            cwd: None,
         };
 
         let result = executor
@@ -2451,6 +2485,8 @@ mod tests {
         let params = ExecParams {
             command: "echo 'hello; echo injected'".to_string(),
             shell: None, // Default: shell-free
+            timeout: None,
+            cwd: None,
         };
 
         let result = executor
@@ -2473,6 +2509,8 @@ mod tests {
         let params = ExecParams {
             command: "rm -rf /".to_string(),
             shell: None,
+            timeout: None,
+            cwd: None,
         };
 
         let result = executor

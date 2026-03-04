@@ -280,6 +280,53 @@ enum Commands {
         /// Path to workflow YAML file (optional)
         workflow: Option<PathBuf>,
     },
+
+    /// Create a new workflow from template or wizard (v0.19.3)
+    #[command(visible_alias = "n")]
+    New {
+        /// Workflow name (used for filename)
+        name: Option<String>,
+
+        /// Launch interactive wizard (default if no other flags)
+        #[arg(long)]
+        wizard: bool,
+
+        /// Use a template (simple-infer, blog-generator, agent-research, etc.)
+        #[arg(short, long, value_name = "TEMPLATE")]
+        template: Option<String>,
+
+        /// Primary verb (infer, exec, fetch, invoke, agent)
+        #[arg(long, value_name = "VERB")]
+        verb: Option<String>,
+
+        /// LLM provider (claude, openai, mistral, groq, deepseek, ollama)
+        #[arg(short, long, value_name = "PROVIDER")]
+        provider: Option<String>,
+
+        /// Output format (text, json, yaml)
+        #[arg(short, long, value_name = "FORMAT")]
+        output: Option<String>,
+
+        /// Include MCP server configuration
+        #[arg(long)]
+        with_mcp: bool,
+
+        /// Include subworkflow example
+        #[arg(long)]
+        with_include: bool,
+
+        /// Include artifact output configuration
+        #[arg(long)]
+        with_artifacts: bool,
+
+        /// Output directory (default: current directory)
+        #[arg(short = 'd', long, value_name = "DIR")]
+        output_dir: Option<PathBuf>,
+
+        /// List available templates
+        #[arg(long)]
+        list: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -671,6 +718,34 @@ async fn main() {
                 None => nika::tui::run_tui_standalone().await,
             }
         }
+
+        // New workflow creation (v0.19.3)
+        Some(Commands::New {
+            name,
+            wizard,
+            template,
+            verb,
+            provider,
+            output,
+            with_mcp,
+            with_include,
+            with_artifacts,
+            output_dir,
+            list,
+        }) => handle_new_command(
+            name,
+            wizard,
+            template,
+            verb,
+            provider,
+            output,
+            with_mcp,
+            with_include,
+            with_artifacts,
+            output_dir,
+            list,
+            quiet,
+        ),
     };
 
     handle_result(result);
@@ -3684,6 +3759,173 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
                 println!("{} Configuration reload signal sent", "✅".green());
             }
         }
+    }
+
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW COMMAND - Workflow scaffolding (v0.19.3)
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[allow(clippy::too_many_arguments)]
+fn handle_new_command(
+    name: Option<String>,
+    wizard: bool,
+    template: Option<String>,
+    verb: Option<String>,
+    provider: Option<String>,
+    output: Option<String>,
+    with_mcp: bool,
+    with_include: bool,
+    with_artifacts: bool,
+    output_dir: Option<PathBuf>,
+    list: bool,
+    quiet: bool,
+) -> Result<(), NikaError> {
+    use nika::new::{
+        create_from_template, list_templates, NewWorkflowConfig, OutputFormat, Provider, Template,
+        Verb,
+    };
+
+    let output_dir = output_dir.unwrap_or_else(|| PathBuf::from("."));
+
+    // Handle --list flag
+    if list {
+        if !quiet {
+            println!("{}", "Available templates:".bold());
+            println!();
+        }
+        for (name, description, category) in list_templates() {
+            if quiet {
+                println!("{}", name);
+            } else {
+                println!(
+                    "  {} {}",
+                    format!("{:<18}", name).green(),
+                    format!("[{}] {}", category, description).white()
+                );
+            }
+        }
+        return Ok(());
+    }
+
+    // Determine mode: wizard, template, or custom flags
+    let has_flags = template.is_some()
+        || verb.is_some()
+        || provider.is_some()
+        || output.is_some()
+        || with_mcp
+        || with_include
+        || with_artifacts;
+
+    // If wizard flag is set, or no name and no flags, launch wizard
+    #[cfg(feature = "tui")]
+    if wizard || (name.is_none() && !has_flags) {
+        let path = nika::new::wizard::run_wizard(output_dir)?;
+        if !quiet {
+            println!("{} Created: {}", "SUCCESS!".green().bold(), path.display());
+            println!("  Run: nika {}", path.display());
+        }
+        return Ok(());
+    }
+
+    // Non-TUI mode: require name
+    #[cfg(not(feature = "tui"))]
+    if wizard {
+        return Err(NikaError::ValidationError {
+            reason: "Wizard mode requires TUI feature. Use --template or flags instead."
+                .to_string(),
+        });
+    }
+
+    // Template mode
+    if let Some(template_name) = template {
+        let workflow_name = name.unwrap_or_else(|| "my-workflow".to_string());
+        let tmpl =
+            Template::from_name(&template_name).ok_or_else(|| NikaError::ValidationError {
+                reason: format!(
+                    "Unknown template: '{}'. Use --list to see available templates.",
+                    template_name
+                ),
+            })?;
+
+        let path = create_from_template(&workflow_name, tmpl, &output_dir)?;
+
+        if !quiet {
+            println!("{} Created: {}", "SUCCESS!".green().bold(), path.display());
+            println!("  Template: {}", tmpl.name().cyan());
+            println!("  Run: nika {}", path.display());
+        }
+        return Ok(());
+    }
+
+    // Custom flags mode - require name
+    let workflow_name = name.ok_or_else(|| NikaError::ValidationError {
+        reason: "Workflow name is required. Use: nika new <NAME> [OPTIONS]".to_string(),
+    })?;
+
+    // Parse verb
+    let verb = verb
+        .map(|v| {
+            Verb::from_name(&v).ok_or_else(|| NikaError::ValidationError {
+                reason: format!(
+                    "Unknown verb: '{}'. Valid: infer, exec, fetch, invoke, agent",
+                    v
+                ),
+            })
+        })
+        .transpose()?
+        .unwrap_or_default();
+
+    // Parse provider
+    let provider = provider
+        .map(|p| {
+            Provider::from_name(&p).ok_or_else(|| NikaError::ValidationError {
+                reason: format!(
+                    "Unknown provider: '{}'. Valid: claude, openai, mistral, groq, deepseek, ollama",
+                    p
+                ),
+            })
+        })
+        .transpose()?
+        .unwrap_or_default();
+
+    // Parse output format
+    let output_format = output
+        .map(|o| {
+            OutputFormat::from_name(&o).ok_or_else(|| NikaError::ValidationError {
+                reason: format!("Unknown output format: '{}'. Valid: text, json, yaml", o),
+            })
+        })
+        .transpose()?
+        .unwrap_or_default();
+
+    // Build config
+    let config = NewWorkflowConfig {
+        name: workflow_name,
+        description: None,
+        verb,
+        provider,
+        model: None,
+        output_format,
+        with_mcp,
+        with_include,
+        with_artifacts,
+        output_dir,
+    };
+
+    // Generate workflow
+    let path = config.write()?;
+
+    if !quiet {
+        println!("{} Created: {}", "SUCCESS!".green().bold(), path.display());
+        println!("  Verb: {}", config.verb.name().cyan());
+        println!("  Provider: {}", config.provider.name().yellow());
+        if with_mcp {
+            println!("  MCP: {}", "enabled".magenta());
+        }
+        println!("  Run: nika {}", path.display());
     }
 
     Ok(())
