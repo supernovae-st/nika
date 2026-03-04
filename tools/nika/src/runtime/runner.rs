@@ -665,6 +665,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             debug!("Loaded {} context files", context_config.files.len());
         }
 
+        // Load inputs if workflow has inputs: block (v0.19.4 Schema @0.10)
+        if let Some(ref inputs) = self.workflow.inputs {
+            self.datastore.set_inputs(inputs.clone());
+            debug!("Loaded {} input parameters", inputs.len());
+        }
+
         // Resolve agents and skills (v0.13 Schema @0.6)
         // This loads external agent definitions and skill files
         if self.workflow.agents.is_some() || self.workflow.skills.is_some() {
@@ -1217,6 +1223,7 @@ mod tests {
             skills: None,
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![],
             flows: vec![],
         }
@@ -1300,6 +1307,7 @@ mod tests {
             skills: None,
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![Arc::new(Task {
                 id: "echo_items".to_string(),
                 for_each: Some(serde_json::json!(["a", "b", "c"])),
@@ -1367,6 +1375,7 @@ mod tests {
             skills: None,
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![Arc::new(Task {
                 id: "ordered".to_string(),
                 for_each: Some(serde_json::json!(["first", "second", "third"])),
@@ -1434,6 +1443,7 @@ mod tests {
             skills: None,
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: tasks
                 .into_iter()
                 .map(|(id, cmd)| {
@@ -1868,6 +1878,7 @@ mod tests {
             skills: None,
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![Arc::new(Task {
                 id: "concurrent".to_string(),
                 for_each: Some(serde_json::json!(["a", "b", "c", "d"])),
@@ -1924,6 +1935,7 @@ mod tests {
             skills: None,
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![Arc::new(Task {
                 id: "failfast".to_string(),
                 for_each: Some(serde_json::json!(["ok1", "FAIL", "ok2", "ok3"])),
@@ -1972,6 +1984,7 @@ mod tests {
             skills: None,
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![Arc::new(Task {
                 id: "continue".to_string(),
                 for_each: Some(serde_json::json!(["ok1", "ok2"])),

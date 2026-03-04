@@ -34,6 +34,13 @@ static CONTEXT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\{\{\s*context\.(files|session)\.(\w+(?:\.\w+)*)\s*\}\}").unwrap()
 });
 
+/// Pre-compiled regex for {{inputs.param}} pattern (v0.19.4)
+/// Extracts the input parameter name for lookup in workflow inputs
+static INPUTS_RE: LazyLock<Regex> = LazyLock::new(|| {
+    // Match inputs.param or inputs.param.nested.path
+    Regex::new(r"\{\{\s*inputs\.(\w+(?:\.\w+)*)\s*\}\}").unwrap()
+});
+
 /// Pre-compiled regex for deprecated $alias syntax
 /// Matches: $alias or $alias.field (but not $$, $1, ${, $( which are shell syntax)
 static DEPRECATED_DOLLAR_RE: LazyLock<Regex> =
@@ -88,7 +95,7 @@ pub fn escape_for_shell(s: &str) -> String {
     result
 }
 
-/// Resolve all {{use.alias}} and {{context.files/session.*}} templates (v0.14.2)
+/// Resolve all {{use.alias}}, {{context.*}}, and {{inputs.*}} templates (v0.19.4)
 ///
 /// Returns Cow::Borrowed when no templates (zero allocation).
 /// Returns Cow::Owned with single-pass resolution when templates exist.
@@ -97,25 +104,28 @@ pub fn escape_for_shell(s: &str) -> String {
 ///
 /// v0.5: Supports lazy bindings by resolving them on demand via DataStore.
 /// v0.14.2: Supports context bindings via {{context.files.alias}} and {{context.session.key}}.
+/// v0.19.4: Supports inputs bindings via {{inputs.param}}.
 ///
 /// Example: `{{use.forecast}}` → resolved value from bindings
 /// Example: `{{use.flight_info.departure}}` → nested access
 /// Example: `{{context.files.brand}}` → loaded file content (v0.14.2)
 /// Example: `{{context.session.focus}}` → session data (v0.14.2)
+/// Example: `{{inputs.topic}}` → input parameter default value (v0.19.4)
 pub fn resolve<'a>(
     template: &'a str,
     bindings: &ResolvedBindings,
     datastore: &DataStore,
 ) -> Result<Cow<'a, str>, NikaError> {
     // Early return with borrowed string (zero alloc)
-    // Fast check: must contain `{{` followed eventually by `use.` or `context.`
+    // Fast check: must contain `{{` followed eventually by `use.`, `context.`, or `inputs.`
     // Regex handles whitespace variations like `{{ use.` or `{{\tuse.`
     if !template.contains("{{") {
         return Ok(Cow::Borrowed(template));
     }
     let has_use = template.contains("use.");
     let has_context = template.contains("context.");
-    if !has_use && !has_context {
+    let has_inputs = template.contains("inputs.");
+    if !has_use && !has_context && !has_inputs {
         return Ok(Cow::Borrowed(template));
     }
 
@@ -225,8 +235,8 @@ pub fn resolve<'a>(
     // Pass 2: Resolve {{context.files.alias}} and {{context.session.key}} (v0.14.2)
     // ─────────────────────────────────────────────────────────────
     if has_context && result.contains("context.") {
-        let intermediate = result;
-        let mut result = String::with_capacity(intermediate.len() + 64);
+        let intermediate = std::mem::take(&mut result);
+        result = String::with_capacity(intermediate.len() + 64);
         let mut last_end = 0;
         let mut context_errors: SmallVec<[String; 4]> = SmallVec::new();
 
@@ -267,6 +277,64 @@ pub fn resolve<'a>(
             return Err(NikaError::Template(format!(
                 "Context binding(s) not resolved: {}. Check your 'context:' block in workflow.",
                 context_errors.join(", ")
+            )));
+        }
+
+        // Copy remaining segment
+        result.push_str(&intermediate[last_end..]);
+
+        // Continue to inputs pass if needed
+        if !has_inputs || !result.contains("inputs.") {
+            return Ok(Cow::Owned(result));
+        }
+        // Fall through to inputs pass with updated result
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Pass 3: Resolve {{inputs.param}} (v0.19.4)
+    // ─────────────────────────────────────────────────────────────
+    if has_inputs && result.contains("inputs.") {
+        let intermediate = std::mem::take(&mut result);
+        result = String::with_capacity(intermediate.len() + 64);
+        let mut last_end = 0;
+        let mut input_errors: SmallVec<[String; 4]> = SmallVec::new();
+
+        for cap in INPUTS_RE.captures_iter(&intermediate) {
+            let m = cap.get(0).unwrap();
+            let param_name = &cap[1]; // The parameter name after "inputs."
+
+            // Copy segment before this match
+            result.push_str(&intermediate[last_end..m.start()]);
+
+            // Build full path: inputs.param
+            let full_path = format!("inputs.{}", param_name);
+
+            // Resolve from datastore
+            match datastore.resolve_input_path(&full_path) {
+                Some(value) => {
+                    let replacement = input_value_to_string(&value, &full_path)?;
+
+                    // Escape if we're in a JSON context
+                    let replacement = if is_in_json_context(&intermediate, m.start()) {
+                        escape_for_json(&replacement)
+                    } else {
+                        replacement
+                    };
+
+                    result.push_str(&replacement);
+                }
+                None => {
+                    input_errors.push(full_path);
+                }
+            }
+
+            last_end = m.end();
+        }
+
+        if !input_errors.is_empty() {
+            return Err(NikaError::Template(format!(
+                "Input binding(s) not resolved: {}. Check your 'inputs:' block in workflow or provide defaults.",
+                input_errors.join(", ")
             )));
         }
 
@@ -449,6 +517,23 @@ fn context_value_to_string(value: &Value, path: &str) -> Result<String, NikaErro
         Value::String(s) => Ok(s.clone()),
         Value::Null => Err(NikaError::Template(format!(
             "Context binding '{}' resolved to null",
+            path
+        ))),
+        Value::Bool(b) => Ok(b.to_string()),
+        Value::Number(n) => Ok(n.to_string()),
+        // For objects/arrays, return compact JSON representation
+        other => Ok(other.to_string()),
+    }
+}
+
+/// Convert input Value to string for template substitution (v0.19.4)
+///
+/// Similar to value_to_string but for input bindings.
+fn input_value_to_string(value: &Value, path: &str) -> Result<String, NikaError> {
+    match value {
+        Value::String(s) => Ok(s.clone()),
+        Value::Null => Err(NikaError::Template(format!(
+            "Input binding '{}' resolved to null. Provide a 'default' value in your inputs definition.",
             path
         ))),
         Value::Bool(b) => Ok(b.to_string()),
@@ -1140,5 +1225,168 @@ mod tests {
         let result =
             resolve_for_shell("cat {{use.file}} && echo {{use.content}}", &bindings, &ds).unwrap();
         assert_eq!(result, "cat 'test.txt' && echo 'Hello; echo pwned'");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Input binding tests (v0.19.4)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    use rustc_hash::FxHashMap;
+
+    /// Helper to create datastore with inputs for tests
+    fn datastore_with_inputs() -> DataStore {
+        let store = DataStore::new();
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "topic".to_string(),
+            json!({
+                "type": "string",
+                "default": "AI QR code generation"
+            }),
+        );
+        inputs.insert(
+            "depth".to_string(),
+            json!({
+                "type": "string",
+                "default": "comprehensive"
+            }),
+        );
+        inputs.insert(
+            "config".to_string(),
+            json!({
+                "type": "object",
+                "default": {
+                    "theme": "dark",
+                    "count": 5
+                }
+            }),
+        );
+        store.set_inputs(inputs);
+        store
+    }
+
+    #[test]
+    fn resolve_inputs_simple() {
+        let bindings = ResolvedBindings::new();
+        let ds = datastore_with_inputs();
+
+        let result = resolve("Topic: {{inputs.topic}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "Topic: AI QR code generation");
+    }
+
+    #[test]
+    fn resolve_inputs_multiple() {
+        let bindings = ResolvedBindings::new();
+        let ds = datastore_with_inputs();
+
+        let result = resolve(
+            "Research {{inputs.topic}} at {{inputs.depth}} depth",
+            &bindings,
+            &ds,
+        )
+        .unwrap();
+        assert_eq!(
+            result,
+            "Research AI QR code generation at comprehensive depth"
+        );
+    }
+
+    #[test]
+    fn resolve_inputs_nested() {
+        let bindings = ResolvedBindings::new();
+        let ds = datastore_with_inputs();
+
+        let result = resolve("Theme: {{inputs.config.theme}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "Theme: dark");
+    }
+
+    #[test]
+    fn resolve_inputs_with_use_bindings() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("greeting", json!("Hello"));
+        let ds = datastore_with_inputs();
+
+        let result = resolve(
+            "{{use.greeting}}! Research {{inputs.topic}}",
+            &bindings,
+            &ds,
+        )
+        .unwrap();
+        assert_eq!(result, "Hello! Research AI QR code generation");
+    }
+
+    #[test]
+    fn resolve_inputs_with_context() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("msg", json!("Test"));
+        let store = DataStore::new();
+
+        // Set both context and inputs
+        let mut context = LoadedContext::new();
+        context
+            .files
+            .insert("brand".to_string(), json!("QR Code AI"));
+        store.set_context(context);
+
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "topic".to_string(),
+            json!({
+                "type": "string",
+                "default": "AI trends"
+            }),
+        );
+        store.set_inputs(inputs);
+
+        let result = resolve(
+            "{{use.msg}}: {{context.files.brand}} - {{inputs.topic}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+        assert_eq!(result, "Test: QR Code AI - AI trends");
+    }
+
+    #[test]
+    fn resolve_inputs_not_found() {
+        let bindings = ResolvedBindings::new();
+        let ds = datastore_with_inputs();
+
+        let result = resolve("{{inputs.nonexistent}}", &bindings, &ds);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Input binding"));
+        assert!(err.to_string().contains("nonexistent"));
+    }
+
+    #[test]
+    fn resolve_inputs_no_inputs_loaded() {
+        let bindings = ResolvedBindings::new();
+        let ds = empty_datastore(); // No inputs
+
+        let result = resolve("{{inputs.topic}}", &bindings, &ds);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn resolve_only_inputs_no_use() {
+        let bindings = ResolvedBindings::new();
+        let ds = datastore_with_inputs();
+
+        // Template with ONLY inputs bindings, no use bindings
+        let result = resolve("Topic is {{inputs.topic}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "Topic is AI QR code generation");
+    }
+
+    #[test]
+    fn resolve_inputs_preserves_no_template() {
+        let bindings = ResolvedBindings::new();
+        let ds = datastore_with_inputs();
+
+        // No templates at all
+        let result = resolve("Plain text without templates", &bindings, &ds).unwrap();
+        assert_eq!(result, "Plain text without templates");
+        // Should be borrowed (zero alloc)
+        assert!(matches!(result, Cow::Borrowed(_)));
     }
 }

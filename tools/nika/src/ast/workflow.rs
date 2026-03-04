@@ -109,6 +109,10 @@ struct WorkflowRaw {
     /// Log configuration (v0.18)
     #[serde(default)]
     pub log: Option<super::logging::LogConfig>,
+    /// Input parameters with defaults (v0.19.4)
+    /// Maps parameter names to their definitions (type, default, description)
+    #[serde(default)]
+    pub inputs: Option<FxHashMap<String, serde_json::Value>>,
     pub tasks: Vec<Task>,
     #[serde(default)]
     pub flows: Vec<Flow>,
@@ -153,6 +157,12 @@ pub struct Workflow {
     ///
     /// Workflow-level logging configuration.
     pub log: Option<super::logging::LogConfig>,
+    /// Input parameters with defaults (v0.19.4)
+    ///
+    /// Maps parameter names to their definitions. Each definition is a JSON object
+    /// with type, default, description, and optional enum values.
+    /// Accessible via `{{inputs.param_name}}` in templates.
+    pub inputs: Option<FxHashMap<String, serde_json::Value>>,
     pub tasks: Vec<Arc<Task>>,
     pub flows: Vec<Flow>,
 }
@@ -174,6 +184,7 @@ impl<'de> Deserialize<'de> for Workflow {
             skills: raw.skills,
             artifacts: raw.artifacts,
             log: raw.log,
+            inputs: raw.inputs,
             tasks: raw.tasks.into_iter().map(Arc::new).collect(),
             flows: raw.flows,
         })

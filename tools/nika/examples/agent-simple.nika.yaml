@@ -27,8 +27,6 @@ tasks:
         - benefits: array of 3 key benefits
         - recommendation: one sentence recommendation
 
-        End your response with "SUMMARY_COMPLETE".
-
       max_turns: 3
 
     output:

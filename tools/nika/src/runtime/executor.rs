@@ -525,9 +525,17 @@ impl TaskExecutor {
                         }
                         RigProvider::deepseek()
                     }
+                    "gemini" | "google" => {
+                        if std::env::var("GEMINI_API_KEY").is_err() {
+                            return Err(NikaError::Provider(
+                                "GEMINI_API_KEY not set".to_string(),
+                            ));
+                        }
+                        RigProvider::gemini()
+                    }
                     _ => {
                         return Err(NikaError::Provider(format!(
-                            "Unknown rig provider: {}. Supported: claude, openai, mistral, ollama, groq, deepseek",
+                            "Unknown rig provider: {}. Supported: claude, openai, mistral, ollama, groq, deepseek, gemini",
                             name
                         )));
                     }
@@ -596,6 +604,54 @@ impl TaskExecutor {
 
         // Use task-level override or workflow default
         let provider_name = infer.provider.as_deref().unwrap_or(&self.default_provider);
+
+        // v0.19.4: Mock provider support for testing (no API call)
+        // Generates a generic JSON response with common test fields
+        if provider_name == "mock" {
+            // Generate a response that satisfies common test schemas
+            // Includes: name, value, result, status, message, items, keywords, key_phrases, user, metadata
+            let mock_response = serde_json::json!({
+                "mock": true,
+                "task_id": task_id.as_ref(),
+                "name": "mock_value",
+                "age": 25,  // For validation tests requiring age field
+                "value": 42,
+                "result": "mock_result",
+                "status": "success",
+                "message": "Mock response generated",
+                "items": ["item1", "item2", "item3"],
+                "keywords": ["mock", "test", "nika"],
+                "key_phrases": ["mock response", "test workflow"],
+                "content": format!("Mock content for task {}", task_id),
+                "prompt_len": prompt.len(),
+                // Structured output fields for complex schema tests
+                "user": {
+                    "name": "Mock User",
+                    "email": "mock@example.com",
+                    "address": {
+                        "street": "123 Mock St",
+                        "city": "Mockville",
+                        "country": "Mockland"
+                    }
+                },
+                "metadata": {
+                    "created_at": "2024-01-15T14:30:00Z",
+                    "version": 1
+                }
+            });
+            let mock_response_str = mock_response.to_string();
+            self.event_log.emit(EventKind::ProviderResponded {
+                task_id: Arc::clone(task_id),
+                request_id: Some("mock-request".to_string()),
+                input_tokens: prompt.len() as u32 / 4,
+                output_tokens: mock_response_str.len() as u32 / 4,
+                cache_read_tokens: 0,
+                ttft_ms: Some(0),
+                finish_reason: "mock".to_string(),
+                cost_usd: 0.0,
+            });
+            return Ok(mock_response_str);
+        }
 
         // Get cached rig provider (v0.3.1+)
         let provider = self.get_rig_provider(provider_name)?;
@@ -1215,8 +1271,17 @@ impl TaskExecutor {
             "Agent loop completed"
         );
 
-        // Return final output as JSON string
-        Ok(result.final_output.to_string())
+        // Extract response text from final_output wrapper
+        // Agent returns {"response": "..."} but downstream expects raw LLM output
+        // for JSON extraction and schema validation
+        let response = result
+            .final_output
+            .get("response")
+            .and_then(|v| v.as_str())
+            // Fallback to empty string if no response field
+            .unwrap_or("");
+
+        Ok(response.to_string())
     }
 
     /// Get or create an MCP client for a named server

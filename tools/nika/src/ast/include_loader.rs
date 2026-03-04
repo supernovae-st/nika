@@ -382,6 +382,7 @@ mod tests {
             skills: None,
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![],
             flows: vec![],
         }

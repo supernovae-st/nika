@@ -4,6 +4,7 @@
 //! Path resolution unified with jsonpath module.
 //!
 //! v0.14.2: Added context storage for workflow `context:` block.
+//! v0.19.4: Added inputs storage for workflow `inputs:` block.
 
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -11,6 +12,7 @@ use std::time::Duration;
 
 use dashmap::DashMap;
 use parking_lot::RwLock;
+use rustc_hash::FxHashMap;
 use serde_json::Value;
 
 use crate::runtime::context_loader::LoadedContext;
@@ -89,6 +91,7 @@ impl TaskResult {
 /// Uses `Arc<str>` keys for zero-cost cloning with same Arc used in events.
 ///
 /// v0.14.2: Added context storage for workflow `context:` block.
+/// v0.19.4: Added inputs storage for workflow `inputs:` block.
 #[derive(Clone, Default)]
 pub struct DataStore {
     /// Task results: task_id → TaskResult
@@ -99,6 +102,12 @@ pub struct DataStore {
     /// Contains files loaded from the `context:` block.
     /// Accessible via `{{context.files.alias}}` bindings.
     context: Arc<RwLock<LoadedContext>>,
+
+    /// Input parameters with defaults (v0.19.4)
+    ///
+    /// Contains input definitions from the `inputs:` block.
+    /// Accessible via `{{inputs.param}}` bindings.
+    inputs: Arc<RwLock<FxHashMap<String, Value>>>,
 }
 
 impl DataStore {
@@ -227,6 +236,63 @@ impl DataStore {
                 }
             }
             _ => None,
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // INPUTS STORAGE (v0.19.4 Schema @0.10)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Set workflow inputs (v0.19.4)
+    ///
+    /// Called by Runner at workflow start with input definitions.
+    /// Each input is a JSON object with `type`, `default`, `description`, etc.
+    pub fn set_inputs(&self, inputs: FxHashMap<String, Value>) {
+        *self.inputs.write() = inputs;
+    }
+
+    /// Get an input's default value by name (v0.19.4)
+    ///
+    /// Returns the `default` field from the input definition.
+    /// Returns `None` if input doesn't exist or has no default.
+    pub fn get_input_default(&self, name: &str) -> Option<Value> {
+        let inputs = self.inputs.read();
+        let definition = inputs.get(name)?;
+
+        // Input definitions have structure: { type, default, description, ... }
+        // We extract the 'default' field
+        definition.get("default").cloned()
+    }
+
+    /// Check if inputs are loaded (v0.19.4)
+    pub fn has_inputs(&self) -> bool {
+        !self.inputs.read().is_empty()
+    }
+
+    /// Resolve an input path (v0.19.4)
+    ///
+    /// Supports:
+    /// - `inputs.param` → default value of parameter
+    /// - `inputs.param.field` → nested field in default value (if object)
+    pub fn resolve_input_path(&self, path: &str) -> Option<Value> {
+        let parts: Vec<&str> = path.split('.').collect();
+        if parts.is_empty() || parts[0] != "inputs" {
+            return None;
+        }
+        if parts.len() < 2 {
+            return None;
+        }
+
+        let param_name = parts[1];
+        let default_value = self.get_input_default(param_name)?;
+
+        if parts.len() == 2 {
+            // inputs.param → full default value
+            Some(default_value)
+        } else {
+            // inputs.param.field → nested path in default value
+            let remaining = parts[2..].join(".");
+            jsonpath::resolve(&default_value, &remaining).ok().flatten()
         }
     }
 }
@@ -714,5 +780,154 @@ mod tests {
         assert!(store.resolve_context_path("context.invalid").is_none());
         assert!(store.resolve_context_path("context.files").is_none());
         assert!(store.resolve_context_path("other.path").is_none());
+    }
+
+    // =========================================================================
+    // Inputs Storage Tests (v0.19.4 Schema @0.10)
+    // =========================================================================
+
+    #[test]
+    fn test_inputs_default_is_empty() {
+        let store = DataStore::new();
+        assert!(!store.has_inputs());
+    }
+
+    #[test]
+    fn test_set_and_get_input_default() {
+        let store = DataStore::new();
+
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "topic".to_string(),
+            json!({
+                "type": "string",
+                "description": "Research topic",
+                "default": "AI QR code generation"
+            }),
+        );
+
+        store.set_inputs(inputs);
+
+        assert!(store.has_inputs());
+        assert_eq!(
+            store.get_input_default("topic"),
+            Some(json!("AI QR code generation"))
+        );
+        assert!(store.get_input_default("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_get_input_default_without_default() {
+        let store = DataStore::new();
+
+        let mut inputs = FxHashMap::default();
+        // Input without default field
+        inputs.insert(
+            "required_param".to_string(),
+            json!({
+                "type": "string",
+                "description": "A required parameter"
+            }),
+        );
+
+        store.set_inputs(inputs);
+
+        // Should return None for input without default
+        assert!(store.get_input_default("required_param").is_none());
+    }
+
+    #[test]
+    fn test_resolve_input_path_simple() {
+        let store = DataStore::new();
+
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "topic".to_string(),
+            json!({
+                "type": "string",
+                "default": "AI trends 2025"
+            }),
+        );
+        inputs.insert(
+            "depth".to_string(),
+            json!({
+                "type": "string",
+                "default": "comprehensive"
+            }),
+        );
+
+        store.set_inputs(inputs);
+
+        // Resolve inputs.topic
+        assert_eq!(
+            store.resolve_input_path("inputs.topic"),
+            Some(json!("AI trends 2025"))
+        );
+
+        // Resolve inputs.depth
+        assert_eq!(
+            store.resolve_input_path("inputs.depth"),
+            Some(json!("comprehensive"))
+        );
+
+        // Missing input
+        assert!(store.resolve_input_path("inputs.missing").is_none());
+    }
+
+    #[test]
+    fn test_resolve_input_path_nested() {
+        let store = DataStore::new();
+
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "config".to_string(),
+            json!({
+                "type": "object",
+                "default": {
+                    "theme": "dark",
+                    "version": 2,
+                    "nested": {
+                        "deep": "value"
+                    }
+                }
+            }),
+        );
+
+        store.set_inputs(inputs);
+
+        // Resolve nested fields
+        assert_eq!(
+            store.resolve_input_path("inputs.config.theme"),
+            Some(json!("dark"))
+        );
+        assert_eq!(
+            store.resolve_input_path("inputs.config.version"),
+            Some(json!(2))
+        );
+        assert_eq!(
+            store.resolve_input_path("inputs.config.nested.deep"),
+            Some(json!("value"))
+        );
+    }
+
+    #[test]
+    fn test_resolve_input_path_invalid() {
+        let store = DataStore::new();
+
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "topic".to_string(),
+            json!({
+                "type": "string",
+                "default": "test"
+            }),
+        );
+
+        store.set_inputs(inputs);
+
+        // Invalid paths
+        assert!(store.resolve_input_path("inputs").is_none());
+        assert!(store.resolve_input_path("other.path").is_none());
+        assert!(store.resolve_input_path("").is_none());
     }
 }

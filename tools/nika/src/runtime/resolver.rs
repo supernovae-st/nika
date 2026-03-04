@@ -341,6 +341,7 @@ mod tests {
             skills: None,
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![],
             flows: vec![],
         };
@@ -379,6 +380,7 @@ mod tests {
             skills: None,
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![],
             flows: vec![],
         };
@@ -431,6 +433,7 @@ temperature: 0.5
             skills: None,
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![],
             flows: vec![],
         };
@@ -473,6 +476,7 @@ temperature: 0.5
             skills: None,
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![],
             flows: vec![],
         };
@@ -515,6 +519,7 @@ You are an expert SEO content writer.
             skills: Some(skills),
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![],
             flows: vec![],
         };
@@ -545,6 +550,7 @@ You are an expert SEO content writer.
             skills: Some(skills),
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![],
             flows: vec![],
         };
@@ -610,6 +616,7 @@ system: "You are a researcher."
             skills: Some(skills),
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![],
             flows: vec![],
         };
@@ -670,6 +677,7 @@ system: "You are an agent with defaults."
             skills: None,
             artifacts: None,
             log: None,
+            inputs: None,
             tasks: vec![],
             flows: vec![],
         };

@@ -9,6 +9,7 @@
 //! |----------|-------------|---------|
 //! | `{{task_id}}` | Current task ID | `generate_report` |
 //! | `{{workflow_name}}` | Workflow name | `my-workflow` |
+//! | `{{workflow}}` | Alias for workflow_name (v0.19.4) | `my-workflow` |
 //! | `{{date}}` | Current date (ISO) | `2024-01-15` |
 //! | `{{time}}` | Current time (ISO) | `14-30-00` |
 //! | `{{timestamp}}` | Unix timestamp | `1705329000` |
@@ -205,7 +206,8 @@ impl TemplateResolver {
         // Built-in variables
         match var_name {
             "task_id" => Ok(self.task_id.clone()),
-            "workflow_name" => Ok(self.workflow_name.clone()),
+            // v0.19.4: "workflow" alias for "workflow_name" (shorter, intuitive)
+            "workflow_name" | "workflow" => Ok(self.workflow_name.clone()),
             "date" => Ok(self.timestamp.format("%Y-%m-%d").to_string()),
             "time" => Ok(self.timestamp.format("%H-%M-%S").to_string()),
             "timestamp" => Ok(self.timestamp.timestamp().to_string()),
@@ -438,5 +440,13 @@ mod tests {
             result,
             "test_workflow/2024-01-15/es-MX/test_task_14-30-45.json"
         );
+    }
+
+    #[test]
+    fn test_resolve_workflow_alias() {
+        // v0.19.4: {{workflow}} is an alias for {{workflow_name}}
+        let resolver = fixed_resolver();
+        let result = resolver.resolve("{{workflow}}/{{task_id}}.json").unwrap();
+        assert_eq!(result, "test_workflow/test_task.json");
     }
 }

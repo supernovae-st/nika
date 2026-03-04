@@ -42,18 +42,20 @@ tasks:
     output:
       format: json
 
-  # Step 2: Generate context for QR Code entity in French
+  # Step 2: Assemble context for QR Code entity in French
   - id: entity_context
-    description: "Generate context for QR Code entity"
+    description: "Assemble context for QR Code entity"
     use:
       graph_schema: schema
     invoke:
       server: novanet
-      tool: novanet_generate
+      tool: novanet_assemble
       params:
         focus_key: "entity:qr-code"
         locale: fr-FR
-        mode: block
+        token_budget: 10000
+        include_entities: true
+        include_knowledge: true
     output:
       format: json
     flow: [schema]

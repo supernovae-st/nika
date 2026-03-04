@@ -9,8 +9,8 @@
   "properties": {
     "schema": {
       "type": "string",
-      "pattern": "^nika/workflow@0\\.(10|[1-9])$",
-      "description": "Workflow schema version (nika/workflow@0.1 through @0.10)",
+      "pattern": "^nika/workflow@0\\.[1-9][0-9]?$",
+      "description": "Workflow schema version (nika/workflow@0.1 through @0.99)",
       "examples": ["nika/workflow@0.9", "nika/workflow@0.10"]
     },
     "workflow": {

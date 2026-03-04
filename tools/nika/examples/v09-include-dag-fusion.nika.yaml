@@ -63,11 +63,39 @@ tasks:
   # Task 2: Prepare content for SEO analysis
   # --------------------------------------------------------------------------
   # This task bridges to the included SEO tasks by providing the 'content' binding
+  # NOTE: Using infer: with output schema instead of exec: because:
+  # 1. LLM content may contain quotes that break shell parsing (shell: false default)
+  # 2. output.schema enforces structured JSON response
   - id: prepare_for_seo
     description: "Prepare content for SEO analysis"
-    exec: "echo '{{use.content}}'"
+    infer:
+      prompt: |
+        Analyze this content and extract SEO keywords and key phrases.
+
+        Content:
+        {{use.content}}
+      response_format: json
     use:
       content: generate_content
+    output:
+      format: json
+      max_retries: 3
+      schema:
+        type: object
+        properties:
+          keywords:
+            type: array
+            items:
+              type: string
+            description: "Single-word SEO keywords"
+          key_phrases:
+            type: array
+            items:
+              type: string
+            description: "Multi-word key phrases for SEO"
+        required:
+          - keywords
+          - key_phrases
 
   # --------------------------------------------------------------------------
   # Task 3: Final Assembly

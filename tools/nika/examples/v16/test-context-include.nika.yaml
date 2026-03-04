@@ -7,13 +7,13 @@ workflow: test-context-loading
 # Note: Paths are relative to workflow file location
 context:
   files:
-    readme: ../../README.md
+    readme: context/brand.md
 
 tasks:
   # Test 1: Use context file content
   - id: read_readme
     infer: |
-      What is the version number mentioned in this README? Just say the version.
+      What is the brand name mentioned in this file? Just say the name.
       {{context.files.readme}}
 
   # Test 2: Chain context to output

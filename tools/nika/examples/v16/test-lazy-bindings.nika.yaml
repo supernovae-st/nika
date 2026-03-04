@@ -15,7 +15,9 @@ tasks:
 
   # Test 2: Lazy binding with default (references existing task)
   - id: slow_producer
-    exec: "sleep 0.5 && echo 'Slow result'"
+    exec:
+      command: "sleep 0.5 && echo 'Slow result'"
+      shell: true
 
   - id: lazy_with_default
     use:
