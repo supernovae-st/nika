@@ -1,8 +1,20 @@
-//! Unified secrets management (v0.20).
+//! Unified secrets management (v0.20.1).
 //!
 //! ## Architecture
 //!
 //! ```text
+//! With spn-daemon feature:
+//!
+//! Nika Process
+//!     │
+//!     └── spn-client (Unix socket IPC)
+//!         │
+//!         └── spn daemon (~/.spn/daemon.sock)
+//!             │
+//!             └── OS Keychain (single accessor, no popups)
+//!
+//! Without spn-daemon feature (fallback):
+//!
 //! Nika Process
 //!     │
 //!     └── Direct access
@@ -10,15 +22,18 @@
 //!         └── Environment variables
 //! ```
 //!
-//! ## Note
+//! ## Usage
 //!
-//! The spn daemon integration (via spn-client) is disabled in this build.
-//! To enable daemon support for unified keychain access, uncomment the
-//! spn-client dependency in Cargo.toml and enable the spn-daemon feature.
+//! Enable daemon support with: `cargo build --features spn-daemon`
+//!
+//! The daemon solves macOS Keychain popup issues by being the sole keychain accessor.
 
 use crate::tui::widgets::provider_modal::{provider_env_var, SpnKeyring};
 use secrecy::SecretString;
 use tracing::{debug, info, trace};
+
+#[cfg(feature = "spn-daemon")]
+use tracing::warn;
 
 /// Provider names we try to load.
 const PROVIDERS: &[&str] = &[
@@ -34,13 +49,13 @@ const PROVIDERS: &[&str] = &[
 /// Result of loading secrets.
 #[derive(Debug, Clone, Default)]
 pub struct SecretsLoadResult {
-    /// Providers loaded from spn daemon (always empty without daemon).
+    /// Providers loaded from spn daemon.
     pub from_daemon: Vec<String>,
     /// Providers loaded from fallback (keyring/env).
     pub from_fallback: Vec<String>,
     /// Providers with no key found.
     pub not_found: Vec<String>,
-    /// Whether daemon was available (always false without daemon).
+    /// Whether daemon was available.
     pub daemon_available: bool,
 }
 
@@ -69,85 +84,301 @@ impl SecretsLoadResult {
     }
 }
 
-/// Load secrets from keyring/env.
-///
-/// This is called during boot to inject secrets as environment variables
-/// so that rig-core's `from_env()` pattern continues to work.
-pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
-    let mut result = SecretsLoadResult {
-        daemon_available: false,
-        ..Default::default()
-    };
+// ═══════════════════════════════════════════════════════════════════════════════
+// WITH spn-daemon FEATURE
+// ═══════════════════════════════════════════════════════════════════════════════
 
-    // Load from keyring/env
-    for provider in PROVIDERS {
+#[cfg(feature = "spn-daemon")]
+mod daemon_integration {
+    use super::*;
+    use parking_lot::Mutex;
+    use spn_client::{ExposeSecret, SpnClient};
+    use std::sync::OnceLock;
+
+    /// Cached daemon client (singleton).
+    static CLIENT: OnceLock<Mutex<Option<SpnClient>>> = OnceLock::new();
+
+    /// Initialize and cache the daemon client.
+    async fn get_or_init_client() -> Option<&'static Mutex<Option<SpnClient>>> {
+        // Initialize on first call
+        if CLIENT.get().is_none() {
+            match SpnClient::connect_with_fallback().await {
+                Ok(client) => {
+                    let is_fallback = client.is_fallback_mode();
+                    let _ = CLIENT.set(Mutex::new(Some(client)));
+                    if is_fallback {
+                        warn!("spn daemon not running, using env var fallback");
+                    } else {
+                        debug!("Connected to spn daemon");
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to connect to spn daemon: {}", e);
+                    let _ = CLIENT.set(Mutex::new(None));
+                }
+            }
+        }
+        CLIENT.get()
+    }
+
+    /// Check if daemon is available.
+    pub fn daemon_available() -> bool {
+        spn_client::daemon_socket_exists()
+    }
+
+    /// Load secrets from daemon or fallback.
+    pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
+        let mut result = SecretsLoadResult::default();
+
+        // Try to get/init daemon client
+        let client_lock = match get_or_init_client().await {
+            Some(lock) => lock,
+            None => {
+                // Failed to init, use pure fallback
+                return load_fallback_only().await;
+            }
+        };
+
+        let mut guard = client_lock.lock();
+        let client = match guard.as_mut() {
+            Some(c) => c,
+            None => {
+                drop(guard);
+                return load_fallback_only().await;
+            }
+        };
+
+        result.daemon_available = !client.is_fallback_mode();
+
+        for provider in PROVIDERS {
+            let env_var = provider_env_var(provider);
+
+            // Check if already in env
+            if std::env::var(env_var).is_ok() {
+                trace!("{}: already in env", provider);
+                result.from_fallback.push(provider.to_string());
+                continue;
+            }
+
+            // Try daemon (or its internal fallback)
+            match client.get_secret(provider).await {
+                Ok(secret) => {
+                    // Inject into env for rig-core compatibility
+                    std::env::set_var(env_var, secret.expose_secret());
+                    if client.is_fallback_mode() {
+                        debug!("{}: loaded from env fallback → {}", provider, env_var);
+                        result.from_fallback.push(provider.to_string());
+                    } else {
+                        debug!("{}: loaded from daemon → {}", provider, env_var);
+                        result.from_daemon.push(provider.to_string());
+                    }
+                }
+                Err(_) => {
+                    // Try direct keyring as last resort
+                    if try_load_from_keyring(provider, env_var) {
+                        result.from_fallback.push(provider.to_string());
+                    } else {
+                        result.not_found.push(provider.to_string());
+                    }
+                }
+            }
+        }
+
+        info!("Secrets: {}", result.summary());
+        result
+    }
+
+    /// Get a secret for a provider.
+    pub async fn get_secret(provider: &str) -> Option<SecretString> {
         let env_var = provider_env_var(provider);
 
-        // Check if already in env
+        // Check env first (may have been loaded at boot)
+        if let Ok(value) = std::env::var(env_var) {
+            if !value.is_empty() {
+                return Some(SecretString::from(value));
+            }
+        }
+
+        // Try daemon client
+        if let Some(client_lock) = get_or_init_client().await {
+            let mut guard = client_lock.lock();
+            if let Some(client) = guard.as_mut() {
+                if let Ok(secret) = client.get_secret(provider).await {
+                    return Some(secret);
+                }
+            }
+        }
+
+        // Final fallback: direct keyring
+        SpnKeyring::get_secret(provider).ok()
+    }
+
+    /// Check if a secret exists for a provider.
+    pub async fn has_secret(provider: &str) -> bool {
+        let env_var = provider_env_var(provider);
+
+        // Check env first
         if std::env::var(env_var).is_ok() {
-            trace!("{}: already in env", provider);
-            result.from_fallback.push(provider.to_string());
-            continue;
+            return true;
         }
 
-        if try_load_from_fallback(provider, env_var) {
-            result.from_fallback.push(provider.to_string());
-        } else {
-            result.not_found.push(provider.to_string());
+        // Try daemon client
+        if let Some(client_lock) = get_or_init_client().await {
+            let mut guard = client_lock.lock();
+            if let Some(client) = guard.as_mut() {
+                if let Ok(exists) = client.has_secret(provider).await {
+                    return exists;
+                }
+            }
+        }
+
+        // Final fallback: direct keyring
+        SpnKeyring::exists(provider)
+    }
+
+    /// Fallback-only loading (when daemon completely unavailable).
+    async fn load_fallback_only() -> SecretsLoadResult {
+        let mut result = SecretsLoadResult {
+            daemon_available: false,
+            ..Default::default()
+        };
+
+        for provider in PROVIDERS {
+            let env_var = provider_env_var(provider);
+
+            if std::env::var(env_var).is_ok() {
+                trace!("{}: already in env", provider);
+                result.from_fallback.push(provider.to_string());
+                continue;
+            }
+
+            if try_load_from_keyring(provider, env_var) {
+                result.from_fallback.push(provider.to_string());
+            } else {
+                result.not_found.push(provider.to_string());
+            }
+        }
+
+        info!("Secrets (fallback only): {}", result.summary());
+        result
+    }
+
+    /// Try loading from keyring and inject into env if found.
+    fn try_load_from_keyring(provider: &str, env_var: &str) -> bool {
+        match SpnKeyring::get(provider) {
+            Ok(secret) => {
+                std::env::set_var(env_var, &*secret);
+                debug!("{}: loaded from keyring → {}", provider, env_var);
+                true
+            }
+            Err(_) => {
+                trace!("{}: not in keyring", provider);
+                false
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WITHOUT spn-daemon FEATURE (fallback only)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[cfg(not(feature = "spn-daemon"))]
+mod fallback_only {
+    use super::*;
+
+    /// Check if daemon is available (always false without feature).
+    pub fn daemon_available() -> bool {
+        false
+    }
+
+    /// Load secrets from keyring/env (no daemon).
+    pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
+        let mut result = SecretsLoadResult {
+            daemon_available: false,
+            ..Default::default()
+        };
+
+        for provider in PROVIDERS {
+            let env_var = provider_env_var(provider);
+
+            // Check if already in env
+            if std::env::var(env_var).is_ok() {
+                trace!("{}: already in env", provider);
+                result.from_fallback.push(provider.to_string());
+                continue;
+            }
+
+            if try_load_from_fallback(provider, env_var) {
+                result.from_fallback.push(provider.to_string());
+            } else {
+                result.not_found.push(provider.to_string());
+            }
+        }
+
+        info!("Secrets: {}", result.summary());
+        result
+    }
+
+    /// Try loading from keyring and inject into env if found.
+    fn try_load_from_fallback(provider: &str, env_var: &str) -> bool {
+        match SpnKeyring::get(provider) {
+            Ok(secret) => {
+                std::env::set_var(env_var, &*secret);
+                debug!("{}: loaded from keyring → {}", provider, env_var);
+                true
+            }
+            Err(_) => {
+                trace!("{}: not in keyring", provider);
+                false
+            }
         }
     }
 
-    info!("Secrets: {}", result.summary());
-    result
-}
+    /// Get a secret for a provider.
+    pub async fn get_secret(provider: &str) -> Option<SecretString> {
+        let env_var = provider_env_var(provider);
 
-/// Try loading from keyring and inject into env if found.
-fn try_load_from_fallback(provider: &str, env_var: &str) -> bool {
-    match SpnKeyring::get(provider) {
-        Ok(secret) => {
-            std::env::set_var(env_var, &*secret);
-            debug!("{}: loaded from keyring → {}", provider, env_var);
-            true
+        // Check env first (may have been loaded at boot)
+        if let Ok(value) = std::env::var(env_var) {
+            if !value.is_empty() {
+                return Some(SecretString::from(value));
+            }
         }
-        Err(_) => {
-            trace!("{}: not in keyring", provider);
-            false
+
+        // Fall back to keyring
+        SpnKeyring::get_secret(provider).ok()
+    }
+
+    /// Check if a secret exists for a provider.
+    pub async fn has_secret(provider: &str) -> bool {
+        let env_var = provider_env_var(provider);
+
+        // Check env first
+        if std::env::var(env_var).is_ok() {
+            return true;
         }
+
+        // Fall back to keyring
+        SpnKeyring::exists(provider)
     }
 }
 
-/// Get a secret for a provider.
-pub async fn get_secret(provider: &str) -> Option<SecretString> {
-    let env_var = provider_env_var(provider);
+// ═══════════════════════════════════════════════════════════════════════════════
+// PUBLIC API (re-exports based on feature)
+// ═══════════════════════════════════════════════════════════════════════════════
 
-    // Check env first (may have been loaded at boot)
-    if let Ok(value) = std::env::var(env_var) {
-        if !value.is_empty() {
-            return Some(SecretString::from(value));
-        }
-    }
+#[cfg(feature = "spn-daemon")]
+pub use daemon_integration::{
+    daemon_available, get_secret, has_secret, load_from_daemon_or_fallback,
+};
 
-    // Fall back to keyring
-    SpnKeyring::get_secret(provider).ok()
-}
+#[cfg(not(feature = "spn-daemon"))]
+pub use fallback_only::{daemon_available, get_secret, has_secret, load_from_daemon_or_fallback};
 
-/// Check if a secret exists for a provider.
-pub async fn has_secret(provider: &str) -> bool {
-    let env_var = provider_env_var(provider);
-
-    // Check env first
-    if std::env::var(env_var).is_ok() {
-        return true;
-    }
-
-    // Fall back to keyring
-    SpnKeyring::exists(provider)
-}
-
-/// Check if daemon is available (always false without spn-daemon feature).
-pub fn daemon_available() -> bool {
-    false
-}
+// ═══════════════════════════════════════════════════════════════════════════════
+// TESTS
+// ═══════════════════════════════════════════════════════════════════════════════
 
 #[cfg(test)]
 mod tests {
@@ -185,7 +416,16 @@ mod tests {
 
     #[test]
     fn test_daemon_available_check() {
-        // Daemon is not available in this build
+        // Without daemon running, should return false (or check socket existence)
+        #[cfg(not(feature = "spn-daemon"))]
         assert!(!daemon_available());
+
+        #[cfg(feature = "spn-daemon")]
+        {
+            // With feature, checks if socket exists
+            let result = daemon_available();
+            // Result depends on whether daemon is actually running
+            let _ = result;
+        }
     }
 }
