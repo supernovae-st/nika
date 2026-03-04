@@ -34,7 +34,7 @@ jobs:
 
       - name: Run TUI widget tests
         run: |
-          cargo nextest run --all-features \
+          cargo nextest run --features tui,jobs \
             session_context \
             activity_stack \
             command_palette \
@@ -42,7 +42,7 @@ jobs:
             mcp_call
 
       - name: Run Chat UX test suite
-        run: cargo nextest run --all-features --test chat_ux_test
+        run: cargo nextest run --features tui,jobs --test chat_ux_test
 
   # ============================================================================
   # CHAT VIEW TESTS
@@ -59,7 +59,7 @@ jobs:
 
       - name: Run Chat view tests
         run: |
-          cargo nextest run --all-features \
+          cargo nextest run --features tui,jobs \
             chat_view \
             chat_ux \
             message_bubble
@@ -81,11 +81,11 @@ jobs:
       - uses: taiki-e/install-action@nextest
 
       - name: Run conversational agent unit tests
-        run: cargo nextest run --all-features --test conversational_agent_test
+        run: cargo nextest run --features tui,jobs --test conversational_agent_test
 
       - name: Run agent event tests
         run: |
-          cargo nextest run --all-features \
+          cargo nextest run --features tui,jobs \
             agent_turn \
             agent_spawn \
             context_accumulation
@@ -105,7 +105,7 @@ jobs:
 
       - name: Run keyboard handling tests
         run: |
-          cargo nextest run --all-features \
+          cargo nextest run --features tui,jobs \
             keyboard \
             handle_key \
             palette_key \

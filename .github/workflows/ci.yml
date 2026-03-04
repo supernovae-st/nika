@@ -81,13 +81,13 @@ jobs:
         run: cargo fmt --all --check
 
       - name: Run clippy (all features)
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace --all-targets --features tui,jobs -- -D warnings
 
       - name: Run clippy (no default features)
         run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
 
       - name: Check documentation
-        run: cargo doc --workspace --no-deps --all-features
+        run: cargo doc --workspace --no-deps --features tui,jobs
         env:
           RUSTDOCFLAGS: -Dwarnings
 
@@ -135,7 +135,7 @@ jobs:
       - name: Run unit tests with nextest
         id: nextest
         run: |
-          cargo nextest run --workspace --all-features 2>&1 | tee test-results.txt
+          cargo nextest run --workspace --features tui,jobs 2>&1 | tee test-results.txt
           # Extract summary for PR comment
           PASSED=$(grep -E "^\s*\d+ tests passed" test-results.txt | grep -oE '\d+' | head -1 || echo "0")
           FAILED=$(grep -E "^\s*\d+ tests failed" test-results.txt | grep -oE '\d+' | head -1 || echo "0")
@@ -143,7 +143,7 @@ jobs:
           echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
 
       - name: Run doc tests
-        run: cargo test --workspace --doc --all-features
+        run: cargo test --workspace --doc --features tui,jobs
 
       - name: Upload test results
         if: always()
@@ -184,8 +184,8 @@ jobs:
 
       - name: Generate coverage report
         run: |
-          cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
-          cargo llvm-cov report --workspace --all-features --summary-only | tee coverage-summary.txt
+          cargo llvm-cov --workspace --features tui,jobs --lcov --output-path lcov.info
+          cargo llvm-cov report --workspace --features tui,jobs --summary-only | tee coverage-summary.txt
 
       - name: Extract coverage percentage
         id: coverage

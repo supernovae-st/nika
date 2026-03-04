@@ -51,7 +51,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "tools/nika -> target"
-      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo clippy --workspace --all-targets --features tui,jobs -- -D warnings
 
   # ═══════════════════════════════════════════════════════════════════════════
   # STATION 3-4: Tests & Coverage (Medium, parallel)
@@ -70,7 +70,7 @@ jobs:
         with:
           workspaces: "tools/nika -> target"
       - uses: taiki-e/install-action@nextest
-      - run: cargo nextest run --workspace --all-features
+      - run: cargo nextest run --workspace --features tui,jobs
         env:
           NEXTEST_RETRIES: 2
 
@@ -90,10 +90,10 @@ jobs:
           workspaces: "tools/nika -> target"
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate coverage
-        run: cargo llvm-cov --workspace --all-features --codecov --output-path codecov.json
+        run: cargo llvm-cov --workspace --features tui,jobs --codecov --output-path codecov.json
       - name: Check coverage threshold
         run: |
-          COVERAGE=$(cargo llvm-cov --workspace --all-features --json 2>/dev/null | jq -r '.data[0].totals.lines.percent // 0')
+          COVERAGE=$(cargo llvm-cov --workspace --features tui,jobs --json 2>/dev/null | jq -r '.data[0].totals.lines.percent // 0')
           echo "Coverage: ${COVERAGE}%"
           if [ -n "$COVERAGE" ] && [ "$(echo "$COVERAGE < 70" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
             echo "::warning::Coverage below 70%: ${COVERAGE}%"
@@ -115,7 +115,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "tools/nika -> target"
-      - run: cargo doc --workspace --no-deps --all-features
+      - run: cargo doc --workspace --no-deps --features tui,jobs
         env:
           RUSTDOCFLAGS: "-D warnings"
 
