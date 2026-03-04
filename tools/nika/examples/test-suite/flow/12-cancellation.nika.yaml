@@ -1,0 +1,18 @@
+# Test: flow/12-cancellation
+# Tests: Task cancellation with fail_fast
+# Expected: First failure cancels remaining tasks
+
+schema: "nika/workflow@0.10"
+workflow: test-flow-cancellation
+description: "Test fail_fast cancellation"
+
+provider: mock
+
+tasks:
+  - id: parallel_with_failure
+    description: "Parallel tasks where one fails"
+    for_each: ["success1", "success2", "success3"]
+    as: item
+    concurrency: 3
+    fail_fast: true
+    exec: "echo '{{use.item}}'"

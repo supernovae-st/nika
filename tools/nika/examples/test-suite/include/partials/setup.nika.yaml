@@ -1,0 +1,17 @@
+# Partial: setup.nika.yaml
+# Reusable setup tasks for include tests
+
+schema: "nika/workflow@0.10"
+workflow: partial-setup
+
+provider: mock
+
+tasks:
+  - id: init
+    description: "Initialize environment"
+    exec: "echo 'Initialized'"
+
+  - id: validate
+    description: "Validate configuration"
+    exec: "echo 'Validated'"
+    flow: [init]

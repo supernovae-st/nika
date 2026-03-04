@@ -1,0 +1,24 @@
+# Test: invoke/01-basic
+# Tests: Basic invoke verb with MCP tool call
+# Expected: MCP tool is called successfully
+
+schema: "nika/workflow@0.10"
+workflow: test-invoke-basic
+description: "Test basic invoke verb with MCP tool"
+
+provider: mock
+
+mcp:
+  dummy:
+    command: echo
+    args: ["not used"]
+
+tasks:
+  - id: basic_invoke
+    description: "Basic MCP tool invocation"
+    invoke:
+      mcp: dummy
+      tool: nika:log
+      params:
+        level: info
+        message: "Test log message"

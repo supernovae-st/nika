@@ -1,0 +1,30 @@
+# Test: advanced/09-security
+# Tests: Security features (shell-free exec, safe commands)
+# Expected: Security defaults are enforced
+
+schema: "nika/workflow@0.10"
+workflow: test-security
+description: "Test security features"
+
+provider: mock
+
+tasks:
+  - id: safe_exec
+    description: "Safe command execution (shell: false)"
+    exec:
+      command: "echo 'Safe command'"
+      shell: false
+
+  - id: explicit_shell
+    description: "Explicit shell mode for pipes"
+    exec:
+      command: "echo 'Pipeline' | cat"
+      shell: true
+
+  - id: safe_infer
+    description: "Infer with constrained output"
+    infer:
+      prompt: "Generate safe content."
+      max_tokens: 100
+    output:
+      format: text

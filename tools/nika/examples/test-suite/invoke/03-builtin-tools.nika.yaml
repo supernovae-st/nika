@@ -1,0 +1,50 @@
+# Test: invoke/03-builtin-tools
+# Tests: Invoke verb with various builtin tools
+# Expected: All core builtin tools work via invoke
+
+schema: "nika/workflow@0.10"
+workflow: test-invoke-builtins
+description: "Test invoke verb with builtin tools"
+
+provider: mock
+
+mcp:
+  dummy:
+    command: echo
+    args: ["not used"]
+
+tasks:
+  - id: log_tool
+    description: "Use nika:log builtin"
+    invoke:
+      mcp: dummy
+      tool: nika:log
+      params:
+        level: debug
+        message: "Debug message from test"
+
+  - id: emit_tool
+    description: "Use nika:emit builtin"
+    invoke:
+      mcp: dummy
+      tool: nika:emit
+      params:
+        name: test-event
+        payload:
+          source: test-suite
+
+  - id: sleep_tool
+    description: "Use nika:sleep builtin"
+    invoke:
+      mcp: dummy
+      tool: nika:sleep
+      params:
+        duration: 100ms
+
+  - id: assert_tool
+    description: "Use nika:assert builtin"
+    invoke:
+      mcp: dummy
+      tool: nika:assert
+      params:
+        condition: true

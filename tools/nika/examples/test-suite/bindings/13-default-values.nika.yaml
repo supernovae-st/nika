@@ -1,0 +1,22 @@
+# Test: bindings/13-default-values
+# Tests: Binding with default values
+# Expected: Default values are used when source is null
+
+schema: "nika/workflow@0.10"
+workflow: test-bindings-defaults
+description: "Test binding default values"
+
+provider: mock
+
+tasks:
+  - id: maybe_empty
+    exec: "echo ''"
+
+  - id: with_defaults
+    description: "Use default when source is empty"
+    use:
+      data:
+        path: maybe_empty
+        default: "default-value"
+    infer: "Using: {{use.data}}"
+    flow: [maybe_empty]

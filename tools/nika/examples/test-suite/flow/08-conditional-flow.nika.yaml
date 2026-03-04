@@ -1,0 +1,26 @@
+# Test: flow/08-conditional-flow
+# Tests: Conditional execution based on task results
+# Expected: Flow continues based on conditions
+
+schema: "nika/workflow@0.10"
+workflow: test-flow-conditional
+description: "Test conditional flow execution"
+
+provider: mock
+
+tasks:
+  - id: check_condition
+    description: "Check a condition"
+    exec: "echo 'true'"
+
+  - id: on_true
+    description: "Execute if true"
+    use:
+      result: check_condition
+    exec: "echo 'Condition was true'"
+    flow: [check_condition]
+
+  - id: always_run
+    description: "Always runs after condition check"
+    exec: "echo 'Always runs'"
+    flow: [check_condition]

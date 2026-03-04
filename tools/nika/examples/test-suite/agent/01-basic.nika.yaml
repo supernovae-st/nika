@@ -1,0 +1,16 @@
+# Test: agent/01-basic
+# Tests: Basic agent verb with simple prompt
+# Expected: Agent executes and returns response
+
+schema: "nika/workflow@0.10"
+workflow: test-agent-basic
+description: "Test basic agent verb"
+
+provider: mock
+
+tasks:
+  - id: simple_agent
+    description: "Simple agent without tools"
+    agent:
+      prompt: "What is the capital of Japan? Answer briefly."
+      max_turns: 1

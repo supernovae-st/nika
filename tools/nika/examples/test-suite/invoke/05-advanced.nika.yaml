@@ -1,0 +1,70 @@
+# Test: invoke/05-advanced
+# Tests: Invoke verb with chained MCP calls and bindings
+# Expected: Multiple invoke tasks work with data flow
+
+schema: "nika/workflow@0.10"
+workflow: test-invoke-advanced
+description: "Test invoke verb with chained calls"
+
+provider: mock
+
+mcp:
+  dummy:
+    command: echo
+    args: ["not used"]
+
+tasks:
+  - id: first_call
+    description: "First MCP tool call"
+    invoke:
+      mcp: dummy
+      tool: nika:emit
+      params:
+        name: step-1
+        payload:
+          value: "initial"
+
+  - id: second_call
+    description: "Second MCP tool call using first result"
+    use:
+      prev: first_call
+    invoke:
+      mcp: dummy
+      tool: nika:log
+      params:
+        level: info
+        message: "Previous step completed"
+    flow: [first_call]
+
+  - id: parallel_call_a
+    description: "Parallel call A"
+    invoke:
+      mcp: dummy
+      tool: nika:emit
+      params:
+        name: parallel-a
+        payload:
+          branch: "a"
+
+  - id: parallel_call_b
+    description: "Parallel call B"
+    invoke:
+      mcp: dummy
+      tool: nika:emit
+      params:
+        name: parallel-b
+        payload:
+          branch: "b"
+
+  - id: final_call
+    description: "Final call after parallel completion"
+    use:
+      a: parallel_call_a
+      b: parallel_call_b
+    invoke:
+      mcp: dummy
+      tool: nika:log
+      params:
+        level: info
+        message: "Both parallel calls completed"
+    flow: [parallel_call_a, parallel_call_b]

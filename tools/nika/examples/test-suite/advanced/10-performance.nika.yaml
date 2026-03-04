@@ -1,0 +1,40 @@
+# Test: advanced/10-performance
+# Tests: Performance patterns (parallel, concurrency)
+# Expected: Concurrent execution performs efficiently
+
+schema: "nika/workflow@0.10"
+workflow: test-performance
+description: "Test performance patterns"
+
+provider: mock
+
+tasks:
+  - id: parallel_batch
+    description: "Parallel batch processing"
+    for_each: ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]
+    as: item
+    concurrency: 4
+    fail_fast: false
+    exec: "echo 'Processing {{use.item}}'"
+
+  - id: fan_out
+    description: "Fan-out task 1"
+    exec: "echo 'Fan out 1'"
+
+  - id: fan_out_2
+    description: "Fan-out task 2"
+    exec: "echo 'Fan out 2'"
+
+  - id: fan_out_3
+    description: "Fan-out task 3"
+    exec: "echo 'Fan out 3'"
+
+  - id: aggregate
+    description: "Aggregate results"
+    use:
+      batch: parallel_batch
+      f1: fan_out
+      f2: fan_out_2
+      f3: fan_out_3
+    exec: "echo 'Aggregated'"
+    flow: [parallel_batch, fan_out, fan_out_2, fan_out_3]

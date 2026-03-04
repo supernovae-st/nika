@@ -1,0 +1,37 @@
+# Test: flow/13-dependencies
+# Tests: Complex dependency resolution
+# Expected: All dependencies resolve in correct order
+
+schema: "nika/workflow@0.10"
+workflow: test-flow-dependencies
+description: "Test complex dependency resolution"
+
+provider: mock
+
+tasks:
+  - id: base
+    exec: "echo 'Base layer'"
+
+  - id: layer1_a
+    exec: "echo 'Layer 1A'"
+    flow: [base]
+
+  - id: layer1_b
+    exec: "echo 'Layer 1B'"
+    flow: [base]
+
+  - id: layer2
+    exec: "echo 'Layer 2'"
+    flow: [layer1_a, layer1_b]
+
+  - id: layer3_a
+    exec: "echo 'Layer 3A'"
+    flow: [layer2]
+
+  - id: layer3_b
+    exec: "echo 'Layer 3B'"
+    flow: [layer2]
+
+  - id: top
+    exec: "echo 'Top layer'"
+    flow: [layer3_a, layer3_b]

@@ -1,0 +1,19 @@
+# Test: include/11-relative-paths
+# Tests: Relative path resolution for includes
+# Expected: Relative paths resolve from workflow file location
+
+schema: "nika/workflow@0.10"
+workflow: test-include-relative-paths
+description: "Test relative path resolution"
+
+provider: mock
+
+include:
+  - path: ./partials/setup.nika.yaml
+    prefix: rel_
+
+tasks:
+  - id: check_relative
+    description: "Verify relative path worked"
+    exec: "echo 'Relative path OK'"
+    flow: [rel_validate]

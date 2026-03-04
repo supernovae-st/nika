@@ -1,0 +1,25 @@
+# Test: bindings/03-use-jsonpath
+# Tests: JSONPath expressions in bindings
+# Expected: Complex JSONPath queries work
+
+schema: "nika/workflow@0.10"
+workflow: test-bindings-jsonpath
+description: "Test JSONPath expressions in bindings"
+
+provider: mock
+
+tasks:
+  - id: produce_array
+    description: "Produce JSON array"
+    exec:
+      command: "echo '{\"items\": [{\"id\": 1, \"name\": \"a\"}, {\"id\": 2, \"name\": \"b\"}]}'"
+      shell: true
+    output:
+      format: json
+
+  - id: use_jsonpath
+    description: "Use JSONPath to extract data"
+    use:
+      all_data: produce_array
+    infer: "Process items: {{use.all_data}}"
+    flow: [produce_array]

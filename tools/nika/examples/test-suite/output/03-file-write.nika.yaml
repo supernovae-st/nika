@@ -1,0 +1,17 @@
+# Test: output/03-file-write
+# Tests: Output save to file
+# Expected: Output is written to specified path
+
+schema: "nika/workflow@0.10"
+workflow: test-output-file
+description: "Test output file writing"
+
+provider: mock
+
+tasks:
+  - id: save_output
+    description: "Save output to file"
+    infer: "Generate test content."
+    output:
+      format: text
+      save: /tmp/nika-test-output.txt

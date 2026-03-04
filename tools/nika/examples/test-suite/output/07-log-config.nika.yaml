@@ -1,0 +1,25 @@
+# Test: output/07-log-config
+# Tests: Logging configuration at workflow and task level
+# Expected: Log levels and formats are respected
+
+schema: "nika/workflow@0.10"
+workflow: test-log-config
+description: "Test logging configuration"
+
+provider: mock
+
+log:
+  level: debug
+  format: json
+
+tasks:
+  - id: default_log
+    description: "Task with default logging"
+    exec: "echo 'Default log level'"
+
+  - id: custom_log
+    description: "Task with custom logging"
+    exec: "echo 'Custom log level'"
+    log:
+      level: info
+      format: text

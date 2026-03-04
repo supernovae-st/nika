@@ -1,0 +1,21 @@
+# Test: invoke/04-resource-read
+# Tests: Invoke verb with resource reading
+# Expected: MCP resource is read successfully
+
+schema: "nika/workflow@0.10"
+workflow: test-invoke-resource
+description: "Test invoke verb with MCP resource reading"
+
+provider: mock
+
+mcp:
+  dummy:
+    command: echo
+    args: ["not used"]
+
+tasks:
+  - id: read_resource
+    description: "Read MCP resource"
+    invoke:
+      mcp: dummy
+      resource: "file:///tmp/test-resource.txt"

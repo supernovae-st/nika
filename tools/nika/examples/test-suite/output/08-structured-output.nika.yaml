@@ -1,0 +1,47 @@
+# Test: output/08-structured-output
+# Tests: Structured output with complex schema
+# Expected: Complex JSON schema validates correctly
+
+schema: "nika/workflow@0.10"
+workflow: test-structured-output
+description: "Test complex structured output"
+
+provider: mock
+
+tasks:
+  - id: complex_schema
+    description: "Generate complex structured output"
+    infer:
+      prompt: "Generate a user profile with address and preferences."
+    output:
+      format: json
+      schema:
+        type: object
+        required: [user, metadata]
+        properties:
+          user:
+            type: object
+            required: [name, email]
+            properties:
+              name:
+                type: string
+              email:
+                type: string
+                format: email
+              address:
+                type: object
+                properties:
+                  street:
+                    type: string
+                  city:
+                    type: string
+                  country:
+                    type: string
+          metadata:
+            type: object
+            properties:
+              created_at:
+                type: string
+              version:
+                type: integer
+      max_retries: 2

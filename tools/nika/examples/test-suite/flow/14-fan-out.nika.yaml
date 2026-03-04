@@ -1,0 +1,43 @@
+# Test: flow/14-fan-out
+# Tests: Fan-out pattern (one to many)
+# Expected: Single task fans out to multiple
+
+schema: "nika/workflow@0.10"
+workflow: test-flow-fan-out
+description: "Test fan-out pattern"
+
+provider: mock
+
+tasks:
+  - id: source
+    exec: "echo 'Source data'"
+
+  - id: worker1
+    use:
+      data: source
+    exec: "echo 'Worker 1: {{use.data}}'"
+    flow: [source]
+
+  - id: worker2
+    use:
+      data: source
+    exec: "echo 'Worker 2: {{use.data}}'"
+    flow: [source]
+
+  - id: worker3
+    use:
+      data: source
+    exec: "echo 'Worker 3: {{use.data}}'"
+    flow: [source]
+
+  - id: worker4
+    use:
+      data: source
+    exec: "echo 'Worker 4: {{use.data}}'"
+    flow: [source]
+
+  - id: worker5
+    use:
+      data: source
+    exec: "echo 'Worker 5: {{use.data}}'"
+    flow: [source]

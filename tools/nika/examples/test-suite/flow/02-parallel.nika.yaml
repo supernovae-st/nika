@@ -1,0 +1,21 @@
+# Test: flow/02-parallel
+# Tests: Parallel task execution (no dependencies)
+# Expected: Tasks A, B, C execute concurrently
+
+schema: "nika/workflow@0.10"
+workflow: test-flow-parallel
+description: "Test parallel task execution"
+
+provider: mock
+
+tasks:
+  - id: parallel_a
+    exec: "echo 'Parallel A'"
+
+  - id: parallel_b
+    exec: "echo 'Parallel B'"
+
+  - id: parallel_c
+    exec: "echo 'Parallel C'"
+
+# No flows: section means all tasks run in parallel

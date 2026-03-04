@@ -1,0 +1,16 @@
+# Test: infer/02-with-model
+# Tests: Infer verb with explicit prompt object and model override
+# Expected: Uses specified model for generation
+
+schema: "nika/workflow@0.10"
+workflow: test-infer-with-model
+description: "Test infer verb with explicit model configuration"
+
+provider: mock
+
+tasks:
+  - id: infer_with_model
+    description: "Infer with explicit prompt object and model"
+    infer:
+      prompt: "List three programming languages."
+      model: mock-model-v1

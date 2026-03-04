@@ -1,0 +1,31 @@
+# Test: advanced/06-saga-pattern
+# Tests: Saga pattern with compensating actions
+# Expected: Workflow supports saga-style orchestration
+
+schema: "nika/workflow@0.10"
+workflow: test-saga-pattern
+description: "Test saga pattern"
+
+provider: mock
+
+tasks:
+  - id: step1_forward
+    description: "Step 1: Forward action"
+    exec: "echo 'Step 1 forward'"
+
+  - id: step2_forward
+    description: "Step 2: Forward action"
+    exec: "echo 'Step 2 forward'"
+    flow: [step1_forward]
+
+  - id: step3_forward
+    description: "Step 3: Forward action"
+    exec: "echo 'Step 3 forward'"
+    flow: [step2_forward]
+
+  - id: compensate_if_needed
+    description: "Compensation check"
+    use:
+      result: step3_forward
+    exec: "echo 'Checking if compensation needed'"
+    flow: [step3_forward]

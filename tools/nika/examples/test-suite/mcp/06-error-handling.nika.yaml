@@ -1,0 +1,29 @@
+# Test: mcp/06-error-handling
+# Tests: MCP error handling
+# Expected: MCP errors are handled gracefully
+
+schema: "nika/workflow@0.10"
+workflow: test-mcp-errors
+description: "Test MCP error handling"
+
+provider: mock
+
+mcp:
+  error-prone:
+    command: echo
+    args: ["error-prone"]
+
+tasks:
+  - id: valid_call
+    description: "Valid MCP call"
+    invoke:
+      mcp: error-prone
+      tool: nika:log
+      params:
+        level: info
+        message: "Valid call"
+
+  - id: after_error
+    description: "Task after potential error"
+    exec: "echo 'After error handling'"
+    flow: [valid_call]

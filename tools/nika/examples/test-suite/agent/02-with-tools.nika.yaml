@@ -1,0 +1,19 @@
+# Test: agent/02-with-tools
+# Tests: Agent verb with builtin tools
+# Expected: Agent can use file tools
+
+schema: "nika/workflow@0.10"
+workflow: test-agent-with-tools
+description: "Test agent verb with builtin tools"
+
+provider: mock
+
+tasks:
+  - id: agent_with_tools
+    description: "Agent with file tools"
+    agent:
+      prompt: "List the files in /tmp directory and describe what you find."
+      tools:
+        - nika:glob
+        - nika:read
+      max_turns: 3

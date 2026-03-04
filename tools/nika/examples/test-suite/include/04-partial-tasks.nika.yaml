@@ -1,0 +1,21 @@
+# Test: include/04-partial-tasks
+# Tests: Using specific tasks from included workflow
+# Expected: Can reference prefixed task IDs
+
+schema: "nika/workflow@0.10"
+workflow: test-include-partial-tasks
+description: "Test referencing included task outputs"
+
+provider: mock
+
+include:
+  - path: ./partials/processing.nika.yaml
+    prefix: proc_
+
+tasks:
+  - id: use_processed
+    description: "Use output from included task"
+    use:
+      result: proc_validate_output
+    exec: "echo 'Using: {{use.result}}'"
+    flow: [proc_validate_output]

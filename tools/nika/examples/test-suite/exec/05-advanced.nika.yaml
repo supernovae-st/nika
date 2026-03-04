@@ -1,0 +1,33 @@
+# Test: exec/05-advanced
+# Tests: Exec verb with complex command chains
+# Expected: Multi-step command execution works
+
+schema: "nika/workflow@0.10"
+workflow: test-exec-advanced
+description: "Test exec verb with complex shell operations"
+
+provider: mock
+
+tasks:
+  - id: env_check
+    description: "Check environment variables"
+    exec:
+      command: "echo \"PATH length: $(echo $PATH | wc -c)\""
+      shell: true
+      timeout: 5
+
+  - id: json_output
+    description: "Generate JSON output from command"
+    exec:
+      command: "echo '{\"status\": \"ok\", \"timestamp\": \"'$(date -Iseconds)'\"}'"
+      shell: true
+    output:
+      format: json
+
+  - id: multi_command
+    description: "Multiple commands in sequence"
+    exec:
+      command: "echo 'Step 1' && echo 'Step 2' && echo 'Step 3'"
+      shell: true
+      cwd: /tmp
+      timeout: 10

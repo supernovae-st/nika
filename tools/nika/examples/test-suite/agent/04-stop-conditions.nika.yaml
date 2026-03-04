@@ -1,0 +1,27 @@
+# Test: agent/04-stop-conditions
+# Tests: Agent verb with stop conditions
+# Expected: Agent stops when condition is met
+
+schema: "nika/workflow@0.10"
+workflow: test-agent-stop-conditions
+description: "Test agent verb with stop conditions"
+
+provider: mock
+
+tasks:
+  - id: with_stop_string
+    description: "Agent with simple stop string"
+    agent:
+      prompt: "Count from 1 to 5, then say DONE."
+      max_turns: 5
+      stop_sequences:
+        - "DONE"
+
+  - id: with_stop_condition
+    description: "Agent with stop conditions"
+    agent:
+      prompt: "Analyze this problem and conclude with ANALYSIS_COMPLETE."
+      max_turns: 5
+      stop_conditions:
+        - "ANALYSIS_COMPLETE"
+        - "ERROR:"

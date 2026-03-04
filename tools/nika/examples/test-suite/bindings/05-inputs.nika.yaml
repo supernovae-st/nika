@@ -1,0 +1,19 @@
+# Test: bindings/05-inputs
+# Tests: Workflow inputs binding
+# Expected: Input parameters are accessible in tasks
+
+schema: "nika/workflow@0.10"
+workflow: test-bindings-inputs
+description: "Test workflow inputs binding"
+
+provider: mock
+
+inputs:
+  name: "TestUser"
+  count: 5
+  enabled: true
+
+tasks:
+  - id: use_inputs
+    description: "Access workflow inputs"
+    infer: "Hello {{inputs.name}}, processing {{inputs.count}} items."

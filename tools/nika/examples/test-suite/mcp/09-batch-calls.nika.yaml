@@ -1,0 +1,55 @@
+# Test: mcp/09-batch-calls
+# Tests: Multiple MCP calls in sequence and parallel
+# Expected: Batch of MCP calls execute correctly
+
+schema: "nika/workflow@0.10"
+workflow: test-mcp-batch
+description: "Test batch MCP calls"
+
+provider: mock
+
+mcp:
+  batch-server:
+    command: echo
+    args: ["batch"]
+
+tasks:
+  - id: batch_a
+    description: "Batch call A"
+    invoke:
+      mcp: batch-server
+      tool: nika:emit
+      params:
+        name: batch-a
+        payload:
+          index: 1
+
+  - id: batch_b
+    description: "Batch call B"
+    invoke:
+      mcp: batch-server
+      tool: nika:emit
+      params:
+        name: batch-b
+        payload:
+          index: 2
+
+  - id: batch_c
+    description: "Batch call C"
+    invoke:
+      mcp: batch-server
+      tool: nika:emit
+      params:
+        name: batch-c
+        payload:
+          index: 3
+
+  - id: sequential
+    description: "Sequential after batch"
+    invoke:
+      mcp: batch-server
+      tool: nika:log
+      params:
+        level: info
+        message: "All batch calls complete"
+    flow: [batch_a, batch_b, batch_c]

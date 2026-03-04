@@ -1,0 +1,25 @@
+# Test: bindings/02-use-nested
+# Tests: Nested object access in bindings
+# Expected: Nested JSON paths are resolved correctly
+
+schema: "nika/workflow@0.10"
+workflow: test-bindings-use-nested
+description: "Test nested object access in bindings"
+
+provider: mock
+
+tasks:
+  - id: produce_json
+    description: "Produce structured JSON output"
+    exec:
+      command: "echo '{\"user\": {\"name\": \"Alice\", \"email\": \"alice@example.com\"}}'"
+      shell: true
+    output:
+      format: json
+
+  - id: use_nested
+    description: "Access nested fields from JSON"
+    use:
+      data: produce_json
+    infer: "Process user data: {{use.data}}"
+    flow: [produce_json]

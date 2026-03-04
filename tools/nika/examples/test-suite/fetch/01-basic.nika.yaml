@@ -1,0 +1,16 @@
+# Test: fetch/01-basic
+# Tests: Basic fetch verb with GET request
+# Expected: HTTP GET request returns response
+
+schema: "nika/workflow@0.10"
+workflow: test-fetch-basic
+description: "Test basic fetch verb with GET request"
+
+provider: mock
+
+tasks:
+  - id: simple_get
+    description: "Simple GET request"
+    fetch:
+      url: "https://httpbin.org/get"
+      method: GET

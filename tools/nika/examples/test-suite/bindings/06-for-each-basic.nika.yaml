@@ -1,0 +1,16 @@
+# Test: bindings/06-for-each-basic
+# Tests: Basic for_each with inline array
+# Expected: Task executes for each item in array
+
+schema: "nika/workflow@0.10"
+workflow: test-bindings-foreach-basic
+description: "Test basic for_each iteration"
+
+provider: mock
+
+tasks:
+  - id: process_items
+    description: "Process each item in array"
+    for_each: ["apple", "banana", "cherry"]
+    as: fruit
+    exec: "echo 'Processing {{use.fruit}}'"

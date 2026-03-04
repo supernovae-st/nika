@@ -1,0 +1,21 @@
+# Test: flow/05-task-level-flow
+# Tests: flow: property on tasks (inline dependencies)
+# Expected: Task-level flow works same as flows: section
+
+schema: "nika/workflow@0.10"
+workflow: test-flow-task-level
+description: "Test task-level flow property"
+
+provider: mock
+
+tasks:
+  - id: first
+    exec: "echo 'First'"
+
+  - id: second
+    exec: "echo 'Second'"
+    flow: [first]
+
+  - id: third
+    exec: "echo 'Third'"
+    flow: [second]

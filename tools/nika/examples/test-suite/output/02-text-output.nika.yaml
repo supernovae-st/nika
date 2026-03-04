@@ -1,0 +1,16 @@
+# Test: output/02-text-output
+# Tests: Plain text output format
+# Expected: Output is treated as raw text
+
+schema: "nika/workflow@0.10"
+workflow: test-output-text
+description: "Test text output format"
+
+provider: mock
+
+tasks:
+  - id: generate_text
+    description: "Generate plain text"
+    infer: "Write a haiku about programming."
+    output:
+      format: text

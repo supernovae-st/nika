@@ -1,0 +1,28 @@
+# Test: mcp/10-dynamic-server
+# Tests: MCP server with environment variables
+# Expected: Env vars are resolved for MCP server
+
+schema: "nika/workflow@0.10"
+workflow: test-mcp-dynamic
+description: "Test dynamic MCP server configuration"
+
+provider: mock
+
+mcp:
+  dynamic:
+    command: echo
+    args: ["dynamic"]
+    env:
+      API_KEY: "${TEST_API_KEY}"
+      CUSTOM_VAR: "static-value"
+    cwd: /tmp
+
+tasks:
+  - id: use_dynamic
+    description: "Use dynamically configured server"
+    invoke:
+      mcp: dynamic
+      tool: nika:log
+      params:
+        level: info
+        message: "Using dynamic server"

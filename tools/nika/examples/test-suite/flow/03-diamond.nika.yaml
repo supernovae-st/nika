@@ -1,0 +1,28 @@
+# Test: flow/03-diamond
+# Tests: Diamond DAG pattern (fan-out then fan-in)
+# Expected: A -> (B, C) -> D
+
+schema: "nika/workflow@0.10"
+workflow: test-flow-diamond
+description: "Test diamond DAG pattern"
+
+provider: mock
+
+tasks:
+  - id: start
+    exec: "echo 'Start'"
+
+  - id: branch_left
+    exec: "echo 'Left branch'"
+
+  - id: branch_right
+    exec: "echo 'Right branch'"
+
+  - id: merge
+    exec: "echo 'Merge'"
+
+flows:
+  - source: start
+    target: [branch_left, branch_right]
+  - source: [branch_left, branch_right]
+    target: merge

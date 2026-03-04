@@ -1,0 +1,19 @@
+# Test: include/05-lib-import
+# Tests: Importing from lib-style directory structure
+# Expected: Library patterns work for reusable tasks
+
+schema: "nika/workflow@0.10"
+workflow: test-include-lib
+description: "Test lib-style imports"
+
+provider: mock
+
+include:
+  - path: ./partials/setup.nika.yaml
+    prefix: lib_
+
+tasks:
+  - id: use_lib
+    description: "Use library tasks"
+    exec: "echo 'Using library'"
+    flow: [lib_validate]

@@ -1,0 +1,30 @@
+# Test: bindings/12-multi-source
+# Tests: Bindings from multiple source types
+# Expected: Mix of exec, infer, fetch outputs work together
+
+schema: "nika/workflow@0.10"
+workflow: test-bindings-multi-source
+description: "Test bindings from multiple source types"
+
+provider: mock
+
+tasks:
+  - id: from_exec
+    exec: "echo 'exec-output'"
+
+  - id: from_infer
+    infer: "Generate a single word."
+
+  - id: from_fetch
+    fetch:
+      url: "https://httpbin.org/get"
+      method: GET
+
+  - id: combine_all
+    description: "Combine outputs from different verb types"
+    use:
+      exec_data: from_exec
+      infer_data: from_infer
+      fetch_data: from_fetch
+    infer: "Processing: exec={{use.exec_data}}, infer={{use.infer_data}}"
+    flow: [from_exec, from_infer, from_fetch]

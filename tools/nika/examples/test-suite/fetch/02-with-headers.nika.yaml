@@ -1,0 +1,20 @@
+# Test: fetch/02-with-headers
+# Tests: Fetch verb with custom headers
+# Expected: Headers are sent with request
+
+schema: "nika/workflow@0.10"
+workflow: test-fetch-with-headers
+description: "Test fetch verb with custom headers"
+
+provider: mock
+
+tasks:
+  - id: with_headers
+    description: "GET request with custom headers"
+    fetch:
+      url: "https://httpbin.org/headers"
+      method: GET
+      headers:
+        Accept: "application/json"
+        X-Custom-Header: "nika-test"
+        Authorization: "Bearer test-token"

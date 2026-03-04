@@ -1,0 +1,22 @@
+# Test: include/08-skill-include
+# Tests: Skills propagation through includes
+# Expected: Skills from parent merge with included
+
+schema: "nika/workflow@0.10"
+workflow: test-include-skills
+description: "Test skill merging through includes"
+
+provider: mock
+
+skills:
+  seo: ../../skills/seo-optimization.skill.yaml
+
+include:
+  - path: ./partials/setup.nika.yaml
+    prefix: skill_
+
+tasks:
+  - id: with_skills
+    description: "Task with inherited skills"
+    infer: "Apply SEO optimization"
+    flow: [skill_validate]

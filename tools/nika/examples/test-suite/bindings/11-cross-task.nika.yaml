@@ -1,0 +1,33 @@
+# Test: bindings/11-cross-task
+# Tests: Cross-task data flow in complex DAG
+# Expected: Data flows correctly through DAG
+
+schema: "nika/workflow@0.10"
+workflow: test-bindings-cross-task
+description: "Test cross-task data flow"
+
+provider: mock
+
+tasks:
+  - id: root
+    exec: "echo 'root-data'"
+
+  - id: branch_a
+    use:
+      input: root
+    exec: "echo 'A: {{use.input}}'"
+    flow: [root]
+
+  - id: branch_b
+    use:
+      input: root
+    exec: "echo 'B: {{use.input}}'"
+    flow: [root]
+
+  - id: merge
+    description: "Merge data from branches"
+    use:
+      from_a: branch_a
+      from_b: branch_b
+    infer: "Merged: {{use.from_a}} and {{use.from_b}}"
+    flow: [branch_a, branch_b]

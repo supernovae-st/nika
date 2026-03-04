@@ -1,0 +1,32 @@
+# Test: mcp/07-timeout
+# Tests: MCP call timeout handling
+# Expected: Timeout is respected and handled
+
+schema: "nika/workflow@0.10"
+workflow: test-mcp-timeout
+description: "Test MCP timeout handling"
+
+provider: mock
+
+mcp:
+  slow-server:
+    command: echo
+    args: ["slow"]
+
+tasks:
+  - id: quick_call
+    description: "Quick MCP call"
+    invoke:
+      mcp: slow-server
+      tool: nika:sleep
+      params:
+        duration: 100ms
+
+  - id: standard_call
+    description: "Standard MCP call"
+    invoke:
+      mcp: slow-server
+      tool: nika:log
+      params:
+        level: debug
+        message: "Standard call"

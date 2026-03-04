@@ -1,0 +1,20 @@
+# Test: include/02-nested-include
+# Tests: Multiple includes in same workflow
+# Expected: All includes merge correctly
+
+schema: "nika/workflow@0.10"
+workflow: test-include-nested
+description: "Test multiple includes"
+
+provider: mock
+
+include:
+  - path: ./partials/setup.nika.yaml
+    prefix: setup_
+  - path: ./partials/cleanup.nika.yaml
+    prefix: cleanup_
+
+tasks:
+  - id: core_logic
+    description: "Core workflow logic"
+    exec: "echo 'Core logic'"

@@ -1,0 +1,30 @@
+# Test: advanced/01-multi-provider
+# Tests: Multiple providers in same workflow
+# Expected: Different tasks can use different providers
+
+schema: "nika/workflow@0.10"
+workflow: test-multi-provider
+description: "Test multiple providers in workflow"
+
+provider: mock
+
+tasks:
+  - id: claude_task
+    description: "Task using Claude provider"
+    infer:
+      prompt: "Generate a summary."
+      provider: claude
+      model: claude-sonnet-4-6
+
+  - id: openai_task
+    description: "Task using OpenAI provider"
+    infer:
+      prompt: "Generate a summary."
+      provider: openai
+      model: gpt-4o
+
+  - id: mock_task
+    description: "Task using mock provider"
+    infer:
+      prompt: "Generate a summary."
+      provider: mock

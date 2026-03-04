@@ -1,0 +1,46 @@
+# Test: advanced/08-observability
+# Tests: Observability features (logging, events)
+# Expected: All events are captured correctly
+
+schema: "nika/workflow@0.10"
+workflow: test-observability
+description: "Test observability features"
+
+provider: mock
+
+log:
+  level: debug
+  format: json
+
+mcp:
+  obs-server:
+    command: echo
+    args: ["obs"]
+
+tasks:
+  - id: emit_start
+    description: "Emit start event"
+    invoke:
+      mcp: obs-server
+      tool: nika:emit
+      params:
+        name: workflow.start
+        payload:
+          timestamp: "2026-01-01T00:00:00Z"
+
+  - id: logged_task
+    description: "Task with logging"
+    exec: "echo 'Logged output'"
+    log:
+      level: info
+
+  - id: emit_end
+    description: "Emit end event"
+    invoke:
+      mcp: obs-server
+      tool: nika:emit
+      params:
+        name: workflow.end
+        payload:
+          status: success
+    flow: [emit_start, logged_task]

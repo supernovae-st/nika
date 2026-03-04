@@ -1,0 +1,23 @@
+# Test: bindings/10-lazy-bindings
+# Tests: Lazy binding resolution
+# Expected: Lazy bindings are deferred until access
+
+schema: "nika/workflow@0.10"
+workflow: test-bindings-lazy
+description: "Test lazy binding resolution"
+
+provider: mock
+
+tasks:
+  - id: early_task
+    exec: "echo 'early'"
+
+  - id: late_task
+    description: "Task with lazy binding"
+    use:
+      data:
+        path: early_task
+        lazy: true
+        default: "fallback"
+    infer: "Using data: {{use.data}}"
+    flow: [early_task]

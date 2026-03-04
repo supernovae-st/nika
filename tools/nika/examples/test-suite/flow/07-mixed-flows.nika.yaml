@@ -1,0 +1,30 @@
+# Test: flow/07-mixed-flows
+# Tests: Combination of task-level and workflow-level flows
+# Expected: Both flow definitions work together
+
+schema: "nika/workflow@0.10"
+workflow: test-flow-mixed
+description: "Test mixed task and workflow level flows"
+
+provider: mock
+
+tasks:
+  - id: init
+    exec: "echo 'Init'"
+
+  - id: process_a
+    exec: "echo 'Process A'"
+    flow: [init]
+
+  - id: process_b
+    exec: "echo 'Process B'"
+
+  - id: finalize
+    exec: "echo 'Finalize'"
+    flow: [process_a]
+
+flows:
+  - source: init
+    target: process_b
+  - source: process_b
+    target: finalize

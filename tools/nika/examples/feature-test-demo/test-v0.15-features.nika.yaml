@@ -4,7 +4,7 @@
 # Usage: nika run test-v0.15-features.nika.yaml
 
 schema: nika/workflow@0.10
-workflow: test-v0.15-features
+workflow: test-v0-15-features
 description: |
   Minimal test for v0.15.0 features:
   - shell: true (required for shell features)

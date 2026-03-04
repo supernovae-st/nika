@@ -1,0 +1,18 @@
+# Test: output/09-streaming
+# Tests: Streaming output handling
+# Expected: Streaming responses are captured correctly
+
+schema: "nika/workflow@0.10"
+workflow: test-streaming
+description: "Test streaming output handling"
+
+provider: mock
+
+tasks:
+  - id: stream_output
+    description: "Generate streaming output"
+    infer:
+      prompt: "Generate a long response that will be streamed."
+      max_tokens: 500
+    output:
+      format: text

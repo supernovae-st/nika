@@ -1,0 +1,33 @@
+# Test: advanced/03-extended-thinking
+# Tests: Extended thinking feature
+# Expected: Thinking budget is respected
+
+schema: "nika/workflow@0.10"
+workflow: test-extended-thinking
+description: "Test extended thinking"
+
+provider: mock
+
+tasks:
+  - id: simple_thinking
+    description: "Simple task with thinking"
+    infer:
+      prompt: "Analyze this problem step by step."
+      extended_thinking: true
+      thinking_budget: 4096
+
+  - id: deep_thinking
+    description: "Deep analysis with more thinking"
+    infer:
+      prompt: "Design a complex system architecture."
+      extended_thinking: true
+      thinking_budget: 16384
+      temperature: 0.2
+
+  - id: agent_thinking
+    description: "Agent with extended thinking"
+    agent:
+      prompt: "Research and analyze this topic thoroughly."
+      extended_thinking: true
+      thinking_budget: 8192
+      max_turns: 3

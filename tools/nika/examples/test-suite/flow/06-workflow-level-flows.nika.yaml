@@ -1,0 +1,32 @@
+# Test: flow/06-workflow-level-flows
+# Tests: flows: section at workflow level
+# Expected: Workflow-level flows define dependencies
+
+schema: "nika/workflow@0.10"
+workflow: test-flow-workflow-level
+description: "Test workflow-level flows section"
+
+provider: mock
+
+tasks:
+  - id: task1
+    exec: "echo 'Task 1'"
+
+  - id: task2
+    exec: "echo 'Task 2'"
+
+  - id: task3
+    exec: "echo 'Task 3'"
+
+  - id: task4
+    exec: "echo 'Task 4'"
+
+flows:
+  - source: task1
+    target: task2
+  - source: task1
+    target: task3
+  - source: task2
+    target: task4
+  - source: task3
+    target: task4

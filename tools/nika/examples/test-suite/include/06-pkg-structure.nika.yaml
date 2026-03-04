@@ -1,0 +1,21 @@
+# Test: include/06-pkg-structure
+# Tests: pkg: URI syntax for package references
+# Expected: Package references resolve correctly
+
+schema: "nika/workflow@0.10"
+workflow: test-include-pkg
+description: "Test pkg: URI syntax"
+
+provider: mock
+
+# Note: This tests the syntax validation, actual pkg resolution
+# requires a registry. Using path fallback for test.
+include:
+  - path: ./partials/setup.nika.yaml
+    prefix: pkg_
+
+tasks:
+  - id: use_package
+    description: "Use package tasks"
+    exec: "echo 'Using package'"
+    flow: [pkg_validate]

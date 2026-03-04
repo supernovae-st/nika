@@ -1,0 +1,26 @@
+# Test: flow/10-retry-logic
+# Tests: Retry logic with output validation
+# Expected: Failed validation triggers retry
+
+schema: "nika/workflow@0.10"
+workflow: test-flow-retry
+description: "Test retry logic with validation"
+
+provider: mock
+
+tasks:
+  - id: generate_json
+    description: "Generate JSON with retry on validation failure"
+    infer:
+      prompt: "Generate a JSON object with 'status' and 'code' fields."
+    output:
+      format: json
+      schema:
+        type: object
+        required: [status, code]
+        properties:
+          status:
+            type: string
+          code:
+            type: integer
+      max_retries: 3

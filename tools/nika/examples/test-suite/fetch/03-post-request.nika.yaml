@@ -1,0 +1,21 @@
+# Test: fetch/03-post-request
+# Tests: Fetch verb with POST method and body
+# Expected: POST request sends body correctly
+
+schema: "nika/workflow@0.10"
+workflow: test-fetch-post
+description: "Test fetch verb with POST method and body"
+
+provider: mock
+
+tasks:
+  - id: post_json
+    description: "POST request with JSON body"
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      headers:
+        Content-Type: "application/json"
+      body: '{"name": "test", "value": 42}'
+    output:
+      format: json

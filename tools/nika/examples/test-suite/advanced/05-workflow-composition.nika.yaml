@@ -1,0 +1,22 @@
+# Test: advanced/05-workflow-composition
+# Tests: Composing workflows from multiple sources
+# Expected: Complex composition works
+
+schema: "nika/workflow@0.10"
+workflow: test-composition
+description: "Test workflow composition"
+
+provider: mock
+
+include:
+  - path: ./partials/setup.nika.yaml
+    prefix: setup_
+
+tasks:
+  - id: orchestrate
+    description: "Orchestration task"
+    exec: "echo 'Orchestrating composed workflow'"
+
+flows:
+  - source: setup_validate
+    target: orchestrate

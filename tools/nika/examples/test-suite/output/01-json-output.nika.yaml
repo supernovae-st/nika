@@ -1,0 +1,25 @@
+# Test: output/01-json-output
+# Tests: JSON output format with validation
+# Expected: Output is parsed and validated as JSON
+
+schema: "nika/workflow@0.10"
+workflow: test-output-json
+description: "Test JSON output format"
+
+provider: mock
+
+tasks:
+  - id: generate_json
+    description: "Generate JSON output"
+    infer:
+      prompt: "Generate a JSON object with name and value fields."
+    output:
+      format: json
+      schema:
+        type: object
+        required: [name, value]
+        properties:
+          name:
+            type: string
+          value:
+            type: number

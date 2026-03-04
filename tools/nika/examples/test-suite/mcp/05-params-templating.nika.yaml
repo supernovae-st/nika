@@ -1,0 +1,31 @@
+# Test: mcp/05-params-templating
+# Tests: Template resolution in MCP parameters
+# Expected: {{use.x}} templates resolve in params
+
+schema: "nika/workflow@0.10"
+workflow: test-mcp-params-template
+description: "Test parameter templating in MCP calls"
+
+provider: mock
+
+mcp:
+  templated:
+    command: echo
+    args: ["templated"]
+
+tasks:
+  - id: get_value
+    description: "Get value for template"
+    exec: "echo 'dynamic-value'"
+
+  - id: use_template
+    description: "Use template in MCP params"
+    use:
+      val: get_value
+    invoke:
+      mcp: templated
+      tool: nika:log
+      params:
+        level: info
+        message: "Value is: {{use.val}}"
+    flow: [get_value]

@@ -1,0 +1,28 @@
+# Test: include/09-multi-file
+# Tests: Including multiple files with different prefixes
+# Expected: All files merge without ID collisions
+
+schema: "nika/workflow@0.10"
+workflow: test-include-multi-file
+description: "Test multiple file includes"
+
+provider: mock
+
+include:
+  - path: ./partials/setup.nika.yaml
+    prefix: a_
+  - path: ./partials/processing.nika.yaml
+    prefix: b_
+  - path: ./partials/cleanup.nika.yaml
+    prefix: c_
+
+tasks:
+  - id: orchestrate
+    description: "Orchestrate all includes"
+    exec: "echo 'Orchestrating'"
+
+flows:
+  - source: a_validate
+    target: b_transform
+  - source: b_validate_output
+    target: c_finalize

@@ -1,0 +1,23 @@
+# Test: output/06-artifact-multiple
+# Tests: Multiple artifacts from single task
+# Expected: Multiple artifacts saved correctly
+
+schema: "nika/workflow@0.10"
+workflow: test-artifact-multiple
+description: "Test multiple artifacts per task"
+
+provider: mock
+
+artifacts:
+  dir: /tmp/nika-artifacts
+
+tasks:
+  - id: multi_artifact
+    description: "Task with multiple artifacts"
+    infer:
+      prompt: "Generate a report with summary and details."
+    artifact:
+      - path: "reports/summary.txt"
+        format: text
+      - path: "reports/details.json"
+        format: json

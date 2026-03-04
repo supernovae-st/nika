@@ -1,0 +1,14 @@
+# Test: infer/01-basic
+# Tests: Basic infer verb with simple prompt (shorthand syntax)
+# Expected: LLM generates text response successfully
+
+schema: "nika/workflow@0.10"
+workflow: test-infer-basic
+description: "Test basic infer verb with shorthand string prompt"
+
+provider: mock
+
+tasks:
+  - id: simple_infer
+    description: "Simple text generation using shorthand syntax"
+    infer: "What is 2 + 2? Answer with just the number."

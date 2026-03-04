@@ -1,0 +1,46 @@
+# Test: fetch/05-advanced
+# Tests: Fetch verb with all HTTP methods and complex scenarios
+# Expected: PUT, PATCH, DELETE methods work correctly
+
+schema: "nika/workflow@0.10"
+workflow: test-fetch-advanced
+description: "Test fetch verb with various HTTP methods"
+
+provider: mock
+
+tasks:
+  - id: put_request
+    description: "PUT request for update"
+    fetch:
+      url: "https://httpbin.org/put"
+      method: PUT
+      headers:
+        Content-Type: "application/json"
+      body: '{"id": 1, "updated": true}'
+    output:
+      format: json
+
+  - id: patch_request
+    description: "PATCH request for partial update"
+    fetch:
+      url: "https://httpbin.org/patch"
+      method: PATCH
+      headers:
+        Content-Type: "application/json"
+      body: '{"field": "new_value"}'
+    output:
+      format: json
+
+  - id: delete_request
+    description: "DELETE request"
+    fetch:
+      url: "https://httpbin.org/delete"
+      method: DELETE
+    output:
+      format: json
+
+  - id: head_request
+    description: "HEAD request (no body)"
+    fetch:
+      url: "https://httpbin.org/get"
+      method: HEAD

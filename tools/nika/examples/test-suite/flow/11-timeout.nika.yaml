@@ -1,0 +1,28 @@
+# Test: flow/11-timeout
+# Tests: Task timeout handling in DAG
+# Expected: Timeout doesn't block other paths
+
+schema: "nika/workflow@0.10"
+workflow: test-flow-timeout
+description: "Test timeout handling in flow"
+
+provider: mock
+
+tasks:
+  - id: quick_task
+    description: "Quick task with timeout"
+    exec:
+      command: "echo 'Quick'"
+      timeout: 5
+
+  - id: slow_path
+    description: "Slower task"
+    exec:
+      command: "sleep 1 && echo 'Slow done'"
+      shell: true
+      timeout: 10
+
+  - id: after_both
+    description: "After both complete"
+    exec: "echo 'Both done'"
+    flow: [quick_task, slow_path]

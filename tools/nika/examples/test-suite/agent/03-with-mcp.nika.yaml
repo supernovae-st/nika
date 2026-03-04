@@ -1,0 +1,23 @@
+# Test: agent/03-with-mcp
+# Tests: Agent verb with MCP server access
+# Expected: Agent can call MCP tools
+
+schema: "nika/workflow@0.10"
+workflow: test-agent-with-mcp
+description: "Test agent verb with MCP server"
+
+provider: mock
+
+mcp:
+  dummy:
+    command: echo
+    args: ["not used"]
+
+tasks:
+  - id: agent_with_mcp
+    description: "Agent with MCP server access"
+    agent:
+      prompt: "Log a message saying 'Agent test successful'."
+      mcp:
+        - dummy
+      max_turns: 3

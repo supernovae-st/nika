@@ -1,0 +1,27 @@
+# Test: bindings/08-for-each-binding
+# Tests: for_each with binding reference to array
+# Expected: Array from previous task is iterated
+
+schema: "nika/workflow@0.10"
+workflow: test-bindings-foreach-binding
+description: "Test for_each with binding reference"
+
+provider: mock
+
+tasks:
+  - id: produce_list
+    description: "Produce array of items"
+    exec:
+      command: "echo '[\"red\", \"green\", \"blue\"]'"
+      shell: true
+    output:
+      format: json
+
+  - id: iterate_list
+    description: "Iterate over produced list"
+    use:
+      colors: produce_list
+    for_each: "{{use.colors}}"
+    as: color
+    exec: "echo 'Color: {{use.color}}'"
+    flow: [produce_list]

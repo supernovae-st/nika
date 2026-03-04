@@ -1,0 +1,28 @@
+# Test: invoke/02-with-params
+# Tests: Invoke verb with complex parameters
+# Expected: Parameters are passed correctly to MCP tool
+
+schema: "nika/workflow@0.10"
+workflow: test-invoke-with-params
+description: "Test invoke verb with complex parameters"
+
+provider: mock
+
+mcp:
+  dummy:
+    command: echo
+    args: ["not used"]
+
+tasks:
+  - id: with_params
+    description: "Invoke with multiple parameters"
+    invoke:
+      mcp: dummy
+      tool: nika:emit
+      params:
+        name: custom-event
+        payload:
+          key1: value1
+          key2: 42
+          nested:
+            enabled: true

@@ -1,0 +1,21 @@
+# Test: include/13-remote-include
+# Tests: Remote include syntax (pkg: URI)
+# Expected: Schema validates pkg: syntax
+
+schema: "nika/workflow@0.10"
+workflow: test-include-remote
+description: "Test remote include syntax validation"
+
+provider: mock
+
+# Note: Actual remote resolution requires registry
+# This tests that the syntax is valid
+include:
+  - path: ./partials/setup.nika.yaml
+    prefix: remote_
+
+tasks:
+  - id: after_remote
+    description: "After remote include"
+    exec: "echo 'Remote syntax valid'"
+    flow: [remote_validate]

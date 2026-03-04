@@ -1,0 +1,23 @@
+# Test: advanced/02-provider-fallback
+# Tests: Provider fallback behavior
+# Expected: Workflow handles provider unavailability
+
+schema: "nika/workflow@0.10"
+workflow: test-provider-fallback
+description: "Test provider fallback"
+
+provider: mock
+
+tasks:
+  - id: primary_provider
+    description: "Primary provider task"
+    infer:
+      prompt: "Generate content with primary."
+      provider: mock
+
+  - id: fallback_task
+    description: "Task that uses fallback"
+    use:
+      primary: primary_provider
+    infer: "Process: {{use.primary}}"
+    flow: [primary_provider]

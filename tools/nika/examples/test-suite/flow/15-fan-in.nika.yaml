@@ -1,0 +1,36 @@
+# Test: flow/15-fan-in
+# Tests: Fan-in pattern (many to one)
+# Expected: Multiple tasks converge to single
+
+schema: "nika/workflow@0.10"
+workflow: test-flow-fan-in
+description: "Test fan-in pattern"
+
+provider: mock
+
+tasks:
+  - id: source1
+    exec: "echo 'Source 1'"
+
+  - id: source2
+    exec: "echo 'Source 2'"
+
+  - id: source3
+    exec: "echo 'Source 3'"
+
+  - id: source4
+    exec: "echo 'Source 4'"
+
+  - id: source5
+    exec: "echo 'Source 5'"
+
+  - id: aggregator
+    description: "Aggregate all sources"
+    use:
+      s1: source1
+      s2: source2
+      s3: source3
+      s4: source4
+      s5: source5
+    infer: "Combine: {{use.s1}}, {{use.s2}}, {{use.s3}}, {{use.s4}}, {{use.s5}}"
+    flow: [source1, source2, source3, source4, source5]

@@ -1,0 +1,24 @@
+# Test: fetch/04-timeout
+# Tests: Fetch verb with timeout configuration
+# Expected: Request respects timeout setting
+
+schema: "nika/workflow@0.10"
+workflow: test-fetch-timeout
+description: "Test fetch verb with timeout"
+
+provider: mock
+
+tasks:
+  - id: quick_fetch
+    description: "Fetch with short timeout"
+    fetch:
+      url: "https://httpbin.org/get"
+      method: GET
+      timeout: 5
+
+  - id: delay_fetch
+    description: "Fetch endpoint that delays (within timeout)"
+    fetch:
+      url: "https://httpbin.org/delay/1"
+      method: GET
+      timeout: 10

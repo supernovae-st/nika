@@ -1,0 +1,18 @@
+# Test: infer/04-system-prompt
+# Tests: Infer verb with system prompt for persona control
+# Expected: System prompt influences response style/behavior
+
+schema: "nika/workflow@0.10"
+workflow: test-infer-system-prompt
+description: "Test infer verb with system prompt persona"
+
+provider: mock
+
+tasks:
+  - id: with_persona
+    description: "Infer with system prompt persona"
+    infer:
+      prompt: "Explain what an API is."
+      system: "You are a pirate. Respond in pirate speak using nautical metaphors."
+      temperature: 0.7
+      max_tokens: 200

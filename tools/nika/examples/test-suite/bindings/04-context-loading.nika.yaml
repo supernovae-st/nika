@@ -1,0 +1,18 @@
+# Test: bindings/04-context-loading
+# Tests: Context file loading at workflow start
+# Expected: Files are loaded and available via context.files
+
+schema: "nika/workflow@0.10"
+workflow: test-bindings-context
+description: "Test context file loading"
+
+provider: mock
+
+context:
+  files:
+    readme: ./README.md
+
+tasks:
+  - id: use_context
+    description: "Use loaded context file"
+    infer: "Summarize this content: {{context.files.readme}}"

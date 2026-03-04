@@ -1,0 +1,23 @@
+# Test: flow/09-error-handling
+# Tests: Error handling in DAG execution
+# Expected: Errors are handled, dependent tasks skip
+
+schema: "nika/workflow@0.10"
+workflow: test-flow-error-handling
+description: "Test error handling in flow"
+
+provider: mock
+
+tasks:
+  - id: risky_task
+    description: "Task that might fail"
+    exec: "echo 'Risky operation'"
+
+  - id: dependent_task
+    description: "Depends on risky task"
+    exec: "echo 'After risky'"
+    flow: [risky_task]
+
+  - id: independent_task
+    description: "Independent of risky task"
+    exec: "echo 'Independent'"

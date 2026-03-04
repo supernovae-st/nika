@@ -1,0 +1,35 @@
+# Test: bindings/15-edge-cases
+# Tests: Edge cases in binding resolution
+# Expected: Special characters, empty strings, nulls handled
+
+schema: "nika/workflow@0.10"
+workflow: test-bindings-edge-cases
+description: "Test binding edge cases"
+
+provider: mock
+
+tasks:
+  - id: special_chars
+    description: "Output with special characters"
+    exec:
+      command: "echo 'Hello \"World\" with <special> & chars'"
+      shell: true
+
+  - id: empty_output
+    exec: "echo ''"
+
+  - id: null_like
+    exec: "echo 'null'"
+
+  - id: whitespace
+    exec: "echo '   trimmed   '"
+
+  - id: handle_edges
+    description: "Handle all edge cases"
+    use:
+      special: special_chars
+      empty: empty_output
+      nullish: null_like
+      spaces: whitespace
+    infer: "Processing edge cases"
+    flow: [special_chars, empty_output, null_like, whitespace]

@@ -1,0 +1,25 @@
+# Test: flow/01-sequential
+# Tests: Sequential task execution via flows:
+# Expected: Tasks execute in order A -> B -> C
+
+schema: "nika/workflow@0.10"
+workflow: test-flow-sequential
+description: "Test sequential task execution"
+
+provider: mock
+
+tasks:
+  - id: step_a
+    exec: "echo 'Step A'"
+
+  - id: step_b
+    exec: "echo 'Step B'"
+
+  - id: step_c
+    exec: "echo 'Step C'"
+
+flows:
+  - source: step_a
+    target: step_b
+  - source: step_b
+    target: step_c
