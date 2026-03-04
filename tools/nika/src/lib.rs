@@ -81,10 +81,11 @@ pub mod tui;
 pub mod util;
 
 // ═══════════════════════════════════════════════════════════════
-// CROSS-CUTTING - Error handling, configuration
+// CROSS-CUTTING - Error handling, configuration, secrets
 // ═══════════════════════════════════════════════════════════════
 pub mod config;
 pub mod error;
+pub mod secrets;
 
 // ═══════════════════════════════════════════════════════════════
 // WORKFLOW SCAFFOLDING - nika new command (v0.19.3)

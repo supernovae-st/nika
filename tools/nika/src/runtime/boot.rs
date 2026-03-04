@@ -1,12 +1,13 @@
-//! Boot Sequence - 6-phase startup with progress reporting (v0.13.1)
+//! Boot Sequence - 7-phase startup with progress reporting (v0.20)
 //!
 //! Phases:
 //! 1. Config discovery (find .nika/)
 //! 2. Config validation (parse config.toml)
 //! 3. Memory loading (load memory files)
-//! 4. MCP server startup (launch configured servers)
-//! 5. Provider validation (check API keys)
-//! 6. Ready state
+//! 4. Secrets loading (load from spn daemon or fallback)
+//! 5. MCP server startup (launch configured servers)
+//! 6. Provider validation (check API keys)
+//! 7. Ready state
 
 use crate::error::NikaError;
 use serde::{Deserialize, Serialize};
@@ -23,11 +24,13 @@ pub enum BootPhase {
     ConfigValidation,
     /// Phase 3: Loading memory files
     MemoryLoading,
-    /// Phase 4: Starting MCP servers
+    /// Phase 4: Loading secrets from spn daemon (v0.20)
+    SecretsLoading,
+    /// Phase 5: Starting MCP servers
     McpStartup,
-    /// Phase 5: Validating provider API keys
+    /// Phase 6: Validating provider API keys
     ProviderValidation,
-    /// Phase 6: System ready
+    /// Phase 7: System ready
     Ready,
 }
 
@@ -38,21 +41,23 @@ impl BootPhase {
             Self::ConfigDiscovery => "Config Discovery",
             Self::ConfigValidation => "Config Validation",
             Self::MemoryLoading => "Memory Loading",
+            Self::SecretsLoading => "Secrets Loading",
             Self::McpStartup => "MCP Startup",
             Self::ProviderValidation => "Provider Validation",
             Self::Ready => "Ready",
         }
     }
 
-    /// Get phase number (1-6)
+    /// Get phase number (1-7)
     pub fn number(&self) -> u8 {
         match self {
             Self::ConfigDiscovery => 1,
             Self::ConfigValidation => 2,
             Self::MemoryLoading => 3,
-            Self::McpStartup => 4,
-            Self::ProviderValidation => 5,
-            Self::Ready => 6,
+            Self::SecretsLoading => 4,
+            Self::McpStartup => 5,
+            Self::ProviderValidation => 6,
+            Self::Ready => 7,
         }
     }
 
@@ -62,6 +67,7 @@ impl BootPhase {
             Self::ConfigDiscovery => "🔍",
             Self::ConfigValidation => "✅",
             Self::MemoryLoading => "📚",
+            Self::SecretsLoading => "🔐",
             Self::McpStartup => "🔌",
             Self::ProviderValidation => "🔑",
             Self::Ready => "🚀",
@@ -88,6 +94,8 @@ pub struct BootContext {
     pub config: Option<NikaConfig>,
     /// Loaded memory context
     pub memory: Option<HashMap<String, serde_json::Value>>,
+    /// Secrets loading result (v0.20)
+    pub secrets_loaded: Option<crate::secrets::SecretsLoadResult>,
     /// Available MCP servers
     pub mcp_servers: Vec<String>,
     /// Available providers with API keys
@@ -335,15 +343,19 @@ impl BootSequence {
         let phase_result = self.phase_memory_loading(&mut ctx).await;
         ctx.phases.push(phase_result);
 
-        // Phase 4: MCP Startup (optional, doesn't fail boot)
+        // Phase 4: Secrets Loading (v0.20 - spn daemon integration)
+        let phase_result = self.phase_secrets_loading(&mut ctx).await;
+        ctx.phases.push(phase_result);
+
+        // Phase 5: MCP Startup (optional, doesn't fail boot)
         let phase_result = self.phase_mcp_startup(&mut ctx).await;
         ctx.phases.push(phase_result);
 
-        // Phase 5: Provider Validation (optional, doesn't fail boot)
+        // Phase 6: Provider Validation (optional, doesn't fail boot)
         let phase_result = self.phase_provider_validation(&mut ctx).await;
         ctx.phases.push(phase_result);
 
-        // Phase 6: Ready
+        // Phase 7: Ready
         ctx.phases.push(PhaseResult {
             phase: BootPhase::Ready,
             success: true,
@@ -504,6 +516,40 @@ impl BootSequence {
         }
     }
 
+    /// Phase 4: Load secrets from spn daemon or fallback (v0.20)
+    async fn phase_secrets_loading(&self, ctx: &mut BootContext) -> PhaseResult {
+        let start = Instant::now();
+        let mut warnings = vec![];
+
+        // Load secrets from daemon (or fallback to keyring/env)
+        let result = crate::secrets::load_from_daemon_or_fallback().await;
+
+        if !result.daemon_available {
+            warnings.push("spn daemon not running, using fallback".into());
+        }
+
+        let message = if result.daemon_available {
+            format!(
+                "{} secrets loaded ({} daemon, {} fallback)",
+                result.total_loaded(),
+                result.from_daemon.len(),
+                result.from_fallback.len()
+            )
+        } else {
+            format!("{} secrets loaded (fallback)", result.total_loaded())
+        };
+
+        ctx.secrets_loaded = Some(result);
+
+        PhaseResult {
+            phase: BootPhase::SecretsLoading,
+            success: true, // Never fails boot, just warns
+            duration: start.elapsed(),
+            message: Some(message),
+            warnings,
+        }
+    }
+
     async fn phase_mcp_startup(&self, _ctx: &mut BootContext) -> PhaseResult {
         let start = Instant::now();
         let warnings = vec![];
@@ -607,8 +653,10 @@ mod tests {
     #[test]
     fn test_boot_phase_properties() {
         assert_eq!(BootPhase::ConfigDiscovery.number(), 1);
-        assert_eq!(BootPhase::Ready.number(), 6);
+        assert_eq!(BootPhase::SecretsLoading.number(), 4);
+        assert_eq!(BootPhase::Ready.number(), 7);
         assert_eq!(BootPhase::McpStartup.name(), "MCP Startup");
+        assert_eq!(BootPhase::SecretsLoading.icon(), "🔐");
     }
 
     #[test]

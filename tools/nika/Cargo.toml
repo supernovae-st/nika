@@ -58,8 +58,12 @@ url = "2"  # URL parsing and validation
 
 # Secure credential storage
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
-secrecy = "0.8"    # SecretString wrapper
+secrecy = "0.10"   # SecretString wrapper (upgraded for spn-client compat)
 zeroize = "1.8"    # Auto-clear memory on drop
+
+# spn daemon client for unified secret management (v0.20)
+# Solves macOS Keychain popup issue - daemon is sole keychain accessor
+spn-client = { path = "../../../supernovae-cli/crates/spn-client" }
 
 # Utilities
 bytes = "1.11.1"  # Force upgrade to fix RUSTSEC-2026-0007
