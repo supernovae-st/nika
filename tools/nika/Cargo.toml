@@ -14,6 +14,7 @@ path = "src/main.rs"
 default = ["tui"]
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-textarea", "dep:tui-input", "dep:arboard", "dep:notify", "dep:nucleo", "dep:unicode-width", "dep:unicode-segmentation", "dep:terminal_size", "dep:tui-tree-widget"]
 jobs = ["dep:rusqlite", "dep:cron", "dep:humantime-serde"]  # Jobs Daemon feature
+spn-daemon = ["dep:spn-client"]  # spn daemon for unified secret management (local only)
 integration = []  # Enable integration tests with real MCP servers
 test-fixtures = []  # Export test_fixtures module for external test crates
 
@@ -63,7 +64,8 @@ zeroize = "1.8"    # Auto-clear memory on drop
 
 # spn daemon client for unified secret management (v0.20)
 # Solves macOS Keychain popup issue - daemon is sole keychain accessor
-spn-client = { path = "../../../supernovae-cli/crates/spn-client" }
+# NOTE: Optional feature (spn-daemon) - path dependency only works locally
+spn-client = { path = "../../../supernovae-cli/crates/spn-client", optional = true }
 
 # Utilities
 bytes = "1.11.1"  # Force upgrade to fix RUSTSEC-2026-0007

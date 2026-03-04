@@ -5,7 +5,7 @@
 //! ```text
 //! Nika Process
 //!     │
-//!     ├── Try spn daemon (via spn-client)
+//!     ├── Try spn daemon (via spn-client) [requires spn-daemon feature]
 //!     │   └── Unix socket IPC to ~/.spn/daemon.sock
 //!     │
 //!     └── Fallback to direct access
@@ -20,8 +20,12 @@
 //! and cache secrets in memory (with mlock protection against swap).
 
 use crate::tui::widgets::provider_modal::{provider_env_var, SpnKeyring};
-use secrecy::{ExposeSecret, SecretString};
-use tracing::{debug, info, trace, warn};
+use secrecy::SecretString;
+#[cfg(feature = "spn-daemon")]
+use secrecy::ExposeSecret;
+use tracing::{debug, info, trace};
+#[cfg(feature = "spn-daemon")]
+use tracing::warn;
 
 /// Provider names we try to load from daemon.
 const PROVIDERS: &[&str] = &[
@@ -76,6 +80,7 @@ impl SecretsLoadResult {
 ///
 /// This is called during boot to inject secrets as environment variables
 /// so that rig-core's `from_env()` pattern continues to work.
+#[cfg(feature = "spn-daemon")]
 pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
     let mut result = SecretsLoadResult::default();
 
@@ -148,6 +153,34 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
     result
 }
 
+/// Load secrets from keyring/env only (no daemon support).
+#[cfg(not(feature = "spn-daemon"))]
+pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
+    let mut result = SecretsLoadResult::default();
+    result.daemon_available = false;
+
+    // No daemon support - go directly to fallback
+    for provider in PROVIDERS {
+        let env_var = provider_env_var(provider);
+
+        // Check if already in env
+        if std::env::var(env_var).is_ok() {
+            trace!("{}: already in env", provider);
+            result.from_fallback.push(provider.to_string());
+            continue;
+        }
+
+        if try_load_from_fallback(provider, env_var) {
+            result.from_fallback.push(provider.to_string());
+        } else {
+            result.not_found.push(provider.to_string());
+        }
+    }
+
+    info!("Secrets: {}", result.summary());
+    result
+}
+
 /// Try loading from keyring and inject into env if found.
 fn try_load_from_fallback(provider: &str, env_var: &str) -> bool {
     match SpnKeyring::get(provider) {
@@ -164,6 +197,7 @@ fn try_load_from_fallback(provider: &str, env_var: &str) -> bool {
 }
 
 /// Get a secret for a provider (async, tries daemon first).
+#[cfg(feature = "spn-daemon")]
 pub async fn get_secret(provider: &str) -> Option<SecretString> {
     let env_var = provider_env_var(provider);
 
@@ -185,7 +219,24 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
     SpnKeyring::get_secret(provider).ok()
 }
 
+/// Get a secret for a provider (no daemon support).
+#[cfg(not(feature = "spn-daemon"))]
+pub async fn get_secret(provider: &str) -> Option<SecretString> {
+    let env_var = provider_env_var(provider);
+
+    // Check env first (may have been loaded at boot)
+    if let Ok(value) = std::env::var(env_var) {
+        if !value.is_empty() {
+            return Some(SecretString::from(value));
+        }
+    }
+
+    // Fall back to keyring
+    SpnKeyring::get_secret(provider).ok()
+}
+
 /// Check if a secret exists for a provider.
+#[cfg(feature = "spn-daemon")]
 pub async fn has_secret(provider: &str) -> bool {
     let env_var = provider_env_var(provider);
 
@@ -205,9 +256,30 @@ pub async fn has_secret(provider: &str) -> bool {
     SpnKeyring::exists(provider)
 }
 
+/// Check if a secret exists for a provider (no daemon support).
+#[cfg(not(feature = "spn-daemon"))]
+pub async fn has_secret(provider: &str) -> bool {
+    let env_var = provider_env_var(provider);
+
+    // Check env first
+    if std::env::var(env_var).is_ok() {
+        return true;
+    }
+
+    // Fall back to keyring
+    SpnKeyring::exists(provider)
+}
+
 /// Check if daemon is available.
+#[cfg(feature = "spn-daemon")]
 pub fn daemon_available() -> bool {
     spn_client::daemon_socket_exists()
+}
+
+/// Daemon is not available without the feature.
+#[cfg(not(feature = "spn-daemon"))]
+pub fn daemon_available() -> bool {
+    false
 }
 
 #[cfg(test)]
