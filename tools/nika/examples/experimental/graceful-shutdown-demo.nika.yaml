@@ -8,7 +8,7 @@
 # - Progress tracking and resumability
 #
 # Use case: Large batch processing that can be interrupted and resumed
-schema: nika/workflow@0.7
+schema: nika/workflow@0.10
 
 workflow: batch-processor-resumable
 description: |

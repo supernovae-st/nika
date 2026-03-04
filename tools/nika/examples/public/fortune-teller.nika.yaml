@@ -9,7 +9,7 @@
 # Pattern: Simple linear with creative generation
 # Showcases: Entertainment generation, personality, ASCII art
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: fortune-teller
 description: "AI fortune teller with cosmic wisdom"
 provider: claude
@@ -17,16 +17,24 @@ provider: claude
 tasks:
   # Step 1: Get user info
   - id: get_name
-    exec: "echo \"${NAME:-Seeker}\""
+    exec:
+      command: "echo \"${NAME:-Seeker}\""
+      shell: true
 
   - id: get_sign
-    exec: "echo \"${SIGN:-random}\""
+    exec:
+      command: "echo \"${SIGN:-random}\""
+      shell: true
 
   - id: get_date
-    exec: "date '+%Y-%m-%d'"
+    exec:
+      command: "date '+%Y-%m-%d'"
+      shell: true
 
   - id: get_seed
-    exec: "echo $RANDOM"
+    exec:
+      command: "echo $RANDOM"
+      shell: true
 
   # Step 2: Generate cosmic reading
   - id: cosmic_reading
@@ -137,13 +145,15 @@ tasks:
   - id: display
     use:
       fortune: format_fortune
-    exec: |
-      clear 2>/dev/null || true
-      echo ""
-      echo "{{use.fortune}}"
-      echo ""
-      echo "✨ May the cosmos guide your path ✨"
-      echo ""
+    exec:
+      command: |
+        clear 2>/dev/null || true
+        echo ""
+        echo "{{use.fortune}}"
+        echo ""
+        echo "✨ May the cosmos guide your path ✨"
+        echo ""
+      shell: true
 
 flows:
   - source: get_name

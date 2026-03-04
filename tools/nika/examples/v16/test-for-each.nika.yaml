@@ -1,6 +1,6 @@
 # Test: for_each - Parallel iteration
 # Tests: static array, binding, concurrency, fail_fast
-schema: nika/workflow@0.9
+schema: nika/workflow@0.10
 workflow: test-for-each
 
 tasks:

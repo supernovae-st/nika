@@ -2,7 +2,7 @@
 # Tests temperature, system prompt, and max_tokens parameters
 # Run with: ANTHROPIC_API_KEY=... nika examples/v15-infer-options.nika.yaml
 
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.10"
 provider: claude
 
 tasks:

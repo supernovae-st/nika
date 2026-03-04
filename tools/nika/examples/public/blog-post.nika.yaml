@@ -8,7 +8,7 @@
 #   - ANTHROPIC_API_KEY or OPENAI_API_KEY
 #   - TOPIC environment variable
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: blog-post
 description: "Generate a complete blog post from a topic"
 provider: claude
@@ -16,7 +16,9 @@ provider: claude
 tasks:
   # Step 1: Get topic from environment
   - id: get_topic
-    exec: "echo \"${TOPIC:-Introduction to Nika workflow engine}\""
+    exec:
+      command: "echo \"${TOPIC:-Introduction to Nika workflow engine}\""
+      shell: true
 
   # Step 2: Generate outline
   - id: generate_outline
@@ -89,20 +91,22 @@ tasks:
       intro: generate_intro
       body: generate_body
       conclusion: generate_conclusion
-    exec: |
-      cat > /tmp/blog-post.md << 'BLOG_EOF'
-      {{use.intro}}
+    exec:
+      command: |
+        cat > /tmp/blog-post.md << 'BLOG_EOF'
+        {{use.intro}}
 
-      {{use.body}}
+        {{use.body}}
 
-      {{use.conclusion}}
+        {{use.conclusion}}
 
-      ---
-      *Generated with [Nika](https://github.com/supernovae-st/nika)*
-      BLOG_EOF
+        ---
+        *Generated with [Nika](https://github.com/supernovae-st/nika)*
+        BLOG_EOF
 
-      echo "✅ Blog post saved to /tmp/blog-post.md"
-      wc -w /tmp/blog-post.md | awk '{print "📝 Word count: " $1}'
+        echo "✅ Blog post saved to /tmp/blog-post.md"
+        wc -w /tmp/blog-post.md | awk '{print "📝 Word count: " $1}'
+      shell: true
 
 flows:
   - source: get_topic

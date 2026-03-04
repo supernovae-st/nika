@@ -10,7 +10,7 @@
 #       prefix: seo_
 # ============================================================================
 
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.10"
 workflow: seo-tasks-lib
 description: "Reusable SEO analysis and optimization tasks"
 

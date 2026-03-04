@@ -10,7 +10,7 @@
 # These tools are available to agents when registered via:
 #   let router = BuiltinToolRouter::with_file_tools(ctx);
 
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.10"
 workflow: builtin-file-tools-demo
 description: "Demo of nika:read, nika:write, nika:edit, nika:glob, nika:grep"
 provider: claude

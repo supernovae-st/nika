@@ -1,6 +1,6 @@
 # Test: infer: verb - All variants
 # Tests: shorthand, full form, temperature, system prompt, max_tokens
-schema: nika/workflow@0.9
+schema: nika/workflow@0.10
 workflow: test-infer-verb
 
 tasks:

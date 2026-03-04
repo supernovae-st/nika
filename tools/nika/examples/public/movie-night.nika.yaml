@@ -9,7 +9,7 @@
 # Pattern: Conditional branching (mood → genre mapping → recommendations)
 # Showcases: Context assembly, creative generation, personalization
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: movie-night
 description: "AI-powered movie recommendations for the perfect night in"
 provider: claude
@@ -17,16 +17,24 @@ provider: claude
 tasks:
   # Step 1: Get preferences
   - id: get_mood
-    exec: "echo \"${MOOD:-random}\""
+    exec:
+      command: "echo \"${MOOD:-random}\""
+      shell: true
 
   - id: get_viewers
-    exec: "echo \"${VIEWERS:-1}\""
+    exec:
+      command: "echo \"${VIEWERS:-1}\""
+      shell: true
 
   - id: get_decade
-    exec: "echo \"${DECADE:-any}\""
+    exec:
+      command: "echo \"${DECADE:-any}\""
+      shell: true
 
   - id: get_avoid
-    exec: "echo \"${AVOID:-none}\""
+    exec:
+      command: "echo \"${AVOID:-none}\""
+      shell: true
 
   # Step 2: Map mood to genres
   - id: map_mood
@@ -144,11 +152,13 @@ tasks:
   - id: display
     use:
       recommendation: present
-    exec: |
-      echo "{{use.recommendation}}"
-      echo ""
-      echo "---"
-      echo "🎬 Run again with different mood: MOOD=\"thrilling\" nika movie-night.nika.yaml"
+    exec:
+      command: |
+        echo "{{use.recommendation}}"
+        echo ""
+        echo "---"
+        echo "🎬 Run again with different mood: MOOD=\"thrilling\" nika movie-night.nika.yaml"
+      shell: true
 
 flows:
   - source: get_mood

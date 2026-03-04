@@ -7,7 +7,7 @@
 # - Checkpoints enable resume from last successful step
 #
 # Use case: E-commerce order processing with inventory, payment, shipping
-schema: nika/workflow@0.7
+schema: nika/workflow@0.10
 
 workflow: saga-order-processing
 description: |

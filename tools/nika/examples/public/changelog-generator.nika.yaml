@@ -8,7 +8,7 @@
 #   - ANTHROPIC_API_KEY or OPENAI_API_KEY
 #   - Git repository with conventional commits
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: changelog-generator
 description: "Generate CHANGELOG.md entries from git history"
 provider: claude
@@ -16,22 +16,28 @@ provider: claude
 tasks:
   # Step 1: Get version
   - id: get_version
-    exec: "echo \"${VERSION:-$(git describe --tags --abbrev=0 2>/dev/null || echo 'Unreleased')}\""
+    exec:
+      command: "echo \"${VERSION:-$(git describe --tags --abbrev=0 2>/dev/null || echo 'Unreleased')}\""
+      shell: true
 
   # Step 2: Get commits since last tag
   - id: get_commits
-    exec: |
-      LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-      if [ -n "$LAST_TAG" ]; then
-        git log "$LAST_TAG"..HEAD --pretty=format:"%h %s" --no-merges
-      else
-        git log --pretty=format:"%h %s" --no-merges -50
-      fi
+    exec:
+      command: |
+        LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        if [ -n "$LAST_TAG" ]; then
+          git log "$LAST_TAG"..HEAD --pretty=format:"%h %s" --no-merges
+        else
+          git log --pretty=format:"%h %s" --no-merges -50
+        fi
+      shell: true
 
   # Step 3: Get PR numbers if available
   - id: get_prs
-    exec: |
-      git log --oneline -50 | grep -oE '#[0-9]+' | sort -u || echo "No PRs found"
+    exec:
+      command: |
+        git log --oneline -50 | grep -oE '#[0-9]+' | sort -u || echo "No PRs found"
+      shell: true
 
   # Step 4: Categorize commits
   - id: categorize
@@ -108,13 +114,15 @@ tasks:
     use:
       entry: generate_entry
       version: get_version
-    exec: |
-      echo "=== CHANGELOG ENTRY FOR {{use.version}} ==="
-      echo ""
-      echo "{{use.entry}}"
-      echo ""
-      echo "---"
-      echo "To add to CHANGELOG.md, insert after the '## [Unreleased]' section"
+    exec:
+      command: |
+        echo "=== CHANGELOG ENTRY FOR {{use.version}} ==="
+        echo ""
+        echo "{{use.entry}}"
+        echo ""
+        echo "---"
+        echo "To add to CHANGELOG.md, insert after the '## [Unreleased]' section"
+      shell: true
 
 flows:
   - source: get_version

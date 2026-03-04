@@ -8,7 +8,7 @@
 # Pattern: Parallel fan-out (3 variations) → selection
 # Showcases: for_each parallelism, creative generation, humor
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: meme-generator
 description: "Generate hilarious meme captions"
 provider: claude
@@ -16,11 +16,15 @@ provider: claude
 tasks:
   # Step 1: Get topic
   - id: get_topic
-    exec: "echo \"${TOPIC:-Monday mornings}\""
+    exec:
+      command: "echo \"${TOPIC:-Monday mornings}\""
+      shell: true
 
   # Step 2: Get style preference
   - id: get_style
-    exec: "echo \"${STYLE:-absurdist}\""
+    exec:
+      command: "echo \"${STYLE:-absurdist}\""
+      shell: true
 
   # Step 3: Generate 3 meme variations in parallel
   - id: generate_memes
@@ -87,16 +91,18 @@ tasks:
     use:
       meme: pick_best
       topic: get_topic
-    exec: |
-      echo "🎭 MEME GENERATED 🎭"
-      echo ""
-      echo "Topic: {{use.topic}}"
-      echo ""
-      echo '{{use.meme}}' | jq -r '"📝 " + .full_caption'
-      echo ""
-      echo '{{use.meme}}' | jq -r '"😂 Why it slaps: " + .why_its_funny'
-      echo ""
-      echo '{{use.meme}}' | jq -r '"🔥 Virality score: " + (.virality_score|tostring) + "/10"'
+    exec:
+      command: |
+        echo "🎭 MEME GENERATED 🎭"
+        echo ""
+        echo "Topic: {{use.topic}}"
+        echo ""
+        echo '{{use.meme}}' | jq -r '"📝 " + .full_caption'
+        echo ""
+        echo '{{use.meme}}' | jq -r '"😂 Why it slaps: " + .why_its_funny'
+        echo ""
+        echo '{{use.meme}}' | jq -r '"🔥 Virality score: " + (.virality_score|tostring) + "/10"'
+      shell: true
 
 flows:
   - source: get_topic

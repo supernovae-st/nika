@@ -2,7 +2,7 @@
 # Tests the new shell-free execution mode with shlex parsing
 # Run with: nika examples/v15-secure-exec.nika.yaml
 
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.10"
 provider: mock
 
 tasks:

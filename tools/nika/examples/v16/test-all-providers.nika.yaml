@@ -1,7 +1,7 @@
 # Test: All 7 LLM providers
 # Tests: Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini
 # NOTE: Requires respective API keys to be set
-schema: nika/workflow@0.9
+schema: nika/workflow@0.10
 workflow: test-all-providers
 
 tasks:

@@ -2,7 +2,7 @@
 # Tests the new Gemini provider integration via rig-core
 # Run with: GEMINI_API_KEY=... nika examples/v15-gemini-provider.nika.yaml
 
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.10"
 provider: gemini
 
 tasks:

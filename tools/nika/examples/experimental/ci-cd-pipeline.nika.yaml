@@ -8,7 +8,7 @@
 # - Rollback on failure
 #
 # v0.14 features: for_each, stop_conditions, output validation
-schema: nika/workflow@0.7
+schema: nika/workflow@0.10
 
 workflow: ci-cd-pipeline
 description: |

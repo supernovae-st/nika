@@ -9,7 +9,7 @@
 # Showcases: fetch: verb, parallel data fetching, stats visualization
 # Note: Uses GitHub public API (no auth needed for public profiles)
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: github-stats
 description: "Generate GitHub profile stats card"
 provider: claude
@@ -17,7 +17,9 @@ provider: claude
 tasks:
   # Step 1: Get username
   - id: get_username
-    exec: "echo \"${USERNAME:-octocat}\""
+    exec:
+      command: "echo \"${USERNAME:-octocat}\""
+      shell: true
 
   # Step 2: Fetch user profile
   - id: fetch_profile
@@ -125,10 +127,12 @@ tasks:
     use:
       card: generate_card
       stats: analyze_stats
-    exec: |
-      echo "{{use.card}}"
-      echo ""
-      echo '{{use.stats}}' | jq -r '"🔗 Profile: https://github.com/" + .username'
+    exec:
+      command: |
+        echo "{{use.card}}"
+        echo ""
+        echo '{{use.stats}}' | jq -r '"🔗 Profile: https://github.com/" + .username'
+      shell: true
 
 flows:
   - source: get_username

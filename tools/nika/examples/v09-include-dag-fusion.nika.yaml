@@ -14,7 +14,7 @@
 # Run with: cargo run -- run examples/v09-include-dag-fusion.nika.yaml
 # ============================================================================
 
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.10"
 workflow: content-with-seo
 description: "Content generation with included SEO tasks"
 

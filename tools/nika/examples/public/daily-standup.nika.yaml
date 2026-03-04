@@ -9,7 +9,7 @@
 #   - LINEAR_API_KEY (optional, for issue context)
 #   - Git repository
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: daily-standup
 description: "Generate daily standup from git and task activity"
 provider: claude
@@ -24,16 +24,20 @@ mcp:
 tasks:
   # Step 1: Get yesterday's commits
   - id: get_commits
-    exec: |
-      echo "=== Commits (last 24h) ==="
-      git log --since="24 hours ago" --author="$(git config user.email)" --pretty=format:"%h %s" --no-merges 2>/dev/null || echo "No commits"
+    exec:
+      command: |
+        echo "=== Commits (last 24h) ==="
+        git log --since="24 hours ago" --author="$(git config user.email)" --pretty=format:"%h %s" --no-merges 2>/dev/null || echo "No commits"
+      shell: true
 
   # Step 2: Get current branch work
   - id: get_branch
-    exec: |
-      echo "Branch: $(git branch --show-current)"
-      echo "Status:"
-      git status --short 2>/dev/null | head -10
+    exec:
+      command: |
+        echo "Branch: $(git branch --show-current)"
+        echo "Status:"
+        git status --short 2>/dev/null | head -10
+      shell: true
 
   # Step 3: Get Linear issues (if available)
   - id: get_issues
@@ -84,11 +88,13 @@ tasks:
   - id: output
     use:
       standup: generate_standup
-    exec: |
-      echo "{{use.standup}}"
-      echo ""
-      echo "---"
-      echo "📋 Ready to paste in Slack/Linear/Discord"
+    exec:
+      command: |
+        echo "{{use.standup}}"
+        echo ""
+        echo "---"
+        echo "📋 Ready to paste in Slack/Linear/Discord"
+      shell: true
 
 flows:
   - source: get_commits

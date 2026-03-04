@@ -1,6 +1,6 @@
 # Test: Builtin tools - All 11 nika:* tools
 # Tests: Core (6) + File (5) tools
-schema: nika/workflow@0.9
+schema: nika/workflow@0.10
 workflow: test-builtin-tools
 
 tasks:

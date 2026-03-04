@@ -8,7 +8,7 @@
 #   - ANTHROPIC_API_KEY or OPENAI_API_KEY
 #   - Run from project root
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: readme-generator
 description: "Generate README.md from codebase structure"
 provider: claude
@@ -16,49 +16,57 @@ provider: claude
 tasks:
   # Step 1: Analyze project structure
   - id: get_structure
-    exec: |
-      echo "=== Project Structure ==="
-      find . -type f -name "*.json" -o -name "*.toml" -o -name "*.yaml" | grep -E "(package|Cargo|pyproject)" | head -5
-      echo ""
-      echo "=== Directory Tree ==="
-      find . -type d -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/target/*" | head -20
+    exec:
+      command: |
+        echo "=== Project Structure ==="
+        find . -type f -name "*.json" -o -name "*.toml" -o -name "*.yaml" | grep -E "(package|Cargo|pyproject)" | head -5
+        echo ""
+        echo "=== Directory Tree ==="
+        find . -type d -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/target/*" | head -20
+      shell: true
 
   # Step 2: Get package info
   - id: get_package
-    exec: |
-      if [ -f "package.json" ]; then
-        cat package.json | head -30
-      elif [ -f "Cargo.toml" ]; then
-        cat Cargo.toml | head -30
-      elif [ -f "pyproject.toml" ]; then
-        cat pyproject.toml | head -30
-      else
-        echo "No package file found"
-      fi
+    exec:
+      command: |
+        if [ -f "package.json" ]; then
+          cat package.json | head -30
+        elif [ -f "Cargo.toml" ]; then
+          cat Cargo.toml | head -30
+        elif [ -f "pyproject.toml" ]; then
+          cat pyproject.toml | head -30
+        else
+          echo "No package file found"
+        fi
+      shell: true
 
   # Step 3: Get existing docs
   - id: get_docs
-    exec: |
-      if [ -f "README.md" ]; then
-        echo "=== Existing README (first 50 lines) ==="
-        head -50 README.md
-      fi
-      if [ -d "docs" ]; then
-        echo "=== Docs directory ==="
-        ls -la docs/ 2>/dev/null | head -10
-      fi
+    exec:
+      command: |
+        if [ -f "README.md" ]; then
+          echo "=== Existing README (first 50 lines) ==="
+          head -50 README.md
+        fi
+        if [ -d "docs" ]; then
+          echo "=== Docs directory ==="
+          ls -la docs/ 2>/dev/null | head -10
+        fi
+      shell: true
 
   # Step 4: Detect tech stack
   - id: detect_stack
-    exec: |
-      echo "=== Tech Stack Detection ==="
-      [ -f "package.json" ] && echo "- Node.js/JavaScript"
-      [ -f "Cargo.toml" ] && echo "- Rust"
-      [ -f "pyproject.toml" ] && echo "- Python"
-      [ -f "go.mod" ] && echo "- Go"
-      [ -f "tsconfig.json" ] && echo "- TypeScript"
-      [ -f "docker-compose.yml" ] && echo "- Docker"
-      [ -f ".github/workflows" ] && echo "- GitHub Actions"
+    exec:
+      command: |
+        echo "=== Tech Stack Detection ==="
+        [ -f "package.json" ] && echo "- Node.js/JavaScript"
+        [ -f "Cargo.toml" ] && echo "- Rust"
+        [ -f "pyproject.toml" ] && echo "- Python"
+        [ -f "go.mod" ] && echo "- Go"
+        [ -f "tsconfig.json" ] && echo "- TypeScript"
+        [ -f "docker-compose.yml" ] && echo "- Docker"
+        [ -f ".github/workflows" ] && echo "- GitHub Actions"
+      shell: true
 
   # Step 5: Generate README
   - id: generate_readme
@@ -132,12 +140,14 @@ tasks:
   - id: save
     use:
       readme: generate_readme
-    exec: |
-      echo "{{use.readme}}" > /tmp/README-generated.md
-      echo "✅ README generated at /tmp/README-generated.md"
-      echo ""
-      echo "Preview (first 30 lines):"
-      head -30 /tmp/README-generated.md
+    exec:
+      command: |
+        echo "{{use.readme}}" > /tmp/README-generated.md
+        echo "✅ README generated at /tmp/README-generated.md"
+        echo ""
+        echo "Preview (first 30 lines):"
+        head -30 /tmp/README-generated.md
+      shell: true
 
 flows:
   - source: get_structure

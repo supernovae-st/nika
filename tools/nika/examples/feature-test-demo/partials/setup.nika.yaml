@@ -5,7 +5,7 @@
 # v0.15.0: All exec tasks use shell: true since they rely on shell features
 # (tilde expansion, command substitution, environment variables)
 
-schema: nika/workflow@0.9
+schema: nika/workflow@0.10
 workflow: setup-partial
 description: Setup tasks for feature-test-demo (included partial)
 

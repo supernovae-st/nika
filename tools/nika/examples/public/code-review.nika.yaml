@@ -8,7 +8,7 @@
 #   - ANTHROPIC_API_KEY or OPENAI_API_KEY
 #   - Git repository with staged changes
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: code-review
 description: "AI-powered code review with actionable suggestions"
 provider: claude
@@ -130,11 +130,13 @@ tasks:
   - id: output
     use:
       summary: generate_summary
-    exec: |
-      echo "{{use.summary}}"
-      echo ""
-      echo "---"
-      echo "Review complete. Copy the above to your PR."
+    exec:
+      command: |
+        echo "{{use.summary}}"
+        echo ""
+        echo "---"
+        echo "Review complete. Copy the above to your PR."
+      shell: true
 
 flows:
   - source: get_diff

@@ -8,7 +8,7 @@
 # Pattern: Fan-out DAG (parallel analysis → merge)
 # Showcases: Parallel tasks, creative generation, structured output
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: recipe-wizard
 description: "Generate a recipe from ingredients in your fridge"
 provider: claude
@@ -16,11 +16,15 @@ provider: claude
 tasks:
   # Step 1: Get ingredients
   - id: get_ingredients
-    exec: "echo \"${INGREDIENTS:-eggs, cheese, bread, butter, tomatoes}\""
+    exec:
+      command: "echo \"${INGREDIENTS:-eggs, cheese, bread, butter, tomatoes}\""
+      shell: true
 
   # Step 2: Get dietary preferences
   - id: get_diet
-    exec: "echo \"${DIET:-none}\""
+    exec:
+      command: "echo \"${DIET:-none}\""
+      shell: true
 
   # Step 3: Analyze ingredients (parallel with cuisine matching)
   - id: analyze_ingredients
@@ -149,11 +153,13 @@ tasks:
   - id: save
     use:
       recipe: full_recipe
-    exec: |
-      echo "{{use.recipe}}"
-      echo ""
-      echo "{{use.recipe}}" > /tmp/recipe.md
-      echo "📄 Recipe saved to /tmp/recipe.md"
+    exec:
+      command: |
+        echo "{{use.recipe}}"
+        echo ""
+        echo "{{use.recipe}}" > /tmp/recipe.md
+        echo "📄 Recipe saved to /tmp/recipe.md"
+      shell: true
 
 flows:
   - source: get_ingredients

@@ -7,7 +7,7 @@
 # Pattern: Linear DAG (A → B → C → D)
 # Showcases: fetch: verb, data transformation, creative generation
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: weather-outfit
 description: "Get weather and suggest perfect outfit for the day"
 provider: claude
@@ -15,7 +15,9 @@ provider: claude
 tasks:
   # Step 1: Get city from env or default
   - id: get_city
-    exec: "echo \"${CITY:-Paris}\""
+    exec:
+      command: "echo \"${CITY:-Paris}\""
+      shell: true
 
   # Step 2: Fetch weather data (using wttr.in - no API key needed!)
   - id: fetch_weather
@@ -102,11 +104,13 @@ tasks:
     use:
       outfit: suggest_outfit
       weather: parse_weather
-    exec: |
-      echo "{{use.outfit}}"
-      echo ""
-      echo "---"
-      echo "🌡️ Current: {{use.weather.temperature_c}}°C | {{use.weather.condition}}"
+    exec:
+      command: |
+        echo "{{use.outfit}}"
+        echo ""
+        echo "---"
+        echo "🌡️ Current: {{use.weather.temperature_c}}°C | {{use.weather.condition}}"
+      shell: true
 
 flows:
   - source: get_city

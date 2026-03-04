@@ -8,7 +8,7 @@
 #   - ANTHROPIC_API_KEY or OPENAI_API_KEY
 #   - Git repository with staged changes
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: pr-description
 description: "Generate PR description from git diff and commit history"
 provider: claude
@@ -66,10 +66,12 @@ tasks:
   - id: save_output
     use:
       pr: generate_pr
-    exec: |
-      echo "{{use.pr}}" | pbcopy 2>/dev/null || echo "{{use.pr}}" > /tmp/pr-description.md
-      echo "✅ PR description generated!"
-      echo "📋 Copied to clipboard (or saved to /tmp/pr-description.md)"
+    exec:
+      command: |
+        echo "{{use.pr}}" | pbcopy 2>/dev/null || echo "{{use.pr}}" > /tmp/pr-description.md
+        echo "✅ PR description generated!"
+        echo "📋 Copied to clipboard (or saved to /tmp/pr-description.md)"
+      shell: true
 
 flows:
   - source: get_diff

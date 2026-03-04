@@ -15,7 +15,7 @@
 # Run with: cargo run -- check examples/v06-multi-provider.nika.yaml
 # ============================================================================
 
-schema: "nika/workflow@0.6"
+schema: "nika/workflow@0.10"
 workflow: multi-provider-demo
 description: "Demonstrate multi-provider support"
 

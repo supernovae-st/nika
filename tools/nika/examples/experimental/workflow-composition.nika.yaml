@@ -7,7 +7,7 @@
 # - Scoped bindings between parent/child workflows
 #
 # This example shows a content generation system built from reusable workflows
-schema: nika/workflow@0.7
+schema: nika/workflow@0.10
 
 workflow: content-generation-orchestrator
 description: |

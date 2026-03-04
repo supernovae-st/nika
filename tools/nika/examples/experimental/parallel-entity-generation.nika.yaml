@@ -8,7 +8,7 @@
 # - Result aggregation patterns
 #
 # Use case: Generate content for all entities across all locales
-schema: nika/workflow@0.7
+schema: nika/workflow@0.10
 
 workflow: parallel-entity-generator
 description: |

@@ -8,7 +8,7 @@
 # Pattern: Generation → Validation → Formatting
 # Showcases: Structured JSON output, quiz format, parallel generation
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: trivia-quiz
 description: "Generate custom trivia quizzes"
 provider: claude
@@ -16,13 +16,19 @@ provider: claude
 tasks:
   # Step 1: Get parameters
   - id: get_topic
-    exec: "echo \"${TOPIC:-general knowledge}\""
+    exec:
+      command: "echo \"${TOPIC:-general knowledge}\""
+      shell: true
 
   - id: get_difficulty
-    exec: "echo \"${DIFFICULTY:-medium}\""
+    exec:
+      command: "echo \"${DIFFICULTY:-medium}\""
+      shell: true
 
   - id: get_count
-    exec: "echo \"${QUESTIONS:-5}\""
+    exec:
+      command: "echo \"${QUESTIONS:-5}\""
+      shell: true
 
   # Step 2: Generate questions in parallel batches
   - id: generate_questions
@@ -154,11 +160,13 @@ tasks:
     use:
       quiz: format_quiz
       topic: get_topic
-    exec: |
-      echo "{{use.quiz}}"
-      echo ""
-      echo "---"
-      echo "🎯 Generate another: TOPIC=\"history\" DIFFICULTY=\"hard\" nika trivia-quiz.nika.yaml"
+    exec:
+      command: |
+        echo "{{use.quiz}}"
+        echo ""
+        echo "---"
+        echo "🎯 Generate another: TOPIC=\"history\" DIFFICULTY=\"hard\" nika trivia-quiz.nika.yaml"
+      shell: true
 
 flows:
   - source: get_topic

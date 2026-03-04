@@ -7,7 +7,7 @@
 # Pattern: Agent loop with spawn_agent
 # Showcases: agent: verb, spawn_agent tool, multi-turn creative generation
 
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.10"
 workflow: story-collab
 description: "Multi-agent collaborative story creation"
 provider: claude
@@ -15,10 +15,14 @@ provider: claude
 tasks:
   # Step 1: Get story parameters
   - id: get_genre
-    exec: "echo \"${GENRE:-fantasy}\""
+    exec:
+      command: "echo \"${GENRE:-fantasy}\""
+      shell: true
 
   - id: get_setting
-    exec: "echo \"${SETTING:-enchanted forest}\""
+    exec:
+      command: "echo \"${SETTING:-enchanted forest}\""
+      shell: true
 
   # Step 2: Create story outline with main agent
   - id: story_master
@@ -143,42 +147,44 @@ tasks:
       act1: weave_act1
       act2: twist_agent
       act3: climax
-    exec: |
-      cat > /tmp/story.md << 'STORY_EOF'
-      # {{use.genre}} Story in {{use.setting}}
+    exec:
+      command: |
+        cat > /tmp/story.md << 'STORY_EOF'
+        # {{use.genre}} Story in {{use.setting}}
 
-      ---
+        ---
 
-      ## Story Bible
-      {{use.bible}}
+        ## Story Bible
+        {{use.bible}}
 
-      ---
+        ---
 
-      ## Act 1: The Setup
-      {{use.act1}}
+        ## Act 1: The Setup
+        {{use.act1}}
 
-      ---
+        ---
 
-      ## Act 2: The Twist
-      {{use.act2}}
+        ## Act 2: The Twist
+        {{use.act2}}
 
-      ---
+        ---
 
-      ## Act 3: The Climax
-      {{use.act3}}
+        ## Act 3: The Climax
+        {{use.act3}}
 
-      ---
+        ---
 
-      *Generated collaboratively by multiple AI agents 🤖✨*
-      STORY_EOF
+        *Generated collaboratively by multiple AI agents 🤖✨*
+        STORY_EOF
 
-      echo "📚 Story generated!"
-      echo ""
-      head -50 /tmp/story.md
-      echo ""
-      echo "..."
-      echo "📄 Full story saved to /tmp/story.md"
-      wc -w /tmp/story.md | awk '{print "📊 Word count: " $1}'
+        echo "📚 Story generated!"
+        echo ""
+        head -50 /tmp/story.md
+        echo ""
+        echo "..."
+        echo "📄 Full story saved to /tmp/story.md"
+        wc -w /tmp/story.md | awk '{print "📊 Word count: " $1}'
+      shell: true
 
 flows:
   - source: get_genre

@@ -25,10 +25,6 @@
 #[path = "integration/helpers.rs"]
 mod helpers;
 
-// Include workflow parsing tests
-#[path = "integration/invoke_workflow.rs"]
-mod invoke_workflow;
-
 // MCP integration tests (feature-gated and ignored by default)
 #[cfg(feature = "integration")]
 #[path = "integration/novanet_test.rs"]

@@ -1,6 +1,6 @@
 # Test: context: - File loading
 # Tests: context.files loading markdown and json
-schema: nika/workflow@0.9
+schema: nika/workflow@0.10
 workflow: test-context-loading
 
 # Context file loading (v0.14.3)

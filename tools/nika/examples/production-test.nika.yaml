@@ -3,7 +3,7 @@
 # Tests real OpenAI integration with Nika v0.5.
 # Run with: cargo run -- run examples/production-test.nika.yaml
 #
-schema: "nika/workflow@0.4"
+schema: "nika/workflow@0.10"
 provider: openai
 
 tasks:

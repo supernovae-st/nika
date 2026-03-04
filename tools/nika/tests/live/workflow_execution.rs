@@ -179,9 +179,10 @@ fn test_all_example_workflows_parse() {
     }
 
     // Allow some failures (e.g., test files with intentional errors)
+    // Note: After v0.19.1 cleanup, we have ~27 example workflows in root directory
     assert!(
-        parsed > 50,
-        "Expected at least 50 parseable workflows, got {}",
+        parsed >= 20,
+        "Expected at least 20 parseable workflows, got {}",
         parsed
     );
 }
