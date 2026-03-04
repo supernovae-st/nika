@@ -303,7 +303,7 @@ impl HomeView {
             TreeAction::First => {
                 // Jump to first entry
                 if max > 0 {
-                    self.tree_state.select_index(0);
+                    self.tree_state.set_selection_index(Some(0));
                     if let Some(&idx) = self.filtered_indices.first() {
                         self.standalone.browser_index = idx;
                         self.standalone.update_preview();
@@ -314,7 +314,7 @@ impl HomeView {
             TreeAction::Last => {
                 // Jump to last entry
                 if max > 0 {
-                    self.tree_state.select_index(max - 1);
+                    self.tree_state.set_selection_index(Some(max - 1));
                     if let Some(&idx) = self.filtered_indices.last() {
                         self.standalone.browser_index = idx;
                         self.standalone.update_preview();
@@ -326,7 +326,7 @@ impl HomeView {
                 // Move up 10 items
                 if let Some(selected) = self.tree_state.selection_index() {
                     let new_idx = selected.saturating_sub(10);
-                    self.tree_state.select_index(new_idx);
+                    self.tree_state.set_selection_index(Some(new_idx));
                     if let Some(&idx) = self.filtered_indices.get(new_idx) {
                         self.standalone.browser_index = idx;
                         self.standalone.update_preview();
@@ -338,7 +338,7 @@ impl HomeView {
                 // Move down 10 items
                 if let Some(selected) = self.tree_state.selection_index() {
                     let new_idx = (selected + 10).min(max.saturating_sub(1));
-                    self.tree_state.select_index(new_idx);
+                    self.tree_state.set_selection_index(Some(new_idx));
                     if let Some(&idx) = self.filtered_indices.get(new_idx) {
                         self.standalone.browser_index = idx;
                         self.standalone.update_preview();
