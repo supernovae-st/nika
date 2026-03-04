@@ -115,6 +115,18 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
             description: "Settings view",
             category: KeyCategory::ViewNav,
         });
+        bindings.push(Keybinding {
+            code: KeyCode::Char('7'),
+            modifiers: KeyModifiers::NONE,
+            description: "Split view",
+            category: KeyCategory::ViewNav,
+        });
+        bindings.push(Keybinding {
+            code: KeyCode::Char('8'),
+            modifiers: KeyModifiers::NONE,
+            description: "Workspace view",
+            category: KeyCategory::ViewNav,
+        });
     }
 
     // Panel navigation

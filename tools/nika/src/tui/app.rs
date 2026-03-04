@@ -1544,9 +1544,15 @@ impl App {
             KeyCode::Char('6') if !self.is_view_capturing_input() => {
                 return Action::SwitchView(TuiView::Settings);
             }
+            KeyCode::Char('7') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Split);
+            }
+            KeyCode::Char('8') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Workspace);
+            }
 
             // Tab/BackTab delegated to views for panel navigation (v0.8 UX)
-            // Use number keys 1-6 to switch views (v0.12 6-views architecture)
+            // Use number keys 1-8 to switch views (v0.20 7-views architecture)
             // Views handle Tab internally for panel focus cycling
             _ => {}
         }
