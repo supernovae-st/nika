@@ -14,7 +14,7 @@
 <sup>✨ Transform YAML into intelligent AI workflows ✨</sup>
 
 <!-- Primary Badges -->
-[![Version](https://img.shields.io/badge/v0.18.0-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.19.1-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
 [![Website](https://img.shields.io/badge/🦋_nika.sh-8b5cf6?style=for-the-badge)](https://nika.sh)
@@ -22,8 +22,8 @@
 <!-- GitHub Badges -->
 [![CI](https://img.shields.io/github/actions/workflow/status/supernovae-st/nika/ci.yml?style=flat-square&logo=github&label=CI)](https://github.com/supernovae-st/nika/actions)
 [![Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=flat-square&logo=github&label=Stars)](https://github.com/supernovae-st/nika/stargazers)
-[![Tests](https://img.shields.io/badge/tests-4,328_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
-[![LOC](https://img.shields.io/badge/LOC-106k-0ea5e9?style=flat-square&logo=codeclimate)](https://github.com/supernovae-st/nika)
+[![Tests](https://img.shields.io/badge/tests-3,562_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
+[![LOC](https://img.shields.io/badge/LOC-110k-0ea5e9?style=flat-square&logo=codeclimate)](https://github.com/supernovae-st/nika)
 
 <!-- Feature Badges -->
 [![Providers](https://img.shields.io/badge/🤖_LLM_providers-7-ec4899?style=flat-square)](#-providers)
@@ -68,7 +68,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 <!-- TUI Screenshot as ASCII Art -->
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  🦋 Nika Studio                                                v0.18.0  ⌘K  ?  │
+│  🦋 Nika Studio                                                v0.19.1  ⌘K  ?  │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
 │ ┌─ 📁 Files ───────────┐ ┌─ 📝 Editor ──────────────────────────────────────────┐  │
 │ │ ▸ workflows/         │ │  1 │ schema: "nika/workflow@0.9"                    │  │
@@ -97,25 +97,26 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 
 <br>
 
-## ✨ What's New in v0.18.0
+## ✨ What's New in v0.19.1
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  🦋 v0.18.0 — ARTIFACTS SYSTEM                                                ║
+║  🦋 v0.19.1 — STRUCTURED OUTPUT ENFORCEMENT                                   ║
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                               ║
-║  MILESTONES:                                                                  ║
-║  ├── M1 🔧 io::atomic    — Atomic writes with crash safety                   ║
-║  ├── M2 🔒 io::security  — Path validation, traversal prevention             ║
-║  ├── M3 📝 io::template  — Variable interpolation ({{task_id}}, etc.)        ║
-║  └── M4 ✨ io::writer    — ArtifactWriter combining all modules              ║
+║  FEATURES:                                                                    ║
+║  ├── 📋 JSON Schema   — Task-level output.schema validation                  ║
+║  ├── 🔄 Retry Loops   — Automatic retry on validation failure (max_retries)  ║
+║  ├── 💬 Error Feedback — Schema violations fed back to LLM for correction    ║
+║  └── 🧠 Extended Thinking — thinking_budget config for deeper reasoning      ║
 ║                                                                               ║
-║  SECURITY:                                                                    ║
-║  ├── Template injection prevention                                           ║
-║  ├── TOCTOU mitigation (double validation)                                   ║
-║  └── JSON format validation before write                                     ║
+║  V0.18 ARTIFACTS (also included):                                            ║
+║  ├── 📦 Atomic Writes  — Crash-safe file persistence                         ║
+║  ├── 📝 Templates      — {{task_id}}, {{date}}, {{uuid}} interpolation       ║
+║  ├── 🔀 Write Modes    — overwrite, append, unique, fail                     ║
+║  └── 📋 Manifests      — Auto-generated artifact tracking                    ║
 ║                                                                               ║
-║  STATS: 68 new tests | 4,328 total | Zero clippy warnings                    ║
+║  STATS: 3,562 tests | Zero clippy warnings | 110k LOC                        ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -124,39 +125,44 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 <tr>
 <td width="50%">
 
-### 📦 Artifact Writer
+### 📋 Structured Output Validation
 
-```rust
-let writer = ArtifactWriter::new(
-    "/project/.nika/artifacts",
-    "my-workflow"
-)?;
-
-let request = WriteRequest::new(
-    "generate_page",
-    "pages/{{task_id}}.json"
-)
-.with_content(r#"{"title": "Hello"}"#)
-.with_format(OutputFormat::Json);
-
-writer.write(request).await?;
+```yaml
+- id: generate_content
+  infer: "Generate product metadata"
+  output:
+    format: json
+    schema:
+      type: object
+      required: [title, description]
+      properties:
+        title:
+          type: string
+          maxLength: 60
+        description:
+          type: string
+          minLength: 100
+    max_retries: 3  # Auto-retry on failure
 ```
 
 </td>
 <td width="50%">
 
-### 🔒 Security Hardening
+### 📦 Artifact Persistence
 
-```
-Template Injection Prevention:
-├── Rejects /, \, \0, .., ~ in vars
-├── with_var() returns Result
-└── No path traversal via templates
+```yaml
+artifacts:
+  dir: ./output/{{date}}/{{workflow_name}}
+  format: json
+  manifest: true
 
-TOCTOU Mitigation:
-├── Initial validation
-├── Final canonicalize()
-└── Reduces race window
+tasks:
+  - id: process
+    artifact:
+      - path: data/{{task_id}}.json
+        mode: overwrite
+      - path: logs/audit.log
+        mode: append
 ```
 
 </td>
@@ -320,7 +326,7 @@ flowchart LR
 | **Chat-as-DAG** | ✅ Native | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Type Safety** | ✅ Rust | ❌ Python | ❌ Python | ❌ Python | ❌ Python |
 | **Streaming** | ✅ All 6 | ✅ Yes | ✅ Yes | 🟡 Partial | 🟡 Partial |
-| **Production Ready** | ✅ 3,449 tests | 🟡 Varies | 🟡 Varies | 🟡 New | 🔴 Needs guardrails |
+| **Production Ready** | ✅ 3,562 tests | 🟡 Varies | 🟡 Varies | 🟡 New | 🔴 Needs guardrails |
 
 </div>
 
@@ -1657,11 +1663,11 @@ flows:
 ```
 ╔═════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                 ║
-║                           🦋 NIKA v0.18.0 STATS                                 ║
+║                           🦋 NIKA v0.19.1 STATS                                 ║
 ║                                                                                 ║
 ╠═════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                 ║
-║   📊 Tests              │  4,328 passing                                        ║
+║   📊 Tests              │  3,562 passing                                        ║
 ║   📝 Lines of Code      │  110,000+ LOC                                         ║
 ║   🔧 Clippy Warnings    │  0 (zero!)                                            ║
 ║   🔮 LLM Providers      │  7 (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini) ║
@@ -1682,7 +1688,7 @@ flows:
 ### 📈 Test Distribution by Module
 
 ```mermaid
-pie title 📊 Test Distribution (4,328 tests)
+pie title 📊 Test Distribution (3,562 tests)
     "🖥️ TUI" : 1704
     "📁 IO" : 68
     "🔗 Binding" : 198
@@ -1795,7 +1801,8 @@ require('lspconfig').yamlls.setup {
 | 📋 [CHANGELOG.md](CHANGELOG.md) | Version history & release notes |
 | 🏗️ [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design & diagrams |
 | 🤖 [tools/nika/CLAUDE.md](tools/nika/CLAUDE.md) | AI context & codebase guide |
-| 📁 [examples/](tools/nika/examples/) | Sample workflows |
+| 📁 [examples/](tools/nika/examples/) | Sample workflows (100+ examples) |
+| 🎓 [examples/expert/](tools/nika/examples/expert/) | Advanced production patterns |
 | 📐 [schemas/](schemas/) | JSON Schema for IDE validation |
 
 <br>
@@ -2014,7 +2021,7 @@ cd nika
 # 🔨 Build
 cargo build
 
-# 🧪 Test (3,449 tests)
+# 🧪 Test (3,562 tests)
 cargo test
 
 # 🔍 Lint
