@@ -85,7 +85,7 @@ impl Span {
         self.file.is_dummy()
     }
 
-    /// Get the byte range as a Range<usize>.
+    /// Get the byte range as a `Range<usize>`.
     pub fn range(&self) -> Range<usize> {
         self.start.as_usize()..self.end.as_usize()
     }

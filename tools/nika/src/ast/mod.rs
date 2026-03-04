@@ -13,7 +13,7 @@
 //! # Modules
 //!
 //! ## New (v0.19 Foundation)
-//! - `raw`: Raw AST with Spanned<T> fields for precise error locations
+//! - `raw`: Raw AST with `Spanned<T>` fields for precise error locations
 //!
 //! ## Legacy (being migrated)
 //! - `workflow`: Workflow, Task, Flow, FlowEndpoint

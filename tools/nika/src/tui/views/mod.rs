@@ -183,12 +183,12 @@ impl ReasoningTab {
 /// Active view in the TUI - 6 views navigation (v0.20)
 ///
 /// v0.20 renames and reorders views:
-/// - Explorer → Browse (1, default) [b]
-/// - Studio → Editor (2) [e]
-/// - Monitor → Runner (3) [r]
-/// - Chat → Chat Playground (4) [c]
-/// - Scheduler (5) [s]
-/// - Settings (6) [,]
+/// - Explorer → Browse (1, default) `[b]`
+/// - Studio → Editor (2) `[e]`
+/// - Monitor → Runner (3) `[r]`
+/// - Chat → Chat Playground (4) `[c]`
+/// - Scheduler (5) `[s]`
+/// - Settings (6) `[,]`
 /// - Split (F9) - Editor + Runner side-by-side
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TuiView {
