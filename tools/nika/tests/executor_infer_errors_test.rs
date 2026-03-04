@@ -118,7 +118,7 @@ async fn test_infer_missing_api_key_panics() {
 
     // This will panic in rig-core when creating the Claude client
     let _ = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 }
 
@@ -164,7 +164,7 @@ async fn test_infer_template_resolution_failure() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Should fail with template error before even calling the provider
@@ -202,7 +202,7 @@ async fn test_infer_template_multiple_missing_aliases() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_err());
@@ -236,7 +236,7 @@ async fn test_infer_template_nested_path_failure() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_err());
@@ -270,7 +270,7 @@ async fn test_infer_template_null_value_error() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_err());
@@ -319,7 +319,7 @@ async fn test_infer_unknown_provider() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_err());
@@ -367,7 +367,7 @@ async fn test_infer_template_resolution_success() {
 
     // This should succeed if API key is valid
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // If we have a valid API key, this should succeed
@@ -410,7 +410,7 @@ async fn test_infer_template_invalid_traversal_on_string() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_err());
@@ -447,7 +447,7 @@ async fn test_infer_template_invalid_traversal_on_number() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_err());
@@ -490,7 +490,7 @@ async fn test_infer_empty_prompt() {
     // Empty prompt might succeed or fail depending on provider
     // We mainly want to ensure no panic
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Result can be Ok or Err - we just verify no panic
@@ -532,7 +532,7 @@ async fn test_infer_whitespace_in_template() {
     // This should fail at API call (if key invalid), not template resolution
     // The whitespace in template should be handled
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // If it fails, it should be at API level, not template parsing

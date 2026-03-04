@@ -38,7 +38,7 @@ async fn test_executor_invoke_nika_sleep() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
@@ -63,7 +63,7 @@ async fn test_executor_invoke_nika_log() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
@@ -89,7 +89,7 @@ async fn test_executor_invoke_nika_emit() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
@@ -112,7 +112,7 @@ async fn test_executor_invoke_nika_assert_true() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
@@ -133,7 +133,7 @@ async fn test_executor_invoke_nika_assert_false() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_err());
@@ -157,7 +157,7 @@ async fn test_executor_invoke_nika_prompt_with_default() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
@@ -176,7 +176,7 @@ async fn test_executor_invoke_nika_prompt_without_default_errors() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // In headless mode, prompt without default should error
@@ -199,7 +199,7 @@ async fn test_executor_invoke_nika_run_nonexistent_errors() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_err(), "Expected Err for non-existent workflow");
@@ -239,7 +239,7 @@ tasks:
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
@@ -257,7 +257,7 @@ async fn test_executor_invoke_nika_run_invalid_extension() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_err());
@@ -291,7 +291,7 @@ async fn test_executor_invoke_builtin_with_template_resolution() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
@@ -317,7 +317,7 @@ async fn test_executor_invoke_builtin_emits_events() {
     let datastore = DataStore::new();
 
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     assert!(result.is_ok());

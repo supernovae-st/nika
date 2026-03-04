@@ -17,6 +17,7 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument};
 
+use crate::ast::output::OutputPolicy;
 use crate::ast::{InferParams, OutputFormat, Task, TaskAction, Workflow};
 use crate::binding::ResolvedBindings;
 use crate::dag::{validate_use_wiring, Dag};
@@ -306,6 +307,7 @@ impl Runner {
         executor: &TaskExecutor,
         event_log: &EventLog,
         start: Instant,
+        output_policy: Option<&OutputPolicy>,
     ) -> TaskResult {
         let mut current_infer = original_infer;
         let mut attempts = 0u8;
@@ -318,9 +320,9 @@ impl Runner {
                 infer: current_infer.clone(),
             };
 
-            // Execute
+            // Execute (v0.19.4: pass output_policy for JSON schema injection)
             let result = executor
-                .execute(task_id, &action, bindings, datastore)
+                .execute(task_id, &action, bindings, datastore, output_policy)
                 .await;
             let duration = start.elapsed();
 
@@ -551,12 +553,19 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 &executor,
                 &event_log,
                 start,
+                task.output.as_ref(),
             )
             .await
         } else {
-            // Standard execution without retry
+            // Standard execution without retry (v0.19.4: pass output_policy for JSON schema injection)
             let result = executor
-                .execute(&task_id, &task.action, &bindings, &datastore)
+                .execute(
+                    &task_id,
+                    &task.action,
+                    &bindings,
+                    &datastore,
+                    task.output.as_ref(),
+                )
                 .await;
             let duration = start.elapsed();
 

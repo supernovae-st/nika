@@ -118,7 +118,7 @@ async fn test_fetch_invalid_url_returns_execution_error() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -148,7 +148,7 @@ async fn test_fetch_invalid_scheme_returns_error() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -181,7 +181,7 @@ async fn test_fetch_non_2xx_status_returns_body_not_error() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert - current behavior: returns body text regardless of status
@@ -212,7 +212,7 @@ async fn test_fetch_404_returns_body() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -235,7 +235,7 @@ async fn test_fetch_connection_refused_returns_error() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -265,7 +265,7 @@ async fn test_fetch_malformed_response_returns_error() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert - malformed HTTP response should cause a parse error
@@ -310,7 +310,7 @@ async fn test_fetch_timeout_with_delayed_server() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -344,7 +344,7 @@ async fn test_fetch_success_returns_body() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -367,7 +367,7 @@ async fn test_fetch_with_json_body() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -396,7 +396,7 @@ async fn test_fetch_empty_url_fails() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -428,7 +428,7 @@ async fn test_fetch_url_with_invalid_characters() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert - Malformed URLs should fail
@@ -458,7 +458,7 @@ async fn test_fetch_localhost_unreachable_fails() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -479,7 +479,7 @@ async fn test_fetch_dns_resolution_failure() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert

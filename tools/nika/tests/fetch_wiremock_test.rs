@@ -101,7 +101,7 @@ async fn test_fetch_get_with_wiremock() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -134,7 +134,7 @@ async fn test_fetch_get_plain_text() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -171,7 +171,7 @@ async fn test_fetch_post_with_body() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -203,7 +203,7 @@ async fn test_fetch_post_empty_body() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -237,7 +237,7 @@ async fn test_fetch_500_error_returns_body() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert - current behavior: returns body regardless of status code
@@ -270,7 +270,7 @@ async fn test_fetch_404_error_returns_body() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -305,7 +305,7 @@ async fn test_fetch_401_unauthorized() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -345,7 +345,7 @@ async fn test_fetch_with_authorization_header() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -381,7 +381,7 @@ async fn test_fetch_with_content_type_header() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -415,7 +415,7 @@ async fn test_fetch_put_method() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -446,7 +446,7 @@ async fn test_fetch_delete_method() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -476,7 +476,7 @@ async fn test_fetch_patch_method() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -510,7 +510,7 @@ async fn test_fetch_verifies_call_count() {
             fetch: fetch_params(&url, "GET", None),
         };
         let result = executor
-            .execute(&task_id, &action, &bindings, &datastore)
+            .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
         assert!(result.is_ok());
     }
@@ -549,7 +549,7 @@ async fn test_fetch_multiple_endpoints() {
         fetch: fetch_params(&url1, "GET", None),
     };
     let result1 = executor
-        .execute(&task_id1, &action1, &bindings, &datastore)
+        .execute(&task_id1, &action1, &bindings, &datastore, None)
         .await;
     assert!(result1.is_ok());
     assert!(result1.unwrap().contains("alice"));
@@ -561,7 +561,7 @@ async fn test_fetch_multiple_endpoints() {
         fetch: fetch_params(&url2, "GET", None),
     };
     let result2 = executor
-        .execute(&task_id2, &action2, &bindings, &datastore)
+        .execute(&task_id2, &action2, &bindings, &datastore, None)
         .await;
     assert!(result2.is_ok());
     assert!(result2.unwrap().contains("widget"));
@@ -604,7 +604,7 @@ async fn test_fetch_large_json_response() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert
@@ -647,7 +647,7 @@ async fn test_fetch_with_delay_succeeds() {
     // Act
     let start = std::time::Instant::now();
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
     let elapsed = start.elapsed();
 
@@ -681,7 +681,7 @@ async fn test_fetch_unmatched_path_returns_error() {
 
     // Act
     let result = executor
-        .execute(&task_id, &action, &bindings, &datastore)
+        .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
     // Assert - wiremock returns 404 for unmatched requests by default
