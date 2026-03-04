@@ -15,9 +15,10 @@ use super::errors::AnalyzeErrorKind;
 use super::errors::{AnalyzeError, AnalyzeResult};
 use super::suggestions::find_similar;
 use crate::ast::analyzed::{
-    AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedInferAction,
-    AnalyzedInvokeAction, AnalyzedOutput, AnalyzedTask, AnalyzedTaskAction, AnalyzedUseRef,
-    AnalyzedWorkflow, HttpMethod, OutputFormat, SchemaVersion, TaskId, TaskTable,
+    AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach,
+    AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedMcpServer, AnalyzedOutput, AnalyzedRetry,
+    AnalyzedTask, AnalyzedTaskAction, AnalyzedUseRef, AnalyzedWorkflow, HttpMethod, McpTransport,
+    OutputFormat, SchemaVersion, TaskId, TaskTable,
 };
 use crate::ast::raw::{
     RawAgentAction, RawExecAction, RawFetchAction, RawFlow, RawInferAction, RawInvokeAction,
@@ -95,13 +96,30 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         workflow.schema_version = version;
     }
 
-    // 2. Extract metadata
+    // 2. Validate version-gated features
+    validate_feature_gates(&raw, workflow.schema_version, &mut ctx);
+
+    // 3. Extract metadata
     workflow.name = raw.workflow.as_ref().map(|s| s.value.clone());
     workflow.description = raw.description.map(|s| s.value);
     workflow.provider = raw.provider.map(|s| s.value);
     workflow.model = raw.model.map(|s| s.value);
 
-    // 3. Build task table (first pass - collect all task IDs)
+    // 4. Analyze MCP server configurations
+    if let Some(ref mcp) = raw.mcp {
+        for (name_spanned, server_spanned) in &mcp.value.servers {
+            let analyzed_server = analyze_mcp_server(
+                &name_spanned.value,
+                &server_spanned.value,
+                server_spanned.span,
+            );
+            workflow
+                .mcp_servers
+                .insert(name_spanned.value.clone(), analyzed_server);
+        }
+    }
+
+    // 5. Build task table (first pass - collect all task IDs)
     for task in raw.tasks.value.iter() {
         let task_name = &task.value.id.value;
         let task_span = task.value.id.span;
@@ -168,6 +186,125 @@ fn analyze_schema(raw: &RawWorkflow, ctx: &mut AnalyzerContext) -> Option<Schema
     }
 }
 
+/// Validate version-gated features.
+///
+/// Checks that features used in the workflow are available in the declared schema version.
+fn validate_feature_gates(raw: &RawWorkflow, version: SchemaVersion, ctx: &mut AnalyzerContext) {
+    let version_str = version.as_str();
+
+    // Check MCP servers (v0.2+)
+    if let Some(ref mcp) = raw.mcp {
+        if !version.supports_mcp() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                mcp.span,
+                "mcp",
+                version_str,
+                "nika/workflow@0.2",
+            ));
+        }
+    }
+
+    // Check context files (v0.9+)
+    if let Some(ref context) = raw.context {
+        if !version.supports_context() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                context.span,
+                "context",
+                version_str,
+                "nika/workflow@0.9",
+            ));
+        }
+    }
+
+    // Check include (v0.9+)
+    if let Some(ref include) = raw.include {
+        if !version.supports_include() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                include.span,
+                "include",
+                version_str,
+                "nika/workflow@0.9",
+            ));
+        }
+    }
+
+    // Check inputs (v0.10+)
+    if let Some(ref inputs) = raw.inputs {
+        if !version.supports_inputs() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                inputs.span,
+                "inputs",
+                version_str,
+                "nika/workflow@0.10",
+            ));
+        }
+    }
+
+    // Check task-level features
+    for task in raw.tasks.value.iter() {
+        validate_task_feature_gates(&task.value, version, version_str, ctx);
+    }
+}
+
+/// Validate version-gated features in a task.
+fn validate_task_feature_gates(
+    task: &RawTask,
+    version: SchemaVersion,
+    version_str: &str,
+    ctx: &mut AnalyzerContext,
+) {
+    // Check for_each (v0.3+)
+    if let Some(ref for_each) = task.for_each {
+        if !version.supports_for_each() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                for_each.span,
+                "for_each",
+                version_str,
+                "nika/workflow@0.3",
+            ));
+        }
+    }
+
+    // Check retry (v0.3+)
+    if let Some(ref retry) = task.retry {
+        if !version.supports_retry() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                retry.span,
+                "retry",
+                version_str,
+                "nika/workflow@0.3",
+            ));
+        }
+    }
+
+    // Check invoke/agent verbs (v0.2+)
+    if let Some(ref action) = task.action {
+        match action {
+            RawTaskAction::Invoke(invoke) => {
+                if !version.supports_invoke_agent() {
+                    ctx.add_error(AnalyzeError::unsupported_feature(
+                        invoke.span,
+                        "invoke verb",
+                        version_str,
+                        "nika/workflow@0.2",
+                    ));
+                }
+            }
+            RawTaskAction::Agent(agent) => {
+                if !version.supports_invoke_agent() {
+                    ctx.add_error(AnalyzeError::unsupported_feature(
+                        agent.span,
+                        "agent verb",
+                        version_str,
+                        "nika/workflow@0.2",
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Analyze a single task.
 fn analyze_task(
     raw: &RawTask,
@@ -187,6 +324,11 @@ fn analyze_task(
         use_refs: IndexMap::new(),
         flow_deps: Vec::new(),
         output: None,
+        for_each: raw
+            .for_each
+            .as_ref()
+            .map(|f| analyze_for_each(&f.value, f.span)),
+        retry: raw.retry.as_ref().map(|r| analyze_retry(&r.value, r.span)),
         span: raw.span,
     };
 
@@ -392,6 +534,68 @@ fn analyze_output(
     }
 }
 
+/// Analyze MCP server configuration.
+fn analyze_mcp_server(
+    name: &str,
+    raw: &crate::ast::raw::RawMcpServer,
+    span: Span,
+) -> AnalyzedMcpServer {
+    let transport = if raw.is_sse() {
+        McpTransport::Sse
+    } else {
+        McpTransport::Stdio
+    };
+
+    AnalyzedMcpServer {
+        name: name.to_string(),
+        command: raw.command.as_ref().map(|s| s.value.clone()),
+        args: raw
+            .args
+            .as_ref()
+            .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
+            .unwrap_or_default(),
+        env: raw
+            .env
+            .as_ref()
+            .map(|s| {
+                s.value
+                    .iter()
+                    .map(|(k, v)| (k.value.clone(), v.value.clone()))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        cwd: raw.cwd.as_ref().map(|s| s.value.clone()),
+        url: raw.url.as_ref().map(|s| s.value.clone()),
+        transport,
+        span,
+    }
+}
+
+/// Analyze for_each iteration configuration.
+fn analyze_for_each(raw: &crate::ast::raw::RawForEach, span: Span) -> AnalyzedForEach {
+    AnalyzedForEach {
+        items: raw.items.value.clone(),
+        as_var: raw
+            .as_var
+            .as_ref()
+            .map(|s| s.value.clone())
+            .unwrap_or_else(|| "item".to_string()),
+        parallel: raw.parallel.as_ref().map(|s| s.value),
+        fail_fast: true, // Default to true (not yet configurable in raw)
+        span,
+    }
+}
+
+/// Analyze retry configuration.
+fn analyze_retry(raw: &crate::ast::raw::RawRetryConfig, span: Span) -> AnalyzedRetry {
+    AnalyzedRetry {
+        max_attempts: raw.max_attempts.as_ref().map(|s| s.value).unwrap_or(3),
+        delay_ms: raw.delay_ms.as_ref().map(|s| s.value).unwrap_or(1000),
+        backoff: raw.backoff.as_ref().map(|s| s.value),
+        span,
+    }
+}
+
 /// Detect cyclic dependencies using DFS.
 fn detect_cycles(workflow: &AnalyzedWorkflow, ctx: &mut AnalyzerContext) {
     let mut visited = HashSet::new();
@@ -594,5 +798,205 @@ mod tests {
             .errors
             .iter()
             .any(|e| e.kind == AnalyzeErrorKind::CyclicDependency));
+    }
+
+    // Feature gating tests
+
+    #[test]
+    fn test_feature_gate_for_each_v01_fails() {
+        use crate::ast::raw::RawForEach;
+
+        let mut task = make_raw_task("task1");
+        task.for_each = Some(Spanned::new(
+            RawForEach {
+                items: Spanned::new("[\"a\", \"b\"]".to_string(), make_span(0, 10)),
+                as_var: None,
+                parallel: None,
+            },
+            make_span(0, 50),
+        ));
+
+        // Using v0.1 which doesn't support for_each
+        let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+        assert!(result.errors[0].message.contains("for_each"));
+    }
+
+    #[test]
+    fn test_feature_gate_for_each_v03_succeeds() {
+        use crate::ast::raw::RawForEach;
+
+        let mut task = make_raw_task("task1");
+        task.for_each = Some(Spanned::new(
+            RawForEach {
+                items: Spanned::new("[\"a\", \"b\"]".to_string(), make_span(0, 10)),
+                as_var: None,
+                parallel: None,
+            },
+            make_span(0, 50),
+        ));
+
+        // Using v0.3 which supports for_each
+        let raw = make_raw_workflow("nika/workflow@0.3", vec![task]);
+        let result = analyze(raw);
+
+        // Should not have UnsupportedFeature errors
+        assert!(!result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+    }
+
+    #[test]
+    fn test_feature_gate_retry_v02_fails() {
+        use crate::ast::raw::RawRetryConfig;
+
+        let mut task = make_raw_task("task1");
+        task.retry = Some(Spanned::new(
+            RawRetryConfig {
+                max_attempts: Some(Spanned::new(3, make_span(0, 1))),
+                delay_ms: None,
+                backoff: None,
+            },
+            make_span(0, 30),
+        ));
+
+        // Using v0.2 which doesn't support retry
+        let raw = make_raw_workflow("nika/workflow@0.2", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+        assert!(result.errors[0].message.contains("retry"));
+    }
+
+    #[test]
+    fn test_feature_gate_invoke_v01_fails() {
+        use crate::ast::raw::RawInvokeAction;
+
+        let mut task = make_raw_task("task1");
+        task.action = Some(RawTaskAction::Invoke(Spanned::new(
+            RawInvokeAction {
+                tool: Spanned::new("novanet:search".to_string(), make_span(0, 14)),
+                mcp: None,
+                params: None,
+                timeout_ms: None,
+            },
+            make_span(0, 50),
+        )));
+
+        // Using v0.1 which doesn't support invoke
+        let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+        assert!(result.errors[0].message.contains("invoke"));
+    }
+
+    #[test]
+    fn test_feature_gate_agent_v01_fails() {
+        use crate::ast::raw::RawAgentAction;
+
+        let mut task = make_raw_task("task1");
+        task.action = Some(RawTaskAction::Agent(Spanned::new(
+            RawAgentAction {
+                goal: Spanned::new("Do something".to_string(), make_span(0, 12)),
+                tools: None,
+                max_iterations: None,
+                max_tokens: None,
+                from: None,
+                skills: None,
+            },
+            make_span(0, 50),
+        )));
+
+        // Using v0.1 which doesn't support agent
+        let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+        assert!(result.errors[0].message.contains("agent"));
+    }
+
+    #[test]
+    fn test_feature_gate_multiple_errors() {
+        use crate::ast::raw::{RawAgentAction, RawForEach};
+
+        let mut task = make_raw_task("task1");
+
+        // Add both for_each and agent action
+        task.for_each = Some(Spanned::new(
+            RawForEach {
+                items: Spanned::new("[\"a\"]".to_string(), make_span(0, 5)),
+                as_var: None,
+                parallel: None,
+            },
+            make_span(0, 30),
+        ));
+        task.action = Some(RawTaskAction::Agent(Spanned::new(
+            RawAgentAction {
+                goal: Spanned::new("Goal".to_string(), make_span(0, 4)),
+                tools: None,
+                max_iterations: None,
+                max_tokens: None,
+                from: None,
+                skills: None,
+            },
+            make_span(0, 50),
+        )));
+
+        // Using v0.1 which doesn't support either
+        let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
+        let result = analyze(raw);
+
+        // Should have multiple UnsupportedFeature errors
+        let feature_errors: Vec<_> = result
+            .errors
+            .iter()
+            .filter(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature)
+            .collect();
+        assert_eq!(feature_errors.len(), 2);
+    }
+
+    #[test]
+    fn test_feature_gate_error_message_format() {
+        use crate::ast::raw::RawForEach;
+
+        let mut task = make_raw_task("task1");
+        task.for_each = Some(Spanned::new(
+            RawForEach {
+                items: Spanned::new("[\"x\"]".to_string(), make_span(0, 5)),
+                as_var: None,
+                parallel: None,
+            },
+            make_span(0, 30),
+        ));
+
+        let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        let err = &result.errors[0];
+        assert!(err.message.contains("requires schema version"));
+        assert!(err.message.contains("nika/workflow@0.3"));
+        assert!(err.message.contains("nika/workflow@0.1"));
+        assert!(err.suggestion.as_ref().unwrap().contains("upgrade"));
     }
 }

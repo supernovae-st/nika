@@ -57,6 +57,7 @@ pub use settings::SettingsView;
 #[allow(unused_imports)]
 pub use split::{SplitFocus, SplitRatio, SplitView};
 // Workspace = NEW in v0.20 (Browser + Editor + DAG unified)
+#[allow(unused_imports)]
 pub use workspace::{WorkspaceFocus, WorkspaceRatio, WorkspaceView};
 
 // Internal re-exports (original struct names used internally)
@@ -267,7 +268,7 @@ impl TuiView {
             TuiView::Chat => TuiView::Scheduler,
             TuiView::Scheduler => TuiView::Settings,
             TuiView::Settings => TuiView::Browse,
-            TuiView::Split => TuiView::Editor,     // Split exits to Editor
+            TuiView::Split => TuiView::Editor, // Split exits to Editor
             TuiView::Workspace => TuiView::Browse, // Workspace exits to Browse
         }
     }
@@ -281,7 +282,7 @@ impl TuiView {
             TuiView::Chat => TuiView::Runner,
             TuiView::Scheduler => TuiView::Chat,
             TuiView::Settings => TuiView::Scheduler,
-            TuiView::Split => TuiView::Editor,     // Split exits to Editor
+            TuiView::Split => TuiView::Editor, // Split exits to Editor
             TuiView::Workspace => TuiView::Browse, // Workspace exits to Browse
         }
     }

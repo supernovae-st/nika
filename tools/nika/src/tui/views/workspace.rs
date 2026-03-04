@@ -180,6 +180,7 @@ impl WorkspaceView {
     }
 
     /// Create workspace with specific root directory
+    #[allow(dead_code)] // Public API for future use
     pub fn with_root(root: std::path::PathBuf) -> Self {
         Self {
             browser: HomeView::new(root),
@@ -393,7 +394,10 @@ mod tests {
             WorkspaceRatio::EditorFocus.next(),
             WorkspaceRatio::BrowserFocus
         );
-        assert_eq!(WorkspaceRatio::BrowserFocus.next(), WorkspaceRatio::DagFocus);
+        assert_eq!(
+            WorkspaceRatio::BrowserFocus.next(),
+            WorkspaceRatio::DagFocus
+        );
         assert_eq!(WorkspaceRatio::DagFocus.next(), WorkspaceRatio::Balanced);
     }
 
@@ -431,5 +435,193 @@ mod tests {
         assert_eq!(WorkspaceRatio::EditorFocus.label(), "Editor+");
         assert_eq!(WorkspaceRatio::BrowserFocus.label(), "Browser+");
         assert_eq!(WorkspaceRatio::DagFocus.label(), "DAG+");
+    }
+
+    // =========================================================================
+    // KEY HANDLER TESTS (C2 fix - comprehensive coverage)
+    // =========================================================================
+
+    #[test]
+    fn test_handle_key_f10_exits_workspace() {
+        let mut view = WorkspaceView::new();
+        view.exit_to = TuiView::Browse;
+        let mut state = TuiState::new("test.nika.yaml");
+
+        let key = KeyEvent::new(KeyCode::F(10), KeyModifiers::NONE);
+        let action = view.handle_key(key, &mut state);
+
+        assert!(matches!(action, ViewAction::SwitchView(TuiView::Browse)));
+    }
+
+    #[test]
+    fn test_handle_key_f10_exits_to_configured_view() {
+        let mut view = WorkspaceView::new();
+        view.exit_to = TuiView::Editor;
+        let mut state = TuiState::new("test.nika.yaml");
+
+        let key = KeyEvent::new(KeyCode::F(10), KeyModifiers::NONE);
+        let action = view.handle_key(key, &mut state);
+
+        assert!(matches!(action, ViewAction::SwitchView(TuiView::Editor)));
+    }
+
+    #[test]
+    fn test_handle_key_tab_cycles_focus_forward() {
+        let mut view = WorkspaceView::new();
+        let mut state = TuiState::new("test.nika.yaml");
+        assert_eq!(view.focus, WorkspaceFocus::Browser);
+
+        let key = KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE);
+
+        // Browser -> Editor
+        let action = view.handle_key(key, &mut state);
+        assert!(matches!(action, ViewAction::None));
+        assert_eq!(view.focus, WorkspaceFocus::Editor);
+
+        // Editor -> Dag
+        let action = view.handle_key(key, &mut state);
+        assert!(matches!(action, ViewAction::None));
+        assert_eq!(view.focus, WorkspaceFocus::Dag);
+
+        // Dag -> Browser (cycle)
+        let action = view.handle_key(key, &mut state);
+        assert!(matches!(action, ViewAction::None));
+        assert_eq!(view.focus, WorkspaceFocus::Browser);
+    }
+
+    #[test]
+    fn test_handle_key_backtab_cycles_focus_backward() {
+        let mut view = WorkspaceView::new();
+        let mut state = TuiState::new("test.nika.yaml");
+        assert_eq!(view.focus, WorkspaceFocus::Browser);
+
+        let key = KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT);
+
+        // Browser -> Dag (reverse)
+        let action = view.handle_key(key, &mut state);
+        assert!(matches!(action, ViewAction::None));
+        assert_eq!(view.focus, WorkspaceFocus::Dag);
+
+        // Dag -> Editor
+        let action = view.handle_key(key, &mut state);
+        assert!(matches!(action, ViewAction::None));
+        assert_eq!(view.focus, WorkspaceFocus::Editor);
+
+        // Editor -> Browser (cycle)
+        let action = view.handle_key(key, &mut state);
+        assert!(matches!(action, ViewAction::None));
+        assert_eq!(view.focus, WorkspaceFocus::Browser);
+    }
+
+    #[test]
+    fn test_handle_key_ctrl_bracket_cycles_ratio() {
+        let mut view = WorkspaceView::new();
+        let mut state = TuiState::new("test.nika.yaml");
+        assert_eq!(view.ratio, WorkspaceRatio::Balanced);
+
+        let key = KeyEvent::new(KeyCode::Char(']'), KeyModifiers::CONTROL);
+
+        // Balanced -> EditorFocus
+        let action = view.handle_key(key, &mut state);
+        assert!(matches!(action, ViewAction::None));
+        assert_eq!(view.ratio, WorkspaceRatio::EditorFocus);
+
+        // EditorFocus -> BrowserFocus
+        let action = view.handle_key(key, &mut state);
+        assert!(matches!(action, ViewAction::None));
+        assert_eq!(view.ratio, WorkspaceRatio::BrowserFocus);
+
+        // BrowserFocus -> DagFocus
+        let action = view.handle_key(key, &mut state);
+        assert!(matches!(action, ViewAction::None));
+        assert_eq!(view.ratio, WorkspaceRatio::DagFocus);
+
+        // DagFocus -> Balanced (cycle)
+        let action = view.handle_key(key, &mut state);
+        assert!(matches!(action, ViewAction::None));
+        assert_eq!(view.ratio, WorkspaceRatio::Balanced);
+    }
+
+    #[test]
+    fn test_handle_key_dag_panel_is_readonly() {
+        let mut view = WorkspaceView::new();
+        view.focus = WorkspaceFocus::Dag;
+        let mut state = TuiState::new("test.nika.yaml");
+
+        // Any key in DAG panel returns None
+        let keys = [
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+            KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
+            KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
+        ];
+
+        for key in keys {
+            let action = view.handle_key(key, &mut state);
+            assert!(
+                matches!(action, ViewAction::None),
+                "DAG panel should ignore key: {:?}",
+                key
+            );
+        }
+    }
+
+    #[test]
+    fn test_handle_key_unhandled_returns_none() {
+        let mut view = WorkspaceView::new();
+        view.focus = WorkspaceFocus::Dag; // Use Dag to avoid delegation
+        let mut state = TuiState::new("test.nika.yaml");
+
+        // Random unhandled key
+        let key = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::ALT);
+        let action = view.handle_key(key, &mut state);
+
+        assert!(matches!(action, ViewAction::None));
+    }
+
+    #[test]
+    fn test_status_line_shows_focus_and_ratio() {
+        let mut view = WorkspaceView::new();
+        let state = TuiState::new("test.nika.yaml");
+
+        // Default state
+        let status = view.status_line(&state);
+        assert!(status.contains("Workspace"));
+        assert!(status.contains("Browser"));
+        assert!(status.contains("Balanced"));
+
+        // Change focus
+        view.focus = WorkspaceFocus::Editor;
+        let status = view.status_line(&state);
+        assert!(status.contains("Editor"));
+
+        // Change ratio
+        view.ratio = WorkspaceRatio::DagFocus;
+        let status = view.status_line(&state);
+        assert!(status.contains("DAG+"));
+    }
+
+    #[test]
+    fn test_open_file_switches_to_editor_focus() {
+        let mut view = WorkspaceView::new();
+        assert_eq!(view.focus, WorkspaceFocus::Browser);
+
+        // Opening a file should switch focus to Editor
+        view.open_file(std::path::PathBuf::from("/tmp/test.nika.yaml"));
+        assert_eq!(view.focus, WorkspaceFocus::Editor);
+    }
+
+    #[test]
+    fn test_border_style_focused_vs_normal() {
+        let view = WorkspaceView::new();
+        let theme = Theme::default();
+
+        // Focused panel gets focused border
+        let focused_style = view.border_style(WorkspaceFocus::Browser, &theme);
+        assert!(focused_style.add_modifier.contains(Modifier::BOLD));
+
+        // Non-focused panel gets normal border
+        let normal_style = view.border_style(WorkspaceFocus::Editor, &theme);
+        assert!(!normal_style.add_modifier.contains(Modifier::BOLD));
     }
 }

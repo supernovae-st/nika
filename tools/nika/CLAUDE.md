@@ -479,7 +479,7 @@ Auto-save editor state to `.nika/sessions/` with atomic writes and auto-cleanup:
 ```
 .nika/sessions/
 ├── <session-id>.json  # Per-session state (max 50 sessions)
-├── current_view.json  # Last opened view (chat/home/studio/monitor)
+├── current_view.json  # Last opened view (1-8: Browse/Editor/Runner/Chat/etc.)
 └── editor_metadata.json
 ```
 
@@ -518,7 +518,7 @@ Third theme option alongside Light and Dark with unified palette:
 **Features:**
 - Auto-detect based on system theme preference (macOS/Linux)
 - Manual override via config or TUI settings
-- Unified across all TUI views (Chat, Home, Studio, Monitor)
+- Unified across all 8 TUI views
 - Color palette based on Ethan Schoonover's Solarized project
 - 12 unit tests for color correctness and contrast ratios
 
@@ -1306,19 +1306,30 @@ cargo llvm-cov nextest
 cargo bench
 ```
 
-### TUI Views (Tab Navigation)
+### TUI Views (v0.20 - 8 Views)
 
-The TUI provides 3 interactive views:
+The TUI provides 8 interactive views:
 
 | View | Key | Purpose |
 |------|-----|---------|
-| **Chat** | `a` | Conversational agent (supports infer:, exec:, fetch:, invoke:, agent:) |
-| **Home** | `h` | Browse and launch .nika.yaml workflows from project |
-| **Studio** | `s` | YAML editor with schema validation and syntax highlighting |
+| **Browse** | `1` | File browser for .nika.yaml workflows |
+| **Editor** | `2` | YAML editor with schema validation |
+| **Runner** | `3` | Workflow execution monitor |
+| **Chat** | `4` | Conversational agent (5 verbs) |
+| **Scheduler** | `5` | DAG visualization and scheduling |
+| **Settings** | `6` | Configuration and preferences |
+| **Split** | `7` | Editor + Runner side-by-side |
+| **Workspace** | `8` | Browser + Editor + DAG unified (NEW in v0.20) |
+
+**Workspace View (v0.20):**
+- 3-panel layout: Browser | Editor | DAG Preview
+- Tab cycles between panels
+- Ctrl+] cycles panel ratios (Balanced/Editor+/Browser+/DAG+)
+- F10 exits workspace
 
 ## Testing Strategy
 
-- **Unit tests:** In-file `#[cfg(test)]` modules (1641 tests)
+- **Unit tests:** In-file `#[cfg(test)]` modules (3,562+ tests)
 - **Integration tests:** `tests/` directory
 - **Snapshot tests:** insta for YAML/JSON outputs
 - **Property tests:** proptest for parser fuzzing
