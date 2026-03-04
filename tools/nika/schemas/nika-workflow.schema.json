@@ -372,7 +372,7 @@
             "thinking_budget": {
               "type": "integer",
               "minimum": 1024,
-              "maximum": 32768,
+              "maximum": 65536,
               "default": 4096,
               "description": "Token budget for thinking (requires extended_thinking: true)"
             }
@@ -580,7 +580,7 @@
         "thinking_budget": {
           "type": "integer",
           "minimum": 1024,
-          "maximum": 32768,
+          "maximum": 65536,
           "default": 4096,
           "description": "Token budget for thinking (requires extended_thinking: true)"
         },
@@ -885,7 +885,7 @@
         "thinking_budget": {
           "type": "integer",
           "minimum": 1024,
-          "maximum": 32768,
+          "maximum": 65536,
           "default": 4096,
           "description": "Token budget for thinking"
         },
