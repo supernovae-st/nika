@@ -71,7 +71,7 @@ fn simple_exec(name: &str) -> String {
         r#"# {name}
 #
 # Shell command invocation example.
-# Demonstrates the shell verb with command chaining.
+# Demonstrates the exec verb with shell commands.
 #
 # Usage:
 #   nika {name}.nika.yaml
@@ -86,18 +86,21 @@ description: "Shell command invocation workflow"
 tasks:
   - id: system_info
     description: "Get system information"
-    shell: |
-      echo "=== System Information ==="
-      echo "Date: $(date)"
-      echo "User: $USER"
-      echo "PWD: $PWD"
-      echo "Shell: $SHELL"
+    exec:
+      command: |
+        echo "=== System Information ==="
+        echo "Date: $(date)"
+        echo "User: $USER"
+        echo "PWD: $PWD"
+      shell: true
     output:
       format: text
 
   - id: list_files
     description: "List current directory"
-    shell: ls -la
+    exec:
+      command: "ls -la"
+      shell: true
     output:
       format: text
 
@@ -106,10 +109,12 @@ tasks:
     use:
       info: system_info
       files: list_files
-    shell: |
-      echo "=== Workflow Complete ==="
-      echo "System info collected"
-      echo "Files listed"
+    exec:
+      command: |
+        echo "=== Workflow Complete ==="
+        echo "System info collected"
+        echo "Files listed"
+      shell: true
     flow: [system_info, list_files]
 "#
     )
@@ -956,7 +961,8 @@ mod tests {
     fn test_simple_exec_template() {
         let content = simple_exec("exec-test");
         assert!(content.contains("workflow: exec-test"));
-        assert!(content.contains("shell:"));
+        assert!(content.contains("exec:"));
+        assert!(content.contains("shell: true"));
     }
 
     #[test]
