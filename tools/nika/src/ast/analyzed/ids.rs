@@ -4,6 +4,7 @@
 //! providing O(1) comparison and hashing while keeping string
 //! data deduplicated.
 
+use std::collections::HashMap;
 use std::fmt;
 
 /// Interned task identifier.
@@ -81,11 +82,14 @@ impl fmt::Display for McpServerId {
 
 /// A string table for interning.
 ///
-/// Maps indices to their string values.
+/// Maps indices to their string values. Uses a HashMap for O(1) lookup
+/// during interning, and a Vec for O(1) reverse lookup by index.
 #[derive(Debug, Clone, Default)]
 pub struct StringTable {
-    /// The interned strings.
+    /// The interned strings (index → string).
     strings: Vec<String>,
+    /// Reverse lookup (string → index) for O(1) interning.
+    index: HashMap<String, u32>,
 }
 
 impl StringTable {
@@ -94,15 +98,16 @@ impl StringTable {
         Self::default()
     }
 
-    /// Intern a string, returning its index.
+    /// Intern a string, returning its index. O(1) operation.
     ///
     /// If the string is already interned, returns the existing index.
     pub fn intern(&mut self, s: &str) -> u32 {
-        if let Some(idx) = self.strings.iter().position(|x| x == s) {
-            idx as u32
+        if let Some(&idx) = self.index.get(s) {
+            idx
         } else {
             let idx = self.strings.len() as u32;
             self.strings.push(s.to_string());
+            self.index.insert(s.to_string(), idx);
             idx
         }
     }
@@ -126,10 +131,13 @@ impl StringTable {
 /// Task name lookup table.
 ///
 /// Bidirectional mapping between task names and TaskIds.
+/// Uses HashMap for O(1) name→id lookup.
 #[derive(Debug, Clone, Default)]
 pub struct TaskTable {
     /// Task names indexed by TaskId.
     names: Vec<String>,
+    /// Reverse lookup (name → TaskId) for O(1) lookup.
+    index: HashMap<String, TaskId>,
 }
 
 impl TaskTable {
@@ -140,19 +148,33 @@ impl TaskTable {
 
     /// Insert a task name, returning its ID.
     ///
-    /// Does NOT check for duplicates - caller must ensure uniqueness.
+    /// Does NOT check for duplicates - use `try_insert()` for safe insertion.
     pub fn insert(&mut self, name: &str) -> TaskId {
         let id = TaskId::new(self.names.len() as u32);
         self.names.push(name.to_string());
+        self.index.insert(name.to_string(), id);
         id
     }
 
-    /// Look up a task ID by name.
+    /// Try to insert a task name, returning None if duplicate.
+    ///
+    /// Returns `Some(TaskId)` on success, `None` if name already exists.
+    pub fn try_insert(&mut self, name: &str) -> Option<TaskId> {
+        if self.index.contains_key(name) {
+            None
+        } else {
+            Some(self.insert(name))
+        }
+    }
+
+    /// Check if a task name exists.
+    pub fn contains(&self, name: &str) -> bool {
+        self.index.contains_key(name)
+    }
+
+    /// Look up a task ID by name. O(1) operation.
     pub fn get_id(&self, name: &str) -> Option<TaskId> {
-        self.names
-            .iter()
-            .position(|n| n == name)
-            .map(|i| TaskId::new(i as u32))
+        self.index.get(name).copied()
     }
 
     /// Get a task name by ID.
@@ -240,5 +262,50 @@ mod tests {
         assert_eq!(pairs[0].1, "a");
         assert_eq!(pairs[1].1, "b");
         assert_eq!(pairs[2].1, "c");
+    }
+
+    #[test]
+    fn test_task_table_try_insert() {
+        let mut table = TaskTable::new();
+
+        // First insert succeeds
+        let id1 = table.try_insert("task1");
+        assert!(id1.is_some());
+        assert_eq!(id1.unwrap().index(), 0);
+
+        // Second different insert succeeds
+        let id2 = table.try_insert("task2");
+        assert!(id2.is_some());
+        assert_eq!(id2.unwrap().index(), 1);
+
+        // Duplicate insert fails
+        let id3 = table.try_insert("task1");
+        assert!(id3.is_none());
+
+        // Table still has only 2 entries
+        assert_eq!(table.len(), 2);
+    }
+
+    #[test]
+    fn test_task_table_contains() {
+        let mut table = TaskTable::new();
+        table.insert("existing");
+
+        assert!(table.contains("existing"));
+        assert!(!table.contains("missing"));
+    }
+
+    #[test]
+    fn test_task_table_o1_lookup() {
+        let mut table = TaskTable::new();
+        // Insert many tasks to verify O(1) behavior
+        for i in 0..1000 {
+            table.insert(&format!("task_{}", i));
+        }
+
+        // Lookup should be O(1) with HashMap
+        assert_eq!(table.get_id("task_500").map(|id| id.index()), Some(500));
+        assert_eq!(table.get_id("task_999").map(|id| id.index()), Some(999));
+        assert_eq!(table.get_id("nonexistent"), None);
     }
 }

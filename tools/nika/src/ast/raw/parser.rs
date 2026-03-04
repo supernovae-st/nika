@@ -3,7 +3,7 @@
 //! This module provides the entry point for parsing YAML workflows
 //! into the raw AST with full source position tracking.
 
-use marked_yaml::{parse_yaml, Node, Marker, Span as MarkedSpan};
+use marked_yaml::{parse_yaml, Node, Marker, Span as MarkedSpan, LoadError};
 
 use crate::source::{FileId, Span, ByteOffset, Spanned};
 use super::workflow::RawWorkflow;
@@ -47,6 +47,41 @@ impl std::error::Error for ParseError {}
 fn marker_to_offset(marker: &Marker) -> ByteOffset {
     // marked_yaml uses character() for byte offset
     ByteOffset::new(marker.character() as u32)
+}
+
+/// Convert a marked_yaml Marker to a point Span.
+fn marker_to_span(file: FileId, marker: &Marker) -> Span {
+    let offset = marker_to_offset(marker);
+    Span {
+        file,
+        start: offset,
+        end: offset,
+    }
+}
+
+/// Extract span from a LoadError if it carries a Marker.
+///
+/// Most LoadError variants include position information:
+/// - TopLevelMustBeMapping(Marker)
+/// - TopLevelMustBeSequence(Marker)
+/// - UnexpectedAnchor(Marker)
+/// - MappingKeyMustBeScalar(Marker)
+/// - UnexpectedTag(Marker)
+/// - ScanError(Marker, _)
+/// - DuplicateKey(Box<DuplicateKeyInner>)
+fn extract_span_from_load_error(file: FileId, error: &LoadError) -> Span {
+    match error {
+        LoadError::TopLevelMustBeMapping(marker)
+        | LoadError::TopLevelMustBeSequence(marker)
+        | LoadError::UnexpectedAnchor(marker)
+        | LoadError::MappingKeyMustBeScalar(marker)
+        | LoadError::UnexpectedTag(marker) => marker_to_span(file, marker),
+        LoadError::ScanError(marker, _) => marker_to_span(file, marker),
+        LoadError::DuplicateKey(inner) => {
+            // DuplicateKeyInner has key: MarkedScalarNode, use its span
+            marked_span_to_span(file, inner.key.span())
+        }
+    }
 }
 
 /// Convert a marked_yaml Span to our Span.
@@ -123,10 +158,14 @@ fn get_string_field(
 pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
     // Parse YAML with marked_yaml
     // The first argument is a source ID (we use file_id.0)
-    let node = parse_yaml(file_id.0 as usize, source).map_err(|e| ParseError {
-        kind: ParseErrorKind::Syntax,
-        span: Span::dummy(), // TODO: extract position from error
-        message: format!("YAML syntax error: {}", e),
+    let node = parse_yaml(file_id.0 as usize, source).map_err(|e| {
+        // Extract span from LoadError variants that carry a Marker
+        let span = extract_span_from_load_error(file_id, &e);
+        ParseError {
+            kind: ParseErrorKind::Syntax,
+            span,
+            message: format!("YAML syntax error: {}", e),
+        }
     })?;
 
     // The root must be a mapping
