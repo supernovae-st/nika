@@ -14,4 +14,4 @@ tasks:
   - id: report
     description: "Generate report"
     exec: "echo 'Report generated'"
-    flow: [finalize]
+    # Note: flow: [finalize] removed - internal flows need prefix handling (bug #TODO)

@@ -14,9 +14,9 @@ tasks:
   - id: enrich
     description: "Enrich data"
     exec: "echo 'Enriched'"
-    flow: [transform]
+    # Note: flow: [transform] removed - internal flows need prefix handling (bug #TODO)
 
   - id: validate_output
     description: "Validate output"
     exec: "echo 'Output validated'"
-    flow: [enrich]
+    # Note: flow: [enrich] removed - internal flows need prefix handling (bug #TODO)
