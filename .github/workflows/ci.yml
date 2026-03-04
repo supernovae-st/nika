@@ -265,34 +265,29 @@ jobs:
           done
           echo "All schema version tests passed!"
 
-      - name: Validate v0.14.2 feature examples
+      - name: Validate feature examples
         run: |
-          echo "=== Validating v0.14.2 feature examples ==="
-          # context: field example
+          echo "=== Validating feature examples ==="
+          # context: field example (v0.9)
           ./target/release/nika check examples/v09-context-loading.nika.yaml || exit 1
           echo "context: loading OK"
 
-          # include: DAG fusion example
+          # include: DAG fusion example (v0.9)
           ./target/release/nika check examples/v09-include-dag-fusion.nika.yaml || exit 1
           echo "include: DAG fusion OK"
 
-          # lazy bindings example
-          ./target/release/nika check examples/v05-lazy-bindings.nika.yaml || exit 1
-          echo "lazy bindings OK"
-
-          # spawn_agent example
-          ./target/release/nika check examples/v05-spawn-agent.nika.yaml || exit 1
-          echo "spawn_agent OK"
-
-          # multi-provider example
+          # multi-provider example (v0.6)
           ./target/release/nika check examples/v06-multi-provider.nika.yaml || exit 1
           echo "multi-provider OK"
 
-          # for_each parallelism example
-          ./target/release/nika check examples/v03-foreach-parallel.nika.yaml || exit 1
-          echo "for_each parallelism OK"
+          # v0.15 features
+          ./target/release/nika check examples/v15-infer-options.nika.yaml || exit 1
+          echo "infer options OK"
 
-          echo "All v0.14.2 feature examples passed!"
+          ./target/release/nika check examples/v15-secure-exec.nika.yaml || exit 1
+          echo "secure exec OK"
+
+          echo "All feature examples passed!"
 
       - name: Validate public examples
         run: |
@@ -313,7 +308,7 @@ jobs:
         run: |
           echo "=== Schema Validation Summary ==="
           echo "- Schema versions: v0.1-v0.9 all validated"
-          echo "- v0.14.2 features: context:, include:, lazy bindings, spawn_agent, multi-provider, for_each"
+          echo "- Feature examples: context:, include:, multi-provider, infer options, secure exec"
           echo "- Public examples validated"
 
   # ─────────────────────────────────────────────────────────────────────────────
