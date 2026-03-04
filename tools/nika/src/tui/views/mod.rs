@@ -56,14 +56,10 @@ pub use settings::SettingsView;
 #[allow(unused_imports)]
 pub use split::{SplitFocus, SplitRatio, SplitView};
 
-// Legacy aliases for backwards compatibility
-#[deprecated(since = "0.20.0", note = "Use BrowseView instead")]
-pub use home::HomeView as ExplorerView;
-#[deprecated(since = "0.12.0", note = "Use BrowseView instead")]
+// Internal re-exports (original struct names used internally)
+// v0.20: Removed ExplorerView alias (unused deprecated alias)
 pub use home::HomeView;
-#[deprecated(since = "0.12.0", note = "Use RunnerView instead")]
 pub use monitor::MonitorView;
-#[deprecated(since = "0.12.0", note = "Use EditorView instead")]
 pub use studio::StudioView;
 // Help view still exists but is no longer a main TuiView (merged into Settings)
 #[allow(unused_imports)]
