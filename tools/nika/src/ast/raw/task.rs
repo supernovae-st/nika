@@ -29,7 +29,7 @@ pub struct RawTask {
     /// Dependencies: use: { alias: task_id } or use: { alias: { task: id, path: "..." } }
     pub use_refs: Option<Spanned<IndexMap<Spanned<String>, RawUseTarget>>>,
 
-    /// Execution dependencies: flow: [task_ids]
+    /// Execution dependencies: `flow: [task_ids]`
     pub flow: Option<Spanned<RawFlow>>,
 
     /// Output configuration
