@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.5] - 2026-03-04
+
+### Fixed
+
+- **simple-exec template** — Changed invalid `shell:` verb to proper `exec: { command, shell: true }` format
+
 ## [0.19.4] - 2026-03-04
 
 ### Added
