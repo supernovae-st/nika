@@ -906,12 +906,17 @@ impl TaskExecutor {
             result: url.to_string(),
         });
 
+        // Build request based on HTTP method (v0.19.5: added PATCH and HEAD support)
         let mut request = if fetch.method.eq_ignore_ascii_case("POST") {
             self.http_client.post(url.as_ref())
         } else if fetch.method.eq_ignore_ascii_case("PUT") {
             self.http_client.put(url.as_ref())
         } else if fetch.method.eq_ignore_ascii_case("DELETE") {
             self.http_client.delete(url.as_ref())
+        } else if fetch.method.eq_ignore_ascii_case("PATCH") {
+            self.http_client.patch(url.as_ref())
+        } else if fetch.method.eq_ignore_ascii_case("HEAD") {
+            self.http_client.head(url.as_ref())
         } else {
             self.http_client.get(url.as_ref()) // Default to GET
         };

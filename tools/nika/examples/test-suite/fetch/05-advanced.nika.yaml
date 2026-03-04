@@ -40,7 +40,9 @@ tasks:
       format: json
 
   - id: head_request
-    description: "HEAD request (no body)"
+    description: "HEAD request (no body, returns empty string)"
     fetch:
       url: "https://httpbin.org/get"
       method: HEAD
+    output:
+      format: text  # HEAD requests return no body
