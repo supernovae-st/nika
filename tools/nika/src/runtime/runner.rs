@@ -492,8 +492,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         executor: TaskExecutor,
         event_log: EventLog,
         for_each_binding: Option<(String, Value, usize)>, // Added index
-        workflow_artifacts: Option<ArtifactsConfig>,       // v0.18: Artifact config
-        base_path: PathBuf,                                // v0.18: Artifact base path
+        workflow_artifacts: Option<ArtifactsConfig>,      // v0.18: Artifact config
+        base_path: PathBuf,                               // v0.18: Artifact base path
     ) -> IterationResult {
         let start = Instant::now();
 

@@ -8,12 +8,14 @@ use std::sync::Arc;
 
 use tracing::{debug, warn};
 
-use crate::ast::artifact::{ArtifactFormat, ArtifactMode, ArtifactOutput, ArtifactSpec, ArtifactsConfig};
+use crate::ast::artifact::{
+    ArtifactFormat, ArtifactMode, ArtifactOutput, ArtifactSpec, ArtifactsConfig,
+};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
+use crate::io::atomic::{write_append, write_fail, write_unique};
 use crate::io::security::DEFAULT_ARTIFACT_DIR;
 use crate::io::writer::{ArtifactWriter, WriteRequest, WriteResult};
-use crate::io::atomic::{write_append, write_fail, write_unique};
 use crate::serde_yaml;
 use crate::OutputFormat;
 
@@ -77,9 +79,7 @@ pub async fn process_task_artifacts(
         ArtifactSpec::Single(output_spec) => {
             vec![output_spec.clone()]
         }
-        ArtifactSpec::Multiple(outputs) => {
-            outputs.clone()
-        }
+        ArtifactSpec::Multiple(outputs) => outputs.clone(),
     };
 
     // Resolve artifact directory
@@ -91,18 +91,11 @@ pub async fn process_task_artifacts(
         .unwrap_or(crate::ast::artifact::DEFAULT_MAX_ARTIFACT_SIZE);
 
     // Create artifact writer
-    let writer = ArtifactWriter::new(&artifact_dir, task_id)
-        .with_max_size(max_size);
+    let writer = ArtifactWriter::new(&artifact_dir, task_id).with_max_size(max_size);
 
     // Process each output
     for output_spec in outputs {
-        match write_single_artifact(
-            task_id,
-            output,
-            &output_spec,
-            workflow_config,
-            &writer,
-        ).await {
+        match write_single_artifact(task_id, output, &output_spec, workflow_config, &writer).await {
             Ok(write_result) => {
                 debug!(
                     task_id = %task_id,
@@ -158,12 +151,14 @@ async fn write_single_artifact(
     writer: &ArtifactWriter,
 ) -> Result<WriteResult, NikaError> {
     // Determine format (task spec > workflow default)
-    let format = output_spec.format
+    let format = output_spec
+        .format
         .or(workflow_config.map(|c| c.format))
         .unwrap_or(ArtifactFormat::Text);
 
     // Determine mode (task spec > workflow default)
-    let mode = output_spec.mode
+    let mode = output_spec
+        .mode
         .or(workflow_config.map(|c| c.mode))
         .unwrap_or(ArtifactMode::Overwrite);
 
@@ -184,13 +179,12 @@ async fn write_single_artifact(
 
     // Handle different write modes
     match mode {
-        ArtifactMode::Overwrite => {
-            writer.write(request).await
-        }
+        ArtifactMode::Overwrite => writer.write(request).await,
         ArtifactMode::Append => {
             // For append mode, we need to use atomic append
             let resolved_path = writer.validate_path(task_id, &output_spec.path)?;
-            write_append(&resolved_path, request.content.as_bytes()).await
+            write_append(&resolved_path, request.content.as_bytes())
+                .await
                 .map_err(|e| NikaError::ArtifactWriteError {
                     path: resolved_path.display().to_string(),
                     reason: format!("Append failed: {}", e),
@@ -204,7 +198,8 @@ async fn write_single_artifact(
         ArtifactMode::Unique => {
             // For unique mode, generate unique filename
             let resolved_path = writer.validate_path(task_id, &output_spec.path)?;
-            let unique_path = write_unique(&resolved_path, request.content.as_bytes()).await
+            let unique_path = write_unique(&resolved_path, request.content.as_bytes())
+                .await
                 .map_err(|e| NikaError::ArtifactWriteError {
                     path: resolved_path.display().to_string(),
                     reason: format!("Unique write failed: {}", e),
@@ -218,7 +213,8 @@ async fn write_single_artifact(
         ArtifactMode::Fail => {
             // For fail mode, error if file exists
             let resolved_path = writer.validate_path(task_id, &output_spec.path)?;
-            write_fail(&resolved_path, request.content.as_bytes()).await
+            write_fail(&resolved_path, request.content.as_bytes())
+                .await
                 .map_err(|e| NikaError::ArtifactWriteError {
                     path: resolved_path.display().to_string(),
                     reason: format!("Write failed (file may exist): {}", e),
@@ -239,13 +235,12 @@ fn format_output(output: &str, format: ArtifactFormat) -> Result<String, NikaErr
         ArtifactFormat::Json => {
             // Try to parse as JSON and pretty-print
             match serde_json::from_str::<serde_json::Value>(output) {
-                Ok(value) => {
-                    serde_json::to_string_pretty(&value)
-                        .map_err(|e| NikaError::ArtifactWriteError {
-                            path: "".to_string(),
-                            reason: format!("Failed to format JSON: {}", e),
-                        })
-                }
+                Ok(value) => serde_json::to_string_pretty(&value).map_err(|e| {
+                    NikaError::ArtifactWriteError {
+                        path: "".to_string(),
+                        reason: format!("Failed to format JSON: {}", e),
+                    }
+                }),
                 Err(_) => {
                     // If not valid JSON, wrap as string
                     Ok(serde_json::to_string_pretty(&output)
@@ -257,11 +252,10 @@ fn format_output(output: &str, format: ArtifactFormat) -> Result<String, NikaErr
             // Try to parse as JSON first, then convert to YAML
             match serde_json::from_str::<serde_json::Value>(output) {
                 Ok(value) => {
-                    serde_yaml::to_string(&value)
-                        .map_err(|e| NikaError::ArtifactWriteError {
-                            path: "".to_string(),
-                            reason: format!("Failed to format YAML: {}", e),
-                        })
+                    serde_yaml::to_string(&value).map_err(|e| NikaError::ArtifactWriteError {
+                        path: "".to_string(),
+                        reason: format!("Failed to format YAML: {}", e),
+                    })
                 }
                 Err(_) => {
                     // If not valid JSON, just use as-is
@@ -368,7 +362,8 @@ mod tests {
             None,
             base.path(),
             None, // No event log for tests
-        ).await;
+        )
+        .await;
 
         assert_eq!(result.written, 0);
         assert!(result.paths.is_empty());
@@ -388,16 +383,25 @@ mod tests {
             None,
             base.path(),
             None, // No event log for tests
-        ).await;
+        )
+        .await;
 
         // Print errors for debugging
         if !result.errors.is_empty() {
             eprintln!("Artifact errors: {:?}", result.errors);
         }
 
-        assert_eq!(result.written, 1, "Expected 1 artifact written, errors: {:?}", result.errors);
+        assert_eq!(
+            result.written, 1,
+            "Expected 1 artifact written, errors: {:?}",
+            result.errors
+        );
         assert!(!result.paths.is_empty());
-        assert!(result.errors.is_empty(), "Unexpected errors: {:?}", result.errors);
+        assert!(
+            result.errors.is_empty(),
+            "Unexpected errors: {:?}",
+            result.errors
+        );
     }
 
     #[tokio::test]
@@ -420,7 +424,8 @@ mod tests {
             None,
             base.path(),
             None, // No event log for tests
-        ).await;
+        )
+        .await;
 
         assert_eq!(result.written, 1);
         assert!(result.paths[0].ends_with("output.json"));
@@ -454,7 +459,8 @@ mod tests {
             None,
             base.path(),
             None, // No event log for tests
-        ).await;
+        )
+        .await;
 
         assert_eq!(result.written, 2);
         assert_eq!(result.paths.len(), 2);
