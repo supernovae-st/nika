@@ -49,6 +49,13 @@
 pub use serde_saphyr as serde_yaml;
 
 // ═══════════════════════════════════════════════════════════════
+// v0.19 FOUNDATION - Two-Phase IR Architecture
+// Source tracking for precise error locations (line:col)
+// See: docs/plans/2026-03-04-v0.19-foundation-implementation.md
+// ═══════════════════════════════════════════════════════════════
+pub mod source;
+
+// ═══════════════════════════════════════════════════════════════
 // DOMAIN MODEL - YAML → Rust types
 // ═══════════════════════════════════════════════════════════════
 pub mod ast;
@@ -102,6 +109,9 @@ pub mod test_utils;
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC API RE-EXPORTS
 // ═══════════════════════════════════════════════════════════════
+
+// Source tracking types (v0.19 Foundation)
+pub use source::{ByteOffset, FileId, SourceFile, SourceRegistry, Span, Spanned};
 
 // Error types
 pub use error::NikaError;

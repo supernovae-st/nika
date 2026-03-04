@@ -1,6 +1,21 @@
 //! AST Module - Abstract Syntax Tree for YAML workflows
 //!
-//! Contains parsed Rust types from YAML workflow definitions:
+//! # Two-Phase IR Architecture (v0.19)
+//!
+//! Nika uses a two-phase IR similar to rustc:
+//!
+//! 1. **raw** - Parsed from YAML with full span tracking (line:col)
+//! 2. **analyzed** - Validated, references resolved, ready for execution (planned)
+//!
+//! The existing types (Workflow, Task, etc.) are the "legacy" AST that will
+//! gradually migrate to use the new two-phase architecture.
+//!
+//! # Modules
+//!
+//! ## New (v0.19 Foundation)
+//! - `raw`: Raw AST with Spanned<T> fields for precise error locations
+//!
+//! ## Legacy (being migrated)
 //! - `workflow`: Workflow, Task, Flow, FlowEndpoint
 //! - `action`: TaskAction, InferParams, ExecParams, FetchParams
 //! - `invoke`: InvokeParams (v0.2 - MCP integration)
@@ -16,6 +31,12 @@
 //! These types represent the "what" - static structure parsed from YAML.
 //! For runtime execution, see the `runtime` module.
 
+// v0.19 Foundation - Two-Phase IR
+pub mod raw;
+pub mod analyzed;
+pub mod analyzer;
+
+// Legacy modules (being migrated)
 mod action;
 mod agent;
 mod agent_def;
