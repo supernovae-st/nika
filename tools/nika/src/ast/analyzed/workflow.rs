@@ -179,6 +179,77 @@ impl SchemaVersion {
     pub fn latest() -> Self {
         Self::V10
     }
+
+    /// Get the numeric version for comparison (e.g., V03 returns 3).
+    pub fn version_number(&self) -> u32 {
+        match self {
+            Self::V01 => 1,
+            Self::V02 => 2,
+            Self::V03 => 3,
+            Self::V04 => 4,
+            Self::V05 => 5,
+            Self::V06 => 6,
+            Self::V07 => 7,
+            Self::V08 => 8,
+            Self::V09 => 9,
+            Self::V10 => 10,
+        }
+    }
+
+    /// Check if a version supports a minimum required version.
+    pub fn supports(&self, min_version: Self) -> bool {
+        self.version_number() >= min_version.version_number()
+    }
+
+    /// Check if MCP servers are supported (v0.2+).
+    pub fn supports_mcp(&self) -> bool {
+        self.supports(Self::V02)
+    }
+
+    /// Check if invoke/agent verbs are supported (v0.2+).
+    pub fn supports_invoke_agent(&self) -> bool {
+        self.supports(Self::V02)
+    }
+
+    /// Check if for_each is supported (v0.3+).
+    pub fn supports_for_each(&self) -> bool {
+        self.supports(Self::V03)
+    }
+
+    /// Check if skills are supported (v0.6+).
+    pub fn supports_skills(&self) -> bool {
+        self.supports(Self::V06)
+    }
+
+    /// Check if agent definitions are supported (v0.6+).
+    pub fn supports_agent_defs(&self) -> bool {
+        self.supports(Self::V06)
+    }
+
+    /// Check if context files are supported (v0.9+).
+    pub fn supports_context(&self) -> bool {
+        self.supports(Self::V09)
+    }
+
+    /// Check if include/DAG fusion is supported (v0.9+).
+    pub fn supports_include(&self) -> bool {
+        self.supports(Self::V09)
+    }
+
+    /// Check if inputs are supported (v0.10+).
+    pub fn supports_inputs(&self) -> bool {
+        self.supports(Self::V10)
+    }
+
+    /// Check if artifacts are supported (v0.10+).
+    pub fn supports_artifacts(&self) -> bool {
+        self.supports(Self::V10)
+    }
+
+    /// Check if retry configuration is supported (v0.3+).
+    pub fn supports_retry(&self) -> bool {
+        self.supports(Self::V03)
+    }
 }
 
 impl std::fmt::Display for SchemaVersion {
@@ -304,6 +375,8 @@ mod tests {
             use_refs: IndexMap::new(),
             flow_deps: Vec::new(),
             output: None,
+            for_each: None,
+            retry: None,
             span: Span::dummy(),
         });
 
@@ -317,6 +390,8 @@ mod tests {
             use_refs: IndexMap::new(),
             flow_deps: Vec::new(),
             output: None,
+            for_each: None,
+            retry: None,
             span: Span::dummy(),
         });
 
@@ -328,5 +403,51 @@ mod tests {
         assert!(workflow.get_task(id1).is_some());
         assert_eq!(workflow.get_task(id1).unwrap().name, "task1");
         assert!(workflow.get_task_by_name("task2").is_some());
+    }
+
+    #[test]
+    fn test_schema_version_number() {
+        assert_eq!(SchemaVersion::V01.version_number(), 1);
+        assert_eq!(SchemaVersion::V05.version_number(), 5);
+        assert_eq!(SchemaVersion::V10.version_number(), 10);
+    }
+
+    #[test]
+    fn test_schema_version_supports() {
+        // V01 only supports V01
+        assert!(SchemaVersion::V01.supports(SchemaVersion::V01));
+        assert!(!SchemaVersion::V01.supports(SchemaVersion::V02));
+
+        // V10 supports all versions
+        assert!(SchemaVersion::V10.supports(SchemaVersion::V01));
+        assert!(SchemaVersion::V10.supports(SchemaVersion::V10));
+    }
+
+    #[test]
+    fn test_schema_version_feature_gates() {
+        // MCP requires v0.2+
+        assert!(!SchemaVersion::V01.supports_mcp());
+        assert!(SchemaVersion::V02.supports_mcp());
+        assert!(SchemaVersion::V10.supports_mcp());
+
+        // for_each requires v0.3+
+        assert!(!SchemaVersion::V01.supports_for_each());
+        assert!(!SchemaVersion::V02.supports_for_each());
+        assert!(SchemaVersion::V03.supports_for_each());
+        assert!(SchemaVersion::V10.supports_for_each());
+
+        // skills requires v0.6+
+        assert!(!SchemaVersion::V05.supports_skills());
+        assert!(SchemaVersion::V06.supports_skills());
+        assert!(SchemaVersion::V10.supports_skills());
+
+        // context requires v0.9+
+        assert!(!SchemaVersion::V08.supports_context());
+        assert!(SchemaVersion::V09.supports_context());
+        assert!(SchemaVersion::V10.supports_context());
+
+        // inputs requires v0.10+
+        assert!(!SchemaVersion::V09.supports_inputs());
+        assert!(SchemaVersion::V10.supports_inputs());
     }
 }

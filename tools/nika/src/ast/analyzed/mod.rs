@@ -62,9 +62,9 @@ mod workflow;
 
 pub use ids::{FlowDefId, McpServerId, StringTable, TaskId, TaskTable};
 pub use task::{
-    AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedInferAction,
-    AnalyzedInvokeAction, AnalyzedOutput, AnalyzedTask, AnalyzedTaskAction, AnalyzedUseRef,
-    HttpMethod, OutputFormat,
+    AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach,
+    AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedOutput, AnalyzedRetry, AnalyzedTask,
+    AnalyzedTaskAction, AnalyzedUseRef, HttpMethod, OutputFormat,
 };
 pub use workflow::{
     AnalyzedContextFile, AnalyzedFlowDef, AnalyzedMcpServer, AnalyzedWorkflow, McpTransport,
@@ -91,6 +91,8 @@ mod tests {
             use_refs: indexmap::IndexMap::new(),
             flow_deps: Vec::new(),
             output: None,
+            for_each: None,
+            retry: None,
             span: crate::source::Span::dummy(),
         };
     }

@@ -39,6 +39,12 @@ pub struct AnalyzedTask {
     /// Output configuration
     pub output: Option<AnalyzedOutput>,
 
+    /// For-each iteration configuration
+    pub for_each: Option<AnalyzedForEach>,
+
+    /// Retry configuration
+    pub retry: Option<AnalyzedRetry>,
+
     /// Span of the task
     pub span: Span,
 }
@@ -310,6 +316,101 @@ impl OutputFormat {
     }
 }
 
+/// Analyzed for-each iteration configuration.
+#[derive(Debug, Clone)]
+pub struct AnalyzedForEach {
+    /// Items expression (binding expression or serialized array)
+    pub items: String,
+
+    /// Loop variable name (default: "item")
+    pub as_var: String,
+
+    /// Maximum concurrency (None = unlimited)
+    pub parallel: Option<u32>,
+
+    /// Fail fast on first error (default: true)
+    pub fail_fast: bool,
+
+    /// Span of the for_each config
+    pub span: Span,
+}
+
+impl Default for AnalyzedForEach {
+    fn default() -> Self {
+        Self {
+            items: String::new(),
+            as_var: "item".to_string(),
+            parallel: Some(1), // Default to sequential
+            fail_fast: true,
+            span: Span::dummy(),
+        }
+    }
+}
+
+impl AnalyzedForEach {
+    /// Check if this is a binding expression.
+    pub fn is_binding(&self) -> bool {
+        self.items.starts_with("{{") || self.items.starts_with("$")
+    }
+
+    /// Check if items is a literal array.
+    pub fn is_array(&self) -> bool {
+        self.items.starts_with('[')
+    }
+
+    /// Parse items as a JSON array if it's a literal.
+    pub fn parse_items(&self) -> Option<Vec<serde_json::Value>> {
+        if self.is_array() {
+            serde_json::from_str(&self.items).ok()
+        } else {
+            None
+        }
+    }
+}
+
+/// Analyzed retry configuration.
+#[derive(Debug, Clone)]
+pub struct AnalyzedRetry {
+    /// Maximum retry attempts (validated: 1-10)
+    pub max_attempts: u32,
+
+    /// Delay between retries in milliseconds (validated: 0-60000)
+    pub delay_ms: u64,
+
+    /// Exponential backoff multiplier (validated: 1.0-5.0)
+    pub backoff: Option<f64>,
+
+    /// Span of the retry config
+    pub span: Span,
+}
+
+impl Default for AnalyzedRetry {
+    fn default() -> Self {
+        Self {
+            max_attempts: 3,
+            delay_ms: 1000,
+            backoff: None,
+            span: Span::dummy(),
+        }
+    }
+}
+
+impl AnalyzedRetry {
+    /// Calculate delay for a given attempt (0-indexed).
+    pub fn delay_for_attempt(&self, attempt: u32) -> u64 {
+        if attempt == 0 {
+            return 0; // No delay for first attempt
+        }
+        match self.backoff {
+            Some(multiplier) => {
+                let factor = multiplier.powi(attempt as i32 - 1);
+                (self.delay_ms as f64 * factor) as u64
+            }
+            None => self.delay_ms,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -356,5 +457,85 @@ mod tests {
         assert_eq!(use_ref.alias, "data");
         assert_eq!(use_ref.target.index(), 1);
         assert_eq!(use_ref.path.as_deref(), Some("$.result"));
+    }
+
+    #[test]
+    fn test_analyzed_for_each_default() {
+        let for_each = AnalyzedForEach::default();
+        assert_eq!(for_each.as_var, "item");
+        assert_eq!(for_each.parallel, Some(1)); // Sequential by default
+        assert!(for_each.fail_fast);
+    }
+
+    #[test]
+    fn test_analyzed_for_each_is_binding() {
+        let mut for_each = AnalyzedForEach::default();
+
+        for_each.items = "{{use.items}}".to_string();
+        assert!(for_each.is_binding());
+
+        for_each.items = "$items".to_string();
+        assert!(for_each.is_binding());
+
+        for_each.items = r#"["a", "b", "c"]"#.to_string();
+        assert!(!for_each.is_binding());
+    }
+
+    #[test]
+    fn test_analyzed_for_each_is_array() {
+        let mut for_each = AnalyzedForEach::default();
+
+        for_each.items = r#"["a", "b", "c"]"#.to_string();
+        assert!(for_each.is_array());
+
+        for_each.items = "{{use.items}}".to_string();
+        assert!(!for_each.is_array());
+    }
+
+    #[test]
+    fn test_analyzed_for_each_parse_items() {
+        let mut for_each = AnalyzedForEach::default();
+
+        for_each.items = r#"["a", "b", "c"]"#.to_string();
+        let items = for_each.parse_items().unwrap();
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0], serde_json::Value::String("a".to_string()));
+
+        for_each.items = "{{use.items}}".to_string();
+        assert!(for_each.parse_items().is_none());
+    }
+
+    #[test]
+    fn test_analyzed_retry_default() {
+        let retry = AnalyzedRetry::default();
+        assert_eq!(retry.max_attempts, 3);
+        assert_eq!(retry.delay_ms, 1000);
+        assert!(retry.backoff.is_none());
+    }
+
+    #[test]
+    fn test_analyzed_retry_delay_for_attempt() {
+        // Without backoff
+        let retry = AnalyzedRetry {
+            max_attempts: 3,
+            delay_ms: 1000,
+            backoff: None,
+            span: make_span(0, 10),
+        };
+        assert_eq!(retry.delay_for_attempt(0), 0); // First attempt, no delay
+        assert_eq!(retry.delay_for_attempt(1), 1000); // Retry 1
+        assert_eq!(retry.delay_for_attempt(2), 1000); // Retry 2
+
+        // With exponential backoff
+        let retry = AnalyzedRetry {
+            max_attempts: 5,
+            delay_ms: 1000,
+            backoff: Some(2.0),
+            span: make_span(0, 10),
+        };
+        assert_eq!(retry.delay_for_attempt(0), 0); // No delay
+        assert_eq!(retry.delay_for_attempt(1), 1000); // 1000 * 2^0
+        assert_eq!(retry.delay_for_attempt(2), 2000); // 1000 * 2^1
+        assert_eq!(retry.delay_for_attempt(3), 4000); // 1000 * 2^2
     }
 }

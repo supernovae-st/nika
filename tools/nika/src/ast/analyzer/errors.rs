@@ -106,6 +106,24 @@ impl AnalyzeError {
             format!("missing required field '{}'", field),
         )
     }
+
+    /// Create an "unsupported feature" error for schema version gating.
+    pub fn unsupported_feature(
+        span: Span,
+        feature: &str,
+        current_version: &str,
+        required_version: &str,
+    ) -> Self {
+        Self::new(
+            AnalyzeErrorKind::UnsupportedFeature,
+            span,
+            format!(
+                "'{}' requires schema version {} or later, but workflow uses {}",
+                feature, required_version, current_version
+            ),
+        )
+        .with_suggestion(format!("upgrade to schema: {}", required_version))
+    }
 }
 
 impl std::fmt::Display for AnalyzeError {
@@ -141,21 +159,36 @@ pub enum AnalyzeErrorKind {
     UnknownFlow,
     /// Unknown MCP server
     UnknownMcpServer,
+    /// Feature not available in this schema version
+    UnsupportedFeature,
 }
 
 impl AnalyzeErrorKind {
-    /// Get a short code for the error kind.
+    /// Get the error code in NIKA-XXX format.
+    ///
+    /// AST analysis errors use range NIKA-140-149:
+    /// - NIKA-140: Unknown task reference
+    /// - NIKA-141: Duplicate task ID
+    /// - NIKA-142: Invalid schema version
+    /// - NIKA-143: Cyclic dependency
+    /// - NIKA-144: Invalid field value
+    /// - NIKA-145: Missing required field
+    /// - NIKA-146: Invalid template expression
+    /// - NIKA-147: Unknown flow definition
+    /// - NIKA-148: Unknown MCP server
+    /// - NIKA-149: Feature not available in schema version
     pub fn code(&self) -> &'static str {
         match self {
-            Self::UnknownTask => "E001",
-            Self::DuplicateTask => "E002",
-            Self::InvalidSchema => "E003",
-            Self::CyclicDependency => "E004",
-            Self::InvalidValue => "E005",
-            Self::MissingField => "E006",
-            Self::InvalidTemplate => "E007",
-            Self::UnknownFlow => "E008",
-            Self::UnknownMcpServer => "E009",
+            Self::UnknownTask => "NIKA-140",
+            Self::DuplicateTask => "NIKA-141",
+            Self::InvalidSchema => "NIKA-142",
+            Self::CyclicDependency => "NIKA-143",
+            Self::InvalidValue => "NIKA-144",
+            Self::MissingField => "NIKA-145",
+            Self::InvalidTemplate => "NIKA-146",
+            Self::UnknownFlow => "NIKA-147",
+            Self::UnknownMcpServer => "NIKA-148",
+            Self::UnsupportedFeature => "NIKA-149",
         }
     }
 }
@@ -252,9 +285,17 @@ mod tests {
 
     #[test]
     fn test_error_kind_codes() {
-        assert_eq!(AnalyzeErrorKind::UnknownTask.code(), "E001");
-        assert_eq!(AnalyzeErrorKind::DuplicateTask.code(), "E002");
-        assert_eq!(AnalyzeErrorKind::CyclicDependency.code(), "E004");
+        // AST analysis errors use NIKA-140-149 range
+        assert_eq!(AnalyzeErrorKind::UnknownTask.code(), "NIKA-140");
+        assert_eq!(AnalyzeErrorKind::DuplicateTask.code(), "NIKA-141");
+        assert_eq!(AnalyzeErrorKind::InvalidSchema.code(), "NIKA-142");
+        assert_eq!(AnalyzeErrorKind::CyclicDependency.code(), "NIKA-143");
+        assert_eq!(AnalyzeErrorKind::InvalidValue.code(), "NIKA-144");
+        assert_eq!(AnalyzeErrorKind::MissingField.code(), "NIKA-145");
+        assert_eq!(AnalyzeErrorKind::InvalidTemplate.code(), "NIKA-146");
+        assert_eq!(AnalyzeErrorKind::UnknownFlow.code(), "NIKA-147");
+        assert_eq!(AnalyzeErrorKind::UnknownMcpServer.code(), "NIKA-148");
+        assert_eq!(AnalyzeErrorKind::UnsupportedFeature.code(), "NIKA-149");
     }
 
     #[test]

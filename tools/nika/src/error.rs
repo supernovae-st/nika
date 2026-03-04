@@ -19,6 +19,7 @@
 //! - NIKA-110-119: Agent errors (v0.2)
 //! - NIKA-120-129: Resilience errors (v0.2) [122-124 deprecated in v0.4]
 //! - NIKA-130-139: TUI errors (v0.2)
+//! - NIKA-140-149: AST analysis errors (v0.20 - Phase 2 analyzer)
 //!
 //! v0.9.x ranges (reserved):
 //! - NIKA-200-209: Chat/Mention errors (v0.9.1-v0.9.2)
