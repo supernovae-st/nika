@@ -74,10 +74,6 @@ pub struct OutputPolicy {
     /// Maximum retry attempts on validation failure (default: 2)
     #[serde(default)]
     pub max_retries: Option<u8>,
-
-    /// Save output to file path
-    #[serde(default)]
-    pub save: Option<String>,
 }
 
 /// Output format enum
@@ -158,21 +154,10 @@ max_retries: 3
     }
 
     #[test]
-    fn parse_save_path() {
-        let yaml = r#"
-format: json
-save: output/result.json
-"#;
-        let policy: OutputPolicy = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(policy.save.as_deref(), Some("output/result.json"));
-    }
-
-    #[test]
     fn default_is_text() {
         let policy = OutputPolicy::default();
         assert_eq!(policy.format, OutputFormat::Text);
         assert!(policy.schema.is_none());
         assert!(policy.max_retries.is_none());
-        assert!(policy.save.is_none());
     }
 }

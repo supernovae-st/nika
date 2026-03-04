@@ -677,10 +677,6 @@
           ],
           "description": "JSON Schema for output validation (inline object or file path)"
         },
-        "save": {
-          "type": "string",
-          "description": "File path to save output"
-        },
         "max_retries": {
           "type": "integer",
           "minimum": 0,
