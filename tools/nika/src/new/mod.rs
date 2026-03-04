@@ -756,12 +756,8 @@ mod tests {
     #[test]
     fn test_create_from_template() {
         let temp_dir = TempDir::new().unwrap();
-        let path = create_from_template(
-            "my-simple",
-            Template::SimpleInfer,
-            temp_dir.path(),
-        )
-        .unwrap();
+        let path =
+            create_from_template("my-simple", Template::SimpleInfer, temp_dir.path()).unwrap();
 
         assert!(path.exists());
         let content = std::fs::read_to_string(&path).unwrap();
