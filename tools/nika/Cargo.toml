@@ -2,8 +2,15 @@
 name = "nika"
 version = "0.20.0"
 edition = "2021"
-description = "DAG workflow runner for AI tasks with MCP integration"
+authors = ["Thibaut MÉLEN <thibaut@supernovae.studio>", "SuperNovae Studio <contact@supernovae.studio>"]
+description = "Semantic YAML workflow engine for AI tasks - DAG execution, MCP integration, multi-provider LLM support"
 license = "AGPL-3.0-or-later"
+repository = "https://github.com/supernovae-st/nika"
+homepage = "https://supernovae.studio"
+documentation = "https://github.com/supernovae-st/nika#readme"
+keywords = ["ai", "workflows", "dag", "mcp", "llm"]
+categories = ["command-line-utilities", "development-tools"]
+readme = "README.md"
 rust-version = "1.86"
 
 [[bin]]
@@ -14,6 +21,7 @@ path = "src/main.rs"
 default = ["tui"]
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-textarea", "dep:tui-input", "dep:arboard", "dep:notify", "dep:nucleo", "dep:unicode-width", "dep:unicode-segmentation", "dep:terminal_size", "dep:tui-tree-widget"]
 jobs = ["dep:rusqlite", "dep:cron", "dep:humantime-serde"]  # Jobs Daemon feature
+spn-daemon = ["dep:spn-client"]  # Use spn daemon for unified secret management (v0.20)
 integration = []  # Enable integration tests with real MCP servers
 test-fixtures = []  # Export test_fixtures module for external test crates
 
@@ -63,9 +71,8 @@ zeroize = "1.8"    # Auto-clear memory on drop
 
 # spn daemon client for unified secret management (v0.20)
 # Solves macOS Keychain popup issue - daemon is sole keychain accessor
-# NOTE: Commented out for CI - path dependency only works locally
-# To enable locally, uncomment and ensure supernovae-cli is cloned:
-# spn-client = { path = "../../../supernovae-cli/crates/spn-client", optional = true }
+# Enable with: cargo build --features spn-daemon
+spn-client = { version = "0.1", optional = true }
 
 # Utilities
 bytes = "1.11.1"  # Force upgrade to fix RUSTSEC-2026-0007
