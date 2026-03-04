@@ -251,17 +251,34 @@ impl DataStore {
         *self.inputs.write() = inputs;
     }
 
-    /// Get an input's default value by name (v0.19.4)
+    /// Get an input's value by name (v0.19.4)
     ///
-    /// Returns the `default` field from the input definition.
-    /// Returns `None` if input doesn't exist or has no default.
+    /// Supports two formats:
+    /// - Full form: `{ type: string, default: "value" }` → extracts `default` field
+    /// - Shorthand: `"value"` or `123` or `true` → uses value directly
+    ///
+    /// Returns `None` if input doesn't exist.
     pub fn get_input_default(&self, name: &str) -> Option<Value> {
         let inputs = self.inputs.read();
         let definition = inputs.get(name)?;
 
-        // Input definitions have structure: { type, default, description, ... }
-        // We extract the 'default' field
-        definition.get("default").cloned()
+        // Check if this is a full input definition with a `default` field
+        // or a shorthand value (string, number, bool, array)
+        if let Some(obj) = definition.as_object() {
+            // Full form: { type, default, description, ... }
+            // Check for 'default' field, or 'value' as alternative
+            if let Some(default_val) = obj.get("default").or_else(|| obj.get("value")) {
+                return Some(default_val.clone());
+            }
+            // If object has type/description but no default, return None
+            if obj.contains_key("type") || obj.contains_key("description") {
+                return None;
+            }
+        }
+
+        // Shorthand: the value itself is the default
+        // e.g., `name: "TestUser"` or `count: 5`
+        Some(definition.clone())
     }
 
     /// Check if inputs are loaded (v0.19.4)
