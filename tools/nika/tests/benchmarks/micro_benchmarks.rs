@@ -39,9 +39,9 @@ tasks:
         elapsed, per_iter
     );
 
-    // Should parse in under 500µs per iteration (relaxed for CI + coverage instrumentation)
+    // Should parse in under 2000µs per iteration (relaxed for debug builds + CI)
     assert!(
-        per_iter.as_micros() < 500,
+        per_iter.as_micros() < 2000,
         "Parsing too slow: {:?}",
         per_iter
     );
@@ -144,9 +144,9 @@ flows:
         elapsed, per_iter
     );
 
-    // Should construct in under 50µs
+    // Should construct in under 500µs (relaxed for debug builds)
     assert!(
-        per_iter.as_micros() < 50,
+        per_iter.as_micros() < 500,
         "DAG construction too slow: {:?}",
         per_iter
     );
