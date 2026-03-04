@@ -7,6 +7,48 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-03-04
+
+### Added
+- **8-View TUI Architecture** - VS Code-inspired unified workspace
+  - `WorkspaceView`: 3-panel layout (Browser | Editor | DAG Preview)
+  - `SplitView`: Editor + Runner side-by-side
+  - Keyboard shortcuts: `7` for Split, `8` for Workspace
+  - Tab/BackTab cycling between panels
+  - Ctrl+[ / Ctrl+] to adjust panel ratios
+- **Tree Widget Integration** - tui-tree-widget v0.24 for VS Code-like file browser
+  - Animated expansion/collapse with easing
+  - Filter/search within trees
+  - Full keyboard navigation (j/k/Enter/Esc)
+- **spn Daemon Secret Management** - Unified keychain access
+  - Solves macOS Keychain popup issue
+  - spn-client integration for credential retrieval
+- **Two-Phase IR Architecture** - v0.19 Foundation
+  - Raw AST → Analyzed AST pipeline
+  - O(1) lookup optimizations with indexmap
+  - Span tracking for precise error locations
+- **Comprehensive Key Handler Tests** - 10 tests for WorkspaceView
+  - F10 exit, Tab focus cycling, ratio adjustment
+  - DAG panel read-only verification
+  - Border style differentiation
+
+### Changed
+- **8 TUI Views** (up from 6): Browse, Editor, Runner, Chat, Scheduler, Settings, Split, Workspace
+- **3,808+ tests passing** (up from 3,562)
+- View number keys now map correctly: 1=Browse through 8=Workspace
+- HomeView uses TreeAction for keyboard handling
+
+### Fixed
+- BackTab key handling simplified in WorkspaceView
+- View aliases removed (deprecated)
+- Tree state uses `set_selection_index()` instead of `select_index()`
+
+### Statistics
+- **3,808 tests passing**
+- **Zero clippy warnings**
+- **8 TUI views** with unified keyboard navigation
+- **tui-tree-widget v0.24** for tree rendering
+
 ## [0.19.1] - 2026-03-03
 
 ### Fixed
@@ -812,7 +854,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **TUI** - Terminal UI with ratatui (feature-gated)
 - **Schema v0.1** - `nika/workflow@0.1`
 
-[Unreleased]: https://github.com/supernovae-st/nika/compare/v0.19.1...HEAD
+[Unreleased]: https://github.com/supernovae-st/nika/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/supernovae-st/nika/compare/v0.19.5...v0.20.0
+[0.19.5]: https://github.com/supernovae-st/nika/compare/v0.19.1...v0.19.5
 [0.19.1]: https://github.com/supernovae-st/nika/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/supernovae-st/nika/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/supernovae-st/nika/compare/v0.17.0...v0.18.0

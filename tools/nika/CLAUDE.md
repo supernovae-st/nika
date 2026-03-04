@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.19.5 | Structured Output + Artifacts + Security | 3,562 tests | Zero clippy warnings
+**Current version:** v0.20.0 | 8-View TUI + Tree Widget + Two-Phase IR | 3,808 tests | Zero clippy warnings
 
 ## Architecture
 
@@ -13,9 +13,22 @@ tools/nika/src/
 ├── main.rs           # CLI entry point
 ├── lib.rs            # Public API
 ├── error.rs          # NikaError with codes
-├── ast/              # YAML → Rust structs
-│   ├── workflow.rs   # Workflow, Task
-│   ├── action.rs     # TaskAction (5 variants)
+├── ast/              # Two-phase YAML parsing (v0.20)
+│   ├── raw/          # Phase 1: YAML → Raw AST (with spans)
+│   │   ├── parser.rs     # marked_yaml parser
+│   │   ├── workflow.rs   # RawWorkflow
+│   │   ├── task.rs       # RawTask, RawForEach, RawRetry
+│   │   ├── action.rs     # RawTaskAction (5 verbs)
+│   │   └── mcp.rs        # RawMcpConfig, RawMcpServer
+│   ├── analyzed/     # Phase 2: Raw → Analyzed (validated)
+│   │   ├── workflow.rs   # AnalyzedWorkflow with TaskTable
+│   │   ├── task.rs       # AnalyzedTask with TaskId
+│   │   ├── action.rs     # AnalyzedTaskAction (typed)
+│   │   └── mcp.rs        # AnalyzedMcpServer
+│   ├── analyzer/     # Validation + transformation
+│   │   ├── analyze.rs    # Main analyze() function
+│   │   ├── errors.rs     # AnalyzeError (NIKA-140-149)
+│   │   └── feature_gate.rs # Schema version gating
 │   ├── context.rs    # ✅ ContextSpec (v0.14.3 - file loading)
 │   ├── include.rs    # ✅ IncludeSpec (v0.14.3 - DAG fusion)
 │   ├── include_loader.rs # Include resolution + prefix + skill merging
@@ -105,6 +118,69 @@ yamllint -c .yamllint.yaml **/*.nika.yaml
 - `nika/workflow@0.7`: +full streaming for all providers
 - `nika/workflow@0.8`: +Studio DX (edit history, sessions, themes, config)
 - `nika/workflow@0.9`: +context: file loading, +include: DAG fusion (v0.14.3)
+- `nika/workflow@0.10`: +two-phase AST, +analyzer validation (v0.20)
+
+## Two-Phase AST Architecture (v0.20)
+
+The AST module uses a two-phase parsing architecture for IDE integration:
+
+```
+YAML Source → [Phase 1: Parser] → RawWorkflow → [Phase 2: Analyzer] → AnalyzedWorkflow
+                  ↓                    ↓                                    ↓
+             marked_yaml         Spans preserved              TaskId interning
+                                 All fields Optional          Semantic validation
+                                 No validation                Feature gating
+```
+
+### Phase 1: Raw AST (`ast::raw`)
+
+Parses YAML with full source position tracking via `marked_yaml`:
+
+```rust
+use nika::ast::raw::{parse, RawWorkflow};
+use nika::source::FileId;
+
+let raw: RawWorkflow = parse(yaml_content, FileId(0))?;
+// raw.schema.span → precise location in source
+```
+
+**Key types:** `RawWorkflow`, `RawTask`, `RawTaskAction`, `RawMcpConfig`
+
+### Phase 2: Analyzed AST (`ast::analyzed`)
+
+Validates and transforms the raw AST:
+
+```rust
+use nika::ast::analyzer::analyze;
+use nika::ast::analyzed::AnalyzedWorkflow;
+
+let result = analyze(raw);
+if result.is_ok() {
+    let workflow: AnalyzedWorkflow = result.value.unwrap();
+    // workflow.get_task_by_name("step1") → O(1) lookup via TaskTable
+}
+```
+
+**Key features:**
+- **TaskId interning:** O(1) task comparison and lookup
+- **Schema version gating:** Features like `for_each` require v0.3+
+- **Error collection:** Multiple errors reported, not just first
+- **Span preservation:** Errors point to exact source locations
+
+### Analyzer Error Codes (NIKA-140-149)
+
+| Code | Kind | Description |
+|------|------|-------------|
+| NIKA-140 | UnknownTask | Referenced task doesn't exist |
+| NIKA-141 | DuplicateTask | Task ID defined multiple times |
+| NIKA-142 | InvalidSchema | Invalid schema version string |
+| NIKA-143 | CyclicDependency | Tasks form a dependency cycle |
+| NIKA-144 | InvalidValue | Field has invalid value |
+| NIKA-145 | MissingField | Required field not provided |
+| NIKA-146 | InvalidTemplate | Template expression is malformed |
+| NIKA-147 | UnknownFlow | Flow references unknown task |
+| NIKA-148 | UnknownMcpServer | MCP server not configured |
+| NIKA-149 | UnsupportedFeature | Feature not available in schema version |
 
 ## Workflow Syntax Quick Reference
 
@@ -1367,8 +1443,11 @@ cargo run -- run examples/test-context-propagation.nika.yaml
 | NIKA-020-029 | DAG errors |
 | NIKA-030-039 | Provider errors |
 | NIKA-040-049 | Binding errors |
+| NIKA-050-059 | Security errors |
+| NIKA-060-069 | JSON validation errors |
 | NIKA-100-109 | MCP errors |
 | NIKA-110-119 | Agent errors |
+| NIKA-140-149 | AST analysis errors (v0.20) |
 
 ## Conventions
 
