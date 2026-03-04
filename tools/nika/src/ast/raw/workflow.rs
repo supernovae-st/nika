@@ -2,9 +2,9 @@
 
 use indexmap::IndexMap;
 
-use crate::source::{Span, Spanned};
-use super::task::RawTask;
 use super::mcp::RawMcpConfig;
+use super::task::RawTask;
+use crate::source::{Span, Spanned};
 
 /// Raw workflow as parsed from YAML.
 ///
@@ -85,7 +85,10 @@ impl RawWorkflow {
 
     /// Get the workflow name, falling back to "unnamed".
     pub fn name(&self) -> &str {
-        self.workflow.as_ref().map(|s| s.value.as_str()).unwrap_or("unnamed")
+        self.workflow
+            .as_ref()
+            .map(|s| s.value.as_str())
+            .unwrap_or("unnamed")
     }
 
     /// Get the number of tasks.

@@ -33,10 +33,7 @@ pub struct TreeNode {
 impl TreeNode {
     /// Create a new tree node from a path
     pub fn from_path(path: &Utf8Path, depth: usize) -> Self {
-        let name = path
-            .file_name()
-            .unwrap_or(path.as_str())
-            .to_string();
+        let name = path.file_name().unwrap_or(path.as_str()).to_string();
         let kind = NodeKind::from_path(path);
         let id = Self::generate_id(path);
 
@@ -75,13 +72,12 @@ impl TreeNode {
 
     /// Sort children: directories first, then by name (case-insensitive)
     pub fn sort_children(&mut self) {
-        self.children.sort_by(|a, b| {
-            match (a.is_directory(), b.is_directory()) {
+        self.children
+            .sort_by(|a, b| match (a.is_directory(), b.is_directory()) {
                 (true, false) => Ordering::Less,
                 (false, true) => Ordering::Greater,
                 _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-            }
-        });
+            });
     }
 }
 
@@ -340,32 +336,32 @@ impl NodeKind {
             // ═══════════════════════════════════════════════════════════════
 
             // NIKA 🦋
-            Self::NikaWorkflow => "✨",      // Gold sparkle
-            Self::NikaFolder => "🦋",        // Butterfly
-            Self::SonAgent => "🐔",          // Space chicken
-            Self::SkillFile => "📜",         // Scroll
-            Self::WorkflowsFolder => "⚡",   // Workflows
-            Self::AgentsFolder => "🐔",      // Agents
-            Self::SkillsFolder => "📚",      // Skills
+            Self::NikaWorkflow => "✨",    // Gold sparkle
+            Self::NikaFolder => "🦋",      // Butterfly
+            Self::SonAgent => "🐔",        // Space chicken
+            Self::SkillFile => "📜",       // Scroll
+            Self::WorkflowsFolder => "⚡", // Workflows
+            Self::AgentsFolder => "🐔",    // Agents
+            Self::SkillsFolder => "📚",    // Skills
 
             // SPN CLI ⚡
-            Self::SpnFolder => "⚡",         // SPN
-            Self::SpnManifest => "📋",       // Manifest
-            Self::SpnMcpConfig => "🔌",      // MCP
-            Self::SpnPackages => "📦",       // Packages
-            Self::SpnRegistry => "📦",       // Registry
-            Self::SpnEnv => "🔐",            // Secrets
-            Self::SpnState => "📊",          // State
+            Self::SpnFolder => "⚡",    // SPN
+            Self::SpnManifest => "📋",  // Manifest
+            Self::SpnMcpConfig => "🔌", // MCP
+            Self::SpnPackages => "📦",  // Packages
+            Self::SpnRegistry => "📦",  // Registry
+            Self::SpnEnv => "🔐",       // Secrets
+            Self::SpnState => "📊",     // State
 
             // NOVANET 🧠
-            Self::NovanetFolder => "🧠",     // Brain
-            Self::BrainFolder => "🧠",       // Brain
-            Self::ModelsFolder => "📐",      // Models
-            Self::SeedFolder => "🌱",        // Seed
+            Self::NovanetFolder => "🧠", // Brain
+            Self::BrainFolder => "🧠",   // Brain
+            Self::ModelsFolder => "📐",  // Models
+            Self::SeedFolder => "🌱",    // Seed
 
             // CLAUDE CODE DX
-            Self::ClaudeFolder => "🤖",      // Claude
-            Self::ClaudeMd => "🤖",          // Claude
+            Self::ClaudeFolder => "🤖", // Claude
+            Self::ClaudeMd => "🤖",     // Claude
 
             // ═══════════════════════════════════════════════════════════════
             // STANDARD DIRECTORIES

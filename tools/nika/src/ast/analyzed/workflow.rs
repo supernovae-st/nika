@@ -7,9 +7,9 @@
 
 use indexmap::IndexMap;
 
-use crate::source::Span;
 use super::ids::{TaskId, TaskTable};
 use super::task::AnalyzedTask;
+use crate::source::Span;
 
 /// An analyzed workflow - validated and ready for execution.
 ///
@@ -162,8 +162,16 @@ impl SchemaVersion {
     /// Get all valid schema versions.
     pub fn all() -> &'static [Self] {
         &[
-            Self::V01, Self::V02, Self::V03, Self::V04, Self::V05,
-            Self::V06, Self::V07, Self::V08, Self::V09, Self::V10,
+            Self::V01,
+            Self::V02,
+            Self::V03,
+            Self::V04,
+            Self::V05,
+            Self::V06,
+            Self::V07,
+            Self::V08,
+            Self::V09,
+            Self::V10,
         ]
     }
 
@@ -252,8 +260,14 @@ mod tests {
 
     #[test]
     fn test_schema_version_parse() {
-        assert_eq!(SchemaVersion::parse("nika/workflow@0.1"), Some(SchemaVersion::V01));
-        assert_eq!(SchemaVersion::parse("nika/workflow@0.10"), Some(SchemaVersion::V10));
+        assert_eq!(
+            SchemaVersion::parse("nika/workflow@0.1"),
+            Some(SchemaVersion::V01)
+        );
+        assert_eq!(
+            SchemaVersion::parse("nika/workflow@0.10"),
+            Some(SchemaVersion::V10)
+        );
         assert_eq!(SchemaVersion::parse("invalid"), None);
         assert_eq!(SchemaVersion::parse("nika/workflow@0.99"), None);
     }

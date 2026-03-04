@@ -700,59 +700,122 @@ mod tests {
     #[test]
     fn test_from_key_event_vim_navigation() {
         // hjkl vim keys
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Char('j'))), Some(TreeAction::Down));
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Char('k'))), Some(TreeAction::Up));
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Char('h'))), Some(TreeAction::Left));
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Char('l'))), Some(TreeAction::Right));
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Char('j'))),
+            Some(TreeAction::Down)
+        );
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Char('k'))),
+            Some(TreeAction::Up)
+        );
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Char('h'))),
+            Some(TreeAction::Left)
+        );
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Char('l'))),
+            Some(TreeAction::Right)
+        );
     }
 
     #[test]
     fn test_from_key_event_arrow_keys() {
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Down)), Some(TreeAction::Down));
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Up)), Some(TreeAction::Up));
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Left)), Some(TreeAction::Left));
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Right)), Some(TreeAction::Right));
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Down)),
+            Some(TreeAction::Down)
+        );
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Up)),
+            Some(TreeAction::Up)
+        );
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Left)),
+            Some(TreeAction::Left)
+        );
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Right)),
+            Some(TreeAction::Right)
+        );
     }
 
     #[test]
     fn test_from_key_event_toggle_select() {
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Enter)), Some(TreeAction::Toggle));
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Char(' '))), Some(TreeAction::Toggle));
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Char('o'))), Some(TreeAction::Select));
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Enter)),
+            Some(TreeAction::Toggle)
+        );
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Char(' '))),
+            Some(TreeAction::Toggle)
+        );
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Char('o'))),
+            Some(TreeAction::Select)
+        );
     }
 
     #[test]
     fn test_from_key_event_first_last() {
         // g for first (no modifier)
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Char('g'))), Some(TreeAction::First));
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Char('g'))),
+            Some(TreeAction::First)
+        );
         // G (uppercase) for last
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Char('G'))), Some(TreeAction::Last));
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Char('G'))),
+            Some(TreeAction::Last)
+        );
         // Home/End keys
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Home)), Some(TreeAction::First));
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::End)), Some(TreeAction::Last));
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Home)),
+            Some(TreeAction::First)
+        );
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::End)),
+            Some(TreeAction::Last)
+        );
     }
 
     #[test]
     fn test_from_key_event_page_up_down() {
         // Ctrl+d / Ctrl+u
         assert_eq!(
-            TreeAction::from_key_event(make_key_with_mod(KeyCode::Char('d'), KeyModifiers::CONTROL)),
+            TreeAction::from_key_event(make_key_with_mod(
+                KeyCode::Char('d'),
+                KeyModifiers::CONTROL
+            )),
             Some(TreeAction::PageDown)
         );
         assert_eq!(
-            TreeAction::from_key_event(make_key_with_mod(KeyCode::Char('u'), KeyModifiers::CONTROL)),
+            TreeAction::from_key_event(make_key_with_mod(
+                KeyCode::Char('u'),
+                KeyModifiers::CONTROL
+            )),
             Some(TreeAction::PageUp)
         );
         // PageDown/PageUp keys
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::PageDown)), Some(TreeAction::PageDown));
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::PageUp)), Some(TreeAction::PageUp));
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::PageDown)),
+            Some(TreeAction::PageDown)
+        );
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::PageUp)),
+            Some(TreeAction::PageUp)
+        );
     }
 
     #[test]
     fn test_from_key_event_unknown_keys() {
         // Unknown keys return None
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Char('x'))), None);
-        assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Char('q'))), None);
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Char('x'))),
+            None
+        );
+        assert_eq!(
+            TreeAction::from_key_event(make_key(KeyCode::Char('q'))),
+            None
+        );
         assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Tab)), None);
         assert_eq!(TreeAction::from_key_event(make_key(KeyCode::Esc)), None);
     }

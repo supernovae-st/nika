@@ -61,18 +61,14 @@ pub use errors::{AnalyzeError, AnalyzeErrorKind, AnalyzeResult};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::source::{FileId, Span, Spanned};
     use crate::ast::raw::RawWorkflow;
+    use crate::source::{FileId, Span, Spanned};
 
     #[test]
     fn test_module_exports() {
         // Smoke test that all types are accessible
         let _ = AnalyzeErrorKind::UnknownTask;
-        let _ = AnalyzeError::new(
-            AnalyzeErrorKind::UnknownTask,
-            Span::dummy(),
-            "test",
-        );
+        let _ = AnalyzeError::new(AnalyzeErrorKind::UnknownTask, Span::dummy(), "test");
     }
 
     #[test]

@@ -57,19 +57,18 @@
 //! ```
 
 mod ids;
-mod workflow;
 mod task;
+mod workflow;
 
-pub use ids::{TaskId, FlowDefId, McpServerId, StringTable, TaskTable};
-pub use workflow::{
-    AnalyzedWorkflow, SchemaVersion, AnalyzedMcpServer, McpTransport,
-    AnalyzedContextFile, AnalyzedFlowDef,
-};
+pub use ids::{FlowDefId, McpServerId, StringTable, TaskId, TaskTable};
 pub use task::{
-    AnalyzedTask, AnalyzedUseRef, AnalyzedTaskAction,
-    AnalyzedInferAction, AnalyzedExecAction, AnalyzedFetchAction,
-    AnalyzedInvokeAction, AnalyzedAgentAction,
-    AnalyzedOutput, OutputFormat, HttpMethod,
+    AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedInferAction,
+    AnalyzedInvokeAction, AnalyzedOutput, AnalyzedTask, AnalyzedTaskAction, AnalyzedUseRef,
+    HttpMethod, OutputFormat,
+};
+pub use workflow::{
+    AnalyzedContextFile, AnalyzedFlowDef, AnalyzedMcpServer, AnalyzedWorkflow, McpTransport,
+    SchemaVersion,
 };
 
 #[cfg(test)]

@@ -3,11 +3,11 @@
 //! This module provides the entry point for parsing YAML workflows
 //! into the raw AST with full source position tracking.
 
-use marked_yaml::{parse_yaml, Node, Marker, Span as MarkedSpan, LoadError};
+use marked_yaml::{parse_yaml, LoadError, Marker, Node, Span as MarkedSpan};
 
-use crate::source::{FileId, Span, ByteOffset, Spanned};
-use super::workflow::RawWorkflow;
 use super::task::RawTask;
+use super::workflow::RawWorkflow;
+use crate::source::{ByteOffset, FileId, Span, Spanned};
 
 /// Errors that can occur during parsing.
 #[derive(Debug)]
@@ -185,12 +185,11 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
     workflow.span = node_to_span(file_id, &node);
 
     // Extract schema (required)
-    workflow.schema = get_string_field(file_id, map, "schema")?
-        .ok_or_else(|| ParseError {
-            kind: ParseErrorKind::MissingField,
-            span: workflow.span,
-            message: "missing required field 'schema'".to_string(),
-        })?;
+    workflow.schema = get_string_field(file_id, map, "schema")?.ok_or_else(|| ParseError {
+        kind: ParseErrorKind::MissingField,
+        span: workflow.span,
+        message: "missing required field 'schema'".to_string(),
+    })?;
 
     // Extract optional fields
     workflow.workflow = get_string_field(file_id, map, "workflow")?;
@@ -212,18 +211,17 @@ fn parse_tasks(
     match map.get_node("tasks") {
         Some(Node::Sequence(seq)) => {
             let span = marked_span_to_span(file_id, seq.span());
-            let tasks = seq.iter()
+            let tasks = seq
+                .iter()
                 .map(|task_node| parse_task(file_id, task_node))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(Spanned::new(tasks, span))
         }
-        Some(node) => {
-            Err(ParseError {
-                kind: ParseErrorKind::InvalidType,
-                span: node_to_span(file_id, node),
-                message: "tasks must be a sequence".to_string(),
-            })
-        }
+        Some(node) => Err(ParseError {
+            kind: ParseErrorKind::InvalidType,
+            span: node_to_span(file_id, node),
+            message: "tasks must be a sequence".to_string(),
+        }),
         None => {
             // No tasks field - return empty array with dummy span
             Ok(Spanned::dummy(Vec::new()))
@@ -247,12 +245,11 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
     };
 
     // Extract task id (required)
-    let id = get_string_field(file_id, map, "id")?
-        .ok_or_else(|| ParseError {
-            kind: ParseErrorKind::MissingField,
-            span,
-            message: "task missing required field 'id'".to_string(),
-        })?;
+    let id = get_string_field(file_id, map, "id")?.ok_or_else(|| ParseError {
+        kind: ParseErrorKind::MissingField,
+        span,
+        message: "task missing required field 'id'".to_string(),
+    })?;
 
     // Extract optional fields
     let description = get_string_field(file_id, map, "description")?;
@@ -309,7 +306,10 @@ tasks:
 
         assert_eq!(workflow.schema.value, "nika/workflow@0.10");
         assert_eq!(workflow.name(), "test-workflow");
-        assert_eq!(workflow.description.as_ref().unwrap().value, "A test workflow");
+        assert_eq!(
+            workflow.description.as_ref().unwrap().value,
+            "A test workflow"
+        );
         assert_eq!(workflow.provider.as_ref().unwrap().value, "claude");
         assert_eq!(workflow.model.as_ref().unwrap().value, "claude-sonnet-4-6");
         assert_eq!(workflow.task_count(), 2);
@@ -372,6 +372,8 @@ tasks:
         assert!(!schema_span.is_dummy());
 
         // Check span bounds are reasonable
-        assert!(schema_span.start.0 < schema_span.end.0 || schema_span.start.0 == schema_span.end.0);
+        assert!(
+            schema_span.start.0 < schema_span.end.0 || schema_span.start.0 == schema_span.end.0
+        );
     }
 }

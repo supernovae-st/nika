@@ -32,9 +32,9 @@
 //! For runtime execution, see the `runtime` module.
 
 // v0.19 Foundation - Two-Phase IR
-pub mod raw;
 pub mod analyzed;
 pub mod analyzer;
+pub mod raw;
 
 // Legacy modules (being migrated)
 mod action;

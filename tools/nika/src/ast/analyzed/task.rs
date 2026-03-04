@@ -4,8 +4,8 @@
 
 use indexmap::IndexMap;
 
-use crate::source::Span;
 use super::ids::TaskId;
+use crate::source::Span;
 
 /// An analyzed task - validated and resolved.
 ///

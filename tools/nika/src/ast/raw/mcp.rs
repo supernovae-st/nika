@@ -46,7 +46,8 @@ impl RawMcpConfig {
 
     /// Get a server by name.
     pub fn get_server(&self, name: &str) -> Option<&Spanned<RawMcpServer>> {
-        self.servers.iter()
+        self.servers
+            .iter()
             .find(|(k, _)| k.value == name)
             .map(|(_, v)| v)
     }
@@ -82,8 +83,12 @@ impl RawMcpServer {
 
     /// Check if this is an SSE server.
     pub fn is_sse(&self) -> bool {
-        self.url.is_some() ||
-        self.transport.as_ref().map(|t| t.value == "sse").unwrap_or(false)
+        self.url.is_some()
+            || self
+                .transport
+                .as_ref()
+                .map(|t| t.value == "sse")
+                .unwrap_or(false)
     }
 }
 
@@ -109,12 +114,18 @@ mod tests {
 
         config.servers.insert(
             Spanned::new("novanet".to_string(), make_span(0, 7)),
-            Spanned::new(RawMcpServer::with_command("cargo run -p novanet-mcp"), make_span(10, 50)),
+            Spanned::new(
+                RawMcpServer::with_command("cargo run -p novanet-mcp"),
+                make_span(10, 50),
+            ),
         );
 
         config.servers.insert(
             Spanned::new("external".to_string(), make_span(60, 68)),
-            Spanned::new(RawMcpServer::with_url("http://localhost:8080"), make_span(70, 100)),
+            Spanned::new(
+                RawMcpServer::with_url("http://localhost:8080"),
+                make_span(70, 100),
+            ),
         );
 
         assert_eq!(config.server_count(), 2);

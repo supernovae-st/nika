@@ -254,16 +254,13 @@ impl SourceRegistry {
             return "";
         }
 
-        self.get(span.file)
-            .map(|f| f.text_at(span))
-            .unwrap_or("")
+        self.get(span.file).map(|f| f.text_at(span)).unwrap_or("")
     }
 
     /// Create a NamedSource for miette error reporting.
     pub fn named_source(&self, id: FileId) -> Option<miette::NamedSource<String>> {
-        self.get(id).map(|f| {
-            miette::NamedSource::new(f.path.display().to_string(), f.content.to_string())
-        })
+        self.get(id)
+            .map(|f| miette::NamedSource::new(f.path.display().to_string(), f.content.to_string()))
     }
 
     /// Convert our Span to miette::SourceSpan.
@@ -279,11 +276,16 @@ impl SourceRegistry {
 mod tests {
     use super::*;
 
-    const SAMPLE_SOURCE: &str = "schema: \"nika/workflow@0.10\"\nworkflow: test\ntasks:\n  - id: foo\n";
+    const SAMPLE_SOURCE: &str =
+        "schema: \"nika/workflow@0.10\"\nworkflow: test\ntasks:\n  - id: foo\n";
 
     #[test]
     fn test_source_file_line_col() {
-        let file = SourceFile::new(FileId(0), PathBuf::from("test.yaml"), SAMPLE_SOURCE.to_string());
+        let file = SourceFile::new(
+            FileId(0),
+            PathBuf::from("test.yaml"),
+            SAMPLE_SOURCE.to_string(),
+        );
 
         // Line 1, column 1 (start of file)
         assert_eq!(file.offset_to_line_col(ByteOffset(0)), (1, 1));
@@ -297,12 +299,13 @@ mod tests {
 
     #[test]
     fn test_source_file_line_text() {
-        let file = SourceFile::new(FileId(0), PathBuf::from("test.yaml"), SAMPLE_SOURCE.to_string());
-
-        assert_eq!(
-            file.line_text(1),
-            Some("schema: \"nika/workflow@0.10\"")
+        let file = SourceFile::new(
+            FileId(0),
+            PathBuf::from("test.yaml"),
+            SAMPLE_SOURCE.to_string(),
         );
+
+        assert_eq!(file.line_text(1), Some("schema: \"nika/workflow@0.10\""));
         assert_eq!(file.line_text(2), Some("workflow: test"));
         assert_eq!(file.line_text(3), Some("tasks:"));
         assert_eq!(file.line_text(4), Some("  - id: foo"));
@@ -350,7 +353,11 @@ mod tests {
 
     #[test]
     fn test_line_col_to_offset() {
-        let file = SourceFile::new(FileId(0), PathBuf::from("test.yaml"), SAMPLE_SOURCE.to_string());
+        let file = SourceFile::new(
+            FileId(0),
+            PathBuf::from("test.yaml"),
+            SAMPLE_SOURCE.to_string(),
+        );
 
         // Line 1, column 1 -> offset 0
         assert_eq!(file.line_col_to_offset(1, 1), Some(ByteOffset(0)));

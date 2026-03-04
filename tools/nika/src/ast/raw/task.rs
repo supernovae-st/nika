@@ -2,8 +2,8 @@
 
 use indexmap::IndexMap;
 
-use crate::source::{Span, Spanned};
 use super::action::RawTaskAction;
+use crate::source::{Span, Spanned};
 
 /// A raw task as parsed from YAML.
 ///
@@ -168,8 +168,15 @@ impl RawTask {
 
     /// Check if this task has any dependencies.
     pub fn has_dependencies(&self) -> bool {
-        self.use_refs.as_ref().map(|u| !u.value.is_empty()).unwrap_or(false)
-            || self.flow.as_ref().map(|f| !f.value.is_empty()).unwrap_or(false)
+        self.use_refs
+            .as_ref()
+            .map(|u| !u.value.is_empty())
+            .unwrap_or(false)
+            || self
+                .flow
+                .as_ref()
+                .map(|f| !f.value.is_empty())
+                .unwrap_or(false)
     }
 
     /// Get all task IDs this task depends on.

@@ -10,21 +10,20 @@
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
 
-use crate::source::Span;
-use crate::ast::raw::{
-    RawWorkflow, RawTask, RawTaskAction, RawFlow,
-    RawInferAction, RawExecAction, RawFetchAction, RawInvokeAction, RawAgentAction,
-};
-use crate::ast::analyzed::{
-    AnalyzedWorkflow, AnalyzedTask, AnalyzedTaskAction, AnalyzedUseRef,
-    AnalyzedInferAction, AnalyzedExecAction, AnalyzedFetchAction,
-    AnalyzedInvokeAction, AnalyzedAgentAction, AnalyzedOutput,
-    TaskId, TaskTable, SchemaVersion, HttpMethod, OutputFormat,
-};
-use super::errors::{AnalyzeError, AnalyzeResult};
 #[cfg(test)]
 use super::errors::AnalyzeErrorKind;
+use super::errors::{AnalyzeError, AnalyzeResult};
 use super::suggestions::find_similar;
+use crate::ast::analyzed::{
+    AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedInferAction,
+    AnalyzedInvokeAction, AnalyzedOutput, AnalyzedTask, AnalyzedTaskAction, AnalyzedUseRef,
+    AnalyzedWorkflow, HttpMethod, OutputFormat, SchemaVersion, TaskId, TaskTable,
+};
+use crate::ast::raw::{
+    RawAgentAction, RawExecAction, RawFetchAction, RawFlow, RawInferAction, RawInvokeAction,
+    RawTask, RawTaskAction, RawWorkflow,
+};
+use crate::source::Span;
 
 /// Analyzer context - holds state during analysis.
 struct AnalyzerContext {
@@ -108,7 +107,11 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         let task_span = task.value.id.span;
 
         if let Some(first_span) = ctx.task_spans.get(task_name) {
-            ctx.add_error(AnalyzeError::duplicate_task(task_span, task_name, *first_span));
+            ctx.add_error(AnalyzeError::duplicate_task(
+                task_span,
+                task_name,
+                *first_span,
+            ));
         } else {
             ctx.task_table.insert(task_name);
             ctx.task_spans.insert(task_name.clone(), task_span);
@@ -120,7 +123,9 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     let task_table = ctx.task_table.clone();
     let task_names: Vec<String> = task_table.iter().map(|(_, n)| n.to_string()).collect();
     for raw_task in raw.tasks.value.iter() {
-        if let Some(analyzed_task) = analyze_task(&raw_task.value, &task_table, &task_names, &mut ctx) {
+        if let Some(analyzed_task) =
+            analyze_task(&raw_task.value, &task_table, &task_names, &mut ctx)
+        {
             workflow.tasks.push(analyzed_task);
         }
     }
@@ -151,10 +156,7 @@ fn analyze_schema(raw: &RawWorkflow, ctx: &mut AnalyzerContext) -> Option<Schema
         Some(version)
     } else {
         // Find similar schema version
-        let all_versions: Vec<&str> = SchemaVersion::all()
-            .iter()
-            .map(|v| v.as_str())
-            .collect();
+        let all_versions: Vec<&str> = SchemaVersion::all().iter().map(|v| v.as_str()).collect();
         let suggestion = find_similar(schema_str, &all_versions, 0.6);
 
         ctx.add_error(AnalyzeError::invalid_schema(
@@ -274,7 +276,9 @@ fn analyze_infer(raw: &RawInferAction) -> AnalyzedInferAction {
         system: raw.system.as_ref().map(|s| s.value.clone()),
         temperature: raw.temperature.as_ref().map(|s| s.value),
         max_tokens: raw.max_tokens.as_ref().map(|s| s.value),
-        stop: raw.stop.as_ref()
+        stop: raw
+            .stop
+            .as_ref()
             .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
             .unwrap_or_default(),
         thinking: raw.thinking.as_ref().map(|s| s.value),
@@ -288,10 +292,15 @@ fn analyze_shell_cmd(raw: &RawExecAction) -> AnalyzedExecAction {
         command: raw.command.value.clone(),
         shell: raw.shell.as_ref().map(|s| s.value).unwrap_or(false),
         working_dir: raw.working_dir.as_ref().map(|s| s.value.clone()),
-        env: raw.env.as_ref()
-            .map(|s| s.value.iter()
-                .map(|(k, v)| (k.value.clone(), v.value.clone()))
-                .collect())
+        env: raw
+            .env
+            .as_ref()
+            .map(|s| {
+                s.value
+                    .iter()
+                    .map(|(k, v)| (k.value.clone(), v.value.clone()))
+                    .collect()
+            })
             .unwrap_or_default(),
         timeout_ms: raw.timeout_ms.as_ref().map(|s| s.value),
         capture_stdout: raw.capture_stdout.as_ref().map(|s| s.value).unwrap_or(true),
@@ -301,22 +310,33 @@ fn analyze_shell_cmd(raw: &RawExecAction) -> AnalyzedExecAction {
 }
 
 fn analyze_fetch(raw: &RawFetchAction) -> AnalyzedFetchAction {
-    let method = raw.method.as_ref()
+    let method = raw
+        .method
+        .as_ref()
         .and_then(|s| HttpMethod::parse(&s.value))
         .unwrap_or(HttpMethod::Get);
 
     AnalyzedFetchAction {
         url: raw.url.value.clone(),
         method,
-        headers: raw.headers.as_ref()
-            .map(|s| s.value.iter()
-                .map(|(k, v)| (k.value.clone(), v.value.clone()))
-                .collect())
+        headers: raw
+            .headers
+            .as_ref()
+            .map(|s| {
+                s.value
+                    .iter()
+                    .map(|(k, v)| (k.value.clone(), v.value.clone()))
+                    .collect()
+            })
             .unwrap_or_default(),
         body: raw.body.as_ref().map(|s| s.value.clone()),
         json: raw.json.as_ref().map(|s| s.value.clone()),
         timeout_ms: raw.timeout_ms.as_ref().map(|s| s.value),
-        follow_redirects: raw.follow_redirects.as_ref().map(|s| s.value).unwrap_or(true),
+        follow_redirects: raw
+            .follow_redirects
+            .as_ref()
+            .map(|s| s.value)
+            .unwrap_or(true),
         span: raw.url.span,
     }
 }
@@ -325,7 +345,9 @@ fn analyze_invoke(raw: &RawInvokeAction) -> AnalyzedInvokeAction {
     let (server, tool) = raw.parse_tool_name();
 
     AnalyzedInvokeAction {
-        server: server.map(|s| s.to_string()).or_else(|| raw.mcp.as_ref().map(|s| s.value.clone())),
+        server: server
+            .map(|s| s.to_string())
+            .or_else(|| raw.mcp.as_ref().map(|s| s.value.clone())),
         tool: tool.to_string(),
         params: raw.params.as_ref().map(|s| s.value.clone()),
         timeout_ms: raw.timeout_ms.as_ref().map(|s| s.value),
@@ -336,21 +358,30 @@ fn analyze_invoke(raw: &RawInvokeAction) -> AnalyzedInvokeAction {
 fn analyze_agent(raw: &RawAgentAction) -> AnalyzedAgentAction {
     AnalyzedAgentAction {
         goal: raw.goal.value.clone(),
-        tools: raw.tools.as_ref()
+        tools: raw
+            .tools
+            .as_ref()
             .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
             .unwrap_or_default(),
         max_iterations: raw.max_iterations.as_ref().map(|s| s.value),
         max_tokens: raw.max_tokens.as_ref().map(|s| s.value),
         from: raw.from.as_ref().map(|s| s.value.clone()),
-        skills: raw.skills.as_ref()
+        skills: raw
+            .skills
+            .as_ref()
             .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
             .unwrap_or_default(),
         span: raw.goal.span,
     }
 }
 
-fn analyze_output(raw: &crate::ast::raw::RawOutputConfig, _ctx: &mut AnalyzerContext) -> AnalyzedOutput {
-    let format = raw.format.as_ref()
+fn analyze_output(
+    raw: &crate::ast::raw::RawOutputConfig,
+    _ctx: &mut AnalyzerContext,
+) -> AnalyzedOutput {
+    let format = raw
+        .format
+        .as_ref()
         .and_then(|s| OutputFormat::parse(&s.value))
         .unwrap_or(OutputFormat::Text);
 
@@ -369,7 +400,14 @@ fn detect_cycles(workflow: &AnalyzedWorkflow, ctx: &mut AnalyzerContext) {
 
     for task in &workflow.tasks {
         if !visited.contains(&task.id) {
-            detect_cycles_dfs(task.id, workflow, &mut visited, &mut rec_stack, &mut path, ctx);
+            detect_cycles_dfs(
+                task.id,
+                workflow,
+                &mut visited,
+                &mut rec_stack,
+                &mut path,
+                ctx,
+            );
         }
     }
 }
@@ -402,7 +440,10 @@ fn detect_cycles_dfs(
                 if let Some(name) = workflow.task_table.get_name(*dep_id) {
                     cycle_with_close.push(name);
                 }
-                ctx.add_error(AnalyzeError::cyclic_dependency(task.span, &cycle_with_close));
+                ctx.add_error(AnalyzeError::cyclic_dependency(
+                    task.span,
+                    &cycle_with_close,
+                ));
             }
         }
 
@@ -422,7 +463,10 @@ fn detect_cycles_dfs(
                 if let Some(name) = workflow.task_table.get_name(dep_id) {
                     cycle_with_close.push(name);
                 }
-                ctx.add_error(AnalyzeError::cyclic_dependency(task.span, &cycle_with_close));
+                ctx.add_error(AnalyzeError::cyclic_dependency(
+                    task.span,
+                    &cycle_with_close,
+                ));
             }
         }
     }
@@ -434,8 +478,8 @@ fn detect_cycles_dfs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::source::{FileId, Spanned};
     use crate::ast::raw::{RawTask, RawUseTarget, RawWorkflow};
+    use crate::source::{FileId, Spanned};
 
     fn make_span(start: u32, end: u32) -> Span {
         Span::new(FileId(0), start, end)
@@ -445,7 +489,10 @@ mod tests {
         let mut workflow = RawWorkflow::default();
         workflow.schema = Spanned::new(schema.to_string(), make_span(0, 20));
         workflow.tasks = Spanned::new(
-            tasks.into_iter().map(|t| Spanned::new(t, make_span(0, 50))).collect(),
+            tasks
+                .into_iter()
+                .map(|t| Spanned::new(t, make_span(0, 50)))
+                .collect(),
             make_span(0, 100),
         );
         workflow
@@ -543,6 +590,9 @@ mod tests {
         let result = analyze(raw);
 
         assert!(result.is_err());
-        assert!(result.errors.iter().any(|e| e.kind == AnalyzeErrorKind::CyclicDependency));
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::CyclicDependency));
     }
 }

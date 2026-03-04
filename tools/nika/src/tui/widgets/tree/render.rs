@@ -16,10 +16,8 @@ use ratatui::{
 };
 
 use super::{
-    animation::AnimationTicker,
-    colors::TreeColors,
-    filter::FilterConfig,
-    NodeKind, TreeNode, TreeState,
+    animation::AnimationTicker, colors::TreeColors, filter::FilterConfig, NodeKind, TreeNode,
+    TreeState,
 };
 
 /// Tree branch characters
@@ -250,7 +248,9 @@ impl<'a> TreeWidget<'a> {
         };
 
         // Truncate name if needed
-        let max_name_len = width.saturating_sub(spans.iter().map(|s| s.width()).sum::<usize>() as u16 + 2) as usize;
+        let max_name_len = width
+            .saturating_sub(spans.iter().map(|s| s.width()).sum::<usize>() as u16 + 2)
+            as usize;
         let name = if node.name.len() > max_name_len {
             format!("{}...", &node.name[..max_name_len.saturating_sub(3)])
         } else {
@@ -349,10 +349,7 @@ impl StatefulWidget for TreeWidget<'_> {
             if is_selected {
                 for x in inner.x..(inner.x + inner.width) {
                     if let Some(cell) = buf.cell_mut((x, y)) {
-                        cell.set_style(
-                            cell.style()
-                                .add_modifier(Modifier::REVERSED),
-                        );
+                        cell.set_style(cell.style().add_modifier(Modifier::REVERSED));
                     }
                 }
             }
@@ -370,7 +367,9 @@ impl StatefulWidget for TreeWidget<'_> {
         }
         if total > visible && scroll_offset + visible < total {
             // Bottom scroll indicator
-            if let Some(cell) = buf.cell_mut((inner.x + inner.width - 1, inner.y + inner.height - 1)) {
+            if let Some(cell) =
+                buf.cell_mut((inner.x + inner.width - 1, inner.y + inner.height - 1))
+            {
                 cell.set_char('▼');
                 cell.set_fg(self.colors.fg);
             }
@@ -407,18 +406,16 @@ mod tests {
                     path: Utf8PathBuf::from("./src"),
                     kind: NodeKind::SrcFolder,
                     git_status: None,
-                    children: vec![
-                        TreeNode {
-                            id: 4,
-                            name: "main.rs".to_string(),
-                            path: Utf8PathBuf::from("./src/main.rs"),
-                            kind: NodeKind::Rust,
-                            git_status: None,
-                            children: vec![],
-                            expanded: false,
-                            depth: 2,
-                        },
-                    ],
+                    children: vec![TreeNode {
+                        id: 4,
+                        name: "main.rs".to_string(),
+                        path: Utf8PathBuf::from("./src/main.rs"),
+                        kind: NodeKind::Rust,
+                        git_status: None,
+                        children: vec![],
+                        expanded: false,
+                        depth: 2,
+                    }],
                     expanded: false,
                     depth: 1,
                 },
@@ -439,9 +436,7 @@ mod tests {
     fn test_tree_widget_with_options() {
         let root = create_test_tree();
         let colors = TreeColors::solarized_light();
-        let widget = TreeWidget::new(&root)
-            .colors(colors)
-            .nerd_icons(true);
+        let widget = TreeWidget::new(&root).colors(colors).nerd_icons(true);
         assert!(widget.use_nerd_icons);
     }
 

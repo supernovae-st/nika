@@ -49,19 +49,21 @@
 //! 3. **No validation** - Structure only, semantics checked in Phase 2
 //! 4. **Preserves YAML order** - Uses indexmap for key ordering
 
-mod workflow;
-mod task;
 mod action;
 mod mcp;
 mod parser;
+mod task;
+mod workflow;
 
-pub use workflow::{RawWorkflow, RawPkgConfig, RawContextConfig};
-pub use task::{RawTask, RawUseRef, RawUseTarget, RawOutputConfig, RawForEach, RawRetryConfig, RawFlow};
 pub use action::{
-    RawTaskAction, RawInferAction, RawExecAction, RawFetchAction, RawInvokeAction, RawAgentAction,
+    RawAgentAction, RawExecAction, RawFetchAction, RawInferAction, RawInvokeAction, RawTaskAction,
 };
 pub use mcp::{RawMcpConfig, RawMcpServer};
 pub use parser::{parse, ParseError, ParseErrorKind};
+pub use task::{
+    RawFlow, RawForEach, RawOutputConfig, RawRetryConfig, RawTask, RawUseRef, RawUseTarget,
+};
+pub use workflow::{RawContextConfig, RawPkgConfig, RawWorkflow};
 
 use crate::source::{Span, Spanned};
 

@@ -39,8 +39,8 @@
 //! assert_eq!(registry.text_at(span), "workflow");
 //! ```
 
-mod span;
 mod registry;
+mod span;
 
-pub use span::{ByteOffset, FileId, Span, Spanned};
 pub use registry::{SourceFile, SourceRegistry, SourceSnippet};
+pub use span::{ByteOffset, FileId, Span, Spanned};
