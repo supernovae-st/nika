@@ -1,4 +1,4 @@
-//! Runtime Module - Workflow execution (v0.15.0)
+//! Runtime Module - Workflow execution (v0.18.0)
 //!
 //! Contains the runtime execution components:
 //! - `runner`: DAG execution with tokio concurrency
@@ -15,10 +15,12 @@
 //! - `boot`: Boot sequence with 6-phase initialization (v0.13.1)
 //! - `policy`: Security policy enforcement for exec/fetch/tokens (v0.13.1)
 //! - `security`: Command validation and blocklist (v0.15.0)
+//! - `artifact_processor`: Task output file persistence (v0.18.0)
 //!
 //! This module represents the "how" - runtime execution.
 //! For static structure, see the `ast` module.
 
+pub mod artifact_processor;
 pub mod boot;
 pub mod builtin;
 pub mod chat_workflow;
@@ -62,3 +64,6 @@ pub use policy::{PolicyDecision, PolicyEnforcer, TokenBudget};
 
 // v0.15.0: Security module for exec command validation
 pub use security::{check_blocklist, validate_command_string, validate_exec_command};
+
+// v0.18.0: Artifact processor for task output persistence
+pub use artifact_processor::{process_task_artifacts, ArtifactProcessResult};

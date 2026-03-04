@@ -25,10 +25,14 @@ use crate::event::{EventKind, EventLog, TraceWriter};
 use crate::store::{DataStore, TaskResult};
 use crate::util::{intern, DECOMPOSE_TIMEOUT};
 
+use super::artifact_processor::process_task_artifacts;
 use super::context_loader::load_context;
 use super::executor::TaskExecutor;
 use super::output::{extract_json, format_validation_errors, make_task_result};
 use super::resolver::{resolve_assets, ResolvedAssets};
+
+use crate::ast::artifact::ArtifactsConfig;
+use std::path::PathBuf;
 
 /// Result of executing a task iteration
 /// For for_each tasks, includes the iteration index for ordered aggregation
@@ -477,6 +481,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
     /// * `executor` - Task executor
     /// * `event_log` - Event log for observability
     /// * `for_each_binding` - Optional (var_name, value, index) for for_each iteration
+    /// * `workflow_artifacts` - Workflow-level artifact configuration (v0.18)
+    /// * `base_path` - Base path for artifact resolution (v0.18)
+    #[allow(clippy::too_many_arguments)] // v0.18: Artifact integration requires additional params
     async fn execute_task_iteration(
         task: Arc<Task>,
         task_id: Arc<str>,
@@ -485,6 +492,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         executor: TaskExecutor,
         event_log: EventLog,
         for_each_binding: Option<(String, Value, usize)>, // Added index
+        workflow_artifacts: Option<ArtifactsConfig>,       // v0.18: Artifact config
+        base_path: PathBuf,                                // v0.18: Artifact base path
     ) -> IterationResult {
         let start = Instant::now();
 
@@ -581,6 +590,42 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 }
             }
         };
+
+        // v0.18: Process artifacts if task succeeded and has artifact config
+        if task_result.is_success() {
+            if let Some(ref artifact_spec) = task.artifact {
+                // Get the output content for artifact writing
+                let output_content = task_result.output_str().into_owned();
+
+                let artifact_result = process_task_artifacts(
+                    &task_id,
+                    &output_content,
+                    artifact_spec,
+                    workflow_artifacts.as_ref(),
+                    &base_path,
+                    Some(&event_log), // Pass event log for artifact events
+                )
+                .await;
+
+                // Log artifact results
+                if artifact_result.written > 0 {
+                    debug!(
+                        task_id = %task_id,
+                        artifacts_written = artifact_result.written,
+                        "Artifacts written"
+                    );
+                }
+
+                // Log any artifact errors (non-fatal)
+                for err in artifact_result.errors {
+                    tracing::warn!(
+                        task_id = %task_id,
+                        error = %err,
+                        "Artifact write error (non-fatal)"
+                    );
+                }
+            }
+        }
 
         IterationResult {
             store_id: task_id, // Store individual results with indexed ID
@@ -725,6 +770,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
             // Spawn all ready tasks in parallel (Tokio handles concurrency)
             let mut join_set = JoinSet::new();
+
+            // v0.18: Prepare artifact config for all tasks in this batch
+            let workflow_artifacts = self.workflow.artifacts.clone();
+            let artifact_base_path = base_path.clone();
 
             for task in ready {
                 let task = Arc::clone(&task);
@@ -906,6 +955,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             let var_name = var_name.clone();
                             let semaphore = Arc::clone(&semaphore);
                             let cancelled = Arc::clone(&cancelled);
+                            // v0.18: Clone artifact config for this iteration
+                            let workflow_artifacts = workflow_artifacts.clone();
+                            let artifact_base_path = artifact_base_path.clone();
 
                             join_set.spawn(async move {
                                 // Acquire semaphore permit (blocks if at concurrency limit)
@@ -944,6 +996,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     executor,
                                     event_log,
                                     Some((var_name, item, idx)),
+                                    workflow_artifacts,
+                                    artifact_base_path,
                                 )
                                 .await;
 
@@ -961,6 +1015,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     let datastore = self.datastore.clone();
                     let executor = self.executor.clone();
                     let event_log = self.event_log.clone();
+                    // v0.18: Clone artifact config for this task
+                    let workflow_artifacts = workflow_artifacts.clone();
+                    let artifact_base_path = artifact_base_path.clone();
 
                     join_set.spawn(async move {
                         Self::execute_task_iteration(
@@ -971,6 +1028,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             executor,
                             event_log,
                             None,
+                            workflow_artifacts,
+                            artifact_base_path,
                         )
                         .await
                     });
