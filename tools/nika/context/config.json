@@ -1,0 +1,6 @@
+{
+  "app_name": "Nika",
+  "version": "0.19.3",
+  "features": ["infer", "exec", "fetch", "invoke", "agent"],
+  "max_tokens": 100000
+}

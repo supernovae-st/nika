@@ -246,11 +246,8 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         }
     };
 
-    let mut task = RawTask::default();
-    task.span = span;
-
     // Extract task id (required)
-    task.id = get_string_field(file_id, map, "id")?
+    let id = get_string_field(file_id, map, "id")?
         .ok_or_else(|| ParseError {
             kind: ParseErrorKind::MissingField,
             span,
@@ -258,9 +255,18 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         })?;
 
     // Extract optional fields
-    task.description = get_string_field(file_id, map, "description")?;
-    task.provider = get_string_field(file_id, map, "provider")?;
-    task.model = get_string_field(file_id, map, "model")?;
+    let description = get_string_field(file_id, map, "description")?;
+    let provider = get_string_field(file_id, map, "provider")?;
+    let model = get_string_field(file_id, map, "model")?;
+
+    let task = RawTask {
+        span,
+        id,
+        description,
+        provider,
+        model,
+        ..Default::default()
+    };
 
     // Note: Full implementation would also parse:
     // - action (infer/exec/fetch/invoke/agent)

@@ -307,9 +307,7 @@ impl TreeState {
     }
 
     fn move_left(&mut self, root: &TreeNode) -> Option<NodeId> {
-        let Some(selected_id) = self.selected else {
-            return None;
-        };
+        let selected_id = self.selected?;
 
         // If expanded, collapse
         if self.is_expanded(selected_id) {
@@ -326,9 +324,7 @@ impl TreeState {
     }
 
     fn move_right(&mut self, root: &TreeNode) -> Option<NodeId> {
-        let Some(selected_id) = self.selected else {
-            return None;
-        };
+        let selected_id = self.selected?;
 
         // If collapsed directory, expand
         if !self.is_expanded(selected_id) {

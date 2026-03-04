@@ -86,8 +86,10 @@ impl AnalyzerContext {
 /// ```
 pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     let mut ctx = AnalyzerContext::new();
-    let mut workflow = AnalyzedWorkflow::default();
-    workflow.span = raw.span;
+    let mut workflow = AnalyzedWorkflow {
+        span: raw.span,
+        ..Default::default()
+    };
 
     // 1. Validate schema version
     if let Some(version) = analyze_schema(&raw, &mut ctx) {

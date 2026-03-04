@@ -14,7 +14,7 @@ tasks:
     agent:
       prompt: "Count from 1 to 5, then say DONE."
       max_turns: 5
-      stop_sequences:
+      stop_conditions:
         - "DONE"
 
   - id: with_stop_condition
