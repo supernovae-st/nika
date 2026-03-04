@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-bindings-use-nested
 description: "Test nested object access in bindings"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: produce_json

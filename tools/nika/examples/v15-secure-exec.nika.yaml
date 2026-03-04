@@ -3,7 +3,7 @@
 # Run with: nika examples/v15-secure-exec.nika.yaml
 
 schema: "nika/workflow@0.10"
-provider: mock
+provider: claude
 
 tasks:
   # Test 1: Default behavior (shell: false) - safer, uses shlex

@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-bindings-context
 description: "Test context file loading"
 
-provider: mock
+provider: claude
 
 context:
   files:

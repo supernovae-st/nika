@@ -6,14 +6,14 @@ schema: "nika/workflow@0.10"
 workflow: test-provider-fallback
 description: "Test provider fallback"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: primary_provider
     description: "Primary provider task"
     infer:
       prompt: "Generate content with primary."
-      provider: mock
+      provider: claude
 
   - id: fallback_task
     description: "Task that uses fallback"

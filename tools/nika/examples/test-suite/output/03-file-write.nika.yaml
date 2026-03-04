@@ -6,12 +6,13 @@ schema: "nika/workflow@0.10"
 workflow: test-output-file
 description: "Test output file writing"
 
-provider: mock
+provider: ollama
+model: llama3.2:1b
 
 tasks:
   - id: save_output
     description: "Save output to file"
-    infer: "Generate test content."
+    infer: "Generate a short test content about cats. Keep it under 20 words."
     output:
       format: text
       save: /tmp/nika-test-output.txt

@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-bindings-validation
 description: "Test output validation with schema"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: structured_output

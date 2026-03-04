@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-include-context-merge
 description: "Test context merging with includes"
 
-provider: mock
+provider: claude
 
 context:
   files:

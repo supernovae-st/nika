@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-flow-error-handling
 description: "Test error handling in flow"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: risky_task

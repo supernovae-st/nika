@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-flow-parallel
 description: "Test parallel task execution"
 
-provider: mock
+provider: openai
 
 tasks:
   - id: parallel_a

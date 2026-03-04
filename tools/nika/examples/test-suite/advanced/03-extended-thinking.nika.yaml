@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-extended-thinking
 description: "Test extended thinking"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: simple_thinking

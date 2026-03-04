@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-bindings-edge-cases
 description: "Test binding edge cases"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: special_chars

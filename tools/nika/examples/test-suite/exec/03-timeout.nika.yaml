@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-exec-timeout
 description: "Test exec verb with timeout configuration"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: quick_command

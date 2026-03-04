@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-bindings-foreach-concurrent
 description: "Test for_each with concurrency control"
 
-provider: mock
+provider: claude  # Not used - exec only workflow
 
 tasks:
   - id: parallel_process

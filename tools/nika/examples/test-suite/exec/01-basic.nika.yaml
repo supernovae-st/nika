@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-exec-basic
 description: "Test basic exec verb with shorthand command"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: simple_exec

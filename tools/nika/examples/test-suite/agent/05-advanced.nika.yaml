@@ -6,10 +6,10 @@ schema: "nika/workflow@0.10"
 workflow: test-agent-advanced
 description: "Test agent verb with advanced options"
 
-provider: mock
+provider: claude
 
 mcp:
-  dummy:
+  builtin:
     command: echo
     args: ["not used"]
 
@@ -25,7 +25,7 @@ tasks:
       max_tokens: 2000
       tool_choice: auto
       mcp:
-        - dummy
+        - builtin
       tools:
         - nika:log
         - nika:emit

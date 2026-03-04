@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-artifact-conditional
 description: "Test conditional artifact saving"
 
-provider: mock
+provider: claude
 
 artifacts:
   dir: /tmp/nika-artifacts

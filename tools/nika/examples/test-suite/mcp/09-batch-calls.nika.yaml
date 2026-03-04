@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-mcp-batch
 description: "Test batch MCP calls"
 
-provider: mock
+provider: claude
 
 mcp:
   batch-server:

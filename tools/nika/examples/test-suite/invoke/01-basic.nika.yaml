@@ -6,10 +6,10 @@ schema: "nika/workflow@0.10"
 workflow: test-invoke-basic
 description: "Test basic invoke verb with MCP tool"
 
-provider: mock
+provider: claude
 
 mcp:
-  dummy:
+  builtin:
     command: echo
     args: ["not used"]
 
@@ -17,7 +17,7 @@ tasks:
   - id: basic_invoke
     description: "Basic MCP tool invocation"
     invoke:
-      mcp: dummy
+      mcp: builtin
       tool: nika:log
       params:
         level: info

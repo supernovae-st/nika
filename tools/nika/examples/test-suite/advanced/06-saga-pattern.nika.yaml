@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-saga-pattern
 description: "Test saga pattern"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: step1_forward

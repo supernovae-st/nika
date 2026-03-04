@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-flow-workflow-level
 description: "Test workflow-level flows section"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: task1

@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-bindings-defaults
 description: "Test binding default values"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: maybe_empty

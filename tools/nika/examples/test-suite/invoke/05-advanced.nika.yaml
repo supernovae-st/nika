@@ -6,10 +6,10 @@ schema: "nika/workflow@0.10"
 workflow: test-invoke-advanced
 description: "Test invoke verb with chained calls"
 
-provider: mock
+provider: claude
 
 mcp:
-  dummy:
+  builtin:
     command: echo
     args: ["not used"]
 
@@ -17,7 +17,7 @@ tasks:
   - id: first_call
     description: "First MCP tool call"
     invoke:
-      mcp: dummy
+      mcp: builtin
       tool: nika:emit
       params:
         name: step-1
@@ -29,7 +29,7 @@ tasks:
     use:
       prev: first_call
     invoke:
-      mcp: dummy
+      mcp: builtin
       tool: nika:log
       params:
         level: info
@@ -39,7 +39,7 @@ tasks:
   - id: parallel_call_a
     description: "Parallel call A"
     invoke:
-      mcp: dummy
+      mcp: builtin
       tool: nika:emit
       params:
         name: parallel-a
@@ -49,7 +49,7 @@ tasks:
   - id: parallel_call_b
     description: "Parallel call B"
     invoke:
-      mcp: dummy
+      mcp: builtin
       tool: nika:emit
       params:
         name: parallel-b
@@ -62,7 +62,7 @@ tasks:
       a: parallel_call_a
       b: parallel_call_b
     invoke:
-      mcp: dummy
+      mcp: builtin
       tool: nika:log
       params:
         level: info

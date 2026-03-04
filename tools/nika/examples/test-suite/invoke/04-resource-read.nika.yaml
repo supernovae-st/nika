@@ -6,10 +6,10 @@ schema: "nika/workflow@0.10"
 workflow: test-invoke-resource
 description: "Test invoke verb with MCP resource reading"
 
-provider: mock
+provider: claude
 
 mcp:
-  dummy:
+  builtin:
     command: echo
     args: ["not used"]
 
@@ -17,5 +17,5 @@ tasks:
   - id: read_resource
     description: "Read MCP resource"
     invoke:
-      mcp: dummy
+      mcp: builtin
       resource: "file:///tmp/test-resource.txt"

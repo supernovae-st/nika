@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-streaming
 description: "Test streaming output handling"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: stream_output

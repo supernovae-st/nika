@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-flow-retry
 description: "Test retry logic with validation"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: generate_json

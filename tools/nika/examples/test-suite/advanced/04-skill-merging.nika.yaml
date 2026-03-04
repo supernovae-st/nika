@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-skill-merging
 description: "Test skill merging"
 
-provider: mock
+provider: claude
 
 skills:
   seo: ../../skills/seo-optimization.skill.yaml

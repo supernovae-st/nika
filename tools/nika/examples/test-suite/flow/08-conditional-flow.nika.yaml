@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-flow-conditional
 description: "Test conditional flow execution"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: check_condition

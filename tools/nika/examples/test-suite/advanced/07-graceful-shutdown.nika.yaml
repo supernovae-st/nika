@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-graceful-shutdown
 description: "Test graceful shutdown"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: long_task_1

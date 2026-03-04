@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-infer-advanced
 description: "Test infer verb with all advanced options"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: full_config

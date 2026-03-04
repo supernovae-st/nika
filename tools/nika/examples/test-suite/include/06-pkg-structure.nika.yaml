@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-include-pkg
 description: "Test pkg: URI syntax"
 
-provider: mock
+provider: claude
 
 # Note: This tests the syntax validation, actual pkg resolution
 # requires a registry. Using path fallback for test.

@@ -4,7 +4,7 @@
 schema: "nika/workflow@0.10"
 workflow: partial-processing
 
-provider: mock
+provider: claude
 
 tasks:
   - id: transform

@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-infer-system-prompt
 description: "Test infer verb with system prompt persona"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: with_persona

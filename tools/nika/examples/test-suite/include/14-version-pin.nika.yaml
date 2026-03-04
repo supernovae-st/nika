@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-include-version-pin
 description: "Test versioned includes"
 
-provider: mock
+provider: claude
 
 # Version pinning would use pkg:@scope/name@version/path
 # Using path for test compatibility

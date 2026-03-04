@@ -6,10 +6,10 @@ schema: "nika/workflow@0.10"
 workflow: test-agent-with-mcp
 description: "Test agent verb with MCP server"
 
-provider: mock
+provider: claude
 
 mcp:
-  dummy:
+  builtin:
     command: echo
     args: ["not used"]
 
@@ -19,5 +19,5 @@ tasks:
     agent:
       prompt: "Log a message saying 'Agent test successful'."
       mcp:
-        - dummy
+        - builtin
       max_turns: 3

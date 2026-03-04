@@ -6,13 +6,14 @@ schema: "nika/workflow@0.10"
 workflow: test-infer-temperature
 description: "Test infer verb with temperature control"
 
-provider: mock
+provider: ollama
+model: llama3.2:1b
 
 tasks:
   - id: low_temp
     description: "Low temperature for deterministic output"
     infer:
-      prompt: "What is the capital of France?"
+      prompt: "What is the capital of France? Answer in one word."
       temperature: 0.1
 
   - id: high_temp

@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-flow-cancellation
 description: "Test fail_fast cancellation"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: parallel_with_failure

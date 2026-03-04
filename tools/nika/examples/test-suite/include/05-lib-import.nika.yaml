@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-include-lib
 description: "Test lib-style imports"
 
-provider: mock
+provider: claude
 
 include:
   - path: ./partials/setup.nika.yaml

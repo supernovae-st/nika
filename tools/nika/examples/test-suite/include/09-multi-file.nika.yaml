@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-include-multi-file
 description: "Test multiple file includes"
 
-provider: mock
+provider: claude
 
 include:
   - path: ./partials/setup.nika.yaml

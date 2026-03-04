@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-agent-stop-conditions
 description: "Test agent verb with stop conditions"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: with_stop_string

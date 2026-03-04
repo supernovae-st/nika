@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-bindings-inputs
 description: "Test workflow inputs binding"
 
-provider: mock
+provider: claude
 
 inputs:
   name: "TestUser"

@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-observability
 description: "Test observability features"
 
-provider: mock
+provider: claude
 
 log:
   level: debug

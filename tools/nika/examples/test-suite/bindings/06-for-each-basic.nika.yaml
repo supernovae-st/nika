@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-bindings-foreach-basic
 description: "Test basic for_each iteration"
 
-provider: mock
+provider: openai
 
 tasks:
   - id: process_items

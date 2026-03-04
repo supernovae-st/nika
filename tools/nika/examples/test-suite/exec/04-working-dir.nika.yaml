@@ -6,7 +6,7 @@ schema: "nika/workflow@0.10"
 workflow: test-exec-working-dir
 description: "Test exec verb with custom working directory"
 
-provider: mock
+provider: claude
 
 tasks:
   - id: in_tmp

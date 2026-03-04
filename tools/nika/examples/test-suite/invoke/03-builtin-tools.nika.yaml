@@ -6,10 +6,10 @@ schema: "nika/workflow@0.10"
 workflow: test-invoke-builtins
 description: "Test invoke verb with builtin tools"
 
-provider: mock
+provider: claude
 
 mcp:
-  dummy:
+  builtin:
     command: echo
     args: ["not used"]
 
@@ -17,7 +17,7 @@ tasks:
   - id: log_tool
     description: "Use nika:log builtin"
     invoke:
-      mcp: dummy
+      mcp: builtin
       tool: nika:log
       params:
         level: debug
@@ -26,7 +26,7 @@ tasks:
   - id: emit_tool
     description: "Use nika:emit builtin"
     invoke:
-      mcp: dummy
+      mcp: builtin
       tool: nika:emit
       params:
         name: test-event
@@ -36,7 +36,7 @@ tasks:
   - id: sleep_tool
     description: "Use nika:sleep builtin"
     invoke:
-      mcp: dummy
+      mcp: builtin
       tool: nika:sleep
       params:
         duration: 100ms
@@ -44,7 +44,7 @@ tasks:
   - id: assert_tool
     description: "Use nika:assert builtin"
     invoke:
-      mcp: dummy
+      mcp: builtin
       tool: nika:assert
       params:
         condition: true
