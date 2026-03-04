@@ -23,10 +23,37 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **spn Daemon Secret Management** - Unified keychain access
   - Solves macOS Keychain popup issue
   - spn-client integration for credential retrieval
-- **Two-Phase IR Architecture** - v0.19 Foundation
-  - Raw AST → Analyzed AST pipeline
-  - O(1) lookup optimizations with indexmap
-  - Span tracking for precise error locations
+- **Two-Phase IR Architecture** - Complete Implementation
+  - `ast::raw` module with `marked_yaml` parser for span tracking
+  - `ast::analyzed` module with validated, optimized AST
+  - `ast::analyzer` module with semantic validation pipeline
+  - TaskId interning for O(1) task comparison and lookup
+  - TaskTable for efficient task storage and retrieval
+- **AST Analyzer** - Comprehensive validation engine
+  - Schema version parsing and validation
+  - Schema feature gating (for_each requires v0.3+, agent/invoke require v0.2+)
+  - Duplicate task detection with location info
+  - Unknown task reference detection with "did you mean?" suggestions
+  - Cyclic dependency detection
+  - MCP server configuration parsing and validation
+  - for_each and retry configuration analysis
+- **Analyzer Error Codes (NIKA-140-149)**
+  - NIKA-140: Unknown task reference
+  - NIKA-141: Duplicate task ID
+  - NIKA-142: Invalid schema version
+  - NIKA-143: Cyclic dependency
+  - NIKA-144: Invalid field value
+  - NIKA-145: Missing required field
+  - NIKA-146: Invalid template expression
+  - NIKA-147: Unknown flow definition
+  - NIKA-148: Unknown MCP server
+  - NIKA-149: Unsupported feature for schema version
+- **19 Integration Tests** - Full pipeline validation
+  - Multi-task workflow analysis
+  - All 5 verbs (infer, exec, fetch, invoke, agent)
+  - Feature gating end-to-end tests
+  - Schema version suggestion tests
+  - Span tracking preservation tests
 - **Comprehensive Key Handler Tests** - 10 tests for WorkspaceView
   - F10 exit, Tab focus cycling, ratio adjustment
   - DAG panel read-only verification
@@ -34,20 +61,24 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 - **8 TUI Views** (up from 6): Browse, Editor, Runner, Chat, Scheduler, Settings, Split, Workspace
-- **3,808+ tests passing** (up from 3,562)
+- **3,851 tests passing** (up from 3,562)
 - View number keys now map correctly: 1=Browse through 8=Workspace
 - HomeView uses TreeAction for keyboard handling
+- Parser now handles MCP server configurations with nested `servers:` structure
+- Analyzer exports `AnalyzedForEach`, `AnalyzedRetry`, `AnalyzedMcpServer` types
 
 ### Fixed
 - BackTab key handling simplified in WorkspaceView
 - View aliases removed (deprecated)
 - Tree state uses `set_selection_index()` instead of `select_index()`
+- Clippy `type_complexity` warnings in parser functions
 
 ### Statistics
-- **3,808 tests passing**
+- **3,851 tests passing** (3,808 lib + 19 integration + 24 smoke)
 - **Zero clippy warnings**
 - **8 TUI views** with unified keyboard navigation
 - **tui-tree-widget v0.24** for tree rendering
+- **10 analyzer error codes** (NIKA-140-149)
 
 ## [0.19.1] - 2026-03-03
 
