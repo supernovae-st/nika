@@ -24,6 +24,8 @@ mod completion;
 mod diagnostics;
 mod document;
 mod hover;
+mod node_context;
+mod position;
 
 use tower_lsp::{LspService, Server};
 use tracing_subscriber::EnvFilter;

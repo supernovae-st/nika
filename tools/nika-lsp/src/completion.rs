@@ -13,6 +13,7 @@ use lsp_types::{
 };
 
 use crate::document::DocumentState;
+use crate::node_context::{find_context_at_position, AstContext};
 
 /// Completion context for determining what to complete.
 #[derive(Debug, Clone, PartialEq)]
@@ -31,9 +32,55 @@ pub enum CompletionContext {
     Unknown,
 }
 
+/// Convert AST context to completion context.
+///
+/// Maps the detailed AST context to the simpler completion context
+/// used by the completion provider.
+fn ast_context_to_completion(ast_ctx: &AstContext, word: &str) -> CompletionContext {
+    match ast_ctx {
+        AstContext::TaskVerb { .. } => CompletionContext::TaskVerb,
+        AstContext::UseBlock { partial_ref, .. } => CompletionContext::UseReference {
+            partial: partial_ref.clone(),
+        },
+        AstContext::McpConfig { .. } => CompletionContext::McpServer,
+        AstContext::InvokeBlock { .. } => CompletionContext::McpServer,
+        AstContext::ProviderContext { .. } => CompletionContext::Provider,
+        AstContext::SchemaContext => CompletionContext::Schema,
+        AstContext::ForEachContext => CompletionContext::Unknown, // Could expand later
+        AstContext::WorkflowRoot => {
+            // At root level, check what we're typing
+            if word.starts_with("sch") || word == "schema" {
+                CompletionContext::Schema
+            } else if word.starts_with("pro") || word == "provider" {
+                CompletionContext::Provider
+            } else {
+                CompletionContext::Unknown
+            }
+        }
+        AstContext::Unknown => CompletionContext::Unknown,
+    }
+}
+
 /// Analyze the document position to determine completion context.
+///
+/// This function uses AST-based detection when the YAML is valid,
+/// falling back to line-based heuristics for incomplete/malformed YAML.
 pub fn get_completion_context(doc: &DocumentState, position: Position) -> CompletionContext {
     let content = doc.content();
+
+    // Use AST-based context detection
+    let ast_result = find_context_at_position(&content, position.line, position.character);
+
+    // Convert to CompletionContext
+    let completion_ctx =
+        ast_context_to_completion(&ast_result.context, &ast_result.word_at_cursor);
+
+    // If AST detection found something, use it
+    if completion_ctx != CompletionContext::Unknown {
+        return completion_ctx;
+    }
+
+    // Additional line-based heuristics for edge cases not covered by AST
     let lines: Vec<&str> = content.lines().collect();
 
     if position.line as usize >= lines.len() {
@@ -43,23 +90,20 @@ pub fn get_completion_context(doc: &DocumentState, position: Position) -> Comple
     let line = lines[position.line as usize];
     let col = position.character as usize;
     let before_cursor = &line[..col.min(line.len())];
-
-    // Check for various contexts based on line content
     let trimmed = before_cursor.trim();
 
-    // Schema completion
+    // Schema completion at "schema: " prompt
     if trimmed.starts_with("schema:") {
         return CompletionContext::Schema;
     }
 
-    // Provider completion
+    // Provider completion at "provider: " prompt
     if trimmed.starts_with("provider:") {
         return CompletionContext::Provider;
     }
 
     // After "- id: xxx" on a new line, suggest verbs
     if trimmed.is_empty() || trimmed == "-" {
-        // Check if previous non-empty line has "- id:"
         for i in (0..position.line as usize).rev() {
             let prev_line = lines[i].trim();
             if prev_line.starts_with("- id:") {
@@ -71,9 +115,8 @@ pub fn get_completion_context(doc: &DocumentState, position: Position) -> Comple
         }
     }
 
-    // Use block reference
-    if line.contains("use:") || before_cursor.contains(":") {
-        // Look for task ID context
+    // Use block reference - colon-based detection for partial typing
+    if line.contains("use:") || is_in_use_block(&lines, position.line as usize) {
         if let Some(colon_pos) = before_cursor.rfind(':') {
             let after_colon = before_cursor[colon_pos + 1..].trim();
             if !after_colon.contains('{') {
@@ -84,12 +127,35 @@ pub fn get_completion_context(doc: &DocumentState, position: Position) -> Comple
         }
     }
 
-    // MCP server reference (in invoke: or agent:)
+    // MCP server reference
     if trimmed.starts_with("mcp:") || trimmed.starts_with("server:") {
         return CompletionContext::McpServer;
     }
 
     CompletionContext::Unknown
+}
+
+/// Check if we're inside a use: block based on indentation.
+fn is_in_use_block(lines: &[&str], current_line: usize) -> bool {
+    for i in (0..current_line).rev() {
+        let line = lines[i];
+        let trimmed = line.trim();
+
+        if trimmed.starts_with("use:") {
+            return true;
+        }
+
+        // Hit a task boundary (- id:)
+        if trimmed.starts_with("- id:") {
+            return false;
+        }
+
+        // Hit non-indented line
+        if !line.starts_with(' ') && !line.starts_with('\t') && !trimmed.is_empty() {
+            return false;
+        }
+    }
+    false
 }
 
 /// Get completion items for the 5 Nika verbs.

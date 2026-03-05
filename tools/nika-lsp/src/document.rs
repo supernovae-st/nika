@@ -85,6 +85,7 @@ impl DocumentState {
     }
 
     /// Get the number of lines in the document.
+    #[allow(dead_code)]
     pub fn line_count(&self) -> usize {
         self.rope.len_lines()
     }
