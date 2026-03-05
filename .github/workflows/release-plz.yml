@@ -36,6 +36,7 @@ jobs:
         uses: MarcoIeni/release-plz-action@v0.5
         with:
           command: release-pr
+          manifest_path: tools/nika/Cargo.toml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # CARGO_REGISTRY_TOKEN only needed if publishing to crates.io

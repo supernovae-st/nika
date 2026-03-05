@@ -14,7 +14,7 @@
 <sup>✨ Transform YAML into intelligent AI workflows ✨</sup>
 
 <!-- Primary Badges -->
-[![Version](https://img.shields.io/badge/v0.19.1-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.20.1-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
 [![Website](https://img.shields.io/badge/🦋_nika.sh-8b5cf6?style=for-the-badge)](https://nika.sh)
@@ -22,12 +22,12 @@
 <!-- GitHub Badges -->
 [![CI](https://img.shields.io/github/actions/workflow/status/supernovae-st/nika/ci.yml?style=flat-square&logo=github&label=CI)](https://github.com/supernovae-st/nika/actions)
 [![Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=flat-square&logo=github&label=Stars)](https://github.com/supernovae-st/nika/stargazers)
-[![Tests](https://img.shields.io/badge/tests-3,562_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/tests-3,808_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
 [![LOC](https://img.shields.io/badge/LOC-110k-0ea5e9?style=flat-square&logo=codeclimate)](https://github.com/supernovae-st/nika)
 
 <!-- Feature Badges -->
 [![Providers](https://img.shields.io/badge/🤖_LLM_providers-7-ec4899?style=flat-square)](#-providers)
-[![Views](https://img.shields.io/badge/🖥️_TUI_views-6-f59e0b?style=flat-square)](#-studio-tui)
+[![Views](https://img.shields.io/badge/🖥️_TUI_views-8-f59e0b?style=flat-square)](#-studio-tui)
 [![Widgets](https://img.shields.io/badge/🧩_widgets-39-06b6d4?style=flat-square)](#-chat-dag-widgets)
 [![MCP](https://img.shields.io/badge/🔌_MCP-native-8b5cf6?style=flat-square)](#-mcp-integration)
 
@@ -68,7 +68,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 <!-- TUI Screenshot as ASCII Art -->
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  🦋 Nika Studio                                                v0.19.1  ⌘K  ?  │
+│  🦋 Nika Studio                                                v0.20.1  ⌘K  ?  │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
 │ ┌─ 📁 Files ───────────┐ ┌─ 📝 Editor ──────────────────────────────────────────┐  │
 │ │ ▸ workflows/         │ │  1 │ schema: "nika/workflow@0.9"                    │  │
@@ -97,26 +97,28 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 
 <br>
 
-## ✨ What's New in v0.19.1
+## ✨ What's New in v0.20.1
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  🦋 v0.19.1 — STRUCTURED OUTPUT ENFORCEMENT                                   ║
+║  🦋 v0.20.1 — 8-VIEW TUI + TWO-PHASE AST + spn DAEMON                         ║
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                               ║
-║  FEATURES:                                                                    ║
-║  ├── 📋 JSON Schema   — Task-level output.schema validation                  ║
-║  ├── 🔄 Retry Loops   — Automatic retry on validation failure (max_retries)  ║
-║  ├── 💬 Error Feedback — Schema violations fed back to LLM for correction    ║
-║  └── 🧠 Extended Thinking — thinking_budget config for deeper reasoning      ║
+║  8-VIEW TUI ARCHITECTURE:                                                     ║
+║  ├── 🖥️ WorkspaceView  — 3-panel layout (Browser | Editor | DAG Preview)     ║
+║  ├── 🔀 SplitView      — Editor + Runner side-by-side                        ║
+║  ├── 🌲 Tree Widget    — VS Code-like file browser (tui-tree-widget v0.24)   ║
+║  └── ⌨️ Shortcuts      — `7` for Split, `8` for Workspace                    ║
 ║                                                                               ║
-║  V0.18 ARTIFACTS (also included):                                            ║
-║  ├── 📦 Atomic Writes  — Crash-safe file persistence                         ║
-║  ├── 📝 Templates      — {{task_id}}, {{date}}, {{uuid}} interpolation       ║
-║  ├── 🔀 Write Modes    — overwrite, append, unique, fail                     ║
-║  └── 📋 Manifests      — Auto-generated artifact tracking                    ║
+║  TWO-PHASE IR ARCHITECTURE:                                                   ║
+║  ├── 📄 Raw AST        — YAML → Spanned<T> with line:col tracking           ║
+║  ├── 🔍 Analyzer       — Semantic validation + error recovery                ║
+║  └── ✅ Analyzed AST   — Type-safe, validated IR                             ║
 ║                                                                               ║
-║  STATS: 3,562 tests | Zero clippy warnings | 110k LOC                        ║
+║  spn DAEMON INTEGRATION:                                                      ║
+║  └── 🔐 Unified secret management via Unix socket IPC                        ║
+║                                                                               ║
+║  STATS: 3,808 tests | Zero clippy warnings | 110k LOC                        ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -326,7 +328,7 @@ flowchart LR
 | **Chat-as-DAG** | ✅ Native | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Type Safety** | ✅ Rust | ❌ Python | ❌ Python | ❌ Python | ❌ Python |
 | **Streaming** | ✅ All 6 | ✅ Yes | ✅ Yes | 🟡 Partial | 🟡 Partial |
-| **Production Ready** | ✅ 3,562 tests | 🟡 Varies | 🟡 Varies | 🟡 New | 🔴 Needs guardrails |
+| **Production Ready** | ✅ 3,808 tests | 🟡 Varies | 🟡 Varies | 🟡 New | 🔴 Needs guardrails |
 
 </div>
 
@@ -1025,7 +1027,7 @@ graph TD
 
 ## 🎨 Studio TUI
 
-Launch the terminal UI with **6 views**:
+Launch the terminal UI with **8 views**:
 
 ```bash
 nika              # 🏠 Home view (browse workflows)
@@ -1034,7 +1036,7 @@ nika studio       # 📝 YAML editor
 nika studio file.yaml  # 📝 Edit specific file
 ```
 
-### 🖥️ 6-Views Architecture
+### 🖥️ 8-Views Architecture
 
 ```mermaid
 stateDiagram-v2
@@ -1088,7 +1090,7 @@ stateDiagram-v2
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                            🎨 6-VIEWS ARCHITECTURE                              │
+│                            🎨 8-VIEWS ARCHITECTURE                              │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
 │    ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐            │
@@ -1663,17 +1665,17 @@ flows:
 ```
 ╔═════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                 ║
-║                           🦋 NIKA v0.19.1 STATS                                 ║
+║                           🦋 NIKA v0.20.1 STATS                                 ║
 ║                                                                                 ║
 ╠═════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                 ║
-║   📊 Tests              │  3,562 passing                                        ║
+║   📊 Tests              │  3,808 passing                                        ║
 ║   📝 Lines of Code      │  110,000+ LOC                                         ║
 ║   🔧 Clippy Warnings    │  0 (zero!)                                            ║
 ║   🔮 LLM Providers      │  7 (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini) ║
 ║   ⚡ Semantic Verbs     │  5 (infer, exec, fetch, invoke, agent)               ║
 ║   🔧 Builtin Tools      │  11 (6 core + 5 file tools)                          ║
-║   🖥️ TUI Views          │  6 (Chat, Home, Studio, Monitor, Settings, Help)     ║
+║   🖥️ TUI Views          │  8 (Chat, Home, Studio, Monitor, Split, Workspace, Settings, Help) ║
 ║   🧩 TUI Widgets        │  39 widgets                                           ║
 ║   📋 Event Types        │  24 variants (+2 artifact events)                     ║
 ║   🦀 Rust Edition       │  2021                                                 ║
@@ -1688,7 +1690,7 @@ flows:
 ### 📈 Test Distribution by Module
 
 ```mermaid
-pie title 📊 Test Distribution (3,562 tests)
+pie title 📊 Test Distribution (3,808 tests)
     "🖥️ TUI" : 1704
     "📁 IO" : 68
     "🔗 Binding" : 198
@@ -2021,7 +2023,7 @@ cd nika
 # 🔨 Build
 cargo build
 
-# 🧪 Test (3,562 tests)
+# 🧪 Test (3,808 tests)
 cargo test
 
 # 🔍 Lint
