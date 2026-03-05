@@ -510,7 +510,22 @@
         { "required": ["mcp", "tool"] },
         { "required": ["mcp", "resource"] },
         { "required": ["server", "tool"] },
-        { "required": ["server", "resource"] }
+        { "required": ["server", "resource"] },
+        {
+          "required": ["tool"],
+          "properties": {
+            "tool": {
+              "pattern": "^(nika:|novanet:)"
+            }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["mcp"] },
+              { "required": ["server"] },
+              { "required": ["resource"] }
+            ]
+          }
+        }
       ]
     },
     "AgentParams": {
