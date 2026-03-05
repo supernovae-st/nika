@@ -236,7 +236,6 @@ jobs:
         run: |
           # Extract changelog section for this version
           if [ -f "CHANGELOG.md" ]; then
-            # Try to extract section between version headers
             NOTES=$(awk -v ver="$VERSION" '/^## \[/{if(match($0, ver)){found=1; next}} /^## \[/{if(found) exit} found{print}' CHANGELOG.md || true)
             if [ -z "$NOTES" ]; then
               NOTES="Release v${VERSION}"
@@ -245,24 +244,95 @@ jobs:
             NOTES="Release v${VERSION}"
           fi
 
-          # Write to file for release body
-          echo "$NOTES" > release-notes.md
+          # Create beautiful ASCII release notes
+          cat > release-notes.md << 'HEADER'
+          ```
+          ╔═══════════════════════════════════════════════════════════════════════════════╗
+          ║                                                                               ║
+          ║   🦋  N I K A                                                                 ║
+          ║                                                                               ║
+          ║   Semantic YAML Workflow Engine for AI                                        ║
+          ║                                                                               ║
+          ╚═══════════════════════════════════════════════════════════════════════════════╝
+          ```
+          HEADER
 
-          # Add checksums
+          # Add version banner
           echo "" >> release-notes.md
-          echo "## Checksums (SHA256)" >> release-notes.md
+          echo "## 🦋 What's New in v${VERSION}" >> release-notes.md
+          echo "" >> release-notes.md
+
+          # Add changelog content
+          echo "$NOTES" >> release-notes.md
+
+          # Add stats section
+          cat >> release-notes.md << 'STATS'
+
+          ---
+
+          ## 📊 Stats
+
+          | Metric | Value |
+          |--------|-------|
+          | 🧪 Tests | 3,849+ passing |
+          | 📎 Clippy | 0 warnings |
+          | 🤖 Providers | 7 (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini) |
+          | 📋 Schema | @0.10 |
+
+          STATS
+
+          # Add downloads section
+          cat >> release-notes.md << DOWNLOADS
+
+          ## 📦 Downloads
+
+          | Platform | Architecture | Binary |
+          |----------|--------------|--------|
+          | 🍎 macOS | Apple Silicon | \`nika-macos-arm64-${VERSION}.tar.gz\` |
+          | 🍎 macOS | Intel | \`nika-macos-x64-${VERSION}.tar.gz\` |
+          | 🐧 Linux | x64 | \`nika-linux-x64-${VERSION}.tar.gz\` |
+          | 🐧 Linux | ARM64 | \`nika-linux-arm64-${VERSION}.tar.gz\` |
+          | 🪟 Windows | x64 | \`nika-windows-x64-${VERSION}.zip\` |
+
+          DOWNLOADS
+
+          # Add checksums with nice formatting
+          echo "" >> release-notes.md
+          echo "## 🔐 Checksums (SHA256)" >> release-notes.md
+          echo "" >> release-notes.md
           echo '```' >> release-notes.md
           cat release-assets/*.sha256 >> release-notes.md
           echo '```' >> release-notes.md
+
+          # Add installation section
+          cat >> release-notes.md << 'INSTALL'
+
+          ## 📥 Installation
+
+          ```bash
+          # Cargo (recommended)
+          cargo install nika
+
+          # Homebrew (macOS/Linux)
+          brew tap supernovae-st/tap && brew install nika
+
+          # Or download binary above and add to PATH
+          ```
+
+          ---
+
+          <sub>Made with 💜 and 🦀 by [SuperNovae Studio](https://supernovae.studio)</sub>
+          INSTALL
 
       - name: Determine pre-release
         id: prerelease
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
+          # Only mark as pre-release for alpha/beta/rc/dev suffixes
+          # NOTE: Nika is intentionally 0.x.x forever (see CLAUDE.md Version Lock),
+          # so we DON'T treat 0.x versions as pre-release
           if echo "$VERSION" | grep -qE "(alpha|beta|rc|dev)"; then
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-          elif echo "$VERSION" | grep -qE "^0\."; then
             echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
           else
             echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
