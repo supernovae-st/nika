@@ -6,6 +6,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.20.1] - 2026-03-05
+
+### Added
+
+- **secrets:** Complete spn-daemon integration via spn-client
+
+### Fixed
+
+- **ci:** Add manifest_path to release-plz.yml for monorepo structure
+- **ci:** Remove references to non-existent test workflow files
+
+### Other
+
+- Escape flow: [task_ids] in raw/task.rs
+- Escape markdown links and add backticks for generics
 
 ## [0.20.0] - 2026-03-04
 
