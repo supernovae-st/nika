@@ -1180,8 +1180,8 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
-    fn test_studio_view_schema_validation_valid_workflow() {
-        let mut view = StudioView::new();
+    fn test_yaml_editor_panel_schema_validation_valid_workflow() {
+        let mut view = YamlEditorPanel::new();
 
         // Valid Nika workflow YAML
         let valid_yaml = r#"schema: "nika/workflow@0.5"
@@ -1198,8 +1198,8 @@ tasks:
     }
 
     #[test]
-    fn test_studio_view_schema_validation_invalid_schema() {
-        let mut view = StudioView::new();
+    fn test_yaml_editor_panel_schema_validation_invalid_schema() {
+        let mut view = YamlEditorPanel::new();
 
         // Invalid Nika workflow - missing required 'tasks' field
         let invalid_yaml = r#"schema: "nika/workflow@0.5"
@@ -1214,8 +1214,8 @@ unknown_field: "should fail""#;
     }
 
     #[test]
-    fn test_studio_view_schema_validation_missing_schema_field() {
-        let mut view = StudioView::new();
+    fn test_yaml_editor_panel_schema_validation_missing_schema_field() {
+        let mut view = YamlEditorPanel::new();
 
         // Missing required 'schema' field
         let yaml = r#"tasks:
@@ -1355,20 +1355,20 @@ unknown_field: "should fail""#;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // StudioView tests
+    // YamlEditorPanel tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
-    fn test_studio_view_new() {
-        let view = StudioView::new();
+    fn test_yaml_editor_panel_new() {
+        let view = YamlEditorPanel::new();
         assert_eq!(view.mode, EditorMode::Normal);
         assert!(!view.modified);
         assert!(view.path.is_none());
     }
 
     #[test]
-    fn test_studio_view_mode_switch() {
-        let mut view = StudioView::new();
+    fn test_yaml_editor_panel_mode_switch() {
+        let mut view = YamlEditorPanel::new();
         assert_eq!(view.mode, EditorMode::Normal);
 
         view.mode = EditorMode::Insert;
@@ -1376,8 +1376,8 @@ unknown_field: "should fail""#;
     }
 
     #[test]
-    fn test_studio_view_validation_valid_yaml_syntax() {
-        let mut view = StudioView::new();
+    fn test_yaml_editor_panel_validation_valid_yaml_syntax() {
+        let mut view = YamlEditorPanel::new();
 
         // Valid YAML syntax (but not a valid Nika workflow schema)
         view.buffer = TextBuffer::from_content("key: value");
@@ -1392,8 +1392,8 @@ unknown_field: "should fail""#;
     }
 
     #[test]
-    fn test_studio_view_validation_invalid_yaml() {
-        let mut view = StudioView::new();
+    fn test_yaml_editor_panel_validation_invalid_yaml() {
+        let mut view = YamlEditorPanel::new();
 
         // Invalid YAML
         view.buffer = TextBuffer::from_content("key: [unclosed");
@@ -1403,14 +1403,14 @@ unknown_field: "should fail""#;
     }
 
     #[test]
-    fn test_studio_view_cursor_position() {
-        let view = StudioView::new();
+    fn test_yaml_editor_panel_cursor_position() {
+        let view = YamlEditorPanel::new();
         assert_eq!(view.current_line(), 1);
         assert_eq!(view.current_col(), 1);
     }
 
     #[test]
-    fn test_studio_view_default_validation_result() {
+    fn test_yaml_editor_panel_default_validation_result() {
         let result = ValidationResult::default();
         assert!(result.yaml_valid);
         assert!(result.schema_valid);
@@ -1419,8 +1419,8 @@ unknown_field: "should fail""#;
     }
 
     #[test]
-    fn test_studio_view_status_line_normal_mode() {
-        let view = StudioView::new();
+    fn test_yaml_editor_panel_status_line_normal_mode() {
+        let view = YamlEditorPanel::new();
         let state = TuiState::new("test.nika.yaml");
         let status = view.status_line(&state);
         assert!(status.contains("NORMAL"));
@@ -1429,8 +1429,8 @@ unknown_field: "should fail""#;
     }
 
     #[test]
-    fn test_studio_view_status_line_insert_mode() {
-        let mut view = StudioView::new();
+    fn test_yaml_editor_panel_status_line_insert_mode() {
+        let mut view = YamlEditorPanel::new();
         view.mode = EditorMode::Insert;
         let state = TuiState::new("test.nika.yaml");
         let status = view.status_line(&state);
@@ -1438,8 +1438,8 @@ unknown_field: "should fail""#;
     }
 
     #[test]
-    fn test_studio_view_status_line_modified() {
-        let mut view = StudioView::new();
+    fn test_yaml_editor_panel_status_line_modified() {
+        let mut view = YamlEditorPanel::new();
         view.modified = true;
         let state = TuiState::new("test.nika.yaml");
         let status = view.status_line(&state);
@@ -1453,8 +1453,8 @@ unknown_field: "should fail""#;
     }
 
     #[test]
-    fn test_studio_view_handle_normal_mode_quit() {
-        let mut view = StudioView::new();
+    fn test_yaml_editor_panel_handle_normal_mode_quit() {
+        let mut view = YamlEditorPanel::new();
         let mut state = TuiState::new("test.nika.yaml");
         let key = KeyEvent::from(KeyCode::Char('q'));
         let action = view.handle_key(key, &mut state);
@@ -1465,8 +1465,8 @@ unknown_field: "should fail""#;
     }
 
     #[test]
-    fn test_studio_view_handle_normal_mode_insert() {
-        let mut view = StudioView::new();
+    fn test_yaml_editor_panel_handle_normal_mode_insert() {
+        let mut view = YamlEditorPanel::new();
         let mut state = TuiState::new("test.nika.yaml");
         let key = KeyEvent::from(KeyCode::Char('i'));
         let _ = view.handle_key(key, &mut state);
@@ -1474,8 +1474,8 @@ unknown_field: "should fail""#;
     }
 
     #[test]
-    fn test_studio_view_handle_insert_mode_escape() {
-        let mut view = StudioView::new();
+    fn test_yaml_editor_panel_handle_insert_mode_escape() {
+        let mut view = YamlEditorPanel::new();
         view.mode = EditorMode::Insert;
         let mut state = TuiState::new("test.nika.yaml");
         let key = KeyEvent::from(KeyCode::Esc);
@@ -1484,8 +1484,8 @@ unknown_field: "should fail""#;
     }
 
     #[test]
-    fn test_studio_view_handle_insert_mode_typing() {
-        let mut view = StudioView::new();
+    fn test_yaml_editor_panel_handle_insert_mode_typing() {
+        let mut view = YamlEditorPanel::new();
         view.mode = EditorMode::Insert;
         let mut state = TuiState::new("test.nika.yaml");
 
