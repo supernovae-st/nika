@@ -1,6 +1,6 @@
 # Agent Output Namespaces (v0.22.0) Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **For Claude:** Follow this plan task-by-task using TDD methodology.
 
 **Goal:** Enable agents to emit multiple named outputs (namespaces) during execution, accessible via `task.namespace.field` syntax.
 
@@ -96,13 +96,13 @@
 ```rust
 #[test]
 fn test_task_result_has_namespaces() {
-    let result = TaskResult::new(json!({"answer": 42}));
+    let result = TaskResult::success(json!({"answer": 42}), Duration::ZERO);
     assert!(result.namespaces.is_empty());
 }
 
 #[test]
 fn test_task_result_with_namespace() {
-    let mut result = TaskResult::new(json!({"answer": 42}));
+    let mut result = TaskResult::success(json!({"answer": 42}), Duration::ZERO);
     result.set_namespace("artifacts", json!([{"file": "output.txt"}]));
 
     assert_eq!(result.namespaces.len(), 1);
@@ -132,10 +132,11 @@ pub struct TaskResult {
 }
 
 impl TaskResult {
-    pub fn new(output: Value) -> Self {
+    /// Create a successful task result (existing factory method - add namespaces)
+    pub fn success(output: impl Into<Value>, duration: Duration) -> Self {
         Self {
-            output: Arc::new(output),
-            duration: Duration::ZERO,
+            output: Arc::new(output.into()),
+            duration,
             status: TaskStatus::Success,
             namespaces: FxHashMap::default(),
         }
@@ -194,7 +195,7 @@ fn test_resolve_path_with_namespace() {
     let store = DataStore::new();
 
     // Store result with namespace
-    let mut result = TaskResult::new(json!({"final": "answer"}));
+    let mut result = TaskResult::success(json!({"final": "answer"}), Duration::ZERO);
     result.set_namespace("artifacts", json!([{"name": "file1.txt"}, {"name": "file2.txt"}]));
     result.set_namespace("summary", json!({"title": "Report", "count": 5}));
     store.store("agent_task", result);
@@ -293,20 +294,23 @@ EOF
 ## Task 3: Create nika:emit_output builtin tool
 
 **Files:**
-- Modify: `tools/nika/src/runtime/tools/mod.rs` (or create new file)
+- Modify: `tools/nika/src/tools/mod.rs` (existing builtin tools module)
 - Test: Inline tests
+
+> **Note:** Tools are in `src/tools/`, not `src/runtime/tools/`. The existing `FileTool` trait
+> pattern should be followed. New tool implements `FileTool` trait and is wrapped by `RigFileTool`.
 
 **Step 1: Write the failing test**
 
 ```rust
 #[tokio::test]
 async fn test_emit_output_tool() {
-    use crate::runtime::tools::{BuiltinToolRouter, BuiltinTool};
+    use crate::tools::{EmitOutputTool, FileTool};
 
-    let router = BuiltinToolRouter::new();
+    let tool = EmitOutputTool::new();
 
-    // Should recognize nika:emit_output
-    assert!(router.is_builtin("nika:emit_output"));
+    // Verify tool metadata
+    assert_eq!(tool.name(), "nika:emit_output");
 
     // Execute emit_output
     let params = json!({
@@ -314,11 +318,12 @@ async fn test_emit_output_tool() {
         "value": [{"file": "test.txt"}]
     });
 
-    let result = router.dispatch("nika:emit_output", params).await.unwrap();
+    let result = tool.call(params).await.unwrap();
 
     // Result should contain the emitted value
-    assert_eq!(result["namespace"], "artifacts");
-    assert!(result["emitted"].as_bool().unwrap());
+    assert_eq!(result.content, "Namespace 'artifacts' emitted successfully");
+    assert!(!result.is_error);
+    assert_eq!(result.data.unwrap()["namespace"], "artifacts");
 }
 ```
 
@@ -329,7 +334,18 @@ Expected: FAIL with "nika:emit_output not found"
 
 **Step 3: Implement nika:emit_output tool**
 
+> **Architecture Note:** The tool uses an `Arc<Mutex<FxHashMap<String, Value>>>` that's passed
+> during tool construction to collect emitted namespaces. This is then read by RigAgentLoop
+> after the agent completes and merged into TaskResult.namespaces.
+
 ```rust
+use std::sync::Arc;
+use parking_lot::Mutex;
+use rustc_hash::FxHashMap;
+use serde_json::{json, Value};
+use crate::error::NikaError;
+use crate::tools::{FileTool, ToolOutput};
+
 /// Emit a named output to a namespace.
 ///
 /// Parameters:
@@ -339,10 +355,30 @@ Expected: FAIL with "nika:emit_output not found"
 /// The emitted namespace is accessible after task completion via:
 /// - task.namespace → full namespace value
 /// - task.namespace.field → nested field access
-pub struct EmitOutputTool;
+pub struct EmitOutputTool {
+    /// Shared storage for emitted namespaces, collected by RigAgentLoop
+    pending_namespaces: Arc<Mutex<FxHashMap<String, Value>>>,
+}
+
+impl EmitOutputTool {
+    pub fn new() -> Self {
+        Self {
+            pending_namespaces: Arc::new(Mutex::new(FxHashMap::default())),
+        }
+    }
+
+    pub fn with_storage(storage: Arc<Mutex<FxHashMap<String, Value>>>) -> Self {
+        Self { pending_namespaces: storage }
+    }
+
+    /// Get all pending namespaces and clear the storage
+    pub fn take_namespaces(&self) -> FxHashMap<String, Value> {
+        std::mem::take(&mut *self.pending_namespaces.lock())
+    }
+}
 
 #[async_trait::async_trait]
-impl BuiltinTool for EmitOutputTool {
+impl FileTool for EmitOutputTool {
     fn name(&self) -> &'static str {
         "nika:emit_output"
     }
@@ -367,45 +403,49 @@ impl BuiltinTool for EmitOutputTool {
         })
     }
 
-    async fn execute(&self, params: Value, ctx: &ToolContext) -> Result<Value, NikaError> {
+    async fn call(&self, params: Value) -> Result<ToolOutput, NikaError> {
         let namespace = params["namespace"].as_str()
             .ok_or_else(|| NikaError::InvalidParams("namespace must be a string".into()))?;
         let value = params.get("value")
             .ok_or_else(|| NikaError::InvalidParams("value is required".into()))?
             .clone();
 
-        // Store in context's pending namespaces
-        ctx.emit_namespace(namespace, value.clone());
+        // Store in pending namespaces (will be collected by RigAgentLoop)
+        // Note: If same namespace emitted twice, last value wins (HashMap insert = overwrite)
+        self.pending_namespaces.lock().insert(namespace.to_string(), value.clone());
 
-        Ok(json!({
-            "namespace": namespace,
-            "emitted": true,
-            "preview": value.to_string().chars().take(100).collect::<String>()
-        }))
+        let preview: String = value.to_string().chars().take(100).collect();
+
+        Ok(ToolOutput {
+            content: format!("Namespace '{}' emitted successfully", namespace),
+            is_error: false,
+            data: Some(json!({
+                "namespace": namespace,
+                "emitted": true,
+                "preview": preview
+            })),
+        })
     }
 }
 ```
 
-**Step 4: Add to BuiltinToolRouter**
+**Step 4: Register tool in RigAgentLoop**
+
+In `runtime/rig_agent_loop.rs`, the tool is added to the agent's tool list with shared storage:
 
 ```rust
-impl BuiltinToolRouter {
-    pub fn new() -> Self {
-        let mut tools: FxHashMap<&'static str, Box<dyn BuiltinTool>> = FxHashMap::default();
+// In RigAgentLoop::new() or run()
+let namespace_storage = Arc::new(Mutex::new(FxHashMap::default()));
+let emit_tool = EmitOutputTool::with_storage(Arc::clone(&namespace_storage));
 
-        // Existing tools
-        tools.insert("nika:sleep", Box::new(SleepTool));
-        tools.insert("nika:log", Box::new(LogTool));
-        tools.insert("nika:emit", Box::new(EmitTool));
-        tools.insert("nika:assert", Box::new(AssertTool));
-        tools.insert("nika:prompt", Box::new(PromptTool));
-        tools.insert("nika:run", Box::new(RunTool));
+// Add to tools Vec wrapped as RigFileTool
+let rig_emit_tool = RigFileTool::new(Box::new(emit_tool));
+tools.push(Box::new(rig_emit_tool));
 
-        // New namespace tool
-        tools.insert("nika:emit_output", Box::new(EmitOutputTool));
-
-        Self { tools }
-    }
+// After agent completes, collect namespaces:
+let namespaces = emit_tool.take_namespaces();
+for (name, value) in namespaces {
+    task_result.set_namespace(name, value);
 }
 ```
 
@@ -442,55 +482,85 @@ EOF
 - Modify: `tools/nika/src/runtime/rig_agent_loop.rs`
 - Test: Integration tests
 
+> **Architecture Note:** RigAgentLoop does NOT have an `AgentContext` struct.
+> Instead, we use shared `Arc<Mutex<FxHashMap>>` storage passed to `EmitOutputTool`.
+> The storage is owned by RigAgentLoop and read after agent completion.
+
 **Step 1: Write the failing test**
 
 ```rust
 #[tokio::test]
 async fn test_agent_emits_namespace() {
-    let agent_loop = RigAgentLoop::new_mock();
+    use crate::tools::EmitOutputTool;
+    use std::sync::Arc;
+    use parking_lot::Mutex;
+    use rustc_hash::FxHashMap;
 
-    // Run agent that emits a namespace
-    let result = agent_loop.run_with_tools(
-        "Emit an artifacts namespace with one file",
-        vec![EmitOutputTool.boxed()],
-    ).await.unwrap();
+    // Create shared storage for namespaces
+    let namespace_storage: Arc<Mutex<FxHashMap<String, Value>>> =
+        Arc::new(Mutex::new(FxHashMap::default()));
 
-    // Check that namespace was captured
-    assert!(result.namespaces.contains_key("artifacts"));
+    // Create emit tool with shared storage
+    let emit_tool = EmitOutputTool::with_storage(Arc::clone(&namespace_storage));
+
+    // Simulate tool call
+    emit_tool.call(json!({
+        "namespace": "artifacts",
+        "value": [{"file": "test.txt"}]
+    })).await.unwrap();
+
+    // Check that namespace was captured in shared storage
+    let namespaces = namespace_storage.lock();
+    assert!(namespaces.contains_key("artifacts"));
+    assert_eq!(namespaces["artifacts"], json!([{"file": "test.txt"}]));
 }
 ```
 
 **Step 2: Run test to verify it fails**
 
 Run: `cargo test -p nika agent_emits_namespace --lib`
-Expected: FAIL (namespace not captured in result)
+Expected: FAIL (EmitOutputTool doesn't exist yet)
 
-**Step 3: Wire ToolContext to capture emitted namespaces**
+**Step 3: Update RigAgentLoop to collect namespaces**
 
 In `RigAgentLoop`:
 
 ```rust
-pub struct AgentContext {
-    // ... existing fields
-    pending_namespaces: Arc<Mutex<FxHashMap<String, Value>>>,
+// Add field to RigAgentLoop struct:
+pub struct RigAgentLoop {
+    // ... existing fields (task_id, params, event_log, mcp_clients, tools, history, etc.)
+
+    /// Shared storage for namespaces emitted via nika:emit_output
+    namespace_storage: Arc<Mutex<FxHashMap<String, Value>>>,
 }
 
-impl AgentContext {
-    pub fn emit_namespace(&self, name: &str, value: Value) {
-        let mut namespaces = self.pending_namespaces.lock();
-        namespaces.insert(name.to_string(), value);
+impl RigAgentLoop {
+    pub fn new(/* ... existing params */) -> Self {
+        Self {
+            // ... existing field initialization
+            namespace_storage: Arc::new(Mutex::new(FxHashMap::default())),
+        }
     }
 
-    pub fn take_namespaces(&self) -> FxHashMap<String, Value> {
-        let mut namespaces = self.pending_namespaces.lock();
-        std::mem::take(&mut *namespaces)
-    }
-}
+    pub fn run(&mut self, /* ... */) -> Result<TaskResult, NikaError> {
+        // Create emit_output tool with shared storage
+        let emit_tool = EmitOutputTool::with_storage(Arc::clone(&self.namespace_storage));
+        let rig_emit_tool = RigFileTool::new(Box::new(emit_tool));
+        self.tools.push(Box::new(rig_emit_tool));
 
-// In run() method, after agent completes:
-let mut task_result = TaskResult::new(final_output);
-for (name, value) in ctx.take_namespaces() {
-    task_result.set_namespace(name, value);
+        // ... existing agent loop code ...
+
+        // After agent completes, collect emitted namespaces
+        let mut task_result = TaskResult::success(final_output, elapsed);
+
+        // Transfer namespaces from shared storage to TaskResult
+        let namespaces = std::mem::take(&mut *self.namespace_storage.lock());
+        for (name, value) in namespaces {
+            task_result.set_namespace(name, value);
+        }
+
+        Ok(task_result)
+    }
 }
 ```
 
@@ -502,14 +572,14 @@ Expected: PASS
 **Step 5: Commit**
 
 ```bash
-git add tools/nika/src/runtime/rig_agent_loop.rs
+git add tools/nika/src/runtime/rig_agent_loop.rs tools/nika/src/tools/mod.rs
 git commit -m "$(cat <<'EOF'
 feat(runtime): capture emitted namespaces in RigAgentLoop
 
-AgentContext now tracks pending namespaces:
-- emit_namespace() called by nika:emit_output tool
-- take_namespaces() collects all at end of agent run
-- Namespaces copied to TaskResult before storage
+RigAgentLoop now tracks pending namespaces:
+- namespace_storage: Arc<Mutex<FxHashMap>> field
+- EmitOutputTool created with shared storage
+- Namespaces transferred to TaskResult after agent completes
 
 Completes agent namespace emission pipeline.
 
@@ -529,18 +599,25 @@ EOF
 
 **Step 1: Write the failing test**
 
+> **Note:** Events use `EventKind` enum (not `Event`). See `src/event/log.rs:143` for the 24 existing variants.
+
 ```rust
 #[test]
 fn test_namespaced_output_event() {
-    let event = Event::NamespacedOutput {
-        task_id: "agent_task".into(),
+    use crate::event::log::EventKind;
+    use chrono::Utc;
+    use std::sync::Arc;
+
+    let event = EventKind::NamespacedOutput {
+        task_id: Arc::from("agent_task"),
         namespace: "artifacts".into(),
         value_preview: "[{...}]".into(),
         timestamp: Utc::now(),
     };
 
     let json = serde_json::to_string(&event).unwrap();
-    assert!(json.contains("NamespacedOutput"));
+    // EventKind uses snake_case serialization: "namespaced_output"
+    assert!(json.contains("namespaced_output"));
     assert!(json.contains("artifacts"));
 }
 ```
@@ -550,15 +627,17 @@ fn test_namespaced_output_event() {
 Run: `cargo test -p nika namespaced_output_event --lib`
 Expected: FAIL with "no variant `NamespacedOutput`"
 
-**Step 3: Add event variant**
+**Step 3: Add event variant to EventKind**
+
+In `src/event/log.rs`, add to the `EventKind` enum (line ~143):
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum Event {
-    // ... existing variants
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum EventKind {
+    // ... existing 24 variants ...
 
-    /// Agent emitted a named output namespace
+    /// Agent emitted a named output namespace (25th variant)
     NamespacedOutput {
         task_id: Arc<str>,
         namespace: String,
@@ -607,7 +686,7 @@ EOF
 ```yaml
 # v22-agent-namespaces.nika.yaml
 # Demonstrates agent output namespaces
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.9"
 provider: claude
 
 tasks:
@@ -734,6 +813,21 @@ tasks:
 **nika:emit_output Parameters:**
 - `namespace`: Name for this output category
 - `value`: JSON value to store
+
+**Overwrite Behavior:**
+- If emit_output is called multiple times with the same namespace name, the **later call overwrites** the earlier value
+- Uses HashMap semantics: `insert(name, value)` replaces existing entry
+- To accumulate values, use arrays: emit the full array each time, not individual items
+
+**Example (accumulation pattern):**
+```yaml
+# WRONG: Each call overwrites
+nika:emit_output { "namespace": "files", "value": "file1.md" }
+nika:emit_output { "namespace": "files", "value": "file2.md" }  # "file1.md" is lost!
+
+# CORRECT: Emit full array
+nika:emit_output { "namespace": "files", "value": ["file1.md", "file2.md"] }
+```
 
 **Common namespaces:**
 - `artifacts` — Files created or data produced

@@ -1,6 +1,6 @@
 # Binding System v2 — Master Orchestrator Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **For Claude:** Follow this plan task-by-task using TDD methodology.
 
 **Goal:** Enhance Nika's binding system with implicit output references, agent namespaces, and persistent datastores across 3 minor releases.
 

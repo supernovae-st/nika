@@ -1,6 +1,6 @@
 # Persistent Datastore (v0.23.0) Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **For Claude:** Follow this plan task-by-task using TDD methodology.
 
 **Goal:** Enable workflow task results to persist between executions, allowing workflows to resume or reuse previous results.
 
@@ -436,14 +436,27 @@ async fn test_persistent_store_save_load() {
 Run: `cargo test -p nika persistent_store_save_load --lib`
 Expected: FAIL with "method `save` not found"
 
-**Step 3: Add save/load methods**
+**Step 3: Add save/load methods with file locking**
+
+> **Note:** Add `fs2 = "0.4"` to Cargo.toml for cross-platform file locking.
 
 ```rust
 impl PersistentStore {
-    /// Save the store to disk atomically.
+    /// Save the store to disk atomically with file locking.
     ///
-    /// Uses temp file + rename pattern for crash safety.
+    /// Uses:
+    /// - File locking (fs2) to prevent race conditions between processes
+    /// - Temp file + rename pattern for crash safety
+    ///
+    /// # Race Condition Prevention
+    /// If two Nika processes try to save the same store simultaneously:
+    /// 1. First process acquires exclusive lock on .lock file
+    /// 2. Second process blocks waiting for lock
+    /// 3. First process completes save and releases lock
+    /// 4. Second process acquires lock and proceeds
     pub async fn save(&self) -> Result<(), NikaError> {
+        use fs2::FileExt;
+        use std::fs::OpenOptions;
         use tokio::fs;
         use tokio::io::AsyncWriteExt;
 
@@ -457,7 +470,28 @@ impl PersistentStore {
             })?;
         }
 
-        // Serialize data
+        // Acquire exclusive file lock (blocking)
+        let lock_path = self.path.with_extension("json.lock");
+        let lock_file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&lock_path)
+            .map_err(|e| {
+                NikaError::PersistentStoreError(format!(
+                    "Failed to create lock file {:?}: {}",
+                    lock_path, e
+                ))
+            })?;
+
+        lock_file.lock_exclusive().map_err(|e| {
+            NikaError::PersistentStoreError(format!(
+                "Failed to acquire lock on {:?}: {}",
+                lock_path, e
+            ))
+        })?;
+
+        // Serialize data (while holding lock)
         let data = self.data.read();
         let json = serde_json::to_string_pretty(&*data).map_err(|e| {
             NikaError::PersistentStoreError(format!("Serialization failed: {}", e))
@@ -487,6 +521,11 @@ impl PersistentStore {
         fs::rename(&temp_path, &self.path).await.map_err(|e| {
             NikaError::PersistentStoreError(format!("Rename failed: {}", e))
         })?;
+
+        // Release lock (implicit when lock_file is dropped)
+        drop(lock_file);
+        // Optionally clean up lock file
+        let _ = std::fs::remove_file(&lock_path);
 
         Ok(())
     }

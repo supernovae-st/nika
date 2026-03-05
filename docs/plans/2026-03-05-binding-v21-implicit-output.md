@@ -1,6 +1,6 @@
 # Implicit Output Reference (v0.21.0) Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **For Claude:** Follow this plan task-by-task using TDD methodology.
 
 **Goal:** Enable `$task` syntax in `use:` blocks as shorthand for `task.output` (the full task output).
 
