@@ -340,6 +340,44 @@ enum Commands {
         #[arg(long)]
         list: bool,
     },
+
+    /// Browse and use production-ready workflow recipes (v0.22+)
+    #[command(visible_alias = "rec")]
+    Recipe {
+        #[command(subcommand)]
+        action: RecipeAction,
+    },
+}
+
+/// Recipe management actions (v0.22+)
+#[derive(Subcommand)]
+enum RecipeAction {
+    /// List all available recipes
+    List {
+        /// Filter by category: etl, content, automation, agent, integration
+        #[arg(short, long)]
+        category: Option<String>,
+    },
+
+    /// Show recipe details and preview
+    Show {
+        /// Recipe name (e.g., data-pipeline, content-localization)
+        name: String,
+    },
+
+    /// Create workflow from recipe
+    Create {
+        /// Recipe name
+        name: String,
+
+        /// Output filename (default: <recipe>.nika.yaml)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Customize workflow name
+        #[arg(long)]
+        workflow_name: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -809,6 +847,9 @@ async fn main() {
 
         // Workflow management (v0.22+)
         Some(Commands::Workflow { action }) => handle_workflow_command(action, quiet).await,
+
+        // Recipe management (v0.22+)
+        Some(Commands::Recipe { action }) => handle_recipe_command(action, quiet),
 
         // Doctor command (v0.13.1)
         Some(Commands::Doctor { full, format }) => {
@@ -4301,6 +4342,1066 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
                 Err(NikaError::ValidationError {
                     reason: format!("{} error(s) found", analyze_result.errors.len()),
                 })
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RECIPE COMMAND (v0.22+)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Recipe metadata for production-ready workflow templates
+struct Recipe {
+    name: &'static str,
+    category: &'static str,
+    description: &'static str,
+    tags: &'static [&'static str],
+    yaml: &'static str,
+}
+
+/// Production-ready workflow recipes
+const RECIPES: &[Recipe] = &[
+    // ─────────────────────────────────────────────────────────────────────────
+    // ETL CATEGORY
+    // ─────────────────────────────────────────────────────────────────────────
+    Recipe {
+        name: "data-pipeline",
+        category: "etl",
+        description: "Extract, transform, and load data with validation checkpoints",
+        tags: &["data", "etl", "pipeline", "validation"],
+        yaml: r#"schema: "nika/workflow@0.10"
+provider: claude
+
+# Data Pipeline Template
+# ───────────────────────────────────────────────────────
+# Extract → Transform → Validate → Load
+# Customize: data sources, transformations, destinations
+
+tasks:
+  - id: extract
+    fetch:
+      url: "https://api.example.com/data"
+      method: GET
+      headers:
+        Authorization: "Bearer {{env.API_TOKEN}}"
+
+  - id: transform
+    use:
+      raw_data: extract
+    infer:
+      prompt: |
+        Transform this raw data into a clean, normalized format:
+        {{use.raw_data}}
+
+        Requirements:
+        - Remove duplicates
+        - Normalize field names
+        - Convert dates to ISO 8601
+
+        Return as JSON array.
+      temperature: 0.1
+
+  - id: validate
+    use:
+      data: transform
+    infer:
+      prompt: |
+        Validate this data for quality and completeness:
+        {{use.data}}
+
+        Check:
+        - Required fields present
+        - Data types correct
+        - No null values in required fields
+
+        Return: { "valid": true/false, "issues": [...] }
+      temperature: 0.0
+
+  - id: load
+    use:
+      validated_data: transform
+      validation: validate
+    exec:
+      command: "echo 'Loading data to destination...'"
+      shell: true
+
+flows:
+  - source: extract
+    target: transform
+  - source: transform
+    target: [validate, load]
+"#,
+    },
+    Recipe {
+        name: "csv-processor",
+        category: "etl",
+        description: "Process CSV files with AI-powered data cleaning and enrichment",
+        tags: &["csv", "data", "cleaning", "enrichment"],
+        yaml: r#"schema: "nika/workflow@0.10"
+provider: claude
+
+# CSV Processor Template
+# ───────────────────────────────────────────────────────
+# Read CSV → Clean → Enrich → Output
+
+context:
+  files:
+    input: ./data/input.csv
+
+tasks:
+  - id: analyze_structure
+    infer:
+      prompt: |
+        Analyze this CSV data structure:
+        {{context.files.input}}
+
+        Identify:
+        - Column names and types
+        - Data quality issues
+        - Missing values pattern
+
+        Return JSON with schema and issues.
+      temperature: 0.2
+
+  - id: clean_data
+    use:
+      analysis: analyze_structure
+      raw: "{{context.files.input}}"
+    infer:
+      prompt: |
+        Clean this CSV data based on analysis:
+        Analysis: {{use.analysis}}
+        Data: {{use.raw}}
+
+        Actions:
+        - Fix inconsistent formatting
+        - Handle missing values appropriately
+        - Remove invalid rows
+
+        Return cleaned CSV format.
+      temperature: 0.1
+
+  - id: enrich
+    use:
+      cleaned: clean_data
+    infer:
+      prompt: |
+        Enrich this cleaned data with additional insights:
+        {{use.cleaned}}
+
+        Add:
+        - Derived columns where useful
+        - Categorizations
+        - Calculated fields
+
+        Return enriched CSV.
+
+  - id: save_output
+    use:
+      result: enrich
+    exec:
+      command: "echo '{{use.result}}' > ./data/output.csv"
+      shell: true
+"#,
+    },
+    // ─────────────────────────────────────────────────────────────────────────
+    // CONTENT CATEGORY
+    // ─────────────────────────────────────────────────────────────────────────
+    Recipe {
+        name: "content-localization",
+        category: "content",
+        description: "Generate multi-locale content with cultural adaptation",
+        tags: &["localization", "i18n", "content", "translation"],
+        yaml: r#"schema: "nika/workflow@0.10"
+provider: claude
+
+# Content Localization Template
+# ───────────────────────────────────────────────────────
+# Source content → Parallel localization → Quality check
+
+context:
+  files:
+    brand_voice: ./context/brand-voice.md
+
+tasks:
+  - id: prepare_content
+    infer:
+      prompt: |
+        Prepare this content for localization:
+        - Identify cultural references that may need adaptation
+        - Mark technical terms to keep consistent
+        - Note tone and style requirements
+
+        Brand voice: {{context.files.brand_voice}}
+
+        Source content: "Your product description here"
+      temperature: 0.3
+
+  - id: localize
+    for_each: ["fr-FR", "de-DE", "es-ES", "ja-JP", "pt-BR"]
+    as: locale
+    concurrency: 5
+    use:
+      source: prepare_content
+    infer:
+      prompt: |
+        Localize this content for {{use.locale}}:
+        {{use.source}}
+
+        Requirements:
+        - Adapt cultural references appropriately
+        - Maintain brand voice and tone
+        - Use native expressions, not literal translation
+        - Keep technical terms consistent
+
+        Return localized content with locale tag.
+
+  - id: quality_check
+    use:
+      localized: localize
+    infer:
+      prompt: |
+        Quality check these localized versions:
+        {{use.localized}}
+
+        Check:
+        - Consistency across locales
+        - Brand voice maintained
+        - No missing content
+        - Cultural appropriateness
+
+        Return quality report with any issues found.
+      temperature: 0.2
+
+flows:
+  - source: prepare_content
+    target: localize
+  - source: localize
+    target: quality_check
+"#,
+    },
+    Recipe {
+        name: "blog-generator",
+        category: "content",
+        description: "Generate SEO-optimized blog posts from topics or outlines",
+        tags: &["blog", "seo", "writing", "content"],
+        yaml: r#"schema: "nika/workflow@0.10"
+provider: claude
+
+# Blog Generator Template
+# ───────────────────────────────────────────────────────
+# Topic → Research → Outline → Write → SEO optimize
+
+tasks:
+  - id: research_topic
+    agent:
+      prompt: |
+        Research this topic for a blog post: "AI in Healthcare"
+
+        Find:
+        - Key statistics and facts
+        - Recent developments
+        - Expert opinions
+        - Common questions people ask
+
+        Compile research notes.
+      max_turns: 5
+
+  - id: create_outline
+    use:
+      research: research_topic
+    infer:
+      prompt: |
+        Create a detailed blog outline based on this research:
+        {{use.research}}
+
+        Include:
+        - Compelling headline options (3)
+        - Introduction hook
+        - 4-6 main sections with subpoints
+        - Conclusion with CTA
+
+        Target: 1500-2000 words
+      temperature: 0.5
+
+  - id: write_draft
+    use:
+      outline: create_outline
+    infer:
+      prompt: |
+        Write the full blog post from this outline:
+        {{use.outline}}
+
+        Style:
+        - Professional but accessible
+        - Include real examples
+        - Use active voice
+        - Short paragraphs for readability
+      temperature: 0.7
+      max_tokens: 4000
+
+  - id: seo_optimize
+    use:
+      draft: write_draft
+    infer:
+      prompt: |
+        SEO optimize this blog post:
+        {{use.draft}}
+
+        Add/improve:
+        - Meta description (155 chars)
+        - Header tags (H1, H2, H3)
+        - Internal linking suggestions
+        - Image alt text suggestions
+        - Focus keyword integration
+
+        Return optimized post with SEO metadata.
+      temperature: 0.3
+
+flows:
+  - source: research_topic
+    target: create_outline
+  - source: create_outline
+    target: write_draft
+  - source: write_draft
+    target: seo_optimize
+"#,
+    },
+    // ─────────────────────────────────────────────────────────────────────────
+    // AUTOMATION CATEGORY
+    // ─────────────────────────────────────────────────────────────────────────
+    Recipe {
+        name: "code-review",
+        category: "automation",
+        description: "Automated code review with security, bug, and improvement analysis",
+        tags: &["code", "review", "security", "quality"],
+        yaml: r#"schema: "nika/workflow@0.10"
+provider: claude
+
+# Code Review Template
+# ───────────────────────────────────────────────────────
+# Get diff → Security + Bugs + Improvements → Report
+
+tasks:
+  - id: get_diff
+    exec: "git diff HEAD~1"
+
+  - id: security_review
+    use:
+      diff: get_diff
+    infer:
+      prompt: |
+        Security review this code diff:
+        ```diff
+        {{use.diff}}
+        ```
+
+        Check for:
+        - SQL injection vulnerabilities
+        - XSS vulnerabilities
+        - Authentication/authorization issues
+        - Secrets exposure
+        - Input validation gaps
+
+        Return: JSON with severity (critical/high/medium/low) for each finding.
+      temperature: 0.2
+
+  - id: bug_analysis
+    use:
+      diff: get_diff
+    infer:
+      prompt: |
+        Analyze this code for potential bugs:
+        ```diff
+        {{use.diff}}
+        ```
+
+        Look for:
+        - Logic errors
+        - Edge cases not handled
+        - Null pointer risks
+        - Race conditions
+        - Resource leaks
+
+        Return findings with line references.
+      temperature: 0.2
+
+  - id: improvements
+    use:
+      diff: get_diff
+    infer:
+      prompt: |
+        Suggest improvements for this code:
+        ```diff
+        {{use.diff}}
+        ```
+
+        Consider:
+        - Readability
+        - Performance
+        - Best practices
+        - Code organization
+
+        Prioritize actionable suggestions.
+      temperature: 0.4
+
+  - id: compile_report
+    use:
+      security: security_review
+      bugs: bug_analysis
+      improve: improvements
+    infer:
+      prompt: |
+        Compile a code review report:
+
+        Security: {{use.security}}
+        Bugs: {{use.bugs}}
+        Improvements: {{use.improve}}
+
+        Format as markdown with:
+        - Executive summary
+        - Critical issues (if any)
+        - Recommendations by priority
+        - Approval recommendation (approve/request changes)
+      temperature: 0.3
+
+flows:
+  - source: get_diff
+    target: [security_review, bug_analysis, improvements]
+  - source: [security_review, bug_analysis, improvements]
+    target: compile_report
+"#,
+    },
+    Recipe {
+        name: "daily-summary",
+        category: "automation",
+        description: "Generate daily summaries from multiple data sources",
+        tags: &["summary", "daily", "reports", "automation"],
+        yaml: r#"schema: "nika/workflow@0.10"
+provider: claude
+
+# Daily Summary Template
+# ───────────────────────────────────────────────────────
+# Gather sources → Analyze → Summarize → Deliver
+
+tasks:
+  - id: gather_metrics
+    exec: "echo '{\"users\": 1250, \"revenue\": 45000, \"errors\": 3}'"
+
+  - id: gather_news
+    fetch:
+      url: "https://api.example.com/news/today"
+      method: GET
+
+  - id: gather_tasks
+    exec: "echo '[{\"status\": \"done\", \"count\": 15}, {\"status\": \"pending\", \"count\": 8}]'"
+
+  - id: analyze_trends
+    use:
+      metrics: gather_metrics
+      tasks: gather_tasks
+    infer:
+      prompt: |
+        Analyze these metrics for trends:
+        Metrics: {{use.metrics}}
+        Tasks: {{use.tasks}}
+
+        Identify:
+        - Significant changes from typical patterns
+        - Areas needing attention
+        - Positive developments
+
+        Return structured analysis.
+      temperature: 0.2
+
+  - id: generate_summary
+    use:
+      metrics: gather_metrics
+      news: gather_news
+      tasks: gather_tasks
+      analysis: analyze_trends
+    infer:
+      prompt: |
+        Generate a daily executive summary:
+
+        Metrics: {{use.metrics}}
+        News: {{use.news}}
+        Tasks: {{use.tasks}}
+        Analysis: {{use.analysis}}
+
+        Format:
+        - 3-sentence overview
+        - Key metrics with trend arrows
+        - Top 3 priorities for today
+        - One insight worth noting
+
+        Keep it concise and actionable.
+      temperature: 0.4
+
+flows:
+  - source: [gather_metrics, gather_tasks]
+    target: analyze_trends
+  - source: [gather_metrics, gather_news, gather_tasks, analyze_trends]
+    target: generate_summary
+"#,
+    },
+    // ─────────────────────────────────────────────────────────────────────────
+    // AGENT CATEGORY
+    // ─────────────────────────────────────────────────────────────────────────
+    Recipe {
+        name: "research-agent",
+        category: "agent",
+        description: "Autonomous research agent with web search and summarization",
+        tags: &["agent", "research", "web", "search"],
+        yaml: r#"schema: "nika/workflow@0.10"
+provider: claude
+
+# Research Agent Template
+# ───────────────────────────────────────────────────────
+# Requires: MCP server with web search capability
+
+mcp:
+  web:
+    command: "npx"
+    args: ["-y", "@anthropic/mcp-server-web-search"]
+    env:
+      SEARCH_API_KEY: "{{env.SEARCH_API_KEY}}"
+
+tasks:
+  - id: research
+    agent:
+      prompt: |
+        Research the following topic thoroughly:
+        "Latest developments in quantum computing 2025"
+
+        Instructions:
+        1. Search for recent news and papers
+        2. Identify key players and breakthroughs
+        3. Note important statistics and timelines
+        4. Compile sources with URLs
+
+        Produce comprehensive research notes.
+      mcp: [web]
+      max_turns: 15
+      extended_thinking: true
+      thinking_budget: 16384
+
+  - id: synthesize
+    use:
+      research: research
+    infer:
+      prompt: |
+        Synthesize this research into a structured report:
+        {{use.research}}
+
+        Structure:
+        - Executive Summary (2-3 sentences)
+        - Key Findings (bullet points)
+        - Timeline of Developments
+        - Major Players
+        - Future Outlook
+        - Sources
+
+        Write for a technical but non-specialist audience.
+      temperature: 0.4
+      max_tokens: 3000
+
+flows:
+  - source: research
+    target: synthesize
+"#,
+    },
+    Recipe {
+        name: "support-agent",
+        category: "agent",
+        description: "Customer support agent with knowledge base integration",
+        tags: &["agent", "support", "customer", "helpdesk"],
+        yaml: r#"schema: "nika/workflow@0.10"
+provider: claude
+
+# Support Agent Template
+# ───────────────────────────────────────────────────────
+# Requires: Knowledge base context file
+
+context:
+  files:
+    knowledge_base: ./context/support-kb.md
+    policies: ./context/support-policies.md
+
+tasks:
+  - id: classify_request
+    infer:
+      prompt: |
+        Classify this customer request:
+        "I can't login to my account and I've tried resetting my password twice"
+
+        Categories:
+        - billing
+        - technical
+        - account
+        - general
+
+        Also determine:
+        - Urgency (low/medium/high)
+        - Sentiment (positive/neutral/negative)
+
+        Return JSON classification.
+      temperature: 0.1
+
+  - id: handle_support
+    use:
+      classification: classify_request
+    agent:
+      prompt: |
+        Handle this customer support request:
+
+        Request: "I can't login to my account and I've tried resetting my password twice"
+        Classification: {{use.classification}}
+
+        Knowledge Base:
+        {{context.files.knowledge_base}}
+
+        Policies:
+        {{context.files.policies}}
+
+        Instructions:
+        1. Acknowledge the customer's frustration
+        2. Follow troubleshooting steps from KB
+        3. Provide clear next steps
+        4. Escalate if needed (use nika:emit to flag)
+
+        Write a helpful, empathetic response.
+      max_turns: 5
+      tools: [nika:emit, nika:log]
+
+  - id: log_interaction
+    use:
+      classification: classify_request
+      response: handle_support
+    exec:
+      command: "echo 'Support interaction logged'"
+      shell: true
+
+flows:
+  - source: classify_request
+    target: handle_support
+  - source: handle_support
+    target: log_interaction
+"#,
+    },
+    // ─────────────────────────────────────────────────────────────────────────
+    // INTEGRATION CATEGORY
+    // ─────────────────────────────────────────────────────────────────────────
+    Recipe {
+        name: "webhook-handler",
+        category: "integration",
+        description: "Process incoming webhooks with validation and routing",
+        tags: &["webhook", "api", "integration", "events"],
+        yaml: r#"schema: "nika/workflow@0.10"
+provider: claude
+
+# Webhook Handler Template
+# ───────────────────────────────────────────────────────
+# Validate → Route → Process → Respond
+
+inputs:
+  webhook_payload:
+    type: object
+    description: "Incoming webhook data"
+
+tasks:
+  - id: validate_webhook
+    infer:
+      prompt: |
+        Validate this webhook payload:
+        {{inputs.webhook_payload}}
+
+        Check:
+        - Required fields present
+        - Data types correct
+        - Signature valid (if applicable)
+
+        Return: { "valid": true/false, "errors": [], "event_type": "..." }
+      temperature: 0.0
+
+  - id: route_event
+    use:
+      validation: validate_webhook
+    infer:
+      prompt: |
+        Route this webhook event to the appropriate handler:
+        {{use.validation}}
+
+        Routes:
+        - user.created → user_onboarding
+        - order.placed → order_processing
+        - payment.received → payment_reconciliation
+        - default → general_handler
+
+        Return: { "handler": "...", "priority": "high/normal/low" }
+      temperature: 0.0
+
+  - id: process_event
+    use:
+      routing: route_event
+      payload: "{{inputs.webhook_payload}}"
+    infer:
+      prompt: |
+        Process this event based on routing:
+        Route: {{use.routing}}
+        Payload: {{use.payload}}
+
+        Execute appropriate actions and return processing result.
+
+  - id: send_response
+    use:
+      result: process_event
+    exec:
+      command: "echo 'Webhook processed: {{use.result}}'"
+      shell: true
+
+flows:
+  - source: validate_webhook
+    target: route_event
+  - source: route_event
+    target: process_event
+  - source: process_event
+    target: send_response
+"#,
+    },
+    Recipe {
+        name: "api-aggregator",
+        category: "integration",
+        description: "Aggregate data from multiple APIs into unified response",
+        tags: &["api", "aggregation", "integration", "microservices"],
+        yaml: r#"schema: "nika/workflow@0.10"
+provider: claude
+
+# API Aggregator Template
+# ───────────────────────────────────────────────────────
+# Parallel fetch → Combine → Transform → Return
+
+tasks:
+  - id: fetch_users
+    fetch:
+      url: "https://api.example.com/users"
+      method: GET
+      headers:
+        Authorization: "Bearer {{env.API_TOKEN}}"
+
+  - id: fetch_orders
+    fetch:
+      url: "https://api.example.com/orders"
+      method: GET
+      headers:
+        Authorization: "Bearer {{env.API_TOKEN}}"
+
+  - id: fetch_inventory
+    fetch:
+      url: "https://api.example.com/inventory"
+      method: GET
+      headers:
+        Authorization: "Bearer {{env.API_TOKEN}}"
+
+  - id: combine_data
+    use:
+      users: fetch_users
+      orders: fetch_orders
+      inventory: fetch_inventory
+    infer:
+      prompt: |
+        Combine and correlate this data from multiple APIs:
+
+        Users: {{use.users}}
+        Orders: {{use.orders}}
+        Inventory: {{use.inventory}}
+
+        Create a unified view that:
+        - Links orders to users
+        - Shows inventory status for ordered items
+        - Calculates summary statistics
+
+        Return structured JSON.
+      temperature: 0.1
+
+  - id: transform_response
+    use:
+      combined: combine_data
+    infer:
+      prompt: |
+        Transform this combined data into API response format:
+        {{use.combined}}
+
+        Response format:
+        {
+          "summary": { ... },
+          "users_with_orders": [ ... ],
+          "inventory_alerts": [ ... ],
+          "generated_at": "ISO timestamp"
+        }
+      temperature: 0.0
+
+flows:
+  - source: [fetch_users, fetch_orders, fetch_inventory]
+    target: combine_data
+  - source: combine_data
+    target: transform_response
+"#,
+    },
+];
+
+/// Handle recipe subcommands
+fn handle_recipe_command(action: RecipeAction, quiet: bool) -> Result<(), NikaError> {
+    use colored::Colorize;
+
+    match action {
+        RecipeAction::List { category } => {
+            // Filter recipes by category if specified
+            let filtered: Vec<_> = if let Some(ref cat) = category {
+                RECIPES.iter().filter(|r| r.category == cat).collect()
+            } else {
+                RECIPES.iter().collect()
+            };
+
+            if filtered.is_empty() {
+                if let Some(ref cat) = category {
+                    println!(
+                        "{} No recipes found in category '{}'",
+                        "!".yellow(),
+                        cat
+                    );
+                    println!();
+                    println!("Available categories:");
+                    let categories: std::collections::HashSet<_> =
+                        RECIPES.iter().map(|r| r.category).collect();
+                    for cat in categories {
+                        println!("  • {}", cat.cyan());
+                    }
+                } else {
+                    println!("{} No recipes available", "!".yellow());
+                }
+                return Ok(());
+            }
+
+            if !quiet {
+                println!("{}", "📚 Available Recipes".bold());
+                println!("{}", "─".repeat(60));
+                println!();
+            }
+
+            // Group by category
+            let mut by_category: std::collections::BTreeMap<&str, Vec<&Recipe>> =
+                std::collections::BTreeMap::new();
+            for recipe in &filtered {
+                by_category.entry(recipe.category).or_default().push(recipe);
+            }
+
+            for (cat, recipes) in by_category {
+                let cat_icon = match cat {
+                    "etl" => "📊",
+                    "content" => "📝",
+                    "automation" => "⚙️",
+                    "agent" => "🤖",
+                    "integration" => "🔌",
+                    _ => "📦",
+                };
+                println!("{} {}", cat_icon, cat.to_uppercase().cyan().bold());
+                println!();
+
+                for recipe in recipes {
+                    println!("  {} {}", "•".green(), recipe.name.bold());
+                    println!("    {}", recipe.description.dimmed());
+                    println!(
+                        "    {}",
+                        recipe.tags.iter().map(|t| format!("#{}", t)).collect::<Vec<_>>().join(" ").dimmed()
+                    );
+                    println!();
+                }
+            }
+
+            if !quiet {
+                println!("{}", "─".repeat(60));
+                println!(
+                    "{} Use '{}' to preview a recipe",
+                    "💡".dimmed(),
+                    "nika recipe show <name>".cyan()
+                );
+                println!(
+                    "{} Use '{}' to create from recipe",
+                    "💡".dimmed(),
+                    "nika recipe create <name>".cyan()
+                );
+            }
+
+            Ok(())
+        }
+
+        RecipeAction::Show { name } => {
+            // Find recipe by name
+            let recipe = RECIPES.iter().find(|r| r.name == name);
+
+            match recipe {
+                Some(r) => {
+                    let cat_icon = match r.category {
+                        "etl" => "📊",
+                        "content" => "📝",
+                        "automation" => "⚙️",
+                        "agent" => "🤖",
+                        "integration" => "🔌",
+                        _ => "📦",
+                    };
+
+                    println!("{} {}", cat_icon, r.name.bold().cyan());
+                    println!("{}", "═".repeat(60));
+                    println!();
+                    println!("{}", r.description);
+                    println!();
+                    println!(
+                        "{} {}",
+                        "Category:".dimmed(),
+                        r.category.yellow()
+                    );
+                    println!(
+                        "{} {}",
+                        "Tags:".dimmed(),
+                        r.tags.join(", ").dimmed()
+                    );
+                    println!();
+                    println!("{}", "─".repeat(60));
+                    println!("{}", "YAML Preview:".bold());
+                    println!("{}", "─".repeat(60));
+                    println!();
+
+                    // Syntax highlight the YAML
+                    for line in r.yaml.lines() {
+                        if line.starts_with('#') {
+                            println!("{}", line.dimmed());
+                        } else if line.contains(':') && !line.trim().starts_with('-') {
+                            let parts: Vec<_> = line.splitn(2, ':').collect();
+                            if parts.len() == 2 {
+                                print!("{}", parts[0].cyan());
+                                println!(":{}", parts[1]);
+                            } else {
+                                println!("{}", line);
+                            }
+                        } else {
+                            println!("{}", line);
+                        }
+                    }
+
+                    println!();
+                    println!("{}", "─".repeat(60));
+                    println!(
+                        "{} Create workflow: {}",
+                        "💡".dimmed(),
+                        format!("nika recipe create {}", r.name).cyan()
+                    );
+
+                    Ok(())
+                }
+                None => {
+                    println!("{} Recipe '{}' not found", "✗".red(), name);
+                    println!();
+                    println!("Available recipes:");
+                    for r in RECIPES {
+                        println!("  • {}", r.name);
+                    }
+                    Err(NikaError::ValidationError {
+                        reason: format!("Recipe '{}' not found", name),
+                    })
+                }
+            }
+        }
+
+        RecipeAction::Create { name, output, workflow_name } => {
+            // Find recipe
+            let recipe = RECIPES.iter().find(|r| r.name == name);
+
+            match recipe {
+                Some(r) => {
+                    // Determine output filename
+                    let output_path = output.unwrap_or_else(|| {
+                        PathBuf::from(format!("{}.nika.yaml", name))
+                    });
+
+                    // Check if file exists
+                    if output_path.exists() {
+                        return Err(NikaError::ValidationError {
+                            reason: format!(
+                                "File '{}' already exists. Use --output to specify a different name.",
+                                output_path.display()
+                            ),
+                        });
+                    }
+
+                    // Optionally customize workflow name
+                    let yaml_content = if let Some(wf_name) = workflow_name {
+                        // Replace the workflow name if present, or add it
+                        let mut content = r.yaml.to_string();
+                        if content.contains("workflow:") {
+                            // Replace existing workflow name
+                            content = content
+                                .lines()
+                                .map(|line| {
+                                    if line.starts_with("workflow:") {
+                                        format!("workflow: {}", wf_name)
+                                    } else {
+                                        line.to_string()
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                        } else {
+                            // Add workflow name after schema line
+                            content = content
+                                .lines()
+                                .map(|line| {
+                                    if line.starts_with("schema:") {
+                                        format!("{}\nworkflow: {}", line, wf_name)
+                                    } else {
+                                        line.to_string()
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                        }
+                        content
+                    } else {
+                        r.yaml.to_string()
+                    };
+
+                    // Write file
+                    fs::write(&output_path, &yaml_content)?;
+
+                    if !quiet {
+                        println!(
+                            "{} Created workflow from recipe '{}'",
+                            "✓".green(),
+                            name.cyan()
+                        );
+                        println!("  {} {}", "File:".dimmed(), output_path.display());
+                        println!();
+                        println!(
+                            "{} Validate: {}",
+                            "💡".dimmed(),
+                            format!("nika check {}", output_path.display()).cyan()
+                        );
+                        println!(
+                            "{} Run:      {}",
+                            "💡".dimmed(),
+                            format!("nika {}", output_path.display()).cyan()
+                        );
+                    }
+
+                    Ok(())
+                }
+                None => {
+                    println!("{} Recipe '{}' not found", "✗".red(), name);
+                    Err(NikaError::ValidationError {
+                        reason: format!("Recipe '{}' not found", name),
+                    })
+                }
             }
         }
     }

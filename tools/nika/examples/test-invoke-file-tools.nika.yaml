@@ -1,0 +1,35 @@
+# Test: File tools via invoke: (should work!)
+# This tests that nika:write works in invoke: tasks, not just agent: tasks
+schema: nika/workflow@0.10
+workflow: test-invoke-file-tools
+description: "Verify file tools work in invoke: tasks"
+
+tasks:
+  # Test 1: Write a file via invoke: (NOT agent:)
+  - id: write_via_invoke
+    invoke:
+      tool: nika:write
+      params:
+        file_path: /tmp/nika-invoke-test.txt
+        content: "Hello from invoke: task!"
+
+  # Test 2: Read the file back via invoke:
+  - id: read_via_invoke
+    invoke:
+      tool: nika:read
+      params:
+        file_path: /tmp/nika-invoke-test.txt
+
+  # Test 3: Glob to find the file
+  - id: glob_via_invoke
+    invoke:
+      tool: nika:glob
+      params:
+        pattern: "*.txt"
+        path: /tmp
+
+flows:
+  - source: write_via_invoke
+    target: read_via_invoke
+  - source: read_via_invoke
+    target: glob_via_invoke

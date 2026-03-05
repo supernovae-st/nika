@@ -1,0 +1,47 @@
+# Test: Builtin tools via invoke: (should work!)
+# This tests that nika:* tools work in invoke: tasks without mcp: field
+schema: nika/workflow@0.10
+workflow: test-invoke-builtin-tools
+description: "Verify builtin tools work in invoke: tasks without MCP server"
+
+tasks:
+  # Test 1: Write a file via invoke:
+  - id: write_file
+    invoke:
+      tool: nika:write
+      params:
+        file_path: /tmp/nika-invoke-test.txt
+        content: "Hello from invoke: task!"
+
+  # Test 2: Read the file back via invoke:
+  - id: read_file
+    invoke:
+      tool: nika:read
+      params:
+        file_path: /tmp/nika-invoke-test.txt
+
+  # Test 3: Glob to find the file
+  - id: glob_files
+    invoke:
+      tool: nika:glob
+      params:
+        pattern: "nika-invoke-*.txt"
+        path: /tmp
+
+  # Test 4: Use nika:log
+  - id: log_result
+    use:
+      content: read_file
+    invoke:
+      tool: nika:log
+      params:
+        level: info
+        message: "Read content: {{use.content}}"
+
+flows:
+  - source: write_file
+    target: read_file
+  - source: read_file
+    target: glob_files
+  - source: glob_files
+    target: log_result
