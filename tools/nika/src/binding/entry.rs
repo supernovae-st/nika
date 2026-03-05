@@ -217,7 +217,7 @@ impl<'de> Visitor<'de> for UseEntryVisitor {
     {
         let mut entry =
             parse_use_entry(value).map_err(|e| de::Error::custom(e.to_string()))?;
-        entry.path = normalize_path(&entry.path).to_string();
+        entry.path = UseEntry::normalize_path(&entry.path).to_string();
         Ok(entry)
     }
 
@@ -258,6 +258,7 @@ impl<'de> Visitor<'de> for UseEntryVisitor {
         }
 
         let path = path.ok_or_else(|| de::Error::missing_field("path"))?;
+        let path = UseEntry::normalize_path(&path).to_string();
 
         Ok(UseEntry {
             path,
