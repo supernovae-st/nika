@@ -210,11 +210,15 @@ impl<'de> Visitor<'de> for UseEntryVisitor {
     }
 
     /// Handle string format: "task.path [?? default]" (eager)
+    /// Applies normalize_path() to strip $ prefix from implicit output syntax ($task → task)
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
     where
         E: de::Error,
     {
-        parse_use_entry(value).map_err(|e| de::Error::custom(e.to_string()))
+        let mut entry =
+            parse_use_entry(value).map_err(|e| de::Error::custom(e.to_string()))?;
+        entry.path = normalize_path(&entry.path).to_string();
+        Ok(entry)
     }
 
     /// Handle object format: {path, lazy?, default?} (v0.5 extended syntax)
@@ -574,5 +578,48 @@ tags: 'meta.tags ?? ["default"]'
         assert_eq!(UseEntry::normalize_path("$my_task"), "my_task");
         assert_eq!(UseEntry::normalize_path("task.field"), "task.field");
         assert_eq!(UseEntry::normalize_path("$task.field"), "task.field");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Deserialization normalization tests - v0.21 implicit output syntax
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_use_entry_deserialize_normalizes_dollar_prefix_shorthand() {
+        // Shorthand: "$task1" → UseEntry { path: "task1", ... }
+        let entry: UseEntry = serde_yaml::from_str("\"$task1\"").unwrap();
+        assert_eq!(entry.path, "task1");
+
+        // Without prefix should also work
+        let entry: UseEntry = serde_yaml::from_str("\"task1\"").unwrap();
+        assert_eq!(entry.path, "task1");
+    }
+
+    #[test]
+    fn test_use_entry_deserialize_normalizes_dollar_prefix_full_form() {
+        // Full form with $ prefix in path field
+        let entry: UseEntry = serde_yaml::from_str(
+            r#"
+            path: "$my_task"
+            default: "fallback"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(entry.path, "my_task");
+        assert_eq!(
+            entry.default.as_ref().map(|v| v.as_str()),
+            Some(Some("fallback"))
+        );
+
+        // Without prefix should also work
+        let entry: UseEntry = serde_yaml::from_str(
+            r#"
+            path: "my_task"
+            lazy: true
+            "#,
+        )
+        .unwrap();
+        assert_eq!(entry.path, "my_task");
+        assert!(entry.lazy);
     }
 }
