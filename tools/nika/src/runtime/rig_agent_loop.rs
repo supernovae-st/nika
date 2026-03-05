@@ -1284,7 +1284,10 @@ impl RigAgentLoop {
                     _ => {}
                 },
                 Err(e) => {
-                    tracing::warn!(error = %e, "Stream chunk error");
+                    return Err(NikaError::AgentExecutionError {
+                        task_id: self.task_id.clone(),
+                        reason: format!("Stream chunk failed: {}", e),
+                    });
                 }
             }
         }
