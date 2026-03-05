@@ -1386,6 +1386,13 @@ impl TaskExecutor {
                             mcp_config = mcp_config.with_cwd(cwd);
                         }
 
+                        // Expand environment variables ($VAR, ${VAR}, ~) in command/args/env/cwd
+                        let mcp_config =
+                            mcp_config.expand_env_vars().map_err(|e| NikaError::McpStartError {
+                                name: name_owned.clone(),
+                                reason: format!("Environment variable expansion failed: {}", e),
+                            })?;
+
                         // Create and connect real client
                         let client =
                             McpClient::new(mcp_config).map_err(|e| NikaError::McpStartError {

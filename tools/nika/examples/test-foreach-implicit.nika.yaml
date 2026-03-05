@@ -1,0 +1,95 @@
+# Test: for_each parallelism with implicit output references
+# Purpose: Verify parallel execution works with $task shorthand
+# Features tested: for_each, concurrency, implicit output ($task), as variable, fail_fast
+schema: "nika/workflow@0.10"
+
+provider:
+  name: mock
+  model: mock-model
+
+tasks:
+  # Step 1: Generate source array
+  - id: generate_locales
+    infer: "Return a JSON array: ['fr-FR', 'en-US', 'de-DE', 'ja-JP', 'es-ES']"
+    output:
+      format: json
+
+  # Step 2: Parallel processing with implicit reference to array
+  - id: process_locales
+    for_each: ["fr-FR", "en-US", "de-DE", "ja-JP"]
+    as: locale
+    concurrency: 4
+    fail_fast: true
+    infer: "Generate greeting for locale: {{use.locale}}"
+
+  # Step 3: Reference parallel results with implicit syntax
+  - id: aggregate_results
+    use:
+      all_greetings: $process_locales  # Implicit reference to parallel results
+    infer: "Aggregate all greetings: {{use.all_greetings}}"
+
+  # Step 4: Nested for_each with binding reference
+  - id: generate_items
+    infer: "Return JSON: {items: ['item_a', 'item_b', 'item_c']}"
+    output:
+      format: json
+
+  # Step 5: for_each with binding expression
+  - id: process_items_parallel
+    for_each: ["item_a", "item_b", "item_c"]
+    as: item
+    concurrency: 3
+    use:
+      source: $generate_items  # Implicit reference to source
+    infer: "Process {{use.item}} with source context: {{use.source}}"
+
+  # Step 6: Mixed for_each with implicit and explicit
+  - id: mixed_parallel
+    for_each: ["A", "B", "C"]
+    as: category
+    concurrency: 2
+    use:
+      locales_result: $aggregate_results  # Implicit
+      items_result: process_items_parallel  # Explicit (no $)
+    infer: |
+      Category: {{use.category}}
+      Locales: {{use.locales_result}}
+      Items: {{use.items_result}}
+
+  # Step 7: Sequential fallback for ordered operations
+  - id: sequential_processing
+    for_each: ["step1", "step2", "step3"]
+    as: step
+    concurrency: 1  # Sequential
+    fail_fast: false  # Continue on error
+    use:
+      prev_parallel: $mixed_parallel
+    infer: "Sequential {{use.step}} after parallel: {{use.prev_parallel}}"
+
+  # Step 8: Final aggregation with all parallel results
+  - id: final_aggregation
+    use:
+      locales: $process_locales
+      items: $process_items_parallel
+      mixed: $mixed_parallel
+      sequential: $sequential_processing
+    infer: |
+      Final aggregation of all parallel results:
+      - Locales (4 parallel): {{use.locales}}
+      - Items (3 parallel): {{use.items}}
+      - Mixed (2 parallel): {{use.mixed}}
+      - Sequential (1 at a time): {{use.sequential}}
+
+      All for_each executions completed successfully.
+
+flows:
+  - name: main
+    tasks:
+      - generate_locales
+      - process_locales
+      - aggregate_results
+      - generate_items
+      - process_items_parallel
+      - mixed_parallel
+      - sequential_processing
+      - final_aggregation

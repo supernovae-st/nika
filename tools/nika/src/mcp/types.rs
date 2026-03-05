@@ -205,6 +205,65 @@ impl McpConfig {
         self.cwd = Some(cwd.into());
         self
     }
+
+    /// Expand environment variables and tilde in all config strings.
+    ///
+    /// Applies shellexpand to:
+    /// - `command` - the executable path
+    /// - `args` - each argument
+    /// - `env` values (NOT keys - keys are literal identifiers)
+    /// - `cwd` - working directory
+    ///
+    /// # Syntax Supported
+    /// - `$VAR` or `${VAR}` - environment variable
+    /// - `~/path` - home directory expansion
+    /// - `${VAR:-default}` - with default value (shell-compatible)
+    ///
+    /// # Errors
+    /// Returns error if a referenced variable is not set.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let config = McpConfig::new("test", "$HOME/bin/server")
+    ///     .with_arg("--config=$XDG_CONFIG_HOME/test.json")
+    ///     .with_env("DATA_DIR", "${XDG_DATA_HOME}/test")
+    ///     .expand_env_vars()?;
+    /// ```
+    pub fn expand_env_vars(mut self) -> Result<Self, String> {
+        // Expand command
+        self.command = shellexpand::full(&self.command)
+            .map_err(|e| format!("Failed to expand command '{}': {}", self.command, e))?
+            .into_owned();
+
+        // Expand args
+        let mut expanded_args = Vec::with_capacity(self.args.len());
+        for arg in &self.args {
+            let expanded = shellexpand::full(arg)
+                .map_err(|e| format!("Failed to expand arg '{}': {}", arg, e))?
+                .into_owned();
+            expanded_args.push(expanded);
+        }
+        self.args = expanded_args;
+
+        // Expand env VALUES (not keys - keys are identifiers)
+        let mut expanded_env = FxHashMap::default();
+        for (key, value) in self.env.drain() {
+            let expanded_value = shellexpand::full(&value)
+                .map_err(|e| format!("Failed to expand env '{}={}': {}", key, value, e))?
+                .into_owned();
+            expanded_env.insert(key, expanded_value);
+        }
+        self.env = expanded_env;
+
+        // Expand cwd
+        if let Some(cwd) = self.cwd.as_mut() {
+            *cwd = shellexpand::full(cwd)
+                .map_err(|e| format!("Failed to expand cwd '{}': {}", cwd, e))?
+                .into_owned();
+        }
+
+        Ok(self)
+    }
 }
 
 /// Request to call an MCP tool.
@@ -827,5 +886,94 @@ mod tests {
         let code = McpErrorCode::ParseError;
         let num: i32 = code.into();
         assert_eq!(num, -32700);
+    }
+
+    // ==========================================================================
+    // Tests for expand_env_vars()
+    // ==========================================================================
+
+    #[test]
+    fn test_expand_env_vars_command() {
+        std::env::set_var("NIKA_TEST_BIN", "/usr/local/bin");
+        let config = McpConfig::new("test", "$NIKA_TEST_BIN/server")
+            .expand_env_vars()
+            .unwrap();
+
+        assert_eq!(config.command, "/usr/local/bin/server");
+        std::env::remove_var("NIKA_TEST_BIN");
+    }
+
+    #[test]
+    fn test_expand_env_vars_args() {
+        std::env::set_var("NIKA_TEST_CONFIG", "/etc/mcp");
+        let config = McpConfig::new("test", "server")
+            .with_arg("--config=$NIKA_TEST_CONFIG/config.json")
+            .expand_env_vars()
+            .unwrap();
+
+        assert_eq!(config.args[0], "--config=/etc/mcp/config.json");
+        std::env::remove_var("NIKA_TEST_CONFIG");
+    }
+
+    #[test]
+    fn test_expand_env_vars_env_values() {
+        std::env::set_var("NIKA_TEST_ROOT", "/var/lib");
+        let config = McpConfig::new("test", "server")
+            .with_env("DATA_DIR", "$NIKA_TEST_ROOT/mcp")
+            .expand_env_vars()
+            .unwrap();
+
+        assert_eq!(config.env.get("DATA_DIR").unwrap(), "/var/lib/mcp");
+        std::env::remove_var("NIKA_TEST_ROOT");
+    }
+
+    #[test]
+    fn test_expand_env_vars_tilde() {
+        // shellexpand::full expands ~ only at the START of a string
+        let config = McpConfig::new("test", "~/bin/server")
+            .expand_env_vars()
+            .unwrap();
+
+        // Command should have ~ expanded (it's at the start)
+        assert!(!config.command.contains('~'));
+        assert!(config.command.contains("/bin/server"));
+        // Check it expanded to actual home
+        assert!(config.command.starts_with('/'));
+    }
+
+    #[test]
+    fn test_expand_env_vars_curly_brace_syntax() {
+        std::env::set_var("NIKA_TEST_PATH", "/opt/mcp");
+        let config = McpConfig::new("test", "${NIKA_TEST_PATH}/server")
+            .expand_env_vars()
+            .unwrap();
+
+        assert_eq!(config.command, "/opt/mcp/server");
+        std::env::remove_var("NIKA_TEST_PATH");
+    }
+
+    #[test]
+    fn test_expand_env_vars_no_expansion_needed() {
+        let config = McpConfig::new("test", "/usr/bin/server")
+            .with_arg("--port=8080")
+            .with_env("LOG_LEVEL", "debug")
+            .expand_env_vars()
+            .unwrap();
+
+        assert_eq!(config.command, "/usr/bin/server");
+        assert_eq!(config.args[0], "--port=8080");
+        assert_eq!(config.env.get("LOG_LEVEL").unwrap(), "debug");
+    }
+
+    #[test]
+    fn test_expand_env_vars_cwd() {
+        std::env::set_var("NIKA_TEST_DIR", "/home/user/projects");
+        let config = McpConfig::new("test", "server")
+            .with_cwd("$NIKA_TEST_DIR/mcp")
+            .expand_env_vars()
+            .unwrap();
+
+        assert_eq!(config.cwd.unwrap(), "/home/user/projects/mcp");
+        std::env::remove_var("NIKA_TEST_DIR");
     }
 }

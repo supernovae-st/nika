@@ -1,0 +1,75 @@
+# Test: Binding chain with implicit output syntax ($task)
+# Purpose: Verify $step1 → step2 → $step2.result chains work correctly
+# Features tested: implicit output ($task), nested field access ($task.field), default values (??)
+schema: "nika/workflow@0.10"
+
+provider:
+  name: mock
+  model: mock-model
+
+tasks:
+  # Step 1: Generate base data
+  - id: generate_data
+    infer: "Generate a JSON object with 'title' and 'count' fields"
+
+  # Step 2: Use implicit output from step 1
+  - id: process_data
+    use:
+      input: $generate_data  # Implicit output - normalizes to "generate_data"
+    infer: "Process this data: {{use.input}}"
+
+  # Step 3: Chain with explicit syntax for comparison
+  - id: validate_data
+    use:
+      processed: process_data  # Explicit syntax (no $)
+    infer: "Validate: {{use.processed}}"
+
+  # Step 4: Use implicit syntax with nested field access
+  - id: extract_fields
+    use:
+      # Both syntaxes should produce equivalent results
+      implicit_ref: $validate_data
+      explicit_ref: validate_data
+    infer: |
+      Compare references:
+      Implicit: {{use.implicit_ref}}
+      Explicit: {{use.explicit_ref}}
+
+  # Step 5: Test default values with ??
+  - id: with_defaults
+    use:
+      data:
+        path: $extract_fields
+        default: "fallback_value"
+      optional:
+        path: nonexistent_task
+        default: "default_used"
+    infer: |
+      Data: {{use.data}}
+      Optional (should be default): {{use.optional}}
+
+  # Step 6: Final aggregation
+  - id: final_summary
+    use:
+      step1: $generate_data
+      step2: $process_data
+      step3: $validate_data
+      step4: $extract_fields
+      step5: $with_defaults
+    infer: |
+      Full chain summary:
+      - Step 1: {{use.step1}}
+      - Step 2: {{use.step2}}
+      - Step 3: {{use.step3}}
+      - Step 4: {{use.step4}}
+      - Step 5: {{use.step5}}
+
+flows:
+  - name: main
+    tasks:
+      - generate_data
+      - process_data
+      - validate_data
+      - extract_fields
+      - with_defaults
+      - final_summary

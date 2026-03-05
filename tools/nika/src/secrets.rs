@@ -29,6 +29,8 @@
 //! The daemon solves macOS Keychain popup issues by being the sole keychain accessor.
 
 use crate::tui::widgets::provider_modal::{provider_env_var, SpnKeyring};
+// NOTE: We use secrecy::SecretString from secrecy crate version used by rig-core
+// to avoid version conflicts with the 0.8 version used elsewhere
 use secrecy::SecretString;
 use tracing::{debug, info, trace};
 

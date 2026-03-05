@@ -215,8 +215,7 @@ impl<'de> Visitor<'de> for UseEntryVisitor {
     where
         E: de::Error,
     {
-        let mut entry =
-            parse_use_entry(value).map_err(|e| de::Error::custom(e.to_string()))?;
+        let mut entry = parse_use_entry(value).map_err(|e| de::Error::custom(e.to_string()))?;
         entry.path = UseEntry::normalize_path(&entry.path).to_string();
         Ok(entry)
     }
@@ -640,8 +639,14 @@ tags: 'meta.tags ?? ["default"]'
         assert_eq!(UseEntry::normalize_path("ta$sk$"), "ta$sk$");
 
         // Nested field access with $ prefix
-        assert_eq!(UseEntry::normalize_path("$task.field.subfield"), "task.field.subfield");
-        assert_eq!(UseEntry::normalize_path("$task.nested.deep.path"), "task.nested.deep.path");
+        assert_eq!(
+            UseEntry::normalize_path("$task.field.subfield"),
+            "task.field.subfield"
+        );
+        assert_eq!(
+            UseEntry::normalize_path("$task.nested.deep.path"),
+            "task.nested.deep.path"
+        );
 
         // Empty string and edge cases
         assert_eq!(UseEntry::normalize_path(""), "");
