@@ -2368,6 +2368,7 @@ dependencies = [
  "rmcp 0.16.0",
  "rusqlite",
  "rustc-hash",
+ "schemars",
  "secrecy",
  "semver",
  "serde",

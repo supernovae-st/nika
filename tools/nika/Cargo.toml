@@ -55,6 +55,7 @@ indexmap = "2.7"        # Preserve key insertion order in YAML maps
 
 # JSON Schema validation
 jsonschema = "0.26"
+schemars = "1.0"  # JSON Schema generation for Rust types (v0.21 StructuredOutputEngine)
 
 # Errors
 thiserror = "1.0"
