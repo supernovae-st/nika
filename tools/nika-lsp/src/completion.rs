@@ -13,6 +13,7 @@ use lsp_types::{
 };
 
 use crate::document::DocumentState;
+// MCP discovery functions used by backend.rs
 use crate::node_context::{find_context_at_position, AstContext};
 
 /// Completion context for determining what to complete.
@@ -24,8 +25,10 @@ pub enum CompletionContext {
     UseReference { partial: String },
     /// Schema field
     Schema,
-    /// MCP server reference
+    /// MCP server reference (in mcp: config block or invoke: mcp field)
     McpServer,
+    /// MCP tool reference (after mcp: server is specified)
+    McpTool { server: String },
     /// Provider name
     Provider,
     /// Unknown context
@@ -43,7 +46,18 @@ fn ast_context_to_completion(ast_ctx: &AstContext, word: &str) -> CompletionCont
             partial: partial_ref.clone(),
         },
         AstContext::McpConfig { .. } => CompletionContext::McpServer,
-        AstContext::InvokeBlock { .. } => CompletionContext::McpServer,
+        AstContext::InvokeBlock {
+            mcp_server,
+            partial_tool: _,
+        } => {
+            // If we have a server, complete tools; otherwise complete server names
+            match mcp_server {
+                Some(server) => CompletionContext::McpTool {
+                    server: server.clone(),
+                },
+                None => CompletionContext::McpServer,
+            }
+        }
         AstContext::ProviderContext { .. } => CompletionContext::Provider,
         AstContext::SchemaContext => CompletionContext::Schema,
         AstContext::ForEachContext => CompletionContext::Unknown, // Could expand later
@@ -311,6 +325,52 @@ pub fn task_id_completions(task_ids: &[String], partial: &str) -> Vec<Completion
         .collect()
 }
 
+/// Extract MCP server names from the document content.
+///
+/// Parses the YAML looking for `mcp:` block with server definitions.
+pub fn extract_mcp_servers(content: &str) -> Vec<String> {
+    let mut servers = Vec::new();
+
+    // Simple line-based extraction for mcp: block
+    let mut in_mcp_block = false;
+    let mut mcp_indent = 0;
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+
+        // Detect mcp: block start
+        if trimmed.starts_with("mcp:") {
+            in_mcp_block = true;
+            // Calculate indent of mcp: line
+            mcp_indent = line.len() - line.trim_start().len();
+            continue;
+        }
+
+        if in_mcp_block {
+            let current_indent = line.len() - line.trim_start().len();
+
+            // If we're back at same indent or less, we've left the mcp block
+            if !trimmed.is_empty() && current_indent <= mcp_indent {
+                in_mcp_block = false;
+                continue;
+            }
+
+            // Look for server name definitions (indented under mcp:)
+            // Pattern: "  servername:" at mcp_indent + 2
+            if current_indent == mcp_indent + 2 && trimmed.ends_with(':') && !trimmed.contains(' ')
+            {
+                let server_name = trimmed.trim_end_matches(':').to_string();
+                if !server_name.is_empty() {
+                    servers.push(server_name);
+                }
+            }
+        }
+    }
+
+    servers
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -354,5 +414,49 @@ mod tests {
 
         let filtered = task_id_completions(&task_ids, "step");
         assert_eq!(filtered.len(), 2);
+    }
+
+    #[test]
+    fn test_extract_mcp_servers_basic() {
+        let content = r#"
+schema: "nika/workflow@0.10"
+mcp:
+  novanet:
+    command: novanet-mcp
+  filesystem:
+    command: npx
+    args: ["-y", "@anthropic/mcp-filesystem"]
+tasks:
+  - id: test
+    infer: "Hello"
+"#;
+        let servers = extract_mcp_servers(content);
+        assert_eq!(servers.len(), 2);
+        assert!(servers.contains(&"novanet".to_string()));
+        assert!(servers.contains(&"filesystem".to_string()));
+    }
+
+    #[test]
+    fn test_extract_mcp_servers_empty() {
+        let content = r#"
+schema: "nika/workflow@0.10"
+tasks:
+  - id: test
+    infer: "Hello"
+"#;
+        let servers = extract_mcp_servers(content);
+        assert!(servers.is_empty());
+    }
+
+    #[test]
+    fn test_extract_mcp_servers_single() {
+        let content = r#"
+mcp:
+  custom_server:
+    command: my-server
+"#;
+        let servers = extract_mcp_servers(content);
+        assert_eq!(servers.len(), 1);
+        assert_eq!(servers[0], "custom_server");
     }
 }

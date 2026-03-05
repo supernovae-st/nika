@@ -260,8 +260,14 @@ impl LanguageServer for NikaBackend {
                 task_id_completions(&task_ids, &partial)
             }
             CompletionContext::McpServer => {
-                // TODO: Extract MCP server names from document
-                vec![]
+                // Extract MCP server names from the document content
+                let content = doc.content();
+                let servers = crate::completion::extract_mcp_servers(&content);
+                crate::mcp_discovery::invoke_completions(&servers, None)
+            }
+            CompletionContext::McpTool { server } => {
+                // Complete tools for the specified MCP server
+                crate::mcp_discovery::mcp_tool_completions(&server)
             }
             CompletionContext::Unknown => {
                 // Return all possible completions in unknown context
