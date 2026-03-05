@@ -1,10 +1,11 @@
-//! Runtime Module - Workflow execution (v0.18.0)
+//! Runtime Module - Workflow execution (v0.21.0)
 //!
 //! Contains the runtime execution components:
 //! - `runner`: DAG execution with tokio concurrency
 //! - `executor`: Individual task execution (infer, exec, fetch, invoke, agent)
 //!   - Includes decompose: modifier expansion (v0.5 MVP 8 Phase 4)
 //! - `output`: Output format handling and schema validation
+//! - `structured_output`: 4-layer StructuredOutputEngine for ~99.99% compliance (v0.21)
 //! - `rig_agent_loop`: Rig-based agentic execution (v0.3+)
 //! - `spawn`: Nested agent spawning (v0.5 MVP 8 Phase 2)
 //! - `chat_workflow`: Chat-as-DAG wrapper (v0.9.1)
@@ -35,6 +36,7 @@ mod runner;
 pub mod security;
 mod skill_injector;
 pub mod spawn;
+pub mod structured_output;
 
 // Re-export public types
 pub use builtin::{
@@ -67,3 +69,8 @@ pub use security::{check_blocklist, validate_command_string, validate_exec_comma
 
 // v0.18.0: Artifact processor for task output persistence
 pub use artifact_processor::{process_task_artifacts, ArtifactProcessResult};
+
+// v0.21.0: Structured output engine for JSON Schema compliance
+pub use structured_output::{
+    validate_structured_output, StructuredOutputEngine, StructuredOutputResult,
+};

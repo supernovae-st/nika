@@ -6,12 +6,13 @@
 //! - `OutputPolicy`: Format + optional schema validation + retry config
 
 use serde::de::{self, Deserializer, MapAccess, Visitor};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::fmt;
 
 /// Reference to a JSON Schema - either inline or file path
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
 pub enum SchemaRef {
     /// Inline JSON Schema object
     Inline(JsonValue),

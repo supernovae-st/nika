@@ -574,7 +574,9 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // STRUCTURED OUTPUT ERRORS (300-309) - v0.21
     // ═══════════════════════════════════════════
-    #[error("[NIKA-300] Structured output extraction failed for task '{task_id}' at {layer}: {reason}")]
+    #[error(
+        "[NIKA-300] Structured output extraction failed for task '{task_id}' at {layer}: {reason}"
+    )]
     #[diagnostic(
         code(nika::structured_output_extraction_failed),
         help("Check the LLM response format matches the expected JSON Schema")

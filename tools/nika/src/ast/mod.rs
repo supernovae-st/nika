@@ -52,6 +52,7 @@ pub mod output;
 pub mod pkg_resolver;
 pub mod schema_validator;
 pub mod skill_def;
+pub mod structured;
 mod workflow;
 
 // Re-export all public types
@@ -82,3 +83,5 @@ pub use decompose::{DecomposeSpec, DecomposeStrategy};
 pub use loader::{discover_definitions, load_definition, DefinitionKind, LoadedDefinition};
 // Include loader is defined in include_loader.rs (v0.14.2 - DAG fusion)
 pub use include_loader::expand_includes;
+// StructuredOutputSpec is defined in structured.rs (v0.21 - JSON Schema validation)
+pub use structured::StructuredOutputSpec;

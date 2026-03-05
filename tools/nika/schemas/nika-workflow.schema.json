@@ -259,6 +259,10 @@
           "$ref": "#/$defs/LogConfig",
           "description": "Task-level logging override (v0.10+)"
         },
+        "structured": {
+          "$ref": "#/$defs/StructuredOutputSpec",
+          "description": "Structured output validation with 4-layer defense (v0.21+)"
+        },
         "flow": {
           "type": "array",
           "items": {
@@ -685,6 +689,75 @@
           "description": "Maximum retry attempts on validation failure (v0.10)"
         }
       }
+    },
+    "StructuredOutputSpec": {
+      "description": "Structured output validation with 4-layer defense (v0.21+)",
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Shorthand: path to JSON Schema file"
+        },
+        {
+          "type": "object",
+          "required": ["schema"],
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "oneOf": [
+                { "type": "object", "description": "Inline JSON Schema object" },
+                { "type": "string", "description": "Path to JSON Schema file" }
+              ],
+              "description": "JSON Schema for output validation (inline object or file path)"
+            },
+            "enable_extractor": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable Layer 1: rig Extractor (Rust type extraction)"
+            },
+            "enable_tool_use": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable Layer 2: Provider-native (tool_use / response_format)"
+            },
+            "enable_retry": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable Layer 3: Retry with feedback"
+            },
+            "enable_repair": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable Layer 4: LLM repair"
+            },
+            "max_retries": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10,
+              "default": 2,
+              "description": "Maximum retry attempts for Layer 3"
+            },
+            "repair_model": {
+              "type": "string",
+              "description": "Model to use for Layer 4 repair (defaults to task model)"
+            }
+          }
+        }
+      ],
+      "examples": [
+        "./schemas/user.json",
+        {
+          "schema": "./schemas/product.json",
+          "max_retries": 3,
+          "enable_repair": true
+        },
+        {
+          "schema": {
+            "type": "object",
+            "properties": { "name": { "type": "string" } },
+            "required": ["name"]
+          }
+        }
+      ]
     },
     "Flow": {
       "type": "object",

@@ -425,6 +425,7 @@ mod tests {
             artifact: None,
             log: None,
             flow: None,
+            structured: None,
         });
 
         let prefixed = prefix_task(Arc::clone(&task), Some("seo_"));
@@ -482,6 +483,7 @@ mod tests {
             artifact: None,
             log: None,
             flow: None,
+            structured: None,
         });
 
         let prefixed = prefix_task(task, Some("lib_"));

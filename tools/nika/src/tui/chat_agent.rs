@@ -983,6 +983,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "Requires Ollama server running at localhost:11434"]
     fn test_set_provider_ollama() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1017,6 +1018,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "Requires Ollama server running at localhost:11434"]
     fn test_with_overrides_ollama() {
         // v0.8.2: Ollama now requires server to be running
         let agent = ChatAgent::with_overrides(Some("ollama"), None);

@@ -757,6 +757,7 @@ flows:
             artifact: None,
             log: None,
             flow: None,
+            structured: None,
         };
 
         let result = validate_template_refs(&task);
@@ -787,6 +788,7 @@ flows:
             artifact: None,
             log: None,
             flow: None,
+            structured: None,
         };
 
         let result = validate_template_refs(&task);
@@ -815,6 +817,7 @@ flows:
             artifact: None,
             log: None,
             flow: None,
+            structured: None,
         };
 
         let result = validate_template_refs(&task);
@@ -849,6 +852,7 @@ flows:
             artifact: None,
             log: None,
             flow: None,
+            structured: None,
         };
 
         let result = validate_template_refs(&task);
@@ -885,6 +889,7 @@ flows:
             artifact: None,
             log: None,
             flow: None,
+            structured: None,
         };
 
         let result = validate_template_refs(&task);

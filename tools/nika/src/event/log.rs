@@ -1508,7 +1508,13 @@ mod tests {
         let attempts: Vec<_> = events
             .iter()
             .filter_map(|e| {
-                if let EventKind::StructuredOutputAttempt { layer, attempt, success, .. } = &e.kind {
+                if let EventKind::StructuredOutputAttempt {
+                    layer,
+                    attempt,
+                    success,
+                    ..
+                } = &e.kind
+                {
                     Some((*layer, *attempt, *success))
                 } else {
                     None
@@ -1516,15 +1522,23 @@ mod tests {
             })
             .collect();
 
-        assert_eq!(attempts, vec![
-            (1, 1, false),  // Layer 1, attempt 1, failed
-            (2, 1, false),  // Layer 2, attempt 1, failed
-            (3, 1, false),  // Layer 3, attempt 1, failed
-            (3, 2, true),   // Layer 3, attempt 2, success
-        ]);
+        assert_eq!(
+            attempts,
+            vec![
+                (1, 1, false), // Layer 1, attempt 1, failed
+                (2, 1, false), // Layer 2, attempt 1, failed
+                (3, 1, false), // Layer 3, attempt 1, failed
+                (3, 2, true),  // Layer 3, attempt 2, success
+            ]
+        );
 
         // Verify final success
-        if let EventKind::StructuredOutputSuccess { layer, total_attempts, .. } = &events[4].kind {
+        if let EventKind::StructuredOutputSuccess {
+            layer,
+            total_attempts,
+            ..
+        } = &events[4].kind
+        {
             assert_eq!(*layer, 3);
             assert_eq!(*total_attempts, 4);
         } else {

@@ -31,6 +31,7 @@ use super::context_loader::load_context;
 use super::executor::TaskExecutor;
 use super::output::{extract_json, format_validation_errors, make_task_result};
 use super::resolver::{resolve_assets, ResolvedAssets};
+use super::structured_output::StructuredOutputEngine;
 
 use crate::ast::artifact::ArtifactsConfig;
 use std::path::PathBuf;
@@ -571,7 +572,43 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
             match result {
                 Ok(output) => {
-                    let tr = make_task_result(output, task.output.as_ref(), duration).await;
+                    // v0.21: Structured output validation via 4-layer engine
+                    let final_output = if let Some(ref structured_spec) = task.structured {
+                        let mut engine = StructuredOutputEngine::new(
+                            structured_spec.clone(),
+                            Arc::new(event_log.clone()),
+                        );
+                        match engine.validate(&task_id, &output).await {
+                            Ok(result) => {
+                                debug!(
+                                    task_id = %task_id,
+                                    layer = result.layer,
+                                    layer_name = %result.layer_name,
+                                    total_attempts = result.total_attempts,
+                                    "Structured output validation succeeded"
+                                );
+                                // Return validated JSON as string
+                                result.value.to_string()
+                            }
+                            Err(e) => {
+                                // Structured validation failed - emit failure and return error
+                                event_log.emit(EventKind::TaskFailed {
+                                    task_id: Arc::clone(&task_id),
+                                    error: e.to_string(),
+                                    duration_ms: duration.as_millis() as u64,
+                                });
+                                return IterationResult {
+                                    store_id: task_id,
+                                    result: TaskResult::failed(e.to_string(), duration),
+                                    for_each_info,
+                                };
+                            }
+                        }
+                    } else {
+                        output
+                    };
+
+                    let tr = make_task_result(final_output, task.output.as_ref(), duration).await;
                     // EMIT: TaskCompleted or TaskFailed (based on result)
                     if tr.is_success() {
                         event_log.emit(EventKind::TaskCompleted {
@@ -1337,6 +1374,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 flow: None,
+                structured: None,
             })],
             flows: vec![],
         };
@@ -1405,6 +1443,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 flow: None,
+                structured: None,
             })],
             flows: vec![],
         };
@@ -1476,6 +1515,7 @@ mod tests {
                         artifact: None,
                         log: None,
                         flow: None,
+                        structured: None,
                     })
                 })
                 .collect(),
@@ -1908,6 +1948,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 flow: None,
+                structured: None,
             })],
             flows: vec![],
         };
@@ -1966,6 +2007,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 flow: None,
+                structured: None,
             })],
             flows: vec![],
         };
@@ -2014,6 +2056,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 flow: None,
+                structured: None,
             })],
             flows: vec![],
         };

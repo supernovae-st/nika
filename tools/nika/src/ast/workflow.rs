@@ -370,6 +370,31 @@ pub struct Task {
     /// ```
     #[serde(default)]
     pub flow: Option<Vec<String>>,
+    /// Structured output configuration (v0.21)
+    ///
+    /// When specified, enforces JSON Schema validation on task output.
+    /// Uses the 4-layer StructuredOutputEngine for ~99.99% compliance.
+    ///
+    /// # Example
+    ///
+    /// ```yaml
+    /// - id: extract_data
+    ///   infer: "Extract user data"
+    ///   structured: ./schemas/user.json
+    /// ```
+    ///
+    /// Or with full configuration:
+    ///
+    /// ```yaml
+    /// - id: extract_data
+    ///   infer: "Extract user data"
+    ///   structured:
+    ///     schema: ./schemas/user.json
+    ///     max_retries: 3
+    ///     enable_repair: true
+    /// ```
+    #[serde(default)]
+    pub structured: Option<super::structured::StructuredOutputSpec>,
 }
 
 impl Task {
