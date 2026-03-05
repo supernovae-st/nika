@@ -287,6 +287,13 @@ enum Commands {
         workflow: Option<PathBuf>,
     },
 
+    /// Manage workflow files (edit, add tasks, visualize) (v0.22+)
+    #[command(visible_alias = "w")]
+    Workflow {
+        #[command(subcommand)]
+        action: WorkflowAction,
+    },
+
     /// Create a new workflow from template or wizard (v0.19.3)
     #[command(visible_alias = "n")]
     New {
@@ -593,6 +600,62 @@ enum JobsAction {
     Reload,
 }
 
+/// Workflow management actions (v0.22+)
+#[derive(Subcommand)]
+enum WorkflowAction {
+    /// Open workflow in interactive editor
+    Edit {
+        /// Path to .nika.yaml file
+        file: PathBuf,
+    },
+
+    /// Add a new task interactively
+    AddTask {
+        /// Path to .nika.yaml file
+        file: PathBuf,
+
+        /// Task ID (generated if not provided)
+        #[arg(long)]
+        id: Option<String>,
+
+        /// Task verb (infer, exec, fetch, invoke, agent)
+        #[arg(long, value_name = "VERB")]
+        verb: Option<String>,
+
+        /// Insert after this task ID
+        #[arg(long)]
+        after: Option<String>,
+    },
+
+    /// Visualize workflow as DAG graph
+    Graph {
+        /// Path to .nika.yaml file
+        file: PathBuf,
+
+        /// Output format: ascii, dot, mermaid
+        #[arg(short, long, default_value = "ascii")]
+        format: String,
+
+        /// Output file (stdout if not specified)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
+    /// Validate workflow with suggestions for improvements
+    Check {
+        /// Path to .nika.yaml file
+        file: PathBuf,
+
+        /// Show improvement suggestions
+        #[arg(long)]
+        suggest: bool,
+
+        /// Output format: text, json
+        #[arg(long, default_value = "text")]
+        format: String,
+    },
+}
+
 #[tokio::main]
 async fn main() {
     // Load .env file (ignore if not present)
@@ -743,6 +806,9 @@ async fn main() {
 
         // Schema management (v0.21.x)
         Some(Commands::Schema { action }) => handle_schema_command(action, quiet),
+
+        // Workflow management (v0.22+)
+        Some(Commands::Workflow { action }) => handle_workflow_command(action, quiet).await,
 
         // Doctor command (v0.13.1)
         Some(Commands::Doctor { full, format }) => {
@@ -3893,6 +3959,516 @@ fn output_doctor_json(checks: &[DiagnosticCheck]) {
     });
 
     println!("{}", serde_json::to_string_pretty(&output).unwrap());
+}
+
+// ============================================================================
+// Workflow Command Handler (v0.22+)
+// ============================================================================
+
+async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<(), NikaError> {
+    use colored::Colorize;
+
+    match action {
+        WorkflowAction::Edit { file } => {
+            // Open workflow in interactive editor (TUI Studio)
+            if !file.exists() {
+                return Err(NikaError::WorkflowNotFound {
+                    path: file.to_string_lossy().to_string(),
+                });
+            }
+
+            #[cfg(feature = "tui")]
+            {
+                nika::tui::run_tui(&file).await
+            }
+
+            #[cfg(not(feature = "tui"))]
+            {
+                Err(NikaError::ConfigError {
+                    reason: "TUI feature not enabled. Rebuild with --features tui".to_string(),
+                })
+            }
+        }
+
+        WorkflowAction::AddTask {
+            file,
+            id,
+            verb,
+            after,
+        } => {
+            // Add a new task interactively to the workflow
+            if !file.exists() {
+                return Err(NikaError::WorkflowNotFound {
+                    path: file.to_string_lossy().to_string(),
+                });
+            }
+
+            // Read existing workflow
+            let content = std::fs::read_to_string(&file)?;
+
+            // Generate task ID if not provided
+            let task_id = id.unwrap_or_else(|| {
+                format!("task_{}", chrono::Utc::now().timestamp_millis() % 10000)
+            });
+
+            // Determine verb (default to infer)
+            let task_verb = verb.as_deref().unwrap_or("infer");
+
+            // Validate verb
+            let valid_verbs = ["infer", "exec", "fetch", "invoke", "agent"];
+            if !valid_verbs.contains(&task_verb) {
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "Invalid verb '{}'. Valid: {}",
+                        task_verb,
+                        valid_verbs.join(", ")
+                    ),
+                });
+            }
+
+            // Generate task YAML snippet based on verb
+            let task_yaml = match task_verb {
+                "infer" => format!(
+                    r#"  - id: {}
+    infer: "Your prompt here""#,
+                    task_id
+                ),
+                "exec" => format!(
+                    r#"  - id: {}
+    exec: "echo 'Hello World'""#,
+                    task_id
+                ),
+                "fetch" => format!(
+                    r#"  - id: {}
+    fetch:
+      url: "https://api.example.com"
+      method: GET"#,
+                    task_id
+                ),
+                "invoke" => format!(
+                    r#"  - id: {}
+    invoke:
+      mcp: your_server
+      tool: tool_name
+      params: {{}}"#,
+                    task_id
+                ),
+                "agent" => format!(
+                    r#"  - id: {}
+    agent:
+      prompt: "Your agent goal here"
+      max_turns: 10"#,
+                    task_id
+                ),
+                _ => unreachable!(),
+            };
+
+            // Find insertion point
+            let insertion_point = if let Some(ref after_task) = after {
+                // Find the task with this ID and insert after it
+                if let Some(pos) = content.find(&format!("id: {}", after_task)) {
+                    // Find the next task or end of tasks section
+                    let after_pos = pos + content[pos..].find('\n').unwrap_or(0);
+                    // Find next "- id:" or end of file, or None to append at end
+                    content[after_pos..].find("\n  - id:")
+                        .map(|next_task_offset| after_pos + next_task_offset)
+                } else {
+                    return Err(NikaError::ValidationError {
+                        reason: format!("Task '{}' not found in workflow", after_task),
+                    });
+                }
+            } else {
+                None // Append at end of tasks
+            };
+
+            // Insert task
+            let new_content = if let Some(pos) = insertion_point {
+                format!(
+                    "{}\n{}\n{}",
+                    &content[..pos],
+                    task_yaml,
+                    &content[pos..]
+                )
+            } else {
+                // Find "tasks:" section and append
+                if let Some(tasks_pos) = content.find("tasks:") {
+                    let after_tasks = tasks_pos + content[tasks_pos..].find('\n').unwrap_or(0) + 1;
+                    // Find end of tasks section (next top-level key or EOF)
+                    let end_of_tasks = content[after_tasks..]
+                        .find("\nflows:")
+                        .or_else(|| content[after_tasks..].find("\nmcp:"))
+                        .map(|p| after_tasks + p)
+                        .unwrap_or(content.len());
+
+                    format!(
+                        "{}\n{}\n{}",
+                        &content[..end_of_tasks].trim_end(),
+                        task_yaml,
+                        &content[end_of_tasks..]
+                    )
+                } else {
+                    return Err(NikaError::ValidationError {
+                        reason: "No 'tasks:' section found in workflow".to_string(),
+                    });
+                }
+            };
+
+            // Write back
+            std::fs::write(&file, new_content)?;
+
+            if !quiet {
+                println!(
+                    "{} Added task '{}' ({}) to {}",
+                    "✓".green(),
+                    task_id.cyan(),
+                    task_verb.yellow(),
+                    file.display()
+                );
+                if let Some(ref after_task) = after {
+                    println!("  Inserted after: {}", after_task);
+                }
+            }
+
+            Ok(())
+        }
+
+        WorkflowAction::Graph { file, format, output } => {
+            // Visualize workflow as DAG graph
+            if !file.exists() {
+                return Err(NikaError::WorkflowNotFound {
+                    path: file.to_string_lossy().to_string(),
+                });
+            }
+
+            // Parse workflow
+            let content = std::fs::read_to_string(&file)?;
+            let raw_workflow =
+                nika::ast::raw::parse(&content, nika::source::FileId(0)).map_err(|e| {
+                    NikaError::ParseError {
+                        details: format!("{}", e),
+                    }
+                })?;
+
+            let analyze_result = nika::ast::analyzer::analyze(raw_workflow);
+            if !analyze_result.is_ok() {
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "Workflow has validation errors: {:?}",
+                        analyze_result.errors
+                    ),
+                });
+            }
+
+            let workflow = analyze_result.value.expect("workflow should exist");
+
+            // Generate graph output based on format
+            let graph_output = match format.as_str() {
+                "ascii" => generate_ascii_dag(&workflow),
+                "dot" => generate_dot_dag(&workflow),
+                "mermaid" => generate_mermaid_dag(&workflow),
+                _ => {
+                    return Err(NikaError::ValidationError {
+                        reason: format!(
+                            "Unknown graph format '{}'. Valid: ascii, dot, mermaid",
+                            format
+                        ),
+                    })
+                }
+            };
+
+            // Output to file or stdout
+            if let Some(output_path) = output {
+                std::fs::write(&output_path, &graph_output)?;
+                if !quiet {
+                    println!(
+                        "{} Graph saved to {}",
+                        "✓".green(),
+                        output_path.display()
+                    );
+                }
+            } else {
+                println!("{}", graph_output);
+            }
+
+            Ok(())
+        }
+
+        WorkflowAction::Check { file, suggest, format } => {
+            // Validate workflow with optional suggestions
+            if !file.exists() {
+                return Err(NikaError::WorkflowNotFound {
+                    path: file.to_string_lossy().to_string(),
+                });
+            }
+
+            let content = std::fs::read_to_string(&file)?;
+            let raw_workflow =
+                nika::ast::raw::parse(&content, nika::source::FileId(0)).map_err(|e| {
+                    NikaError::ParseError {
+                        details: format!("{}", e),
+                    }
+                })?;
+
+            let analyze_result = nika::ast::analyzer::analyze(raw_workflow);
+
+            // Collect issues
+            let mut issues: Vec<serde_json::Value> = vec![];
+
+            if !analyze_result.is_ok() {
+                for error in &analyze_result.errors {
+                    issues.push(serde_json::json!({
+                        "type": "error",
+                        "message": format!("{}", error),
+                    }));
+                }
+            }
+
+            // Generate suggestions if requested
+            let mut suggestions: Vec<String> = vec![];
+            if suggest {
+                if let Some(ref workflow) = analyze_result.value {
+                    // Check for common improvements
+                    let task_count = workflow.tasks.len();
+
+                    if task_count > 10 {
+                        suggestions.push(
+                            "Consider splitting into multiple workflows with 'include:'".to_string(),
+                        );
+                    }
+
+                    // Check for missing descriptions
+                    if workflow.description.is_none() {
+                        suggestions.push("Add a 'description:' field for documentation".to_string());
+                    }
+
+                    // Check for no flows (linear execution)
+                    if workflow.flow_defs.is_empty() && task_count > 1 {
+                        suggestions.push(
+                            "Add explicit 'flows:' to define task dependencies".to_string(),
+                        );
+                    }
+
+                    // Check schema version
+                    use nika::ast::analyzed::SchemaVersion;
+                    match workflow.schema_version {
+                        SchemaVersion::V09 | SchemaVersion::V10 => {
+                            // Already on latest versions
+                        }
+                        _ => {
+                            suggestions.push(format!(
+                                "Consider upgrading to schema @0.10 (current: {:?})",
+                                workflow.schema_version
+                            ));
+                        }
+                    }
+                }
+            }
+
+            // Output results
+            if format == "json" {
+                let result = serde_json::json!({
+                    "file": file.to_string_lossy(),
+                    "valid": analyze_result.is_ok(),
+                    "issues": issues,
+                    "suggestions": suggestions,
+                });
+                println!("{}", serde_json::to_string_pretty(&result).unwrap());
+            } else {
+                // Text output
+                if analyze_result.is_ok() {
+                    if !quiet {
+                        println!("{} {} is valid", "✓".green(), file.display());
+                    }
+                } else {
+                    println!("{} {} has errors:", "✗".red(), file.display());
+                    for error in &analyze_result.errors {
+                        println!("  {} {}", "•".red(), error);
+                    }
+                }
+
+                if suggest && !suggestions.is_empty() {
+                    println!();
+                    println!("{}", "Suggestions:".cyan().bold());
+                    for suggestion in &suggestions {
+                        println!("  {} {}", "→".cyan(), suggestion);
+                    }
+                }
+            }
+
+            if analyze_result.is_ok() {
+                Ok(())
+            } else {
+                Err(NikaError::ValidationError {
+                    reason: format!("{} error(s) found", analyze_result.errors.len()),
+                })
+            }
+        }
+    }
+}
+
+/// Generate ASCII DAG representation
+fn generate_ascii_dag(workflow: &nika::ast::analyzed::AnalyzedWorkflow) -> String {
+    let mut output = String::new();
+    output.push_str(&format!("DAG: {}\n", workflow.name.as_deref().unwrap_or("(unnamed)")));
+    output.push_str(&"─".repeat(50));
+    output.push('\n');
+    output.push('\n');
+
+    // List all tasks with their dependencies
+    for task in &workflow.tasks {
+        let verb_icon = match &task.action {
+            nika::ast::analyzed::AnalyzedTaskAction::Infer { .. } => "⚡",
+            nika::ast::analyzed::AnalyzedTaskAction::Exec { .. } => "📟",
+            nika::ast::analyzed::AnalyzedTaskAction::Fetch { .. } => "🛰️",
+            nika::ast::analyzed::AnalyzedTaskAction::Invoke { .. } => "🔌",
+            nika::ast::analyzed::AnalyzedTaskAction::Agent { .. } => "🐔",
+        };
+
+        output.push_str(&format!("{} {}\n", verb_icon, task.name));
+
+        // Show use refs as dependencies
+        for (alias, use_ref) in &task.use_refs {
+            let target_name = workflow.task_table.get_name(use_ref.target)
+                .unwrap_or("?");
+            output.push_str(&format!("  └─ use.{} ← {}\n", alias, target_name));
+        }
+    }
+
+    // Show flow definitions
+    if !workflow.flow_defs.is_empty() {
+        output.push('\n');
+        output.push_str("Flows:\n");
+        for (name, flow_def) in &workflow.flow_defs {
+            let task_names: Vec<_> = flow_def.tasks.iter()
+                .filter_map(|id| workflow.task_table.get_name(*id))
+                .collect();
+            output.push_str(&format!("  {} → [{}]\n", name, task_names.join(", ")));
+        }
+    }
+
+    output
+}
+
+/// Generate DOT (Graphviz) DAG representation
+fn generate_dot_dag(workflow: &nika::ast::analyzed::AnalyzedWorkflow) -> String {
+    let mut output = String::new();
+    let name = workflow.name.as_deref().unwrap_or("workflow");
+    output.push_str(&format!("digraph {} {{\n", name.replace('-', "_")));
+    output.push_str("  rankdir=LR;\n");
+    output.push_str("  node [shape=box];\n");
+    output.push('\n');
+
+    // Add nodes with verb-specific styling
+    for task in &workflow.tasks {
+        let (color, shape) = match &task.action {
+            nika::ast::analyzed::AnalyzedTaskAction::Infer { .. } => ("#7c3aed", "box"),
+            nika::ast::analyzed::AnalyzedTaskAction::Exec { .. } => ("#f97316", "box"),
+            nika::ast::analyzed::AnalyzedTaskAction::Fetch { .. } => ("#0ea5e9", "ellipse"),
+            nika::ast::analyzed::AnalyzedTaskAction::Invoke { .. } => ("#8b5cf6", "diamond"),
+            nika::ast::analyzed::AnalyzedTaskAction::Agent { .. } => ("#ec4899", "octagon"),
+        };
+        output.push_str(&format!(
+            "  {} [label=\"{}\" color=\"{}\" shape={}];\n",
+            task.name.replace('-', "_"),
+            task.name,
+            color,
+            shape
+        ));
+    }
+
+    output.push('\n');
+
+    // Add edges from flow definitions (consecutive tasks within each flow)
+    for (_name, flow_def) in &workflow.flow_defs {
+        let task_names: Vec<_> = flow_def.tasks.iter()
+            .filter_map(|id| workflow.task_table.get_name(*id))
+            .collect();
+        // Connect consecutive tasks in the flow
+        for window in task_names.windows(2) {
+            output.push_str(&format!(
+                "  {} -> {};\n",
+                window[0].replace('-', "_"),
+                window[1].replace('-', "_")
+            ));
+        }
+    }
+
+    // Add implicit edges from use refs
+    for task in &workflow.tasks {
+        for (_alias, use_ref) in &task.use_refs {
+            // Get the source task name from the target TaskId
+            if let Some(source_name) = workflow.task_table.get_name(use_ref.target) {
+                output.push_str(&format!(
+                    "  {} -> {} [style=dashed color=\"#9ca3af\"];\n",
+                    source_name.replace('-', "_"),
+                    task.name.replace('-', "_")
+                ));
+            }
+        }
+    }
+
+    output.push_str("}\n");
+    output
+}
+
+/// Generate Mermaid DAG representation
+fn generate_mermaid_dag(workflow: &nika::ast::analyzed::AnalyzedWorkflow) -> String {
+    let mut output = String::new();
+    output.push_str("```mermaid\nflowchart LR\n");
+
+    // Add nodes with verb-specific styling
+    for task in &workflow.tasks {
+        let (shape_start, shape_end, class) = match &task.action {
+            nika::ast::analyzed::AnalyzedTaskAction::Infer { .. } => ("[", "]", "infer"),
+            nika::ast::analyzed::AnalyzedTaskAction::Exec { .. } => ("([", "])", "exec"),
+            nika::ast::analyzed::AnalyzedTaskAction::Fetch { .. } => ("((", "))", "fetch"),
+            nika::ast::analyzed::AnalyzedTaskAction::Invoke { .. } => ("{", "}", "invoke"),
+            nika::ast::analyzed::AnalyzedTaskAction::Agent { .. } => ("{{", "}}", "agent"),
+        };
+        output.push_str(&format!(
+            "  {}{}\"{}\"{}:::{}\n",
+            task.name,
+            shape_start,
+            task.name,
+            shape_end,
+            class
+        ));
+    }
+
+    output.push('\n');
+
+    // Add edges from flow definitions (consecutive tasks within each flow)
+    for (_name, flow_def) in &workflow.flow_defs {
+        let task_names: Vec<_> = flow_def.tasks.iter()
+            .filter_map(|id| workflow.task_table.get_name(*id))
+            .collect();
+        for window in task_names.windows(2) {
+            output.push_str(&format!("  {} --> {}\n", window[0], window[1]));
+        }
+    }
+
+    // Add implicit edges from use refs
+    for task in &workflow.tasks {
+        for (_alias, use_ref) in &task.use_refs {
+            if let Some(source_name) = workflow.task_table.get_name(use_ref.target) {
+                output.push_str(&format!(
+                    "  {} -.-> {}\n",
+                    source_name,
+                    task.name
+                ));
+            }
+        }
+    }
+
+    // Add class definitions
+    output.push_str("\n  classDef infer fill:#7c3aed,color:#fff\n");
+    output.push_str("  classDef exec fill:#f97316,color:#fff\n");
+    output.push_str("  classDef fetch fill:#0ea5e9,color:#fff\n");
+    output.push_str("  classDef invoke fill:#8b5cf6,color:#fff\n");
+    output.push_str("  classDef agent fill:#ec4899,color:#fff\n");
+    output.push_str("```\n");
+
+    output
 }
 
 // ============================================================================
