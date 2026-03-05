@@ -1,0 +1,144 @@
+# git-cliff configuration for Nika
+# https://git-cliff.org/docs/configuration
+#
+# This file is used by release-plz to generate CHANGELOG.md
+# from conventional commits.
+
+[remote.github]
+owner = "supernovae-st"
+repo = "nika"
+
+[changelog]
+# Changelog header
+header = """
+# Changelog
+
+All notable changes to Nika will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+**Note:** Nika will NEVER be version 1.0.0 or higher (see version lock policy).
+
+"""
+
+# Changelog body template (Tera syntax)
+body = """
+{%- macro remote_url() -%}
+  https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+{%- endmacro -%}
+
+{% if version -%}
+## [{{ version | trim_start_matches(pat="v") }}]({{ self::remote_url() }}/releases/tag/{{ version }}) - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else -%}
+## [Unreleased]
+{% endif -%}
+
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim | upper_first }}
+{% for commit in commits %}
+- {% if commit.scope %}**{{ commit.scope }}**: {% endif %}{% if commit.breaking %}[BREAKING] {% endif %}\
+{{ commit.message | split(pat="\n") | first | upper_first | trim }}\
+{% if commit.remote.username %} by @{{ commit.remote.username }}{% endif %}\
+{% if commit.remote.pr_number %} in [#{{ commit.remote.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.remote.pr_number }}){% endif %}
+{%- endfor %}
+{% endfor %}
+
+{%- if github -%}
+{%- if github.contributors | filter(attribute="is_first_time", value=true) | length != 0 %}
+
+### New Contributors
+{% for contributor in github.contributors | filter(attribute="is_first_time", value=true) %}
+- @{{ contributor.username }} made their first contribution\
+{% if contributor.pr_number %} in [#{{ contributor.pr_number }}]({{ self::remote_url() }}/pull/{{ contributor.pr_number }}){% endif %}
+{% endfor %}
+{% endif -%}
+{%- endif %}
+"""
+
+# Changelog footer (only shown for releases, not unreleased)
+footer = """
+{% if version -%}
+---
+
+**Full Changelog**: https://github.com/supernovae-st/nika/compare/{{ previous.version }}...{{ version }}
+{% endif -%}
+"""
+
+# Trim whitespace
+trim = true
+
+# Post-process the changelog
+postprocessors = [
+  # Replace issue references with links
+  { pattern = '#(\d+)', replace = "[#${1}](https://github.com/supernovae-st/nika/issues/${1})" },
+]
+
+[git]
+# Parse conventional commits
+conventional_commits = true
+# Filter out non-conventional commits
+filter_unconventional = true
+# Never skip breaking change commits
+protect_breaking_commits = true
+# Process each line of commit message
+split_commits = false
+# Sort commits newest first
+sort_commits = "newest"
+
+# Preprocess commit messages
+commit_preprocessors = [
+  # Remove PR numbers from commit messages (they're added back via GitHub API)
+  { pattern = '\(#(\d+)\)', replace = "" },
+  # Remove Co-Authored-By lines from message body
+  { pattern = 'Co-Authored-By:.*', replace = "" },
+  # Trim trailing whitespace
+  { pattern = '\s+$', replace = "" },
+]
+
+# Commit parsers - assigns commits to groups
+commit_parsers = [
+  # Features - new functionality
+  { message = "^feat", group = "Added" },
+  # Bug fixes
+  { message = "^fix", group = "Fixed" },
+  # Security fixes (from body)
+  { body = ".*[Ss]ecurity", group = "Security" },
+  # Performance improvements
+  { message = "^perf", group = "Performance" },
+  # Documentation changes
+  { message = "^docs?", group = "Documentation" },
+  # Code refactoring
+  { message = "^refactor", group = "Changed" },
+  # Style changes (formatting, etc)
+  { message = "^style", group = "Changed" },
+  # Build system changes
+  { message = "^build", group = "Changed" },
+  # CI changes
+  { message = "^ci", group = "Changed" },
+  # Testing
+  { message = "^test", group = "Changed" },
+  # Chores - skip release commits
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^chore\\(deps\\)", group = "Dependencies" },
+  { message = "^chore", group = "Changed" },
+  # Revert commits
+  { message = "^revert", group = "Reverted" },
+  # Skip merge commits
+  { message = "^[Mm]erge", skip = true },
+]
+
+# Filter out unmatched commits (include all)
+filter_commits = false
+
+# Tag pattern for releases
+tag_pattern = "v[0-9].*"
+
+# Skip pre-release tags
+skip_tags = "alpha|beta|rc"
+
+# Link parsers for external references
+link_parsers = [
+  # GitHub issues
+  { pattern = "#(\\d+)", href = "https://github.com/supernovae-st/nika/issues/$1" },
+]
