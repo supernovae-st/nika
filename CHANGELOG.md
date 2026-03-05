@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-03-05
+
+### Added
+
+- **Structured Output Engine** — 4-layer defense system for ~99.99% JSON Schema compliance
+  - **Layer 1**: rig Extractor (Rust type extraction via schemars)
+  - **Layer 2**: Provider-native (tool_use / response_format)
+  - **Layer 3**: Retry with feedback (error messages + schema)
+  - **Layer 4**: LLM repair (separate repair call with original + errors)
+- **`structured:` task field** — Configure structured output validation per task
+  - Shorthand: `structured: ./schemas/user.json`
+  - Full form: `structured: { schema: {...}, max_retries: 3, enable_repair: true }`
+  - Inline JSON Schema or file path reference
+  - Layer toggles: `enable_extractor`, `enable_tool_use`, `enable_retry`, `enable_repair`
+- **Error codes NIKA-300-303** — Structured output error variants
+  - NIKA-300: StructuredOutputExtractionFailed (parsing failure)
+  - NIKA-301: StructuredOutputValidationFailed (schema mismatch)
+  - NIKA-302: StructuredOutputRepairFailed (repair LLM failed)
+  - NIKA-303: StructuredOutputAllLayersFailed (all layers exhausted)
+- **StructuredOutput events** — Observability for validation attempts
+  - `StructuredOutputAttempt`: Logs each layer attempt with result
+  - `StructuredOutputRepaired`: Logs successful repairs
+- **Example workflow** — `examples/v21-structured-output.nika.yaml`
+- **JSON Schema update** — `StructuredOutputSpec` definition in workflow schema
+
+### Changed
+
+- **Runner integration** — `execute_task_iteration()` validates output when `task.structured` is set
+
 ## [0.19.5] - 2026-03-04
 
 ### Fixed
