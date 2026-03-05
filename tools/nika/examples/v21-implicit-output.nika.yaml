@@ -1,0 +1,46 @@
+# v21-implicit-output.nika.yaml
+# Demonstrates the implicit output syntax introduced in v0.21
+#
+# The `$task` prefix is syntactic sugar that normalizes to `task` during parsing.
+# Both forms are equivalent - use whichever reads better in context.
+
+schema: "nika/workflow@0.10"
+
+provider:
+  name: mock
+  model: mock-model
+
+tasks:
+  # Step 1: Generate initial content
+  - id: generate_title
+    infer: "Generate a creative title for a blog post about Rust programming"
+
+  # Step 2: Using implicit output syntax ($task)
+  - id: expand_title
+    use:
+      title: $generate_title      # Implicit output - normalizes to "generate_title"
+    infer: "Expand on this title: {{use.title}}"
+
+  # Step 3: Demonstrate both syntaxes are equivalent
+  - id: create_outline
+    use:
+      title: $generate_title      # Implicit syntax
+      expanded: expand_title      # Explicit syntax (no $)
+    infer: |
+      Create an outline for:
+      Title: {{use.title}}
+      Expanded: {{use.expanded}}
+
+  # Step 4: Show $ with nested field access
+  - id: final_summary
+    use:
+      outline: $create_outline    # $ prefix works with any task reference
+    infer: "Summarize this outline: {{use.outline}}"
+
+flows:
+  - name: main
+    tasks:
+      - generate_title
+      - expand_title
+      - create_outline
+      - final_summary

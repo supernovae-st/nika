@@ -31,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `StructuredOutputRepaired`: Logs successful repairs
 - **Example workflow** — `examples/v21-structured-output.nika.yaml`
 - **JSON Schema update** — `StructuredOutputSpec` definition in workflow schema
+- **Implicit Output Syntax** — `$task` shorthand in `use:` blocks
+  - `$step1` normalizes to `step1` during YAML parsing
+  - Single leading `$` stripped via `UseEntry::normalize_path()`
+  - Both `$task` and `task` are equivalent forms
+  - Existing workflows continue to work unchanged
+  - Example workflow: `examples/v21-implicit-output.nika.yaml`
 
 ### Changed
 

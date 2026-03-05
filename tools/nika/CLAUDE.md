@@ -203,6 +203,31 @@ tasks:
 - `output: use.xxx: result` - This syntax does not exist
 - `flow:` inside tasks - Use `flows:` at workflow level instead
 
+### Implicit Output Syntax (v0.21)
+
+Reference task outputs without explicit `.output` suffix using the `$` prefix:
+
+```yaml
+tasks:
+  - id: step1
+    infer: "Generate a title"
+
+  - id: step2
+    use:
+      title: $step1           # ✅ Shorthand - same as "step1"
+      # title: step1          # ✅ Equivalent explicit form
+      # title: step1.output   # ❌ Old syntax - no longer needed
+    infer: "Expand on: {{use.title}}"
+```
+
+**How it works:**
+- `$task` is syntactic sugar that normalizes to `task` during YAML parsing
+- The leading `$` is stripped, making `$step1` identical to `step1`
+- Only a single leading `$` is stripped; `$$task` becomes `$task`
+- The `$` can appear anywhere in a path: `$step1.field` becomes `step1.field`
+
+**Migration:** If your existing workflows use bare task names (e.g., `result: step1`), they continue to work unchanged. The `$` prefix is optional syntactic sugar for readability.
+
 ### Context Paths
 
 Context file paths are relative to **project root** (where `nika run` is executed), not to the workflow file:
