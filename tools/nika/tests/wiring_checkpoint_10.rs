@@ -12,7 +12,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 #[allow(deprecated)]
 use nika::tui::{
-    ChatView, HelpView, HomeView, MonitorView, SettingsView, StudioView, TuiState, TuiView, View,
+    ChatView, HelpView, HomeView, MonitorView, SettingsView, YamlEditorPanel, TuiState, TuiView, View,
     ViewAction,
 };
 use std::path::PathBuf;
@@ -37,8 +37,8 @@ fn wiring_10_chat_view_constructs() {
 #[test]
 #[allow(deprecated)]
 fn wiring_10_studio_view_constructs() {
-    let _view = StudioView::new();
-    // StudioView (EditorView) constructed successfully
+    let _view = YamlEditorPanel::new();
+    // YamlEditorPanel (EditorView) constructed successfully
 }
 
 #[test]
@@ -243,7 +243,7 @@ fn wiring_10_views_implement_trait() {
 
     assert_view(&HomeView::new(PathBuf::from(".")));
     assert_view(&ChatView::new());
-    assert_view(&StudioView::new());
+    assert_view(&YamlEditorPanel::new());
     assert_view(&MonitorView::new());
     assert_view(&SettingsView::new());
     assert_view(&HelpView::new());
