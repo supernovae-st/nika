@@ -19,9 +19,126 @@ use ratatui::{
 use std::io::{self, stdout};
 use std::path::PathBuf;
 
+/// Workflow purpose category
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WorkflowPurpose {
+    #[default]
+    Research,
+    Content,
+    Code,
+    Data,
+    Automation,
+}
+
+impl WorkflowPurpose {
+    const ALL: [WorkflowPurpose; 5] = [
+        WorkflowPurpose::Research,
+        WorkflowPurpose::Content,
+        WorkflowPurpose::Code,
+        WorkflowPurpose::Data,
+        WorkflowPurpose::Automation,
+    ];
+
+    fn name(&self) -> &'static str {
+        match self {
+            WorkflowPurpose::Research => "Research",
+            WorkflowPurpose::Content => "Content",
+            WorkflowPurpose::Code => "Code",
+            WorkflowPurpose::Data => "Data",
+            WorkflowPurpose::Automation => "Automation",
+        }
+    }
+
+    fn description(&self) -> &'static str {
+        match self {
+            WorkflowPurpose::Research => "Web search, analysis, summarization",
+            WorkflowPurpose::Content => "Writing, translation, localization",
+            WorkflowPurpose::Code => "Review, generation, documentation",
+            WorkflowPurpose::Data => "ETL, validation, transformation",
+            WorkflowPurpose::Automation => "Pipelines, monitoring, DevOps",
+        }
+    }
+
+    fn icon(&self) -> &'static str {
+        match self {
+            WorkflowPurpose::Research => "🔍",
+            WorkflowPurpose::Content => "📝",
+            WorkflowPurpose::Code => "💻",
+            WorkflowPurpose::Data => "📊",
+            WorkflowPurpose::Automation => "⚙️",
+        }
+    }
+
+    /// Suggest templates based on purpose
+    fn suggested_templates(&self) -> Vec<super::Template> {
+        use super::Template;
+        match self {
+            WorkflowPurpose::Research => {
+                vec![Template::AgentResearch, Template::McpIntegration]
+            }
+            WorkflowPurpose::Content => {
+                vec![Template::BlogGenerator, Template::SimpleInfer]
+            }
+            WorkflowPurpose::Code => vec![Template::CodeReview, Template::SimpleExec],
+            WorkflowPurpose::Data => vec![Template::ApiPipeline, Template::SimpleFetch],
+            WorkflowPurpose::Automation => vec![Template::MultiProvider, Template::ApiPipeline],
+        }
+    }
+}
+
+/// Workflow complexity level
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WorkflowComplexity {
+    #[default]
+    Simple,
+    Pipeline,
+    Agent,
+    Complex,
+}
+
+impl WorkflowComplexity {
+    const ALL: [WorkflowComplexity; 4] = [
+        WorkflowComplexity::Simple,
+        WorkflowComplexity::Pipeline,
+        WorkflowComplexity::Agent,
+        WorkflowComplexity::Complex,
+    ];
+
+    fn name(&self) -> &'static str {
+        match self {
+            WorkflowComplexity::Simple => "Simple",
+            WorkflowComplexity::Pipeline => "Pipeline",
+            WorkflowComplexity::Agent => "Agent",
+            WorkflowComplexity::Complex => "Complex",
+        }
+    }
+
+    fn description(&self) -> &'static str {
+        match self {
+            WorkflowComplexity::Simple => "1-2 tasks, quick scripts",
+            WorkflowComplexity::Pipeline => "3-5 tasks with dependencies",
+            WorkflowComplexity::Agent => "Multi-turn reasoning with tools",
+            WorkflowComplexity::Complex => "Nested agents, MCP, artifacts",
+        }
+    }
+
+    fn icon(&self) -> &'static str {
+        match self {
+            WorkflowComplexity::Simple => "📄",
+            WorkflowComplexity::Pipeline => "🔗",
+            WorkflowComplexity::Agent => "🐔",
+            WorkflowComplexity::Complex => "🌐",
+        }
+    }
+}
+
 /// Wizard step
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum WizardStep {
+    /// Choose workflow purpose (Research, Content, Code, Data, Automation)
+    SelectPurpose,
+    /// Choose complexity level (Simple, Pipeline, Agent, Complex)
+    SelectComplexity,
     /// Choose mode: template or custom
     ChooseMode,
     /// Select template (if template mode)
@@ -36,6 +153,10 @@ enum WizardStep {
     SelectOutput,
     /// Toggle options (MCP, include, artifacts)
     ToggleOptions,
+    /// Configure MCP servers
+    ConfigureMcp,
+    /// Preview generated YAML
+    Preview,
     /// Confirm and create
     Confirm,
     /// Done - show result
@@ -57,9 +178,21 @@ struct Options {
     with_artifacts: bool,
 }
 
+/// MCP server option for configuration
+#[derive(Debug, Clone)]
+struct McpServerOption {
+    name: String,
+    description: String,
+    enabled: bool,
+}
+
 /// Wizard state
 struct WizardState {
     step: WizardStep,
+    /// Workflow purpose (Phase 5.1)
+    purpose: WorkflowPurpose,
+    /// Workflow complexity (Phase 5.1)
+    complexity: WorkflowComplexity,
     mode: Option<WizardMode>,
     template: Option<Template>,
     name: String,
@@ -70,6 +203,12 @@ struct WizardState {
     options: Options,
     list_state: ListState,
     option_index: usize,
+    /// MCP servers available for selection (Phase 5.1)
+    mcp_servers: Vec<McpServerOption>,
+    mcp_index: usize,
+    /// Generated YAML preview (Phase 5.1)
+    preview_yaml: String,
+    preview_scroll: u16,
     result_path: Option<PathBuf>,
     error_message: Option<String>,
     output_dir: PathBuf,
@@ -80,8 +219,34 @@ impl WizardState {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
 
+        // Pre-populate common MCP servers
+        let mcp_servers = vec![
+            McpServerOption {
+                name: "novanet".to_string(),
+                description: "NovaNet knowledge graph".to_string(),
+                enabled: false,
+            },
+            McpServerOption {
+                name: "filesystem".to_string(),
+                description: "File system operations".to_string(),
+                enabled: false,
+            },
+            McpServerOption {
+                name: "web-search".to_string(),
+                description: "Web search (Perplexity/Brave)".to_string(),
+                enabled: false,
+            },
+            McpServerOption {
+                name: "github".to_string(),
+                description: "GitHub API integration".to_string(),
+                enabled: false,
+            },
+        ];
+
         Self {
-            step: WizardStep::ChooseMode,
+            step: WizardStep::SelectPurpose,
+            purpose: WorkflowPurpose::default(),
+            complexity: WorkflowComplexity::default(),
             mode: None,
             template: None,
             name: String::new(),
@@ -92,9 +257,68 @@ impl WizardState {
             options: Options::default(),
             list_state,
             option_index: 0,
+            mcp_servers,
+            mcp_index: 0,
+            preview_yaml: String::new(),
+            preview_scroll: 0,
             result_path: None,
             error_message: None,
             output_dir,
+        }
+    }
+
+    /// Generate YAML preview based on current state
+    fn generate_preview(&mut self) {
+        if let Some(template) = self.template {
+            // For templates, just show template description
+            self.preview_yaml = format!(
+                "# Template: {}\n# {}\n\n{}",
+                template.name(),
+                template.description(),
+                "# Full YAML will be generated on creation"
+            );
+        } else {
+            // For custom, generate based on selections
+            let mcp_block = if self.options.with_mcp {
+                let enabled: Vec<_> = self
+                    .mcp_servers
+                    .iter()
+                    .filter(|s| s.enabled)
+                    .collect();
+                if enabled.is_empty() {
+                    String::new()
+                } else {
+                    let servers: String = enabled
+                        .iter()
+                        .map(|s| format!("    {}:\n      command: \"...\"\n", s.name))
+                        .collect();
+                    format!("\nmcp:\n  servers:\n{}", servers)
+                }
+            } else {
+                String::new()
+            };
+
+            let artifacts_block = if self.options.with_artifacts {
+                "\n\nartifacts:\n  dir: ./output/{{date}}\n  format: json".to_string()
+            } else {
+                String::new()
+            };
+
+            self.preview_yaml = format!(
+                r#"schema: "nika/workflow@0.10"
+provider: {}
+{}{}
+tasks:
+  - id: {}
+    {}: "{}"
+"#,
+                self.provider.name().to_lowercase(),
+                mcp_block,
+                artifacts_block,
+                self.name.replace('-', "_"),
+                self.verb.name(),
+                format!("Your {} task prompt here", self.verb.name())
+            );
         }
     }
 
@@ -164,6 +388,8 @@ fn run_wizard_loop(
             }
 
             match state.step {
+                WizardStep::SelectPurpose => handle_select_purpose(&mut state, key.code),
+                WizardStep::SelectComplexity => handle_select_complexity(&mut state, key.code),
                 WizardStep::ChooseMode => handle_choose_mode(&mut state, key.code),
                 WizardStep::SelectTemplate => handle_select_template(&mut state, key.code),
                 WizardStep::EnterName => handle_enter_name(&mut state, key.code),
@@ -171,6 +397,8 @@ fn run_wizard_loop(
                 WizardStep::SelectProvider => handle_select_provider(&mut state, key.code),
                 WizardStep::SelectOutput => handle_select_output(&mut state, key.code),
                 WizardStep::ToggleOptions => handle_toggle_options(&mut state, key.code),
+                WizardStep::ConfigureMcp => handle_configure_mcp(&mut state, key.code),
+                WizardStep::Preview => handle_preview(&mut state, key.code),
                 WizardStep::Confirm => handle_confirm(&mut state, key.code)?,
                 WizardStep::Done => {
                     if matches!(key.code, KeyCode::Enter | KeyCode::Char(' ')) {
@@ -181,6 +409,101 @@ fn run_wizard_loop(
                 }
             }
         }
+    }
+}
+
+fn handle_select_purpose(state: &mut WizardState, key: KeyCode) {
+    let count = WorkflowPurpose::ALL.len();
+    match key {
+        KeyCode::Up | KeyCode::Char('k') => state.select_prev(count),
+        KeyCode::Down | KeyCode::Char('j') => state.select_next(count),
+        KeyCode::Enter | KeyCode::Char(' ') => {
+            state.purpose = WorkflowPurpose::ALL[state.selected_index()];
+            state.list_state.select(Some(0));
+            state.step = WizardStep::SelectComplexity;
+        }
+        _ => {}
+    }
+}
+
+fn handle_select_complexity(state: &mut WizardState, key: KeyCode) {
+    let count = WorkflowComplexity::ALL.len();
+    match key {
+        KeyCode::Up | KeyCode::Char('k') => state.select_prev(count),
+        KeyCode::Down | KeyCode::Char('j') => state.select_next(count),
+        KeyCode::Enter | KeyCode::Char(' ') => {
+            state.complexity = WorkflowComplexity::ALL[state.selected_index()];
+            state.list_state.select(Some(0));
+            state.step = WizardStep::ChooseMode;
+        }
+        KeyCode::Backspace => {
+            state.step = WizardStep::SelectPurpose;
+            state.list_state.select(Some(0));
+        }
+        _ => {}
+    }
+}
+
+fn handle_configure_mcp(state: &mut WizardState, key: KeyCode) {
+    let count = state.mcp_servers.len();
+    match key {
+        KeyCode::Up | KeyCode::Char('k') => {
+            if state.mcp_index > 0 {
+                state.mcp_index -= 1;
+            } else {
+                state.mcp_index = count.saturating_sub(1);
+            }
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            if state.mcp_index < count.saturating_sub(1) {
+                state.mcp_index += 1;
+            } else {
+                state.mcp_index = 0;
+            }
+        }
+        KeyCode::Char(' ') => {
+            if state.mcp_index < count {
+                state.mcp_servers[state.mcp_index].enabled =
+                    !state.mcp_servers[state.mcp_index].enabled;
+            }
+        }
+        KeyCode::Enter => {
+            state.generate_preview();
+            state.step = WizardStep::Preview;
+        }
+        KeyCode::Backspace => {
+            state.step = WizardStep::ToggleOptions;
+            state.option_index = 0;
+        }
+        _ => {}
+    }
+}
+
+fn handle_preview(state: &mut WizardState, key: KeyCode) {
+    match key {
+        KeyCode::Up | KeyCode::Char('k') => {
+            state.preview_scroll = state.preview_scroll.saturating_sub(1);
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            state.preview_scroll = state.preview_scroll.saturating_add(1);
+        }
+        KeyCode::Enter => {
+            state.step = WizardStep::Confirm;
+        }
+        KeyCode::Backspace => {
+            if state.options.with_mcp {
+                state.step = WizardStep::ConfigureMcp;
+            } else {
+                state.step = WizardStep::ToggleOptions;
+            }
+        }
+        KeyCode::Char('e') => {
+            // Edit - go back to beginning for custom workflows
+            if state.mode == Some(WizardMode::Custom) {
+                state.step = WizardStep::EnterName;
+            }
+        }
+        _ => {}
     }
 }
 
@@ -460,6 +783,8 @@ fn draw_wizard(f: &mut Frame, state: &WizardState) {
 
     // Draw step content
     match state.step {
+        WizardStep::SelectPurpose => draw_select_purpose(f, inner, state),
+        WizardStep::SelectComplexity => draw_select_complexity(f, inner, state),
         WizardStep::ChooseMode => draw_choose_mode(f, inner, state),
         WizardStep::SelectTemplate => draw_select_template(f, inner, state),
         WizardStep::EnterName => draw_enter_name(f, inner, state),
@@ -467,6 +792,8 @@ fn draw_wizard(f: &mut Frame, state: &WizardState) {
         WizardStep::SelectProvider => draw_select_provider(f, inner, state),
         WizardStep::SelectOutput => draw_select_output(f, inner, state),
         WizardStep::ToggleOptions => draw_toggle_options(f, inner, state),
+        WizardStep::ConfigureMcp => draw_configure_mcp(f, inner, state),
+        WizardStep::Preview => draw_preview(f, inner, state),
         WizardStep::Confirm => draw_confirm(f, inner, state),
         WizardStep::Done => draw_done(f, inner, state),
     }
@@ -493,6 +820,227 @@ fn draw_step_header(f: &mut Frame, area: Rect, title: &str, step: usize, total: 
     f.render_widget(header, area);
 }
 
+fn draw_select_purpose(f: &mut Frame, area: Rect, state: &WizardState) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2),
+            Constraint::Min(5),
+            Constraint::Length(2),
+        ])
+        .margin(1)
+        .split(area);
+
+    draw_step_header(f, chunks[0], "What kind of workflow?", 1, 11);
+
+    let items: Vec<ListItem> = WorkflowPurpose::ALL
+        .iter()
+        .map(|p| {
+            ListItem::new(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(
+                    format!("{} ", p.icon()),
+                    Style::default().fg(Color::Yellow),
+                ),
+                Span::styled(
+                    format!("{:<12}", p.name()),
+                    Style::default().fg(Color::Green),
+                ),
+                Span::styled(p.description(), Style::default().fg(Color::DarkGray)),
+            ]))
+        })
+        .collect();
+
+    let list = List::new(items)
+        .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+        .highlight_symbol("> ");
+
+    let mut list_state = state.list_state.clone();
+    f.render_stateful_widget(list, chunks[1], &mut list_state);
+
+    let help = Paragraph::new("[j/k] Navigate  [Enter] Select  [Esc] Cancel")
+        .style(Style::default().fg(Color::DarkGray))
+        .alignment(Alignment::Center);
+    f.render_widget(help, chunks[2]);
+}
+
+fn draw_select_complexity(f: &mut Frame, area: Rect, state: &WizardState) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2),
+            Constraint::Min(5),
+            Constraint::Length(2),
+        ])
+        .margin(1)
+        .split(area);
+
+    draw_step_header(f, chunks[0], "Workflow complexity", 2, 11);
+
+    let items: Vec<ListItem> = WorkflowComplexity::ALL
+        .iter()
+        .map(|c| {
+            ListItem::new(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(
+                    format!("{} ", c.icon()),
+                    Style::default().fg(Color::Yellow),
+                ),
+                Span::styled(
+                    format!("{:<12}", c.name()),
+                    Style::default().fg(Color::Green),
+                ),
+                Span::styled(c.description(), Style::default().fg(Color::DarkGray)),
+            ]))
+        })
+        .collect();
+
+    let list = List::new(items)
+        .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+        .highlight_symbol("> ");
+
+    let mut list_state = state.list_state.clone();
+    f.render_stateful_widget(list, chunks[1], &mut list_state);
+
+    // Show purpose context
+    let context = Paragraph::new(Line::from(vec![
+        Span::styled("Purpose: ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("{} {}", state.purpose.icon(), state.purpose.name()),
+            Style::default().fg(Color::Cyan),
+        ),
+    ]))
+    .alignment(Alignment::Right);
+    f.render_widget(context, chunks[0]);
+
+    let help = Paragraph::new("[j/k] Navigate  [Enter] Select  [Backspace] Back")
+        .style(Style::default().fg(Color::DarkGray))
+        .alignment(Alignment::Center);
+    f.render_widget(help, chunks[2]);
+}
+
+fn draw_configure_mcp(f: &mut Frame, area: Rect, state: &WizardState) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2),
+            Constraint::Min(5),
+            Constraint::Length(2),
+        ])
+        .margin(1)
+        .split(area);
+
+    draw_step_header(f, chunks[0], "Configure MCP servers", 9, 11);
+
+    let checkbox = |checked: bool| if checked { "[x]" } else { "[ ]" };
+
+    let items: Vec<ListItem> = state
+        .mcp_servers
+        .iter()
+        .enumerate()
+        .map(|(i, server)| {
+            ListItem::new(Line::from(vec![
+                Span::raw(if i == state.mcp_index { "> " } else { "  " }),
+                Span::styled(
+                    checkbox(server.enabled),
+                    Style::default().fg(if server.enabled {
+                        Color::Green
+                    } else {
+                        Color::DarkGray
+                    }),
+                ),
+                Span::raw(" "),
+                Span::styled(
+                    format!("{:<15}", server.name),
+                    Style::default().fg(Color::White),
+                ),
+                Span::styled(&server.description, Style::default().fg(Color::DarkGray)),
+            ]))
+        })
+        .collect();
+
+    let list = List::new(items);
+    f.render_widget(list, chunks[1]);
+
+    let help =
+        Paragraph::new("[j/k] Navigate  [Space] Toggle  [Enter] Continue  [Backspace] Back")
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(Alignment::Center);
+    f.render_widget(help, chunks[2]);
+}
+
+fn draw_preview(f: &mut Frame, area: Rect, state: &WizardState) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2),
+            Constraint::Min(5),
+            Constraint::Length(2),
+        ])
+        .margin(1)
+        .split(area);
+
+    draw_step_header(f, chunks[0], "Preview workflow YAML", 10, 11);
+
+    // Split preview lines and apply scroll
+    let lines: Vec<Line> = state
+        .preview_yaml
+        .lines()
+        .skip(state.preview_scroll as usize)
+        .take(chunks[1].height as usize)
+        .enumerate()
+        .map(|(i, line)| {
+            let line_num = i + state.preview_scroll as usize + 1;
+            Line::from(vec![
+                Span::styled(
+                    format!("{:3} │ ", line_num),
+                    Style::default().fg(Color::DarkGray),
+                ),
+                // Syntax highlighting for YAML
+                if line.trim().starts_with('#') {
+                    Span::styled(line, Style::default().fg(Color::DarkGray))
+                } else if line.contains(':') {
+                    let parts: Vec<&str> = line.splitn(2, ':').collect();
+                    if parts.len() == 2 {
+                        Line::from(vec![
+                            Span::styled(parts[0], Style::default().fg(Color::Cyan)),
+                            Span::styled(":", Style::default().fg(Color::White)),
+                            Span::styled(parts[1], Style::default().fg(Color::Green)),
+                        ])
+                        .spans
+                        .into_iter()
+                        .collect::<Vec<_>>()
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| Span::raw(line))
+                    } else {
+                        Span::raw(line)
+                    }
+                } else {
+                    Span::raw(line)
+                },
+            ])
+        })
+        .collect();
+
+    let preview = Paragraph::new(Text::from(lines))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::DarkGray))
+                .title(" Generated YAML ")
+                .title_alignment(Alignment::Left),
+        )
+        .wrap(Wrap { trim: false });
+
+    f.render_widget(preview, chunks[1]);
+
+    let help = Paragraph::new("[j/k] Scroll  [Enter] Confirm  [e] Edit  [Backspace] Back")
+        .style(Style::default().fg(Color::DarkGray))
+        .alignment(Alignment::Center);
+    f.render_widget(help, chunks[2]);
+}
+
 fn draw_choose_mode(f: &mut Frame, area: Rect, state: &WizardState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -504,7 +1052,7 @@ fn draw_choose_mode(f: &mut Frame, area: Rect, state: &WizardState) {
         .margin(1)
         .split(area);
 
-    draw_step_header(f, chunks[0], "Choose workflow creation mode", 1, 7);
+    draw_step_header(f, chunks[0], "Choose workflow creation mode", 3, 11);
 
     let items: Vec<ListItem> = vec![
         ListItem::new(Line::from(vec![
@@ -543,7 +1091,7 @@ fn draw_select_template(f: &mut Frame, area: Rect, state: &WizardState) {
         .margin(1)
         .split(area);
 
-    draw_step_header(f, chunks[0], "Select a template", 2, 7);
+    draw_step_header(f, chunks[0], "Select a template", 4, 11);
 
     let items: Vec<ListItem> = Template::ALL
         .iter()
@@ -586,11 +1134,11 @@ fn draw_enter_name(f: &mut Frame, area: Rect, state: &WizardState) {
         .split(area);
 
     let step = if state.mode == Some(WizardMode::Template) {
-        3
+        5
     } else {
-        2
+        5
     };
-    draw_step_header(f, chunks[0], "Enter workflow name", step, 7);
+    draw_step_header(f, chunks[0], "Enter workflow name", step, 11);
 
     // Input field
     let input = Paragraph::new(Line::from(vec![
@@ -634,7 +1182,7 @@ fn draw_select_verb(f: &mut Frame, area: Rect, state: &WizardState) {
         .margin(1)
         .split(area);
 
-    draw_step_header(f, chunks[0], "Select primary verb", 3, 7);
+    draw_step_header(f, chunks[0], "Select primary verb", 6, 11);
 
     let verbs = [
         Verb::Infer,
@@ -681,7 +1229,7 @@ fn draw_select_provider(f: &mut Frame, area: Rect, state: &WizardState) {
         .margin(1)
         .split(area);
 
-    draw_step_header(f, chunks[0], "Select LLM provider", 4, 7);
+    draw_step_header(f, chunks[0], "Select LLM provider", 7, 11);
 
     let providers = [
         Provider::Claude,
@@ -732,7 +1280,7 @@ fn draw_select_output(f: &mut Frame, area: Rect, state: &WizardState) {
         .margin(1)
         .split(area);
 
-    draw_step_header(f, chunks[0], "Select output format", 5, 7);
+    draw_step_header(f, chunks[0], "Select output format", 8, 11);
 
     let formats = [OutputFormat::Text, OutputFormat::Json, OutputFormat::Yaml];
     let items: Vec<ListItem> = formats
@@ -779,7 +1327,7 @@ fn draw_toggle_options(f: &mut Frame, area: Rect, state: &WizardState) {
         .margin(1)
         .split(area);
 
-    draw_step_header(f, chunks[0], "Toggle additional options", 6, 7);
+    draw_step_header(f, chunks[0], "Toggle additional options", 9, 11);
 
     let checkbox = |checked: bool| if checked { "[x]" } else { "[ ]" };
 
@@ -848,7 +1396,7 @@ fn draw_confirm(f: &mut Frame, area: Rect, state: &WizardState) {
         .margin(1)
         .split(area);
 
-    draw_step_header(f, chunks[0], "Confirm workflow creation", 7, 7);
+    draw_step_header(f, chunks[0], "Confirm workflow creation", 11, 11);
 
     let mut lines = vec![
         Line::from(""),
@@ -994,7 +1542,7 @@ mod tests {
     #[test]
     fn test_wizard_state_new() {
         let state = WizardState::new(PathBuf::from("."));
-        assert_eq!(state.step, WizardStep::ChooseMode);
+        assert_eq!(state.step, WizardStep::SelectPurpose);
         assert!(state.name.is_empty());
         assert_eq!(state.selected_index(), 0);
     }

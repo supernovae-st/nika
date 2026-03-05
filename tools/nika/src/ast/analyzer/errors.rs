@@ -2,8 +2,19 @@
 //!
 //! These errors are produced during Phase 2 analysis and include
 //! precise source locations for IDE integration.
+//!
+//! ## Rich Diagnostics
+//!
+//! For terminal display with source code snippets, wrap errors with
+//! [`RichAnalyzeError`] which carries the source content:
+//!
+//! ```ignore
+//! let rich = RichAnalyzeError::new(error, source_code, filename);
+//! eprintln!("{:?}", miette::Report::new(rich));
+//! ```
 
 use crate::source::Span;
+use miette::{Diagnostic, SourceSpan};
 
 /// An error that occurred during analysis.
 #[derive(Debug, Clone, PartialEq)]
@@ -253,6 +264,148 @@ impl<T> AnalyzeResult<T> {
     }
 }
 
+// ============================================================================
+// Rich Diagnostic Wrapper for Terminal Display
+// ============================================================================
+
+/// A wrapper that combines [`AnalyzeError`] with source code for rich terminal display.
+///
+/// This implements [`miette::Diagnostic`] to show:
+/// - Error code (NIKA-140-149)
+/// - Source code snippet with highlighted span
+/// - "Did you mean?" suggestions
+/// - Additional notes
+///
+/// # Example
+///
+/// ```ignore
+/// use nika::ast::analyzer::errors::{AnalyzeError, RichAnalyzeError};
+///
+/// let error = AnalyzeError::unknown_task(span, "taks1", Some("task1"));
+/// let rich = RichAnalyzeError::new(error, source_code, "workflow.nika.yaml");
+///
+/// // Display with miette's fancy formatting
+/// eprintln!("{:?}", miette::Report::new(rich));
+/// ```
+#[derive(Debug)]
+pub struct RichAnalyzeError {
+    /// The underlying analysis error
+    error: AnalyzeError,
+    /// Source code content for display
+    #[allow(dead_code)]
+    source_code: String,
+    /// Filename for display
+    filename: String,
+    /// Miette source span (derived from error.span)
+    label_span: SourceSpan,
+}
+
+impl RichAnalyzeError {
+    /// Create a rich error from an [`AnalyzeError`] with source context.
+    pub fn new(error: AnalyzeError, source_code: impl Into<String>, filename: impl Into<String>) -> Self {
+        let source = source_code.into();
+        let label_span = SourceSpan::new(
+            error.span.start.as_usize().into(),
+            error.span.len(),
+        );
+        Self {
+            error,
+            source_code: source,
+            filename: filename.into(),
+            label_span,
+        }
+    }
+
+    /// Get the underlying error.
+    pub fn error(&self) -> &AnalyzeError {
+        &self.error
+    }
+
+    /// Get the source code.
+    pub fn source(&self) -> &str {
+        &self.source_code
+    }
+
+    /// Get the filename.
+    pub fn filename(&self) -> &str {
+        &self.filename
+    }
+}
+
+impl std::fmt::Display for RichAnalyzeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] {}", self.error.kind.code(), self.error.message)
+    }
+}
+
+impl std::error::Error for RichAnalyzeError {}
+
+impl Diagnostic for RichAnalyzeError {
+    fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        Some(Box::new(format!("nika::{}", self.error.kind.code().to_lowercase().replace('-', "_"))))
+    }
+
+    fn help<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        self.error.suggestion.as_ref().map(|s| Box::new(s.clone()) as Box<dyn std::fmt::Display>)
+    }
+
+    fn url<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        Some(Box::new(format!(
+            "https://nika.sh/errors/{}",
+            self.error.kind.code()
+        )))
+    }
+
+    fn source_code(&self) -> Option<&dyn miette::SourceCode> {
+        Some(&self.source_code)
+    }
+
+    fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
+        let label = miette::LabeledSpan::new_with_span(
+            Some(self.error.message.clone()),
+            self.label_span,
+        );
+        Some(Box::new(std::iter::once(label)))
+    }
+
+    fn related<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn Diagnostic> + 'a>> {
+        None
+    }
+
+    fn diagnostic_source(&self) -> Option<&dyn Diagnostic> {
+        None
+    }
+}
+
+/// Convert multiple [`AnalyzeError`]s to rich diagnostics.
+///
+/// # Example
+///
+/// ```ignore
+/// let rich_errors = to_rich_diagnostics(errors, &source_code, "workflow.nika.yaml");
+/// for err in rich_errors {
+///     eprintln!("{:?}", miette::Report::new(err));
+/// }
+/// ```
+pub fn to_rich_diagnostics(
+    errors: Vec<AnalyzeError>,
+    source_code: &str,
+    filename: &str,
+) -> Vec<RichAnalyzeError> {
+    errors
+        .into_iter()
+        .map(|e| RichAnalyzeError::new(e, source_code.to_string(), filename.to_string()))
+        .collect()
+}
+
+/// Format a single error for display using miette.
+///
+/// Returns a formatted string suitable for terminal output.
+pub fn format_error(error: &AnalyzeError, source_code: &str, filename: &str) -> String {
+    let rich = RichAnalyzeError::new(error.clone(), source_code, filename);
+    format!("{:?}", miette::Report::new(rich))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -317,5 +470,154 @@ mod tests {
         assert!(!result.is_ok());
         assert!(result.is_err());
         assert!(result.into_result().is_err());
+    }
+
+    // =========================================================================
+    // RichAnalyzeError Tests
+    // =========================================================================
+
+    #[test]
+    fn test_rich_error_creation() {
+        let source = "tasks:\n  - id: step1\n    use:\n      data: taks1\n";
+        let err = AnalyzeError::unknown_task(make_span(40, 45), "taks1", Some("task1"));
+        let rich = RichAnalyzeError::new(err, source, "test.nika.yaml");
+
+        assert_eq!(rich.filename(), "test.nika.yaml");
+        assert_eq!(rich.source(), source);
+        assert_eq!(rich.error().kind, AnalyzeErrorKind::UnknownTask);
+    }
+
+    #[test]
+    fn test_rich_error_display() {
+        let err = AnalyzeError::unknown_task(make_span(10, 15), "taks1", Some("task1"));
+        let rich = RichAnalyzeError::new(err, "some source", "test.yaml");
+
+        let display = format!("{}", rich);
+        assert!(display.contains("NIKA-140"));
+        assert!(display.contains("unknown task 'taks1'"));
+    }
+
+    #[test]
+    fn test_rich_error_diagnostic_code() {
+        let err = AnalyzeError::unknown_task(make_span(0, 5), "x", None);
+        let rich = RichAnalyzeError::new(err, "source", "file.yaml");
+
+        let code = Diagnostic::code(&rich).unwrap();
+        assert_eq!(format!("{}", code), "nika::nika_140");
+    }
+
+    #[test]
+    fn test_rich_error_diagnostic_help() {
+        let err = AnalyzeError::unknown_task(make_span(0, 5), "taks1", Some("task1"));
+        let rich = RichAnalyzeError::new(err, "source", "file.yaml");
+
+        let help = Diagnostic::help(&rich).unwrap();
+        assert_eq!(format!("{}", help), "did you mean 'task1'?");
+    }
+
+    #[test]
+    fn test_rich_error_diagnostic_no_help() {
+        let err = AnalyzeError::unknown_task(make_span(0, 5), "x", None);
+        let rich = RichAnalyzeError::new(err, "source", "file.yaml");
+
+        assert!(Diagnostic::help(&rich).is_none());
+    }
+
+    #[test]
+    fn test_rich_error_diagnostic_url() {
+        let err = AnalyzeError::new(AnalyzeErrorKind::CyclicDependency, make_span(0, 5), "cycle");
+        let rich = RichAnalyzeError::new(err, "source", "file.yaml");
+
+        let url = Diagnostic::url(&rich).unwrap();
+        assert_eq!(format!("{}", url), "https://nika.sh/errors/NIKA-143");
+    }
+
+    #[test]
+    fn test_rich_error_has_source_code() {
+        let source = "schema: nika/workflow@0.9\ntasks:\n  - id: test\n";
+        let err = AnalyzeError::missing_field(make_span(30, 40), "infer");
+        let rich = RichAnalyzeError::new(err, source, "test.yaml");
+
+        assert!(Diagnostic::source_code(&rich).is_some());
+    }
+
+    #[test]
+    fn test_rich_error_labels() {
+        let err = AnalyzeError::unknown_task(make_span(10, 20), "bad_task", None);
+        let rich = RichAnalyzeError::new(err, "0123456789bad_task90", "test.yaml");
+
+        let labels: Vec<_> = Diagnostic::labels(&rich).unwrap().collect();
+        assert_eq!(labels.len(), 1);
+
+        // The label span should match our error span
+        let span = labels[0].inner();
+        assert_eq!(span.offset(), 10);
+        assert_eq!(span.len(), 10);
+    }
+
+    #[test]
+    fn test_to_rich_diagnostics() {
+        let errors = vec![
+            AnalyzeError::unknown_task(make_span(10, 15), "a", None),
+            AnalyzeError::duplicate_task(make_span(20, 25), "b", make_span(0, 5)),
+        ];
+        let source = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+        let rich = to_rich_diagnostics(errors, source, "test.yaml");
+        assert_eq!(rich.len(), 2);
+        assert_eq!(rich[0].error().kind, AnalyzeErrorKind::UnknownTask);
+        assert_eq!(rich[1].error().kind, AnalyzeErrorKind::DuplicateTask);
+    }
+
+    #[test]
+    fn test_format_error_output() {
+        let source = r#"schema: "nika/workflow@0.9"
+tasks:
+  - id: step1
+    infer: "Hello"
+  - id: step2
+    use:
+      data: taks1
+    infer: "Process {{use.data}}"
+"#;
+        // "taks1" starts at byte ~95 in this source
+        let err = AnalyzeError::unknown_task(make_span(95, 100), "taks1", Some("task1"));
+        let output = format_error(&err, source, "workflow.nika.yaml");
+
+        // The output should contain the error code and message
+        assert!(output.contains("NIKA-140") || output.contains("nika_140"));
+        assert!(output.contains("unknown task"));
+    }
+
+    #[test]
+    fn test_rich_error_all_kinds() {
+        // Ensure all error kinds work with RichAnalyzeError
+        let kinds = [
+            (AnalyzeErrorKind::UnknownTask, "NIKA-140"),
+            (AnalyzeErrorKind::DuplicateTask, "NIKA-141"),
+            (AnalyzeErrorKind::InvalidSchema, "NIKA-142"),
+            (AnalyzeErrorKind::CyclicDependency, "NIKA-143"),
+            (AnalyzeErrorKind::InvalidValue, "NIKA-144"),
+            (AnalyzeErrorKind::MissingField, "NIKA-145"),
+            (AnalyzeErrorKind::InvalidTemplate, "NIKA-146"),
+            (AnalyzeErrorKind::UnknownFlow, "NIKA-147"),
+            (AnalyzeErrorKind::UnknownMcpServer, "NIKA-148"),
+            (AnalyzeErrorKind::UnsupportedFeature, "NIKA-149"),
+        ];
+
+        for (kind, expected_code) in kinds {
+            let err = AnalyzeError::new(kind, make_span(0, 5), "test message");
+            let rich = RichAnalyzeError::new(err, "source", "file.yaml");
+
+            let code = Diagnostic::code(&rich).unwrap();
+            let code_str = format!("{}", code);
+            assert!(
+                code_str.contains(&expected_code.to_lowercase().replace('-', "_")),
+                "Expected code {} in {}, got {}",
+                expected_code,
+                kind.code(),
+                code_str
+            );
+        }
     }
 }
