@@ -321,7 +321,7 @@ impl TextBuffer {
 /// Debounce delay for validation (ms)
 const VALIDATION_DEBOUNCE_MS: u64 = 300;
 
-pub struct StudioView {
+pub struct YamlEditorPanel {
     /// File path being edited
     pub path: Option<PathBuf>,
     /// Text buffer
@@ -358,7 +358,7 @@ pub struct StudioView {
     edit_history: EditHistory,
 }
 
-impl StudioView {
+impl YamlEditorPanel {
     pub fn new() -> Self {
         Self {
             path: None,
@@ -541,13 +541,13 @@ impl StudioView {
     }
 }
 
-impl Default for StudioView {
+impl Default for YamlEditorPanel {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl View for StudioView {
+impl View for YamlEditorPanel {
     fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
         // v0.9.1: Matrix Rain background effect (full screen, renders FIRST)
         if self.matrix_effect_enabled && self.rain_opacity > 0.05 {
@@ -620,7 +620,7 @@ impl View for StudioView {
     }
 }
 
-impl StudioView {
+impl YamlEditorPanel {
     fn handle_normal_mode(&mut self, key: KeyEvent) -> ViewAction {
         match key.code {
             KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Browse),

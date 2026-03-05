@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.20.1 | 8-View TUI + Tree Widget + Two-Phase IR | 3,808 tests | Zero clippy warnings
+**Current version:** v0.21.0 | 8-View TUI + Two-Phase IR + Unified Secrets | 3,878 tests | Zero clippy warnings
 
 ## Architecture
 
@@ -55,6 +55,44 @@ tools/nika/src/
 │   └── rig.rs        # ✅ RigProvider + NikaMcpTool (rig-core v0.31)
 └── store/            # DataStore
 ```
+
+## Unified Secrets Management (v0.20.1)
+
+Nika integrates with the `spn daemon` for secure credential management via Unix socket IPC.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  spn-daemon INTEGRATION (--features spn-daemon)                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Without daemon:              With daemon:                                      │
+│  Nika → Keychain (popup)      Nika → spn-client → ~/.spn/daemon.sock            │
+│  MCP1 → Keychain (popup)                          ↓                             │
+│  MCP2 → Keychain (popup)                    OS Keychain                         │
+│                                           (one accessor, no popups)             │
+│                                                                                 │
+│  Resolution priority:                                                           │
+│  1. spn daemon (IPC)  ─┐                                                        │
+│  2. OS Keychain        ├─ KNOWN_PROVIDERS from spn-core (13 providers)          │
+│  3. Environment vars  ─┘                                                        │
+│                                                                                 │
+│  Providers:                                                                     │
+│  ├── LLM: anthropic, openai, mistral, groq, deepseek, gemini, ollama           │
+│  └── MCP: neo4j, github, slack, perplexity, firecrawl, supadata                │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Problem Solved:** macOS Keychain repeatedly prompts "allow access?" for each process.
+With Nika spawning multiple MCP servers, this was unbearable.
+
+**Solution:** The `spn daemon` is the SOLE keychain accessor. Nika and all MCP servers
+connect via Unix socket IPC. One auth prompt at daemon start, then silence.
+
+**Feature flag:** `cargo build --features spn-daemon` (enabled by default)
+
+**Implementation:** `src/secrets.rs` uses `spn_client::KNOWN_PROVIDERS` as the single
+source of truth for provider definitions (env var names, key prefixes, validation).
 
 ## Key Concepts
 
