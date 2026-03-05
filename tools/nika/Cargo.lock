@@ -2325,7 +2325,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "arboard",
  "async-trait",
@@ -4119,9 +4119,9 @@ dependencies = [
 
 [[package]]
 name = "spn-client"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cf801bbaadbda21d2796843d5e565c97ec4020063c2b8e22e613f86e9ca35bc"
+checksum = "321e5f4c6baa0d91f5b7a1ad08f31a9a333439bad8a02b23fa2bc29922b8a839"
 dependencies = [
  "dirs",
  "secrecy",

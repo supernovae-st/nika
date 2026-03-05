@@ -6,6 +6,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.21.1] - 2026-03-05
+
+### Added
+
+- **examples:** Add feature-test-complete workflow (v0.21)
+- **binding:** Add normalize_path() for implicit output (v0.21)
+
+### Fixed
+
+- **binding:** Qualify normalize_path calls with UseEntry::
+
+### Other
+
+- **nika:** Add implicit output documentation and example
+- **binding:** Add comprehensive edge case tests for implicit output
+- **binding:** Add deserialization normalization tests (v0.21)
+- **nika:** Add dist/ to gitignore
 ## [0.20.1] - 2026-03-05
 
 ### Added
