@@ -623,4 +623,175 @@ tags: 'meta.tags ?? ["default"]'
         assert_eq!(entry.path, "my_task");
         assert!(entry.lazy);
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Comprehensive edge case tests - v0.21 implicit output syntax
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_normalize_path_edge_cases() {
+        // Multiple $ prefixes - only strip first
+        assert_eq!(UseEntry::normalize_path("$$task"), "$task");
+        assert_eq!(UseEntry::normalize_path("$$$task"), "$$task");
+
+        // $ in middle or end - should NOT be stripped
+        assert_eq!(UseEntry::normalize_path("ta$sk"), "ta$sk");
+        assert_eq!(UseEntry::normalize_path("task$"), "task$");
+        assert_eq!(UseEntry::normalize_path("ta$sk$"), "ta$sk$");
+
+        // Nested field access with $ prefix
+        assert_eq!(UseEntry::normalize_path("$task.field.subfield"), "task.field.subfield");
+        assert_eq!(UseEntry::normalize_path("$task.nested.deep.path"), "task.nested.deep.path");
+
+        // Empty string and edge cases
+        assert_eq!(UseEntry::normalize_path(""), "");
+        assert_eq!(UseEntry::normalize_path("$"), "");
+        assert_eq!(UseEntry::normalize_path("$$"), "$");
+
+        // Just dots
+        assert_eq!(UseEntry::normalize_path("$."), ".");
+        assert_eq!(UseEntry::normalize_path("$.."), "..");
+        assert_eq!(UseEntry::normalize_path(".task"), ".task");
+        assert_eq!(UseEntry::normalize_path("$.task"), ".task");
+
+        // Unicode paths (should work fine)
+        assert_eq!(UseEntry::normalize_path("$résultat"), "résultat");
+        assert_eq!(UseEntry::normalize_path("$задача"), "задача");
+
+        // Whitespace handling (normalize_path doesn't trim)
+        assert_eq!(UseEntry::normalize_path("$ task"), " task");
+        assert_eq!(UseEntry::normalize_path("$task "), "task ");
+    }
+
+    #[test]
+    fn test_use_entry_deserialize_nested_field_access() {
+        // Shorthand form with nested field access
+        let entry: UseEntry = serde_yaml::from_str("\"$research.summary.title\"").unwrap();
+        assert_eq!(entry.path, "research.summary.title");
+
+        // Full form with nested field access
+        let entry: UseEntry = serde_yaml::from_str(
+            r#"
+            path: "$agent_result.response.data.items"
+            lazy: true
+            "#,
+        )
+        .unwrap();
+        assert_eq!(entry.path, "agent_result.response.data.items");
+        assert!(entry.lazy);
+    }
+
+    #[test]
+    fn test_use_entry_deserialize_multiple_dollar_signs() {
+        // Multiple $ at start - only first stripped
+        let entry: UseEntry = serde_yaml::from_str("\"$$task\"").unwrap();
+        assert_eq!(entry.path, "$task");
+
+        let entry: UseEntry = serde_yaml::from_str("\"$$$triple\"").unwrap();
+        assert_eq!(entry.path, "$$triple");
+
+        // Full form with multiple $
+        let entry: UseEntry = serde_yaml::from_str(
+            r#"
+            path: "$$escaped_var"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(entry.path, "$escaped_var");
+    }
+
+    #[test]
+    fn test_use_entry_deserialize_dollar_in_middle() {
+        // $ in middle should be preserved
+        let entry: UseEntry = serde_yaml::from_str("\"task$name\"").unwrap();
+        assert_eq!(entry.path, "task$name");
+
+        let entry: UseEntry = serde_yaml::from_str("\"$task$name\"").unwrap();
+        assert_eq!(entry.path, "task$name");
+
+        // Full form
+        let entry: UseEntry = serde_yaml::from_str(
+            r#"
+            path: "result$2"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(entry.path, "result$2");
+    }
+
+    #[test]
+    fn test_use_entry_deserialize_special_characters() {
+        // Underscores and numbers (common in task IDs)
+        let entry: UseEntry = serde_yaml::from_str("\"$task_123\"").unwrap();
+        assert_eq!(entry.path, "task_123");
+
+        let entry: UseEntry = serde_yaml::from_str("\"$_private_task\"").unwrap();
+        assert_eq!(entry.path, "_private_task");
+
+        // Hyphens
+        let entry: UseEntry = serde_yaml::from_str("\"$task-name\"").unwrap();
+        assert_eq!(entry.path, "task-name");
+
+        // Mixed
+        let entry: UseEntry = serde_yaml::from_str("\"$task_1-result.field_2\"").unwrap();
+        assert_eq!(entry.path, "task_1-result.field_2");
+    }
+
+    #[test]
+    fn test_use_entry_deserialize_with_all_options() {
+        // Full form with $ prefix and all options set
+        let entry: UseEntry = serde_yaml::from_str(
+            r#"
+            path: "$complex_task.nested.value"
+            default: "default_value"
+            lazy: true
+            "#,
+        )
+        .unwrap();
+        assert_eq!(entry.path, "complex_task.nested.value");
+        assert_eq!(
+            entry.default.as_ref().map(|v| v.as_str()),
+            Some(Some("default_value"))
+        );
+        assert!(entry.lazy);
+    }
+
+    #[test]
+    fn test_use_entry_equivalence_with_and_without_dollar() {
+        // These should produce identical UseEntry instances
+        let with_dollar: UseEntry = serde_yaml::from_str("\"$my_task\"").unwrap();
+        let without_dollar: UseEntry = serde_yaml::from_str("\"my_task\"").unwrap();
+
+        assert_eq!(with_dollar.path, without_dollar.path);
+        assert_eq!(with_dollar.default, without_dollar.default);
+        assert_eq!(with_dollar.lazy, without_dollar.lazy);
+    }
+
+    #[test]
+    fn test_use_entry_deserialize_real_workflow_patterns() {
+        // Pattern: Simple task reference
+        let entry: UseEntry = serde_yaml::from_str("\"$get_context\"").unwrap();
+        assert_eq!(entry.path, "get_context");
+
+        // Pattern: Output field access
+        let entry: UseEntry = serde_yaml::from_str("\"$generate.content\"").unwrap();
+        assert_eq!(entry.path, "generate.content");
+
+        // Pattern: Agent result access
+        let entry: UseEntry = serde_yaml::from_str("\"$research_agent.findings.summary\"").unwrap();
+        assert_eq!(entry.path, "research_agent.findings.summary");
+
+        // Pattern: Lazy binding with default for optional task output
+        let entry: UseEntry = serde_yaml::from_str(
+            r#"
+            path: "$optional_step.result"
+            default: null
+            lazy: true
+            "#,
+        )
+        .unwrap();
+        assert_eq!(entry.path, "optional_step.result");
+        assert_eq!(entry.default, Some(serde_json::Value::Null));
+        assert!(entry.lazy);
+    }
 }
