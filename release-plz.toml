@@ -46,8 +46,8 @@ commit_preprocessors = [
 # Main Nika CLI package
 [[package]]
 name = "nika"
-# Path to the crate changelog
-changelog_path = "tools/nika/CHANGELOG.md"
+# Path to the crate changelog (relative to package Cargo.toml)
+changelog_path = "CHANGELOG.md"
 # Publish to crates.io (disabled for now)
 publish = false
 # Semver check
