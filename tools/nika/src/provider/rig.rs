@@ -429,7 +429,7 @@ impl RigProvider {
     /// Empty env vars are treated as unset.
     pub fn auto() -> Option<Self> {
         // Helper: check env var exists and is non-empty
-        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
+        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.trim().is_empty());
 
         if has_key("ANTHROPIC_API_KEY") {
             return Some(Self::claude());
@@ -534,7 +534,7 @@ impl RigProvider {
     /// This is a fast, synchronous check that doesn't make network calls.
     /// Use `verify()` for actual connection testing.
     pub fn is_configured(&self) -> bool {
-        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
+        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.trim().is_empty());
 
         match self {
             RigProvider::Claude(_) => has_key("ANTHROPIC_API_KEY"),
@@ -1326,7 +1326,9 @@ impl RigProvider {
             }
             RigProvider::Ollama(client) => {
                 let model = client.completion_model(model_id);
-                let mut request_builder = model.completion_request(&full_prompt);
+                let mut request_builder = model
+                    .completion_request(&full_prompt)
+                    .max_tokens(max_tokens as u64);
 
                 if let Some(temp) = options.temperature {
                     request_builder = request_builder.temperature(temp);
