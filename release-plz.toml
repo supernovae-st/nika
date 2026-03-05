@@ -5,7 +5,9 @@
 
 [workspace]
 # Allow release-plz to release new versions
-allow_dirty = false
+# NOTE: Set to true because .claude/ files are both tracked and gitignored
+# TODO: Remove .claude/ from git history (see security-private-content.md)
+allow_dirty = true
 # Update dependencies in Cargo.toml
 dependencies_update = true
 # Create GitHub releases
