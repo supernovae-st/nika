@@ -19,6 +19,7 @@
 //! RUST_LOG=debug nika-lsp
 //! ```
 
+mod ast_integration;
 mod backend;
 mod completion;
 mod diagnostics;

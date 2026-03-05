@@ -2,6 +2,13 @@
 //!
 //! This is the main LSP server that handles all protocol messages and
 //! orchestrates validation, completion, and hover providers.
+//!
+//! ## AST Integration
+//!
+//! This module uses Nika's two-phase AST for accurate parsing:
+//! - Task ID extraction via `ast_integration::extract_task_ids_from_ast()`
+//! - Go-to-definition via `ast_integration::find_task_by_id()`
+//! - Context detection via `node_context::find_context_at_position()`
 
 use dashmap::DashMap;
 use lsp_types::*;
@@ -9,6 +16,7 @@ use tokio::sync::mpsc;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::{Client, LanguageServer};
 
+use crate::ast_integration;
 use crate::completion::{
     get_completion_context, provider_completions, schema_completions,
     structured_output_completions, task_id_completions, verb_completions, CompletionContext,
@@ -51,7 +59,10 @@ impl NikaBackend {
         backend
     }
 
-    /// Extract task IDs from a document.
+    /// Extract task IDs from a document using AST parsing.
+    ///
+    /// Uses `ast_integration::extract_task_ids_from_ast()` for accurate
+    /// parsing with fallback to string patterns for incomplete YAML.
     fn extract_task_ids(&self, uri: &Url) -> Vec<String> {
         let doc = match self.documents.get(uri) {
             Some(d) => d,
@@ -59,22 +70,7 @@ impl NikaBackend {
         };
 
         let content = doc.content();
-        let mut task_ids = Vec::new();
-
-        // Simple regex-free extraction: look for "- id: xxx" patterns
-        for line in content.lines() {
-            let trimmed = line.trim();
-            if trimmed.starts_with("- id:") || trimmed.starts_with("-id:") {
-                if let Some(id_part) = trimmed.strip_prefix("- id:").or_else(|| trimmed.strip_prefix("-id:")) {
-                    let id = id_part.trim().trim_matches('"').trim_matches('\'');
-                    if !id.is_empty() {
-                        task_ids.push(id.to_string());
-                    }
-                }
-            }
-        }
-
-        task_ids
+        ast_integration::extract_task_ids_from_ast(&content)
     }
 }
 
@@ -335,33 +331,25 @@ impl LanguageServer for NikaBackend {
             return Ok(None);
         }
 
-        // Search for task definition
-        for (line_num, line_content) in lines.iter().enumerate() {
-            let trimmed = line_content.trim();
-            if trimmed.starts_with("- id:") {
-                let id = trimmed
-                    .strip_prefix("- id:")
-                    .unwrap_or("")
-                    .trim()
-                    .trim_matches('"')
-                    .trim_matches('\'');
+        // Use AST-based task lookup for accurate definition finding
+        if let Some(task_def) = ast_integration::find_task_by_id(&content, &word) {
+            // Get the line content for the range
+            let task_line = task_def.line as usize;
+            let line_content = lines.get(task_line).unwrap_or(&"");
 
-                if id == word {
-                    return Ok(Some(GotoDefinitionResponse::Scalar(Location {
-                        uri: uri.clone(),
-                        range: Range {
-                            start: Position {
-                                line: line_num as u32,
-                                character: 0,
-                            },
-                            end: Position {
-                                line: line_num as u32,
-                                character: line_content.len() as u32,
-                            },
-                        },
-                    })));
-                }
-            }
+            return Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                uri: uri.clone(),
+                range: Range {
+                    start: Position {
+                        line: task_def.line,
+                        character: task_def.column,
+                    },
+                    end: Position {
+                        line: task_def.line,
+                        character: line_content.len() as u32,
+                    },
+                },
+            })));
         }
 
         Ok(None)
