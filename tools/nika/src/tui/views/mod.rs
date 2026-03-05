@@ -42,9 +42,9 @@ pub use chat::{ChatMode, ChatView, MessageRole};
 // Browse = Home (renamed in v0.20 from Explorer)
 #[allow(unused_imports)]
 pub use home::HomeView as BrowseView;
-// Editor = Studio (renamed in v0.12)
+// Editor = YamlEditorPanel (renamed in v0.21)
 #[allow(unused_imports)]
-pub use studio::{EditorMode, StudioView as EditorView};
+pub use studio::{EditorMode, YamlEditorPanel as EditorView};
 // Runner = Monitor (renamed in v0.12)
 #[allow(unused_imports)]
 pub use monitor::MonitorView as RunnerView;
@@ -62,9 +62,10 @@ pub use workspace::{WorkspaceFocus, WorkspaceRatio, WorkspaceView};
 
 // Internal re-exports (original struct names used internally)
 // v0.20: Removed ExplorerView alias (unused deprecated alias)
+// v0.21: StudioView → YamlEditorPanel (single-panel YAML editor)
 pub use home::HomeView;
 pub use monitor::MonitorView;
-pub use studio::StudioView;
+pub use studio::YamlEditorPanel;
 // Help view still exists but is no longer a main TuiView (merged into Settings)
 #[allow(unused_imports)]
 pub use help::HelpView;

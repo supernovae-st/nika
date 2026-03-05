@@ -40,7 +40,7 @@ use ratatui::{
 };
 
 use super::trait_view::View;
-use super::{HomeView, StudioView, TuiView, ViewAction};
+use super::{HomeView, TuiView, ViewAction, YamlEditorPanel};
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
 
@@ -151,8 +151,8 @@ impl WorkspaceRatio {
 pub struct WorkspaceView {
     /// File browser panel (left) - reuses HomeView
     pub browser: HomeView,
-    /// YAML editor panel (center) - reuses StudioView
-    pub editor: StudioView,
+    /// YAML editor panel (center) - reuses YamlEditorPanel
+    pub editor: YamlEditorPanel,
     /// Currently focused panel
     pub focus: WorkspaceFocus,
     /// Current panel ratio
@@ -172,7 +172,7 @@ impl WorkspaceView {
     pub fn new() -> Self {
         Self {
             browser: HomeView::new(std::env::current_dir().unwrap_or_default()),
-            editor: StudioView::new(),
+            editor: YamlEditorPanel::new(),
             focus: WorkspaceFocus::default(),
             ratio: WorkspaceRatio::default(),
             exit_to: TuiView::Browse,
@@ -184,7 +184,7 @@ impl WorkspaceView {
     pub fn with_root(root: std::path::PathBuf) -> Self {
         Self {
             browser: HomeView::new(root),
-            editor: StudioView::new(),
+            editor: YamlEditorPanel::new(),
             focus: WorkspaceFocus::default(),
             ratio: WorkspaceRatio::default(),
             exit_to: TuiView::Browse,

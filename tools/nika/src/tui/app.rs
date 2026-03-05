@@ -63,7 +63,7 @@ use super::utils::truncate_str;
 use super::verification::{VerificationCache, VerificationEntry};
 use super::views::{
     ChatView, HelpView, HomeView, McpAction, MonitorView, SchedulerView, SettingsView, SplitView,
-    StudioView, TuiView, View, ViewAction, WorkspaceView,
+    TuiView, View, ViewAction, WorkspaceView, YamlEditorPanel,
 };
 use super::widgets::task_box::{
     AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,
@@ -240,7 +240,7 @@ pub struct App {
     /// Home view state (file browser)
     home_view: Option<HomeView>,
     /// Studio view state (YAML editor)
-    studio_view: StudioView,
+    studio_view: YamlEditorPanel,
     /// Settings view state (v0.11 auxiliary)
     settings_view: SettingsView,
     /// Help view state (v0.11 auxiliary)
@@ -315,7 +315,7 @@ impl App {
 
         // Initialize views
         let chat_view = ChatView::new();
-        let mut studio_view = StudioView::new();
+        let mut studio_view = YamlEditorPanel::new();
         // Load workflow file into studio view
         let _ = studio_view.load_file(workflow_path.to_path_buf());
         let settings_view = SettingsView::new();
@@ -398,7 +398,7 @@ impl App {
         // Initialize views
         let chat_view = ChatView::new();
         let home_view = HomeView::new(standalone_state.root.clone());
-        let studio_view = StudioView::new();
+        let studio_view = YamlEditorPanel::new();
         let settings_view = SettingsView::new();
         let help_view = HelpView::new();
         let monitor_view = MonitorView::new();

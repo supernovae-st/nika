@@ -48,7 +48,7 @@ use ratatui::{
     Frame,
 };
 
-use super::{monitor::MonitorView, studio::StudioView, View, ViewAction};
+use super::{monitor::MonitorView, studio::YamlEditorPanel, View, ViewAction};
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
 use crate::tui::views::TuiView;
@@ -117,7 +117,7 @@ impl SplitRatio {
 /// Split view combining Editor and Runner side by side
 pub struct SplitView {
     /// Left pane: Editor (Studio) view
-    pub editor: StudioView,
+    pub editor: YamlEditorPanel,
     /// Right pane: Runner (Monitor) view
     pub runner: MonitorView,
     /// Which pane currently has focus
@@ -148,7 +148,7 @@ impl SplitView {
     /// Create a new split view
     pub fn new() -> Self {
         Self {
-            editor: StudioView::new(),
+            editor: YamlEditorPanel::new(),
             runner: MonitorView::new(),
             focus: SplitFocus::Left,
             ratio: SplitRatio::Equal,
@@ -159,7 +159,7 @@ impl SplitView {
     /// Create split view with a specific file loaded in editor
     #[allow(dead_code)] // Used in tests and future F9 integration
     pub fn with_file(path: std::path::PathBuf) -> Self {
-        let mut editor = StudioView::new();
+        let mut editor = YamlEditorPanel::new();
         // Try to load file, but don't fail if it doesn't exist
         let _ = editor.load_file(path);
         Self {
