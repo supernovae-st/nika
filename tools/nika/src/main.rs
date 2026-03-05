@@ -4111,7 +4111,8 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
                     // Find the next task or end of tasks section
                     let after_pos = pos + content[pos..].find('\n').unwrap_or(0);
                     // Find next "- id:" or end of file, or None to append at end
-                    content[after_pos..].find("\n  - id:")
+                    content[after_pos..]
+                        .find("\n  - id:")
                         .map(|next_task_offset| after_pos + next_task_offset)
                 } else {
                     return Err(NikaError::ValidationError {
@@ -4124,12 +4125,7 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
 
             // Insert task
             let new_content = if let Some(pos) = insertion_point {
-                format!(
-                    "{}\n{}\n{}",
-                    &content[..pos],
-                    task_yaml,
-                    &content[pos..]
-                )
+                format!("{}\n{}\n{}", &content[..pos], task_yaml, &content[pos..])
             } else {
                 // Find "tasks:" section and append
                 if let Some(tasks_pos) = content.find("tasks:") {
@@ -4173,7 +4169,11 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
             Ok(())
         }
 
-        WorkflowAction::Graph { file, format, output } => {
+        WorkflowAction::Graph {
+            file,
+            format,
+            output,
+        } => {
             // Visualize workflow as DAG graph
             if !file.exists() {
                 return Err(NikaError::WorkflowNotFound {
@@ -4221,11 +4221,7 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
             if let Some(output_path) = output {
                 std::fs::write(&output_path, &graph_output)?;
                 if !quiet {
-                    println!(
-                        "{} Graph saved to {}",
-                        "✓".green(),
-                        output_path.display()
-                    );
+                    println!("{} Graph saved to {}", "✓".green(), output_path.display());
                 }
             } else {
                 println!("{}", graph_output);
@@ -4234,7 +4230,11 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
             Ok(())
         }
 
-        WorkflowAction::Check { file, suggest, format } => {
+        WorkflowAction::Check {
+            file,
+            suggest,
+            format,
+        } => {
             // Validate workflow with optional suggestions
             if !file.exists() {
                 return Err(NikaError::WorkflowNotFound {
@@ -4273,20 +4273,21 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
 
                     if task_count > 10 {
                         suggestions.push(
-                            "Consider splitting into multiple workflows with 'include:'".to_string(),
+                            "Consider splitting into multiple workflows with 'include:'"
+                                .to_string(),
                         );
                     }
 
                     // Check for missing descriptions
                     if workflow.description.is_none() {
-                        suggestions.push("Add a 'description:' field for documentation".to_string());
+                        suggestions
+                            .push("Add a 'description:' field for documentation".to_string());
                     }
 
                     // Check for no flows (linear execution)
                     if workflow.flow_defs.is_empty() && task_count > 1 {
-                        suggestions.push(
-                            "Add explicit 'flows:' to define task dependencies".to_string(),
-                        );
+                        suggestions
+                            .push("Add explicit 'flows:' to define task dependencies".to_string());
                     }
 
                     // Check schema version
@@ -5166,11 +5167,7 @@ fn handle_recipe_command(action: RecipeAction, quiet: bool) -> Result<(), NikaEr
 
             if filtered.is_empty() {
                 if let Some(ref cat) = category {
-                    println!(
-                        "{} No recipes found in category '{}'",
-                        "!".yellow(),
-                        cat
-                    );
+                    println!("{} No recipes found in category '{}'", "!".yellow(), cat);
                     println!();
                     println!("Available categories:");
                     let categories: std::collections::HashSet<_> =
@@ -5214,7 +5211,13 @@ fn handle_recipe_command(action: RecipeAction, quiet: bool) -> Result<(), NikaEr
                     println!("    {}", recipe.description.dimmed());
                     println!(
                         "    {}",
-                        recipe.tags.iter().map(|t| format!("#{}", t)).collect::<Vec<_>>().join(" ").dimmed()
+                        recipe
+                            .tags
+                            .iter()
+                            .map(|t| format!("#{}", t))
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                            .dimmed()
                     );
                     println!();
                 }
@@ -5257,16 +5260,8 @@ fn handle_recipe_command(action: RecipeAction, quiet: bool) -> Result<(), NikaEr
                     println!();
                     println!("{}", r.description);
                     println!();
-                    println!(
-                        "{} {}",
-                        "Category:".dimmed(),
-                        r.category.yellow()
-                    );
-                    println!(
-                        "{} {}",
-                        "Tags:".dimmed(),
-                        r.tags.join(", ").dimmed()
-                    );
+                    println!("{} {}", "Category:".dimmed(), r.category.yellow());
+                    println!("{} {}", "Tags:".dimmed(), r.tags.join(", ").dimmed());
                     println!();
                     println!("{}", "─".repeat(60));
                     println!("{}", "YAML Preview:".bold());
@@ -5314,16 +5309,19 @@ fn handle_recipe_command(action: RecipeAction, quiet: bool) -> Result<(), NikaEr
             }
         }
 
-        RecipeAction::Create { name, output, workflow_name } => {
+        RecipeAction::Create {
+            name,
+            output,
+            workflow_name,
+        } => {
             // Find recipe
             let recipe = RECIPES.iter().find(|r| r.name == name);
 
             match recipe {
                 Some(r) => {
                     // Determine output filename
-                    let output_path = output.unwrap_or_else(|| {
-                        PathBuf::from(format!("{}.nika.yaml", name))
-                    });
+                    let output_path =
+                        output.unwrap_or_else(|| PathBuf::from(format!("{}.nika.yaml", name)));
 
                     // Check if file exists
                     if output_path.exists() {
@@ -5410,7 +5408,10 @@ fn handle_recipe_command(action: RecipeAction, quiet: bool) -> Result<(), NikaEr
 /// Generate ASCII DAG representation
 fn generate_ascii_dag(workflow: &nika::ast::analyzed::AnalyzedWorkflow) -> String {
     let mut output = String::new();
-    output.push_str(&format!("DAG: {}\n", workflow.name.as_deref().unwrap_or("(unnamed)")));
+    output.push_str(&format!(
+        "DAG: {}\n",
+        workflow.name.as_deref().unwrap_or("(unnamed)")
+    ));
     output.push_str(&"─".repeat(50));
     output.push('\n');
     output.push('\n');
@@ -5429,8 +5430,7 @@ fn generate_ascii_dag(workflow: &nika::ast::analyzed::AnalyzedWorkflow) -> Strin
 
         // Show use refs as dependencies
         for (alias, use_ref) in &task.use_refs {
-            let target_name = workflow.task_table.get_name(use_ref.target)
-                .unwrap_or("?");
+            let target_name = workflow.task_table.get_name(use_ref.target).unwrap_or("?");
             output.push_str(&format!("  └─ use.{} ← {}\n", alias, target_name));
         }
     }
@@ -5440,7 +5440,9 @@ fn generate_ascii_dag(workflow: &nika::ast::analyzed::AnalyzedWorkflow) -> Strin
         output.push('\n');
         output.push_str("Flows:\n");
         for (name, flow_def) in &workflow.flow_defs {
-            let task_names: Vec<_> = flow_def.tasks.iter()
+            let task_names: Vec<_> = flow_def
+                .tasks
+                .iter()
                 .filter_map(|id| workflow.task_table.get_name(*id))
                 .collect();
             output.push_str(&format!("  {} → [{}]\n", name, task_names.join(", ")));
@@ -5481,7 +5483,9 @@ fn generate_dot_dag(workflow: &nika::ast::analyzed::AnalyzedWorkflow) -> String 
 
     // Add edges from flow definitions (consecutive tasks within each flow)
     for (_name, flow_def) in &workflow.flow_defs {
-        let task_names: Vec<_> = flow_def.tasks.iter()
+        let task_names: Vec<_> = flow_def
+            .tasks
+            .iter()
             .filter_map(|id| workflow.task_table.get_name(*id))
             .collect();
         // Connect consecutive tasks in the flow
@@ -5528,11 +5532,7 @@ fn generate_mermaid_dag(workflow: &nika::ast::analyzed::AnalyzedWorkflow) -> Str
         };
         output.push_str(&format!(
             "  {}{}\"{}\"{}:::{}\n",
-            task.name,
-            shape_start,
-            task.name,
-            shape_end,
-            class
+            task.name, shape_start, task.name, shape_end, class
         ));
     }
 
@@ -5540,7 +5540,9 @@ fn generate_mermaid_dag(workflow: &nika::ast::analyzed::AnalyzedWorkflow) -> Str
 
     // Add edges from flow definitions (consecutive tasks within each flow)
     for (_name, flow_def) in &workflow.flow_defs {
-        let task_names: Vec<_> = flow_def.tasks.iter()
+        let task_names: Vec<_> = flow_def
+            .tasks
+            .iter()
             .filter_map(|id| workflow.task_table.get_name(*id))
             .collect();
         for window in task_names.windows(2) {
@@ -5552,11 +5554,7 @@ fn generate_mermaid_dag(workflow: &nika::ast::analyzed::AnalyzedWorkflow) -> Str
     for task in &workflow.tasks {
         for (_alias, use_ref) in &task.use_refs {
             if let Some(source_name) = workflow.task_table.get_name(use_ref.target) {
-                output.push_str(&format!(
-                    "  {} -.-> {}\n",
-                    source_name,
-                    task.name
-                ));
+                output.push_str(&format!("  {} -.-> {}\n", source_name, task.name));
             }
         }
     }

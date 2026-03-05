@@ -644,3 +644,27 @@ tasks:
         assert!(result.is_ok(), "JSON value validation should work");
     }
 }
+
+// ========================================================================
+// Test: Builtin invoke tool (nika:*) without mcp passes
+// ========================================================================
+#[test]
+fn test_builtin_invoke_tool_without_mcp_passes() {
+    let validator = WorkflowSchemaValidator::new().unwrap();
+    let yaml = r#"
+schema: "nika/workflow@0.10"
+tasks:
+  - id: write_file
+    invoke:
+      tool: nika:write
+      params:
+        file_path: /tmp/test.txt
+        content: "Hello"
+"#;
+    let result = validator.validate_yaml(yaml);
+    assert!(
+        result.is_ok(),
+        "Builtin tool (nika:write) should work without mcp: {:?}",
+        result
+    );
+}

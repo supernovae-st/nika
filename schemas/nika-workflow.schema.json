@@ -460,7 +460,7 @@
           "description": "Resource URI to read (mutually exclusive with tool)"
         }
       },
-      "oneOf": [
+      "anyOf": [
         { "required": ["mcp", "tool"] },
         { "required": ["mcp", "resource"] },
         { "required": ["server", "tool"] },
