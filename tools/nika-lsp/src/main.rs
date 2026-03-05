@@ -27,6 +27,7 @@ mod hover;
 mod mcp_discovery;
 mod node_context;
 mod position;
+mod template_validation;
 
 use tower_lsp::{LspService, Server};
 use tracing_subscriber::EnvFilter;

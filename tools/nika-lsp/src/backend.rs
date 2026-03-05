@@ -10,8 +10,8 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::{Client, LanguageServer};
 
 use crate::completion::{
-    get_completion_context, provider_completions, schema_completions, task_id_completions,
-    verb_completions, CompletionContext,
+    get_completion_context, provider_completions, schema_completions,
+    structured_output_completions, task_id_completions, verb_completions, CompletionContext,
 };
 use crate::diagnostics::validate_document;
 use crate::document::DocumentState;
@@ -254,6 +254,7 @@ impl LanguageServer for NikaBackend {
         let items = match context {
             CompletionContext::TaskVerb => verb_completions(),
             CompletionContext::Schema => schema_completions(),
+            CompletionContext::StructuredSchema => structured_output_completions(),
             CompletionContext::Provider => provider_completions(),
             CompletionContext::UseReference { partial } => {
                 let task_ids = self.extract_task_ids(uri);

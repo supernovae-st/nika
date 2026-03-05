@@ -86,6 +86,8 @@ pub fn validate_document(content: &str, uri: &Url) -> Vec<Diagnostic> {
     use nika::ast::analyzer::analyze;
     use nika::source::FileId;
 
+    use crate::template_validation::validate_templates;
+
     let mut diagnostics = Vec::new();
 
     // Create a temporary document state for position conversion
@@ -97,7 +99,7 @@ pub fn validate_document(content: &str, uri: &Url) -> Vec<Diagnostic> {
     match raw_result {
         Ok(raw_workflow) => {
             // Phase 2: Analyze
-            let analyze_result = analyze(raw_workflow);
+            let analyze_result = analyze(raw_workflow.clone());
 
             // Convert errors to diagnostics
             for error in &analyze_result.errors {
@@ -109,6 +111,12 @@ pub fn validate_document(content: &str, uri: &Url) -> Vec<Diagnostic> {
                 let mut diag = to_lsp_diagnostic(warning, &doc, uri, None);
                 diag.severity = Some(DiagnosticSeverity::WARNING);
                 diagnostics.push(diag);
+            }
+
+            // Phase 3: Template validation ({{use.*}} references)
+            if let Some(ref analyzed) = analyze_result.value {
+                let template_diagnostics = validate_templates(&raw_workflow, analyzed, &doc);
+                diagnostics.extend(template_diagnostics);
             }
         }
         Err(parse_error) => {

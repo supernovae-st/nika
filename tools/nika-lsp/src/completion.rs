@@ -23,8 +23,10 @@ pub enum CompletionContext {
     TaskVerb,
     /// Inside a use: block (task ID reference)
     UseReference { partial: String },
-    /// Schema field
+    /// Workflow schema field (schema: "nika/workflow@0.9")
     Schema,
+    /// Structured output JSON Schema (inside output: or structured: blocks)
+    StructuredSchema,
     /// MCP server reference (in mcp: config block or invoke: mcp field)
     McpServer,
     /// MCP tool reference (after mcp: server is specified)
@@ -59,7 +61,7 @@ fn ast_context_to_completion(ast_ctx: &AstContext, word: &str) -> CompletionCont
             }
         }
         AstContext::ProviderContext { .. } => CompletionContext::Provider,
-        AstContext::SchemaContext => CompletionContext::Schema,
+        AstContext::SchemaContext => CompletionContext::StructuredSchema,
         AstContext::ForEachContext => CompletionContext::Unknown, // Could expand later
         AstContext::WorkflowRoot => {
             // At root level, check what we're typing
@@ -325,6 +327,171 @@ pub fn task_id_completions(task_ids: &[String], partial: &str) -> Vec<Completion
         .collect()
 }
 
+/// Get completion items for structured output JSON Schema.
+///
+/// Provides completions for JSON Schema types and common patterns
+/// used in the `structured:` or `output: { schema: ... }` blocks.
+pub fn structured_output_completions() -> Vec<CompletionItem> {
+    let mut items = vec![];
+
+    // JSON Schema type completions
+    let types = [
+        ("string", "String type", "Validates string values"),
+        ("number", "Number type", "Validates numeric values (integers and floats)"),
+        ("integer", "Integer type", "Validates integer values only"),
+        ("boolean", "Boolean type", "Validates true/false values"),
+        ("array", "Array type", "Validates array values"),
+        ("object", "Object type", "Validates object values"),
+        ("null", "Null type", "Validates null values only"),
+    ];
+
+    for (type_name, label_detail, description) in types {
+        items.push(CompletionItem {
+            label: type_name.to_string(),
+            kind: Some(CompletionItemKind::ENUM_MEMBER),
+            label_details: Some(CompletionItemLabelDetails {
+                detail: Some(format!(" {}", label_detail)),
+                description: None,
+            }),
+            documentation: Some(Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: format!("**{}**\n\n{}", type_name, description),
+            })),
+            ..Default::default()
+        });
+    }
+
+    // Common JSON Schema snippets
+    items.push(CompletionItem {
+        label: "object-template".to_string(),
+        kind: Some(CompletionItemKind::SNIPPET),
+        label_details: Some(CompletionItemLabelDetails {
+            detail: Some(" Object schema".to_string()),
+            description: None,
+        }),
+        documentation: Some(Documentation::MarkupContent(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: "**Object Schema Template**\n\nCreates a complete object schema with required properties.".to_string(),
+        })),
+        insert_text: Some(
+            r#"type: object
+required:
+  - $1
+properties:
+  $1:
+    type: ${2|string,number,integer,boolean,array,object|}
+    description: "$3"$0"#.to_string()
+        ),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        ..Default::default()
+    });
+
+    items.push(CompletionItem {
+        label: "array-template".to_string(),
+        kind: Some(CompletionItemKind::SNIPPET),
+        label_details: Some(CompletionItemLabelDetails {
+            detail: Some(" Array schema".to_string()),
+            description: None,
+        }),
+        documentation: Some(Documentation::MarkupContent(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: "**Array Schema Template**\n\nCreates an array schema with item type definition.".to_string(),
+        })),
+        insert_text: Some(
+            r#"type: array
+items:
+  type: ${1|string,number,integer,boolean,object|}$0"#.to_string()
+        ),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        ..Default::default()
+    });
+
+    items.push(CompletionItem {
+        label: "enum-template".to_string(),
+        kind: Some(CompletionItemKind::SNIPPET),
+        label_details: Some(CompletionItemLabelDetails {
+            detail: Some(" String enum".to_string()),
+            description: None,
+        }),
+        documentation: Some(Documentation::MarkupContent(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: "**String Enum Template**\n\nCreates a string type with allowed values.".to_string(),
+        })),
+        insert_text: Some(
+            r#"type: string
+enum:
+  - "$1"
+  - "$2"$0"#.to_string()
+        ),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        ..Default::default()
+    });
+
+    items.push(CompletionItem {
+        label: "nested-object-template".to_string(),
+        kind: Some(CompletionItemKind::SNIPPET),
+        label_details: Some(CompletionItemLabelDetails {
+            detail: Some(" Nested object".to_string()),
+            description: None,
+        }),
+        documentation: Some(Documentation::MarkupContent(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: "**Nested Object Template**\n\nCreates an object property with nested properties.".to_string(),
+        })),
+        insert_text: Some(
+            r#"$1:
+  type: object
+  properties:
+    $2:
+      type: ${3|string,number,integer,boolean|}$0"#.to_string()
+        ),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        ..Default::default()
+    });
+
+    items.push(CompletionItem {
+        label: "string-with-constraints".to_string(),
+        kind: Some(CompletionItemKind::SNIPPET),
+        label_details: Some(CompletionItemLabelDetails {
+            detail: Some(" Constrained string".to_string()),
+            description: None,
+        }),
+        documentation: Some(Documentation::MarkupContent(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: "**String with Constraints**\n\nCreates a string type with length constraints.".to_string(),
+        })),
+        insert_text: Some(
+            r#"type: string
+minLength: ${1:1}
+maxLength: ${2:100}$0"#.to_string()
+        ),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        ..Default::default()
+    });
+
+    items.push(CompletionItem {
+        label: "number-with-range".to_string(),
+        kind: Some(CompletionItemKind::SNIPPET),
+        label_details: Some(CompletionItemLabelDetails {
+            detail: Some(" Ranged number".to_string()),
+            description: None,
+        }),
+        documentation: Some(Documentation::MarkupContent(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: "**Number with Range**\n\nCreates a number type with min/max constraints.".to_string(),
+        })),
+        insert_text: Some(
+            r#"type: number
+minimum: ${1:0}
+maximum: ${2:100}$0"#.to_string()
+        ),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        ..Default::default()
+    });
+
+    items
+}
+
 /// Extract MCP server names from the document content.
 ///
 /// Parses the YAML looking for `mcp:` block with server definitions.
@@ -458,5 +625,83 @@ mcp:
         let servers = extract_mcp_servers(content);
         assert_eq!(servers.len(), 1);
         assert_eq!(servers[0], "custom_server");
+    }
+
+    #[test]
+    fn test_structured_output_completions() {
+        let completions = structured_output_completions();
+
+        // 7 types + 6 snippets = 13 items
+        assert_eq!(completions.len(), 13);
+
+        // Verify all JSON Schema types are present
+        let labels: Vec<_> = completions.iter().map(|c| c.label.as_str()).collect();
+        assert!(labels.contains(&"string"));
+        assert!(labels.contains(&"number"));
+        assert!(labels.contains(&"integer"));
+        assert!(labels.contains(&"boolean"));
+        assert!(labels.contains(&"array"));
+        assert!(labels.contains(&"object"));
+        assert!(labels.contains(&"null"));
+
+        // Verify snippet templates are present
+        assert!(labels.contains(&"object-template"));
+        assert!(labels.contains(&"array-template"));
+        assert!(labels.contains(&"enum-template"));
+        assert!(labels.contains(&"nested-object-template"));
+        assert!(labels.contains(&"string-with-constraints"));
+        assert!(labels.contains(&"number-with-range"));
+    }
+
+    #[test]
+    fn test_structured_output_completions_snippets_have_correct_format() {
+        let completions = structured_output_completions();
+
+        // Find snippet completions
+        let snippets: Vec<_> = completions
+            .iter()
+            .filter(|c| c.kind == Some(CompletionItemKind::SNIPPET))
+            .collect();
+
+        // Should have 6 snippets
+        assert_eq!(snippets.len(), 6);
+
+        // All snippets should have InsertTextFormat::SNIPPET
+        for snippet in &snippets {
+            assert_eq!(
+                snippet.insert_text_format,
+                Some(InsertTextFormat::SNIPPET),
+                "Snippet '{}' should have SNIPPET insert_text_format",
+                snippet.label
+            );
+            assert!(
+                snippet.insert_text.is_some(),
+                "Snippet '{}' should have insert_text",
+                snippet.label
+            );
+        }
+    }
+
+    #[test]
+    fn test_structured_output_completions_types_are_enum_members() {
+        let completions = structured_output_completions();
+
+        // Find type completions (non-snippets)
+        let types: Vec<_> = completions
+            .iter()
+            .filter(|c| c.kind == Some(CompletionItemKind::ENUM_MEMBER))
+            .collect();
+
+        // Should have 7 types
+        assert_eq!(types.len(), 7);
+
+        // All types should have documentation
+        for type_item in &types {
+            assert!(
+                type_item.documentation.is_some(),
+                "Type '{}' should have documentation",
+                type_item.label
+            );
+        }
     }
 }

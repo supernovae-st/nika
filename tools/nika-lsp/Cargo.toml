@@ -52,6 +52,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Error handling
 thiserror = "2"
 
+# Template validation
+regex = "1"
+
 [dev-dependencies]
 tokio-test = "0.4"
 pretty_assertions = "1"

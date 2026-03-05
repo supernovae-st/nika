@@ -2209,6 +2209,7 @@ dependencies = [
  "nika",
  "parking_lot",
  "pretty_assertions",
+ "regex",
  "ropey",
  "serde",
  "serde_json",
