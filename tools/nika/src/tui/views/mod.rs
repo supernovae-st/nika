@@ -66,6 +66,9 @@ pub use workspace::{WorkspaceFocus, WorkspaceRatio, WorkspaceView};
 pub use home::HomeView;
 pub use monitor::MonitorView;
 pub use studio::YamlEditorPanel;
+// Backwards compatibility: StudioView was the original name
+#[allow(unused_imports)]
+pub use studio::YamlEditorPanel as StudioView;
 // Help view still exists but is no longer a main TuiView (merged into Settings)
 #[allow(unused_imports)]
 pub use help::HelpView;

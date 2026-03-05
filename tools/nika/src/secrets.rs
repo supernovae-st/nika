@@ -148,7 +148,7 @@ mod daemon_integration {
 
         // Iterate all known providers (LLM + MCP = 13+)
         for p in KNOWN_PROVIDERS {
-            let provider = p.name;
+            let provider = p.id; // Use p.id for API calls, not p.name (display name)
             let env_var = p.env_var;
 
             // Check if already in env
@@ -243,7 +243,7 @@ mod daemon_integration {
 
         // Iterate all known providers (LLM + MCP = 13+)
         for p in KNOWN_PROVIDERS {
-            let provider = p.name;
+            let provider = p.id; // Use p.id for API calls, not p.name (display name)
             let env_var = p.env_var;
 
             if std::env::var(env_var).is_ok() {
