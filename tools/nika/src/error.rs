@@ -31,6 +31,9 @@
 //! v0.18 ranges:
 //! - NIKA-280-289: Artifact errors (path validation, write, size limits)
 //!
+//! v0.21 ranges:
+//! - NIKA-300-309: Structured Output errors (JSON Schema validation, extraction, repair)
+//!
 //! v0.6.1: Added miette for fancy error display with source spans
 
 use crate::mcp::types::McpErrorCode;
@@ -57,6 +60,17 @@ fn format_schema_errors(errors: &[crate::ast::schema_validator::SchemaError]) ->
             .collect::<Vec<_>>()
             .join("; ")
     )
+}
+
+/// Format structured output validation errors for display (v0.21)
+fn format_validation_errors_short(errors: &[String]) -> String {
+    if errors.is_empty() {
+        return "no errors".to_string();
+    }
+    if errors.len() == 1 {
+        return errors[0].clone();
+    }
+    format!("{} errors: {}", errors.len(), errors.join("; "))
 }
 
 /// Trait for errors that provide fix suggestions
@@ -556,6 +570,54 @@ pub enum NikaError {
         size: u64,
         max_size: u64,
     },
+
+    // ═══════════════════════════════════════════
+    // STRUCTURED OUTPUT ERRORS (300-309) - v0.21
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-300] Structured output extraction failed for task '{task_id}' at {layer}: {reason}")]
+    #[diagnostic(
+        code(nika::structured_output_extraction_failed),
+        help("Check the LLM response format matches the expected JSON Schema")
+    )]
+    StructuredOutputExtractionFailed {
+        task_id: String,
+        layer: String,
+        reason: String,
+    },
+
+    #[error("[NIKA-301] Structured output validation failed for task '{task_id}' at {layer} (attempt {attempt}): {}", format_validation_errors_short(.errors))]
+    #[diagnostic(
+        code(nika::structured_output_validation_failed),
+        help("Fix JSON output to match the declared schema")
+    )]
+    StructuredOutputValidationFailed {
+        task_id: String,
+        layer: String,
+        attempt: u32,
+        errors: Vec<String>,
+    },
+
+    #[error("[NIKA-302] Structured output repair failed for task '{task_id}': original errors: {original_errors:?}, repair errors: {repair_errors:?}")]
+    #[diagnostic(
+        code(nika::structured_output_repair_failed),
+        help("The LLM could not repair the output. Consider simplifying the schema or providing more context.")
+    )]
+    StructuredOutputRepairFailed {
+        task_id: String,
+        original_errors: Vec<String>,
+        repair_errors: Vec<String>,
+    },
+
+    #[error("[NIKA-303] Structured output failed after all {attempts} attempts for task '{task_id}': {}", format_validation_errors_short(.final_errors))]
+    #[diagnostic(
+        code(nika::structured_output_all_layers_failed),
+        help("All validation layers failed. Check your schema is valid and the prompt provides enough context for the LLM to generate conforming output.")
+    )]
+    StructuredOutputAllLayersFailed {
+        task_id: String,
+        attempts: u32,
+        final_errors: Vec<String>,
+    },
 }
 
 impl NikaError {
@@ -667,6 +729,11 @@ impl NikaError {
             Self::ArtifactPathError { .. } => "NIKA-280",
             Self::ArtifactWriteError { .. } => "NIKA-281",
             Self::ArtifactSizeExceeded { .. } => "NIKA-282",
+            // Structured Output errors (v0.21)
+            Self::StructuredOutputExtractionFailed { .. } => "NIKA-300",
+            Self::StructuredOutputValidationFailed { .. } => "NIKA-301",
+            Self::StructuredOutputRepairFailed { .. } => "NIKA-302",
+            Self::StructuredOutputAllLayersFailed { .. } => "NIKA-303",
             // Policy errors (v0.13.1)
             Self::PolicyViolation { .. } => "NIKA-160",
             Self::BootFailed { .. } => "NIKA-161",
@@ -688,6 +755,10 @@ impl NikaError {
                 | Self::Timeout { .. }
                 | Self::McpTimeout { .. }
                 | Self::McpToolCallFailed { .. }
+                // Structured output errors that can be retried (v0.21)
+                | Self::StructuredOutputExtractionFailed { .. }
+                | Self::StructuredOutputValidationFailed { .. }
+                | Self::StructuredOutputRepairFailed { .. }
         )
     }
 }
@@ -907,6 +978,19 @@ impl FixSuggestion for NikaError {
             }
             NikaError::ArtifactSizeExceeded { .. } => {
                 Some("Increase artifacts.max_size in workflow or reduce output size")
+            }
+            // Structured Output errors (v0.21)
+            NikaError::StructuredOutputExtractionFailed { .. } => {
+                Some("Check the LLM response format matches the expected JSON Schema")
+            }
+            NikaError::StructuredOutputValidationFailed { .. } => {
+                Some("Fix JSON output to match the declared schema. Check required fields and types.")
+            }
+            NikaError::StructuredOutputRepairFailed { .. } => {
+                Some("The LLM could not repair the output. Consider simplifying the schema or providing more context.")
+            }
+            NikaError::StructuredOutputAllLayersFailed { .. } => {
+                Some("All validation layers failed. Check your schema is valid and the prompt provides enough context for the LLM to generate conforming output.")
             }
         }
     }
@@ -1978,5 +2062,229 @@ mod tests {
             .code(),
             "NIKA-043"
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STRUCTURED OUTPUT ERRORS (300-309) - v0.21
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_structured_output_extraction_failed_error() {
+        let err = NikaError::StructuredOutputExtractionFailed {
+            task_id: "generate_json".to_string(),
+            layer: "rig_extractor".to_string(),
+            reason: "Failed to parse JSON from response".to_string(),
+        };
+        assert_eq!(err.code(), "NIKA-300");
+        let msg = err.to_string();
+        assert!(msg.contains("[NIKA-300]"));
+        assert!(msg.contains("generate_json"));
+        assert!(msg.contains("rig_extractor"));
+        assert!(msg.contains("Failed to parse JSON"));
+    }
+
+    #[test]
+    fn test_structured_output_validation_failed_error() {
+        let err = NikaError::StructuredOutputValidationFailed {
+            task_id: "validate_output".to_string(),
+            layer: "provider_native".to_string(),
+            attempt: 2,
+            errors: vec![
+                "missing required field 'id'".to_string(),
+                "invalid type for 'count': expected integer".to_string(),
+            ],
+        };
+        assert_eq!(err.code(), "NIKA-301");
+        let msg = err.to_string();
+        assert!(msg.contains("[NIKA-301]"));
+        assert!(msg.contains("validate_output"));
+        assert!(msg.contains("provider_native"));
+        assert!(msg.contains("attempt 2"));
+        assert!(msg.contains("2 errors"));
+    }
+
+    #[test]
+    fn test_structured_output_validation_failed_single_error() {
+        let err = NikaError::StructuredOutputValidationFailed {
+            task_id: "single_error".to_string(),
+            layer: "retry_with_feedback".to_string(),
+            attempt: 1,
+            errors: vec!["missing required field 'name'".to_string()],
+        };
+        assert_eq!(err.code(), "NIKA-301");
+        let msg = err.to_string();
+        assert!(msg.contains("[NIKA-301]"));
+        assert!(msg.contains("missing required field 'name'"));
+        // Should not contain "errors:" prefix for single error
+        assert!(!msg.contains("1 errors:"));
+    }
+
+    #[test]
+    fn test_structured_output_repair_failed_error() {
+        let err = NikaError::StructuredOutputRepairFailed {
+            task_id: "repair_task".to_string(),
+            original_errors: vec!["invalid JSON syntax".to_string()],
+            repair_errors: vec!["repair produced invalid output".to_string()],
+        };
+        assert_eq!(err.code(), "NIKA-302");
+        let msg = err.to_string();
+        assert!(msg.contains("[NIKA-302]"));
+        assert!(msg.contains("repair_task"));
+        assert!(msg.contains("original errors"));
+        assert!(msg.contains("repair errors"));
+    }
+
+    #[test]
+    fn test_structured_output_all_layers_failed_error() {
+        let err = NikaError::StructuredOutputAllLayersFailed {
+            task_id: "final_failure".to_string(),
+            attempts: 4,
+            final_errors: vec!["schema validation failed".to_string()],
+        };
+        assert_eq!(err.code(), "NIKA-303");
+        let msg = err.to_string();
+        assert!(msg.contains("[NIKA-303]"));
+        assert!(msg.contains("final_failure"));
+        assert!(msg.contains("4 attempts"));
+    }
+
+    #[test]
+    fn test_all_structured_output_errors_have_correct_codes() {
+        assert_eq!(
+            NikaError::StructuredOutputExtractionFailed {
+                task_id: "x".into(),
+                layer: "y".into(),
+                reason: "z".into()
+            }
+            .code(),
+            "NIKA-300"
+        );
+        assert_eq!(
+            NikaError::StructuredOutputValidationFailed {
+                task_id: "x".into(),
+                layer: "y".into(),
+                attempt: 1,
+                errors: vec![]
+            }
+            .code(),
+            "NIKA-301"
+        );
+        assert_eq!(
+            NikaError::StructuredOutputRepairFailed {
+                task_id: "x".into(),
+                original_errors: vec![],
+                repair_errors: vec![]
+            }
+            .code(),
+            "NIKA-302"
+        );
+        assert_eq!(
+            NikaError::StructuredOutputAllLayersFailed {
+                task_id: "x".into(),
+                attempts: 1,
+                final_errors: vec![]
+            }
+            .code(),
+            "NIKA-303"
+        );
+    }
+
+    #[test]
+    fn test_structured_output_errors_fix_suggestions() {
+        let extraction_err = NikaError::StructuredOutputExtractionFailed {
+            task_id: "t".into(),
+            layer: "l".into(),
+            reason: "r".into(),
+        };
+        let suggestion = <NikaError as FixSuggestion>::fix_suggestion(&extraction_err);
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("JSON Schema"));
+
+        let validation_err = NikaError::StructuredOutputValidationFailed {
+            task_id: "t".into(),
+            layer: "l".into(),
+            attempt: 1,
+            errors: vec![],
+        };
+        let suggestion = <NikaError as FixSuggestion>::fix_suggestion(&validation_err);
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("schema"));
+
+        let repair_err = NikaError::StructuredOutputRepairFailed {
+            task_id: "t".into(),
+            original_errors: vec![],
+            repair_errors: vec![],
+        };
+        let suggestion = <NikaError as FixSuggestion>::fix_suggestion(&repair_err);
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("simplifying"));
+
+        let all_failed_err = NikaError::StructuredOutputAllLayersFailed {
+            task_id: "t".into(),
+            attempts: 1,
+            final_errors: vec![],
+        };
+        let suggestion = <NikaError as FixSuggestion>::fix_suggestion(&all_failed_err);
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("validation layers"));
+    }
+
+    #[test]
+    fn test_structured_output_is_recoverable() {
+        // Extraction, validation, and repair errors are recoverable
+        let extraction = NikaError::StructuredOutputExtractionFailed {
+            task_id: "x".into(),
+            layer: "y".into(),
+            reason: "z".into(),
+        };
+        assert!(extraction.is_recoverable());
+
+        let validation = NikaError::StructuredOutputValidationFailed {
+            task_id: "x".into(),
+            layer: "y".into(),
+            attempt: 1,
+            errors: vec![],
+        };
+        assert!(validation.is_recoverable());
+
+        let repair = NikaError::StructuredOutputRepairFailed {
+            task_id: "x".into(),
+            original_errors: vec![],
+            repair_errors: vec![],
+        };
+        assert!(repair.is_recoverable());
+
+        // All layers failed is NOT recoverable (final failure)
+        let all_failed = NikaError::StructuredOutputAllLayersFailed {
+            task_id: "x".into(),
+            attempts: 4,
+            final_errors: vec![],
+        };
+        assert!(!all_failed.is_recoverable());
+    }
+
+    #[test]
+    fn test_format_validation_errors_short_empty() {
+        let result = format_validation_errors_short(&[]);
+        assert_eq!(result, "no errors");
+    }
+
+    #[test]
+    fn test_format_validation_errors_short_single() {
+        let result = format_validation_errors_short(&["missing field".to_string()]);
+        assert_eq!(result, "missing field");
+    }
+
+    #[test]
+    fn test_format_validation_errors_short_multiple() {
+        let result = format_validation_errors_short(&[
+            "error 1".to_string(),
+            "error 2".to_string(),
+            "error 3".to_string(),
+        ]);
+        assert!(result.contains("3 errors:"));
+        assert!(result.contains("error 1"));
+        assert!(result.contains("error 2"));
+        assert!(result.contains("error 3"));
     }
 }
