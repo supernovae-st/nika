@@ -3810,6 +3810,8 @@ dependencies = [
 [[package]]
 name = "spn-client"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b1383c2b78d8c588484696b5201f2ffe6193fa97a344e9fcceb40fef6a86a36"
 dependencies = [
  "dirs",
  "secrecy",
@@ -3824,6 +3826,8 @@ dependencies = [
 [[package]]
 name = "spn-core"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "080b293b715c0eda90e4f4cb21d2ca5669d1f0ddf79e08d4b3485f87a57c67a7"
 dependencies = [
  "serde",
 ]

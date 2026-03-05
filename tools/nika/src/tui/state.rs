@@ -2373,6 +2373,54 @@ impl TuiState {
                 ));
                 self.dirty.notifications = true;
             }
+
+            // ═══════════════════════════════════════════
+            // STRUCTURED OUTPUT EVENTS (v0.21)
+            // ═══════════════════════════════════════════
+            EventKind::StructuredOutputAttempt {
+                task_id,
+                layer,
+                layer_name,
+                attempt,
+                success,
+                error,
+            } => {
+                // Add notification for structured output attempts
+                if *success {
+                    self.add_notification(Notification::info(
+                        format!(
+                            "🎯 [{}] Layer {} ({}) attempt {} succeeded",
+                            task_id, layer, layer_name, attempt
+                        ),
+                        timestamp_ms,
+                    ));
+                } else if let Some(err) = error {
+                    self.add_notification(Notification::warning(
+                        format!(
+                            "🎯 [{}] Layer {} ({}) attempt {} failed: {}",
+                            task_id, layer, layer_name, attempt, err
+                        ),
+                        timestamp_ms,
+                    ));
+                }
+                self.dirty.notifications = true;
+            }
+
+            EventKind::StructuredOutputSuccess {
+                task_id,
+                layer,
+                layer_name,
+                total_attempts,
+            } => {
+                self.add_notification(Notification::success(
+                    format!(
+                        "🎯 [{}] Structured output extracted via layer {} ({}) after {} attempt(s)",
+                        task_id, layer, layer_name, total_attempts
+                    ),
+                    timestamp_ms,
+                ));
+                self.dirty.notifications = true;
+            }
         }
     }
 

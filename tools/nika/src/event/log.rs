@@ -1,8 +1,8 @@
-//! EventLog - Event sourcing implementation (v0.4)
+//! EventLog - Event sourcing implementation (v0.4, updated v0.21)
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 16+ variants across 5 levels (workflow/task/fine-grained/MCP/context)
+//! - EventKind: 24 variants across 6 levels (workflow/task/fine-grained/MCP/context/structured-output)
 //! - EventLog: thread-safe, append-only log
 //!
 //! ## v0.4.1 Changes
@@ -407,6 +407,45 @@ pub enum EventKind {
         /// Error reason
         reason: String,
     },
+
+    // ═══════════════════════════════════════════
+    // STRUCTURED OUTPUT EVENTS (v0.21)
+    // ═══════════════════════════════════════════
+    /// Structured output extraction attempt at a specific layer
+    ///
+    /// Emitted for each layer/retry attempt in the 4-layer defense system:
+    /// - Layer 1: rig Extractor (Rust types with JsonSchema)
+    /// - Layer 2: Provider-Native (tool_use / response_format)
+    /// - Layer 3: Retry with Feedback
+    /// - Layer 4: LLM Repair
+    StructuredOutputAttempt {
+        /// Task ID for correlation
+        task_id: Arc<str>,
+        /// Layer number (1-4)
+        layer: u8,
+        /// Human-readable layer name (e.g., "rig_extractor", "provider_native")
+        layer_name: String,
+        /// Attempt number within this layer (1-based)
+        attempt: u32,
+        /// Whether this attempt succeeded
+        success: bool,
+        /// Error message if failed
+        #[serde(skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
+    /// Structured output successfully extracted
+    ///
+    /// Emitted when any layer successfully produces valid output
+    StructuredOutputSuccess {
+        /// Task ID for correlation
+        task_id: Arc<str>,
+        /// Layer that succeeded (1-4)
+        layer: u8,
+        /// Human-readable layer name
+        layer_name: String,
+        /// Total attempts across all layers before success
+        total_attempts: u32,
+    },
 }
 
 impl EventKind {
@@ -429,7 +468,9 @@ impl EventKind {
             | Self::AgentTurn { task_id, .. }
             | Self::AgentComplete { task_id, .. }
             | Self::ArtifactWritten { task_id, .. }
-            | Self::ArtifactFailed { task_id, .. } => Some(task_id),
+            | Self::ArtifactFailed { task_id, .. }
+            | Self::StructuredOutputAttempt { task_id, .. }
+            | Self::StructuredOutputSuccess { task_id, .. } => Some(task_id),
             // AgentSpawned uses parent_task_id as the primary task reference
             Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
             // Log and Custom may optionally have task_id
@@ -1222,6 +1263,272 @@ mod tests {
             assert_eq!(kind, "started");
         } else {
             panic!("Expected AgentTurn without metadata");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Structured Output events tests (v0.21)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn structured_output_attempt_success() {
+        let log = EventLog::new();
+
+        log.emit(EventKind::StructuredOutputAttempt {
+            task_id: "extract_task".into(),
+            layer: 1,
+            layer_name: "rig_extractor".to_string(),
+            attempt: 1,
+            success: true,
+            error: None,
+        });
+
+        let events = log.filter_task("extract_task");
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::StructuredOutputAttempt {
+            layer,
+            layer_name,
+            attempt,
+            success,
+            error,
+            ..
+        } = &events[0].kind
+        {
+            assert_eq!(*layer, 1);
+            assert_eq!(layer_name, "rig_extractor");
+            assert_eq!(*attempt, 1);
+            assert!(*success);
+            assert!(error.is_none());
+        } else {
+            panic!("Expected StructuredOutputAttempt event");
+        }
+    }
+
+    #[test]
+    fn structured_output_attempt_failure() {
+        let log = EventLog::new();
+
+        log.emit(EventKind::StructuredOutputAttempt {
+            task_id: "extract_task".into(),
+            layer: 2,
+            layer_name: "provider_native".to_string(),
+            attempt: 2,
+            success: false,
+            error: Some("Missing required field 'name'".to_string()),
+        });
+
+        let events = log.filter_task("extract_task");
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::StructuredOutputAttempt {
+            layer,
+            layer_name,
+            attempt,
+            success,
+            error,
+            ..
+        } = &events[0].kind
+        {
+            assert_eq!(*layer, 2);
+            assert_eq!(layer_name, "provider_native");
+            assert_eq!(*attempt, 2);
+            assert!(!*success);
+            assert_eq!(error.as_ref().unwrap(), "Missing required field 'name'");
+        } else {
+            panic!("Expected StructuredOutputAttempt event");
+        }
+    }
+
+    #[test]
+    fn structured_output_success_event() {
+        let log = EventLog::new();
+
+        log.emit(EventKind::StructuredOutputSuccess {
+            task_id: "extract_task".into(),
+            layer: 3,
+            layer_name: "retry_with_feedback".to_string(),
+            total_attempts: 4,
+        });
+
+        let events = log.filter_task("extract_task");
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::StructuredOutputSuccess {
+            layer,
+            layer_name,
+            total_attempts,
+            ..
+        } = &events[0].kind
+        {
+            assert_eq!(*layer, 3);
+            assert_eq!(layer_name, "retry_with_feedback");
+            assert_eq!(*total_attempts, 4);
+        } else {
+            panic!("Expected StructuredOutputSuccess event");
+        }
+    }
+
+    #[test]
+    fn structured_output_attempt_serializes() {
+        let event = EventKind::StructuredOutputAttempt {
+            task_id: "task1".into(),
+            layer: 1,
+            layer_name: "rig_extractor".to_string(),
+            attempt: 1,
+            success: true,
+            error: None,
+        };
+
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["type"], "structured_output_attempt");
+        assert_eq!(json["task_id"], "task1");
+        assert_eq!(json["layer"], 1);
+        assert_eq!(json["layer_name"], "rig_extractor");
+        assert_eq!(json["attempt"], 1);
+        assert_eq!(json["success"], true);
+        // error should be skipped when None
+        assert!(json.get("error").is_none());
+    }
+
+    #[test]
+    fn structured_output_attempt_with_error_serializes() {
+        let event = EventKind::StructuredOutputAttempt {
+            task_id: "task1".into(),
+            layer: 4,
+            layer_name: "llm_repair".to_string(),
+            attempt: 1,
+            success: false,
+            error: Some("Repair failed".to_string()),
+        };
+
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["type"], "structured_output_attempt");
+        assert_eq!(json["layer"], 4);
+        assert_eq!(json["layer_name"], "llm_repair");
+        assert_eq!(json["success"], false);
+        assert_eq!(json["error"], "Repair failed");
+    }
+
+    #[test]
+    fn structured_output_success_serializes() {
+        let event = EventKind::StructuredOutputSuccess {
+            task_id: "task1".into(),
+            layer: 2,
+            layer_name: "provider_native".to_string(),
+            total_attempts: 3,
+        };
+
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["type"], "structured_output_success");
+        assert_eq!(json["task_id"], "task1");
+        assert_eq!(json["layer"], 2);
+        assert_eq!(json["layer_name"], "provider_native");
+        assert_eq!(json["total_attempts"], 3);
+    }
+
+    #[test]
+    fn structured_output_events_task_id_extraction() {
+        let attempt = EventKind::StructuredOutputAttempt {
+            task_id: "extract1".into(),
+            layer: 1,
+            layer_name: "rig_extractor".to_string(),
+            attempt: 1,
+            success: true,
+            error: None,
+        };
+        assert_eq!(attempt.task_id(), Some("extract1"));
+
+        let success = EventKind::StructuredOutputSuccess {
+            task_id: "extract2".into(),
+            layer: 2,
+            layer_name: "provider_native".to_string(),
+            total_attempts: 1,
+        };
+        assert_eq!(success.task_id(), Some("extract2"));
+    }
+
+    #[test]
+    fn structured_output_full_workflow() {
+        // Simulates a full structured output workflow with multiple attempts
+        let log = EventLog::new();
+
+        // Layer 1 attempt 1: fails
+        log.emit(EventKind::StructuredOutputAttempt {
+            task_id: "parse_json".into(),
+            layer: 1,
+            layer_name: "rig_extractor".to_string(),
+            attempt: 1,
+            success: false,
+            error: Some("JSON parse error".to_string()),
+        });
+
+        // Layer 2 attempt 1: fails
+        log.emit(EventKind::StructuredOutputAttempt {
+            task_id: "parse_json".into(),
+            layer: 2,
+            layer_name: "provider_native".to_string(),
+            attempt: 1,
+            success: false,
+            error: Some("Schema validation failed".to_string()),
+        });
+
+        // Layer 3 attempt 1: fails
+        log.emit(EventKind::StructuredOutputAttempt {
+            task_id: "parse_json".into(),
+            layer: 3,
+            layer_name: "retry_with_feedback".to_string(),
+            attempt: 1,
+            success: false,
+            error: Some("Still invalid".to_string()),
+        });
+
+        // Layer 3 attempt 2: succeeds
+        log.emit(EventKind::StructuredOutputAttempt {
+            task_id: "parse_json".into(),
+            layer: 3,
+            layer_name: "retry_with_feedback".to_string(),
+            attempt: 2,
+            success: true,
+            error: None,
+        });
+
+        // Final success
+        log.emit(EventKind::StructuredOutputSuccess {
+            task_id: "parse_json".into(),
+            layer: 3,
+            layer_name: "retry_with_feedback".to_string(),
+            total_attempts: 4,
+        });
+
+        let events = log.filter_task("parse_json");
+        assert_eq!(events.len(), 5);
+
+        // Verify attempt sequence
+        let attempts: Vec<_> = events
+            .iter()
+            .filter_map(|e| {
+                if let EventKind::StructuredOutputAttempt { layer, attempt, success, .. } = &e.kind {
+                    Some((*layer, *attempt, *success))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        assert_eq!(attempts, vec![
+            (1, 1, false),  // Layer 1, attempt 1, failed
+            (2, 1, false),  // Layer 2, attempt 1, failed
+            (3, 1, false),  // Layer 3, attempt 1, failed
+            (3, 2, true),   // Layer 3, attempt 2, success
+        ]);
+
+        // Verify final success
+        if let EventKind::StructuredOutputSuccess { layer, total_attempts, .. } = &events[4].kind {
+            assert_eq!(*layer, 3);
+            assert_eq!(*total_attempts, 4);
+        } else {
+            panic!("Expected StructuredOutputSuccess as last event");
         }
     }
 }
