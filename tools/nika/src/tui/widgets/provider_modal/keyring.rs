@@ -21,8 +21,7 @@ use zeroize::Zeroizing;
 // Import spn-core types via spn-client re-exports (when spn-daemon feature enabled)
 #[cfg(feature = "spn-daemon")]
 use spn_client::{
-    mask_key as spn_mask_key,
-    provider_to_env_var as spn_provider_to_env_var,
+    mask_key as spn_mask_key, provider_to_env_var as spn_provider_to_env_var,
     validate_key_format as spn_validate_key_format,
 };
 
