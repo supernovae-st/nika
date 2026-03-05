@@ -89,6 +89,28 @@ impl UseEntry {
     pub fn task_id(&self) -> &str {
         self.path.split('.').next().unwrap_or(&self.path)
     }
+
+    /// Normalize a binding path by stripping the `$` prefix if present (v0.21).
+    ///
+    /// This enables implicit output reference syntax where `$task` is
+    /// syntactic sugar for `task`. The DataStore.resolve_path() function
+    /// already handles resolving bare task IDs to their full output.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nika::binding::entry::UseEntry;
+    ///
+    /// assert_eq!(UseEntry::normalize_path("$task1"), "task1");
+    /// assert_eq!(UseEntry::normalize_path("task1"), "task1");
+    /// assert_eq!(UseEntry::normalize_path("$my_task"), "my_task");
+    /// assert_eq!(UseEntry::normalize_path("task.field"), "task.field");
+    /// assert_eq!(UseEntry::normalize_path("$task.field"), "task.field");
+    /// ```
+    #[inline]
+    pub fn normalize_path(path: &str) -> &str {
+        path.strip_prefix('$').unwrap_or(path)
+    }
 }
 
 /// Parse a use entry string into UseEntry (eager resolution)
@@ -539,5 +561,18 @@ tags: 'meta.tags ?? ["default"]'
     fn find_op_with_escaped_quote() {
         let s = r#"x ?? "He said \"??\"""#;
         assert_eq!(find_operator_outside_quotes(s, "??"), Some(2));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // normalize_path() tests - v0.21 implicit output syntax
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_normalize_path_strips_dollar_prefix() {
+        assert_eq!(UseEntry::normalize_path("$task1"), "task1");
+        assert_eq!(UseEntry::normalize_path("task1"), "task1");
+        assert_eq!(UseEntry::normalize_path("$my_task"), "my_task");
+        assert_eq!(UseEntry::normalize_path("task.field"), "task.field");
+        assert_eq!(UseEntry::normalize_path("$task.field"), "task.field");
     }
 }
