@@ -1,0 +1,154 @@
+# LSP CI - Dedicated workflow for nika-lsp
+# Runs tests, linting, and cross-platform builds for the Language Server
+
+name: LSP CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/nika-lsp/**'
+      - 'tools/nika/src/ast/**'
+      - 'tools/nika/src/analyzer/**'
+      - 'tools/nika/src/dag/**'
+      - 'tools/nika/src/ir/**'
+      - '.github/workflows/lsp.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/nika-lsp/**'
+      - 'tools/nika/src/ast/**'
+      - 'tools/nika/src/analyzer/**'
+      - 'tools/nika/src/dag/**'
+      - 'tools/nika/src/ir/**'
+      - '.github/workflows/lsp.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ==========================================================================
+  # Test Job - Run tests, clippy, and format check
+  # ==========================================================================
+  test:
+    name: Test LSP
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/nika
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika -> target
+
+      - name: Check format
+        run: cargo fmt -p nika-lsp -- --check
+
+      - name: Clippy
+        run: cargo clippy -p nika-lsp -- -D warnings
+
+      - name: Test
+        run: cargo test -p nika-lsp
+
+  # ==========================================================================
+  # Build Job - Cross-platform builds (4 targets)
+  # ==========================================================================
+  build:
+    name: Build (${{ matrix.target }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            use_cross: false
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            use_cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            use_cross: false
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            use_cross: false
+
+    defaults:
+      run:
+        working-directory: tools/nika
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/nika -> target
+          key: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.use_cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build with cross
+        if: matrix.use_cross
+        env:
+          TARGET: ${{ matrix.target }}
+        run: cross build --release -p nika-lsp --target "$TARGET"
+
+      - name: Build native
+        if: ${{ !matrix.use_cross }}
+        env:
+          TARGET: ${{ matrix.target }}
+        run: cargo build --release -p nika-lsp --target "$TARGET"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        env:
+          TARGET: ${{ matrix.target }}
+        with:
+          name: nika-lsp-${{ matrix.target }}
+          path: tools/nika/target/${{ matrix.target }}/release/nika-lsp
+          if-no-files-found: error
+
+  # ==========================================================================
+  # Version Sync Check - Ensure nika and nika-lsp versions match
+  # ==========================================================================
+  version-sync:
+    name: Version Sync Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check version alignment
+        run: |
+          NIKA_VERSION=$(grep '^version' tools/nika/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          LSP_VERSION=$(grep '^version' tools/nika-lsp/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+
+          echo "nika version: $NIKA_VERSION"
+          echo "nika-lsp version: $LSP_VERSION"
+
+          if [ "$NIKA_VERSION" != "$LSP_VERSION" ]; then
+            echo "::error::Version mismatch! nika=$NIKA_VERSION, nika-lsp=$LSP_VERSION"
+            exit 1
+          fi
+
+          echo "✅ Versions aligned: $NIKA_VERSION"

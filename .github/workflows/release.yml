@@ -2,10 +2,11 @@
 # Triggers on: tag push (v*) or manual dispatch
 #
 # Jobs:
-# 1. build: Cross-platform release builds
+# 1. build: Cross-platform release builds (nika + nika-lsp)
 # 2. release: Create GitHub release with binaries
 #
 # Tag format: v0.8.0
+# Builds: nika CLI + nika-lsp Language Server
 
 name: Release
 
@@ -68,9 +69,20 @@ jobs:
         env:
           INPUT_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          CARGO_VERSION=$(grep '^version = ' tools/nika/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          if [ "$CARGO_VERSION" != "$INPUT_VERSION" ]; then
-            echo "::warning::Cargo.toml version ($CARGO_VERSION) does not match release version ($INPUT_VERSION)"
+          NIKA_VERSION=$(grep '^version = ' tools/nika/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          LSP_VERSION=$(grep '^version = ' tools/nika-lsp/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+
+          if [ "$NIKA_VERSION" != "$INPUT_VERSION" ]; then
+            echo "::warning::nika Cargo.toml version ($NIKA_VERSION) does not match release version ($INPUT_VERSION)"
+          fi
+
+          if [ "$LSP_VERSION" != "$INPUT_VERSION" ]; then
+            echo "::warning::nika-lsp Cargo.toml version ($LSP_VERSION) does not match release version ($INPUT_VERSION)"
+          fi
+
+          if [ "$NIKA_VERSION" != "$LSP_VERSION" ]; then
+            echo "::error::Version mismatch between nika ($NIKA_VERSION) and nika-lsp ($LSP_VERSION)"
+            exit 1
           fi
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -133,23 +145,38 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
 
-      - name: Build release binary (native)
+      - name: Build nika release binary (native)
         if: ${{ !matrix.cross }}
         run: cargo build --manifest-path tools/nika/Cargo.toml --release --target ${{ matrix.target }}
 
-      - name: Build release binary (cross)
+      - name: Build nika release binary (cross)
         if: matrix.cross
         run: cross build --manifest-path tools/nika/Cargo.toml --release --target ${{ matrix.target }}
 
-      - name: Strip binary (Unix)
+      - name: Build nika-lsp release binary (native)
+        if: ${{ !matrix.cross && matrix.os != 'windows-latest' }}
+        run: cargo build --manifest-path tools/nika-lsp/Cargo.toml --release --target ${{ matrix.target }}
+
+      - name: Build nika-lsp release binary (cross)
+        if: ${{ matrix.cross }}
+        run: cross build --manifest-path tools/nika-lsp/Cargo.toml --release --target ${{ matrix.target }}
+
+      - name: Strip binaries (Unix)
         if: matrix.os != 'windows-latest'
         env:
           TARGET: ${{ matrix.target }}
           BINARY: ${{ matrix.binary }}
         run: |
-          BINARY_PATH="tools/nika/target/${TARGET}/release/${BINARY}"
-          if [ -f "$BINARY_PATH" ] && ! echo "$TARGET" | grep -q "aarch64-unknown-linux"; then
-            strip "$BINARY_PATH" || true
+          # Strip nika binary
+          NIKA_PATH="tools/nika/target/${TARGET}/release/${BINARY}"
+          if [ -f "$NIKA_PATH" ] && ! echo "$TARGET" | grep -q "aarch64-unknown-linux"; then
+            strip "$NIKA_PATH" || true
+          fi
+
+          # Strip nika-lsp binary (if built)
+          LSP_PATH="tools/nika-lsp/target/${TARGET}/release/nika-lsp"
+          if [ -f "$LSP_PATH" ] && ! echo "$TARGET" | grep -q "aarch64-unknown-linux"; then
+            strip "$LSP_PATH" || true
           fi
 
       - name: Create archive (Unix)
@@ -160,13 +187,29 @@ jobs:
           TARGET: ${{ matrix.target }}
           BINARY: ${{ matrix.binary }}
         run: |
-          ARCHIVE_NAME="${ARTIFACT}-${VERSION}"
-          mkdir -p "dist/${ARCHIVE_NAME}"
-          cp "tools/nika/target/${TARGET}/release/${BINARY}" "dist/${ARCHIVE_NAME}/"
-          cp README.md LICENSE CHANGELOG.md "dist/${ARCHIVE_NAME}/" 2>/dev/null || true
+          # Create nika archive
+          NIKA_ARCHIVE="${ARTIFACT}-${VERSION}"
+          mkdir -p "dist/${NIKA_ARCHIVE}"
+          cp "tools/nika/target/${TARGET}/release/${BINARY}" "dist/${NIKA_ARCHIVE}/"
+          cp README.md LICENSE CHANGELOG.md "dist/${NIKA_ARCHIVE}/" 2>/dev/null || true
           cd dist
-          tar -czvf "${ARCHIVE_NAME}.tar.gz" "${ARCHIVE_NAME}"
-          shasum -a 256 "${ARCHIVE_NAME}.tar.gz" > "${ARCHIVE_NAME}.tar.gz.sha256"
+          tar -czvf "${NIKA_ARCHIVE}.tar.gz" "${NIKA_ARCHIVE}"
+          shasum -a 256 "${NIKA_ARCHIVE}.tar.gz" > "${NIKA_ARCHIVE}.tar.gz.sha256"
+          cd ..
+
+          # Create nika-lsp archive (if binary exists)
+          LSP_BINARY="tools/nika-lsp/target/${TARGET}/release/nika-lsp"
+          if [ -f "$LSP_BINARY" ]; then
+            LSP_ARTIFACT=$(echo "$ARTIFACT" | sed 's/nika/nika-lsp/')
+            LSP_ARCHIVE="${LSP_ARTIFACT}-${VERSION}"
+            mkdir -p "dist/${LSP_ARCHIVE}"
+            cp "$LSP_BINARY" "dist/${LSP_ARCHIVE}/"
+            cp tools/nika-lsp/README.md "dist/${LSP_ARCHIVE}/" 2>/dev/null || true
+            cp LICENSE "dist/${LSP_ARCHIVE}/" 2>/dev/null || true
+            cd dist
+            tar -czvf "${LSP_ARCHIVE}.tar.gz" "${LSP_ARCHIVE}"
+            shasum -a 256 "${LSP_ARCHIVE}.tar.gz" > "${LSP_ARCHIVE}.tar.gz.sha256"
+          fi
 
       - name: Create archive (Windows)
         if: matrix.os == 'windows-latest'
@@ -286,6 +329,8 @@ jobs:
 
           ## 📦 Downloads
 
+          ### Nika CLI
+
           | Platform | Architecture | Binary |
           |----------|--------------|--------|
           | 🍎 macOS | Apple Silicon | \`nika-macos-arm64-${VERSION}.tar.gz\` |
@@ -293,6 +338,15 @@ jobs:
           | 🐧 Linux | x64 | \`nika-linux-x64-${VERSION}.tar.gz\` |
           | 🐧 Linux | ARM64 | \`nika-linux-arm64-${VERSION}.tar.gz\` |
           | 🪟 Windows | x64 | \`nika-windows-x64-${VERSION}.zip\` |
+
+          ### Nika LSP (Language Server)
+
+          | Platform | Architecture | Binary |
+          |----------|--------------|--------|
+          | 🍎 macOS | Apple Silicon | \`nika-lsp-macos-arm64-${VERSION}.tar.gz\` |
+          | 🍎 macOS | Intel | \`nika-lsp-macos-x64-${VERSION}.tar.gz\` |
+          | 🐧 Linux | x64 | \`nika-lsp-linux-x64-${VERSION}.tar.gz\` |
+          | 🐧 Linux | ARM64 | \`nika-lsp-linux-arm64-${VERSION}.tar.gz\` |
 
           DOWNLOADS
 
@@ -371,23 +425,31 @@ jobs:
 
       - name: Publish crates (dry-run check)
         run: |
-          # Publish in dependency order
+          # Publish nika workspace crates in dependency order
           for crate in nika-core nika-mcp nika-provider nika-runtime nika-tui nika-cli; do
             echo "Checking $crate..."
             cargo publish --manifest-path tools/nika/Cargo.toml --dry-run -p "$crate" || true
           done
+
+          # Publish nika-lsp
+          echo "Checking nika-lsp..."
+          cargo publish --manifest-path tools/nika-lsp/Cargo.toml --dry-run || true
 
       - name: Publish crates
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           if [ -n "$CARGO_REGISTRY_TOKEN" ]; then
-            # Publish in dependency order with delay between crates
+            # Publish nika workspace crates in dependency order with delay
             for crate in nika-core nika-mcp nika-provider nika-runtime nika-tui nika-cli; do
               echo "Publishing $crate..."
               cargo publish --manifest-path tools/nika/Cargo.toml -p "$crate" --no-verify || true
               sleep 30  # Wait for crates.io to index
             done
+
+            # Publish nika-lsp
+            echo "Publishing nika-lsp..."
+            cargo publish --manifest-path tools/nika-lsp/Cargo.toml --no-verify || true
           else
             echo "CARGO_REGISTRY_TOKEN not set, skipping publish"
           fi

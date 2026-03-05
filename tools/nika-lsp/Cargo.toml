@@ -6,8 +6,17 @@ description = "Language Server Protocol implementation for Nika workflows"
 license = "MIT"
 authors = ["Thibaut Melen <thibaut@supernovae.studio>"]
 repository = "https://github.com/SuperNovae-studio/nika"
+homepage = "https://nika.sh"
+documentation = "https://docs.rs/nika-lsp"
+readme = "README.md"
 keywords = ["lsp", "yaml", "workflow", "nika"]
-categories = ["development-tools"]
+categories = ["development-tools", "text-editors"]
+publish = true
+rust-version = "1.80"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [[bin]]
 name = "nika-lsp"
@@ -30,7 +39,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 # Nika validation (workspace dependency)
-nika = { path = "../nika" }
+# Path used for local dev, version used for crates.io publishing
+nika = { path = "../nika", version = "0.21.0" }
 
 # Text manipulation (rope for efficient edits)
 ropey = "1.6"

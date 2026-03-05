@@ -2137,7 +2137,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "arboard",
  "async-trait",
@@ -2172,6 +2172,7 @@ dependencies = [
  "rig-core",
  "rmcp 0.16.0",
  "rustc-hash",
+ "schemars",
  "secrecy",
  "semver",
  "serde",
@@ -3809,9 +3810,9 @@ dependencies = [
 
 [[package]]
 name = "spn-client"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b1383c2b78d8c588484696b5201f2ffe6193fa97a344e9fcceb40fef6a86a36"
+checksum = "5cf801bbaadbda21d2796843d5e565c97ec4020063c2b8e22e613f86e9ca35bc"
 dependencies = [
  "dirs",
  "secrecy",
