@@ -40,6 +40,19 @@ pub enum ParseErrorKind {
     InvalidSchema,
 }
 
+impl ParseErrorKind {
+    /// Get the error code for this kind.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::Syntax => "NIKA-001",
+            Self::MissingField => "NIKA-002",
+            Self::InvalidType => "NIKA-003",
+            Self::UnknownField => "NIKA-004",
+            Self::InvalidSchema => "NIKA-005",
+        }
+    }
+}
+
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.message)

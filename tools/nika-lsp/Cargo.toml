@@ -1,0 +1,50 @@
+[package]
+name = "nika-lsp"
+version = "0.21.0"
+edition = "2021"
+description = "Language Server Protocol implementation for Nika workflows"
+license = "MIT"
+authors = ["Thibaut Melen <thibaut@supernovae.studio>"]
+repository = "https://github.com/SuperNovae-studio/nika"
+keywords = ["lsp", "yaml", "workflow", "nika"]
+categories = ["development-tools"]
+
+[[bin]]
+name = "nika-lsp"
+path = "src/main.rs"
+
+[dependencies]
+# LSP
+tower-lsp = "0.20"
+lsp-types = "0.94"  # Must match tower-lsp's lsp-types version
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Concurrent data structures
+dashmap = "6"
+parking_lot = "0.12"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Nika validation (workspace dependency)
+nika = { path = "../nika" }
+
+# Text manipulation (rope for efficient edits)
+ropey = "1.6"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+thiserror = "2"
+
+[dev-dependencies]
+tokio-test = "0.4"
+pretty_assertions = "1"
+
+[features]
+default = []
