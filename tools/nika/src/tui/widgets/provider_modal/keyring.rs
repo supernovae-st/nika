@@ -6,12 +6,25 @@
 //! - Linux: Secret Service (GNOME Keyring, KWallet)
 //!
 //! Service name "spn" is shared with supernovae-cli for unified key management.
+//!
+//! ## v0.20: spn-core Integration
+//!
+//! Validation and masking now delegate to spn-core via spn-client re-exports.
+//! Local wrappers maintain backward compatibility with existing API signatures.
 
 use colored::Colorize;
 use keyring::Entry;
 use secrecy::SecretString;
 use thiserror::Error;
 use zeroize::Zeroizing;
+
+// Import spn-core types via spn-client re-exports (when spn-daemon feature enabled)
+#[cfg(feature = "spn-daemon")]
+use spn_client::{
+    mask_key as spn_mask_key,
+    provider_to_env_var as spn_provider_to_env_var,
+    validate_key_format as spn_validate_key_format,
+};
 
 /// Service name for keyring entries.
 /// Uses "spn" for unified keyring with supernovae-cli.
@@ -86,7 +99,16 @@ impl SpnKeyring {
     }
 }
 
-/// Mask API key for display (show first 6 and last 1 char).
+/// Mask API key for display.
+///
+/// With spn-daemon feature: uses spn_core::mask_key (shows 7 chars + ••••••••)
+/// Without: shows first 6 + ... + last 1 char
+#[cfg(feature = "spn-daemon")]
+pub fn mask_api_key(key: &str) -> String {
+    spn_mask_key(key)
+}
+
+#[cfg(not(feature = "spn-daemon"))]
 pub fn mask_api_key(key: &str) -> String {
     if key.len() <= 10 {
         return "****".to_string();
@@ -97,6 +119,20 @@ pub fn mask_api_key(key: &str) -> String {
 }
 
 /// Validate API key format (basic checks).
+///
+/// With spn-daemon feature: delegates to spn_core::validate_key_format
+/// Without: uses local validation rules
+#[cfg(feature = "spn-daemon")]
+pub fn validate_key_format(provider: &str, key: &str) -> Result<(), String> {
+    let result = spn_validate_key_format(provider, key);
+    if result.is_valid() {
+        Ok(())
+    } else {
+        Err(result.to_string())
+    }
+}
+
+#[cfg(not(feature = "spn-daemon"))]
 pub fn validate_key_format(provider: &str, key: &str) -> Result<(), String> {
     if key.trim().is_empty() {
         return Err("API key cannot be empty".into());
@@ -134,6 +170,15 @@ pub fn validate_key_format(provider: &str, key: &str) -> Result<(), String> {
 }
 
 /// Get environment variable name for provider.
+///
+/// With spn-daemon feature: delegates to spn_core::provider_to_env_var
+/// Without: uses local lookup table
+#[cfg(feature = "spn-daemon")]
+pub fn provider_env_var(provider: &str) -> &'static str {
+    spn_provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY")
+}
+
+#[cfg(not(feature = "spn-daemon"))]
 pub fn provider_env_var(provider: &str) -> &'static str {
     match provider {
         "anthropic" => "ANTHROPIC_API_KEY",
@@ -232,17 +277,33 @@ mod tests {
     #[test]
     fn test_mask_api_key_standard() {
         let key = "sk-ant-api03-abc123xyz789def456ghi";
+        // spn-daemon uses spn_core::mask_key (7 chars + ••••••••)
+        // without feature uses local format (6 chars + ... + 1)
+        #[cfg(feature = "spn-daemon")]
+        assert_eq!(mask_api_key(key), "sk-ant-••••••••");
+        #[cfg(not(feature = "spn-daemon"))]
         assert_eq!(mask_api_key(key), "sk-ant...i");
     }
 
     #[test]
     fn test_mask_api_key_short() {
-        assert_eq!(mask_api_key("short"), "****");
-        assert_eq!(mask_api_key("1234567890"), "****");
+        #[cfg(feature = "spn-daemon")]
+        {
+            assert_eq!(mask_api_key("short"), "short••••••••");
+            assert_eq!(mask_api_key("1234567890"), "1234567••••••••");
+        }
+        #[cfg(not(feature = "spn-daemon"))]
+        {
+            assert_eq!(mask_api_key("short"), "****");
+            assert_eq!(mask_api_key("1234567890"), "****");
+        }
     }
 
     #[test]
     fn test_mask_api_key_empty() {
+        #[cfg(feature = "spn-daemon")]
+        assert_eq!(mask_api_key(""), "••••••••");
+        #[cfg(not(feature = "spn-daemon"))]
         assert_eq!(mask_api_key(""), "****");
     }
 

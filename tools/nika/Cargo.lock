@@ -4118,17 +4118,23 @@ dependencies = [
 
 [[package]]
 name = "spn-client"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88735d4dec5f8082d85d539d3f615172303ce12f95931d1f7d41ace4ecc52e94"
+version = "0.2.0"
 dependencies = [
  "dirs",
  "secrecy",
  "serde",
  "serde_json",
+ "spn-core",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "spn-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

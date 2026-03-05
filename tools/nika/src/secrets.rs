@@ -91,9 +91,9 @@ impl SecretsLoadResult {
 #[cfg(feature = "spn-daemon")]
 mod daemon_integration {
     use super::*;
-    use parking_lot::Mutex;
     use spn_client::{ExposeSecret, SpnClient};
     use std::sync::OnceLock;
+    use tokio::sync::Mutex;
 
     /// Cached daemon client (singleton).
     static CLIENT: OnceLock<Mutex<Option<SpnClient>>> = OnceLock::new();
@@ -139,7 +139,7 @@ mod daemon_integration {
             }
         };
 
-        let mut guard = client_lock.lock();
+        let mut guard = client_lock.lock().await;
         let client = match guard.as_mut() {
             Some(c) => c,
             None => {
@@ -201,7 +201,7 @@ mod daemon_integration {
 
         // Try daemon client
         if let Some(client_lock) = get_or_init_client().await {
-            let mut guard = client_lock.lock();
+            let mut guard = client_lock.lock().await;
             if let Some(client) = guard.as_mut() {
                 if let Ok(secret) = client.get_secret(provider).await {
                     return Some(secret);
@@ -224,7 +224,7 @@ mod daemon_integration {
 
         // Try daemon client
         if let Some(client_lock) = get_or_init_client().await {
-            let mut guard = client_lock.lock();
+            let mut guard = client_lock.lock().await;
             if let Some(client) = guard.as_mut() {
                 if let Ok(exists) = client.has_secret(provider).await {
                     return exists;
