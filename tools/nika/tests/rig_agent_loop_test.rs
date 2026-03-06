@@ -284,6 +284,8 @@ fn test_rig_agent_loop_result_debug() {
         turns: 3,
         final_output: serde_json::json!({"result": "done"}),
         total_tokens: 150,
+        confidence: None,
+        retry_count: 0,
     };
 
     let debug = format!("{:?}", result);

@@ -1544,6 +1544,57 @@ impl RigAgentLoop {
             .unwrap_or(0.8)
     }
 
+    /// Get low confidence configuration (v0.22)
+    ///
+    /// Returns the OnLowConfidenceConfig if available, or None.
+    fn get_low_confidence_config(&self) -> Option<crate::ast::completion::OnLowConfidenceConfig> {
+        self.params
+            .effective_completion()
+            .and_then(|c| c.confidence)
+            .map(|conf| conf.on_low.clone())
+    }
+
+    /// Check if retry should be attempted for low confidence (v0.22)
+    ///
+    /// Returns true if:
+    /// - Status is LowConfidence
+    /// - on_low.action is Retry
+    /// - retry_count < max_retries
+    fn should_retry(&self, status: &RigAgentStatus, retry_count: u32) -> bool {
+        if !matches!(status, RigAgentStatus::LowConfidence(_)) {
+            return false;
+        }
+
+        let Some(config) = self.get_low_confidence_config() else {
+            return false;
+        };
+
+        config.action == crate::ast::completion::LowConfidenceAction::Retry
+            && retry_count < config.max_retries
+    }
+
+    /// Get retry feedback message (v0.22)
+    ///
+    /// Returns the feedback message to append to prompt on retry.
+    fn get_retry_feedback(&self, confidence: f64) -> String {
+        let config = self.get_low_confidence_config();
+        let threshold = self.get_confidence_threshold();
+
+        // Use custom feedback if configured
+        if let Some(feedback) = config.as_ref().and_then(|c| c.feedback.clone()) {
+            return format!(
+                "\n\n[RETRY: Your previous response had confidence {:.2}, below threshold {:.2}. {}]",
+                confidence, threshold, feedback
+            );
+        }
+
+        // Default feedback
+        format!(
+            "\n\n[RETRY: Your previous response had confidence {:.2}, which is below the required threshold of {:.2}. Please reconsider your response and provide a higher confidence answer.]",
+            confidence, threshold
+        )
+    }
+
     /// Run the agent loop with extended thinking enabled (Claude only).
     ///
     /// Uses rig-core's streaming API to capture thinking blocks from Claude's
@@ -1923,9 +1974,10 @@ impl RigAgentLoop {
         self.run_generic_provider_impl(client, &model_name).await
     }
 
-    /// Generic provider runner implementation (v0.6)
+    /// Generic provider runner implementation (v0.6 + v0.22 retry)
     ///
     /// Uses rig-core's unified ProviderClient + CompletionClient interface.
+    /// Includes retry logic for low confidence responses (v0.22).
     async fn run_generic_provider_impl<C>(
         &mut self,
         client: C,
@@ -1938,10 +1990,21 @@ impl RigAgentLoop {
     {
         let model = client.completion_model(model_name);
 
-        // Take ownership of tools
+        // Take ownership of tools for first attempt
         let tools = std::mem::take(&mut self.tools);
         let max_turns = self.params.max_turns.unwrap_or(10) as usize;
-        let prompt = self.params.prompt.clone();
+        let base_prompt = self.params.prompt.clone();
+
+        // Get max retries from config (default: 2)
+        let max_retries = self
+            .get_low_confidence_config()
+            .map(|c| c.max_retries)
+            .unwrap_or(2);
+
+        let mut retry_count: u32 = 0;
+        let mut current_prompt = base_prompt.clone();
+        let mut total_input_tokens: u32 = 0;
+        let mut total_output_tokens: u32 = 0;
 
         // Emit start event
         self.event_log.emit(EventKind::AgentTurn {
@@ -1951,41 +2014,89 @@ impl RigAgentLoop {
             metadata: None,
         });
 
-        // Execute with streaming helper (v0.7.2 - token tracking)
-        // - No tools: Pure streaming with token tracking
-        // - With tools: Falls back to agent.prompt() (0 tokens)
-        let result = self
-            .stream_with_tools(model, &prompt, tools, max_turns)
+        // First attempt with tools
+        let mut result = self
+            .stream_with_tools(model.clone(), &current_prompt, tools, max_turns)
             .await?;
 
-        // Determine status (v0.21: uses determine_status for completion detection)
-        let status = self.determine_status(&result.response);
+        total_input_tokens += result.input_tokens;
+        total_output_tokens += result.output_tokens;
+
+        let mut status = self.determine_status(&result.response);
+
+        // Retry loop for low confidence (v0.22)
+        while self.should_retry(&status, retry_count) {
+            retry_count += 1;
+
+            // Get confidence from status for feedback message
+            let confidence = match &status {
+                RigAgentStatus::LowConfidence(c) => *c,
+                _ => 0.0,
+            };
+
+            // Emit retry event
+            self.event_log.emit(EventKind::AgentTurn {
+                task_id: Arc::from(self.task_id.as_str()),
+                turn_index: retry_count + 1,
+                kind: format!("retry_{}", retry_count),
+                metadata: Some(AgentTurnMetadata {
+                    thinking: None,
+                    response_text: format!(
+                        "Low confidence ({:.2}), retrying ({}/{})",
+                        confidence, retry_count, max_retries
+                    ),
+                    input_tokens: 0,
+                    output_tokens: 0,
+                    cache_read_tokens: 0,
+                    stop_reason: "low_confidence_retry".to_string(),
+                }),
+            });
+
+            // Append feedback to prompt for retry
+            current_prompt = format!(
+                "{}\n\n{}\n\nPrevious response:\n{}",
+                base_prompt,
+                self.get_retry_feedback(confidence),
+                result.response
+            );
+
+            // Retry without tools (agent has already gathered context)
+            // Using empty tools vec for retry attempts
+            result = self
+                .stream_with_tools(model.clone(), &current_prompt, vec![], max_turns)
+                .await?;
+
+            total_input_tokens += result.input_tokens;
+            total_output_tokens += result.output_tokens;
+
+            status = self.determine_status(&result.response);
+        }
 
         // Build metadata WITH token tracking (v0.7.2)
         let stop_reason = status.as_canonical_str();
         let metadata = AgentTurnMetadata {
             thinking: result.thinking,
             response_text: result.response.clone(),
-            input_tokens: result.input_tokens,
-            output_tokens: result.output_tokens,
+            input_tokens: total_input_tokens,
+            output_tokens: total_output_tokens,
             cache_read_tokens: 0,
             stop_reason: stop_reason.to_string(),
         };
 
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
-            turn_index: 1,
+            turn_index: retry_count + 1,
             kind: stop_reason.to_string(),
             metadata: Some(metadata),
         });
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
-            turns: 1,
+            turns: (retry_count + 1) as usize,
             final_output: serde_json::json!({ "response": result.response }),
-            total_tokens: (result.input_tokens + result.output_tokens) as u64,
+            total_tokens: (total_input_tokens + total_output_tokens) as u64,
             confidence: status.confidence(),
-            retry_count: 0,
+            retry_count,
         })
     }
 }
@@ -2324,6 +2435,259 @@ mod tests {
         let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
 
         assert_eq!(agent.get_confidence_threshold(), 0.9);
+    }
+
+    // ========================================================================
+    // Retry Logic Tests (v0.22)
+    // ========================================================================
+
+    #[test]
+    fn test_should_retry_returns_false_for_non_low_confidence() {
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Non-LowConfidence statuses should not retry
+        assert!(!agent.should_retry(&RigAgentStatus::NaturalCompletion, 0));
+        assert!(!agent.should_retry(&RigAgentStatus::ExplicitCompletion, 0));
+        assert!(!agent.should_retry(&RigAgentStatus::HighConfidence(0.9), 0));
+        assert!(!agent.should_retry(&RigAgentStatus::MaxTurnsReached, 0));
+    }
+
+    #[test]
+    fn test_should_retry_with_retry_action() {
+        use crate::ast::completion::{
+            CompletionConfig, CompletionMode, ConfidenceConfig, LowConfidenceAction,
+            OnLowConfidenceConfig,
+        };
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.8,
+                    on_low: OnLowConfidenceConfig {
+                        action: LowConfidenceAction::Retry,
+                        max_retries: 3,
+                        feedback: None,
+                    },
+                    routing: None,
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Should retry when under max_retries
+        assert!(agent.should_retry(&RigAgentStatus::LowConfidence(0.5), 0));
+        assert!(agent.should_retry(&RigAgentStatus::LowConfidence(0.5), 1));
+        assert!(agent.should_retry(&RigAgentStatus::LowConfidence(0.5), 2));
+
+        // Should NOT retry when at or above max_retries
+        assert!(!agent.should_retry(&RigAgentStatus::LowConfidence(0.5), 3));
+        assert!(!agent.should_retry(&RigAgentStatus::LowConfidence(0.5), 4));
+    }
+
+    #[test]
+    fn test_should_retry_with_accept_action() {
+        use crate::ast::completion::{
+            CompletionConfig, CompletionMode, ConfidenceConfig, LowConfidenceAction,
+            OnLowConfidenceConfig,
+        };
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.8,
+                    on_low: OnLowConfidenceConfig {
+                        action: LowConfidenceAction::Accept,
+                        max_retries: 3,
+                        feedback: None,
+                    },
+                    routing: None,
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Accept action should never retry
+        assert!(!agent.should_retry(&RigAgentStatus::LowConfidence(0.5), 0));
+    }
+
+    #[test]
+    fn test_should_retry_with_escalate_action() {
+        use crate::ast::completion::{
+            CompletionConfig, CompletionMode, ConfidenceConfig, LowConfidenceAction,
+            OnLowConfidenceConfig,
+        };
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.8,
+                    on_low: OnLowConfidenceConfig {
+                        action: LowConfidenceAction::Escalate,
+                        max_retries: 3,
+                        feedback: None,
+                    },
+                    routing: None,
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Escalate action should never retry
+        assert!(!agent.should_retry(&RigAgentStatus::LowConfidence(0.5), 0));
+    }
+
+    #[test]
+    fn test_should_retry_without_confidence_config() {
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            ..Default::default() // No completion config
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Without config, should not retry (no on_low config)
+        assert!(!agent.should_retry(&RigAgentStatus::LowConfidence(0.5), 0));
+    }
+
+    #[test]
+    fn test_get_retry_feedback_default() {
+        use crate::ast::completion::{CompletionConfig, CompletionMode, ConfidenceConfig};
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.8,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        let feedback = agent.get_retry_feedback(0.5);
+        assert!(feedback.contains("RETRY"));
+        assert!(feedback.contains("0.50")); // Confidence value
+        assert!(feedback.contains("0.80")); // Threshold value
+    }
+
+    #[test]
+    fn test_get_retry_feedback_custom() {
+        use crate::ast::completion::{
+            CompletionConfig, CompletionMode, ConfidenceConfig, LowConfidenceAction,
+            OnLowConfidenceConfig,
+        };
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.8,
+                    on_low: OnLowConfidenceConfig {
+                        action: LowConfidenceAction::Retry,
+                        max_retries: 2,
+                        feedback: Some("Please verify your sources and provide citations".to_string()),
+                    },
+                    routing: None,
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        let feedback = agent.get_retry_feedback(0.6);
+        assert!(feedback.contains("RETRY"));
+        assert!(feedback.contains("0.60")); // Confidence value
+        assert!(feedback.contains("verify your sources")); // Custom feedback
+    }
+
+    #[test]
+    fn test_get_low_confidence_config_present() {
+        use crate::ast::completion::{
+            CompletionConfig, CompletionMode, ConfidenceConfig, LowConfidenceAction,
+            OnLowConfidenceConfig,
+        };
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.8,
+                    on_low: OnLowConfidenceConfig {
+                        action: LowConfidenceAction::Retry,
+                        max_retries: 5,
+                        feedback: Some("Custom".to_string()),
+                    },
+                    routing: None,
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        let config = agent.get_low_confidence_config().unwrap();
+        assert_eq!(config.action, LowConfidenceAction::Retry);
+        assert_eq!(config.max_retries, 5);
+        assert_eq!(config.feedback, Some("Custom".to_string()));
+    }
+
+    #[test]
+    fn test_get_low_confidence_config_absent() {
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        assert!(agent.get_low_confidence_config().is_none());
     }
 
     // ========================================================================
