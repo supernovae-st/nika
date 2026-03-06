@@ -211,8 +211,12 @@ impl LanguageServer for NikaLanguageServer {
         let text = docs.get(uri).cloned().unwrap_or_default();
 
         // Use AST-aware completion for semantic context
-        let completions =
-            handlers::completion::compute_completions_with_ast(&self.ast_index, uri, &text, position);
+        let completions = handlers::completion::compute_completions_with_ast(
+            &self.ast_index,
+            uri,
+            &text,
+            position,
+        );
         Ok(Some(CompletionResponse::Array(completions)))
     }
 
@@ -273,8 +277,10 @@ impl LanguageServer for NikaLanguageServer {
         let docs = self.documents.read().await;
         let text = docs.get(uri).cloned().unwrap_or_default();
 
-        let symbols = handlers::symbols::compute_document_symbols(&text);
-        Ok(Some(DocumentSymbolResponse::Flat(symbols)))
+        // Use AST-aware symbols for hierarchical structure (tasks contain verbs)
+        let symbols =
+            handlers::symbols::compute_document_symbols_with_ast(&self.ast_index, uri, &text);
+        Ok(Some(DocumentSymbolResponse::Nested(symbols)))
     }
 }
 

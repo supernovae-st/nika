@@ -62,7 +62,9 @@ pub fn compute_completions_with_ast(
     match context {
         CompletionContext::TopLevel => top_level_completions(),
         CompletionContext::TaskField => task_field_completions(),
-        CompletionContext::VerbValue(verb) => verb_value_completions_with_ast(&verb, ast_index, uri),
+        CompletionContext::VerbValue(verb) => {
+            verb_value_completions_with_ast(&verb, ast_index, uri)
+        }
         CompletionContext::UseBinding => binding_completions_with_ast(ast_index, uri, text),
         CompletionContext::McpServer => mcp_server_completions(),
         CompletionContext::Template => template_completions_with_ast(ast_index, uri, text),
@@ -610,7 +612,11 @@ fn template_completions(text: &str) -> Vec<CompletionItem> {
 ///
 /// For `invoke:` and `agent:` verbs, provides MCP server names from the AST.
 #[cfg(feature = "lsp")]
-fn verb_value_completions_with_ast(verb: &str, ast_index: &AstIndex, uri: &Url) -> Vec<CompletionItem> {
+fn verb_value_completions_with_ast(
+    verb: &str,
+    ast_index: &AstIndex,
+    uri: &Url,
+) -> Vec<CompletionItem> {
     // Get base verb completions
     let mut items = verb_value_completions(verb);
 
@@ -638,7 +644,11 @@ fn verb_value_completions_with_ast(verb: &str, ast_index: &AstIndex, uri: &Url) 
 ///
 /// Uses the parsed AST to get task IDs instead of text extraction.
 #[cfg(feature = "lsp")]
-fn binding_completions_with_ast(ast_index: &AstIndex, uri: &Url, text: &str) -> Vec<CompletionItem> {
+fn binding_completions_with_ast(
+    ast_index: &AstIndex,
+    uri: &Url,
+    text: &str,
+) -> Vec<CompletionItem> {
     // Try to get task names from AST first
     let task_ids = ast_index.get_task_names(uri);
 
@@ -667,7 +677,11 @@ fn binding_completions_with_ast(ast_index: &AstIndex, uri: &Url, text: &str) -> 
 ///
 /// Provides accurate task IDs and context file names from the parsed AST.
 #[cfg(feature = "lsp")]
-fn template_completions_with_ast(ast_index: &AstIndex, uri: &Url, text: &str) -> Vec<CompletionItem> {
+fn template_completions_with_ast(
+    ast_index: &AstIndex,
+    uri: &Url,
+    text: &str,
+) -> Vec<CompletionItem> {
     let mut items = vec![
         CompletionItem {
             label: "use.".to_string(),

@@ -794,7 +794,7 @@ tasks:
         let ast_index = AstIndex::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
         let text = "    infer: \"Hello\""; // Just verb line without full workflow
-        // Don't parse - so AST returns None, fallback to text-based
+                                           // Don't parse - so AST returns None, fallback to text-based
 
         let hover = compute_hover_with_ast(
             &ast_index,

@@ -273,7 +273,8 @@ fn find_template_definition_with_ast(
 
                 // Handle {{$task}} → find task definition
                 if let Some(task_id) = template.strip_prefix('$') {
-                    if let Some(location) = find_task_location_with_ast(text, task_id, ast_index, uri)
+                    if let Some(location) =
+                        find_task_location_with_ast(text, task_id, ast_index, uri)
                     {
                         return Some(GotoDefinitionResponse::Scalar(location));
                     }
@@ -651,7 +652,10 @@ tasks:
         ast_index.parse_document(&uri, text, 0);
 
         // Position on a line with no definition target (line 0, schema)
-        let position = Position { line: 0, character: 5 };
+        let position = Position {
+            line: 0,
+            character: 5,
+        };
         let response = find_definition_with_ast(&ast_index, &uri, text, position);
 
         assert!(response.is_none());
