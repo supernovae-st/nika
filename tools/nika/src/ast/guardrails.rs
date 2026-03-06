@@ -400,9 +400,9 @@ pub struct RegexGuardrail {
     pub on_failure: OnFailure,
 
     /// PERF(v0.25.1): Cached compiled regex to avoid recompilation on each check().
-    /// Initialized lazily on first access via get_compiled().
+    /// Stores Option<Regex> to handle compilation errors gracefully.
     #[serde(skip)]
-    compiled: OnceLock<regex::Regex>,
+    compiled: OnceLock<Option<regex::Regex>>,
 }
 
 impl Clone for RegexGuardrail {
@@ -419,26 +419,55 @@ impl Clone for RegexGuardrail {
     }
 }
 
+impl Default for RegexGuardrail {
+    fn default() -> Self {
+        Self {
+            id: None,
+            pattern: String::new(),
+            negate: false,
+            message: None,
+            on_failure: OnFailure::default(),
+            compiled: OnceLock::new(),
+        }
+    }
+}
+
 impl RegexGuardrail {
+    /// PERF(v0.25.1): Get or compile the regex pattern once.
+    /// Uses OnceLock for thread-safe lazy initialization.
+    ///
+    /// Returns None if pattern is invalid (should be caught by validate()).
+    fn get_compiled(&self) -> Option<&regex::Regex> {
+        // OnceLock::get_or_init is stable; we store Option<Regex> to handle errors
+        self.compiled
+            .get_or_init(|| regex::Regex::new(&self.pattern).ok())
+            .as_ref()
+    }
+
     /// Validate the guardrail configuration.
     pub fn validate(&self) -> Result<(), String> {
-        // Verify pattern is a valid regex
-        regex::Regex::new(&self.pattern)
-            .map_err(|e| format!("regex guardrail: invalid pattern '{}': {}", self.pattern, e))?;
-        Ok(())
+        // Verify pattern is a valid regex (also caches it for later use)
+        match self.get_compiled() {
+            Some(_) => Ok(()),
+            None => Err(format!(
+                "regex guardrail: invalid pattern '{}'",
+                self.pattern
+            )),
+        }
     }
 
     /// Check if the output passes this guardrail.
     pub fn check(&self, output: &str) -> GuardrailResult {
         let id = self.id.clone().unwrap_or_else(|| "regex".to_string());
 
-        let re = match regex::Regex::new(&self.pattern) {
-            Ok(r) => r,
-            Err(e) => {
+        // PERF(v0.25.1): Use cached compiled regex instead of recompiling
+        let re = match self.get_compiled() {
+            Some(r) => r,
+            None => {
                 return GuardrailResult::failed_with_action(
                     id,
                     "regex",
-                    format!("Invalid regex pattern: {}", e),
+                    format!("Invalid regex pattern: {}", self.pattern),
                     self.on_failure,
                 );
             }
@@ -487,7 +516,7 @@ impl RegexGuardrail {
 ///   max_tokens: 100
 ///   on_failure: escalate
 /// ```
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct LlmGuardrail {
     /// Optional guardrail ID for logging
     #[serde(default)]
@@ -525,6 +554,43 @@ pub struct LlmGuardrail {
     /// Action to take on failure (v0.25)
     #[serde(default)]
     pub on_failure: OnFailure,
+
+    /// PERF(v0.25.1): Cached compiled pass_pattern regex.
+    /// Stores Option<Regex> to handle compilation errors gracefully.
+    #[serde(skip)]
+    compiled_pass_pattern: OnceLock<Option<regex::Regex>>,
+}
+
+impl Clone for LlmGuardrail {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            judge_prompt: self.judge_prompt.clone(),
+            pass_pattern: self.pass_pattern.clone(),
+            model: self.model.clone(),
+            max_tokens: self.max_tokens,
+            temperature: self.temperature,
+            message: self.message.clone(),
+            on_failure: self.on_failure,
+            compiled_pass_pattern: OnceLock::new(),
+        }
+    }
+}
+
+impl Default for LlmGuardrail {
+    fn default() -> Self {
+        Self {
+            id: None,
+            judge_prompt: String::new(),
+            pass_pattern: default_pass_pattern(),
+            model: None,
+            max_tokens: default_judge_max_tokens(),
+            temperature: default_judge_temperature(),
+            message: None,
+            on_failure: OnFailure::default(),
+            compiled_pass_pattern: OnceLock::new(),
+        }
+    }
 }
 
 fn default_pass_pattern() -> String {
@@ -540,6 +606,14 @@ fn default_judge_temperature() -> f64 {
 }
 
 impl LlmGuardrail {
+    /// PERF(v0.25.1): Get or compile the pass_pattern regex once.
+    /// Returns None if pattern is invalid (should be caught by validate()).
+    fn get_compiled_pass_pattern(&self) -> Option<&regex::Regex> {
+        self.compiled_pass_pattern
+            .get_or_init(|| regex::Regex::new(&self.pass_pattern).ok())
+            .as_ref()
+    }
+
     /// Validate the guardrail configuration.
     pub fn validate(&self) -> Result<(), String> {
         // Validate judge_prompt is not empty
@@ -552,13 +626,13 @@ impl LlmGuardrail {
             return Err("llm guardrail: pass_pattern cannot be empty".to_string());
         }
 
-        // Validate pass_pattern is a valid regex
-        regex::Regex::new(&self.pass_pattern).map_err(|e| {
-            format!(
-                "llm guardrail: invalid pass_pattern '{}': {}",
-                self.pass_pattern, e
-            )
-        })?;
+        // Validate pass_pattern is a valid regex (also caches it)
+        if self.get_compiled_pass_pattern().is_none() {
+            return Err(format!(
+                "llm guardrail: invalid pass_pattern '{}'",
+                self.pass_pattern
+            ));
+        }
 
         // Validate max_tokens is reasonable
         if self.max_tokens == 0 {
@@ -594,13 +668,14 @@ impl LlmGuardrail {
     pub fn check_judge_response(&self, judge_response: &str) -> GuardrailResult {
         let id = self.id.clone().unwrap_or_else(|| "llm".to_string());
 
-        let re = match regex::Regex::new(&self.pass_pattern) {
-            Ok(r) => r,
-            Err(e) => {
+        // PERF(v0.25.1): Use cached compiled regex
+        let re = match self.get_compiled_pass_pattern() {
+            Some(r) => r,
+            None => {
                 return GuardrailResult::failed_with_action(
                     id,
                     "llm",
-                    format!("Invalid pass_pattern: {}", e),
+                    format!("Invalid pass_pattern: {}", self.pass_pattern),
                     self.on_failure,
                 );
             }
@@ -1121,6 +1196,7 @@ mod tests {
             negate: false,
             message: None,
             on_failure: OnFailure::Retry,
+            ..Default::default()
         };
 
         let result = guardrail.check("Summary: This is the summary.");
@@ -1135,6 +1211,7 @@ mod tests {
             negate: false,
             message: Some("Must start with Summary:".to_string()),
             on_failure: OnFailure::Retry,
+            ..Default::default()
         };
 
         let result = guardrail.check("This doesn't start with Summary");
@@ -1150,6 +1227,7 @@ mod tests {
             negate: true, // Must NOT contain TODO or FIXME
             message: None,
             on_failure: OnFailure::Retry,
+            ..Default::default()
         };
 
         // Pass - no TODO/FIXME
@@ -1170,6 +1248,7 @@ mod tests {
             negate: false,
             message: None,
             on_failure: OnFailure::Retry,
+            ..Default::default()
         };
         assert!(guardrail.validate().is_ok());
 
@@ -1180,6 +1259,7 @@ mod tests {
             negate: false,
             message: None,
             on_failure: OnFailure::Retry,
+            ..Default::default()
         };
         assert!(guardrail.validate().is_err());
     }
@@ -1269,6 +1349,7 @@ message: "Must start with Result:"
                 negate: false,
                 message: None,
                 on_failure: OnFailure::Retry,
+                ..Default::default()
             }),
         ];
 
@@ -1298,6 +1379,7 @@ message: "Must start with Result:"
                 negate: false,
                 message: None,
                 on_failure: OnFailure::Retry,
+                ..Default::default()
             }),
         ];
 
@@ -1327,6 +1409,7 @@ message: "Must start with Result:"
             temperature: 0.0,
             message: Some("Content failed safety check".to_string()),
             on_failure: OnFailure::Escalate,
+            ..Default::default()
         };
 
         assert_eq!(guardrail.id, Some("content_safety".to_string()));
@@ -1365,6 +1448,7 @@ judge_prompt: "Is this valid? Respond PASS or FAIL."
             temperature: 0.5,
             message: None,
             on_failure: OnFailure::Retry,
+            ..Default::default()
         };
         assert!(guardrail.validate().is_ok());
 
@@ -1378,6 +1462,7 @@ judge_prompt: "Is this valid? Respond PASS or FAIL."
             temperature: 0.5,
             message: None,
             on_failure: OnFailure::Retry,
+            ..Default::default()
         };
         assert!(guardrail.validate().is_err());
 
@@ -1391,6 +1476,7 @@ judge_prompt: "Is this valid? Respond PASS or FAIL."
             temperature: 0.5,
             message: None,
             on_failure: OnFailure::Retry,
+            ..Default::default()
         };
         assert!(guardrail.validate().is_err());
 
@@ -1404,6 +1490,7 @@ judge_prompt: "Is this valid? Respond PASS or FAIL."
             temperature: 0.5,
             message: None,
             on_failure: OnFailure::Retry,
+            ..Default::default()
         };
         assert!(guardrail.validate().is_err());
     }
@@ -1419,6 +1506,7 @@ judge_prompt: "Is this valid? Respond PASS or FAIL."
             temperature: 0.0,
             message: None,
             on_failure: OnFailure::Retry,
+            ..Default::default()
         };
 
         let prompt = guardrail.build_judge_prompt("Hello world");
@@ -1437,6 +1525,7 @@ judge_prompt: "Is this valid? Respond PASS or FAIL."
             temperature: 0.0,
             message: None,
             on_failure: OnFailure::Retry,
+            ..Default::default()
         };
 
         // Should pass
@@ -1460,6 +1549,7 @@ judge_prompt: "Is this valid? Respond PASS or FAIL."
             temperature: 0.0,
             message: None,
             on_failure: OnFailure::Retry,
+            ..Default::default()
         };
 
         assert!(guardrail.check_judge_response("9/10 - excellent").passed);
@@ -1521,6 +1611,7 @@ on_failure: escalate
                 negate: false,
                 message: None,
                 on_failure: OnFailure::Retry,
+                ..Default::default()
             }),
         ];
 
@@ -1550,6 +1641,7 @@ on_failure: escalate
                 temperature: 0.0,
                 message: None,
                 on_failure: OnFailure::Escalate,
+                ..Default::default()
             }),
         ];
 
@@ -1587,6 +1679,7 @@ on_failure: escalate
                 temperature: 0.0,
                 message: None,
                 on_failure: OnFailure::Retry,
+                ..Default::default()
             }),
         ];
 
@@ -1777,6 +1870,7 @@ on_failure: escalate
                 negate: false,
                 message: None,
                 on_failure: OnFailure::Retry,
+                ..Default::default()
             }),
         ];
 
@@ -1805,6 +1899,7 @@ on_failure: escalate
                 negate: false,
                 message: None,
                 on_failure: OnFailure::Retry,
+                ..Default::default()
             }),
         ];
 
@@ -1844,6 +1939,7 @@ on_failure: escalate
                 negate: false,
                 message: None,
                 on_failure: OnFailure::Retry,
+                ..Default::default()
             }),
         ];
 
@@ -1873,6 +1969,7 @@ on_failure: escalate
                 negate: false,
                 message: None,
                 on_failure: OnFailure::Retry,
+                ..Default::default()
             }),
         ];
 
@@ -1904,6 +2001,7 @@ on_failure: escalate
                 temperature: 0.0,
                 message: None,
                 on_failure: OnFailure::Fail, // Would cause termination if evaluated
+                ..Default::default()
             }),
             GuardrailConfig::Regex(RegexGuardrail {
                 id: Some("g2".to_string()),
@@ -1911,6 +2009,7 @@ on_failure: escalate
                 negate: false,
                 message: None,
                 on_failure: OnFailure::Retry,
+                ..Default::default()
             }),
         ];
 

@@ -34,7 +34,7 @@ pub enum ProviderKind {
 
 impl ProviderKind {
     /// Parse provider kind from string (case-insensitive)
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "claude" | "anthropic" => Some(Self::Claude),
             "openai" | "gpt" => Some(Self::OpenAI),
@@ -328,33 +328,33 @@ mod tests {
 
     #[test]
     fn provider_from_str_claude() {
-        assert_eq!(ProviderKind::from_str("claude"), Some(ProviderKind::Claude));
+        assert_eq!(ProviderKind::parse("claude"), Some(ProviderKind::Claude));
         assert_eq!(
-            ProviderKind::from_str("anthropic"),
+            ProviderKind::parse("anthropic"),
             Some(ProviderKind::Claude)
         );
-        assert_eq!(ProviderKind::from_str("CLAUDE"), Some(ProviderKind::Claude));
+        assert_eq!(ProviderKind::parse("CLAUDE"), Some(ProviderKind::Claude));
     }
 
     #[test]
     fn provider_from_str_openai() {
-        assert_eq!(ProviderKind::from_str("openai"), Some(ProviderKind::OpenAI));
-        assert_eq!(ProviderKind::from_str("gpt"), Some(ProviderKind::OpenAI));
+        assert_eq!(ProviderKind::parse("openai"), Some(ProviderKind::OpenAI));
+        assert_eq!(ProviderKind::parse("gpt"), Some(ProviderKind::OpenAI));
     }
 
     #[test]
     fn provider_from_str_all() {
-        assert!(ProviderKind::from_str("mistral").is_some());
-        assert!(ProviderKind::from_str("groq").is_some());
-        assert!(ProviderKind::from_str("deepseek").is_some());
-        assert!(ProviderKind::from_str("gemini").is_some());
-        assert!(ProviderKind::from_str("ollama").is_some());
+        assert!(ProviderKind::parse("mistral").is_some());
+        assert!(ProviderKind::parse("groq").is_some());
+        assert!(ProviderKind::parse("deepseek").is_some());
+        assert!(ProviderKind::parse("gemini").is_some());
+        assert!(ProviderKind::parse("ollama").is_some());
     }
 
     #[test]
     fn provider_from_str_unknown() {
-        assert_eq!(ProviderKind::from_str("unknown"), None);
-        assert_eq!(ProviderKind::from_str(""), None);
+        assert_eq!(ProviderKind::parse("unknown"), None);
+        assert_eq!(ProviderKind::parse(""), None);
     }
 
     #[test]
