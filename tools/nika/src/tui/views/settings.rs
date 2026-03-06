@@ -309,8 +309,7 @@ impl View for SettingsView {
             KeyCode::Char('2') => ViewAction::SetTheme(CosmicVariant::CosmicDark),
             KeyCode::Char('3') => ViewAction::SetTheme(CosmicVariant::CosmicViolet),
 
-            // ? shows help (Settings includes help - v0.12)
-            KeyCode::Char('?') => ViewAction::None,
+            // ? falls through to app-level Help mode (v0.21.2 fix)
 
             // Enter on Provider opens modal (via chat's Ctrl+P)
             KeyCode::Enter if self.section == SettingsSection::Provider => {

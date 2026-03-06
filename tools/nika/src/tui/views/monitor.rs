@@ -898,8 +898,7 @@ impl View for MonitorView {
                 ViewAction::None
             }
 
-            // ? opens Settings (includes help - v0.12)
-            KeyCode::Char('?') => ViewAction::SwitchView(TuiView::Settings),
+            // ? falls through to app-level Help mode (v0.21.2 fix)
 
             _ => ViewAction::None,
         }
@@ -1265,12 +1264,14 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_key_question_opens_settings() {
+    fn test_handle_key_question_falls_through_to_app() {
+        // '?' is NOT handled by MonitorView - it falls through to app.rs
+        // which triggers TuiMode::Help. This is consistent with all other views.
         let mut view = MonitorView::new();
         let mut state = TuiState::new("test");
         let key = KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE);
         let action = view.handle_key(key, &mut state);
-        assert!(matches!(action, ViewAction::SwitchView(TuiView::Settings)));
+        assert!(matches!(action, ViewAction::None));
     }
 
     #[test]
