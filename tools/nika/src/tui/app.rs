@@ -443,7 +443,7 @@ impl App {
             // 5-view architecture - start in Studio mode for standalone
             current_view: TuiView::Studio,
             input_mode: InputMode::Normal,
-            focus_state: FocusState::new(NavPanelId::ExplorerFiles),
+            focus_state: FocusState::new(NavPanelId::StudioFiles),
             chat_view,
             home_view: Some(home_view),
             studio_view,
@@ -4400,22 +4400,22 @@ mod tests {
         std::fs::write(&workflow_path, "schema: test").unwrap();
         let mut app = App::new(&workflow_path).unwrap();
 
-        // Initial view is Monitor
+        // Initial view is Runner
         assert_eq!(app.current_view, TuiView::Runner);
 
-        // Switch to Home
-        app.switch_view(TuiView::Browse);
-        assert_eq!(app.current_view, TuiView::Browse);
+        // Switch to Studio (default view in 5-view architecture)
+        app.switch_view(TuiView::Studio);
+        assert_eq!(app.current_view, TuiView::Studio);
 
         // Switch to Chat
         app.switch_view(TuiView::Chat);
         assert_eq!(app.current_view, TuiView::Chat);
 
-        // Switch to Studio
-        app.switch_view(TuiView::Editor);
-        assert_eq!(app.current_view, TuiView::Editor);
+        // Switch to Scheduler
+        app.switch_view(TuiView::Scheduler);
+        assert_eq!(app.current_view, TuiView::Scheduler);
 
-        // Switch back to Monitor
+        // Switch back to Runner
         app.switch_view(TuiView::Runner);
         assert_eq!(app.current_view, TuiView::Runner);
     }
@@ -4427,13 +4427,10 @@ mod tests {
         std::fs::write(&workflow_path, "schema: test").unwrap();
         let mut app = App::new(&workflow_path).unwrap();
 
-        // Start at Browse (v0.20 default)
-        app.current_view = TuiView::Browse;
+        // Start at Studio (v0.21 default, 5-view architecture)
+        app.current_view = TuiView::Studio;
 
-        // Next should go Browse -> Editor -> Runner -> Chat -> Scheduler -> Settings -> Browse
-        app.current_view = app.current_view.next();
-        assert_eq!(app.current_view, TuiView::Editor);
-
+        // Next should go Studio -> Runner -> Chat -> Scheduler -> Settings -> Studio
         app.current_view = app.current_view.next();
         assert_eq!(app.current_view, TuiView::Runner);
 
@@ -4447,9 +4444,9 @@ mod tests {
         assert_eq!(app.current_view, TuiView::Settings);
 
         app.current_view = app.current_view.next();
-        assert_eq!(app.current_view, TuiView::Browse);
+        assert_eq!(app.current_view, TuiView::Studio);
 
-        // Prev should go Browse -> Settings
+        // Prev should go Studio -> Settings
         app.current_view = app.current_view.prev();
         assert_eq!(app.current_view, TuiView::Settings);
     }
@@ -4471,7 +4468,7 @@ mod tests {
         assert!(app.is_view_capturing_input());
 
         // Studio in Normal mode is not capturing
-        app.current_view = TuiView::Editor;
+        app.current_view = TuiView::Studio;
         app.studio_view.mode = EditorMode::Normal;
         assert!(!app.is_view_capturing_input());
 
@@ -4479,8 +4476,9 @@ mod tests {
         app.studio_view.mode = EditorMode::Insert;
         assert!(app.is_view_capturing_input());
 
-        // Home and Monitor never capture
-        app.current_view = TuiView::Browse;
+        // Runner never captures
+        app.current_view = TuiView::Studio;
+        app.studio_view.mode = EditorMode::Normal;
         assert!(!app.is_view_capturing_input());
 
         app.current_view = TuiView::Runner;
@@ -4498,8 +4496,8 @@ mod tests {
         std::fs::write(&workflow_path, "schema: test").unwrap();
         let mut app = App::new(&workflow_path).unwrap();
 
-        // Start in Home view
-        app.current_view = TuiView::Browse;
+        // Start in Studio view
+        app.current_view = TuiView::Studio;
         app.input_mode = InputMode::Normal;
 
         // Tab should be routed to view (returns Continue, not SwitchView)
@@ -4519,65 +4517,65 @@ mod tests {
         std::fs::write(&workflow_path, "schema: test").unwrap();
         let mut app = App::new(&workflow_path).unwrap();
 
-        // Start in Home view
-        app.current_view = TuiView::Browse;
+        // Start in Studio view
+        app.current_view = TuiView::Studio;
         app.input_mode = InputMode::Normal;
 
-        // Number keys 1-6 should switch views (matches tab bar order)
+        // Number keys 1-5 should switch views (matches 5-view architecture)
         let action = app.handle_unified_key(KeyCode::Char('1'), KeyModifiers::empty());
         assert_eq!(
             action,
-            Action::SwitchView(TuiView::Browse),
-            "Key '1' should switch to Explorer view"
+            Action::SwitchView(TuiView::Studio),
+            "Key '1' should switch to Studio view"
+        );
+
+        let action = app.handle_unified_key(KeyCode::Char('2'), KeyModifiers::empty());
+        assert_eq!(
+            action,
+            Action::SwitchView(TuiView::Runner),
+            "Key '2' should switch to Runner view"
         );
 
         let action = app.handle_unified_key(KeyCode::Char('3'), KeyModifiers::empty());
         assert_eq!(
             action,
-            Action::SwitchView(TuiView::Editor),
-            "Key '3' should switch to Studio view"
+            Action::SwitchView(TuiView::Chat),
+            "Key '3' should switch to Chat view"
         );
 
+        // v0.21: Keys 4 and 5 for Scheduler and Settings (5-view architecture)
         let action = app.handle_unified_key(KeyCode::Char('4'), KeyModifiers::empty());
         assert_eq!(
             action,
-            Action::SwitchView(TuiView::Runner),
-            "Key '4' should switch to Monitor view"
+            Action::SwitchView(TuiView::Scheduler),
+            "Key '4' should switch to Scheduler view"
         );
 
-        // v0.12: Keys 5 and 6 for Scheduler and Settings
         let action = app.handle_unified_key(KeyCode::Char('5'), KeyModifiers::empty());
         assert_eq!(
             action,
-            Action::SwitchView(TuiView::Scheduler),
-            "Key '5' should switch to Scheduler view"
-        );
-
-        let action = app.handle_unified_key(KeyCode::Char('6'), KeyModifiers::empty());
-        assert_eq!(
-            action,
             Action::SwitchView(TuiView::Settings),
-            "Key '6' should switch to Settings view"
+            "Key '5' should switch to Settings view"
         );
     }
 
     #[test]
-    fn test_number_key_2_switches_to_chat() {
+    fn test_number_key_3_switches_to_chat() {
         let temp_dir = tempfile::tempdir().unwrap();
         let workflow_path = temp_dir.path().join("test.yaml");
         std::fs::write(&workflow_path, "schema: test").unwrap();
         let mut app = App::new(&workflow_path).unwrap();
 
-        // Start in Explorer view
-        app.current_view = TuiView::Browse;
+        // Start in Studio view
+        app.current_view = TuiView::Studio;
         app.input_mode = InputMode::Normal;
 
-        // Key '2' should switch to Chat view (matches tab bar order)
-        let action = app.handle_unified_key(KeyCode::Char('2'), KeyModifiers::empty());
+        // Key '3' should switch to Chat view (5-view architecture)
+        let action = app.handle_unified_key(KeyCode::Char('3'), KeyModifiers::empty());
         assert_eq!(
             action,
             Action::SwitchView(TuiView::Chat),
-            "Key '2' should switch to Chat view"
+            "Key '3' should switch to Chat view"
         );
     }
 
@@ -4610,8 +4608,8 @@ mod tests {
         std::fs::write(&workflow_path, "schema: test").unwrap();
         let mut app = App::new(&workflow_path).unwrap();
 
-        let action = app.convert_view_action(ViewAction::SwitchView(TuiView::Browse));
-        assert_eq!(action, Action::SwitchView(TuiView::Browse));
+        let action = app.convert_view_action(ViewAction::SwitchView(TuiView::Studio));
+        assert_eq!(action, Action::SwitchView(TuiView::Studio));
     }
 
     #[tokio::test]

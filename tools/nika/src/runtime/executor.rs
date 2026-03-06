@@ -2326,10 +2326,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_exec_blocked_by_policy() {
-        // Configure policy to block 'sudo' commands
+        // Configure policy to block custom commands
+        // Note: "sudo" is now in the security blocklist (v0.21.0), so we use custom patterns
         let policy_config = PolicyConfig {
             allow_exec: true,
-            blocked_commands: vec!["sudo".to_string(), "rm -rf".to_string()],
+            blocked_commands: vec!["dangerous_tool".to_string(), "custom_block".to_string()],
             ..Default::default()
         };
         let executor =
@@ -2339,7 +2340,7 @@ mod tests {
 
         let action = TaskAction::Exec {
             exec: ExecParams {
-                command: "sudo apt install".to_string(),
+                command: "dangerous_tool --flag".to_string(),
                 shell: None,
                 timeout: None,
                 cwd: None,
@@ -2355,7 +2356,7 @@ mod tests {
         match result.unwrap_err() {
             NikaError::PolicyViolation { reason } => {
                 assert!(
-                    reason.contains("sudo"),
+                    reason.contains("dangerous_tool"),
                     "Reason should mention blocked pattern"
                 );
             }

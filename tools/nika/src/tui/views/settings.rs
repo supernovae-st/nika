@@ -277,8 +277,8 @@ impl View for SettingsView {
 
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
         match key.code {
-            // Escape returns to Explorer
-            KeyCode::Esc | KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Browse),
+            // Escape returns to Studio
+            KeyCode::Esc | KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Studio),
 
             // Tab/Shift+Tab cycles sections
             KeyCode::Tab => {
@@ -384,12 +384,12 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_key_escape_returns_home() {
+    fn test_handle_key_escape_returns_studio() {
         let mut view = SettingsView::new();
         let mut state = TuiState::new("test");
         let key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
         let action = view.handle_key(key, &mut state);
-        assert!(matches!(action, ViewAction::SwitchView(TuiView::Browse)));
+        assert!(matches!(action, ViewAction::SwitchView(TuiView::Studio)));
     }
 
     #[test]

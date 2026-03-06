@@ -1147,21 +1147,21 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_key_escape_returns_explorer() {
+    fn test_handle_key_escape_returns_studio() {
         let mut view = MonitorView::new();
         let mut state = TuiState::new("test");
         let key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
         let action = view.handle_key(key, &mut state);
-        assert!(matches!(action, ViewAction::SwitchView(TuiView::Browse)));
+        assert!(matches!(action, ViewAction::SwitchView(TuiView::Studio)));
     }
 
     #[test]
-    fn test_handle_key_q_returns_explorer() {
+    fn test_handle_key_q_returns_studio() {
         let mut view = MonitorView::new();
         let mut state = TuiState::new("test");
         let key = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE);
         let action = view.handle_key(key, &mut state);
-        assert!(matches!(action, ViewAction::SwitchView(TuiView::Browse)));
+        assert!(matches!(action, ViewAction::SwitchView(TuiView::Studio)));
     }
 
     #[test]

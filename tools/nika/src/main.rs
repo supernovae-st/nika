@@ -736,20 +736,19 @@ async fn main() {
             use nika::tui::TuiView;
             let initial_view = match view.as_deref() {
                 Some("chat") | Some("c") => Some(TuiView::Chat),
-                Some("editor") | Some("d") | Some("studio") => Some(TuiView::Editor),
+                Some("studio") | Some("editor") | Some("d") | Some("explorer") | Some("e") | Some("home") => Some(TuiView::Studio),
                 Some("runner") | Some("r") | Some("monitor") => Some(TuiView::Runner),
                 Some("scheduler") | Some("s") => Some(TuiView::Scheduler),
                 Some("settings") | Some(",") => Some(TuiView::Settings),
-                Some("explorer") | Some("e") | Some("home") => Some(TuiView::Browse),
                 Some(unknown) => {
                     eprintln!(
-                        "{} Unknown view '{}'. Valid: explorer, chat, editor, runner, scheduler, settings",
+                        "{} Unknown view '{}'. Valid: studio, chat, runner, scheduler, settings",
                         "Error:".red().bold(),
                         unknown
                     );
                     std::process::exit(1);
                 }
-                None => None, // Use default (Explorer)
+                None => None, // Use default (Studio)
             };
             nika::tui::run_tui_with_options(workflow, initial_view).await
         }

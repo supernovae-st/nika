@@ -420,29 +420,36 @@ mod tests {
         let mut view = SchedulerView::new();
         let mut state = TuiState::new("test");
 
-        // Number keys
+        // Number keys (5-view architecture: 1=Studio, 2=Runner, 3=Chat, 4=Scheduler, 5=Settings)
         assert!(matches!(
             view.handle_key(
                 KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE),
                 &mut state
             ),
-            ViewAction::SwitchView(TuiView::Browse)
+            ViewAction::SwitchView(TuiView::Studio)
         ));
         assert!(matches!(
             view.handle_key(
                 KeyEvent::new(KeyCode::Char('2'), KeyModifiers::NONE),
                 &mut state
             ),
+            ViewAction::SwitchView(TuiView::Runner)
+        ));
+        assert!(matches!(
+            view.handle_key(
+                KeyEvent::new(KeyCode::Char('3'), KeyModifiers::NONE),
+                &mut state
+            ),
             ViewAction::SwitchView(TuiView::Chat)
         ));
 
-        // Letter shortcuts
+        // Letter shortcuts (s=Studio, r=Runner, c=Chat, ,=Settings)
         assert!(matches!(
             view.handle_key(
-                KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE),
+                KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE),
                 &mut state
             ),
-            ViewAction::SwitchView(TuiView::Browse)
+            ViewAction::SwitchView(TuiView::Studio)
         ));
     }
 

@@ -175,7 +175,7 @@ impl WorkspaceView {
             editor: YamlEditorPanel::new(),
             focus: WorkspaceFocus::default(),
             ratio: WorkspaceRatio::default(),
-            exit_to: TuiView::Browse,
+            exit_to: TuiView::Studio,
         }
     }
 
@@ -187,7 +187,7 @@ impl WorkspaceView {
             editor: YamlEditorPanel::new(),
             focus: WorkspaceFocus::default(),
             ratio: WorkspaceRatio::default(),
-            exit_to: TuiView::Browse,
+            exit_to: TuiView::Studio,
         }
     }
 
@@ -419,7 +419,7 @@ mod tests {
         let view = WorkspaceView::new();
         assert_eq!(view.focus, WorkspaceFocus::Browser);
         assert_eq!(view.ratio, WorkspaceRatio::Balanced);
-        assert_eq!(view.exit_to, TuiView::Browse);
+        assert_eq!(view.exit_to, TuiView::Studio);
     }
 
     #[test]
@@ -444,25 +444,25 @@ mod tests {
     #[test]
     fn test_handle_key_f10_exits_workspace() {
         let mut view = WorkspaceView::new();
-        view.exit_to = TuiView::Browse;
+        view.exit_to = TuiView::Studio;
         let mut state = TuiState::new("test.nika.yaml");
 
         let key = KeyEvent::new(KeyCode::F(10), KeyModifiers::NONE);
         let action = view.handle_key(key, &mut state);
 
-        assert!(matches!(action, ViewAction::SwitchView(TuiView::Browse)));
+        assert!(matches!(action, ViewAction::SwitchView(TuiView::Studio)));
     }
 
     #[test]
-    fn test_handle_key_f10_exits_to_configured_view() {
+    fn test_handle_key_f10_exits_to_configured_runner_view() {
         let mut view = WorkspaceView::new();
-        view.exit_to = TuiView::Editor;
+        view.exit_to = TuiView::Runner;
         let mut state = TuiState::new("test.nika.yaml");
 
         let key = KeyEvent::new(KeyCode::F(10), KeyModifiers::NONE);
         let action = view.handle_key(key, &mut state);
 
-        assert!(matches!(action, ViewAction::SwitchView(TuiView::Editor)));
+        assert!(matches!(action, ViewAction::SwitchView(TuiView::Runner)));
     }
 
     #[test]

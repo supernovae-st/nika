@@ -623,7 +623,7 @@ impl View for YamlEditorPanel {
 impl YamlEditorPanel {
     fn handle_normal_mode(&mut self, key: KeyEvent) -> ViewAction {
         match key.code {
-            KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Browse),
+            KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Studio),
             // Ctrl+S to save file (must be before plain 's')
             KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 if let Err(e) = self.save_file() {
@@ -674,12 +674,12 @@ impl YamlEditorPanel {
                     ViewAction::Error("No file loaded".to_string())
                 }
             }
-            // View switching: number keys (v0.12 6-Views)
-            KeyCode::Char('1') => ViewAction::SwitchView(TuiView::Browse),
-            KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Chat),
-            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Runner),
-            KeyCode::Char('5') => ViewAction::SwitchView(TuiView::Scheduler),
-            KeyCode::Char('6') => ViewAction::SwitchView(TuiView::Settings),
+            // View switching: number keys (5-view architecture)
+            // 1=Studio (current), 2=Runner, 3=Chat, 4=Scheduler, 5=Settings
+            KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Runner),
+            KeyCode::Char('3') => ViewAction::SwitchView(TuiView::Chat),
+            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Scheduler),
+            KeyCode::Char('5') => ViewAction::SwitchView(TuiView::Settings),
             KeyCode::Up | KeyCode::Char('k') => {
                 self.buffer.cursor_up();
                 ViewAction::None
@@ -1459,8 +1459,8 @@ unknown_field: "should fail""#;
         let key = KeyEvent::from(KeyCode::Char('q'));
         let action = view.handle_key(key, &mut state);
         match action {
-            ViewAction::SwitchView(TuiView::Browse) => {}
-            _ => panic!("Expected SwitchView(Explorer)"),
+            ViewAction::SwitchView(TuiView::Studio) => {}
+            _ => panic!("Expected SwitchView(Studio)"),
         }
     }
 

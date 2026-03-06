@@ -152,7 +152,7 @@ impl SplitView {
             runner: MonitorView::new(),
             focus: SplitFocus::Left,
             ratio: SplitRatio::Equal,
-            exit_to: TuiView::Editor,
+            exit_to: TuiView::Studio,
         }
     }
 
@@ -167,7 +167,7 @@ impl SplitView {
             runner: MonitorView::new(),
             focus: SplitFocus::Left,
             ratio: SplitRatio::Equal,
-            exit_to: TuiView::Editor,
+            exit_to: TuiView::Studio,
         }
     }
 
@@ -340,7 +340,7 @@ mod tests {
         let view = SplitView::new();
         assert_eq!(view.focus, SplitFocus::Left);
         assert_eq!(view.ratio, SplitRatio::Equal);
-        assert_eq!(view.exit_to, TuiView::Editor);
+        assert_eq!(view.exit_to, TuiView::Studio);
     }
 
     #[test]
@@ -458,7 +458,7 @@ mod tests {
         let key = KeyEvent::from(KeyCode::Esc);
         let action = view.handle_key(key, &mut state);
 
-        assert!(matches!(action, ViewAction::SwitchView(TuiView::Editor)));
+        assert!(matches!(action, ViewAction::SwitchView(TuiView::Studio)));
     }
 
     #[test]

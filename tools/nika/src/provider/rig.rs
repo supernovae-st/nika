@@ -2037,13 +2037,12 @@ mod tests {
         // When: auto() is called
         let provider = RigProvider::auto();
 
-        // Then: Should treat whitespace as non-empty (current behavior)
-        // This tests the actual implementation which checks !v.is_empty()
-        // Whitespace is technically non-empty, so it will try Claude
-        // (Note: This may or may not be desired behavior, but we test current)
-        assert!(provider.is_some());
-        // The key is whitespace-only, but is_empty() returns false for "   "
-        assert_eq!(provider.unwrap().name(), "claude");
+        // Then: Should treat whitespace-only as unset (v0.21.0 security fix)
+        // The implementation now uses !v.trim().is_empty() to reject whitespace-only keys
+        assert!(
+            provider.is_none(),
+            "Whitespace-only API key should be treated as unset"
+        );
     }
 
     // =========================================================================

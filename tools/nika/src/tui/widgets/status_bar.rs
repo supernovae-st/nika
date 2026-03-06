@@ -282,16 +282,7 @@ impl<'a> StatusBar<'a> {
                 KeyHint::new("Ctrl+L", "Clear"),
                 KeyHint::new("q", "Quit"),
             ],
-            TuiView::Browse => vec![
-                KeyHint::new("Up/Down", "Navigate"),
-                KeyHint::new("Enter", "Run"),
-                KeyHint::new("e", "Edit"),
-                KeyHint::new("n", "New"),
-                KeyHint::new("/", "Search"),
-                KeyHint::new("c", "Chat"),
-                KeyHint::new("q", "Quit"),
-            ],
-            TuiView::Editor | TuiView::Studio => vec![
+            TuiView::Studio => vec![
                 KeyHint::new("i", "Insert"),
                 KeyHint::new("Esc", "Normal"),
                 KeyHint::new("F5", "Run"),
@@ -320,19 +311,6 @@ impl<'a> StatusBar<'a> {
                 KeyHint::new("Enter", "Select"),
                 KeyHint::new("Esc", "Back"),
                 KeyHint::new("q", "Close"),
-            ],
-            // v0.13: Split view (Editor + Runner)
-            TuiView::Split => vec![
-                KeyHint::new("Tab", "Switch"),
-                KeyHint::new("Ctrl+]", "Ratio"),
-                KeyHint::new("Esc", "Exit"),
-                KeyHint::new("F9", "Exit"),
-            ],
-            // v0.20: Workspace view (Browser + Editor + DAG)
-            TuiView::Workspace => vec![
-                KeyHint::new("Tab", "Panel"),
-                KeyHint::new("Ctrl+]", "Ratio"),
-                KeyHint::new("F10", "Exit"),
             ],
         }
     }
@@ -540,23 +518,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_status_bar_default_hints_explorer() {
+    fn test_status_bar_default_hints_studio() {
         let theme = Theme::dark();
-        let bar = StatusBar::new(TuiView::Browse, &theme);
+        let bar = StatusBar::new(TuiView::Studio, &theme);
         let hints = bar.default_hints();
-        assert!(hints
-            .iter()
-            .any(|h| h.key.as_ref() == "Enter" && h.action.as_ref() == "Run"));
-        assert!(hints
-            .iter()
-            .any(|h| h.key.as_ref() == "e" && h.action.as_ref() == "Edit"));
-    }
-
-    #[test]
-    fn test_status_bar_default_hints_editor() {
-        let theme = Theme::dark();
-        let bar = StatusBar::new(TuiView::Editor, &theme);
-        let hints = bar.default_hints();
+        // Studio view hints include editor-style shortcuts
         assert!(hints
             .iter()
             .any(|h| h.key.as_ref() == "F5" && h.action.as_ref() == "Run"));

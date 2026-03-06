@@ -55,9 +55,10 @@ impl PanelId {
     pub fn panels_for_view(view: TuiView) -> &'static [PanelId] {
         match view {
             TuiView::Studio => &[
-                PanelId::EditorFiles,
-                PanelId::EditorEditor,
-                PanelId::EditorDiagnostics,
+                PanelId::StudioFiles,
+                PanelId::StudioEditor,
+                PanelId::StudioDag,
+                PanelId::StudioDiagnostics,
             ],
             TuiView::Runner => &[
                 PanelId::RunnerMission,
@@ -84,19 +85,19 @@ impl PanelId {
     /// Get the view this panel belongs to
     pub fn view(&self) -> TuiView {
         match self {
-            // Explorer panels map to Studio in 5-view architecture
-            PanelId::ExplorerFiles
-            | PanelId::ExplorerDag
-            | PanelId::ExplorerYaml
-            | PanelId::ExplorerHistory
-            | PanelId::EditorFiles
-            | PanelId::EditorEditor
-            | PanelId::EditorDiagnostics => TuiView::Studio,
+            // Studio panels
+            PanelId::StudioFiles
+            | PanelId::StudioEditor
+            | PanelId::StudioDag
+            | PanelId::StudioDiagnostics => TuiView::Studio,
+            // Chat panels
             PanelId::ChatConversation | PanelId::ChatInput | PanelId::ChatContext => TuiView::Chat,
+            // Runner panels
             PanelId::RunnerMission
             | PanelId::RunnerDag
             | PanelId::RunnerNovanet
             | PanelId::RunnerReasoning => TuiView::Runner,
+            // Scheduler panels
             PanelId::SchedulerList
             | PanelId::SchedulerTimeline
             | PanelId::SchedulerHistory
@@ -107,12 +108,12 @@ impl PanelId {
     /// Get the default panel for a view
     pub fn default_for_view(view: TuiView) -> PanelId {
         match view {
-            TuiView::Studio => PanelId::EditorEditor,
+            TuiView::Studio => PanelId::StudioEditor,
             TuiView::Runner => PanelId::RunnerMission,
             TuiView::Chat => PanelId::ChatInput,
             TuiView::Scheduler => PanelId::SchedulerList,
-            // Settings doesn't have panels
-            TuiView::Settings => PanelId::EditorEditor,
+            // Settings doesn't have panels - default to Studio editor
+            TuiView::Settings => PanelId::StudioEditor,
         }
     }
 }
@@ -201,50 +202,50 @@ mod tests {
 
     #[test]
     fn test_new_focus_state() {
-        let state = FocusState::new(PanelId::ExplorerFiles);
-        assert_eq!(state.current(), PanelId::ExplorerFiles);
+        let state = FocusState::new(PanelId::StudioFiles);
+        assert_eq!(state.current(), PanelId::StudioFiles);
     }
 
     #[test]
     fn test_focus_changes_current() {
-        let mut state = FocusState::new(PanelId::ExplorerFiles);
-        state.focus(PanelId::ExplorerDag);
-        assert_eq!(state.current(), PanelId::ExplorerDag);
+        let mut state = FocusState::new(PanelId::StudioFiles);
+        state.focus(PanelId::StudioDag);
+        assert_eq!(state.current(), PanelId::StudioDag);
     }
 
     #[test]
     fn test_focus_pushes_to_stack() {
-        let mut state = FocusState::new(PanelId::ExplorerFiles);
-        state.focus(PanelId::ExplorerDag);
+        let mut state = FocusState::new(PanelId::StudioFiles);
+        state.focus(PanelId::StudioDag);
         assert!(state.back());
-        assert_eq!(state.current(), PanelId::ExplorerFiles);
+        assert_eq!(state.current(), PanelId::StudioFiles);
     }
 
     #[test]
     fn test_next_panel_cycles() {
-        let mut state = FocusState::new(PanelId::ExplorerFiles);
+        let mut state = FocusState::new(PanelId::StudioFiles);
         state.next_panel();
-        assert_eq!(state.current(), PanelId::ExplorerDag);
+        assert_eq!(state.current(), PanelId::StudioEditor);
         state.next_panel();
-        assert_eq!(state.current(), PanelId::ExplorerYaml);
+        assert_eq!(state.current(), PanelId::StudioDag);
         state.next_panel();
-        assert_eq!(state.current(), PanelId::ExplorerHistory);
+        assert_eq!(state.current(), PanelId::StudioDiagnostics);
         state.next_panel();
-        assert_eq!(state.current(), PanelId::ExplorerFiles); // Cycles back
+        assert_eq!(state.current(), PanelId::StudioFiles); // Cycles back
     }
 
     #[test]
     fn test_prev_panel_cycles() {
-        let mut state = FocusState::new(PanelId::ExplorerFiles);
+        let mut state = FocusState::new(PanelId::StudioFiles);
         state.prev_panel();
-        assert_eq!(state.current(), PanelId::ExplorerHistory); // Wraps to end
+        assert_eq!(state.current(), PanelId::StudioDiagnostics); // Wraps to end
     }
 
     #[test]
     fn test_reset_to_view() {
-        let mut state = FocusState::new(PanelId::ExplorerFiles);
-        state.focus(PanelId::ExplorerDag);
-        state.focus(PanelId::ExplorerYaml);
+        let mut state = FocusState::new(PanelId::StudioFiles);
+        state.focus(PanelId::StudioDag);
+        state.focus(PanelId::StudioEditor);
         state.reset_to_view(TuiView::Chat);
         assert_eq!(state.current(), PanelId::ChatInput);
         assert!(!state.back()); // Stack cleared
@@ -252,8 +253,9 @@ mod tests {
 
     #[test]
     fn test_panels_for_view() {
-        let explorer_panels = PanelId::panels_for_view(TuiView::Browse);
-        assert_eq!(explorer_panels.len(), 4);
+        // Studio has 4 panels (Files, Editor, Dag, Diagnostics)
+        let studio_panels = PanelId::panels_for_view(TuiView::Studio);
+        assert_eq!(studio_panels.len(), 4);
 
         let chat_panels = PanelId::panels_for_view(TuiView::Chat);
         assert_eq!(chat_panels.len(), 3);
@@ -263,14 +265,24 @@ mod tests {
 
         let scheduler_panels = PanelId::panels_for_view(TuiView::Scheduler);
         assert_eq!(scheduler_panels.len(), 4);
+
+        // Settings has no panels
+        let settings_panels = PanelId::panels_for_view(TuiView::Settings);
+        assert_eq!(settings_panels.len(), 0);
     }
 
     #[test]
     fn test_panel_view() {
-        assert_eq!(PanelId::ExplorerFiles.view(), TuiView::Browse);
+        // Studio panels
+        assert_eq!(PanelId::StudioFiles.view(), TuiView::Studio);
+        assert_eq!(PanelId::StudioEditor.view(), TuiView::Studio);
+        assert_eq!(PanelId::StudioDag.view(), TuiView::Studio);
+        assert_eq!(PanelId::StudioDiagnostics.view(), TuiView::Studio);
+        // Chat panels
         assert_eq!(PanelId::ChatInput.view(), TuiView::Chat);
-        assert_eq!(PanelId::EditorEditor.view(), TuiView::Editor);
+        // Runner panels
         assert_eq!(PanelId::RunnerDag.view(), TuiView::Runner);
+        // Scheduler panels
         assert_eq!(PanelId::SchedulerList.view(), TuiView::Scheduler);
     }
 }

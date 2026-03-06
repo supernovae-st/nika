@@ -387,51 +387,35 @@ mod tests {
     }
 
     #[test]
-    fn test_tui_view_all_including_auxiliary_has_all_views() {
-        let views = TuiView::all_including_auxiliary();
-        // 5 core + 4 legacy = 9 total
-        assert_eq!(views.len(), 9);
-        // First 5 should be core views
+    fn test_tui_view_all_has_all_five_views() {
+        let views = TuiView::all();
+        // 5-view architecture v0.21.0
+        assert_eq!(views.len(), 5);
         assert_eq!(views[0], TuiView::Studio);
         assert_eq!(views[1], TuiView::Runner);
         assert_eq!(views[2], TuiView::Chat);
         assert_eq!(views[3], TuiView::Scheduler);
         assert_eq!(views[4], TuiView::Settings);
-        // Last 4 should be legacy aliases
-        assert_eq!(views[5], TuiView::Browse);
-        assert_eq!(views[6], TuiView::Editor);
-        assert_eq!(views[7], TuiView::Split);
-        assert_eq!(views[8], TuiView::Workspace);
     }
 
     #[test]
     fn test_tui_view_is_auxiliary() {
-        // Core views
+        // 5-view architecture: only Settings is auxiliary
         assert!(!TuiView::Studio.is_auxiliary());
         assert!(!TuiView::Runner.is_auxiliary());
         assert!(!TuiView::Chat.is_auxiliary());
         assert!(!TuiView::Scheduler.is_auxiliary());
         assert!(TuiView::Settings.is_auxiliary());
-        // Legacy aliases
-        assert!(!TuiView::Browse.is_auxiliary());
-        assert!(!TuiView::Editor.is_auxiliary());
-        assert!(TuiView::Split.is_auxiliary());
-        assert!(TuiView::Workspace.is_auxiliary());
     }
 
     #[test]
     fn test_tui_view_is_studio() {
-        // Core views - only Studio is studio
+        // 5-view architecture: only Studio is studio
         assert!(TuiView::Studio.is_studio());
         assert!(!TuiView::Runner.is_studio());
         assert!(!TuiView::Chat.is_studio());
         assert!(!TuiView::Scheduler.is_studio());
         assert!(!TuiView::Settings.is_studio());
-        // Legacy aliases - all are studio-family
-        assert!(TuiView::Browse.is_studio());
-        assert!(TuiView::Editor.is_studio());
-        assert!(TuiView::Split.is_studio());
-        assert!(TuiView::Workspace.is_studio());
     }
 
     #[test]
