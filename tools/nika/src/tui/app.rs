@@ -3360,6 +3360,8 @@ impl App {
                         RigAgentStatus::ExplicitCompletion => "🎯", // v0.21
                         RigAgentStatus::HighConfidence(_) => "🎯", // v0.22
                         RigAgentStatus::LowConfidence(_) => "⚠️", // v0.22
+                        RigAgentStatus::FlaggedForReview(_) => "🏳️", // v0.22 routing
+                        RigAgentStatus::Escalated(_) => "📣", // v0.22 routing
                         RigAgentStatus::MaxTurnsReached => "⏱️",
                         RigAgentStatus::StopConditionMet => "🛑",
                         RigAgentStatus::Failed => "❌",

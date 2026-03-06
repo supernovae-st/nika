@@ -56,6 +56,10 @@ pub enum RigAgentStatus {
     HighConfidence(f64),
     /// Agent completed with confidence below threshold (v0.22)
     LowConfidence(f64),
+    /// Agent completed but flagged for review via routing (v0.22)
+    FlaggedForReview(f64),
+    /// Agent escalated to human/other agent via routing (v0.22)
+    Escalated(f64),
     /// Stop condition matched in output
     StopConditionMet,
     /// Maximum turns reached
@@ -72,9 +76,11 @@ impl RigAgentStatus {
     pub fn as_canonical_str(&self) -> &'static str {
         match self {
             Self::NaturalCompletion => "end_turn",
-            Self::ExplicitCompletion => "tool_complete",       // v0.21
-            Self::HighConfidence(_) => "tool_complete_high",   // v0.22
-            Self::LowConfidence(_) => "tool_complete_low",     // v0.22
+            Self::ExplicitCompletion => "tool_complete",         // v0.21
+            Self::HighConfidence(_) => "tool_complete_high",     // v0.22
+            Self::LowConfidence(_) => "tool_complete_low",       // v0.22
+            Self::FlaggedForReview(_) => "tool_complete_flagged", // v0.22 routing
+            Self::Escalated(_) => "escalated",                   // v0.22 routing
             Self::StopConditionMet => "stop_sequence",
             Self::MaxTurnsReached => "max_turns",
             Self::TokenBudgetExceeded => "max_tokens",
@@ -89,6 +95,7 @@ impl RigAgentStatus {
             Self::NaturalCompletion
                 | Self::ExplicitCompletion
                 | Self::HighConfidence(_)
+                | Self::FlaggedForReview(_) // Accepted, just flagged
                 | Self::StopConditionMet
         )
     }
@@ -98,10 +105,23 @@ impl RigAgentStatus {
         matches!(self, Self::LowConfidence(_))
     }
 
+    /// Check if this status was escalated (v0.22)
+    pub fn is_escalated(&self) -> bool {
+        matches!(self, Self::Escalated(_))
+    }
+
+    /// Check if this status is flagged for review (v0.22)
+    pub fn is_flagged(&self) -> bool {
+        matches!(self, Self::FlaggedForReview(_))
+    }
+
     /// Get confidence value if available (v0.22)
     pub fn confidence(&self) -> Option<f64> {
         match self {
-            Self::HighConfidence(c) | Self::LowConfidence(c) => Some(*c),
+            Self::HighConfidence(c)
+            | Self::LowConfidence(c)
+            | Self::FlaggedForReview(c)
+            | Self::Escalated(c) => Some(*c),
             _ => None,
         }
     }
@@ -1515,13 +1535,8 @@ impl RigAgentLoop {
             if let Some(response) = parse_completion_response(output) {
                 // Check if confidence is provided
                 if let Some(confidence) = response.confidence {
-                    // Get threshold from completion config (default: 0.8)
-                    let threshold = self.get_confidence_threshold();
-                    if confidence >= threshold {
-                        return RigAgentStatus::HighConfidence(confidence);
-                    } else {
-                        return RigAgentStatus::LowConfidence(confidence);
-                    }
+                    // Use apply_routing for confidence-based status (v0.22)
+                    return self.apply_routing(confidence);
                 }
             }
             // No confidence provided, treat as explicit completion
@@ -1593,6 +1608,67 @@ impl RigAgentLoop {
             "\n\n[RETRY: Your previous response had confidence {:.2}, which is below the required threshold of {:.2}. Please reconsider your response and provide a higher confidence answer.]",
             confidence, threshold
         )
+    }
+
+    /// Get confidence routing configuration (v0.22)
+    ///
+    /// Returns the ConfidenceRouting if available, or None.
+    fn get_confidence_routing(&self) -> Option<crate::ast::completion::ConfidenceRouting> {
+        self.params
+            .effective_completion()
+            .and_then(|c| c.confidence)
+            .and_then(|conf| conf.routing.clone())
+    }
+
+    /// Apply confidence-based routing (v0.22)
+    ///
+    /// Uses routing configuration to determine the appropriate status
+    /// based on confidence level. If routing is not configured, falls back
+    /// to simple threshold-based High/Low confidence.
+    fn apply_routing(&self, confidence: f64) -> RigAgentStatus {
+        let Some(routing) = self.get_confidence_routing() else {
+            // No routing configured, use simple threshold
+            let threshold = self.get_confidence_threshold();
+            return if confidence >= threshold {
+                RigAgentStatus::HighConfidence(confidence)
+            } else {
+                RigAgentStatus::LowConfidence(confidence)
+            };
+        };
+
+        // Determine which route applies based on confidence
+        // Check high route first (highest min value)
+        if let Some(high_min) = routing.high.min {
+            if confidence >= high_min {
+                return self.route_action_to_status(&routing.high.action, confidence);
+            }
+        }
+
+        // Check medium route (typically >= threshold)
+        if let Some(medium_min) = routing.medium.min {
+            if confidence >= medium_min {
+                return self.route_action_to_status(&routing.medium.action, confidence);
+            }
+        }
+
+        // Default to low route
+        self.route_action_to_status(&routing.low.action, confidence)
+    }
+
+    /// Convert a RouteAction to RigAgentStatus (v0.22)
+    fn route_action_to_status(
+        &self,
+        action: &crate::ast::completion::RouteAction,
+        confidence: f64,
+    ) -> RigAgentStatus {
+        use crate::ast::completion::RouteAction;
+
+        match action {
+            RouteAction::Accept => RigAgentStatus::HighConfidence(confidence),
+            RouteAction::AcceptWithFlag => RigAgentStatus::FlaggedForReview(confidence),
+            RouteAction::Retry => RigAgentStatus::LowConfidence(confidence),
+            RouteAction::Escalate => RigAgentStatus::Escalated(confidence),
+        }
     }
 
     /// Run the agent loop with extended thinking enabled (Claude only).
@@ -2688,6 +2764,345 @@ mod tests {
         let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
 
         assert!(agent.get_low_confidence_config().is_none());
+    }
+
+    // ========================================================================
+    // Confidence Routing Tests (v0.22)
+    // ========================================================================
+
+    #[test]
+    fn test_apply_routing_without_config_uses_threshold() {
+        use crate::ast::completion::{CompletionConfig, CompletionMode, ConfidenceConfig};
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.8,
+                    routing: None, // No routing configured
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // High confidence (>= threshold)
+        let status = agent.apply_routing(0.85);
+        assert!(
+            matches!(status, RigAgentStatus::HighConfidence(c) if c == 0.85),
+            "Expected HighConfidence(0.85), got {:?}",
+            status
+        );
+
+        // Low confidence (< threshold)
+        let status = agent.apply_routing(0.5);
+        assert!(
+            matches!(status, RigAgentStatus::LowConfidence(c) if c == 0.5),
+            "Expected LowConfidence(0.5), got {:?}",
+            status
+        );
+    }
+
+    #[test]
+    fn test_apply_routing_with_high_medium_low_routes() {
+        use crate::ast::completion::{
+            CompletionConfig, CompletionMode, ConfidenceConfig, ConfidenceRoute,
+            ConfidenceRouting, RouteAction,
+        };
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.7,
+                    routing: Some(ConfidenceRouting {
+                        high: ConfidenceRoute {
+                            min: Some(0.85),
+                            action: RouteAction::Accept,
+                            escalate_to: None,
+                        },
+                        medium: ConfidenceRoute {
+                            min: Some(0.7),
+                            action: RouteAction::AcceptWithFlag,
+                            escalate_to: None,
+                        },
+                        low: ConfidenceRoute {
+                            min: None,
+                            action: RouteAction::Escalate,
+                            escalate_to: Some("human".to_string()),
+                        },
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // High confidence route (>= 0.85)
+        let status = agent.apply_routing(0.92);
+        assert!(
+            matches!(status, RigAgentStatus::HighConfidence(c) if c == 0.92),
+            "Expected HighConfidence for 0.92, got {:?}",
+            status
+        );
+
+        // Medium confidence route (>= 0.7, < 0.85)
+        let status = agent.apply_routing(0.75);
+        assert!(
+            matches!(status, RigAgentStatus::FlaggedForReview(c) if c == 0.75),
+            "Expected FlaggedForReview for 0.75, got {:?}",
+            status
+        );
+
+        // Low confidence route (< 0.7)
+        let status = agent.apply_routing(0.5);
+        assert!(
+            matches!(status, RigAgentStatus::Escalated(c) if c == 0.5),
+            "Expected Escalated for 0.5, got {:?}",
+            status
+        );
+    }
+
+    #[test]
+    fn test_apply_routing_retry_action() {
+        use crate::ast::completion::{
+            CompletionConfig, CompletionMode, ConfidenceConfig, ConfidenceRoute,
+            ConfidenceRouting, RouteAction,
+        };
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.7,
+                    routing: Some(ConfidenceRouting {
+                        high: ConfidenceRoute {
+                            min: Some(0.9),
+                            action: RouteAction::Accept,
+                            escalate_to: None,
+                        },
+                        medium: ConfidenceRoute {
+                            min: Some(0.7),
+                            action: RouteAction::AcceptWithFlag,
+                            escalate_to: None,
+                        },
+                        low: ConfidenceRoute {
+                            min: None,
+                            action: RouteAction::Retry, // Low confidence -> retry
+                            escalate_to: None,
+                        },
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Low confidence with Retry action
+        let status = agent.apply_routing(0.5);
+        assert!(
+            matches!(status, RigAgentStatus::LowConfidence(c) if c == 0.5),
+            "Expected LowConfidence for Retry action, got {:?}",
+            status
+        );
+    }
+
+    #[test]
+    fn test_route_action_to_status_all_variants() {
+        use crate::ast::completion::RouteAction;
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        assert!(matches!(
+            agent.route_action_to_status(&RouteAction::Accept, 0.9),
+            RigAgentStatus::HighConfidence(c) if c == 0.9
+        ));
+
+        assert!(matches!(
+            agent.route_action_to_status(&RouteAction::AcceptWithFlag, 0.75),
+            RigAgentStatus::FlaggedForReview(c) if c == 0.75
+        ));
+
+        assert!(matches!(
+            agent.route_action_to_status(&RouteAction::Retry, 0.5),
+            RigAgentStatus::LowConfidence(c) if c == 0.5
+        ));
+
+        assert!(matches!(
+            agent.route_action_to_status(&RouteAction::Escalate, 0.3),
+            RigAgentStatus::Escalated(c) if c == 0.3
+        ));
+    }
+
+    #[test]
+    fn test_get_confidence_routing_present() {
+        use crate::ast::completion::{
+            CompletionConfig, CompletionMode, ConfidenceConfig, ConfidenceRoute,
+            ConfidenceRouting, RouteAction,
+        };
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.7,
+                    routing: Some(ConfidenceRouting {
+                        high: ConfidenceRoute {
+                            min: Some(0.9),
+                            action: RouteAction::Accept,
+                            escalate_to: None,
+                        },
+                        medium: ConfidenceRoute {
+                            min: Some(0.7),
+                            action: RouteAction::AcceptWithFlag,
+                            escalate_to: None,
+                        },
+                        low: ConfidenceRoute {
+                            min: None,
+                            action: RouteAction::Escalate,
+                            escalate_to: Some("human".to_string()),
+                        },
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        let routing = agent.get_confidence_routing();
+        assert!(routing.is_some());
+
+        let r = routing.unwrap();
+        assert_eq!(r.high.min, Some(0.9));
+        assert_eq!(r.high.action, RouteAction::Accept);
+        assert_eq!(r.low.escalate_to, Some("human".to_string()));
+    }
+
+    #[test]
+    fn test_get_confidence_routing_absent() {
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        assert!(agent.get_confidence_routing().is_none());
+    }
+
+    #[test]
+    fn test_flagged_and_escalated_status_properties() {
+        // FlaggedForReview
+        let flagged = RigAgentStatus::FlaggedForReview(0.75);
+        assert_eq!(flagged.as_canonical_str(), "tool_complete_flagged");
+        assert_eq!(flagged.confidence(), Some(0.75));
+        assert!(!flagged.requires_retry());
+
+        // Escalated
+        let escalated = RigAgentStatus::Escalated(0.4);
+        assert_eq!(escalated.as_canonical_str(), "escalated");
+        assert_eq!(escalated.confidence(), Some(0.4));
+        assert!(!escalated.requires_retry());
+    }
+
+    #[test]
+    fn test_determine_status_with_routing() {
+        use crate::ast::completion::{
+            CompletionConfig, CompletionMode, ConfidenceConfig, ConfidenceRoute,
+            ConfidenceRouting, RouteAction,
+        };
+        use crate::runtime::builtin::COMPLETION_MARKER;
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.7,
+                    routing: Some(ConfidenceRouting {
+                        high: ConfidenceRoute {
+                            min: Some(0.85),
+                            action: RouteAction::Accept,
+                            escalate_to: None,
+                        },
+                        medium: ConfidenceRoute {
+                            min: Some(0.7),
+                            action: RouteAction::AcceptWithFlag,
+                            escalate_to: None,
+                        },
+                        low: ConfidenceRoute {
+                            min: None,
+                            action: RouteAction::Escalate,
+                            escalate_to: Some("supervisor".to_string()),
+                        },
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Medium confidence -> FlaggedForReview
+        let response = format!(
+            r#"{{"completed": true, "result": "done", "confidence": 0.78, "marker": "{}"}}"#,
+            COMPLETION_MARKER
+        );
+        let status = agent.determine_status(&response);
+        assert!(
+            matches!(status, RigAgentStatus::FlaggedForReview(c) if (c - 0.78).abs() < 0.001),
+            "Expected FlaggedForReview(0.78), got {:?}",
+            status
+        );
+
+        // Low confidence -> Escalated
+        let response = format!(
+            r#"{{"completed": true, "result": "done", "confidence": 0.5, "marker": "{}"}}"#,
+            COMPLETION_MARKER
+        );
+        let status = agent.determine_status(&response);
+        assert!(
+            matches!(status, RigAgentStatus::Escalated(c) if (c - 0.5).abs() < 0.001),
+            "Expected Escalated(0.5), got {:?}",
+            status
+        );
     }
 
     // ========================================================================
