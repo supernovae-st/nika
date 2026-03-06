@@ -1,4 +1,4 @@
-//! Runtime Module - Workflow execution (v0.21.0)
+//! Runtime Module - Workflow execution (v0.24.0)
 //!
 //! Contains the runtime execution components:
 //! - `runner`: DAG execution with tokio concurrency
@@ -17,6 +17,8 @@
 //! - `policy`: Security policy enforcement for exec/fetch/tokens (v0.13.1)
 //! - `security`: Command validation and blocklist (v0.15.0)
 //! - `artifact_processor`: Task output file persistence (v0.18.0)
+//! - `limit_tracker`: Agent execution limits tracking (v0.24)
+//! - `partial`: Partial completion checkpointing (v0.24)
 //!
 //! This module represents the "how" - runtime execution.
 //! For static structure, see the `ast` module.
@@ -28,7 +30,9 @@ pub mod chat_workflow;
 pub mod context_loader;
 mod executor;
 pub mod hitl;
+pub mod limit_tracker;
 pub mod output;
+pub mod partial;
 pub mod policy;
 pub mod resolver;
 mod rig_agent_loop;
@@ -74,3 +78,9 @@ pub use artifact_processor::{process_task_artifacts, ArtifactProcessResult};
 pub use structured_output::{
     validate_structured_output, StructuredOutputEngine, StructuredOutputResult,
 };
+
+// v0.24.0: Agent execution limits tracking
+pub use limit_tracker::LimitTracker;
+
+// v0.24.0: Partial completion for limit-stopped tasks
+pub use partial::{PartialCheckpoint, PartialResult, StopReason};

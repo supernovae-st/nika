@@ -67,6 +67,12 @@ pub enum RigAgentStatus {
     MaxTurnsReached,
     /// Token budget exceeded
     TokenBudgetExceeded,
+    /// Cost budget exceeded (v0.24)
+    CostLimitReached,
+    /// Duration limit exceeded (v0.24)
+    DurationLimitReached,
+    /// Partial completion with checkpoint saved (v0.24)
+    PartialCompletion,
     /// Agent failed with error
     Failed,
 }
@@ -85,6 +91,9 @@ impl RigAgentStatus {
             Self::StopConditionMet => "stop_sequence",
             Self::MaxTurnsReached => "max_turns",
             Self::TokenBudgetExceeded => "max_tokens",
+            Self::CostLimitReached => "max_cost",        // v0.24
+            Self::DurationLimitReached => "max_duration", // v0.24
+            Self::PartialCompletion => "partial",        // v0.24
             Self::Failed => "error",
         }
     }
@@ -126,6 +135,22 @@ impl RigAgentStatus {
             _ => None,
         }
     }
+
+    /// Check if a resource limit was reached (v0.24)
+    pub fn is_limit_reached(&self) -> bool {
+        matches!(
+            self,
+            Self::MaxTurnsReached
+                | Self::TokenBudgetExceeded
+                | Self::CostLimitReached
+                | Self::DurationLimitReached
+        )
+    }
+
+    /// Check if this is a partial completion (v0.24)
+    pub fn is_partial(&self) -> bool {
+        matches!(self, Self::PartialCompletion)
+    }
 }
 
 /// Result of running the rig-based agent loop
@@ -145,6 +170,10 @@ pub struct RigAgentLoopResult {
     pub retry_count: u32,
     /// Whether all guardrails passed (v0.23)
     pub guardrails_passed: bool,
+    /// Total cost in USD (v0.24)
+    pub cost_usd: f64,
+    /// Partial result if limit reached (v0.24)
+    pub partial_result: Option<super::partial::PartialResult>,
 }
 
 /// Result from streaming execution with token tracking.
@@ -601,6 +630,8 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
+            cost_usd: 0.0,
+            partial_result: None,
         })
     }
 
@@ -685,6 +716,8 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
+            cost_usd: 0.0,
+            partial_result: None,
         })
     }
 
@@ -747,6 +780,8 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
+            cost_usd: 0.0,
+            partial_result: None,
         })
     }
 
@@ -806,6 +841,8 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
+            cost_usd: 0.0,
+            partial_result: None,
         })
     }
 
@@ -868,6 +905,8 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
+            cost_usd: 0.0,
+            partial_result: None,
         })
     }
 
@@ -926,6 +965,8 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
+            cost_usd: 0.0,
+            partial_result: None,
         })
     }
 
@@ -1445,6 +1486,8 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
+            cost_usd: 0.0,
+            partial_result: None,
         })
     }
 
@@ -1534,6 +1577,8 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
+            cost_usd: 0.0,
+            partial_result: None,
         })
     }
 
@@ -1919,6 +1964,8 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
+            cost_usd: 0.0,
+            partial_result: None,
         })
     }
 
@@ -1992,6 +2039,8 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
+            cost_usd: 0.0,
+            partial_result: None,
         })
     }
 
@@ -2256,6 +2305,8 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count,
             guardrails_passed,
+            cost_usd: 0.0,
+            partial_result: None,
         })
     }
 }
@@ -2287,6 +2338,8 @@ mod tests {
             confidence: None,
             retry_count: 0,
             guardrails_passed: true,
+            cost_usd: 0.0,
+            partial_result: None,
         };
         let debug = format!("{:?}", result);
         assert!(debug.contains("NaturalCompletion"));

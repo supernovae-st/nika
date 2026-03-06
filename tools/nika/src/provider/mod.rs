@@ -10,6 +10,17 @@
 //! | `infer:` verb | `RigProvider` + rig-core |
 //! | Tool calling | `NikaMcpTool` (rig `ToolDyn`) |
 //!
+//! ## Cost Calculation (v0.24)
+//!
+//! The `cost` module provides pricing tables and cost calculation for all providers.
+//!
+//! ```rust,ignore
+//! use nika::provider::cost::{calculate_cost, ProviderKind};
+//!
+//! let cost = calculate_cost(ProviderKind::Claude, "claude-sonnet-4-6", 1000, 500);
+//! println!("Cost: ${:.4}", cost);
+//! ```
+//!
 //! ## Example
 //!
 //! ```rust,ignore
@@ -27,7 +38,9 @@
 //! let result = agent.run_claude().await?;
 //! ```
 
+pub mod cost;
 pub mod rig;
 
 // Re-export main types for convenience
+pub use cost::{calculate_cost, format_cost, get_model_pricing, ModelPricing, ProviderKind};
 pub use rig::{NikaMcpTool, RigProvider, StreamResult};

@@ -3366,6 +3366,9 @@ impl App {
                         RigAgentStatus::StopConditionMet => "🛑",
                         RigAgentStatus::Failed => "❌",
                         RigAgentStatus::TokenBudgetExceeded => "💰",
+                        RigAgentStatus::CostLimitReached => "💵", // v0.24
+                        RigAgentStatus::DurationLimitReached => "⏰", // v0.24
+                        RigAgentStatus::PartialCompletion => "📝", // v0.24
                     };
 
                     // Extract final output text
