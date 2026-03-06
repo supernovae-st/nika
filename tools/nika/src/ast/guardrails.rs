@@ -46,6 +46,7 @@
 
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
+use std::sync::OnceLock;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // OnFailure - Escalation behavior (v0.25)
@@ -377,7 +378,7 @@ impl SchemaGuardrail {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Validates output matches a regex pattern.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct RegexGuardrail {
     /// Optional guardrail ID for logging
     #[serde(default)]
@@ -397,6 +398,25 @@ pub struct RegexGuardrail {
     /// Action to take on failure (v0.25)
     #[serde(default)]
     pub on_failure: OnFailure,
+
+    /// PERF(v0.25.1): Cached compiled regex to avoid recompilation on each check().
+    /// Initialized lazily on first access via get_compiled().
+    #[serde(skip)]
+    compiled: OnceLock<regex::Regex>,
+}
+
+impl Clone for RegexGuardrail {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            pattern: self.pattern.clone(),
+            negate: self.negate,
+            message: self.message.clone(),
+            on_failure: self.on_failure,
+            // Start with empty cache - will recompile on first access if needed
+            compiled: OnceLock::new(),
+        }
+    }
 }
 
 impl RegexGuardrail {
