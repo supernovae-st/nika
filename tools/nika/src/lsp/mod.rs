@@ -44,12 +44,15 @@
 //! }
 //! ```
 
+mod ast_index;
 mod capabilities;
 mod conversion;
 mod document_store;
 pub mod handlers;
 mod server;
 mod utils;
+
+pub use ast_index::{AstIndex, AstNode, CachedAst};
 
 pub use capabilities::server_capabilities;
 pub use conversion::{offset_to_position, position_to_offset, span_to_range};
