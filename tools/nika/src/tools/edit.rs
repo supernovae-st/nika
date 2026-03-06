@@ -315,17 +315,10 @@ impl FileTool for EditTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tools::context::testing::setup_test;
     use tempfile::TempDir;
 
-    async fn setup_test() -> (TempDir, Arc<ToolContext>) {
-        let temp_dir = TempDir::new().unwrap();
-        let ctx = Arc::new(ToolContext::new(
-            temp_dir.path().to_path_buf(),
-            super::super::context::PermissionMode::YoloMode,
-        ));
-        (temp_dir, ctx)
-    }
-
+    /// Helper specific to edit tests: creates file and marks it as read
     async fn create_and_read_file(
         temp_dir: &TempDir,
         ctx: &Arc<ToolContext>,

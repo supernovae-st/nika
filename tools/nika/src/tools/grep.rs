@@ -442,42 +442,22 @@ impl FileTool for GrepTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
+    use crate::tools::context::testing::{create_test_tree, setup_test};
 
-    async fn setup_test() -> (TempDir, Arc<ToolContext>) {
-        let temp_dir = TempDir::new().unwrap();
-        let ctx = Arc::new(ToolContext::new(
-            temp_dir.path().to_path_buf(),
-            super::super::context::PermissionMode::YoloMode,
-        ));
-        (temp_dir, ctx)
-    }
-
-    async fn create_test_files(temp_dir: &TempDir) {
-        fs::create_dir_all(temp_dir.path().join("src"))
-            .await
-            .unwrap();
-
-        fs::write(
-            temp_dir.path().join("src/main.rs"),
-            "fn main() {\n    println!(\"Hello\");\n    println!(\"World\");\n}",
+    /// Create standard test files for grep tests
+    async fn create_test_files(temp_dir: &tempfile::TempDir) {
+        create_test_tree(
+            temp_dir,
+            &[
+                (
+                    "src/main.rs",
+                    "fn main() {\n    println!(\"Hello\");\n    println!(\"World\");\n}",
+                ),
+                ("src/lib.rs", "pub fn hello() {\n    // Hello function\n}"),
+                ("README.md", "# Hello World\n\nThis is a test."),
+            ],
         )
-        .await
-        .unwrap();
-
-        fs::write(
-            temp_dir.path().join("src/lib.rs"),
-            "pub fn hello() {\n    // Hello function\n}",
-        )
-        .await
-        .unwrap();
-
-        fs::write(
-            temp_dir.path().join("README.md"),
-            "# Hello World\n\nThis is a test.",
-        )
-        .await
-        .unwrap();
+        .await;
     }
 
     #[tokio::test]

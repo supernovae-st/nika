@@ -152,26 +152,15 @@ pub fn create_rig_file_tools(ctx: Arc<ToolContext>) -> Vec<Box<dyn ToolDyn>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tools::PermissionMode;
-    use tempfile::TempDir;
+    use crate::tools::context::testing::{create_test_file, setup_test};
     use tokio::fs;
-
-    async fn setup_test() -> (TempDir, Arc<ToolContext>) {
-        let temp_dir = TempDir::new().unwrap();
-        let ctx = Arc::new(ToolContext::new(
-            temp_dir.path().to_path_buf(),
-            PermissionMode::YoloMode,
-        ));
-        (temp_dir, ctx)
-    }
 
     #[tokio::test]
     async fn test_rig_file_tool_read() {
         let (temp_dir, ctx) = setup_test().await;
 
         // Create test file
-        let file_path = temp_dir.path().join("test.txt");
-        fs::write(&file_path, "Hello, World!").await.unwrap();
+        let file_path = create_test_file(&temp_dir, "test.txt", "Hello, World!").await;
 
         // Wrap ReadTool
         let rig_tool = RigFileTool::new(ReadTool::new(ctx));
@@ -219,18 +208,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_rig_file_tool_glob() {
+        use crate::tools::context::testing::create_test_tree;
         let (temp_dir, ctx) = setup_test().await;
 
         // Create test files
-        fs::write(temp_dir.path().join("a.rs"), "fn a()")
-            .await
-            .unwrap();
-        fs::write(temp_dir.path().join("b.rs"), "fn b()")
-            .await
-            .unwrap();
-        fs::write(temp_dir.path().join("c.txt"), "text")
-            .await
-            .unwrap();
+        create_test_tree(
+            &temp_dir,
+            &[("a.rs", "fn a()"), ("b.rs", "fn b()"), ("c.txt", "text")],
+        )
+        .await;
 
         let rig_tool = RigFileTool::new(GlobTool::new(ctx));
 

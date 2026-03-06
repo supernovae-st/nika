@@ -211,16 +211,7 @@ impl FileTool for WriteTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
-
-    async fn setup_test() -> (TempDir, Arc<ToolContext>) {
-        let temp_dir = TempDir::new().unwrap();
-        let ctx = Arc::new(ToolContext::new(
-            temp_dir.path().to_path_buf(),
-            super::super::context::PermissionMode::YoloMode,
-        ));
-        (temp_dir, ctx)
-    }
+    use crate::tools::context::testing::setup_test;
 
     #[tokio::test]
     async fn test_write_new_file() {

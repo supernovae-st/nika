@@ -212,43 +212,21 @@ impl FileTool for GlobTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
-    use tokio::fs;
+    use crate::tools::context::testing::{create_test_tree, setup_test};
 
-    async fn setup_test() -> (TempDir, Arc<ToolContext>) {
-        let temp_dir = TempDir::new().unwrap();
-        let ctx = Arc::new(ToolContext::new(
-            temp_dir.path().to_path_buf(),
-            super::super::context::PermissionMode::YoloMode,
-        ));
-        (temp_dir, ctx)
-    }
-
-    async fn create_test_files(temp_dir: &TempDir) {
-        // Create directory structure
-        fs::create_dir_all(temp_dir.path().join("src"))
-            .await
-            .unwrap();
-        fs::create_dir_all(temp_dir.path().join("tests"))
-            .await
-            .unwrap();
-
-        // Create files
-        fs::write(temp_dir.path().join("src/main.rs"), "fn main() {}")
-            .await
-            .unwrap();
-        fs::write(temp_dir.path().join("src/lib.rs"), "pub fn lib() {}")
-            .await
-            .unwrap();
-        fs::write(temp_dir.path().join("tests/test.rs"), "#[test]")
-            .await
-            .unwrap();
-        fs::write(temp_dir.path().join("Cargo.toml"), "[package]")
-            .await
-            .unwrap();
-        fs::write(temp_dir.path().join("README.md"), "# Readme")
-            .await
-            .unwrap();
+    /// Create standard test files for glob tests
+    async fn create_test_files(temp_dir: &tempfile::TempDir) {
+        create_test_tree(
+            temp_dir,
+            &[
+                ("src/main.rs", "fn main() {}"),
+                ("src/lib.rs", "pub fn lib() {}"),
+                ("tests/test.rs", "#[test]"),
+                ("Cargo.toml", "[package]"),
+                ("README.md", "# Readme"),
+            ],
+        )
+        .await;
     }
 
     #[tokio::test]

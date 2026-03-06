@@ -372,6 +372,106 @@ impl std::fmt::Debug for ToolContext {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TEST UTILITIES (SHARED)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Shared test utilities for file tools
+///
+/// This module provides common test setup patterns used across all file tools.
+/// Import in other tool test modules via:
+/// ```ignore
+/// use crate::tools::context::testing::{setup_test, create_test_file};
+/// ```
+#[cfg(test)]
+pub mod testing {
+    use super::*;
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use tempfile::TempDir;
+
+    /// Standard test setup for file tools.
+    ///
+    /// Creates a temporary directory and a ToolContext in YoloMode.
+    /// The TempDir is returned to keep it alive for the duration of the test.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use crate::tools::context::testing::setup_test;
+    ///
+    /// #[tokio::test]
+    /// async fn test_my_tool() {
+    ///     let (temp_dir, ctx) = setup_test().await;
+    ///     // Use ctx for tool operations
+    /// }
+    /// ```
+    pub async fn setup_test() -> (TempDir, Arc<ToolContext>) {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let ctx = Arc::new(ToolContext::new(
+            temp_dir.path().to_path_buf(),
+            PermissionMode::YoloMode,
+        ));
+        (temp_dir, ctx)
+    }
+
+    /// Setup with custom permission mode.
+    ///
+    /// Use this when testing permission checking behavior.
+    pub async fn setup_test_with_mode(mode: PermissionMode) -> (TempDir, Arc<ToolContext>) {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let ctx = Arc::new(ToolContext::new(temp_dir.path().to_path_buf(), mode));
+        (temp_dir, ctx)
+    }
+
+    /// Create a test file with content in the temp directory.
+    ///
+    /// Returns the absolute path to the created file.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let (temp_dir, ctx) = setup_test().await;
+    /// let path = create_test_file(&temp_dir, "test.txt", "Hello World").await;
+    /// ```
+    pub async fn create_test_file(dir: &TempDir, name: &str, content: &str) -> PathBuf {
+        let path = dir.path().join(name);
+        tokio::fs::write(&path, content)
+            .await
+            .expect("Failed to write test file");
+        path
+    }
+
+    /// Create a nested directory structure with test files.
+    ///
+    /// The `files` parameter is a slice of (relative_path, content) tuples.
+    /// Parent directories are created automatically.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let (temp_dir, ctx) = setup_test().await;
+    /// create_test_tree(&temp_dir, &[
+    ///     ("src/main.rs", "fn main() {}"),
+    ///     ("src/lib.rs", "pub mod foo;"),
+    ///     ("tests/test.rs", "#[test] fn it_works() {}"),
+    /// ]).await;
+    /// ```
+    pub async fn create_test_tree(dir: &TempDir, files: &[(&str, &str)]) {
+        for (name, content) in files {
+            let path = dir.path().join(name);
+            if let Some(parent) = path.parent() {
+                tokio::fs::create_dir_all(parent)
+                    .await
+                    .expect("Failed to create directories");
+            }
+            tokio::fs::write(&path, content)
+                .await
+                .expect("Failed to write test file");
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TESTS
 // ═══════════════════════════════════════════════════════════════════════════
 

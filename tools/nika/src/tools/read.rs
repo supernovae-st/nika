@@ -218,31 +218,13 @@ impl FileTool for ReadTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
-    use tokio::fs::File;
-    use tokio::io::AsyncWriteExt;
-
-    async fn setup_test() -> (TempDir, Arc<ToolContext>) {
-        let temp_dir = TempDir::new().unwrap();
-        let ctx = Arc::new(ToolContext::new(
-            temp_dir.path().to_path_buf(),
-            super::super::context::PermissionMode::YoloMode,
-        ));
-        (temp_dir, ctx)
-    }
-
-    async fn create_test_file(dir: &TempDir, name: &str, content: &str) -> String {
-        let path = dir.path().join(name);
-        let mut file = File::create(&path).await.unwrap();
-        file.write_all(content.as_bytes()).await.unwrap();
-        file.flush().await.unwrap(); // Ensure data is written before returning
-        path.to_string_lossy().to_string()
-    }
+    use crate::tools::context::testing::{create_test_file, setup_test};
 
     #[tokio::test]
     async fn test_read_simple_file() {
         let (temp_dir, ctx) = setup_test().await;
-        let file_path = create_test_file(&temp_dir, "test.txt", "line 1\nline 2\nline 3").await;
+        let path = create_test_file(&temp_dir, "test.txt", "line 1\nline 2\nline 3").await;
+        let file_path = path.to_string_lossy().to_string();
 
         let tool = ReadTool::new(ctx);
         let result = tool
@@ -268,7 +250,8 @@ mod tests {
             .map(|i| format!("line {}", i))
             .collect::<Vec<_>>()
             .join("\n");
-        let file_path = create_test_file(&temp_dir, "test.txt", &content).await;
+        let path = create_test_file(&temp_dir, "test.txt", &content).await;
+        let file_path = path.to_string_lossy().to_string();
 
         let tool = ReadTool::new(ctx);
         let result = tool
@@ -291,7 +274,8 @@ mod tests {
     #[tokio::test]
     async fn test_read_line_numbers_format() {
         let (temp_dir, ctx) = setup_test().await;
-        let file_path = create_test_file(&temp_dir, "test.txt", "hello\nworld").await;
+        let path = create_test_file(&temp_dir, "test.txt", "hello\nworld").await;
+        let file_path = path.to_string_lossy().to_string();
 
         let tool = ReadTool::new(ctx);
         let result = tool
@@ -311,8 +295,8 @@ mod tests {
     #[tokio::test]
     async fn test_read_marks_file_as_read() {
         let (temp_dir, ctx) = setup_test().await;
-        let file_path = create_test_file(&temp_dir, "test.txt", "content").await;
-        let path = std::path::PathBuf::from(&file_path);
+        let path = create_test_file(&temp_dir, "test.txt", "content").await;
+        let file_path = path.to_string_lossy().to_string();
 
         assert!(!ctx.was_read(&path));
 
@@ -387,7 +371,8 @@ mod tests {
     #[tokio::test]
     async fn test_file_tool_trait() {
         let (temp_dir, ctx) = setup_test().await;
-        let file_path = create_test_file(&temp_dir, "test.txt", "content").await;
+        let path = create_test_file(&temp_dir, "test.txt", "content").await;
+        let file_path = path.to_string_lossy().to_string();
 
         let tool = ReadTool::new(ctx);
 
