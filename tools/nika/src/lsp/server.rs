@@ -210,7 +210,9 @@ impl LanguageServer for NikaLanguageServer {
         let docs = self.documents.read().await;
         let text = docs.get(uri).cloned().unwrap_or_default();
 
-        let completions = handlers::completion::compute_completions(&text, position);
+        // Use AST-aware completion for semantic context
+        let completions =
+            handlers::completion::compute_completions_with_ast(&self.ast_index, uri, &text, position);
         Ok(Some(CompletionResponse::Array(completions)))
     }
 

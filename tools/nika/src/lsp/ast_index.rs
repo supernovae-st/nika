@@ -289,6 +289,20 @@ impl AstIndex {
         }
         Vec::new()
     }
+
+    /// Get all context file names (aliases) in the document.
+    pub fn get_context_file_names(&self, uri: &Url) -> Vec<String> {
+        if let Some(cached) = self.cache.get(uri) {
+            if let Some(ref analyzed) = cached.analyzed {
+                return analyzed
+                    .context_files
+                    .iter()
+                    .filter_map(|cf| cf.alias.clone())
+                    .collect();
+            }
+        }
+        Vec::new()
+    }
 }
 
 /// AST node types for position-based lookup.
