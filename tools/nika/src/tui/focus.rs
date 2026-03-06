@@ -61,18 +61,7 @@ impl PanelId {
     /// Get all panels for a specific view
     pub fn panels_for_view(view: TuiView) -> &'static [PanelId] {
         match view {
-            TuiView::Browse => &[
-                PanelId::ExplorerFiles,
-                PanelId::ExplorerDag,
-                PanelId::ExplorerYaml,
-                PanelId::ExplorerHistory,
-            ],
-            TuiView::Chat => &[
-                PanelId::ChatConversation,
-                PanelId::ChatInput,
-                PanelId::ChatContext,
-            ],
-            TuiView::Editor | TuiView::Studio => &[
+            TuiView::Studio => &[
                 PanelId::EditorFiles,
                 PanelId::EditorEditor,
                 PanelId::EditorDiagnostics,
@@ -83,18 +72,19 @@ impl PanelId {
                 PanelId::RunnerNovanet,
                 PanelId::RunnerReasoning,
             ],
+            TuiView::Chat => &[
+                PanelId::ChatConversation,
+                PanelId::ChatInput,
+                PanelId::ChatContext,
+            ],
             TuiView::Scheduler => &[
                 PanelId::SchedulerList,
                 PanelId::SchedulerTimeline,
                 PanelId::SchedulerHistory,
                 PanelId::SchedulerCronEditor,
             ],
-            // Settings is auxiliary view without panel navigation (v0.12)
+            // Settings is auxiliary view without panel navigation
             TuiView::Settings => &[],
-            // Split view has its own focus management (v0.13)
-            TuiView::Split => &[],
-            // Workspace view has its own internal focus (v0.20)
-            TuiView::Workspace => &[],
         }
     }
 

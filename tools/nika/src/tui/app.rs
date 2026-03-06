@@ -1605,7 +1605,7 @@ impl App {
                 if let Err(e) = self.studio_view.load_file(path) {
                     tracing::error!("Failed to load file in studio: {}", e);
                 }
-                Action::SwitchView(TuiView::Editor)
+                Action::SwitchView(TuiView::Studio)
             }
             ViewAction::SendChatMessage(msg) => {
                 // v0.12.1: Send message using TaskBox pattern (like /infer)
@@ -2290,15 +2290,11 @@ impl App {
                 if old_view != view {
                     // Call on_leave for the old view
                     match old_view {
-                        TuiView::Chat => self.chat_view.on_leave(&mut self.state),
-                        TuiView::Browse => {
-                            if let Some(ref mut home) = self.home_view {
-                                home.on_leave(&mut self.state);
-                            }
-                        }
-                        TuiView::Editor => self.studio_view.on_leave(&mut self.state),
+                        TuiView::Studio => self.studio_view.on_leave(&mut self.state),
                         TuiView::Runner => self.monitor_view.on_leave(&mut self.state),
-                        _ => {} // Scheduler, Settings - no special handling yet
+                        TuiView::Chat => self.chat_view.on_leave(&mut self.state),
+                        TuiView::Scheduler => {} // No special handling
+                        TuiView::Settings => {}  // No special handling
                     }
                 }
 
@@ -2308,15 +2304,11 @@ impl App {
                 // v0.12.1: Call on_enter for the new view
                 if old_view != view {
                     match view {
-                        TuiView::Chat => self.chat_view.on_enter(&mut self.state),
-                        TuiView::Browse => {
-                            if let Some(ref mut home) = self.home_view {
-                                home.on_enter(&mut self.state);
-                            }
-                        }
-                        TuiView::Editor => self.studio_view.on_enter(&mut self.state),
+                        TuiView::Studio => self.studio_view.on_enter(&mut self.state),
                         TuiView::Runner => self.monitor_view.on_enter(&mut self.state),
-                        _ => {} // Scheduler, Settings - no special handling yet
+                        TuiView::Chat => self.chat_view.on_enter(&mut self.state),
+                        TuiView::Scheduler => {} // No special handling
+                        TuiView::Settings => {}  // No special handling
                     }
                 }
 
