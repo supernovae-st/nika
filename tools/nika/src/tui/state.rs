@@ -2421,6 +2421,37 @@ impl TuiState {
                 ));
                 self.dirty.notifications = true;
             }
+
+            // ═══════════════════════════════════════════
+            // GUARDRAIL EVENTS (v0.23)
+            // ═══════════════════════════════════════════
+            EventKind::GuardrailPassed {
+                task_id,
+                guardrail_type,
+                description,
+            } => {
+                self.add_notification(Notification::success(
+                    format!("🛡️ [{}] Guardrail {} passed: {}", task_id, guardrail_type, description),
+                    timestamp_ms,
+                ));
+                self.dirty.notifications = true;
+            }
+
+            EventKind::GuardrailFailed {
+                task_id,
+                guardrail_type,
+                description,
+                message,
+            } => {
+                self.add_notification(Notification::error(
+                    format!(
+                        "🛡️ [{}] Guardrail {} failed ({}): {}",
+                        task_id, guardrail_type, description, message
+                    ),
+                    timestamp_ms,
+                ));
+                self.dirty.notifications = true;
+            }
         }
     }
 

@@ -1,8 +1,8 @@
-//! EventLog - Event sourcing implementation (v0.4, updated v0.21)
+//! EventLog - Event sourcing implementation (v0.4, updated v0.23)
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 24 variants across 6 levels (workflow/task/fine-grained/MCP/context/structured-output)
+//! - EventKind: 26 variants across 7 levels (workflow/task/fine-grained/MCP/context/guardrails/structured-output)
 //! - EventLog: thread-safe, append-only log
 //!
 //! ## v0.4.1 Changes
@@ -360,6 +360,30 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
+    // GUARDRAIL EVENTS (v0.23)
+    // ═══════════════════════════════════════════
+    /// Guardrail check passed
+    GuardrailPassed {
+        /// Task ID for correlation
+        task_id: Arc<str>,
+        /// Guardrail type: "length", "schema", "regex"
+        guardrail_type: String,
+        /// Human-readable description of the guardrail
+        description: String,
+    },
+    /// Guardrail check failed
+    GuardrailFailed {
+        /// Task ID for correlation
+        task_id: Arc<str>,
+        /// Guardrail type: "length", "schema", "regex"
+        guardrail_type: String,
+        /// Human-readable description of the guardrail
+        description: String,
+        /// Error message explaining why it failed
+        message: String,
+    },
+
+    // ═══════════════════════════════════════════
     // BUILTIN TOOL EVENTS (v0.9.3)
     // ═══════════════════════════════════════════
     /// Log event emitted by nika:log builtin tool
@@ -470,7 +494,9 @@ impl EventKind {
             | Self::ArtifactWritten { task_id, .. }
             | Self::ArtifactFailed { task_id, .. }
             | Self::StructuredOutputAttempt { task_id, .. }
-            | Self::StructuredOutputSuccess { task_id, .. } => Some(task_id),
+            | Self::StructuredOutputSuccess { task_id, .. }
+            | Self::GuardrailPassed { task_id, .. }
+            | Self::GuardrailFailed { task_id, .. } => Some(task_id),
             // AgentSpawned uses parent_task_id as the primary task reference
             Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
             // Log and Custom may optionally have task_id
@@ -1544,5 +1570,158 @@ mod tests {
         } else {
             panic!("Expected StructuredOutputSuccess as last event");
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Guardrail events tests (v0.23)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn guardrail_passed_event() {
+        let log = EventLog::new();
+
+        log.emit(EventKind::GuardrailPassed {
+            task_id: "agent_task".into(),
+            guardrail_type: "length".to_string(),
+            description: "min_words: 10".to_string(),
+        });
+
+        let events = log.filter_task("agent_task");
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::GuardrailPassed {
+            guardrail_type,
+            description,
+            ..
+        } = &events[0].kind
+        {
+            assert_eq!(guardrail_type, "length");
+            assert_eq!(description, "min_words: 10");
+        } else {
+            panic!("Expected GuardrailPassed event");
+        }
+    }
+
+    #[test]
+    fn guardrail_failed_event() {
+        let log = EventLog::new();
+
+        log.emit(EventKind::GuardrailFailed {
+            task_id: "agent_task".into(),
+            guardrail_type: "regex".to_string(),
+            description: "must_contain_email".to_string(),
+            message: "Output does not match pattern: [a-z]+@[a-z]+\\.[a-z]+".to_string(),
+        });
+
+        let events = log.filter_task("agent_task");
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::GuardrailFailed {
+            guardrail_type,
+            description,
+            message,
+            ..
+        } = &events[0].kind
+        {
+            assert_eq!(guardrail_type, "regex");
+            assert_eq!(description, "must_contain_email");
+            assert!(message.contains("does not match pattern"));
+        } else {
+            panic!("Expected GuardrailFailed event");
+        }
+    }
+
+    #[test]
+    fn guardrail_passed_serializes() {
+        let event = EventKind::GuardrailPassed {
+            task_id: "task1".into(),
+            guardrail_type: "schema".to_string(),
+            description: "output_schema".to_string(),
+        };
+
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["type"], "guardrail_passed");
+        assert_eq!(json["task_id"], "task1");
+        assert_eq!(json["guardrail_type"], "schema");
+        assert_eq!(json["description"], "output_schema");
+    }
+
+    #[test]
+    fn guardrail_failed_serializes() {
+        let event = EventKind::GuardrailFailed {
+            task_id: "task1".into(),
+            guardrail_type: "length".to_string(),
+            description: "max_chars: 100".to_string(),
+            message: "Output has 150 chars, max is 100".to_string(),
+        };
+
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["type"], "guardrail_failed");
+        assert_eq!(json["task_id"], "task1");
+        assert_eq!(json["guardrail_type"], "length");
+        assert_eq!(json["description"], "max_chars: 100");
+        assert_eq!(json["message"], "Output has 150 chars, max is 100");
+    }
+
+    #[test]
+    fn guardrail_events_task_id_extraction() {
+        let passed = EventKind::GuardrailPassed {
+            task_id: "guard1".into(),
+            guardrail_type: "length".to_string(),
+            description: "min_words: 5".to_string(),
+        };
+        assert_eq!(passed.task_id(), Some("guard1"));
+
+        let failed = EventKind::GuardrailFailed {
+            task_id: "guard2".into(),
+            guardrail_type: "regex".to_string(),
+            description: "pattern".to_string(),
+            message: "No match".to_string(),
+        };
+        assert_eq!(failed.task_id(), Some("guard2"));
+    }
+
+    #[test]
+    fn guardrail_events_full_workflow() {
+        // Simulates a guardrail check workflow with mixed pass/fail
+        let log = EventLog::new();
+
+        // Length guardrail passes
+        log.emit(EventKind::GuardrailPassed {
+            task_id: "validate_output".into(),
+            guardrail_type: "length".to_string(),
+            description: "min_words: 10, max_words: 100".to_string(),
+        });
+
+        // Schema guardrail fails
+        log.emit(EventKind::GuardrailFailed {
+            task_id: "validate_output".into(),
+            guardrail_type: "schema".to_string(),
+            description: "json_schema".to_string(),
+            message: "Missing required field: 'title'".to_string(),
+        });
+
+        // Regex guardrail passes
+        log.emit(EventKind::GuardrailPassed {
+            task_id: "validate_output".into(),
+            guardrail_type: "regex".to_string(),
+            description: "contains_email".to_string(),
+        });
+
+        let events = log.filter_task("validate_output");
+        assert_eq!(events.len(), 3);
+
+        // Count passes and fails
+        let passed_count = events
+            .iter()
+            .filter(|e| matches!(&e.kind, EventKind::GuardrailPassed { .. }))
+            .count();
+        let failed_count = events
+            .iter()
+            .filter(|e| matches!(&e.kind, EventKind::GuardrailFailed { .. }))
+            .count();
+
+        assert_eq!(passed_count, 2);
+        assert_eq!(failed_count, 1);
     }
 }

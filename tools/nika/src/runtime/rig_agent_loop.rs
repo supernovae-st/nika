@@ -32,6 +32,7 @@ use rustc_hash::FxHashMap;
 use serde_json::Value;
 use tokio::time::timeout;
 
+use crate::ast::guardrails::{run_guardrails, GuardrailResult};
 use crate::ast::AgentParams;
 use crate::ast::ToolChoice as NikaToolChoice;
 use crate::error::NikaError;
@@ -142,6 +143,8 @@ pub struct RigAgentLoopResult {
     pub confidence: Option<f64>,
     /// Number of retries due to low confidence (v0.22)
     pub retry_count: u32,
+    /// Whether all guardrails passed (v0.23)
+    pub guardrails_passed: bool,
 }
 
 /// Result from streaming execution with token tracking.
@@ -587,6 +590,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
+        // Check guardrails (v0.23)
+        let guardrails_passed = self.check_guardrails(&response);
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
             turns: turn_index as usize,
@@ -594,6 +600,7 @@ impl RigAgentLoop {
             total_tokens: 0,
             confidence: status.confidence(),
             retry_count: 0,
+            guardrails_passed,
         })
     }
 
@@ -667,6 +674,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
+        // Check guardrails (v0.23)
+        let guardrails_passed = self.check_guardrails(&response);
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
             turns: turn_index as usize,
@@ -674,6 +684,7 @@ impl RigAgentLoop {
             total_tokens: 0,
             confidence: status.confidence(),
             retry_count: 0,
+            guardrails_passed,
         })
     }
 
@@ -725,6 +736,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
+        // Check guardrails (v0.23)
+        let guardrails_passed = self.check_guardrails(&response);
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
             turns: turn_index as usize,
@@ -732,6 +746,7 @@ impl RigAgentLoop {
             total_tokens: 0,
             confidence: status.confidence(),
             retry_count: 0,
+            guardrails_passed,
         })
     }
 
@@ -780,6 +795,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
+        // Check guardrails (v0.23)
+        let guardrails_passed = self.check_guardrails(&response);
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
             turns: turn_index as usize,
@@ -787,6 +805,7 @@ impl RigAgentLoop {
             total_tokens: 0,
             confidence: status.confidence(),
             retry_count: 0,
+            guardrails_passed,
         })
     }
 
@@ -1517,6 +1536,50 @@ impl RigAgentLoop {
     fn check_completion_signal(&self, output: &str) -> bool {
         use crate::runtime::builtin::COMPLETION_MARKER;
         output.contains(COMPLETION_MARKER)
+    }
+
+    /// Run all configured guardrails against the output (v0.23)
+    ///
+    /// Emits `GuardrailPassed` or `GuardrailFailed` events for each guardrail.
+    /// Returns `true` if all guardrails pass, `false` if any fail.
+    pub fn check_guardrails(&self, output: &str) -> bool {
+        if self.params.guardrails.is_empty() {
+            return true;
+        }
+
+        let results = run_guardrails(&self.params.guardrails, output);
+        let mut all_passed = true;
+
+        for result in results {
+            let task_id = Arc::from(self.task_id.as_str());
+            match result {
+                GuardrailResult::Passed {
+                    guardrail_type,
+                    description,
+                } => {
+                    self.event_log.emit(EventKind::GuardrailPassed {
+                        task_id,
+                        guardrail_type,
+                        description,
+                    });
+                }
+                GuardrailResult::Failed {
+                    guardrail_type,
+                    description,
+                    message,
+                } => {
+                    self.event_log.emit(EventKind::GuardrailFailed {
+                        task_id,
+                        guardrail_type,
+                        description,
+                        message,
+                    });
+                    all_passed = false;
+                }
+            }
+        }
+
+        all_passed
     }
 
     /// Determine agent status based on output content (v0.21 + v0.22)
