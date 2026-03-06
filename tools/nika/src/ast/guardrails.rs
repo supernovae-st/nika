@@ -797,14 +797,6 @@ pub fn run_sync_guardrails(guardrails: &[GuardrailConfig], output: &str) -> Vec<
 }
 
 /// Run all guardrails against an output (legacy, sync only).
-///
-/// **Deprecated:** Use `run_sync_guardrails` for sync guardrails
-/// or the async `GuardrailRunner` for full support including LLM.
-#[deprecated(since = "0.25.0", note = "Use run_sync_guardrails for sync checks")]
-pub fn run_guardrails(guardrails: &[GuardrailConfig], output: &str) -> Vec<GuardrailResult> {
-    run_sync_guardrails(guardrails, output)
-}
-
 /// Check if all guardrails passed.
 pub fn all_guardrails_passed(results: &[GuardrailResult]) -> bool {
     results.iter().all(|r| r.passed)
