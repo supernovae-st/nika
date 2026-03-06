@@ -736,7 +736,8 @@ async fn main() {
             use nika::tui::TuiView;
             let initial_view = match view.as_deref() {
                 Some("chat") | Some("c") => Some(TuiView::Chat),
-                Some("studio") | Some("editor") | Some("d") | Some("explorer") | Some("e") | Some("home") => Some(TuiView::Studio),
+                Some("studio") | Some("editor") | Some("d") | Some("explorer") | Some("e")
+                | Some("home") => Some(TuiView::Studio),
                 Some("runner") | Some("r") | Some("monitor") => Some(TuiView::Runner),
                 Some("scheduler") | Some("s") => Some(TuiView::Scheduler),
                 Some("settings") | Some(",") => Some(TuiView::Settings),
@@ -3492,10 +3493,7 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
 
             // Generate task ID if not provided
             let task_id = id.unwrap_or_else(|| {
-                format!(
-                    "task_{}",
-                    chrono::Utc::now().timestamp_millis() % 10000
-                )
+                format!("task_{}", chrono::Utc::now().timestamp_millis() % 10000)
             });
 
             // Default verb is infer
@@ -3638,10 +3636,7 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
                 "mermaid" => generate_mermaid_dag(&workflow),
                 _ => {
                     return Err(NikaError::ValidationError {
-                        reason: format!(
-                            "Unknown format '{}'. Valid: ascii, dot, mermaid",
-                            format
-                        ),
+                        reason: format!("Unknown format '{}'. Valid: ascii, dot, mermaid", format),
                     });
                 }
             };
@@ -3727,7 +3722,8 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
 
             // Check for unused tasks (not referenced in flows or use blocks)
             if suggest {
-                let mut referenced: std::collections::HashSet<&str> = std::collections::HashSet::new();
+                let mut referenced: std::collections::HashSet<&str> =
+                    std::collections::HashSet::new();
                 for flow in &workflow.flows {
                     for target in flow.target.as_vec() {
                         referenced.insert(target);
@@ -3781,11 +3777,7 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
 
                     if issues.is_empty() {
                         if !quiet {
-                            println!(
-                                "{} {} is valid",
-                                "✓".green(),
-                                file.display()
-                            );
+                            println!("{} {} is valid", "✓".green(), file.display());
                         }
                     } else {
                         for (level, code, msg) in &issues {
@@ -3912,11 +3904,11 @@ fn generate_mermaid_dag(workflow: &nika::ast::Workflow) -> String {
     // Add nodes with styling
     for task in &workflow.tasks {
         let shape = match &task.action {
-            nika::ast::TaskAction::Infer { .. } => ("([", "])"),  // Stadium
-            nika::ast::TaskAction::Exec { .. } => ("[", "]"),     // Rectangle
-            nika::ast::TaskAction::Fetch { .. } => ("{{", "}}"),  // Hexagon
+            nika::ast::TaskAction::Infer { .. } => ("([", "])"), // Stadium
+            nika::ast::TaskAction::Exec { .. } => ("[", "]"),    // Rectangle
+            nika::ast::TaskAction::Fetch { .. } => ("{{", "}}"), // Hexagon
             nika::ast::TaskAction::Invoke { .. } => ("[[", "]]"), // Subroutine
-            nika::ast::TaskAction::Agent { .. } => ("((", "))"),  // Circle
+            nika::ast::TaskAction::Agent { .. } => ("((", "))"), // Circle
         };
         let verb = match &task.action {
             nika::ast::TaskAction::Infer { .. } => "infer",

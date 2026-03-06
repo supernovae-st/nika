@@ -899,7 +899,6 @@ impl View for MonitorView {
             }
 
             // ? falls through to app-level Help mode (v0.21.2 fix)
-
             _ => ViewAction::None,
         }
     }

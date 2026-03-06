@@ -234,7 +234,7 @@ mod tests {
         assert!(router.has_tool("prompt"));
         assert!(router.has_tool("run"));
         assert!(router.has_tool("complete")); // v0.21
-        // new() does NOT include file tools
+                                              // new() does NOT include file tools
         assert!(!router.has_tool("read"));
         assert!(!router.has_tool("write"));
         assert_eq!(router.tool_names().len(), 7); // 6 core + complete

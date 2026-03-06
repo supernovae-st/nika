@@ -195,10 +195,12 @@ impl BuiltinTool for CompleteTool {
                 })?;
 
             // Validate parameters
-            params.validate().map_err(|e| NikaError::BuiltinInvalidParams {
-                tool: "nika:complete".into(),
-                reason: e,
-            })?;
+            params
+                .validate()
+                .map_err(|e| NikaError::BuiltinInvalidParams {
+                    tool: "nika:complete".into(),
+                    reason: e,
+                })?;
 
             tracing::debug!(
                 target: "nika_complete",
@@ -305,9 +307,7 @@ mod tests {
     async fn test_complete_with_reasoning() {
         let tool = CompleteTool;
         let result = tool
-            .call(
-                r#"{"result": "42", "reasoning": "Based on the calculation..."}"#.to_string(),
-            )
+            .call(r#"{"result": "42", "reasoning": "Based on the calculation..."}"#.to_string())
             .await;
 
         assert!(result.is_ok());
@@ -362,9 +362,7 @@ mod tests {
     #[tokio::test]
     async fn test_complete_missing_result() {
         let tool = CompleteTool;
-        let result = tool
-            .call(r#"{"confidence": 0.9}"#.to_string())
-            .await;
+        let result = tool.call(r#"{"confidence": 0.9}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();

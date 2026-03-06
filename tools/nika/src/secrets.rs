@@ -311,7 +311,6 @@ mod fallback_only {
         };
 
         for (provider, env_var) in PROVIDERS {
-
             // Check if already in env
             if std::env::var(env_var).is_ok() {
                 trace!("{}: already in env", provider);

@@ -45,11 +45,13 @@ use crate::error::NikaError;
 /// - Loading files from parent directories
 /// - Symlink attacks pointing outside project
 fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), NikaError> {
-    let canonical_base = base_path.canonicalize().map_err(|e| NikaError::ContextLoadError {
-        alias: String::new(),
-        path: base_path.display().to_string(),
-        reason: format!("Cannot resolve base path: {}", e),
-    })?;
+    let canonical_base = base_path
+        .canonicalize()
+        .map_err(|e| NikaError::ContextLoadError {
+            alias: String::new(),
+            path: base_path.display().to_string(),
+            reason: format!("Cannot resolve base path: {}", e),
+        })?;
     let canonical_target = target_path
         .canonicalize()
         .map_err(|e| NikaError::ContextLoadError {

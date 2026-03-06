@@ -57,9 +57,7 @@ impl InvokeParams {
     /// Returns true if this invoke targets a builtin tool (nika:* prefix).
     #[inline]
     pub fn is_builtin_tool(&self) -> bool {
-        self.tool
-            .as_ref()
-            .is_some_and(|t| t.starts_with("nika:"))
+        self.tool.as_ref().is_some_and(|t| t.starts_with("nika:"))
     }
 }
 
@@ -85,7 +83,9 @@ impl InvokeParams {
         // v0.17.5: Validate MCP server name is not empty (for non-builtin tools)
         if !self.is_builtin_tool() {
             match &self.mcp {
-                None => return Err("'mcp' server name is required for non-builtin tools".to_string()),
+                None => {
+                    return Err("'mcp' server name is required for non-builtin tools".to_string())
+                }
                 Some(mcp) if mcp.trim().is_empty() => {
                     return Err("'mcp' server name cannot be empty".to_string());
                 }

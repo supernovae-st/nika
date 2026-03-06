@@ -1125,9 +1125,12 @@ impl TaskExecutor {
 
         // Get or create MCP client (real or mock depending on config)
         // v0.21.0: mcp is Option<String>, validate() guarantees Some for non-builtin tools
-        let mcp_name = invoke.mcp.as_ref().ok_or_else(|| NikaError::ValidationError {
-            reason: "MCP server name required for non-builtin tools".to_string(),
-        })?;
+        let mcp_name = invoke
+            .mcp
+            .as_ref()
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "MCP server name required for non-builtin tools".to_string(),
+            })?;
         let client = self.get_mcp_client(mcp_name).await?;
 
         let is_error = false;

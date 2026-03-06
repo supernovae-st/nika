@@ -1576,9 +1576,7 @@ impl App {
     fn is_view_capturing_input(&self) -> bool {
         match self.current_view {
             TuiView::Chat => !self.chat_view.input.value().is_empty(),
-            TuiView::Studio => {
-                self.studio_view.mode == super::views::EditorMode::Insert
-            }
+            TuiView::Studio => self.studio_view.mode == super::views::EditorMode::Insert,
             _ => false,
         }
     }

@@ -1190,10 +1190,7 @@ completion:
         // Check signal
         let signal = completion.signal.clone().unwrap();
         assert_eq!(signal.fields.required, vec!["result"]);
-        assert_eq!(
-            signal.fields.optional,
-            vec!["confidence", "reasoning"]
-        );
+        assert_eq!(signal.fields.optional, vec!["confidence", "reasoning"]);
 
         // Check confidence
         let confidence = completion.confidence.clone().unwrap();

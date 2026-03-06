@@ -302,12 +302,13 @@ pub struct RichAnalyzeError {
 
 impl RichAnalyzeError {
     /// Create a rich error from an [`AnalyzeError`] with source context.
-    pub fn new(error: AnalyzeError, source_code: impl Into<String>, filename: impl Into<String>) -> Self {
+    pub fn new(
+        error: AnalyzeError,
+        source_code: impl Into<String>,
+        filename: impl Into<String>,
+    ) -> Self {
         let source = source_code.into();
-        let label_span = SourceSpan::new(
-            error.span.start.as_usize().into(),
-            error.span.len(),
-        );
+        let label_span = SourceSpan::new(error.span.start.as_usize().into(), error.span.len());
         Self {
             error,
             source_code: source,
@@ -342,11 +343,17 @@ impl std::error::Error for RichAnalyzeError {}
 
 impl Diagnostic for RichAnalyzeError {
     fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
-        Some(Box::new(format!("nika::{}", self.error.kind.code().to_lowercase().replace('-', "_"))))
+        Some(Box::new(format!(
+            "nika::{}",
+            self.error.kind.code().to_lowercase().replace('-', "_")
+        )))
     }
 
     fn help<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
-        self.error.suggestion.as_ref().map(|s| Box::new(s.clone()) as Box<dyn std::fmt::Display>)
+        self.error
+            .suggestion
+            .as_ref()
+            .map(|s| Box::new(s.clone()) as Box<dyn std::fmt::Display>)
     }
 
     fn url<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
@@ -361,10 +368,8 @@ impl Diagnostic for RichAnalyzeError {
     }
 
     fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
-        let label = miette::LabeledSpan::new_with_span(
-            Some(self.error.message.clone()),
-            self.label_span,
-        );
+        let label =
+            miette::LabeledSpan::new_with_span(Some(self.error.message.clone()), self.label_span);
         Some(Box::new(std::iter::once(label)))
     }
 

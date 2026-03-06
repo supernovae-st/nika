@@ -281,11 +281,7 @@ impl WizardState {
         } else {
             // For custom, generate based on selections
             let mcp_block = if self.options.with_mcp {
-                let enabled: Vec<_> = self
-                    .mcp_servers
-                    .iter()
-                    .filter(|s| s.enabled)
-                    .collect();
+                let enabled: Vec<_> = self.mcp_servers.iter().filter(|s| s.enabled).collect();
                 if enabled.is_empty() {
                     String::new()
                 } else {
@@ -840,10 +836,7 @@ fn draw_select_purpose(f: &mut Frame, area: Rect, state: &WizardState) {
         .map(|p| {
             ListItem::new(Line::from(vec![
                 Span::raw("  "),
-                Span::styled(
-                    format!("{} ", p.icon()),
-                    Style::default().fg(Color::Yellow),
-                ),
+                Span::styled(format!("{} ", p.icon()), Style::default().fg(Color::Yellow)),
                 Span::styled(
                     format!("{:<12}", p.name()),
                     Style::default().fg(Color::Green),
@@ -884,10 +877,7 @@ fn draw_select_complexity(f: &mut Frame, area: Rect, state: &WizardState) {
         .map(|c| {
             ListItem::new(Line::from(vec![
                 Span::raw("  "),
-                Span::styled(
-                    format!("{} ", c.icon()),
-                    Style::default().fg(Color::Yellow),
-                ),
+                Span::styled(format!("{} ", c.icon()), Style::default().fg(Color::Yellow)),
                 Span::styled(
                     format!("{:<12}", c.name()),
                     Style::default().fg(Color::Green),
@@ -964,10 +954,9 @@ fn draw_configure_mcp(f: &mut Frame, area: Rect, state: &WizardState) {
     let list = List::new(items);
     f.render_widget(list, chunks[1]);
 
-    let help =
-        Paragraph::new("[j/k] Navigate  [Space] Toggle  [Enter] Continue  [Backspace] Back")
-            .style(Style::default().fg(Color::DarkGray))
-            .alignment(Alignment::Center);
+    let help = Paragraph::new("[j/k] Navigate  [Space] Toggle  [Enter] Continue  [Backspace] Back")
+        .style(Style::default().fg(Color::DarkGray))
+        .alignment(Alignment::Center);
     f.render_widget(help, chunks[2]);
 }
 
