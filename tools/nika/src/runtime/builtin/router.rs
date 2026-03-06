@@ -1,14 +1,15 @@
 //! BuiltinToolRouter for nika:* tool dispatch.
 //!
-//! Provides routing for 11 builtin tools:
+//! Provides routing for 12 builtin tools:
 //!
-//! **Core tools (6):**
+//! **Core tools (7):**
 //! - `nika:sleep` - Pause execution for duration
 //! - `nika:log` - Emit log event at level
 //! - `nika:emit` - Emit custom event to EventLog
 //! - `nika:assert` - Validate condition, fail if false
 //! - `nika:prompt` - HITL - request user input
 //! - `nika:run` - Execute nested workflow
+//! - `nika:complete` - Signal agent task completion (v0.21)
 //!
 //! **File tools (5) - requires ToolContext:**
 //! - `nika:read` - Read file with line numbers
@@ -18,8 +19,8 @@
 //! - `nika:grep` - Search content with regex
 
 use super::{
-    create_file_tool_adapters, AssertTool, BuiltinTool, EmitTool, LogTool, PromptTool, RunTool,
-    SleepTool,
+    create_file_tool_adapters, AssertTool, BuiltinTool, CompleteTool, EmitTool, LogTool,
+    PromptTool, RunTool, SleepTool,
 };
 use crate::error::NikaError;
 use crate::tools::ToolContext;
@@ -46,24 +47,25 @@ pub struct BuiltinToolRouter {
 }
 
 impl BuiltinToolRouter {
-    /// Create a new router with 6 core builtin tools (no file tools).
+    /// Create a new router with 7 core builtin tools (no file tools).
     ///
     /// For file tools (read, write, edit, glob, grep), use `with_file_tools()`.
     pub fn new() -> Self {
         let mut tools: HashMap<&'static str, Arc<dyn BuiltinTool>> = HashMap::new();
 
-        // Register 6 core builtin tools
+        // Register 7 core builtin tools
         tools.insert("sleep", Arc::new(SleepTool));
         tools.insert("log", Arc::new(LogTool));
         tools.insert("emit", Arc::new(EmitTool));
         tools.insert("assert", Arc::new(AssertTool));
         tools.insert("prompt", Arc::new(PromptTool::default()));
         tools.insert("run", Arc::new(RunTool));
+        tools.insert("complete", Arc::new(CompleteTool)); // v0.21
 
         Self { tools }
     }
 
-    /// Create a router with all 11 builtin tools (6 core + 5 file tools).
+    /// Create a router with all 12 builtin tools (7 core + 5 file tools).
     ///
     /// File tools require a `ToolContext` for working directory and permissions.
     ///
@@ -231,24 +233,26 @@ mod tests {
         assert!(router.has_tool("assert"));
         assert!(router.has_tool("prompt"));
         assert!(router.has_tool("run"));
+        assert!(router.has_tool("complete")); // v0.21
         // new() does NOT include file tools
         assert!(!router.has_tool("read"));
         assert!(!router.has_tool("write"));
-        assert_eq!(router.tool_names().len(), 6);
+        assert_eq!(router.tool_names().len(), 7); // 6 core + complete
     }
 
     #[test]
-    fn test_router_with_file_tools_has_11_tools() {
+    fn test_router_with_file_tools_has_12_tools() {
         let (_temp, ctx) = setup_test_context();
         let router = BuiltinToolRouter::with_file_tools(ctx);
 
-        // 6 core tools
+        // 7 core tools (6 original + complete)
         assert!(router.has_tool("sleep"));
         assert!(router.has_tool("log"));
         assert!(router.has_tool("emit"));
         assert!(router.has_tool("assert"));
         assert!(router.has_tool("prompt"));
         assert!(router.has_tool("run"));
+        assert!(router.has_tool("complete")); // v0.21
 
         // 5 file tools
         assert!(router.has_tool("read"));
@@ -257,7 +261,7 @@ mod tests {
         assert!(router.has_tool("glob"));
         assert!(router.has_tool("grep"));
 
-        assert_eq!(router.tool_names().len(), 11);
+        assert_eq!(router.tool_names().len(), 12); // 7 core + 5 file
     }
 
     #[test]
@@ -341,8 +345,8 @@ mod tests {
     #[test]
     fn test_router_default() {
         let router = BuiltinToolRouter::default();
-        // Default router has all 6 tools
-        assert_eq!(router.tool_names().len(), 6);
+        // Default router has all 7 core tools (6 original + complete)
+        assert_eq!(router.tool_names().len(), 7);
     }
 
     #[tokio::test]

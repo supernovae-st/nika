@@ -1,24 +1,22 @@
-//! Builtin Tools Module - nika_* tools for HITL, workflow composition, and file operations
+//! Builtin Tools Module - nika:* tools for HITL, workflow composition, file operations, and completion
 //!
-//! Provides 11 builtin tools with nika_ prefix:
+//! Provides 12 builtin tools with nika: prefix (7 core + 5 file):
 //!
-//! **Core tools (6):**
-//! - `nika_sleep` - Pause execution for duration
-//! - `nika_log` - Emit log event at level
-//! - `nika_emit` - Emit custom event to EventLog
-//! - `nika_assert` - Validate condition, fail if false
-//! - `nika_prompt` - HITL - request user input
-//! - `nika_run` - Execute nested workflow
+//! **Core tools (7):**
+//! - `nika:sleep` - Pause execution for duration
+//! - `nika:log` - Emit log event at level
+//! - `nika:emit` - Emit custom event to EventLog
+//! - `nika:assert` - Validate condition, fail if false
+//! - `nika:prompt` - HITL - request user input
+//! - `nika:run` - Execute nested workflow
+//! - `nika:complete` - Signal agent task completion (v0.21)
 //!
-//! **File tools (5) - v0.15.1:**
-//! - `nika_read` - Read file with line numbers
-//! - `nika_write` - Create/overwrite file
-//! - `nika_edit` - Modify file (old_string → new_string)
-//! - `nika_glob` - Find files by pattern
-//! - `nika_grep` - Search content with regex
-//!
-//! v0.12.1: Changed prefix from `nika:` to `nika_` for Anthropic API compatibility.
-//! Tool name pattern: ^[a-zA-Z0-9_-]{1,128}$ - colon is NOT allowed.
+//! **File tools (5):**
+//! - `nika:read` - Read file with line numbers
+//! - `nika:write` - Create/overwrite file
+//! - `nika:edit` - Modify file (old_string → new_string)
+//! - `nika:glob` - Find files by pattern
+//! - `nika:grep` - Search content with regex
 //!
 //! # Architecture
 //!
@@ -30,6 +28,7 @@
 //! ```
 
 mod assert;
+mod complete;
 mod emit;
 mod file_adapter;
 mod log;
@@ -41,6 +40,10 @@ mod sleep;
 mod r#trait;
 
 pub use assert::AssertTool;
+pub use complete::{
+    is_completion_signal, parse_completion_response, CompleteParams, CompleteResponse,
+    CompleteTool, COMPLETION_MARKER,
+};
 pub use emit::EmitTool;
 pub use file_adapter::{create_file_tool_adapters, FileToolAdapter};
 pub use log::{LogLevel, LogTool};
