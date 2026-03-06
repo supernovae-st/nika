@@ -32,7 +32,7 @@ use rustc_hash::FxHashMap;
 use serde_json::Value;
 use tokio::time::timeout;
 
-use crate::ast::guardrails::{run_guardrails, GuardrailResult};
+use crate::ast::guardrails::run_guardrails;
 use crate::ast::AgentParams;
 use crate::ast::ToolChoice as NikaToolChoice;
 use crate::error::NikaError;
@@ -857,6 +857,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
+        // Check guardrails (v0.23)
+        let guardrails_passed = self.check_guardrails(&response);
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
             turns: turn_index as usize,
@@ -864,6 +867,7 @@ impl RigAgentLoop {
             total_tokens: 0,
             confidence: status.confidence(),
             retry_count: 0,
+            guardrails_passed,
         })
     }
 
@@ -911,6 +915,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
+        // Check guardrails (v0.23)
+        let guardrails_passed = self.check_guardrails(&response);
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
             turns: turn_index as usize,
@@ -918,6 +925,7 @@ impl RigAgentLoop {
             total_tokens: 0,
             confidence: status.confidence(),
             retry_count: 0,
+            guardrails_passed,
         })
     }
 
@@ -1426,6 +1434,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
+        // Check guardrails (v0.23)
+        let guardrails_passed = self.check_guardrails(&response_text);
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
             turns: 1,
@@ -1433,6 +1444,7 @@ impl RigAgentLoop {
             total_tokens: 100, // Mock token count
             confidence: status.confidence(),
             retry_count: 0,
+            guardrails_passed,
         })
     }
 
@@ -1511,6 +1523,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
+        // Check guardrails (v0.23)
+        let guardrails_passed = self.check_guardrails(&result.response);
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
             turns: 1, // rig handles turns internally, we report completion as 1
@@ -1518,6 +1533,7 @@ impl RigAgentLoop {
             total_tokens: (result.input_tokens + result.output_tokens) as u64,
             confidence: status.confidence(),
             retry_count: 0,
+            guardrails_passed,
         })
     }
 
@@ -1552,30 +1568,20 @@ impl RigAgentLoop {
 
         for result in results {
             let task_id = Arc::from(self.task_id.as_str());
-            match result {
-                GuardrailResult::Passed {
-                    guardrail_type,
-                    description,
-                } => {
-                    self.event_log.emit(EventKind::GuardrailPassed {
-                        task_id,
-                        guardrail_type,
-                        description,
-                    });
-                }
-                GuardrailResult::Failed {
-                    guardrail_type,
-                    description,
-                    message,
-                } => {
-                    self.event_log.emit(EventKind::GuardrailFailed {
-                        task_id,
-                        guardrail_type,
-                        description,
-                        message,
-                    });
-                    all_passed = false;
-                }
+            if result.passed {
+                self.event_log.emit(EventKind::GuardrailPassed {
+                    task_id,
+                    guardrail_type: result.guardrail_type,
+                    description: result.guardrail_id,
+                });
+            } else {
+                self.event_log.emit(EventKind::GuardrailFailed {
+                    task_id,
+                    guardrail_type: result.guardrail_type,
+                    description: result.guardrail_id,
+                    message: result.message.unwrap_or_else(|| "Guardrail check failed".to_string()),
+                });
+                all_passed = false;
             }
         }
 
@@ -1900,6 +1906,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
+        // Check guardrails (v0.23)
+        let guardrails_passed = self.check_guardrails(&response);
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
             turns: 1,
@@ -1907,6 +1916,7 @@ impl RigAgentLoop {
             total_tokens: (input_tokens + output_tokens) as u64,
             confidence: status.confidence(),
             retry_count: 0,
+            guardrails_passed,
         })
     }
 
@@ -1969,6 +1979,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
+        // Check guardrails (v0.23)
+        let guardrails_passed = self.check_guardrails(&result.response);
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
             turns: 1,
@@ -1976,6 +1989,7 @@ impl RigAgentLoop {
             total_tokens: (result.input_tokens + result.output_tokens) as u64,
             confidence: status.confidence(),
             retry_count: 0,
+            guardrails_passed,
         })
     }
 
@@ -2229,6 +2243,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
+        // Check guardrails (v0.23)
+        let guardrails_passed = self.check_guardrails(&result.response);
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
             turns: (retry_count + 1) as usize,
@@ -2236,6 +2253,7 @@ impl RigAgentLoop {
             total_tokens: (total_input_tokens + total_output_tokens) as u64,
             confidence: status.confidence(),
             retry_count,
+            guardrails_passed,
         })
     }
 }
@@ -2266,6 +2284,7 @@ mod tests {
             total_tokens: 50,
             confidence: None,
             retry_count: 0,
+            guardrails_passed: true,
         };
         let debug = format!("{:?}", result);
         assert!(debug.contains("NaturalCompletion"));

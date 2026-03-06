@@ -286,6 +286,7 @@ fn test_rig_agent_loop_result_debug() {
         total_tokens: 150,
         confidence: None,
         retry_count: 0,
+        guardrails_passed: true,
     };
 
     let debug = format!("{:?}", result);
