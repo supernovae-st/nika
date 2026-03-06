@@ -2315,6 +2315,7 @@ mod tests {
                 temperature: None,
                 max_tokens: None,
                 skills: None,
+                completion: None,
             },
         };
         assert_eq!(action_type(&agent_action), "agent");

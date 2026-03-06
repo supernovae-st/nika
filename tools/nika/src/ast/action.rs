@@ -324,6 +324,7 @@ fn default_method() -> String {
 /// - `agent:` - Agentic execution with tool calling loop
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
+#[allow(clippy::large_enum_variant)] // AgentParams is large due to CompletionConfig; boxing would be a breaking change
 pub enum TaskAction {
     Infer { infer: InferParams },
     Exec { exec: ExecParams },

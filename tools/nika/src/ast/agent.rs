@@ -22,6 +22,8 @@
 
 use serde::Deserialize;
 
+use crate::ast::completion::CompletionConfig;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Tool Choice (v0.8.0)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -188,6 +190,18 @@ pub struct AgentParams {
     /// from the workflow's `skills:` map.
     #[serde(default)]
     pub skills: Option<Vec<String>>,
+
+    /// Completion behavior configuration (v0.21)
+    ///
+    /// Controls how the agent signals task completion:
+    /// - `mode: explicit` - Agent must call `nika:complete` tool (recommended)
+    /// - `mode: natural` - Completes when agent has no more tool calls
+    /// - `mode: pattern` - Completes on pattern match (backward compat)
+    ///
+    /// When not set, defaults to backward-compatible behavior using
+    /// `stop_conditions` if present, otherwise `natural` mode.
+    #[serde(default)]
+    pub completion: Option<CompletionConfig>,
 }
 
 impl AgentParams {
@@ -285,6 +299,35 @@ impl AgentParams {
         self.temperature
     }
 
+    /// Get effective completion configuration (v0.21).
+    ///
+    /// Returns the completion config, with backward compatibility:
+    /// - If `completion` is set, returns it
+    /// - If `stop_conditions` is set (legacy), creates a Pattern-mode config
+    /// - Otherwise, returns None (natural completion mode)
+    pub fn effective_completion(&self) -> Option<CompletionConfig> {
+        if self.completion.is_some() {
+            return self.completion.clone();
+        }
+
+        // Backward compatibility: migrate stop_conditions to completion config
+        if !self.stop_conditions.is_empty() {
+            return CompletionConfig::from_stop_conditions(&self.stop_conditions);
+        }
+
+        None
+    }
+
+    /// Generate system instruction for completion (v0.21).
+    ///
+    /// Returns the auto-generated instruction to append to the system prompt,
+    /// or empty string if no special completion instruction is needed.
+    pub fn completion_system_instruction(&self) -> String {
+        self.effective_completion()
+            .map(|c| c.generate_system_instruction())
+            .unwrap_or_default()
+    }
+
     /// Check if a response triggers a stop condition.
     ///
     /// Returns `true` if the content contains any of the configured
@@ -353,6 +396,11 @@ impl AgentParams {
                     temp
                 ));
             }
+        }
+
+        // Validate completion config (v0.21)
+        if let Some(ref completion) = self.completion {
+            completion.validate()?;
         }
 
         Ok(())
@@ -876,5 +924,283 @@ tool_choice: none
         let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
         assert!(params.has_explicit_tool_choice());
         assert_eq!(params.effective_tool_choice(), ToolChoice::None);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Completion Config Tests (v0.21)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_parse_completion_explicit_mode() {
+        let yaml = r#"
+prompt: "Test"
+completion:
+  mode: explicit
+  signal:
+    fields:
+      required: [result]
+      optional: [confidence]
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert!(params.completion.is_some());
+
+        let completion = params.completion.clone().unwrap();
+        assert_eq!(completion.mode, crate::ast::CompletionMode::Explicit);
+        assert!(completion.signal.is_some());
+    }
+
+    #[test]
+    fn test_parse_completion_natural_mode() {
+        let yaml = r#"
+prompt: "Test"
+completion:
+  mode: natural
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        let completion = params.completion.clone().unwrap();
+        assert_eq!(completion.mode, crate::ast::CompletionMode::Natural);
+    }
+
+    #[test]
+    fn test_parse_completion_pattern_mode() {
+        let yaml = r#"
+prompt: "Test"
+completion:
+  mode: pattern
+  patterns:
+    - value: "DONE"
+      type: contains
+    - value: "^COMPLETE:"
+      type: regex
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        let completion = params.completion.clone().unwrap();
+        assert_eq!(completion.mode, crate::ast::CompletionMode::Pattern);
+        assert_eq!(completion.patterns.len(), 2);
+    }
+
+    #[test]
+    fn test_effective_completion_uses_completion_field() {
+        let yaml = r#"
+prompt: "Test"
+completion:
+  mode: explicit
+stop_conditions:
+  - "LEGACY"
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+
+        // completion field takes precedence over stop_conditions
+        let effective = params.effective_completion().unwrap();
+        assert_eq!(effective.mode, crate::ast::CompletionMode::Explicit);
+    }
+
+    #[test]
+    fn test_effective_completion_migrates_stop_conditions() {
+        let yaml = r#"
+prompt: "Test"
+stop_conditions:
+  - "DONE"
+  - "COMPLETE"
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+
+        // When no completion field, stop_conditions should be migrated
+        let effective = params.effective_completion().unwrap();
+        assert_eq!(effective.mode, crate::ast::CompletionMode::Pattern);
+        assert_eq!(effective.patterns.len(), 2);
+    }
+
+    #[test]
+    fn test_effective_completion_returns_none_when_empty() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            ..Default::default()
+        };
+
+        // No completion, no stop_conditions -> None
+        assert!(params.effective_completion().is_none());
+    }
+
+    #[test]
+    fn test_completion_system_instruction_explicit_mode() {
+        let yaml = r#"
+prompt: "Test"
+completion:
+  mode: explicit
+  signal:
+    fields:
+      required: [result, confidence]
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        let instruction = params.completion_system_instruction();
+
+        // Should contain instruction about nika:complete tool
+        assert!(instruction.contains("nika:complete"));
+        assert!(instruction.contains("result"));
+        assert!(instruction.contains("confidence"));
+    }
+
+    #[test]
+    fn test_completion_system_instruction_natural_mode() {
+        let yaml = r#"
+prompt: "Test"
+completion:
+  mode: natural
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        let instruction = params.completion_system_instruction();
+
+        // Natural mode should have empty instruction
+        assert!(instruction.is_empty());
+    }
+
+    #[test]
+    fn test_completion_system_instruction_pattern_mode() {
+        let yaml = r#"
+prompt: "Test"
+completion:
+  mode: pattern
+  patterns:
+    - value: "TASK_DONE"
+      type: exact
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        let instruction = params.completion_system_instruction();
+
+        // Pattern mode should have instruction about the pattern
+        assert!(instruction.contains("TASK_DONE"));
+    }
+
+    #[test]
+    fn test_completion_system_instruction_empty_when_none() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            ..Default::default()
+        };
+
+        let instruction = params.completion_system_instruction();
+        assert!(instruction.is_empty());
+    }
+
+    #[test]
+    fn test_validate_completion_config_valid() {
+        let yaml = r#"
+prompt: "Test"
+completion:
+  mode: pattern
+  patterns:
+    - value: "^DONE$"
+      type: regex
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert!(params.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_completion_config_invalid_regex() {
+        let yaml = r#"
+prompt: "Test"
+completion:
+  mode: pattern
+  patterns:
+    - value: "[invalid"
+      type: regex
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        let err = params.validate().unwrap_err();
+        assert!(err.contains("Invalid regex pattern"));
+    }
+
+    #[test]
+    fn test_completion_with_confidence_config() {
+        let yaml = r#"
+prompt: "Test"
+completion:
+  mode: explicit
+  confidence:
+    threshold: 0.8
+    on_low:
+      action: escalate
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        let completion = params.completion.clone().unwrap();
+
+        let confidence = completion.confidence.clone().unwrap();
+        assert!((confidence.threshold - 0.8).abs() < f64::EPSILON);
+        assert_eq!(
+            confidence.on_low.action,
+            crate::ast::LowConfidenceAction::Escalate
+        );
+    }
+
+    #[test]
+    fn test_completion_with_instruction_config() {
+        let yaml = r#"
+prompt: "Test"
+completion:
+  mode: explicit
+  instruction:
+    tone: detailed
+    lang: fr
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        let completion = params.completion.clone().unwrap();
+
+        let instruction_config = completion.instruction.clone().unwrap();
+        assert_eq!(
+            instruction_config.tone,
+            crate::ast::completion::InstructionTone::Detailed
+        );
+        assert_eq!(instruction_config.lang, Some("fr".to_string()));
+    }
+
+    #[test]
+    fn test_full_completion_config_yaml() {
+        let yaml = r#"
+prompt: "Generate content for QR Code AI"
+provider: claude
+model: claude-sonnet-4-6
+mcp:
+  - novanet
+max_turns: 10
+completion:
+  mode: explicit
+  signal:
+    fields:
+      required: [result]
+      optional: [confidence, reasoning]
+  confidence:
+    threshold: 0.75
+    on_low:
+      action: retry
+  instruction:
+    tone: concise
+    lang: en
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+
+        // Validate entire config
+        assert!(params.validate().is_ok());
+
+        // Check completion
+        let completion = params.completion.clone().unwrap();
+        assert_eq!(completion.mode, crate::ast::CompletionMode::Explicit);
+
+        // Check signal
+        let signal = completion.signal.clone().unwrap();
+        assert_eq!(signal.fields.required, vec!["result"]);
+        assert_eq!(
+            signal.fields.optional,
+            vec!["confidence", "reasoning"]
+        );
+
+        // Check confidence
+        let confidence = completion.confidence.clone().unwrap();
+        assert!((confidence.threshold - 0.75).abs() < f64::EPSILON);
+
+        // Check instruction
+        let instruction = completion.instruction.clone().unwrap();
+        assert_eq!(instruction.lang, Some("en".to_string()));
     }
 }
