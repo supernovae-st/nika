@@ -417,6 +417,7 @@ pub mod testing {
     /// Setup with custom permission mode.
     ///
     /// Use this when testing permission checking behavior.
+    #[allow(dead_code)] // Reserved for permission mode tests (non-YoloMode scenarios)
     pub async fn setup_test_with_mode(mode: PermissionMode) -> (TempDir, Arc<ToolContext>) {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let ctx = Arc::new(ToolContext::new(temp_dir.path().to_path_buf(), mode));

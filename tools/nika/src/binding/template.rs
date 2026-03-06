@@ -222,10 +222,10 @@ pub fn resolve<'a>(
     }
 
     if !errors.is_empty() {
-        return Err(NikaError::Template(format!(
-            "Alias(es) not resolved: {}. Did you declare them in 'use:'?",
-            errors.join(", ")
-        )));
+        return Err(NikaError::TemplateError {
+            template: errors.join(", "),
+            reason: "Alias(es) not resolved. Did you declare them in 'use:'?".to_string(),
+        });
     }
 
     // Copy remaining segment after last match
@@ -274,10 +274,11 @@ pub fn resolve<'a>(
         }
 
         if !context_errors.is_empty() {
-            return Err(NikaError::Template(format!(
-                "Context binding(s) not resolved: {}. Check your 'context:' block in workflow.",
-                context_errors.join(", ")
-            )));
+            return Err(NikaError::TemplateError {
+                template: context_errors.join(", "),
+                reason: "Context binding(s) not resolved. Check your 'context:' block in workflow."
+                    .to_string(),
+            });
         }
 
         // Copy remaining segment
@@ -332,10 +333,10 @@ pub fn resolve<'a>(
         }
 
         if !input_errors.is_empty() {
-            return Err(NikaError::Template(format!(
-                "Input binding(s) not resolved: {}. Check your 'inputs:' block in workflow or provide defaults.",
-                input_errors.join(", ")
-            )));
+            return Err(NikaError::TemplateError {
+                template: input_errors.join(", "),
+                reason: "Input binding(s) not resolved. Check your 'inputs:' block in workflow or provide defaults.".to_string(),
+            });
         }
 
         // Copy remaining segment
@@ -440,10 +441,10 @@ pub fn resolve_for_shell<'a>(
     }
 
     if !errors.is_empty() {
-        return Err(NikaError::Template(format!(
-            "Alias(es) not resolved: {}. Did you declare them in 'use:'?",
-            errors.join(", ")
-        )));
+        return Err(NikaError::TemplateError {
+            template: errors.join(", "),
+            reason: "Alias(es) not resolved. Did you declare them in 'use:'?".to_string(),
+        });
     }
 
     result.push_str(&template[last_end..]);
@@ -479,10 +480,11 @@ pub fn resolve_for_shell<'a>(
         }
 
         if !context_errors.is_empty() {
-            return Err(NikaError::Template(format!(
-                "Context binding(s) not resolved: {}. Check your 'context:' block in workflow.",
-                context_errors.join(", ")
-            )));
+            return Err(NikaError::TemplateError {
+                template: context_errors.join(", "),
+                reason: "Context binding(s) not resolved. Check your 'context:' block in workflow."
+                    .to_string(),
+            });
         }
 
         result.push_str(&intermediate[last_end..]);
@@ -515,10 +517,10 @@ fn value_to_string(value: &Value, path: &str, alias: &str) -> Result<String, Nik
 fn context_value_to_string(value: &Value, path: &str) -> Result<String, NikaError> {
     match value {
         Value::String(s) => Ok(s.clone()),
-        Value::Null => Err(NikaError::Template(format!(
-            "Context binding '{}' resolved to null",
-            path
-        ))),
+        Value::Null => Err(NikaError::TemplateError {
+            template: path.to_string(),
+            reason: "Context binding resolved to null".to_string(),
+        }),
         Value::Bool(b) => Ok(b.to_string()),
         Value::Number(n) => Ok(n.to_string()),
         // For objects/arrays, return compact JSON representation
@@ -532,10 +534,10 @@ fn context_value_to_string(value: &Value, path: &str) -> Result<String, NikaErro
 fn input_value_to_string(value: &Value, path: &str) -> Result<String, NikaError> {
     match value {
         Value::String(s) => Ok(s.clone()),
-        Value::Null => Err(NikaError::Template(format!(
-            "Input binding '{}' resolved to null. Provide a 'default' value in your inputs definition.",
-            path
-        ))),
+        Value::Null => Err(NikaError::TemplateError {
+            template: path.to_string(),
+            reason: "Input binding resolved to null. Provide a 'default' value in your inputs definition.".to_string(),
+        }),
         Value::Bool(b) => Ok(b.to_string()),
         Value::Number(n) => Ok(n.to_string()),
         // For objects/arrays, return compact JSON representation

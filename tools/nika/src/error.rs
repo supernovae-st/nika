@@ -147,6 +147,10 @@ pub enum NikaError {
     // PROVIDER ERRORS (030-039)
     // ═══════════════════════════════════════════
     /// Legacy: simple provider error (v0.1 compat)
+    #[deprecated(
+        since = "0.4.0",
+        note = "Use ProviderApiError or ProviderNotConfigured instead"
+    )]
     #[error("Provider error: {0}")]
     Provider(String),
 
@@ -166,10 +170,15 @@ pub enum NikaError {
     // TEMPLATE/BINDING ERRORS (040-049)
     // ═══════════════════════════════════════════
     /// Legacy: simple template error (v0.1 compat)
+    #[deprecated(
+        since = "0.4.0",
+        note = "Use TemplateError with structured fields instead"
+    )]
     #[error("Template error: {0}")]
     Template(String),
 
     /// Legacy: simple execution error (v0.1 compat)
+    /// Note: Widely used - consider structured variant for new code
     #[error("Execution error: {0}")]
     Execution(String),
 
@@ -622,6 +631,7 @@ pub enum NikaError {
     },
 }
 
+#[allow(deprecated)] // code() handles deprecated variants
 impl NikaError {
     /// Get the error code (e.g., "NIKA-001")
     pub fn code(&self) -> &'static str {
@@ -765,6 +775,7 @@ impl NikaError {
     }
 }
 
+#[allow(deprecated)] // Handles deprecated variants in match
 impl FixSuggestion for NikaError {
     fn fix_suggestion(&self) -> Option<&str> {
         match self {
@@ -1143,6 +1154,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
+    #[allow(deprecated)] // Testing deprecated variant intentionally
     fn test_provider_legacy_error() {
         let err = NikaError::Provider("Connection failed".to_string());
         assert_eq!(err.code(), "NIKA-030");
@@ -1196,6 +1208,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
+    #[allow(deprecated)] // Testing deprecated variant intentionally
     fn test_template_legacy_error() {
         let err = NikaError::Template("unmatched {{".to_string());
         assert_eq!(err.code(), "NIKA-040");

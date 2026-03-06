@@ -538,50 +538,57 @@ impl TaskExecutor {
                 let provider = match name {
                     "claude" | "anthropic" => {
                         if std::env::var("ANTHROPIC_API_KEY").is_err() {
-                            return Err(NikaError::Provider(
-                                "ANTHROPIC_API_KEY not set".to_string(),
-                            ));
+                            return Err(NikaError::MissingApiKey {
+                                provider: "anthropic".to_string(),
+                            });
                         }
                         RigProvider::claude()
                     }
                     "openai" | "gpt" => {
                         if std::env::var("OPENAI_API_KEY").is_err() {
-                            return Err(NikaError::Provider("OPENAI_API_KEY not set".to_string()));
+                            return Err(NikaError::MissingApiKey {
+                                provider: "openai".to_string(),
+                            });
                         }
                         RigProvider::openai()
                     }
                     "mistral" => {
                         if std::env::var("MISTRAL_API_KEY").is_err() {
-                            return Err(NikaError::Provider("MISTRAL_API_KEY not set".to_string()));
+                            return Err(NikaError::MissingApiKey {
+                                provider: "mistral".to_string(),
+                            });
                         }
                         RigProvider::mistral()
                     }
                     "ollama" => RigProvider::ollama(),
                     "groq" => {
                         if std::env::var("GROQ_API_KEY").is_err() {
-                            return Err(NikaError::Provider("GROQ_API_KEY not set".to_string()));
+                            return Err(NikaError::MissingApiKey {
+                                provider: "groq".to_string(),
+                            });
                         }
                         RigProvider::groq()
                     }
                     "deepseek" | "deep-seek" => {
                         if std::env::var("DEEPSEEK_API_KEY").is_err() {
-                            return Err(NikaError::Provider(
-                                "DEEPSEEK_API_KEY not set".to_string(),
-                            ));
+                            return Err(NikaError::MissingApiKey {
+                                provider: "deepseek".to_string(),
+                            });
                         }
                         RigProvider::deepseek()
                     }
                     "gemini" | "google" => {
                         if std::env::var("GEMINI_API_KEY").is_err() {
-                            return Err(NikaError::Provider("GEMINI_API_KEY not set".to_string()));
+                            return Err(NikaError::MissingApiKey {
+                                provider: "gemini".to_string(),
+                            });
                         }
                         RigProvider::gemini()
                     }
                     _ => {
-                        return Err(NikaError::Provider(format!(
-                            "Unknown rig provider: {}. Supported: claude, openai, mistral, ollama, groq, deepseek, gemini",
-                            name
-                        )));
+                        return Err(NikaError::ProviderNotConfigured {
+                            provider: name.to_string(),
+                        });
                     }
                 };
                 e.insert(provider.clone());
@@ -755,13 +762,17 @@ impl TaskExecutor {
             provider
                 .infer_stream_with_options(&prompt, tx, &options)
                 .await
-                .map_err(|e| NikaError::Provider(e.to_string()))?
+                .map_err(|e| NikaError::ProviderApiError {
+                    message: e.to_string(),
+                })?
         } else {
             // Backward compatibility: use original infer_stream
             provider
                 .infer_stream(&prompt, tx, model)
                 .await
-                .map_err(|e| NikaError::Provider(e.to_string()))?
+                .map_err(|e| NikaError::ProviderApiError {
+                    message: e.to_string(),
+                })?
         };
 
         // Record actual token spend (v0.13.1)

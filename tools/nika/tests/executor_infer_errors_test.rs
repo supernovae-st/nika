@@ -180,10 +180,10 @@ async fn test_infer_template_resolution_failure() {
         err_str
     );
 
-    // Verify it's the Template error variant
+    // Verify it's the TemplateError variant
     assert!(
-        matches!(err, NikaError::Template(_)),
-        "Expected NikaError::Template, got: {:?}",
+        matches!(err, NikaError::TemplateError { .. }),
+        "Expected NikaError::TemplateError, got: {:?}",
         err
     );
 }
@@ -605,8 +605,9 @@ fn test_template_no_whitespace() {
 
 /// Verify error codes are correctly assigned
 #[test]
+#[allow(deprecated)] // Testing deprecated variant intentionally
 fn test_error_codes() {
-    // Template error
+    // Template error (legacy)
     let template_err = NikaError::Template("test".to_string());
     assert_eq!(template_err.code(), "NIKA-040");
 
