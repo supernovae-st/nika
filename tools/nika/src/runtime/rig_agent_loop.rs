@@ -1670,18 +1670,21 @@ impl RigAgentLoop {
         let results = run_sync_guardrails(&self.params.guardrails, output);
         let mut all_passed = true;
 
+        // PERF(v0.25.1): Hoist Arc allocation outside loops to avoid
+        // per-iteration allocation overhead. Arc::clone is cheap (atomic inc).
+        let task_id: Arc<str> = Arc::from(self.task_id.as_str());
+
         // Emit events for each result
         for result in &results {
-            let task_id = Arc::from(self.task_id.as_str());
             if result.passed {
                 self.event_log.emit(EventKind::GuardrailPassed {
-                    task_id,
+                    task_id: Arc::clone(&task_id),
                     guardrail_type: result.guardrail_type.clone(),
                     description: result.guardrail_id.clone(),
                 });
             } else {
                 self.event_log.emit(EventKind::GuardrailFailed {
-                    task_id,
+                    task_id: Arc::clone(&task_id),
                     guardrail_type: result.guardrail_type.clone(),
                     description: result.guardrail_id.clone(),
                     message: result
@@ -1708,9 +1711,8 @@ impl RigAgentLoop {
         if !escalations.is_empty() {
             // Emit escalation events for each guardrail requiring escalation
             for result in escalations {
-                let task_id = Arc::from(self.task_id.as_str());
                 self.event_log.emit(EventKind::GuardrailEscalation {
-                    task_id,
+                    task_id: Arc::clone(&task_id),
                     guardrail_type: result.guardrail_type.clone(),
                     guardrail_id: result.guardrail_id.clone(),
                     message: result
