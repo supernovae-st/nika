@@ -41,6 +41,7 @@ mod action;
 mod agent;
 mod agent_def;
 pub mod artifact;
+pub mod completion;
 pub mod context;
 pub mod decompose;
 pub mod include;
@@ -85,3 +86,8 @@ pub use loader::{discover_definitions, load_definition, DefinitionKind, LoadedDe
 pub use include_loader::expand_includes;
 // StructuredOutputSpec is defined in structured.rs (v0.21 - JSON Schema validation)
 pub use structured::StructuredOutputSpec;
+// CompletionConfig is defined in completion.rs (v0.21 - Agent completion behavior)
+pub use completion::{
+    CompletionConfig, CompletionMode, ConfidenceConfig, InstructionConfig, LowConfidenceAction,
+    PatternConfig, PatternType, SignalConfig, SignalFields,
+};
