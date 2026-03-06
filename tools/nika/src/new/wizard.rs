@@ -70,6 +70,7 @@ impl WorkflowPurpose {
     }
 
     /// Suggest templates based on purpose
+    #[allow(dead_code)] // Future: wire to TUI wizard
     fn suggested_templates(&self) -> Vec<super::Template> {
         use super::Template;
         match self {
@@ -304,20 +305,21 @@ impl WizardState {
                 String::new()
             };
 
+            let verb_name = self.verb.name();
             self.preview_yaml = format!(
                 r#"schema: "nika/workflow@0.10"
 provider: {}
 {}{}
 tasks:
   - id: {}
-    {}: "{}"
+    {}: "Your {} task prompt here"
 "#,
                 self.provider.name().to_lowercase(),
                 mcp_block,
                 artifacts_block,
                 self.name.replace('-', "_"),
-                self.verb.name(),
-                format!("Your {} task prompt here", self.verb.name())
+                verb_name,
+                verb_name
             );
         }
     }
@@ -855,7 +857,7 @@ fn draw_select_purpose(f: &mut Frame, area: Rect, state: &WizardState) {
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
         .highlight_symbol("> ");
 
-    let mut list_state = state.list_state.clone();
+    let mut list_state = state.list_state;
     f.render_stateful_widget(list, chunks[1], &mut list_state);
 
     let help = Paragraph::new("[j/k] Navigate  [Enter] Select  [Esc] Cancel")
@@ -899,7 +901,7 @@ fn draw_select_complexity(f: &mut Frame, area: Rect, state: &WizardState) {
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
         .highlight_symbol("> ");
 
-    let mut list_state = state.list_state.clone();
+    let mut list_state = state.list_state;
     f.render_stateful_widget(list, chunks[1], &mut list_state);
 
     // Show purpose context
@@ -1133,11 +1135,7 @@ fn draw_enter_name(f: &mut Frame, area: Rect, state: &WizardState) {
         .margin(1)
         .split(area);
 
-    let step = if state.mode == Some(WizardMode::Template) {
-        5
-    } else {
-        5
-    };
+    let step = 5;
     draw_step_header(f, chunks[0], "Enter workflow name", step, 11);
 
     // Input field

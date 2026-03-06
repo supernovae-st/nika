@@ -3580,11 +3580,7 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
                     }
                     // Check for flows: or other top-level sections
                     if !line.starts_with(' ') && !line.starts_with('-') && line.contains(':') {
-                        if after.is_some() && after_task_end.is_some() {
-                            insert_index = Some(i);
-                        } else {
-                            insert_index = Some(i);
-                        }
+                        insert_index = Some(i);
                         break;
                     }
                 }

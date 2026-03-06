@@ -37,7 +37,7 @@ use tracing::warn;
 
 // Use spn-core's unified provider definitions (13+ providers: LLM + MCP)
 #[cfg(feature = "spn-daemon")]
-use spn_client::{ProviderCategory, KNOWN_PROVIDERS};
+use spn_client::KNOWN_PROVIDERS;
 
 // Use TUI module's provider_env_var which handles both spn-daemon and fallback cases
 use crate::tui::widgets::provider_modal::provider_env_var;

@@ -26,7 +26,6 @@ use dashmap::DashMap;
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
-    widgets::{Block, Borders, Paragraph},
     Terminal,
 };
 use tokio::sync::{broadcast, mpsc, OnceCell};
@@ -1302,7 +1301,7 @@ impl App {
             let total_tokens = self.chat_view.total_tokens();
             let provider = self.chat_view.provider();
             let chat_status = self.chat_view.status_line(&self.state);
-            let home_status = self
+            let _home_status = self
                 .home_view
                 .as_ref()
                 .map(|hv| hv.status_line(&self.state))
@@ -1319,21 +1318,21 @@ impl App {
                 format!("Tasks: {}/{}", completed, task_count)
             };
             let scheduler_status = self.scheduler_view.status_line(&self.state);
-            let split_status = self.split_view.status_line(&self.state); // v0.13: Split view
-            let workspace_status = self.workspace_view.status_line(&self.state); // v0.20: Workspace view
+            let _split_status = self.split_view.status_line(&self.state); // v0.13: Split view
+            let _workspace_status = self.workspace_view.status_line(&self.state); // v0.20: Workspace view
 
             // Extract references to avoid borrow issues with the closure
             let theme = &self.theme;
             let state = &self.state;
             let chat_view = &mut self.chat_view;
-            let home_view = &mut self.home_view;
+            let _home_view = &mut self.home_view;
             let studio_view = &mut self.studio_view;
             let settings_view = &mut self.settings_view;
             let _help_view = &mut self.help_view; // v0.12: Help merged into Settings, kept for backwards compat
             let monitor_view = &mut self.monitor_view;
             let scheduler_view = &mut self.scheduler_view;
-            let split_view = &mut self.split_view; // v0.13: Split view
-            let workspace_view = &mut self.workspace_view; // v0.20: Workspace view
+            let _split_view = &mut self.split_view; // v0.13: Split view
+            let _workspace_view = &mut self.workspace_view; // v0.20: Workspace view
             let workflow_path = &self.state.workflow.path;
             let intro_state = &self.intro_state; // v0.12: Intro animation state
                                                  // P0 Fix: Use is_paused() accessor for unified pause state

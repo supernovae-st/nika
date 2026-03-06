@@ -403,7 +403,7 @@ pub async fn run_tui_with_options(
     workflow: Option<std::path::PathBuf>,
     initial_view: Option<views::TuiView>,
 ) -> crate::error::Result<()> {
-    use views::TuiView;
+    
 
     // Install panic hook for terminal recovery
     install_panic_hook();

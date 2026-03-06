@@ -454,14 +454,14 @@ mod tests {
     fn test_tui_view_titles_all_five() {
         assert_eq!(TuiView::Studio.title(), "NIKA STUDIO");
         assert_eq!(TuiView::Runner.title(), "NIKA RUNNER");
-        assert_eq!(TuiView::Chat.title(), "NIKA CHAT PLAYGROUND");
+        assert_eq!(TuiView::Chat.title(), "NIKA CHAT");
         assert_eq!(TuiView::Scheduler.title(), "NIKA SCHEDULER");
         assert_eq!(TuiView::Settings.title(), "NIKA SETTINGS");
     }
 
     #[test]
     fn test_tui_view_icons_all_five() {
-        assert_eq!(TuiView::Studio.icon(), "✏");
+        assert_eq!(TuiView::Studio.icon(), "📝");
         assert_eq!(TuiView::Runner.icon(), "▶");
         assert_eq!(TuiView::Chat.icon(), "💬");
         assert_eq!(TuiView::Scheduler.icon(), "📅");
