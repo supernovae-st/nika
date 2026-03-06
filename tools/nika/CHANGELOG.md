@@ -6,6 +6,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.21.1] - 2026-03-06
+
+### Added
+
+- **5 New Workflow Recipe Templates** for `nika new` command
+  - `data-pipeline`: ETL pattern with fetch → transform → load stages
+  - `morning-briefing`: Daily digest workflow with news, weather, tasks
+  - `git-changelog`: Git commit analysis and changelog generation
+  - `parallel-translation`: Multi-language translation with `for_each` parallelism
+  - `agent-qa-tester`: QA testing agent with test case generation
+- **Template Categories**: Simple, Pipeline, Agent, MCP, Advanced
+- **16 Template Tests**: Comprehensive coverage for all 15 templates
+
+### Changed
+
+- **TUI Architecture Consolidation**: 9 views → 5 views (Studio, Runner, Chat, Scheduler, Settings)
+- Templates now total **15** (10 original + 5 new recipes)
+
+## [0.21.0] - 2026-03-05
+
+### Added
+
+- **Structured Output Engine** — 4-layer defense system for JSON Schema compliance
+- **Implicit Output Syntax** — `$task` shorthand in `use:` blocks
+- **5-View TUI Architecture** — Consolidated from 9 views
+
+### Changed
+
+- Schema version updated to `nika/workflow@0.10`
+
 ## [0.20.1] - 2026-03-05
 
 ### Added

@@ -14,7 +14,7 @@
 <sup>✨ Transform YAML into intelligent AI workflows ✨</sup>
 
 <!-- Primary Badges -->
-[![Version](https://img.shields.io/badge/v0.20.1-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.21.1-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
 [![Website](https://img.shields.io/badge/🦋_nika.sh-8b5cf6?style=for-the-badge)](https://nika.sh)
@@ -68,7 +68,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 <!-- TUI Screenshot as ASCII Art -->
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  🦋 Nika Studio                                                v0.20.1  ⌘K  ?  │
+│  🦋 Nika Studio                                                v0.21.1  ⌘K  ?  │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
 │ ┌─ 📁 Files ───────────┐ ┌─ 📝 Editor ──────────────────────────────────────────┐  │
 │ │ ▸ workflows/         │ │  1 │ schema: "nika/workflow@0.9"                    │  │
@@ -97,28 +97,26 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 
 <br>
 
-## ✨ What's New in v0.20.1
+## ✨ What's New in v0.21.1
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  🦋 v0.20.1 — 8-VIEW TUI + TWO-PHASE AST + spn DAEMON                         ║
+║  🦋 v0.21.1 — WORKFLOW RECIPES + STRUCTURED OUTPUT + TUI CONSOLIDATION        ║
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                               ║
-║  8-VIEW TUI ARCHITECTURE:                                                     ║
-║  ├── 🖥️ WorkspaceView  — 3-panel layout (Browser | Editor | DAG Preview)     ║
-║  ├── 🔀 SplitView      — Editor + Runner side-by-side                        ║
-║  ├── 🌲 Tree Widget    — VS Code-like file browser (tui-tree-widget v0.24)   ║
-║  └── ⌨️ Shortcuts      — `7` for Split, `8` for Workspace                    ║
+║  5 NEW WORKFLOW RECIPE TEMPLATES:                                             ║
+║  ├── 📊 data-pipeline        — ETL pattern (fetch → transform → load)        ║
+║  ├── ☀️ morning-briefing     — Daily digest (news, weather, tasks)           ║
+║  ├── 📝 git-changelog        — Commit analysis + changelog generation        ║
+║  ├── 🌍 parallel-translation — Multi-language with for_each parallelism      ║
+║  └── 🧪 agent-qa-tester      — QA testing agent with test generation         ║
 ║                                                                               ║
-║  TWO-PHASE IR ARCHITECTURE:                                                   ║
-║  ├── 📄 Raw AST        — YAML → Spanned<T> with line:col tracking           ║
-║  ├── 🔍 Analyzer       — Semantic validation + error recovery                ║
-║  └── ✅ Analyzed AST   — Type-safe, validated IR                             ║
+║  STRUCTURED OUTPUT ENGINE (v0.21.0):                                          ║
+║  ├── 4-layer defense         — ~99.99% JSON Schema compliance                ║
+║  ├── structured: field       — Per-task schema validation                    ║
+║  └── Implicit $task syntax   — Shorthand for use: blocks                     ║
 ║                                                                               ║
-║  spn DAEMON INTEGRATION:                                                      ║
-║  └── 🔐 Unified secret management via Unix socket IPC                        ║
-║                                                                               ║
-║  STATS: 3,808 tests | Zero clippy warnings | 110k LOC                        ║
+║  STATS: 3,808 tests | 15 templates | Zero clippy warnings                    ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -1665,7 +1663,7 @@ flows:
 ```
 ╔═════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                 ║
-║                           🦋 NIKA v0.20.1 STATS                                 ║
+║                           🦋 NIKA v0.21.1 STATS                                 ║
 ║                                                                                 ║
 ╠═════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                 ║
