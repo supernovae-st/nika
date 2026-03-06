@@ -242,10 +242,12 @@ impl LanguageServer for NikaLanguageServer {
         let docs = self.documents.read().await;
         let text = docs.get(uri).cloned().unwrap_or_default();
 
-        Ok(handlers::definition::find_definition(
+        // Use AST-aware definition lookup for semantic precision
+        Ok(handlers::definition::find_definition_with_ast(
+            &self.ast_index,
+            uri,
             &text,
             position,
-            uri.clone(),
         ))
     }
 
