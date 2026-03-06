@@ -184,45 +184,32 @@ impl ReasoningTab {
 
 /// Active view in the TUI - 5 views navigation (v0.21)
 ///
-/// v0.21 consolidates 8 views to 5:
+/// v0.21 consolidates to 5 views:
 /// - Studio (1, default) [s] - Unified editor with browser + YAML editor + DAG preview
 /// - Runner (2) [r] - Real-time execution monitoring
-/// - Chat (4) [c] - Conversational playground
-/// - Scheduler (5) [d] - Cron/queue management
-/// - Settings (6) [,] - Provider config, theme, preferences
-/// - Split (7) [s] - Editor + Runner side-by-side
-/// - Workspace (8) [w] - Browser + Editor + DAG unified
-///
-/// Studio is an alias for Editor (for backwards compatibility).
+/// - Chat (3) [c] - Conversational playground
+/// - Scheduler (4) [d] - Cron/queue management
+/// - Settings (5) [,] - Provider config, theme, preferences
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TuiView {
-    /// Browse - File browser for .nika.yaml workflows [1/b]
+    /// Studio - Unified editor with browser + YAML editor + DAG preview [1/s]
     #[default]
-    Browse,
-    /// Editor - YAML editor with schema validation [2/e]
-    Editor,
-    /// Runner - Real-time execution monitoring [3/r]
-    Runner,
-    /// Chat Playground - Command Nika conversationally [4/c]
-    Chat,
-    /// Scheduler - Cron/queue management [5/d]
-    Scheduler,
-    /// Settings - Provider config, theme, preferences [6/,]
-    Settings,
-    /// Split - Editor + Runner side-by-side [7/s]
-    Split,
-    /// Workspace - Browser + Editor + DAG preview [8/w]
-    Workspace,
-    /// Studio - Alias for Editor (legacy, maps to Editor)
     Studio,
+    /// Runner - Real-time execution monitoring [2/r]
+    Runner,
+    /// Chat Playground - Command Nika conversationally [3/c]
+    Chat,
+    /// Scheduler - Cron/queue management [4/d]
+    Scheduler,
+    /// Settings - Provider config, theme, preferences [5/,]
+    Settings,
 }
 
 impl TuiView {
-    /// Get all 8 main views in order (Tab cycles through main 6)
+    /// Get all 5 main views in order (Tab cycles through all)
     pub fn all() -> &'static [TuiView] {
         &[
-            TuiView::Browse,
-            TuiView::Editor,
+            TuiView::Studio,
             TuiView::Runner,
             TuiView::Chat,
             TuiView::Scheduler,
@@ -230,77 +217,84 @@ impl TuiView {
         ]
     }
 
-    /// Get all views including compound views
+    /// Get all views including legacy aliases
     pub fn all_including_auxiliary() -> &'static [TuiView] {
         &[
-            TuiView::Browse,
-            TuiView::Editor,
+            TuiView::Studio,
             TuiView::Runner,
             TuiView::Chat,
             TuiView::Scheduler,
             TuiView::Settings,
+            TuiView::Browse,
+            TuiView::Editor,
             TuiView::Split,
             TuiView::Workspace,
         ]
     }
 
-    /// Check if this is an auxiliary view (Settings, Split, Workspace)
+    /// Check if this is an auxiliary/legacy view
     pub fn is_auxiliary(&self) -> bool {
-        matches!(self, TuiView::Settings | TuiView::Split | TuiView::Workspace)
+        matches!(
+            self,
+            TuiView::Settings | TuiView::Split | TuiView::Workspace
+        )
     }
 
-    /// Check if this is the studio view (Editor alias)
+    /// Check if this is a studio-family view (Studio or any legacy alias)
     pub fn is_studio(&self) -> bool {
-        matches!(self, TuiView::Studio | TuiView::Editor)
+        matches!(
+            self,
+            TuiView::Studio | TuiView::Browse | TuiView::Editor | TuiView::Split | TuiView::Workspace
+        )
     }
 
-    /// Get next view (cycling through main 6 views)
+    /// Get next view (cycling through all 5 core views)
+    /// Legacy aliases cycle to their next logical view
     pub fn next(&self) -> Self {
         match self {
-            TuiView::Browse => TuiView::Editor,
-            TuiView::Editor | TuiView::Studio => TuiView::Runner,
+            TuiView::Studio | TuiView::Browse | TuiView::Editor => TuiView::Runner,
             TuiView::Runner => TuiView::Chat,
             TuiView::Chat => TuiView::Scheduler,
             TuiView::Scheduler => TuiView::Settings,
-            TuiView::Settings => TuiView::Browse,
+            TuiView::Settings => TuiView::Studio,
             TuiView::Split => TuiView::Workspace,
-            TuiView::Workspace => TuiView::Browse,
+            TuiView::Workspace => TuiView::Studio,
         }
     }
 
-    /// Get previous view (cycling through main 6 views)
+    /// Get previous view (cycling through all 5 core views)
     pub fn prev(&self) -> Self {
         match self {
-            TuiView::Browse => TuiView::Settings,
-            TuiView::Editor | TuiView::Studio => TuiView::Browse,
-            TuiView::Runner => TuiView::Editor,
+            TuiView::Studio | TuiView::Browse | TuiView::Editor => TuiView::Settings,
+            TuiView::Runner => TuiView::Studio,
             TuiView::Chat => TuiView::Runner,
             TuiView::Scheduler => TuiView::Chat,
             TuiView::Settings => TuiView::Scheduler,
-            TuiView::Split => TuiView::Editor,
+            TuiView::Split => TuiView::Studio,
             TuiView::Workspace => TuiView::Split,
         }
     }
 
     /// Get view number (1-indexed for display)
+    /// Legacy aliases share the number of their core view
     pub fn number(&self) -> u8 {
         match self {
-            TuiView::Browse => 1,
-            TuiView::Editor | TuiView::Studio => 2,
-            TuiView::Runner => 3,
-            TuiView::Chat => 4,
-            TuiView::Scheduler => 5,
-            TuiView::Settings => 6,
-            TuiView::Split => 7,
-            TuiView::Workspace => 8,
+            TuiView::Studio | TuiView::Browse | TuiView::Editor => 1,
+            TuiView::Runner => 2,
+            TuiView::Chat => 3,
+            TuiView::Scheduler => 4,
+            TuiView::Settings => 5,
+            TuiView::Split => 6,
+            TuiView::Workspace => 7,
         }
     }
 
     /// Get the title for the header bar
     pub fn title(&self) -> &'static str {
         match self {
+            TuiView::Studio => "NIKA STUDIO",
             TuiView::Browse => "NIKA BROWSE",
-            TuiView::Editor | TuiView::Studio => "NIKA EDITOR",
+            TuiView::Editor => "NIKA EDITOR",
             TuiView::Runner => "NIKA RUNNER",
             TuiView::Chat => "NIKA CHAT PLAYGROUND",
             TuiView::Scheduler => "NIKA SCHEDULER",
@@ -313,8 +307,8 @@ impl TuiView {
     /// Get the icon for the view (terminal-friendly)
     pub fn icon(&self) -> &'static str {
         match self {
+            TuiView::Studio | TuiView::Editor => "✏",
             TuiView::Browse => "📁",
-            TuiView::Editor | TuiView::Studio => "✏",
             TuiView::Runner => "▶",
             TuiView::Chat => "💬",
             TuiView::Scheduler => "📅",
@@ -327,14 +321,15 @@ impl TuiView {
     /// Get the letter shortcut for the view
     pub fn shortcut(&self) -> char {
         match self {
+            TuiView::Studio => 's',
             TuiView::Browse => 'b',
-            TuiView::Editor | TuiView::Studio => 'e',
+            TuiView::Editor => 'e',
             TuiView::Runner => 'r',
             TuiView::Chat => 'c',
             TuiView::Scheduler => 'd',
             TuiView::Settings => ',',
-            TuiView::Split => 's',
-            TuiView::Workspace => 'w',
+            TuiView::Split => '7',
+            TuiView::Workspace => '8',
         }
     }
 
@@ -432,28 +427,51 @@ mod tests {
     }
 
     #[test]
-    fn test_tui_view_all_including_auxiliary_same_as_all() {
+    fn test_tui_view_all_including_auxiliary_has_all_views() {
         let views = TuiView::all_including_auxiliary();
-        assert_eq!(views.len(), 5);
-        assert_eq!(views, TuiView::all());
+        // 5 core + 4 legacy = 9 total
+        assert_eq!(views.len(), 9);
+        // First 5 should be core views
+        assert_eq!(views[0], TuiView::Studio);
+        assert_eq!(views[1], TuiView::Runner);
+        assert_eq!(views[2], TuiView::Chat);
+        assert_eq!(views[3], TuiView::Scheduler);
+        assert_eq!(views[4], TuiView::Settings);
+        // Last 4 should be legacy aliases
+        assert_eq!(views[5], TuiView::Browse);
+        assert_eq!(views[6], TuiView::Editor);
+        assert_eq!(views[7], TuiView::Split);
+        assert_eq!(views[8], TuiView::Workspace);
     }
 
     #[test]
     fn test_tui_view_is_auxiliary() {
+        // Core views
         assert!(!TuiView::Studio.is_auxiliary());
         assert!(!TuiView::Runner.is_auxiliary());
         assert!(!TuiView::Chat.is_auxiliary());
         assert!(!TuiView::Scheduler.is_auxiliary());
         assert!(TuiView::Settings.is_auxiliary());
+        // Legacy aliases
+        assert!(!TuiView::Browse.is_auxiliary());
+        assert!(!TuiView::Editor.is_auxiliary());
+        assert!(TuiView::Split.is_auxiliary());
+        assert!(TuiView::Workspace.is_auxiliary());
     }
 
     #[test]
     fn test_tui_view_is_studio() {
+        // Core views - only Studio is studio
         assert!(TuiView::Studio.is_studio());
         assert!(!TuiView::Runner.is_studio());
         assert!(!TuiView::Chat.is_studio());
         assert!(!TuiView::Scheduler.is_studio());
         assert!(!TuiView::Settings.is_studio());
+        // Legacy aliases - all are studio-family
+        assert!(TuiView::Browse.is_studio());
+        assert!(TuiView::Editor.is_studio());
+        assert!(TuiView::Split.is_studio());
+        assert!(TuiView::Workspace.is_studio());
     }
 
     #[test]

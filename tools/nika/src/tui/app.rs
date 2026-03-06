@@ -4435,7 +4435,9 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let state = StandaloneState::new(temp_dir.path().to_path_buf());
         let app = App::new_standalone(state).unwrap();
-        assert_eq!(app.current_view, TuiView::Browse);
+        // v0.21: Default view is now Studio (unified editor)
+        // Browse is a legacy alias that maps to Studio behavior
+        assert!(app.current_view.is_studio());
     }
 
     #[test]

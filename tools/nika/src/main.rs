@@ -333,6 +333,13 @@ enum Commands {
         #[arg(long)]
         list: bool,
     },
+
+    /// Manage workflow files (edit, add-task, graph, check)
+    #[command(visible_alias = "w")]
+    Workflow {
+        #[command(subcommand)]
+        action: WorkflowAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -849,6 +856,8 @@ async fn main() {
             list,
             quiet,
         ),
+
+        Some(Commands::Workflow { action }) => handle_workflow_command(action, quiet).await,
     };
 
     handle_result(result);
@@ -3725,15 +3734,18 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
             if suggest {
                 let mut referenced: std::collections::HashSet<&str> = std::collections::HashSet::new();
                 for flow in &workflow.flows {
-                    referenced.insert(&flow.target);
+                    for target in flow.target.as_vec() {
+                        referenced.insert(target);
+                    }
+                    for source in flow.source.as_vec() {
+                        referenced.insert(source);
+                    }
                 }
                 for task in &workflow.tasks {
-                    if let Some(ref use_block) = task.r#use {
+                    if let Some(ref use_block) = task.use_wiring {
                         for entry in use_block.values() {
-                            if let Some(path) = entry.path.as_ref() {
-                                if let Some(task_ref) = path.split('.').next() {
-                                    referenced.insert(task_ref);
-                                }
+                            if let Some(task_ref) = entry.path.split('.').next() {
+                                referenced.insert(task_ref);
                             }
                         }
                     }
@@ -3815,13 +3827,10 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
 /// Generate ASCII DAG representation
 fn generate_ascii_dag(workflow: &nika::ast::Workflow) -> String {
     let mut output = String::new();
+    let name = "(unnamed)";
     output.push_str("┌─────────────────────────────────────────┐\n");
-    output.push_str(&format!("│ DAG: {}",
-        workflow.workflow.as_deref().unwrap_or("(unnamed)")
-    ));
-    let padding = 40usize.saturating_sub(
-        workflow.workflow.as_deref().unwrap_or("(unnamed)").len() + 6
-    );
+    output.push_str(&format!("│ DAG: {}", name));
+    let padding = 40usize.saturating_sub(name.len() + 6);
     output.push_str(&" ".repeat(padding));
     output.push_str("│\n");
     output.push_str("├─────────────────────────────────────────┤\n");
@@ -3829,11 +3838,11 @@ fn generate_ascii_dag(workflow: &nika::ast::Workflow) -> String {
     // Build task list with verb icons
     for task in &workflow.tasks {
         let verb_icon = match &task.action {
-            nika::ast::TaskAction::Infer(_) => "⚡",
-            nika::ast::TaskAction::Exec(_) => "📟",
-            nika::ast::TaskAction::Fetch(_) => "🛰️",
-            nika::ast::TaskAction::Invoke(_) => "🔌",
-            nika::ast::TaskAction::Agent(_) => "🐔",
+            nika::ast::TaskAction::Infer { .. } => "⚡",
+            nika::ast::TaskAction::Exec { .. } => "📟",
+            nika::ast::TaskAction::Fetch { .. } => "🛰️",
+            nika::ast::TaskAction::Invoke { .. } => "🔌",
+            nika::ast::TaskAction::Agent { .. } => "🐔",
         };
         let line = format!("│ {} {}", verb_icon, task.id);
         let line_padding = 40usize.saturating_sub(task.id.len() + 4);
@@ -3841,11 +3850,13 @@ fn generate_ascii_dag(workflow: &nika::ast::Workflow) -> String {
     }
 
     // Show flows
-    if let Some(ref flows) = workflow.flows {
+    if !workflow.flows.is_empty() {
         output.push_str("├─────────────────────────────────────────┤\n");
         output.push_str("│ Flows:                                  │\n");
-        for flow in flows {
-            let flow_str = format!("  {} → {}", flow.source, flow.target);
+        for flow in &workflow.flows {
+            let sources = flow.source.as_vec().join(", ");
+            let targets = flow.target.as_vec().join(", ");
+            let flow_str = format!("  {} → {}", sources, targets);
             let flow_padding = 39usize.saturating_sub(flow_str.len());
             output.push_str(&format!("│{}{}│\n", flow_str, " ".repeat(flow_padding)));
         }
@@ -3858,19 +3869,19 @@ fn generate_ascii_dag(workflow: &nika::ast::Workflow) -> String {
 /// Generate DOT (Graphviz) DAG representation
 fn generate_dot_dag(workflow: &nika::ast::Workflow) -> String {
     let mut output = String::new();
-    let name = workflow.workflow.as_deref().unwrap_or("workflow");
-    output.push_str(&format!("digraph {} {{\n", name.replace('-', "_")));
+    let name = "workflow";
+    output.push_str(&format!("digraph {} {{\n", name));
     output.push_str("  rankdir=LR;\n");
     output.push_str("  node [shape=box, style=rounded];\n\n");
 
     // Add nodes with styling based on verb
     for task in &workflow.tasks {
         let color = match &task.action {
-            nika::ast::TaskAction::Infer(_) => "lightblue",
-            nika::ast::TaskAction::Exec(_) => "lightgreen",
-            nika::ast::TaskAction::Fetch(_) => "lightyellow",
-            nika::ast::TaskAction::Invoke(_) => "lightpink",
-            nika::ast::TaskAction::Agent(_) => "plum",
+            nika::ast::TaskAction::Infer { .. } => "lightblue",
+            nika::ast::TaskAction::Exec { .. } => "lightgreen",
+            nika::ast::TaskAction::Fetch { .. } => "lightyellow",
+            nika::ast::TaskAction::Invoke { .. } => "lightpink",
+            nika::ast::TaskAction::Agent { .. } => "plum",
         };
         output.push_str(&format!(
             "  {} [label=\"{}\", fillcolor={}, style=\"rounded,filled\"];\n",
@@ -3882,13 +3893,15 @@ fn generate_dot_dag(workflow: &nika::ast::Workflow) -> String {
 
     // Add edges
     output.push('\n');
-    if let Some(ref flows) = workflow.flows {
-        for flow in flows {
-            output.push_str(&format!(
-                "  {} -> {};\n",
-                flow.source.replace('-', "_"),
-                flow.target.replace('-', "_")
-            ));
+    for flow in &workflow.flows {
+        for source in flow.source.as_vec() {
+            for target in flow.target.as_vec() {
+                output.push_str(&format!(
+                    "  {} -> {};\n",
+                    source.replace('-', "_"),
+                    target.replace('-', "_")
+                ));
+            }
         }
     }
 
@@ -3904,18 +3917,18 @@ fn generate_mermaid_dag(workflow: &nika::ast::Workflow) -> String {
     // Add nodes with styling
     for task in &workflow.tasks {
         let shape = match &task.action {
-            nika::ast::TaskAction::Infer(_) => ("([", "])"),  // Stadium
-            nika::ast::TaskAction::Exec(_) => ("[", "]"),      // Rectangle
-            nika::ast::TaskAction::Fetch(_) => ("{{", "}}"),   // Hexagon
-            nika::ast::TaskAction::Invoke(_) => ("[[", "]]"),  // Subroutine
-            nika::ast::TaskAction::Agent(_) => ("((", "))"),   // Circle
+            nika::ast::TaskAction::Infer { .. } => ("([", "])"),  // Stadium
+            nika::ast::TaskAction::Exec { .. } => ("[", "]"),     // Rectangle
+            nika::ast::TaskAction::Fetch { .. } => ("{{", "}}"),  // Hexagon
+            nika::ast::TaskAction::Invoke { .. } => ("[[", "]]"), // Subroutine
+            nika::ast::TaskAction::Agent { .. } => ("((", "))"),  // Circle
         };
         let verb = match &task.action {
-            nika::ast::TaskAction::Infer(_) => "infer",
-            nika::ast::TaskAction::Exec(_) => "exec",
-            nika::ast::TaskAction::Fetch(_) => "fetch",
-            nika::ast::TaskAction::Invoke(_) => "invoke",
-            nika::ast::TaskAction::Agent(_) => "agent",
+            nika::ast::TaskAction::Infer { .. } => "infer",
+            nika::ast::TaskAction::Exec { .. } => "exec",
+            nika::ast::TaskAction::Fetch { .. } => "fetch",
+            nika::ast::TaskAction::Invoke { .. } => "invoke",
+            nika::ast::TaskAction::Agent { .. } => "agent",
         };
         output.push_str(&format!(
             "  {}{}{} : {}{}\n",
@@ -3929,13 +3942,15 @@ fn generate_mermaid_dag(workflow: &nika::ast::Workflow) -> String {
 
     // Add edges
     output.push('\n');
-    if let Some(ref flows) = workflow.flows {
-        for flow in flows {
-            output.push_str(&format!(
-                "  {} --> {}\n",
-                flow.source.replace('-', "_"),
-                flow.target.replace('-', "_")
-            ));
+    for flow in &workflow.flows {
+        for source in flow.source.as_vec() {
+            for target in flow.target.as_vec() {
+                output.push_str(&format!(
+                    "  {} --> {}\n",
+                    source.replace('-', "_"),
+                    target.replace('-', "_")
+                ));
+            }
         }
     }
 
