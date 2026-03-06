@@ -50,6 +50,8 @@ use crate::util::STREAM_CHUNK_TIMEOUT;
 pub enum RigAgentStatus {
     /// Agent completed naturally (no more tool calls)
     NaturalCompletion,
+    /// Agent called nika:complete tool explicitly (v0.21)
+    ExplicitCompletion,
     /// Stop condition matched in output
     StopConditionMet,
     /// Maximum turns reached
@@ -66,6 +68,7 @@ impl RigAgentStatus {
     pub fn as_canonical_str(&self) -> &'static str {
         match self {
             Self::NaturalCompletion => "end_turn",
+            Self::ExplicitCompletion => "tool_complete", // v0.21
             Self::StopConditionMet => "stop_sequence",
             Self::MaxTurnsReached => "max_turns",
             Self::TokenBudgetExceeded => "max_tokens",
@@ -239,7 +242,8 @@ impl RigAgentLoop {
         // These are always available to agents for workflow control and observability.
         // LogTool and EmitTool now emit EventKind::Log and EventKind::Custom events.
         use super::builtin::{
-            AssertTool, EmitTool, LogTool, NikaBuiltinToolAdapter, PromptTool, RunTool, SleepTool,
+            AssertTool, CompleteTool, EmitTool, LogTool, NikaBuiltinToolAdapter, PromptTool,
+            RunTool, SleepTool,
         };
 
         // Create Arc wrappers for sharing with builtin tools (v0.12.0)
@@ -263,6 +267,10 @@ impl RigAgentLoop {
             PromptTool::default(),
         ))));
         tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(RunTool))));
+        // v0.21: CompleteTool for explicit completion mode
+        tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+            CompleteTool,
+        ))));
 
         // PERF: Pre-allocate history capacity based on max_turns.
         // Each turn adds 2 messages (user + assistant), so capacity = max_turns * 2.
@@ -511,12 +519,8 @@ impl RigAgentLoop {
         self.history.push(Message::user(prompt));
         self.history.push(Message::assistant(&response));
 
-        // Determine status
-        let status = if self.check_stop_conditions(&response) {
-            RigAgentStatus::StopConditionMet
-        } else {
-            RigAgentStatus::NaturalCompletion
-        };
+        // Determine status (v0.21: uses determine_status for completion detection)
+        let status = self.determine_status(&response);
 
         // Emit completion
         let stop_reason = status.as_canonical_str();
@@ -593,12 +597,8 @@ impl RigAgentLoop {
         self.history.push(Message::user(prompt));
         self.history.push(Message::assistant(&response));
 
-        // Determine status
-        let status = if self.check_stop_conditions(&response) {
-            RigAgentStatus::StopConditionMet
-        } else {
-            RigAgentStatus::NaturalCompletion
-        };
+        // Determine status (v0.21: uses determine_status for completion detection)
+        let status = self.determine_status(&response);
 
         // Emit completion
         let stop_reason = status.as_canonical_str();
@@ -1319,12 +1319,8 @@ impl RigAgentLoop {
             "completed": true
         });
 
-        // Check stop conditions
-        let status = if self.check_stop_conditions(&final_output.to_string()) {
-            RigAgentStatus::StopConditionMet
-        } else {
-            RigAgentStatus::NaturalCompletion
-        };
+        // Check stop conditions (v0.21: uses determine_status for completion detection)
+        let status = self.determine_status(&final_output.to_string());
 
         // Build metadata for completion event (v0.4.1)
         let stop_reason = status.as_canonical_str();
@@ -1406,12 +1402,8 @@ impl RigAgentLoop {
             .stream_with_tools(model, &prompt, tools, max_turns)
             .await?;
 
-        // Determine status from response
-        let status = if self.check_stop_conditions(&result.response) {
-            RigAgentStatus::StopConditionMet
-        } else {
-            RigAgentStatus::NaturalCompletion
-        };
+        // Determine status from response (v0.21: uses determine_status for completion detection)
+        let status = self.determine_status(&result.response);
 
         // Build metadata WITH token tracking (v0.7.2)
         let stop_reason = status.as_canonical_str();
@@ -1446,6 +1438,31 @@ impl RigAgentLoop {
             .stop_conditions
             .iter()
             .any(|cond| output.contains(cond))
+    }
+
+    /// Check if output contains explicit completion signal (v0.21)
+    ///
+    /// This checks for the COMPLETION_MARKER in tool results, indicating the
+    /// agent called nika:complete to signal task completion.
+    fn check_completion_signal(&self, output: &str) -> bool {
+        use crate::runtime::builtin::COMPLETION_MARKER;
+        output.contains(COMPLETION_MARKER)
+    }
+
+    /// Determine agent status based on output content (v0.21)
+    ///
+    /// Checks in order:
+    /// 1. Explicit completion via nika:complete tool (ExplicitCompletion)
+    /// 2. Legacy stop conditions (StopConditionMet)
+    /// 3. Natural completion (NaturalCompletion)
+    fn determine_status(&self, output: &str) -> RigAgentStatus {
+        if self.check_completion_signal(output) {
+            RigAgentStatus::ExplicitCompletion
+        } else if self.check_stop_conditions(output) {
+            RigAgentStatus::StopConditionMet
+        } else {
+            RigAgentStatus::NaturalCompletion
+        }
     }
 
     /// Run the agent loop with extended thinking enabled (Claude only).
@@ -1592,12 +1609,8 @@ impl RigAgentLoop {
         };
         let response = response_parts.concat();
 
-        // Determine status
-        let status = if self.check_stop_conditions(&response) {
-            RigAgentStatus::StopConditionMet
-        } else {
-            RigAgentStatus::NaturalCompletion
-        };
+        // Determine status (v0.21: uses determine_status for completion detection)
+        let status = self.determine_status(&response);
 
         // Build metadata with thinking and token usage (v0.4.1 fix)
         let stop_reason = status.as_canonical_str();
@@ -1664,12 +1677,8 @@ impl RigAgentLoop {
             .stream_with_tools(model, &prompt, tools, max_turns)
             .await?;
 
-        // Determine status from response
-        let status = if self.check_stop_conditions(&result.response) {
-            RigAgentStatus::StopConditionMet
-        } else {
-            RigAgentStatus::NaturalCompletion
-        };
+        // Determine status from response (v0.21: uses determine_status for completion detection)
+        let status = self.determine_status(&result.response);
 
         // Build metadata WITH token tracking (v0.7.2)
         let stop_reason = status.as_canonical_str();
@@ -1866,12 +1875,8 @@ impl RigAgentLoop {
             .stream_with_tools(model, &prompt, tools, max_turns)
             .await?;
 
-        // Determine status
-        let status = if self.check_stop_conditions(&result.response) {
-            RigAgentStatus::StopConditionMet
-        } else {
-            RigAgentStatus::NaturalCompletion
-        };
+        // Determine status (v0.21: uses determine_status for completion detection)
+        let status = self.determine_status(&result.response);
 
         // Build metadata WITH token tracking (v0.7.2)
         let stop_reason = status.as_canonical_str();
@@ -1944,6 +1949,107 @@ mod tests {
         assert!(agent.check_stop_conditions("Task is DONE"));
         assert!(agent.check_stop_conditions("COMPLETE!"));
         assert!(!agent.check_stop_conditions("Still working..."));
+    }
+
+    // ========================================================================
+    // Completion Detection Tests (v0.21)
+    // ========================================================================
+
+    #[test]
+    fn test_check_completion_signal() {
+        use crate::runtime::builtin::COMPLETION_MARKER;
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Should detect completion marker
+        let response_with_marker = format!(r#"{{"completed": true, "marker": "{}"}}"#, COMPLETION_MARKER);
+        assert!(agent.check_completion_signal(&response_with_marker));
+
+        // Should not detect without marker
+        assert!(!agent.check_completion_signal("Task completed successfully"));
+        assert!(!agent.check_completion_signal(r#"{"completed": true}"#));
+    }
+
+    #[test]
+    fn test_determine_status_explicit_completion() {
+        use crate::runtime::builtin::COMPLETION_MARKER;
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            stop_conditions: vec!["DONE".to_string()],
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Explicit completion has highest priority
+        let response = format!(r#"Result: {{"marker": "{}"}}"#, COMPLETION_MARKER);
+        assert_eq!(agent.determine_status(&response), RigAgentStatus::ExplicitCompletion);
+    }
+
+    #[test]
+    fn test_determine_status_stop_condition() {
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            stop_conditions: vec!["DONE".to_string()],
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Stop condition (no completion marker)
+        assert_eq!(agent.determine_status("Task is DONE"), RigAgentStatus::StopConditionMet);
+    }
+
+    #[test]
+    fn test_determine_status_natural_completion() {
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            stop_conditions: vec!["DONE".to_string()],
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Natural completion (no marker, no stop condition)
+        assert_eq!(agent.determine_status("Task completed normally"), RigAgentStatus::NaturalCompletion);
+    }
+
+    #[test]
+    fn test_determine_status_explicit_over_stop_condition() {
+        use crate::runtime::builtin::COMPLETION_MARKER;
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            stop_conditions: vec!["DONE".to_string()],
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // When both marker and stop condition present, explicit wins
+        let response = format!("DONE and marker: {}", COMPLETION_MARKER);
+        assert_eq!(agent.determine_status(&response), RigAgentStatus::ExplicitCompletion);
+    }
+
+    #[test]
+    fn test_explicit_completion_status_canonical_str() {
+        assert_eq!(RigAgentStatus::ExplicitCompletion.as_canonical_str(), "tool_complete");
     }
 
     // ========================================================================
