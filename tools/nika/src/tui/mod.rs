@@ -145,7 +145,7 @@ pub use verification::{VerificationCache, VerificationEntry};
 #[cfg(feature = "tui")]
 pub use views::{
     ChatView, DagTab, HelpView, HomeView, MissionTab, MonitorView, NovanetTab, ReasoningTab,
-    SettingsView, TuiView, View, ViewAction, YamlEditorPanel,
+    SchedulerView, SettingsView, StudioView, TuiView, View, ViewAction, YamlEditorPanel,
 };
 
 /// Install panic hook to restore terminal state on crashes.

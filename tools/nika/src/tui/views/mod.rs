@@ -222,6 +222,11 @@ impl TuiView {
         matches!(self, TuiView::Settings)
     }
 
+    /// Get all views including auxiliary (v0.21: same as all())
+    pub fn all_including_auxiliary() -> &'static [TuiView] {
+        Self::all()
+    }
+
     /// Check if this is the studio view
     pub fn is_studio(&self) -> bool {
         matches!(self, TuiView::Studio)
@@ -265,7 +270,7 @@ impl TuiView {
         match self {
             TuiView::Studio => "NIKA STUDIO",
             TuiView::Runner => "NIKA RUNNER",
-            TuiView::Chat => "NIKA CHAT PLAYGROUND",
+            TuiView::Chat => "NIKA CHAT",
             TuiView::Scheduler => "NIKA SCHEDULER",
             TuiView::Settings => "NIKA SETTINGS",
         }
@@ -274,7 +279,7 @@ impl TuiView {
     /// Get the icon for the view (terminal-friendly)
     pub fn icon(&self) -> &'static str {
         match self {
-            TuiView::Studio => "✏",
+            TuiView::Studio => "📝",
             TuiView::Runner => "▶",
             TuiView::Chat => "💬",
             TuiView::Scheduler => "📅",

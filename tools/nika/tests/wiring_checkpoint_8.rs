@@ -176,8 +176,8 @@ fn wiring_8_handle_key_q_returns_home() {
     let action = view.handle_key(q_key, &mut state);
 
     assert!(
-        matches!(action, ViewAction::SwitchView(TuiView::Browse)),
-        "q should return to Browse view"
+        matches!(action, ViewAction::SwitchView(TuiView::Studio)),
+        "q should return to Studio view"
     );
 }
 
