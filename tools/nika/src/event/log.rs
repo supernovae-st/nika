@@ -1,8 +1,8 @@
-//! EventLog - Event sourcing implementation (v0.4, updated v0.23)
+//! EventLog - Event sourcing implementation (v0.4, updated v0.24)
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 26 variants across 7 levels (workflow/task/fine-grained/MCP/context/guardrails/structured-output)
+//! - EventKind: 28 variants across 8 levels (workflow/task/fine-grained/MCP/context/guardrails/structured-output/limits)
 //! - EventLog: thread-safe, append-only log
 //!
 //! ## v0.4.1 Changes
@@ -470,6 +470,38 @@ pub enum EventKind {
         /// Total attempts across all layers before success
         total_attempts: u32,
     },
+
+    // ═══════════════════════════════════════════════════════════════
+    // LIMIT EVENTS (v0.24)
+    // ═══════════════════════════════════════════════════════════════
+    /// Limit reached during agent execution
+    ///
+    /// Emitted when an agent execution limit is hit (turns, tokens, cost, or duration).
+    /// The action field indicates what was done in response.
+    LimitReached {
+        /// Task ID for correlation
+        task_id: Arc<str>,
+        /// Limit type: "turns", "tokens", "cost", "duration"
+        limit_type: String,
+        /// Current value when limit was reached
+        value: f64,
+        /// Configured threshold
+        threshold: f64,
+        /// Action taken: "complete_partial", "fail", "escalate"
+        action: String,
+    },
+    /// Agent completed with partial results due to limit
+    ///
+    /// Emitted when an agent gracefully completes with partial results
+    /// after hitting a limit with action: complete_partial.
+    PartialCompletion {
+        /// Task ID for correlation
+        task_id: Arc<str>,
+        /// Progress percentage (0.0-1.0)
+        progress: f64,
+        /// Preview of partial result (truncated if long)
+        result_preview: String,
+    },
 }
 
 impl EventKind {
@@ -496,7 +528,9 @@ impl EventKind {
             | Self::StructuredOutputAttempt { task_id, .. }
             | Self::StructuredOutputSuccess { task_id, .. }
             | Self::GuardrailPassed { task_id, .. }
-            | Self::GuardrailFailed { task_id, .. } => Some(task_id),
+            | Self::GuardrailFailed { task_id, .. }
+            | Self::LimitReached { task_id, .. }
+            | Self::PartialCompletion { task_id, .. } => Some(task_id),
             // AgentSpawned uses parent_task_id as the primary task reference
             Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
             // Log and Custom may optionally have task_id
@@ -1723,5 +1757,206 @@ mod tests {
 
         assert_eq!(passed_count, 2);
         assert_eq!(failed_count, 1);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Limit events tests (v0.24)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn limit_reached_event() {
+        let log = EventLog::new();
+
+        log.emit(EventKind::LimitReached {
+            task_id: "agent_task".into(),
+            limit_type: "turns".to_string(),
+            value: 20.0,
+            threshold: 20.0,
+            action: "complete_partial".to_string(),
+        });
+
+        let events = log.filter_task("agent_task");
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::LimitReached {
+            limit_type,
+            value,
+            threshold,
+            action,
+            ..
+        } = &events[0].kind
+        {
+            assert_eq!(limit_type, "turns");
+            assert!((value - 20.0).abs() < f64::EPSILON);
+            assert!((threshold - 20.0).abs() < f64::EPSILON);
+            assert_eq!(action, "complete_partial");
+        } else {
+            panic!("Expected LimitReached event");
+        }
+    }
+
+    #[test]
+    fn limit_reached_cost_event() {
+        let log = EventLog::new();
+
+        log.emit(EventKind::LimitReached {
+            task_id: "expensive_task".into(),
+            limit_type: "cost".to_string(),
+            value: 2.50,
+            threshold: 2.00,
+            action: "fail".to_string(),
+        });
+
+        let events = log.filter_task("expensive_task");
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::LimitReached {
+            limit_type,
+            value,
+            threshold,
+            action,
+            ..
+        } = &events[0].kind
+        {
+            assert_eq!(limit_type, "cost");
+            assert!((value - 2.50).abs() < f64::EPSILON);
+            assert!((threshold - 2.00).abs() < f64::EPSILON);
+            assert_eq!(action, "fail");
+        } else {
+            panic!("Expected LimitReached event");
+        }
+    }
+
+    #[test]
+    fn partial_completion_event() {
+        let log = EventLog::new();
+
+        log.emit(EventKind::PartialCompletion {
+            task_id: "agent_task".into(),
+            progress: 0.75,
+            result_preview: "Generated 15 of 20 items...".to_string(),
+        });
+
+        let events = log.filter_task("agent_task");
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::PartialCompletion {
+            progress,
+            result_preview,
+            ..
+        } = &events[0].kind
+        {
+            assert!((progress - 0.75).abs() < f64::EPSILON);
+            assert_eq!(result_preview, "Generated 15 of 20 items...");
+        } else {
+            panic!("Expected PartialCompletion event");
+        }
+    }
+
+    #[test]
+    fn limit_reached_serializes() {
+        let event = EventKind::LimitReached {
+            task_id: "task1".into(),
+            limit_type: "tokens".to_string(),
+            value: 50000.0,
+            threshold: 50000.0,
+            action: "complete_partial".to_string(),
+        };
+
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["type"], "limit_reached");
+        assert_eq!(json["task_id"], "task1");
+        assert_eq!(json["limit_type"], "tokens");
+        assert_eq!(json["value"], 50000.0);
+        assert_eq!(json["threshold"], 50000.0);
+        assert_eq!(json["action"], "complete_partial");
+    }
+
+    #[test]
+    fn partial_completion_serializes() {
+        let event = EventKind::PartialCompletion {
+            task_id: "task1".into(),
+            progress: 0.5,
+            result_preview: "Partial results...".to_string(),
+        };
+
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["type"], "partial_completion");
+        assert_eq!(json["task_id"], "task1");
+        assert_eq!(json["progress"], 0.5);
+        assert_eq!(json["result_preview"], "Partial results...");
+    }
+
+    #[test]
+    fn limit_events_task_id_extraction() {
+        let limit = EventKind::LimitReached {
+            task_id: "limit1".into(),
+            limit_type: "duration".to_string(),
+            value: 300.0,
+            threshold: 300.0,
+            action: "escalate".to_string(),
+        };
+        assert_eq!(limit.task_id(), Some("limit1"));
+
+        let partial = EventKind::PartialCompletion {
+            task_id: "partial1".into(),
+            progress: 0.8,
+            result_preview: "Almost done".to_string(),
+        };
+        assert_eq!(partial.task_id(), Some("partial1"));
+    }
+
+    #[test]
+    fn limit_events_full_workflow() {
+        // Simulates an agent hitting limit and completing partially
+        let log = EventLog::new();
+
+        // Agent starts
+        log.emit(EventKind::AgentStart {
+            task_id: "research_agent".into(),
+            max_turns: 20,
+            mcp_servers: vec!["novanet".to_string()],
+        });
+
+        // Agent runs for a while...
+        log.emit(EventKind::AgentTurn {
+            task_id: "research_agent".into(),
+            turn_index: 15,
+            kind: "continue".to_string(),
+            metadata: None,
+        });
+
+        // Limit reached
+        log.emit(EventKind::LimitReached {
+            task_id: "research_agent".into(),
+            limit_type: "turns".to_string(),
+            value: 20.0,
+            threshold: 20.0,
+            action: "complete_partial".to_string(),
+        });
+
+        // Partial completion
+        log.emit(EventKind::PartialCompletion {
+            task_id: "research_agent".into(),
+            progress: 0.8,
+            result_preview: "Found 16 of 20 expected results...".to_string(),
+        });
+
+        // Agent completes
+        log.emit(EventKind::AgentComplete {
+            task_id: "research_agent".into(),
+            turns: 20,
+            stop_reason: "limit_reached".to_string(),
+        });
+
+        let events = log.filter_task("research_agent");
+        assert_eq!(events.len(), 5);
+
+        // Check sequence
+        assert!(matches!(&events[0].kind, EventKind::AgentStart { .. }));
+        assert!(matches!(&events[1].kind, EventKind::AgentTurn { .. }));
+        assert!(matches!(&events[2].kind, EventKind::LimitReached { .. }));
+        assert!(matches!(&events[3].kind, EventKind::PartialCompletion { .. }));
+        assert!(matches!(&events[4].kind, EventKind::AgentComplete { .. }));
     }
 }

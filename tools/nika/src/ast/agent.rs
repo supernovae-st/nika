@@ -209,6 +209,19 @@ pub struct AgentParams {
     /// If any guardrail fails, the agent is asked to retry.
     #[serde(default)]
     pub guardrails: Vec<crate::ast::guardrails::GuardrailConfig>,
+
+    /// Execution limits for cost control (v0.24)
+    ///
+    /// Limits control resource consumption:
+    /// - `max_turns`: Maximum agentic loop iterations
+    /// - `max_tokens`: Total token budget (input + output)
+    /// - `max_cost_usd`: Cost ceiling per execution
+    /// - `max_duration_secs`: Wall-clock timeout
+    ///
+    /// When a limit is reached, the action specified in `on_limit_reached`
+    /// is taken (complete_partial, fail, or escalate).
+    #[serde(default)]
+    pub limits: Option<crate::ast::limits::LimitsConfig>,
 }
 
 impl AgentParams {
@@ -410,7 +423,24 @@ impl AgentParams {
             completion.validate()?;
         }
 
+        // Validate limits config (v0.24)
+        if let Some(ref limits) = self.limits {
+            limits.validate()?;
+        }
+
         Ok(())
+    }
+
+    /// Get effective limits configuration (v0.24).
+    ///
+    /// Returns the limits config if set, or a default (no limits) otherwise.
+    pub fn effective_limits(&self) -> crate::ast::limits::LimitsConfig {
+        self.limits.clone().unwrap_or_default()
+    }
+
+    /// Check if any limits are configured (v0.24).
+    pub fn has_limits(&self) -> bool {
+        self.limits.as_ref().map(|l| l.has_limits()).unwrap_or(false)
     }
 }
 
@@ -1206,5 +1236,199 @@ completion:
         // Check instruction
         let instruction = completion.instruction.clone().unwrap();
         assert_eq!(instruction.lang, Some("en".to_string()));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Limits Config Tests (v0.24)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_parse_limits_full() {
+        let yaml = r#"
+prompt: "Test"
+limits:
+  max_turns: 20
+  max_tokens: 50000
+  max_cost_usd: 2.00
+  max_duration_secs: 300
+  on_limit_reached:
+    action: complete_partial
+    save_progress: true
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert!(params.limits.is_some());
+
+        let limits = params.limits.clone().unwrap();
+        assert_eq!(limits.max_turns, 20);
+        assert_eq!(limits.max_tokens, 50000);
+        assert!((limits.max_cost_usd - 2.00).abs() < f64::EPSILON);
+        assert_eq!(limits.max_duration_secs, 300);
+        assert_eq!(
+            limits.on_limit_reached.action,
+            crate::ast::limits::LimitAction::CompletePartial
+        );
+        assert!(limits.on_limit_reached.save_progress);
+    }
+
+    #[test]
+    fn test_parse_limits_partial() {
+        let yaml = r#"
+prompt: "Test"
+limits:
+  max_turns: 10
+  max_cost_usd: 1.50
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        let limits = params.limits.clone().unwrap();
+        assert_eq!(limits.max_turns, 10);
+        assert!((limits.max_cost_usd - 1.50).abs() < f64::EPSILON);
+        assert_eq!(limits.max_tokens, 0); // default
+        assert_eq!(limits.max_duration_secs, 0); // default
+    }
+
+    #[test]
+    fn test_parse_limits_action_fail() {
+        let yaml = r#"
+prompt: "Test"
+limits:
+  max_turns: 5
+  on_limit_reached:
+    action: fail
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        let limits = params.limits.clone().unwrap();
+        assert_eq!(
+            limits.on_limit_reached.action,
+            crate::ast::limits::LimitAction::Fail
+        );
+    }
+
+    #[test]
+    fn test_parse_limits_action_escalate() {
+        let yaml = r#"
+prompt: "Test"
+limits:
+  max_cost_usd: 0.50
+  on_limit_reached:
+    action: escalate
+    message: "Budget exceeded, needs approval"
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        let limits = params.limits.clone().unwrap();
+        assert_eq!(
+            limits.on_limit_reached.action,
+            crate::ast::limits::LimitAction::Escalate
+        );
+        assert_eq!(
+            limits.on_limit_reached.message,
+            Some("Budget exceeded, needs approval".to_string())
+        );
+    }
+
+    #[test]
+    fn test_limits_defaults_to_none() {
+        let params = AgentParams::default();
+        assert!(params.limits.is_none());
+        assert!(!params.has_limits());
+    }
+
+    #[test]
+    fn test_effective_limits_default() {
+        let params = AgentParams {
+            prompt: "test".to_string(),
+            ..Default::default()
+        };
+        let limits = params.effective_limits();
+        assert_eq!(limits.max_turns, 0);
+        assert_eq!(limits.max_tokens, 0);
+        assert!((limits.max_cost_usd - 0.0).abs() < f64::EPSILON);
+        assert!(!limits.has_limits());
+    }
+
+    #[test]
+    fn test_has_limits_true_when_configured() {
+        let yaml = r#"
+prompt: "Test"
+limits:
+  max_turns: 10
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert!(params.has_limits());
+    }
+
+    #[test]
+    fn test_has_limits_false_when_all_zero() {
+        let yaml = r#"
+prompt: "Test"
+limits:
+  max_turns: 0
+  max_tokens: 0
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert!(!params.has_limits());
+    }
+
+    #[test]
+    fn test_validate_limits_negative_cost() {
+        let yaml = r#"
+prompt: "Test"
+limits:
+  max_cost_usd: -1.00
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        let err = params.validate().unwrap_err();
+        assert!(err.contains("max_cost_usd"));
+        assert!(err.contains("non-negative"));
+    }
+
+    #[test]
+    fn test_validate_limits_valid() {
+        let yaml = r#"
+prompt: "Test"
+limits:
+  max_turns: 20
+  max_tokens: 50000
+  max_cost_usd: 5.00
+  max_duration_secs: 600
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert!(params.validate().is_ok());
+    }
+
+    #[test]
+    fn test_full_agent_config_with_limits() {
+        let yaml = r#"
+prompt: "Generate comprehensive research report"
+provider: claude
+model: claude-sonnet-4-6
+mcp:
+  - novanet
+  - perplexity
+max_turns: 20
+completion:
+  mode: explicit
+  confidence:
+    threshold: 0.8
+guardrails:
+  - type: length
+    min_words: 500
+limits:
+  max_turns: 15
+  max_tokens: 100000
+  max_cost_usd: 3.00
+  max_duration_secs: 600
+  on_limit_reached:
+    action: complete_partial
+    save_progress: true
+    message: "Research incomplete due to limits"
+"#;
+        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
+        assert!(params.validate().is_ok());
+        assert!(params.has_limits());
+
+        let limits = params.effective_limits();
+        assert_eq!(limits.max_turns, 15);
+        assert_eq!(limits.max_tokens, 100000);
+        assert!((limits.max_cost_usd - 3.00).abs() < f64::EPSILON);
     }
 }

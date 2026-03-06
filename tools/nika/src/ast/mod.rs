@@ -46,6 +46,7 @@ pub mod context;
 pub mod decompose;
 pub mod guardrails;
 pub mod include;
+pub mod limits;
 pub mod include_loader;
 mod invoke;
 pub mod loader;
@@ -92,3 +93,5 @@ pub use completion::{
     CompletionConfig, CompletionMode, ConfidenceConfig, InstructionConfig, LowConfidenceAction,
     PatternConfig, PatternType, SignalConfig, SignalFields,
 };
+// LimitsConfig is defined in limits.rs (v0.24 - Agent execution limits)
+pub use limits::{LimitAction, LimitStatus, LimitType, LimitsConfig, OnLimitReachedConfig};
