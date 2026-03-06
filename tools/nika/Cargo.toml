@@ -20,6 +20,7 @@ path = "src/main.rs"
 [features]
 default = ["tui", "spn-daemon"]
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-textarea", "dep:tui-input", "dep:arboard", "dep:notify", "dep:nucleo", "dep:unicode-width", "dep:unicode-segmentation", "dep:terminal_size", "dep:tui-tree-widget"]
+lsp = ["dep:tower-lsp", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support (v0.22)
 jobs = ["dep:rusqlite", "dep:cron", "dep:humantime-serde"]  # Jobs Daemon feature
 spn-daemon = ["dep:spn-client"]  # Use spn daemon for unified secret management (v0.20)
 integration = []  # Enable integration tests with real MCP servers
@@ -135,6 +136,9 @@ terminal_size = { version = "0.4", optional = true }  # Terminal dimensions for 
 rusqlite = { version = "0.32", features = ["bundled"], optional = true }  # SQLite state persistence
 cron = { version = "0.13", optional = true }  # Cron expression parsing
 humantime-serde = { version = "1.1", optional = true }  # Duration serde for TOML config
+
+# LSP Server (feature-gated) - v0.22 Language Server Protocol support
+tower-lsp = { version = "0.20", optional = true }
 
 # Logging
 tracing = "0.1"

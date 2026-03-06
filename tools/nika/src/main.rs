@@ -340,6 +340,25 @@ enum Commands {
         #[command(subcommand)]
         action: WorkflowAction,
     },
+
+    /// Start Language Server Protocol server (v0.22)
+    ///
+    /// Provides IDE integration for .nika.yaml workflow files:
+    /// - Diagnostics (syntax errors, validation errors)
+    /// - Completions (verbs, fields, task references)
+    /// - Hover documentation
+    /// - Go to definition
+    /// - Code actions (quick fixes)
+    #[cfg(feature = "lsp")]
+    Lsp {
+        /// Communication mode: stdio (default) or tcp
+        #[arg(long, default_value = "stdio")]
+        mode: String,
+
+        /// TCP port (only used with --mode tcp)
+        #[arg(long, default_value = "9257")]
+        port: u16,
+    },
 }
 
 #[derive(Subcommand)]
@@ -858,6 +877,26 @@ async fn main() {
         ),
 
         Some(Commands::Workflow { action }) => handle_workflow_command(action, quiet).await,
+
+        // LSP Server (v0.22)
+        #[cfg(feature = "lsp")]
+        Some(Commands::Lsp { mode, port }) => {
+            if mode == "stdio" {
+                nika::lsp::run_stdio()
+                    .await
+                    .map_err(|e| nika::NikaError::ConfigError {
+                        reason: format!("LSP server error: {}", e),
+                    })
+            } else if mode == "tcp" {
+                Err(nika::NikaError::ConfigError {
+                    reason: format!("TCP mode not yet implemented (port: {})", port),
+                })
+            } else {
+                Err(nika::NikaError::ConfigError {
+                    reason: format!("Unknown LSP mode: {}. Use 'stdio' or 'tcp'.", mode),
+                })
+            }
+        }
     };
 
     handle_result(result);

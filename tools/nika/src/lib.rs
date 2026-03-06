@@ -99,6 +99,13 @@ pub mod new;
 pub mod jobs;
 
 // ═══════════════════════════════════════════════════════════════
+// LSP SERVER - Language Server Protocol support (feature-gated)
+// v0.22 - IDE integration for .nika.yaml workflow files
+// ═══════════════════════════════════════════════════════════════
+#[cfg(feature = "lsp")]
+pub mod lsp;
+
+// ═══════════════════════════════════════════════════════════════
 // TEST UTILITIES (cfg(test) or cfg(feature = "test-fixtures"))
 // ═══════════════════════════════════════════════════════════════
 #[cfg(any(test, feature = "test-fixtures"))]
