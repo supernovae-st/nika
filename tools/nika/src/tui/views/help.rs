@@ -290,7 +290,7 @@ impl View for HelpView {
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
         match key.code {
             // Escape returns to previous view (Home)
-            KeyCode::Esc | KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Browse),
+            KeyCode::Esc | KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Studio),
 
             // Scroll down
             KeyCode::Char('j') | KeyCode::Down => {

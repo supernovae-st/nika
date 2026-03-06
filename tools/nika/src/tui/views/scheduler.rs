@@ -319,19 +319,17 @@ impl View for SchedulerView {
 
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
         match (key.code, key.modifiers) {
-            // View switching
-            (KeyCode::Char('1'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Browse),
-            (KeyCode::Char('2'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Chat),
-            (KeyCode::Char('3'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Editor),
-            (KeyCode::Char('4'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Runner),
-            (KeyCode::Char('5'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Scheduler),
-            (KeyCode::Char('6'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Settings),
-            // Letter shortcuts (v0.12)
-            (KeyCode::Char('e'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Browse),
+            // View switching (5-view architecture)
+            (KeyCode::Char('1'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Studio),
+            (KeyCode::Char('2'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Runner),
+            (KeyCode::Char('3'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Chat),
+            // 4 is Scheduler (current view)
+            (KeyCode::Char('5'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Settings),
+            // Letter shortcuts
+            (KeyCode::Char('s'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Studio),
             (KeyCode::Char('c'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Chat),
-            (KeyCode::Char('d'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Editor),
             (KeyCode::Char('r'), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Runner),
-            // 's' is Scheduler (current view)
+            // 'd' is Scheduler (current view, no action needed)
             (KeyCode::Char(','), KeyModifiers::NONE) => ViewAction::SwitchView(TuiView::Settings),
             // Panel navigation
             (KeyCode::Tab, KeyModifiers::NONE) => {

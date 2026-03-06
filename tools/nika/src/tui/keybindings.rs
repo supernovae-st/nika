@@ -320,7 +320,8 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 });
             }
         }
-        TuiView::Browse => {
+        // Studio view (5-view architecture: consolidates Browse, Editor, Split, Workspace)
+        TuiView::Studio => {
             if mode == InputMode::Normal {
                 bindings.push(Keybinding {
                     code: KeyCode::Enter,
@@ -340,10 +341,6 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                     description: "Fuzzy search (Ctrl+P)",
                     category: KeyCategory::Action,
                 });
-            }
-        }
-        TuiView::Editor | TuiView::Studio => {
-            if mode == InputMode::Normal {
                 bindings.push(Keybinding {
                     code: KeyCode::Char('s'),
                     modifiers: KeyModifiers::CONTROL,
@@ -368,52 +365,10 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 });
             }
         }
-        // v0.12: Settings is auxiliary view with minimal keybindings
+        // Settings is auxiliary view with minimal keybindings
         TuiView::Settings => {
             // Settings uses default navigation (Tab, Esc, arrows)
             // No additional view-specific bindings needed
-        }
-        // v0.13: Split view has its own keybindings (Tab to switch panes, Ctrl+] for ratio)
-        TuiView::Split => {
-            bindings.push(Keybinding {
-                code: KeyCode::Tab,
-                modifiers: KeyModifiers::NONE,
-                description: "Switch pane",
-                category: KeyCategory::PanelNav,
-            });
-            bindings.push(Keybinding {
-                code: KeyCode::Char(']'),
-                modifiers: KeyModifiers::CONTROL,
-                description: "Cycle ratio",
-                category: KeyCategory::PanelNav,
-            });
-            bindings.push(Keybinding {
-                code: KeyCode::F(9),
-                modifiers: KeyModifiers::NONE,
-                description: "Exit split",
-                category: KeyCategory::ViewNav,
-            });
-        }
-        // v0.20: Workspace view (similar to Split)
-        TuiView::Workspace => {
-            bindings.push(Keybinding {
-                code: KeyCode::Tab,
-                modifiers: KeyModifiers::NONE,
-                description: "Switch panel",
-                category: KeyCategory::PanelNav,
-            });
-            bindings.push(Keybinding {
-                code: KeyCode::Char(']'),
-                modifiers: KeyModifiers::CONTROL,
-                description: "Cycle ratio",
-                category: KeyCategory::PanelNav,
-            });
-            bindings.push(Keybinding {
-                code: KeyCode::F(10),
-                modifiers: KeyModifiers::NONE,
-                description: "Exit workspace",
-                category: KeyCategory::ViewNav,
-            });
         }
     }
 

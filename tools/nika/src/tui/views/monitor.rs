@@ -837,8 +837,8 @@ impl View for MonitorView {
 
     fn handle_key(&mut self, key: KeyEvent, state: &mut TuiState) -> ViewAction {
         match key.code {
-            // Escape returns to Explorer
-            KeyCode::Esc | KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Browse),
+            // Escape returns to Studio
+            KeyCode::Esc | KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Studio),
 
             // Tab cycles panels
             KeyCode::Tab => {
