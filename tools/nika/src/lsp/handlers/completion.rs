@@ -5,6 +5,9 @@
 #[cfg(feature = "lsp")]
 use tower_lsp::lsp_types::*;
 
+#[cfg(feature = "lsp")]
+use super::super::utils::extract_task_ids;
+
 /// Completion context based on cursor position
 #[cfg(feature = "lsp")]
 #[derive(Debug, Clone, PartialEq)]
@@ -51,7 +54,16 @@ fn analyze_completion_context(text: &str, position: Position) -> CompletionConte
     }
 
     let current_line = lines[position.line as usize];
-    let prefix = &current_line[..position.character as usize];
+    // Ensure we don't slice past the line length or into a multi-byte char
+    let char_pos = (position.character as usize).min(current_line.len());
+    // Find valid UTF-8 boundary at or before char_pos
+    let prefix_end = current_line
+        .char_indices()
+        .take_while(|(i, _)| *i < char_pos)
+        .last()
+        .map(|(i, c)| i + c.len_utf8())
+        .unwrap_or(0);
+    let prefix = &current_line[..prefix_end];
 
     // Check for template context {{ }}
     if prefix.contains("{{") && !prefix.contains("}}") {
@@ -460,32 +472,6 @@ fn binding_completions(text: &str) -> Vec<CompletionItem> {
             ..Default::default()
         })
         .collect()
-}
-
-/// Extract task IDs from workflow text
-#[cfg(feature = "lsp")]
-fn extract_task_ids(text: &str) -> Vec<String> {
-    let mut ids = Vec::new();
-
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("- id:") || trimmed.starts_with("-id:") {
-            if let Some(id) = trimmed
-                .strip_prefix("- id:")
-                .or_else(|| trimmed.strip_prefix("-id:"))
-            {
-                ids.push(id.trim().to_string());
-            }
-        }
-        // Handle id: on its own line (nested under -)
-        if trimmed.starts_with("id:") {
-            if let Some(id) = trimmed.strip_prefix("id:") {
-                ids.push(id.trim().to_string());
-            }
-        }
-    }
-
-    ids
 }
 
 /// Completions for MCP server configuration

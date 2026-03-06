@@ -49,6 +49,7 @@ mod conversion;
 mod document_store;
 pub mod handlers;
 mod server;
+mod utils;
 
 pub use capabilities::server_capabilities;
 pub use conversion::{offset_to_position, position_to_offset, span_to_range};

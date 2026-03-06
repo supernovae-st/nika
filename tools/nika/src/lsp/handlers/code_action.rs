@@ -9,6 +9,9 @@
 #[cfg(feature = "lsp")]
 use tower_lsp::lsp_types::*;
 
+#[cfg(feature = "lsp")]
+use super::super::utils::extract_task_ids;
+
 /// Compute code actions for a range
 #[cfg(feature = "lsp")]
 pub fn compute_code_actions(
@@ -400,30 +403,6 @@ fn create_add_use_block_action(line_num: u32, uri: &Url) -> CodeActionOrCommand 
         disabled: None,
         data: None,
     })
-}
-
-/// Extract all task IDs from the workflow
-#[cfg(feature = "lsp")]
-fn extract_task_ids(text: &str) -> Vec<String> {
-    let mut task_ids = Vec::new();
-
-    for line in text.lines() {
-        let trimmed = line.trim();
-        // Handle both "id:" and "- id:" (list item syntax)
-        let id_value = trimmed
-            .strip_prefix("- id:")
-            .or_else(|| trimmed.strip_prefix("id:"))
-            .map(|stripped| stripped.trim());
-
-        if let Some(id) = id_value {
-            let id = id.trim_matches('"').trim_matches('\'');
-            if !id.is_empty() {
-                task_ids.push(id.to_string());
-            }
-        }
-    }
-
-    task_ids
 }
 
 #[cfg(test)]

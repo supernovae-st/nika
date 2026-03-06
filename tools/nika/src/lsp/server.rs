@@ -154,9 +154,23 @@ impl LanguageServer for NikaLanguageServer {
         // Apply incremental changes
         let text = {
             let mut docs = self.documents.write().await;
+
+            // Check if document was opened first
+            if !docs.contains(&uri) {
+                // Log warning but still process changes - could be a race condition
+                self.client
+                    .log_message(
+                        MessageType::WARNING,
+                        format!("Received did_change for unopened document: {}", uri),
+                    )
+                    .await;
+                return;
+            }
+
             for change in params.content_changes {
                 docs.apply_change(&uri, change);
             }
+            // Clone is necessary here as we need the text outside the lock
             docs.get(&uri).cloned().unwrap_or_default()
         };
 

@@ -227,6 +227,17 @@ pub fn compute_document_symbols(text: &str) -> Vec<SymbolInformation> {
     symbols
 }
 
+/// Placeholder URL used for symbols (valid file URI)
+///
+/// Note: Symbols have no native way to exclude URI in tower-lsp.
+/// The actual document URI should ideally be passed, but compute_document_symbols
+/// doesn't receive it. This is a limitation of the current API.
+#[cfg(feature = "lsp")]
+fn placeholder_url() -> Url {
+    // Use `expect` since this is a known-valid URL literal that cannot fail
+    Url::parse("file:///placeholder").expect("static valid URL")
+}
+
 /// Create a SymbolInformation
 #[cfg(feature = "lsp")]
 fn create_symbol(
@@ -243,7 +254,7 @@ fn create_symbol(
         tags: None,
         deprecated: None,
         location: Location {
-            uri: Url::parse("file:///placeholder").unwrap(), // Will be set by caller
+            uri: placeholder_url(),
             range: Range {
                 start: Position {
                     line,

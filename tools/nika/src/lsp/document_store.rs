@@ -8,6 +8,9 @@ use std::collections::HashMap;
 #[cfg(feature = "lsp")]
 use tower_lsp::lsp_types::{TextDocumentContentChangeEvent, Url};
 
+#[cfg(feature = "lsp")]
+use super::conversion::position_to_offset;
+
 /// In-memory store for open document contents
 ///
 /// Tracks the latest text content of each open document, applying
@@ -56,14 +59,19 @@ impl DocumentStore {
     /// Apply an incremental change to a document
     ///
     /// Handles both full-document and range-based changes.
+    /// Returns true if the document was found and updated, false otherwise.
     #[cfg(feature = "lsp")]
-    pub fn apply_change(&mut self, uri: &Url, change: TextDocumentContentChangeEvent) {
+    pub fn apply_change(&mut self, uri: &Url, change: TextDocumentContentChangeEvent) -> bool {
         if let Some(content) = self.documents.get_mut(uri) {
             match change.range {
                 Some(range) => {
                     // Incremental change - replace the specified range
                     let start_offset = position_to_offset(range.start, content);
                     let end_offset = position_to_offset(range.end, content);
+
+                    // Ensure valid offsets (start <= end <= content.len())
+                    let start_offset = start_offset.min(content.len());
+                    let end_offset = end_offset.min(content.len()).max(start_offset);
 
                     // Build new content
                     let mut new_content = String::with_capacity(
@@ -80,6 +88,9 @@ impl DocumentStore {
                     *content = change.text;
                 }
             }
+            true
+        } else {
+            false
         }
     }
 
@@ -98,30 +109,6 @@ impl DocumentStore {
     pub fn uris(&self) -> impl Iterator<Item = &Url> {
         self.documents.keys()
     }
-}
-
-/// Convert LSP Position to byte offset (local helper)
-#[cfg(feature = "lsp")]
-fn position_to_offset(pos: tower_lsp::lsp_types::Position, source: &str) -> usize {
-    let mut current_line = 0u32;
-    let mut current_col = 0u32;
-
-    for (i, ch) in source.char_indices() {
-        if current_line == pos.line && current_col == pos.character {
-            return i;
-        }
-        if ch == '\n' {
-            if current_line == pos.line {
-                return i;
-            }
-            current_line += 1;
-            current_col = 0;
-        } else {
-            current_col += 1;
-        }
-    }
-
-    source.len()
 }
 
 // Stub implementations when LSP feature is disabled

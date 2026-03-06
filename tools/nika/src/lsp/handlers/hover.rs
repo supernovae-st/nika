@@ -21,9 +21,15 @@ pub fn compute_hover(text: &str, position: Position) -> Option<Hover> {
 
     let line = lines[line_idx];
     let col = position.character as usize;
+    let line_num = position.line;
 
     // Check what's at this position
-    if let Some(hover) = check_verb_hover(line, col) {
+    if let Some(mut hover) = check_verb_hover(line, col) {
+        // Fix the line number in the range
+        if let Some(ref mut range) = hover.range {
+            range.start.line = line_num;
+            range.end.line = line_num;
+        }
         return Some(hover);
     }
 
@@ -31,7 +37,12 @@ pub fn compute_hover(text: &str, position: Position) -> Option<Hover> {
         return Some(hover);
     }
 
-    if let Some(hover) = check_template_hover(line, col) {
+    if let Some(mut hover) = check_template_hover(line, col) {
+        // Fix the line number in the range
+        if let Some(ref mut range) = hover.range {
+            range.start.line = line_num;
+            range.end.line = line_num;
+        }
         return Some(hover);
     }
 
