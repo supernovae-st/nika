@@ -206,7 +206,7 @@ pub enum TuiView {
 }
 
 impl TuiView {
-    /// Get all 5 main views in order (Tab cycles through all)
+    /// Get all 5 views in order (Tab cycles through all)
     pub fn all() -> &'static [TuiView] {
         &[
             TuiView::Studio,
@@ -217,75 +217,46 @@ impl TuiView {
         ]
     }
 
-    /// Get all views including legacy aliases
-    pub fn all_including_auxiliary() -> &'static [TuiView] {
-        &[
-            TuiView::Studio,
-            TuiView::Runner,
-            TuiView::Chat,
-            TuiView::Scheduler,
-            TuiView::Settings,
-            TuiView::Browse,
-            TuiView::Editor,
-            TuiView::Split,
-            TuiView::Workspace,
-        ]
-    }
-
-    /// Check if this is an auxiliary/legacy view
+    /// Check if this is the settings view (non-workflow view)
     pub fn is_auxiliary(&self) -> bool {
-        matches!(
-            self,
-            TuiView::Settings | TuiView::Split | TuiView::Workspace
-        )
+        matches!(self, TuiView::Settings)
     }
 
-    /// Check if this is a studio-family view (Studio or any legacy alias)
+    /// Check if this is the studio view
     pub fn is_studio(&self) -> bool {
-        matches!(
-            self,
-            TuiView::Studio | TuiView::Browse | TuiView::Editor | TuiView::Split | TuiView::Workspace
-        )
+        matches!(self, TuiView::Studio)
     }
 
-    /// Get next view (cycling through all 5 core views)
-    /// Legacy aliases cycle to their next logical view
+    /// Get next view (cycling through all 5 views)
     pub fn next(&self) -> Self {
         match self {
-            TuiView::Studio | TuiView::Browse | TuiView::Editor => TuiView::Runner,
+            TuiView::Studio => TuiView::Runner,
             TuiView::Runner => TuiView::Chat,
             TuiView::Chat => TuiView::Scheduler,
             TuiView::Scheduler => TuiView::Settings,
             TuiView::Settings => TuiView::Studio,
-            TuiView::Split => TuiView::Workspace,
-            TuiView::Workspace => TuiView::Studio,
         }
     }
 
-    /// Get previous view (cycling through all 5 core views)
+    /// Get previous view (cycling through all 5 views)
     pub fn prev(&self) -> Self {
         match self {
-            TuiView::Studio | TuiView::Browse | TuiView::Editor => TuiView::Settings,
+            TuiView::Studio => TuiView::Settings,
             TuiView::Runner => TuiView::Studio,
             TuiView::Chat => TuiView::Runner,
             TuiView::Scheduler => TuiView::Chat,
             TuiView::Settings => TuiView::Scheduler,
-            TuiView::Split => TuiView::Studio,
-            TuiView::Workspace => TuiView::Split,
         }
     }
 
     /// Get view number (1-indexed for display)
-    /// Legacy aliases share the number of their core view
     pub fn number(&self) -> u8 {
         match self {
-            TuiView::Studio | TuiView::Browse | TuiView::Editor => 1,
+            TuiView::Studio => 1,
             TuiView::Runner => 2,
             TuiView::Chat => 3,
             TuiView::Scheduler => 4,
             TuiView::Settings => 5,
-            TuiView::Split => 6,
-            TuiView::Workspace => 7,
         }
     }
 
@@ -293,28 +264,21 @@ impl TuiView {
     pub fn title(&self) -> &'static str {
         match self {
             TuiView::Studio => "NIKA STUDIO",
-            TuiView::Browse => "NIKA BROWSE",
-            TuiView::Editor => "NIKA EDITOR",
             TuiView::Runner => "NIKA RUNNER",
             TuiView::Chat => "NIKA CHAT PLAYGROUND",
             TuiView::Scheduler => "NIKA SCHEDULER",
             TuiView::Settings => "NIKA SETTINGS",
-            TuiView::Split => "NIKA SPLIT",
-            TuiView::Workspace => "NIKA WORKSPACE",
         }
     }
 
     /// Get the icon for the view (terminal-friendly)
     pub fn icon(&self) -> &'static str {
         match self {
-            TuiView::Studio | TuiView::Editor => "✏",
-            TuiView::Browse => "📁",
+            TuiView::Studio => "✏",
             TuiView::Runner => "▶",
             TuiView::Chat => "💬",
             TuiView::Scheduler => "📅",
             TuiView::Settings => "⚙",
-            TuiView::Split => "⬜",
-            TuiView::Workspace => "🗂",
         }
     }
 
@@ -322,14 +286,10 @@ impl TuiView {
     pub fn shortcut(&self) -> char {
         match self {
             TuiView::Studio => 's',
-            TuiView::Browse => 'b',
-            TuiView::Editor => 'e',
             TuiView::Runner => 'r',
             TuiView::Chat => 'c',
             TuiView::Scheduler => 'd',
             TuiView::Settings => ',',
-            TuiView::Split => '7',
-            TuiView::Workspace => '8',
         }
     }
 

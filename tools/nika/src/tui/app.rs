@@ -1351,14 +1351,11 @@ impl App {
 
             // Get custom status text from current view (using pre-computed values)
             let status_text = match current_view {
-                TuiView::Browse => home_status,
-                TuiView::Editor | TuiView::Studio => studio_status,
+                TuiView::Studio => studio_status,
                 TuiView::Runner => monitor_status,
                 TuiView::Chat => chat_status,
                 TuiView::Scheduler => scheduler_status,
                 TuiView::Settings => settings_view.status_line(state),
-                TuiView::Split => split_status,
-                TuiView::Workspace => workspace_status,
             };
 
             terminal
@@ -1407,16 +1404,7 @@ impl App {
 
                     // Render view content based on current view
                     match current_view {
-                        TuiView::Browse => {
-                            if let Some(ref mut hv) = home_view {
-                                hv.render(frame, chunks[1], state, theme);
-                            } else {
-                                let placeholder = Paragraph::new("No workspace loaded")
-                                    .block(Block::default().borders(Borders::ALL).title(" HOME "));
-                                frame.render_widget(placeholder, chunks[1]);
-                            }
-                        }
-                        TuiView::Editor | TuiView::Studio => {
+                        TuiView::Studio => {
                             studio_view.render(frame, chunks[1], state, theme);
                         }
                         TuiView::Runner => {
@@ -1430,12 +1418,6 @@ impl App {
                         }
                         TuiView::Settings => {
                             settings_view.render(frame, chunks[1], state, theme);
-                        }
-                        TuiView::Split => {
-                            split_view.render(frame, chunks[1], state, theme);
-                        }
-                        TuiView::Workspace => {
-                            workspace_view.render(frame, chunks[1], state, theme);
                         }
                     }
 
@@ -1516,30 +1498,21 @@ impl App {
             }
 
             // View navigation by number (when not capturing input)
-            // [1] = Explorer, [2] = Chat (matches tab bar order in header.rs)
+            // 5-view architecture: [1] Studio, [2] Runner, [3] Chat, [4] Scheduler, [5] Settings
             KeyCode::Char('1') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Browse);
+                return Action::SwitchView(TuiView::Studio);
             }
             KeyCode::Char('2') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Chat);
-            }
-            KeyCode::Char('3') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Editor);
-            }
-            KeyCode::Char('4') if !self.is_view_capturing_input() => {
                 return Action::SwitchView(TuiView::Runner);
             }
-            KeyCode::Char('5') if !self.is_view_capturing_input() => {
+            KeyCode::Char('3') if !self.is_view_capturing_input() => {
+                return Action::SwitchView(TuiView::Chat);
+            }
+            KeyCode::Char('4') if !self.is_view_capturing_input() => {
                 return Action::SwitchView(TuiView::Scheduler);
             }
-            KeyCode::Char('6') if !self.is_view_capturing_input() => {
+            KeyCode::Char('5') if !self.is_view_capturing_input() => {
                 return Action::SwitchView(TuiView::Settings);
-            }
-            KeyCode::Char('7') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Split);
-            }
-            KeyCode::Char('8') if !self.is_view_capturing_input() => {
-                return Action::SwitchView(TuiView::Workspace);
             }
 
             // Tab/BackTab delegated to views for panel navigation (v0.8 UX)
@@ -1575,6 +1548,10 @@ impl App {
         let key_event = KeyEvent::new(code, modifiers);
 
         match self.current_view {
+            TuiView::Studio => {
+                let view_action = self.studio_view.handle_key(key_event, &mut self.state);
+                self.convert_view_action(view_action)
+            }
             TuiView::Runner => {
                 // Monitor uses the existing 4-panel key handling
                 self.handle_key(code, modifiers)
@@ -1584,37 +1561,12 @@ impl App {
                 let view_action = self.chat_view.handle_key(key_event, &mut self.state);
                 self.convert_view_action(view_action)
             }
-            TuiView::Browse => {
-                if let Some(ref mut home_view) = self.home_view {
-                    let view_action = home_view.handle_key(key_event, &mut self.state);
-                    self.convert_view_action(view_action)
-                } else {
-                    // No home view - use Ctrl+C (double-tap) to quit
-                    Action::Continue
-                }
-            }
-            TuiView::Editor | TuiView::Studio => {
-                let view_action = self.studio_view.handle_key(key_event, &mut self.state);
-                self.convert_view_action(view_action)
-            }
             TuiView::Scheduler => {
-                // v0.12: Scheduler view
                 let view_action = self.scheduler_view.handle_key(key_event, &mut self.state);
                 self.convert_view_action(view_action)
             }
-            TuiView::Split => {
-                // v0.13: Split view (Editor + Runner side by side)
-                let view_action = self.split_view.handle_key(key_event, &mut self.state);
-                self.convert_view_action(view_action)
-            }
-            // v0.11: Auxiliary views - delegate to view handlers
             TuiView::Settings => {
                 let view_action = self.settings_view.handle_key(key_event, &mut self.state);
-                self.convert_view_action(view_action)
-            }
-            TuiView::Workspace => {
-                // v0.20: Workspace view (Browser + Editor + DAG unified)
-                let view_action = self.workspace_view.handle_key(key_event, &mut self.state);
                 self.convert_view_action(view_action)
             }
         }
@@ -1625,7 +1577,7 @@ impl App {
     fn is_view_capturing_input(&self) -> bool {
         match self.current_view {
             TuiView::Chat => !self.chat_view.input.value().is_empty(),
-            TuiView::Editor | TuiView::Studio => {
+            TuiView::Studio => {
                 self.studio_view.mode == super::views::EditorMode::Insert
             }
             _ => false,
