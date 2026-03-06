@@ -700,8 +700,7 @@ impl App {
             if let Some(ref mut home) = self.home_view {
                 home.tick(); // Enables gradient logo animation + sparkline pulse
             }
-            self.studio_view.tick(&mut self.state); // v0.9.1: Matrix Rain animation
-            self.studio_view.editor.maybe_validate(); // Debounced validation (300ms after last edit)
+            self.studio_view.tick(&mut self.state); // v0.21: 3-panel animations + validation
             self.monitor_view.tick(&mut self.state); // v0.12.1: Runner panel animations
 
             // v0.12: Tick intro animation (if active)

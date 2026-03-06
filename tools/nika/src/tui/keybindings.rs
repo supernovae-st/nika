@@ -77,54 +77,36 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
         category: KeyCategory::Global,
     });
 
-    // View navigation (in Normal mode) - 7-Views Architecture v0.20
+    // View navigation (in Normal mode) - 5-Views Architecture v0.22
     if mode == InputMode::Normal {
         bindings.push(Keybinding {
             code: KeyCode::Char('1'),
             modifiers: KeyModifiers::NONE,
-            description: "Browse view",
+            description: "Studio (Browser+Editor+DAG)",
             category: KeyCategory::ViewNav,
         });
         bindings.push(Keybinding {
             code: KeyCode::Char('2'),
             modifiers: KeyModifiers::NONE,
-            description: "Editor view",
+            description: "Runner view",
             category: KeyCategory::ViewNav,
         });
         bindings.push(Keybinding {
             code: KeyCode::Char('3'),
             modifiers: KeyModifiers::NONE,
-            description: "Runner view",
+            description: "Chat Playground",
             category: KeyCategory::ViewNav,
         });
         bindings.push(Keybinding {
             code: KeyCode::Char('4'),
             modifiers: KeyModifiers::NONE,
-            description: "Chat Playground",
+            description: "Scheduler view",
             category: KeyCategory::ViewNav,
         });
         bindings.push(Keybinding {
             code: KeyCode::Char('5'),
             modifiers: KeyModifiers::NONE,
-            description: "Scheduler view",
-            category: KeyCategory::ViewNav,
-        });
-        bindings.push(Keybinding {
-            code: KeyCode::Char('6'),
-            modifiers: KeyModifiers::NONE,
             description: "Settings view",
-            category: KeyCategory::ViewNav,
-        });
-        bindings.push(Keybinding {
-            code: KeyCode::Char('7'),
-            modifiers: KeyModifiers::NONE,
-            description: "Split view",
-            category: KeyCategory::ViewNav,
-        });
-        bindings.push(Keybinding {
-            code: KeyCode::Char('8'),
-            modifiers: KeyModifiers::NONE,
-            description: "Workspace view",
             category: KeyCategory::ViewNav,
         });
     }
@@ -320,7 +302,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 });
             }
         }
-        // Studio view (5-view architecture: consolidates Browse, Editor, Split, Workspace)
+        // Studio view (5-view architecture: unified 3-panel layout)
         TuiView::Studio => {
             if mode == InputMode::Normal {
                 bindings.push(Keybinding {
