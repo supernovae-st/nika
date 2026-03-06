@@ -99,7 +99,7 @@ impl UseEntry {
     /// # Examples
     ///
     /// ```
-    /// use nika::binding::entry::UseEntry;
+    /// use nika::binding::UseEntry;
     ///
     /// assert_eq!(UseEntry::normalize_path("$task1"), "task1");
     /// assert_eq!(UseEntry::normalize_path("task1"), "task1");

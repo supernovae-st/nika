@@ -77,11 +77,11 @@ impl RigAgentStatus {
     pub fn as_canonical_str(&self) -> &'static str {
         match self {
             Self::NaturalCompletion => "end_turn",
-            Self::ExplicitCompletion => "tool_complete",         // v0.21
-            Self::HighConfidence(_) => "tool_complete_high",     // v0.22
-            Self::LowConfidence(_) => "tool_complete_low",       // v0.22
+            Self::ExplicitCompletion => "tool_complete", // v0.21
+            Self::HighConfidence(_) => "tool_complete_high", // v0.22
+            Self::LowConfidence(_) => "tool_complete_low", // v0.22
             Self::FlaggedForReview(_) => "tool_complete_flagged", // v0.22 routing
-            Self::Escalated(_) => "escalated",                   // v0.22 routing
+            Self::Escalated(_) => "escalated",           // v0.22 routing
             Self::StopConditionMet => "stop_sequence",
             Self::MaxTurnsReached => "max_turns",
             Self::TokenBudgetExceeded => "max_tokens",
@@ -1579,7 +1579,9 @@ impl RigAgentLoop {
                     task_id,
                     guardrail_type: result.guardrail_type,
                     description: result.guardrail_id,
-                    message: result.message.unwrap_or_else(|| "Guardrail check failed".to_string()),
+                    message: result
+                        .message
+                        .unwrap_or_else(|| "Guardrail check failed".to_string()),
                 });
                 all_passed = false;
             }
@@ -2780,7 +2782,9 @@ mod tests {
                     on_low: OnLowConfidenceConfig {
                         action: LowConfidenceAction::Retry,
                         max_retries: 2,
-                        feedback: Some("Please verify your sources and provide citations".to_string()),
+                        feedback: Some(
+                            "Please verify your sources and provide citations".to_string(),
+                        ),
                     },
                     routing: None,
                 }),
@@ -2894,8 +2898,8 @@ mod tests {
     #[test]
     fn test_apply_routing_with_high_medium_low_routes() {
         use crate::ast::completion::{
-            CompletionConfig, CompletionMode, ConfidenceConfig, ConfidenceRoute,
-            ConfidenceRouting, RouteAction,
+            CompletionConfig, CompletionMode, ConfidenceConfig, ConfidenceRoute, ConfidenceRouting,
+            RouteAction,
         };
 
         let params = AgentParams {
@@ -2960,8 +2964,8 @@ mod tests {
     #[test]
     fn test_apply_routing_retry_action() {
         use crate::ast::completion::{
-            CompletionConfig, CompletionMode, ConfidenceConfig, ConfidenceRoute,
-            ConfidenceRouting, RouteAction,
+            CompletionConfig, CompletionMode, ConfidenceConfig, ConfidenceRoute, ConfidenceRouting,
+            RouteAction,
         };
 
         let params = AgentParams {
@@ -3044,8 +3048,8 @@ mod tests {
     #[test]
     fn test_get_confidence_routing_present() {
         use crate::ast::completion::{
-            CompletionConfig, CompletionMode, ConfidenceConfig, ConfidenceRoute,
-            ConfidenceRouting, RouteAction,
+            CompletionConfig, CompletionMode, ConfidenceConfig, ConfidenceRoute, ConfidenceRouting,
+            RouteAction,
         };
 
         let params = AgentParams {
@@ -3123,8 +3127,8 @@ mod tests {
     #[test]
     fn test_determine_status_with_routing() {
         use crate::ast::completion::{
-            CompletionConfig, CompletionMode, ConfidenceConfig, ConfidenceRoute,
-            ConfidenceRouting, RouteAction,
+            CompletionConfig, CompletionMode, ConfidenceConfig, ConfidenceRoute, ConfidenceRouting,
+            RouteAction,
         };
         use crate::runtime::builtin::COMPLETION_MARKER;
 

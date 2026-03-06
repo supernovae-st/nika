@@ -2431,7 +2431,10 @@ impl TuiState {
                 description,
             } => {
                 self.add_notification(Notification::success(
-                    format!("🛡️ [{}] Guardrail {} passed: {}", task_id, guardrail_type, description),
+                    format!(
+                        "🛡️ [{}] Guardrail {} passed: {}",
+                        task_id, guardrail_type, description
+                    ),
                     timestamp_ms,
                 ));
                 self.dirty.notifications = true;
