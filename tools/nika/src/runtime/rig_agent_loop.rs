@@ -46,12 +46,16 @@ use crate::util::STREAM_CHUNK_TIMEOUT;
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Status of the rig-based agent execution
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum RigAgentStatus {
     /// Agent completed naturally (no more tool calls)
     NaturalCompletion,
     /// Agent called nika:complete tool explicitly (v0.21)
     ExplicitCompletion,
+    /// Agent completed with confidence above threshold (v0.22)
+    HighConfidence(f64),
+    /// Agent completed with confidence below threshold (v0.22)
+    LowConfidence(f64),
     /// Stop condition matched in output
     StopConditionMet,
     /// Maximum turns reached
@@ -68,11 +72,37 @@ impl RigAgentStatus {
     pub fn as_canonical_str(&self) -> &'static str {
         match self {
             Self::NaturalCompletion => "end_turn",
-            Self::ExplicitCompletion => "tool_complete", // v0.21
+            Self::ExplicitCompletion => "tool_complete",       // v0.21
+            Self::HighConfidence(_) => "tool_complete_high",   // v0.22
+            Self::LowConfidence(_) => "tool_complete_low",     // v0.22
             Self::StopConditionMet => "stop_sequence",
             Self::MaxTurnsReached => "max_turns",
             Self::TokenBudgetExceeded => "max_tokens",
             Self::Failed => "error",
+        }
+    }
+
+    /// Check if this status represents successful completion (v0.22)
+    pub fn is_completed(&self) -> bool {
+        matches!(
+            self,
+            Self::NaturalCompletion
+                | Self::ExplicitCompletion
+                | Self::HighConfidence(_)
+                | Self::StopConditionMet
+        )
+    }
+
+    /// Check if this status requires retry (v0.22)
+    pub fn requires_retry(&self) -> bool {
+        matches!(self, Self::LowConfidence(_))
+    }
+
+    /// Get confidence value if available (v0.22)
+    pub fn confidence(&self) -> Option<f64> {
+        match self {
+            Self::HighConfidence(c) | Self::LowConfidence(c) => Some(*c),
+            _ => None,
         }
     }
 }
@@ -88,6 +118,10 @@ pub struct RigAgentLoopResult {
     pub final_output: Value,
     /// Total tokens used (if available)
     pub total_tokens: u64,
+    /// Confidence level from nika:complete (v0.22)
+    pub confidence: Option<f64>,
+    /// Number of retries due to low confidence (v0.22)
+    pub retry_count: u32,
 }
 
 /// Result from streaming execution with token tracking.
@@ -534,10 +568,12 @@ impl RigAgentLoop {
         });
 
         Ok(RigAgentLoopResult {
-            status,
+            status: status.clone(),
             turns: turn_index as usize,
             final_output: serde_json::json!({ "response": response }),
             total_tokens: 0,
+            confidence: status.confidence(),
+            retry_count: 0,
         })
     }
 
@@ -612,10 +648,12 @@ impl RigAgentLoop {
         });
 
         Ok(RigAgentLoopResult {
-            status,
+            status: status.clone(),
             turns: turn_index as usize,
             final_output: serde_json::json!({ "response": response }),
             total_tokens: 0,
+            confidence: status.confidence(),
+            retry_count: 0,
         })
     }
 
@@ -668,10 +706,12 @@ impl RigAgentLoop {
         });
 
         Ok(RigAgentLoopResult {
-            status,
+            status: status.clone(),
             turns: turn_index as usize,
             final_output: serde_json::json!({ "response": response }),
             total_tokens: 0,
+            confidence: status.confidence(),
+            retry_count: 0,
         })
     }
 
@@ -721,10 +761,12 @@ impl RigAgentLoop {
         });
 
         Ok(RigAgentLoopResult {
-            status,
+            status: status.clone(),
             turns: turn_index as usize,
             final_output: serde_json::json!({ "response": response }),
             total_tokens: 0,
+            confidence: status.confidence(),
+            retry_count: 0,
         })
     }
 
@@ -777,10 +819,12 @@ impl RigAgentLoop {
         });
 
         Ok(RigAgentLoopResult {
-            status,
+            status: status.clone(),
             turns: turn_index as usize,
             final_output: serde_json::json!({ "response": response }),
             total_tokens: 0,
+            confidence: status.confidence(),
+            retry_count: 0,
         })
     }
 
@@ -829,10 +873,12 @@ impl RigAgentLoop {
         });
 
         Ok(RigAgentLoopResult {
-            status,
+            status: status.clone(),
             turns: turn_index as usize,
             final_output: serde_json::json!({ "response": response }),
             total_tokens: 0,
+            confidence: status.confidence(),
+            retry_count: 0,
         })
     }
 
@@ -1342,10 +1388,12 @@ impl RigAgentLoop {
         });
 
         Ok(RigAgentLoopResult {
-            status,
+            status: status.clone(),
             turns: 1,
             final_output,
             total_tokens: 100, // Mock token count
+            confidence: status.confidence(),
+            retry_count: 0,
         })
     }
 
@@ -1425,10 +1473,12 @@ impl RigAgentLoop {
         });
 
         Ok(RigAgentLoopResult {
-            status,
+            status: status.clone(),
             turns: 1, // rig handles turns internally, we report completion as 1
             final_output: serde_json::json!({ "response": result.response }),
             total_tokens: (result.input_tokens + result.output_tokens) as u64,
+            confidence: status.confidence(),
+            retry_count: 0,
         })
     }
 
@@ -1449,20 +1499,49 @@ impl RigAgentLoop {
         output.contains(COMPLETION_MARKER)
     }
 
-    /// Determine agent status based on output content (v0.21)
+    /// Determine agent status based on output content (v0.21 + v0.22)
     ///
     /// Checks in order:
-    /// 1. Explicit completion via nika:complete tool (ExplicitCompletion)
+    /// 1. Explicit completion via nika:complete tool
+    ///    - With confidence: compare against threshold → HighConfidence/LowConfidence
+    ///    - Without confidence: ExplicitCompletion
     /// 2. Legacy stop conditions (StopConditionMet)
     /// 3. Natural completion (NaturalCompletion)
     pub fn determine_status(&self, output: &str) -> RigAgentStatus {
         if self.check_completion_signal(output) {
+            // Parse the completion response to extract confidence (v0.22)
+            use crate::runtime::builtin::parse_completion_response;
+
+            if let Some(response) = parse_completion_response(output) {
+                // Check if confidence is provided
+                if let Some(confidence) = response.confidence {
+                    // Get threshold from completion config (default: 0.8)
+                    let threshold = self.get_confidence_threshold();
+                    if confidence >= threshold {
+                        return RigAgentStatus::HighConfidence(confidence);
+                    } else {
+                        return RigAgentStatus::LowConfidence(confidence);
+                    }
+                }
+            }
+            // No confidence provided, treat as explicit completion
             RigAgentStatus::ExplicitCompletion
         } else if self.check_stop_conditions(output) {
             RigAgentStatus::StopConditionMet
         } else {
             RigAgentStatus::NaturalCompletion
         }
+    }
+
+    /// Get confidence threshold from completion config (v0.22)
+    ///
+    /// Returns the configured threshold, or 0.8 as default.
+    fn get_confidence_threshold(&self) -> f64 {
+        self.params
+            .effective_completion()
+            .and_then(|c| c.confidence)
+            .map(|conf| conf.threshold)
+            .unwrap_or(0.8)
     }
 
     /// Run the agent loop with extended thinking enabled (Claude only).
@@ -1632,10 +1711,12 @@ impl RigAgentLoop {
         });
 
         Ok(RigAgentLoopResult {
-            status,
+            status: status.clone(),
             turns: 1,
             final_output: serde_json::json!({ "response": response }),
             total_tokens: (input_tokens + output_tokens) as u64,
+            confidence: status.confidence(),
+            retry_count: 0,
         })
     }
 
@@ -1699,10 +1780,12 @@ impl RigAgentLoop {
         });
 
         Ok(RigAgentLoopResult {
-            status,
+            status: status.clone(),
             turns: 1,
             final_output: serde_json::json!({ "response": result.response }),
             total_tokens: (result.input_tokens + result.output_tokens) as u64,
+            confidence: status.confidence(),
+            retry_count: 0,
         })
     }
 
@@ -1897,10 +1980,12 @@ impl RigAgentLoop {
         });
 
         Ok(RigAgentLoopResult {
-            status,
+            status: status.clone(),
             turns: 1,
             final_output: serde_json::json!({ "response": result.response }),
             total_tokens: (result.input_tokens + result.output_tokens) as u64,
+            confidence: status.confidence(),
+            retry_count: 0,
         })
     }
 }
@@ -1929,6 +2014,8 @@ mod tests {
             turns: 1,
             final_output: serde_json::json!({}),
             total_tokens: 50,
+            confidence: None,
+            retry_count: 0,
         };
         let debug = format!("{:?}", result);
         assert!(debug.contains("NaturalCompletion"));
@@ -2068,6 +2155,175 @@ mod tests {
             RigAgentStatus::ExplicitCompletion.as_canonical_str(),
             "tool_complete"
         );
+    }
+
+    // ========================================================================
+    // Confidence-Based Completion Tests (v0.22)
+    // ========================================================================
+
+    #[test]
+    fn test_determine_status_high_confidence() {
+        use crate::ast::completion::{CompletionConfig, CompletionMode, ConfidenceConfig};
+        use crate::runtime::builtin::COMPLETION_MARKER;
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.8,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Completion response with confidence >= threshold
+        let response = format!(
+            r#"{{"completed": true, "result": "done", "confidence": 0.95, "marker": "{}"}}"#,
+            COMPLETION_MARKER
+        );
+        let status = agent.determine_status(&response);
+        assert!(
+            matches!(status, RigAgentStatus::HighConfidence(c) if c == 0.95),
+            "Expected HighConfidence(0.95), got {:?}",
+            status
+        );
+    }
+
+    #[test]
+    fn test_determine_status_low_confidence() {
+        use crate::ast::completion::{CompletionConfig, CompletionMode, ConfidenceConfig};
+        use crate::runtime::builtin::COMPLETION_MARKER;
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.8,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Completion response with confidence < threshold
+        let response = format!(
+            r#"{{"completed": true, "result": "done", "confidence": 0.5, "marker": "{}"}}"#,
+            COMPLETION_MARKER
+        );
+        let status = agent.determine_status(&response);
+        assert!(
+            matches!(status, RigAgentStatus::LowConfidence(c) if c == 0.5),
+            "Expected LowConfidence(0.5), got {:?}",
+            status
+        );
+    }
+
+    #[test]
+    fn test_determine_status_no_confidence_defaults_to_explicit() {
+        use crate::ast::completion::{CompletionConfig, CompletionMode, ConfidenceConfig};
+        use crate::runtime::builtin::COMPLETION_MARKER;
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.8,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Completion response without confidence
+        let response = format!(
+            r#"{{"completed": true, "result": "done", "marker": "{}"}}"#,
+            COMPLETION_MARKER
+        );
+        let status = agent.determine_status(&response);
+        assert_eq!(
+            status,
+            RigAgentStatus::ExplicitCompletion,
+            "No confidence should default to ExplicitCompletion"
+        );
+    }
+
+    #[test]
+    fn test_confidence_status_helper_methods() {
+        // HighConfidence is completed
+        let high = RigAgentStatus::HighConfidence(0.95);
+        assert!(high.is_completed());
+        assert!(!high.requires_retry());
+        assert_eq!(high.confidence(), Some(0.95));
+        assert_eq!(high.as_canonical_str(), "tool_complete_high");
+
+        // LowConfidence requires retry
+        let low = RigAgentStatus::LowConfidence(0.5);
+        assert!(!low.is_completed());
+        assert!(low.requires_retry());
+        assert_eq!(low.confidence(), Some(0.5));
+        assert_eq!(low.as_canonical_str(), "tool_complete_low");
+
+        // Other statuses have no confidence
+        assert_eq!(RigAgentStatus::NaturalCompletion.confidence(), None);
+        assert_eq!(RigAgentStatus::ExplicitCompletion.confidence(), None);
+    }
+
+    #[test]
+    fn test_get_confidence_threshold_default() {
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Default threshold is 0.8
+        assert_eq!(agent.get_confidence_threshold(), 0.8);
+    }
+
+    #[test]
+    fn test_get_confidence_threshold_custom() {
+        use crate::ast::completion::{CompletionConfig, CompletionMode, ConfidenceConfig};
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            completion: Some(CompletionConfig {
+                mode: CompletionMode::Explicit,
+                confidence: Some(ConfidenceConfig {
+                    threshold: 0.9,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        assert_eq!(agent.get_confidence_threshold(), 0.9);
     }
 
     // ========================================================================

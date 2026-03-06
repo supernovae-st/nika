@@ -3358,6 +3358,8 @@ impl App {
                     let status_emoji = match result.status {
                         RigAgentStatus::NaturalCompletion => "✅",
                         RigAgentStatus::ExplicitCompletion => "🎯", // v0.21
+                        RigAgentStatus::HighConfidence(_) => "🎯", // v0.22
+                        RigAgentStatus::LowConfidence(_) => "⚠️", // v0.22
                         RigAgentStatus::MaxTurnsReached => "⏱️",
                         RigAgentStatus::StopConditionMet => "🛑",
                         RigAgentStatus::Failed => "❌",
