@@ -2319,6 +2319,7 @@ mod tests {
                 max_tokens: None,
                 skills: None,
                 completion: None,
+                guardrails: vec![],
             },
         };
         assert_eq!(action_type(&agent_action), "agent");

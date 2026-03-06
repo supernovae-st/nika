@@ -43,6 +43,7 @@ mod agent_def;
 pub mod artifact;
 pub mod completion;
 pub mod context;
+pub mod guardrails;
 pub mod decompose;
 pub mod include;
 pub mod include_loader;

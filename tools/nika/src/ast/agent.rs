@@ -202,6 +202,13 @@ pub struct AgentParams {
     /// `stop_conditions` if present, otherwise `natural` mode.
     #[serde(default)]
     pub completion: Option<CompletionConfig>,
+
+    /// Guardrails for validating agent outputs (v0.23)
+    ///
+    /// Guardrails are checked after the agent signals completion.
+    /// If any guardrail fails, the agent is asked to retry.
+    #[serde(default)]
+    pub guardrails: Vec<crate::ast::guardrails::GuardrailConfig>,
 }
 
 impl AgentParams {
