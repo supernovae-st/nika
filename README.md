@@ -22,12 +22,12 @@
 <!-- GitHub Badges -->
 [![CI](https://img.shields.io/github/actions/workflow/status/supernovae-st/nika/ci.yml?style=flat-square&logo=github&label=CI)](https://github.com/supernovae-st/nika/actions)
 [![Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=flat-square&logo=github&label=Stars)](https://github.com/supernovae-st/nika/stargazers)
-[![Tests](https://img.shields.io/badge/tests-3,808_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/tests-4,152_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
 [![LOC](https://img.shields.io/badge/LOC-110k-0ea5e9?style=flat-square&logo=codeclimate)](https://github.com/supernovae-st/nika)
 
 <!-- Feature Badges -->
 [![Providers](https://img.shields.io/badge/🤖_LLM_providers-7-ec4899?style=flat-square)](#-providers)
-[![Views](https://img.shields.io/badge/🖥️_TUI_views-8-f59e0b?style=flat-square)](#-studio-tui)
+[![Views](https://img.shields.io/badge/🖥️_TUI_views-5-f59e0b?style=flat-square)](#-studio-tui)
 [![Widgets](https://img.shields.io/badge/🧩_widgets-39-06b6d4?style=flat-square)](#-chat-dag-widgets)
 [![MCP](https://img.shields.io/badge/🔌_MCP-native-8b5cf6?style=flat-square)](#-mcp-integration)
 
@@ -116,7 +116,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 ║  ├── structured: field       — Per-task schema validation                    ║
 ║  └── Implicit $task syntax   — Shorthand for use: blocks                     ║
 ║                                                                               ║
-║  STATS: 3,808 tests | 15 templates | Zero clippy warnings                    ║
+║  STATS: 4,152 tests | 15 templates | Zero clippy warnings                    ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -326,7 +326,7 @@ flowchart LR
 | **Chat-as-DAG** | ✅ Native | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Type Safety** | ✅ Rust | ❌ Python | ❌ Python | ❌ Python | ❌ Python |
 | **Streaming** | ✅ All 6 | ✅ Yes | ✅ Yes | 🟡 Partial | 🟡 Partial |
-| **Production Ready** | ✅ 3,808 tests | 🟡 Varies | 🟡 Varies | 🟡 New | 🔴 Needs guardrails |
+| **Production Ready** | ✅ 4,152 tests | 🟡 Varies | 🟡 Varies | 🟡 New | 🔴 Needs guardrails |
 
 </div>
 
@@ -1025,7 +1025,7 @@ graph TD
 
 ## 🎨 Studio TUI
 
-Launch the terminal UI with **8 views**:
+Launch the terminal UI with **5 views**:
 
 ```bash
 nika              # 🏠 Home view (browse workflows)
@@ -1034,7 +1034,7 @@ nika studio       # 📝 YAML editor
 nika studio file.yaml  # 📝 Edit specific file
 ```
 
-### 🖥️ 8-Views Architecture
+### 🖥️ 5-Views Architecture
 
 ```mermaid
 stateDiagram-v2
@@ -1088,7 +1088,7 @@ stateDiagram-v2
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                            🎨 8-VIEWS ARCHITECTURE                              │
+│                            🎨 5-VIEWS ARCHITECTURE                              │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
 │    ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐            │
@@ -1667,7 +1667,7 @@ flows:
 ║                                                                                 ║
 ╠═════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                 ║
-║   📊 Tests              │  3,808 passing                                        ║
+║   📊 Tests              │  4,152 passing                                        ║
 ║   📝 Lines of Code      │  110,000+ LOC                                         ║
 ║   🔧 Clippy Warnings    │  0 (zero!)                                            ║
 ║   🔮 LLM Providers      │  7 (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini) ║
@@ -1688,7 +1688,7 @@ flows:
 ### 📈 Test Distribution by Module
 
 ```mermaid
-pie title 📊 Test Distribution (3,808 tests)
+pie title 📊 Test Distribution (4,152 tests)
     "🖥️ TUI" : 1704
     "📁 IO" : 68
     "🔗 Binding" : 198
@@ -2021,7 +2021,7 @@ cd nika
 # 🔨 Build
 cargo build
 
-# 🧪 Test (3,808 tests)
+# 🧪 Test (4,152 tests)
 cargo test
 
 # 🔍 Lint
