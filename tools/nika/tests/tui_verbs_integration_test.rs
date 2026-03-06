@@ -165,7 +165,6 @@ mod exec_tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore]
     async fn test_exec_echo_command() {
         let agent = ChatAgent::new().expect("Failed to create ChatAgent");
         let result = agent.exec_command("echo HELLO_NIKA").await;
@@ -181,7 +180,6 @@ mod exec_tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_exec_pwd_command() {
         let agent = ChatAgent::new().expect("Failed to create ChatAgent");
         let result = agent.exec_command("pwd").await;
@@ -193,7 +191,6 @@ mod exec_tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_exec_failing_command_returns_error() {
         let agent = ChatAgent::new().expect("Failed to create ChatAgent");
         let result = agent.exec_command("exit 42").await;
@@ -204,7 +201,6 @@ mod exec_tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_exec_pipe_command() {
         let agent = ChatAgent::new().expect("Failed to create ChatAgent");
         let result = agent
