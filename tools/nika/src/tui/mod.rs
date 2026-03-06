@@ -373,8 +373,8 @@ pub async fn run_tui_studio(workflow: Option<std::path::PathBuf>) -> crate::erro
     // Create standalone state
     let state = StandaloneState::new(root.clone());
 
-    // Create app and set initial view to Editor
-    let mut app = App::new_standalone(state)?.with_initial_view(TuiView::Editor);
+    // Create app and set initial view to Studio
+    let mut app = App::new_standalone(state)?.with_initial_view(TuiView::Studio);
 
     // If workflow provided, load it into Editor view
     if let Some(path) = workflow {
@@ -429,16 +429,8 @@ pub async fn run_tui_with_options(
             root.join(path)
         };
 
-        // Load file into Editor if Editor/Split view, or use for Runner
-        match initial_view {
-            Some(TuiView::Editor) | Some(TuiView::Split) | None => {
-                app = app.with_studio_file(full_path);
-            }
-            _ => {
-                // For other views, still set the file context
-                app = app.with_studio_file(full_path);
-            }
-        }
+        // Load file into Studio view
+        app = app.with_studio_file(full_path);
     }
 
     app.run_unified().await

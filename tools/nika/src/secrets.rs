@@ -395,10 +395,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_providers_list() {
-        assert!(PROVIDERS.contains(&"anthropic"));
-        assert!(PROVIDERS.contains(&"openai"));
-        assert!(PROVIDERS.contains(&"ollama"));
+    fn test_provider_env_var_lookup() {
+        // Test that provider_env_var returns expected values for known providers
+        assert_eq!(provider_env_var("anthropic"), "ANTHROPIC_API_KEY");
+        assert_eq!(provider_env_var("openai"), "OPENAI_API_KEY");
+        assert_eq!(provider_env_var("ollama"), "OLLAMA_API_BASE_URL");
     }
 
     #[test]

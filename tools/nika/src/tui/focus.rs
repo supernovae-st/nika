@@ -72,7 +72,7 @@ impl PanelId {
                 PanelId::ChatInput,
                 PanelId::ChatContext,
             ],
-            TuiView::Editor => &[
+            TuiView::Editor | TuiView::Studio => &[
                 PanelId::EditorFiles,
                 PanelId::EditorEditor,
                 PanelId::EditorDiagnostics,
@@ -125,7 +125,7 @@ impl PanelId {
         match view {
             TuiView::Browse => PanelId::ExplorerFiles,
             TuiView::Chat => PanelId::ChatInput,
-            TuiView::Editor => PanelId::EditorEditor,
+            TuiView::Editor | TuiView::Studio => PanelId::EditorEditor,
             TuiView::Runner => PanelId::RunnerMission,
             TuiView::Scheduler => PanelId::SchedulerList,
             // Auxiliary views don't have panels, return Explorer's default

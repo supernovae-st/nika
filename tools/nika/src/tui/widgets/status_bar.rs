@@ -291,7 +291,7 @@ impl<'a> StatusBar<'a> {
                 KeyHint::new("c", "Chat"),
                 KeyHint::new("q", "Quit"),
             ],
-            TuiView::Editor => vec![
+            TuiView::Editor | TuiView::Studio => vec![
                 KeyHint::new("i", "Insert"),
                 KeyHint::new("Esc", "Normal"),
                 KeyHint::new("F5", "Run"),

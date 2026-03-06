@@ -342,7 +342,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 });
             }
         }
-        TuiView::Editor => {
+        TuiView::Editor | TuiView::Studio => {
             if mode == InputMode::Normal {
                 bindings.push(Keybinding {
                     code: KeyCode::Char('s'),

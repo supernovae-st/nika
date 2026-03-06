@@ -139,7 +139,7 @@ params:
   entity: qr-code
 "#;
         let params: InvokeParams = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(params.mcp, "novanet");
+        assert_eq!(params.mcp, Some("novanet".to_string()));
         assert_eq!(params.tool, Some("novanet_generate".to_string()));
         assert_eq!(params.params, Some(json!({"entity": "qr-code"})));
         assert!(params.resource.is_none());
@@ -152,7 +152,7 @@ mcp: novanet
 resource: entity://qr-code/fr-FR
 "#;
         let params: InvokeParams = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(params.mcp, "novanet");
+        assert_eq!(params.mcp, Some("novanet".to_string()));
         assert!(params.tool.is_none());
         assert_eq!(params.resource, Some("entity://qr-code/fr-FR".to_string()));
     }
@@ -160,7 +160,7 @@ resource: entity://qr-code/fr-FR
     #[test]
     fn validate_ok_tool() {
         let params = InvokeParams {
-            mcp: "test".to_string(),
+            mcp: Some("test".to_string()),
             tool: Some("test_tool".to_string()),
             params: None,
             resource: None,
@@ -173,7 +173,7 @@ resource: entity://qr-code/fr-FR
     #[test]
     fn validate_ok_resource() {
         let params = InvokeParams {
-            mcp: "test".to_string(),
+            mcp: Some("test".to_string()),
             tool: None,
             params: None,
             resource: Some("test://resource".to_string()),
@@ -186,7 +186,7 @@ resource: entity://qr-code/fr-FR
     #[test]
     fn validate_err_both() {
         let params = InvokeParams {
-            mcp: "test".to_string(),
+            mcp: Some("test".to_string()),
             tool: Some("test_tool".to_string()),
             params: None,
             resource: Some("test://resource".to_string()),
@@ -199,7 +199,7 @@ resource: entity://qr-code/fr-FR
     #[test]
     fn validate_err_neither() {
         let params = InvokeParams {
-            mcp: "test".to_string(),
+            mcp: Some("test".to_string()),
             tool: None,
             params: None,
             resource: None,
@@ -216,7 +216,7 @@ resource: entity://qr-code/fr-FR
     #[test]
     fn validate_err_empty_mcp() {
         let params = InvokeParams {
-            mcp: "".to_string(),
+            mcp: Some("".to_string()),
             tool: Some("test_tool".to_string()),
             params: None,
             resource: None,
@@ -229,7 +229,7 @@ resource: entity://qr-code/fr-FR
     #[test]
     fn validate_err_whitespace_mcp() {
         let params = InvokeParams {
-            mcp: "   ".to_string(),
+            mcp: Some("   ".to_string()),
             tool: Some("test_tool".to_string()),
             params: None,
             resource: None,
@@ -242,7 +242,7 @@ resource: entity://qr-code/fr-FR
     #[test]
     fn validate_err_empty_tool() {
         let params = InvokeParams {
-            mcp: "test".to_string(),
+            mcp: Some("test".to_string()),
             tool: Some("".to_string()),
             params: None,
             resource: None,
@@ -255,7 +255,7 @@ resource: entity://qr-code/fr-FR
     #[test]
     fn validate_err_whitespace_tool() {
         let params = InvokeParams {
-            mcp: "test".to_string(),
+            mcp: Some("test".to_string()),
             tool: Some("  \t  ".to_string()),
             params: None,
             resource: None,
@@ -268,7 +268,7 @@ resource: entity://qr-code/fr-FR
     #[test]
     fn validate_err_empty_resource() {
         let params = InvokeParams {
-            mcp: "test".to_string(),
+            mcp: Some("test".to_string()),
             tool: None,
             params: None,
             resource: Some("".to_string()),
@@ -281,7 +281,7 @@ resource: entity://qr-code/fr-FR
     #[test]
     fn validate_err_whitespace_resource() {
         let params = InvokeParams {
-            mcp: "test".to_string(),
+            mcp: Some("test".to_string()),
             tool: None,
             params: None,
             resource: Some("   ".to_string()),
@@ -289,5 +289,85 @@ resource: entity://qr-code/fr-FR
         let result = params.validate();
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("resource"));
+    }
+
+    // =========================================================================
+    // v0.21.0: Builtin Tools Tests (nika:* prefix)
+    // =========================================================================
+
+    #[test]
+    fn validate_ok_builtin_tool_without_mcp() {
+        // Builtin tools (nika:* prefix) don't require mcp
+        let params = InvokeParams {
+            mcp: None,
+            tool: Some("nika:sleep".to_string()),
+            params: Some(json!({"duration": "1s"})),
+            resource: None,
+        };
+        assert!(params.validate().is_ok());
+        assert!(params.is_builtin_tool());
+    }
+
+    #[test]
+    fn validate_ok_builtin_tool_with_mcp() {
+        // Builtin tools can optionally specify mcp (ignored)
+        let params = InvokeParams {
+            mcp: Some("ignored".to_string()),
+            tool: Some("nika:log".to_string()),
+            params: Some(json!({"level": "info", "message": "test"})),
+            resource: None,
+        };
+        assert!(params.validate().is_ok());
+        assert!(params.is_builtin_tool());
+    }
+
+    #[test]
+    fn validate_err_non_builtin_without_mcp() {
+        // Non-builtin tools (no nika:* prefix) require mcp
+        let params = InvokeParams {
+            mcp: None,
+            tool: Some("novanet_generate".to_string()),
+            params: None,
+            resource: None,
+        };
+        let result = params.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("mcp"));
+    }
+
+    #[test]
+    fn is_builtin_tool_detects_nika_prefix() {
+        let params = InvokeParams {
+            mcp: None,
+            tool: Some("nika:sleep".to_string()),
+            params: None,
+            resource: None,
+        };
+        assert!(params.is_builtin_tool());
+    }
+
+    #[test]
+    fn is_builtin_tool_rejects_non_nika() {
+        let params = InvokeParams {
+            mcp: Some("test".to_string()),
+            tool: Some("novanet_generate".to_string()),
+            params: None,
+            resource: None,
+        };
+        assert!(!params.is_builtin_tool());
+    }
+
+    #[test]
+    fn parse_builtin_tool_without_mcp() {
+        // YAML without mcp field should parse successfully for builtin tools
+        let yaml = r#"
+tool: nika:sleep
+params:
+  duration: "1s"
+"#;
+        let params: InvokeParams = serde_yaml::from_str(yaml).unwrap();
+        assert!(params.mcp.is_none());
+        assert_eq!(params.tool, Some("nika:sleep".to_string()));
+        assert!(params.validate().is_ok());
     }
 }

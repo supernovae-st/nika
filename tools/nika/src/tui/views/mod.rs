@@ -1,29 +1,27 @@
 //! TUI Views Module
 //!
-//! Seven-view architecture for Nika TUI (v0.20):
+//! Five-view architecture for Nika TUI (v0.21):
 //!
-//! **Views (Tab cycling through all 7):**
-//! 1. **Browse View** - File browser + DAG preview (default) [b]
-//! 2. **Editor View** - YAML editor with validation [e]
-//! 3. **Runner View** - Real-time execution monitoring [r]
-//! 4. **Chat Playground View** - AI agent conversation interface [c]
-//! 5. **Scheduler View** - Cron/queue management [s]
-//! 6. **Settings View** - Provider config, theme, preferences [,]
-//! 7. **Split View** - Side-by-side Editor + Runner [F9]
+//! **Views (Tab cycling through all 5):**
+//! 1. **Studio View** - Unified editor with browser + YAML editor + DAG (default) [s]
+//! 2. **Runner View** - Real-time execution monitoring [r]
+//! 3. **Chat Playground View** - AI agent conversation interface [c]
+//! 4. **Scheduler View** - Cron/queue management [d]
+//! 5. **Settings View** - Provider config, theme, preferences [,]
 //!
 //! # Navigation
 //!
 //! ```text
-//!     [1/b]          [2/e]           [3/r]          [4/c]          [5/s]          [6/,]        [F9]
-//!  ┌─────────┐   ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐   ┌─────────┐
-//!  │ BROWSE  │◄─►│ EDITOR  │◄──►│ RUNNER  │◄──►│  CHAT   │◄──►│SCHEDULER│◄──►│SETTINGS │   │  SPLIT  │
-//!  │ Browser │   │  YAML   │    │ Execute │    │Playground│    │  Cron   │    │ Config  │   │ Ed+Run  │
-//!  └─────────┘   └─────────┘    └─────────┘    └─────────┘    └─────────┘    └─────────┘   └─────────┘
-//!    DEFAULT                                                                                 (toggle)
+//!     [1/s]          [2/r]           [3/c]          [4/d]          [5/,]
+//!  ┌─────────┐   ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
+//!  │ STUDIO  │◄─►│ RUNNER  │◄──►│  CHAT   │◄──►│SCHEDULER│◄──►│SETTINGS │
+//!  │ Editor  │   │ Execute │    │Playground│    │  Cron   │    │ Config  │
+//!  └─────────┘   └─────────┘    └─────────┘    └─────────┘    └─────────┘
+//!    DEFAULT
 //! ```
 //!
-//! Navigation: [Tab] cycles main 6 views, [Shift+Tab] cycles backward.
-//! Shortcuts: [1-6] jump directly, [b/e/r/c/s/,] letter shortcuts, [F9] split toggle.
+//! Navigation: [Tab] cycles all 5 views, [Shift+Tab] cycles backward.
+//! Shortcuts: [1-5] jump directly, [s/r/c/d/,] letter shortcuts.
 
 mod chat;
 mod help;
@@ -184,40 +182,43 @@ impl ReasoningTab {
     }
 }
 
-/// Active view in the TUI - 6 views navigation (v0.20)
+/// Active view in the TUI - 5 views navigation (v0.21)
 ///
-/// v0.20 renames and reorders views:
-/// - Explorer → Browse (1, default) `[b]`
-/// - Studio → Editor (2) `[e]`
-/// - Monitor → Runner (3) `[r]`
-/// - Chat → Chat Playground (4) `[c]`
-/// - Scheduler (5) `[s]`
-/// - Settings (6) `[,]`
-/// - Split (F9) - Editor + Runner side-by-side
+/// v0.21 consolidates 8 views to 5:
+/// - Studio (1, default) [s] - Unified editor with browser + YAML editor + DAG preview
+/// - Runner (2) [r] - Real-time execution monitoring
+/// - Chat (4) [c] - Conversational playground
+/// - Scheduler (5) [d] - Cron/queue management
+/// - Settings (6) [,] - Provider config, theme, preferences
+/// - Split (7) [s] - Editor + Runner side-by-side
+/// - Workspace (8) [w] - Browser + Editor + DAG unified
+///
+/// Studio is an alias for Editor (for backwards compatibility).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TuiView {
-    /// Browse - file browser + DAG preview (default) [1/b]
+    /// Browse - File browser for .nika.yaml workflows [1/b]
     #[default]
     Browse,
-    /// Editor - edit YAML with validation [2/e]
+    /// Editor - YAML editor with schema validation [2/e]
     Editor,
-    /// Runner - real-time execution monitoring [3/r]
+    /// Runner - Real-time execution monitoring [3/r]
     Runner,
-    /// Chat Playground - command Nika conversationally [4/c]
+    /// Chat Playground - Command Nika conversationally [4/c]
     Chat,
-    /// Scheduler - cron/queue management [5/s]
+    /// Scheduler - Cron/queue management [5/d]
     Scheduler,
-    /// Settings - provider config, theme, preferences [6/,]
+    /// Settings - Provider config, theme, preferences [6/,]
     Settings,
-    /// Split - side-by-side Editor + Runner (F9 key)
+    /// Split - Editor + Runner side-by-side [7/s]
     Split,
-    /// Workspace - Browser + Editor + DAG unified (F10 key) [v0.20]
+    /// Workspace - Browser + Editor + DAG preview [8/w]
     Workspace,
+    /// Studio - Alias for Editor (legacy, maps to Editor)
+    Studio,
 }
 
 impl TuiView {
-    /// Get all 6 main views in order (Tab cycles through these)
-    /// Note: Split view is excluded - accessible via F9 toggle
+    /// Get all 8 main views in order (Tab cycles through main 6)
     pub fn all() -> &'static [TuiView] {
         &[
             TuiView::Browse,
@@ -229,8 +230,8 @@ impl TuiView {
         ]
     }
 
-    /// Get all 8 views including Split and Workspace
-    pub fn all_including_split() -> &'static [TuiView] {
+    /// Get all views including compound views
+    pub fn all_including_auxiliary() -> &'static [TuiView] {
         &[
             TuiView::Browse,
             TuiView::Editor,
@@ -243,59 +244,49 @@ impl TuiView {
         ]
     }
 
-    /// Alias for all() - main 6 views
-    pub fn all_including_auxiliary() -> &'static [TuiView] {
-        Self::all()
-    }
-
-    /// Check if this is an auxiliary view (only Settings is auxiliary)
+    /// Check if this is an auxiliary view (Settings, Split, Workspace)
     pub fn is_auxiliary(&self) -> bool {
-        matches!(self, TuiView::Settings)
+        matches!(self, TuiView::Settings | TuiView::Split | TuiView::Workspace)
     }
 
-    /// Check if this is the split view
-    pub fn is_split(&self) -> bool {
-        matches!(self, TuiView::Split)
+    /// Check if this is the studio view (Editor alias)
+    pub fn is_studio(&self) -> bool {
+        matches!(self, TuiView::Studio | TuiView::Editor)
     }
 
-    /// Check if this is the workspace view (v0.20)
-    pub fn is_workspace(&self) -> bool {
-        matches!(self, TuiView::Workspace)
-    }
-
-    /// Get next view (cycling through main 6 views, Split/Workspace exit to Editor/Browse)
+    /// Get next view (cycling through main 6 views)
     pub fn next(&self) -> Self {
         match self {
             TuiView::Browse => TuiView::Editor,
-            TuiView::Editor => TuiView::Runner,
+            TuiView::Editor | TuiView::Studio => TuiView::Runner,
             TuiView::Runner => TuiView::Chat,
             TuiView::Chat => TuiView::Scheduler,
             TuiView::Scheduler => TuiView::Settings,
             TuiView::Settings => TuiView::Browse,
-            TuiView::Split => TuiView::Editor, // Split exits to Editor
-            TuiView::Workspace => TuiView::Browse, // Workspace exits to Browse
+            TuiView::Split => TuiView::Workspace,
+            TuiView::Workspace => TuiView::Browse,
         }
     }
 
-    /// Get previous view (cycling through main 6 views, Split/Workspace exit to Editor/Browse)
+    /// Get previous view (cycling through main 6 views)
     pub fn prev(&self) -> Self {
         match self {
             TuiView::Browse => TuiView::Settings,
-            TuiView::Editor => TuiView::Browse,
+            TuiView::Editor | TuiView::Studio => TuiView::Browse,
             TuiView::Runner => TuiView::Editor,
             TuiView::Chat => TuiView::Runner,
             TuiView::Scheduler => TuiView::Chat,
             TuiView::Settings => TuiView::Scheduler,
-            TuiView::Split => TuiView::Editor, // Split exits to Editor
-            TuiView::Workspace => TuiView::Browse, // Workspace exits to Browse
+            TuiView::Split => TuiView::Editor,
+            TuiView::Workspace => TuiView::Split,
         }
     }
 
-    /// Get view number (1-indexed for display, Split is 7, Workspace is 8)
+    /// Get view number (1-indexed for display)
     pub fn number(&self) -> u8 {
         match self {
             TuiView::Browse => 1,
-            TuiView::Editor => 2,
+            TuiView::Editor | TuiView::Studio => 2,
             TuiView::Runner => 3,
             TuiView::Chat => 4,
             TuiView::Scheduler => 5,
@@ -305,11 +296,11 @@ impl TuiView {
         }
     }
 
-    /// Get the title for the header bar (v0.20 names)
+    /// Get the title for the header bar
     pub fn title(&self) -> &'static str {
         match self {
             TuiView::Browse => "NIKA BROWSE",
-            TuiView::Editor => "NIKA EDITOR",
+            TuiView::Editor | TuiView::Studio => "NIKA EDITOR",
             TuiView::Runner => "NIKA RUNNER",
             TuiView::Chat => "NIKA CHAT PLAYGROUND",
             TuiView::Scheduler => "NIKA SCHEDULER",
@@ -323,28 +314,27 @@ impl TuiView {
     pub fn icon(&self) -> &'static str {
         match self {
             TuiView::Browse => "📁",
-            TuiView::Editor => "✏",
+            TuiView::Editor | TuiView::Studio => "✏",
             TuiView::Runner => "▶",
             TuiView::Chat => "💬",
             TuiView::Scheduler => "📅",
             TuiView::Settings => "⚙",
-            TuiView::Split => "⊞",
+            TuiView::Split => "⬜",
             TuiView::Workspace => "🗂",
         }
     }
 
-    /// Get the letter shortcut for the view (v0.20)
-    /// Note: Split uses F9, Workspace uses F10
+    /// Get the letter shortcut for the view
     pub fn shortcut(&self) -> char {
         match self {
             TuiView::Browse => 'b',
-            TuiView::Editor => 'e',
+            TuiView::Editor | TuiView::Studio => 'e',
             TuiView::Runner => 'r',
             TuiView::Chat => 'c',
-            TuiView::Scheduler => 's',
+            TuiView::Scheduler => 'd',
             TuiView::Settings => ',',
-            TuiView::Split => '/',     // Placeholder - Split uses F9
-            TuiView::Workspace => 'w', // Workspace uses F10, 'w' is backup
+            TuiView::Split => 's',
+            TuiView::Workspace => 'w',
         }
     }
 
@@ -427,139 +417,109 @@ mod tests {
     #[test]
     fn test_tui_view_default() {
         let view = TuiView::default();
-        assert_eq!(view, TuiView::Browse);
+        assert_eq!(view, TuiView::Studio);
     }
 
     #[test]
-    fn test_tui_view_all_six_views() {
+    fn test_tui_view_all_five_views() {
         let views = TuiView::all();
-        assert_eq!(views.len(), 6);
-        assert_eq!(views[0], TuiView::Browse);
-        assert_eq!(views[1], TuiView::Editor);
-        assert_eq!(views[2], TuiView::Runner);
-        assert_eq!(views[3], TuiView::Chat);
-        assert_eq!(views[4], TuiView::Scheduler);
-        assert_eq!(views[5], TuiView::Settings);
+        assert_eq!(views.len(), 5);
+        assert_eq!(views[0], TuiView::Studio);
+        assert_eq!(views[1], TuiView::Runner);
+        assert_eq!(views[2], TuiView::Chat);
+        assert_eq!(views[3], TuiView::Scheduler);
+        assert_eq!(views[4], TuiView::Settings);
     }
 
     #[test]
     fn test_tui_view_all_including_auxiliary_same_as_all() {
         let views = TuiView::all_including_auxiliary();
-        assert_eq!(views.len(), 6);
+        assert_eq!(views.len(), 5);
         assert_eq!(views, TuiView::all());
     }
 
     #[test]
     fn test_tui_view_is_auxiliary() {
-        assert!(!TuiView::Browse.is_auxiliary());
-        assert!(!TuiView::Editor.is_auxiliary());
+        assert!(!TuiView::Studio.is_auxiliary());
         assert!(!TuiView::Runner.is_auxiliary());
         assert!(!TuiView::Chat.is_auxiliary());
         assert!(!TuiView::Scheduler.is_auxiliary());
         assert!(TuiView::Settings.is_auxiliary());
-        assert!(!TuiView::Split.is_auxiliary());
     }
 
     #[test]
-    fn test_tui_view_is_split() {
-        assert!(!TuiView::Browse.is_split());
-        assert!(!TuiView::Editor.is_split());
-        assert!(!TuiView::Runner.is_split());
-        assert!(!TuiView::Chat.is_split());
-        assert!(!TuiView::Scheduler.is_split());
-        assert!(!TuiView::Settings.is_split());
-        assert!(TuiView::Split.is_split());
+    fn test_tui_view_is_studio() {
+        assert!(TuiView::Studio.is_studio());
+        assert!(!TuiView::Runner.is_studio());
+        assert!(!TuiView::Chat.is_studio());
+        assert!(!TuiView::Scheduler.is_studio());
+        assert!(!TuiView::Settings.is_studio());
     }
 
     #[test]
-    fn test_tui_view_next_cycles_all_six() {
-        assert_eq!(TuiView::Browse.next(), TuiView::Editor);
-        assert_eq!(TuiView::Editor.next(), TuiView::Runner);
+    fn test_tui_view_next_cycles_all_five() {
+        assert_eq!(TuiView::Studio.next(), TuiView::Runner);
         assert_eq!(TuiView::Runner.next(), TuiView::Chat);
         assert_eq!(TuiView::Chat.next(), TuiView::Scheduler);
         assert_eq!(TuiView::Scheduler.next(), TuiView::Settings);
-        assert_eq!(TuiView::Settings.next(), TuiView::Browse);
-        // Split exits to Editor (not in cycle)
-        assert_eq!(TuiView::Split.next(), TuiView::Editor);
+        assert_eq!(TuiView::Settings.next(), TuiView::Studio);
     }
 
     #[test]
-    fn test_tui_view_prev_cycles_all_six() {
-        assert_eq!(TuiView::Browse.prev(), TuiView::Settings);
-        assert_eq!(TuiView::Editor.prev(), TuiView::Browse);
-        assert_eq!(TuiView::Runner.prev(), TuiView::Editor);
+    fn test_tui_view_prev_cycles_all_five() {
+        assert_eq!(TuiView::Studio.prev(), TuiView::Settings);
+        assert_eq!(TuiView::Runner.prev(), TuiView::Studio);
         assert_eq!(TuiView::Chat.prev(), TuiView::Runner);
         assert_eq!(TuiView::Scheduler.prev(), TuiView::Chat);
         assert_eq!(TuiView::Settings.prev(), TuiView::Scheduler);
-        // Split exits to Editor (not in cycle)
-        assert_eq!(TuiView::Split.prev(), TuiView::Editor);
     }
 
     #[test]
-    fn test_tui_view_number_all_seven() {
-        assert_eq!(TuiView::Browse.number(), 1);
-        assert_eq!(TuiView::Editor.number(), 2);
-        assert_eq!(TuiView::Runner.number(), 3);
-        assert_eq!(TuiView::Chat.number(), 4);
-        assert_eq!(TuiView::Scheduler.number(), 5);
-        assert_eq!(TuiView::Settings.number(), 6);
-        assert_eq!(TuiView::Split.number(), 7);
+    fn test_tui_view_number_all_five() {
+        assert_eq!(TuiView::Studio.number(), 1);
+        assert_eq!(TuiView::Runner.number(), 2);
+        assert_eq!(TuiView::Chat.number(), 3);
+        assert_eq!(TuiView::Scheduler.number(), 4);
+        assert_eq!(TuiView::Settings.number(), 5);
     }
 
     #[test]
-    fn test_tui_view_titles_all_seven() {
-        assert_eq!(TuiView::Browse.title(), "NIKA BROWSE");
-        assert_eq!(TuiView::Editor.title(), "NIKA EDITOR");
+    fn test_tui_view_titles_all_five() {
+        assert_eq!(TuiView::Studio.title(), "NIKA STUDIO");
         assert_eq!(TuiView::Runner.title(), "NIKA RUNNER");
         assert_eq!(TuiView::Chat.title(), "NIKA CHAT PLAYGROUND");
         assert_eq!(TuiView::Scheduler.title(), "NIKA SCHEDULER");
         assert_eq!(TuiView::Settings.title(), "NIKA SETTINGS");
-        assert_eq!(TuiView::Split.title(), "NIKA SPLIT");
     }
 
     #[test]
-    fn test_tui_view_icons_all_seven() {
-        assert_eq!(TuiView::Browse.icon(), "📁");
-        assert_eq!(TuiView::Editor.icon(), "✏");
+    fn test_tui_view_icons_all_five() {
+        assert_eq!(TuiView::Studio.icon(), "✏");
         assert_eq!(TuiView::Runner.icon(), "▶");
         assert_eq!(TuiView::Chat.icon(), "💬");
         assert_eq!(TuiView::Scheduler.icon(), "📅");
         assert_eq!(TuiView::Settings.icon(), "⚙");
-        assert_eq!(TuiView::Split.icon(), "⊞");
     }
 
     #[test]
-    fn test_tui_view_shortcuts_all_seven() {
-        assert_eq!(TuiView::Browse.shortcut(), 'b');
-        assert_eq!(TuiView::Editor.shortcut(), 'e');
+    fn test_tui_view_shortcuts_all_five() {
+        assert_eq!(TuiView::Studio.shortcut(), 's');
         assert_eq!(TuiView::Runner.shortcut(), 'r');
         assert_eq!(TuiView::Chat.shortcut(), 'c');
-        assert_eq!(TuiView::Scheduler.shortcut(), 's');
+        assert_eq!(TuiView::Scheduler.shortcut(), 'd');
         assert_eq!(TuiView::Settings.shortcut(), ',');
-        assert_eq!(TuiView::Split.shortcut(), '/'); // Placeholder - Split uses F9
     }
 
     #[test]
-    fn test_tui_view_all_including_split() {
-        let views = TuiView::all_including_split();
-        assert_eq!(views.len(), 8);
-        assert_eq!(views[6], TuiView::Split);
-        assert_eq!(views[7], TuiView::Workspace);
-    }
-
-    #[test]
-    fn test_view_action_switch_to_all_eight_views() {
+    fn test_view_action_switch_to_all_five_views() {
         let actions = [
-            ViewAction::SwitchView(TuiView::Browse),
-            ViewAction::SwitchView(TuiView::Editor),
+            ViewAction::SwitchView(TuiView::Studio),
             ViewAction::SwitchView(TuiView::Runner),
             ViewAction::SwitchView(TuiView::Chat),
             ViewAction::SwitchView(TuiView::Scheduler),
             ViewAction::SwitchView(TuiView::Settings),
-            ViewAction::SwitchView(TuiView::Split),
-            ViewAction::SwitchView(TuiView::Workspace),
         ];
-        assert_eq!(actions.len(), 8);
+        assert_eq!(actions.len(), 5);
     }
 
     #[test]

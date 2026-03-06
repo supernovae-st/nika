@@ -1351,16 +1351,13 @@ impl App {
 
             // Get custom status text from current view (using pre-computed values)
             let status_text = match current_view {
-                TuiView::Chat => chat_status,
                 TuiView::Browse => home_status,
-                TuiView::Editor => studio_status,
+                TuiView::Editor | TuiView::Studio => studio_status,
                 TuiView::Runner => monitor_status,
+                TuiView::Chat => chat_status,
                 TuiView::Scheduler => scheduler_status,
-                // v0.13: Split view (Editor + Runner side by side)
-                TuiView::Split => split_status,
-                // Auxiliary views use their own status (v0.11)
                 TuiView::Settings => settings_view.status_line(state),
-                // v0.20: Workspace view (Browser + Editor + DAG unified)
+                TuiView::Split => split_status,
                 TuiView::Workspace => workspace_status,
             };
 
@@ -1410,40 +1407,34 @@ impl App {
 
                     // Render view content based on current view
                     match current_view {
-                        TuiView::Chat => {
-                            chat_view.render(frame, chunks[1], state, theme);
-                        }
                         TuiView::Browse => {
                             if let Some(ref mut hv) = home_view {
                                 hv.render(frame, chunks[1], state, theme);
                             } else {
-                                // Fallback: show placeholder if no home view
                                 let placeholder = Paragraph::new("No workspace loaded")
                                     .block(Block::default().borders(Borders::ALL).title(" HOME "));
                                 frame.render_widget(placeholder, chunks[1]);
                             }
                         }
-                        TuiView::Editor => {
+                        TuiView::Editor | TuiView::Studio => {
                             studio_view.render(frame, chunks[1], state, theme);
                         }
                         TuiView::Runner => {
-                            // v0.11: Monitor view with 4-panel layout via View trait
                             monitor_view.render(frame, chunks[1], state, theme);
                         }
+                        TuiView::Chat => {
+                            chat_view.render(frame, chunks[1], state, theme);
+                        }
                         TuiView::Scheduler => {
-                            // v0.12: Scheduler view (cron/queue management)
                             scheduler_view.render(frame, chunks[1], state, theme);
                         }
-                        TuiView::Split => {
-                            // v0.13: Split view (Editor + Runner side by side)
-                            split_view.render(frame, chunks[1], state, theme);
-                        }
-                        // v0.11: Auxiliary views (Settings)
                         TuiView::Settings => {
                             settings_view.render(frame, chunks[1], state, theme);
                         }
+                        TuiView::Split => {
+                            split_view.render(frame, chunks[1], state, theme);
+                        }
                         TuiView::Workspace => {
-                            // v0.20: Workspace view (Browser + Editor + DAG unified)
                             workspace_view.render(frame, chunks[1], state, theme);
                         }
                     }
@@ -1602,7 +1593,7 @@ impl App {
                     Action::Continue
                 }
             }
-            TuiView::Editor => {
+            TuiView::Editor | TuiView::Studio => {
                 let view_action = self.studio_view.handle_key(key_event, &mut self.state);
                 self.convert_view_action(view_action)
             }
@@ -1634,7 +1625,9 @@ impl App {
     fn is_view_capturing_input(&self) -> bool {
         match self.current_view {
             TuiView::Chat => !self.chat_view.input.value().is_empty(),
-            TuiView::Editor => self.studio_view.mode == super::views::EditorMode::Insert,
+            TuiView::Editor | TuiView::Studio => {
+                self.studio_view.mode == super::views::EditorMode::Insert
+            }
             _ => false,
         }
     }

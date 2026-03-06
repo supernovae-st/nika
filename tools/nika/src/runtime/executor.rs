@@ -1045,7 +1045,7 @@ impl TaskExecutor {
     ///
     /// Templates like `{{use.variable}}` in params are resolved before calling the MCP tool.
     /// This enables for_each iterations to pass dynamic values to MCP tools.
-    #[instrument(skip(self, bindings, datastore), fields(mcp = %invoke.mcp))]
+    #[instrument(skip(self, bindings, datastore), fields(mcp = ?invoke.mcp))]
     async fn run_invoke(
         &self,
         task_id: &Arc<str>,
@@ -1081,10 +1081,12 @@ impl TaskExecutor {
         };
 
         // EMIT: McpInvoke event (with RESOLVED params for TUI display)
+        // v0.21.0: For builtin tools, mcp is None - use "builtin" as server name
+        let mcp_server = invoke.mcp.clone().unwrap_or_else(|| "builtin".to_string());
         self.event_log.emit(EventKind::McpInvoke {
             task_id: Arc::clone(task_id),
             call_id: call_id.clone(),
-            mcp_server: invoke.mcp.clone(),
+            mcp_server,
             tool: invoke.tool.clone(),
             resource: invoke.resource.clone(),
             params: resolved_params.clone(),
@@ -1122,7 +1124,11 @@ impl TaskExecutor {
         }
 
         // Get or create MCP client (real or mock depending on config)
-        let client = self.get_mcp_client(&invoke.mcp).await?;
+        // v0.21.0: mcp is Option<String>, validate() guarantees Some for non-builtin tools
+        let mcp_name = invoke.mcp.as_ref().ok_or_else(|| NikaError::ValidationError {
+            reason: "MCP server name required for non-builtin tools".to_string(),
+        })?;
+        let client = self.get_mcp_client(mcp_name).await?;
 
         let is_error = false;
         let result = if let Some(tool) = &invoke.tool {
@@ -1705,7 +1711,7 @@ mod tests {
 
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
-                mcp: "novanet".to_string(),
+                mcp: Some("novanet".to_string()),
                 tool: Some("novanet_generate".to_string()),
                 params: Some(json!({"entity": "qr-code", "locale": "fr-FR"})),
                 resource: None,
@@ -1735,7 +1741,7 @@ mod tests {
 
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
-                mcp: "novanet".to_string(),
+                mcp: Some("novanet".to_string()),
                 tool: None,
                 params: None,
                 resource: Some("neo4j://entity/qr-code".to_string()),
@@ -1769,7 +1775,7 @@ mod tests {
 
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
-                mcp: "novanet".to_string(),
+                mcp: Some("novanet".to_string()),
                 tool: Some("novanet_describe".to_string()),
                 params: None,
                 resource: None,
@@ -1812,7 +1818,7 @@ mod tests {
 
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
-                mcp: "novanet".to_string(),
+                mcp: Some("novanet".to_string()),
                 tool: Some("novanet_generate".to_string()),
                 params: Some(json!({
                     "entity": "{{use.entity_key}}",
@@ -1843,7 +1849,7 @@ mod tests {
         // Both tool and resource set (invalid)
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
-                mcp: "novanet".to_string(),
+                mcp: Some("novanet".to_string()),
                 tool: Some("test_tool".to_string()),
                 params: None,
                 resource: Some("test://resource".to_string()),
@@ -1873,7 +1879,7 @@ mod tests {
         // Neither tool nor resource set (invalid)
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
-                mcp: "novanet".to_string(),
+                mcp: Some("novanet".to_string()),
                 tool: None,
                 params: None,
                 resource: None,
@@ -1903,7 +1909,7 @@ mod tests {
 
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
-                mcp: "unconfigured_server".to_string(),
+                mcp: Some("unconfigured_server".to_string()),
                 tool: Some("some_tool".to_string()),
                 params: None,
                 resource: None,
@@ -2281,7 +2287,7 @@ mod tests {
 
         let invoke_action = TaskAction::Invoke {
             invoke: InvokeParams {
-                mcp: "novanet".to_string(),
+                mcp: Some("novanet".to_string()),
                 tool: Some("test".to_string()),
                 params: None,
                 resource: None,

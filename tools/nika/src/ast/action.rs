@@ -917,7 +917,7 @@ invoke:
         let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
         match action {
             TaskAction::Invoke { invoke } => {
-                assert_eq!(invoke.mcp, "novanet");
+                assert_eq!(invoke.mcp, Some("novanet".to_string()));
                 assert_eq!(invoke.tool, Some("novanet_generate".to_string()));
                 assert_eq!(
                     invoke.params,
@@ -939,7 +939,7 @@ invoke:
         let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
         match action {
             TaskAction::Invoke { invoke } => {
-                assert_eq!(invoke.mcp, "novanet");
+                assert_eq!(invoke.mcp, Some("novanet".to_string()));
                 assert!(invoke.tool.is_none());
                 assert_eq!(invoke.resource, Some("entity://qr-code/fr-FR".to_string()));
                 assert!(invoke.params.is_none());
@@ -958,7 +958,7 @@ invoke:
         let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
         match action {
             TaskAction::Invoke { invoke } => {
-                assert_eq!(invoke.mcp, "test_server");
+                assert_eq!(invoke.mcp, Some("test_server".to_string()));
                 assert_eq!(invoke.tool, Some("simple_tool".to_string()));
                 assert!(invoke.params.is_none());
             }
@@ -1169,7 +1169,7 @@ agent:
     fn test_verb_name_invoke() {
         let action = TaskAction::Invoke {
             invoke: InvokeParams {
-                mcp: "test".to_string(),
+                mcp: Some("test".to_string()),
                 tool: Some("test_tool".to_string()),
                 params: None,
                 resource: None,

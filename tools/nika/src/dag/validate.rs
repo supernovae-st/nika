@@ -865,7 +865,7 @@ flows:
             id: "task2".to_string(),
             action: TaskAction::Invoke {
                 invoke: InvokeParams {
-                    mcp: "server_name".to_string(),
+                    mcp: Some("server_name".to_string()),
                     tool: Some("tool_name".to_string()),
                     params: Some(json!({
                         "entity": "{{use.entity_key}}",
