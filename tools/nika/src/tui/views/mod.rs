@@ -32,15 +32,15 @@ mod settings;
 mod split;
 mod studio;
 mod trait_view;
-mod workspace;
+// Note: workspace.rs is deprecated, StudioView now provides 3-panel layout
 
-// Main view exports (v0.20 names)
+// Main view exports (v0.21 names)
 #[allow(unused_imports)]
 pub use chat::{ChatMode, ChatView, MessageRole};
 // Browse = Home (renamed in v0.20 from Explorer)
 #[allow(unused_imports)]
 pub use home::HomeView as BrowseView;
-// Editor = YamlEditorPanel (renamed in v0.21)
+// Editor = YamlEditorPanel (single-panel editor, embedded in StudioView)
 #[allow(unused_imports)]
 pub use studio::{EditorMode, YamlEditorPanel as EditorView};
 // Runner = Monitor (renamed in v0.12)
@@ -54,19 +54,14 @@ pub use settings::SettingsView;
 // Split = NEW in v0.13 (Editor + Runner side-by-side)
 #[allow(unused_imports)]
 pub use split::{SplitFocus, SplitRatio, SplitView};
-// Workspace = NEW in v0.20 (Browser + Editor + DAG unified)
-#[allow(unused_imports)]
-pub use workspace::{WorkspaceFocus, WorkspaceRatio, WorkspaceView};
 
 // Internal re-exports (original struct names used internally)
-// v0.20: Removed ExplorerView alias (unused deprecated alias)
-// v0.21: StudioView → YamlEditorPanel (single-panel YAML editor)
+// v0.21: StudioView is now the 3-panel view (Browser + Editor + DAG)
 pub use home::HomeView;
 pub use monitor::MonitorView;
 pub use studio::YamlEditorPanel;
-// Backwards compatibility: StudioView was the original name
-#[allow(unused_imports)]
-pub use studio::YamlEditorPanel as StudioView;
+// StudioView = 3-panel layout (v0.21+), enums are internal
+pub use studio::StudioView;
 // Help view still exists but is no longer a main TuiView (merged into Settings)
 #[allow(unused_imports)]
 pub use help::HelpView;

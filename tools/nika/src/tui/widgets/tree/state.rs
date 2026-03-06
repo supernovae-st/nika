@@ -416,7 +416,8 @@ impl TreeState {
         }
     }
 
-    fn find_node<'a>(&self, root: &'a TreeNode, target: NodeId) -> Option<&'a TreeNode> {
+    /// Find a node by ID in the tree (recursive search)
+    pub fn find_node<'a>(&self, root: &'a TreeNode, target: NodeId) -> Option<&'a TreeNode> {
         if root.id == target {
             return Some(root);
         }

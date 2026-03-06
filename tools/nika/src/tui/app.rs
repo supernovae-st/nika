@@ -62,7 +62,7 @@ use super::utils::truncate_str;
 use super::verification::{VerificationCache, VerificationEntry};
 use super::views::{
     ChatView, HelpView, HomeView, McpAction, MonitorView, SchedulerView, SettingsView, SplitView,
-    TuiView, View, ViewAction, WorkspaceView, YamlEditorPanel,
+    StudioView, TuiView, View, ViewAction,
 };
 use super::widgets::task_box::{
     AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,
@@ -238,8 +238,8 @@ pub struct App {
     chat_view: ChatView,
     /// Home view state (file browser)
     home_view: Option<HomeView>,
-    /// Studio view state (YAML editor)
-    studio_view: YamlEditorPanel,
+    /// Studio view state (v0.21 - unified 3-panel: Browser+Editor+DAG)
+    studio_view: StudioView,
     /// Settings view state (v0.11 auxiliary)
     settings_view: SettingsView,
     /// Help view state (v0.11 auxiliary)
@@ -250,8 +250,6 @@ pub struct App {
     scheduler_view: SchedulerView,
     /// Split view state (v0.13 - side-by-side Editor + Runner)
     split_view: SplitView,
-    /// Workspace view state (v0.20 - unified 3-panel: Browser+Editor+DAG)
-    workspace_view: WorkspaceView,
     // ═══ LLM Integration for ChatOverlay ═══
     /// Channel for receiving LLM responses (complete responses)
     llm_response_rx: mpsc::Receiver<String>,
@@ -314,7 +312,7 @@ impl App {
 
         // Initialize views
         let chat_view = ChatView::new();
-        let mut studio_view = YamlEditorPanel::new();
+        let mut studio_view = StudioView::new();
         // Load workflow file into studio view
         let _ = studio_view.load_file(workflow_path.to_path_buf());
         let settings_view = SettingsView::new();
@@ -322,7 +320,6 @@ impl App {
         let monitor_view = MonitorView::new();
         let scheduler_view = SchedulerView::new();
         let split_view = SplitView::new();
-        let workspace_view = WorkspaceView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -370,7 +367,6 @@ impl App {
             monitor_view,
             scheduler_view,
             split_view,
-            workspace_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -397,13 +393,12 @@ impl App {
         // Initialize views
         let chat_view = ChatView::new();
         let home_view = HomeView::new(standalone_state.root.clone());
-        let studio_view = YamlEditorPanel::new();
+        let studio_view = StudioView::new();
         let settings_view = SettingsView::new();
         let help_view = HelpView::new();
         let monitor_view = MonitorView::new();
         let scheduler_view = SchedulerView::new();
         let split_view = SplitView::new();
-        let workspace_view = WorkspaceView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -451,7 +446,6 @@ impl App {
             monitor_view,
             scheduler_view,
             split_view,
-            workspace_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -706,8 +700,8 @@ impl App {
             if let Some(ref mut home) = self.home_view {
                 home.tick(); // Enables gradient logo animation + sparkline pulse
             }
-            self.studio_view.tick(); // v0.9.1: Matrix Rain animation
-            self.studio_view.maybe_validate(); // Debounced validation (300ms after last edit)
+            self.studio_view.tick(&mut self.state); // v0.9.1: Matrix Rain animation
+            self.studio_view.editor.maybe_validate(); // Debounced validation (300ms after last edit)
             self.monitor_view.tick(&mut self.state); // v0.12.1: Runner panel animations
 
             // v0.12: Tick intro animation (if active)
@@ -1319,7 +1313,6 @@ impl App {
             };
             let scheduler_status = self.scheduler_view.status_line(&self.state);
             let _split_status = self.split_view.status_line(&self.state); // v0.13: Split view
-            let _workspace_status = self.workspace_view.status_line(&self.state); // v0.20: Workspace view
 
             // Extract references to avoid borrow issues with the closure
             let theme = &self.theme;
@@ -1332,7 +1325,6 @@ impl App {
             let monitor_view = &mut self.monitor_view;
             let scheduler_view = &mut self.scheduler_view;
             let _split_view = &mut self.split_view; // v0.13: Split view
-            let _workspace_view = &mut self.workspace_view; // v0.20: Workspace view
             let workflow_path = &self.state.workflow.path;
             let intro_state = &self.intro_state; // v0.12: Intro animation state
                                                  // P0 Fix: Use is_paused() accessor for unified pause state
@@ -1576,7 +1568,7 @@ impl App {
     fn is_view_capturing_input(&self) -> bool {
         match self.current_view {
             TuiView::Chat => !self.chat_view.input.value().is_empty(),
-            TuiView::Studio => self.studio_view.mode == super::views::EditorMode::Insert,
+            TuiView::Studio => self.studio_view.editor.mode == super::views::EditorMode::Insert,
             _ => false,
         }
     }
@@ -4474,16 +4466,16 @@ mod tests {
 
         // Studio in Normal mode is not capturing
         app.current_view = TuiView::Studio;
-        app.studio_view.mode = EditorMode::Normal;
+        app.studio_view.editor.mode = EditorMode::Normal;
         assert!(!app.is_view_capturing_input());
 
         // Studio in Insert mode is capturing
-        app.studio_view.mode = EditorMode::Insert;
+        app.studio_view.editor.mode = EditorMode::Insert;
         assert!(app.is_view_capturing_input());
 
         // Runner never captures
         app.current_view = TuiView::Studio;
-        app.studio_view.mode = EditorMode::Normal;
+        app.studio_view.editor.mode = EditorMode::Normal;
         assert!(!app.is_view_capturing_input());
 
         app.current_view = TuiView::Runner;

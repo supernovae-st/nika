@@ -17,6 +17,7 @@
 //! See: <https://github.com/ratatui/ratatui-textarea> (replaces rhysd/tui-textarea)
 
 use crate::serde_yaml;
+use camino::Utf8Path;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -40,6 +41,10 @@ use crate::tui::edit_history::EditHistory;
 use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
+use crate::tui::widgets::tree::{
+    AnimationTicker, FilterConfig, TreeAction, TreeColors, TreeFilter, TreeNode, TreeState,
+    TreeWidget,
+};
 use crate::tui::widgets::{DagAscii, MatrixRain, NodeBoxData, NodeBoxMode, ScrollIndicator};
 use crate::util::atomic_write;
 
@@ -50,6 +55,427 @@ pub enum EditorMode {
     Normal,
     Insert,
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// StudioView: 3-Panel Layout (v0.22)
+// Browser (20%) | Editor (50%) | DAG Structure (30%)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Panel focus in 3-panel Studio layout
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StudioFocus {
+    /// Left panel: File browser (TreeWidget)
+    #[default]
+    Browser,
+    /// Center panel: YAML editor
+    Editor,
+    /// Right panel: DAG structure (read-only)
+    Dag,
+}
+
+impl StudioFocus {
+    /// Cycle to next panel (Browser -> Editor -> Dag -> Browser)
+    pub fn next(&self) -> Self {
+        match self {
+            StudioFocus::Browser => StudioFocus::Editor,
+            StudioFocus::Editor => StudioFocus::Dag,
+            StudioFocus::Dag => StudioFocus::Browser,
+        }
+    }
+
+    /// Cycle to previous panel (Browser <- Editor <- Dag <- Browser)
+    pub fn prev(&self) -> Self {
+        match self {
+            StudioFocus::Browser => StudioFocus::Dag,
+            StudioFocus::Editor => StudioFocus::Browser,
+            StudioFocus::Dag => StudioFocus::Editor,
+        }
+    }
+
+    /// Display name for status bar
+    pub fn title(&self) -> &'static str {
+        match self {
+            StudioFocus::Browser => "Browser",
+            StudioFocus::Editor => "Editor",
+            StudioFocus::Dag => "DAG",
+        }
+    }
+}
+
+/// Layout ratios for 3-panel Studio
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StudioRatio {
+    /// Balanced: 20% / 50% / 30%
+    #[default]
+    Balanced,
+    /// Editor focus: 15% / 65% / 20%
+    EditorFocus,
+    /// Browser focus: 35% / 45% / 20%
+    BrowserFocus,
+    /// DAG focus: 15% / 35% / 50%
+    DagFocus,
+}
+
+impl StudioRatio {
+    /// Get constraints for Layout::split()
+    pub fn constraints(&self) -> [Constraint; 3] {
+        match self {
+            StudioRatio::Balanced => [
+                Constraint::Percentage(20),
+                Constraint::Percentage(50),
+                Constraint::Percentage(30),
+            ],
+            StudioRatio::EditorFocus => [
+                Constraint::Percentage(15),
+                Constraint::Percentage(65),
+                Constraint::Percentage(20),
+            ],
+            StudioRatio::BrowserFocus => [
+                Constraint::Percentage(35),
+                Constraint::Percentage(45),
+                Constraint::Percentage(20),
+            ],
+            StudioRatio::DagFocus => [
+                Constraint::Percentage(15),
+                Constraint::Percentage(35),
+                Constraint::Percentage(50),
+            ],
+        }
+    }
+
+    /// Cycle to next ratio (Balanced -> EditorFocus -> BrowserFocus -> DagFocus -> Balanced)
+    pub fn next(&self) -> Self {
+        match self {
+            StudioRatio::Balanced => StudioRatio::EditorFocus,
+            StudioRatio::EditorFocus => StudioRatio::BrowserFocus,
+            StudioRatio::BrowserFocus => StudioRatio::DagFocus,
+            StudioRatio::DagFocus => StudioRatio::Balanced,
+        }
+    }
+
+    /// Display name for status bar
+    pub fn title(&self) -> &'static str {
+        match self {
+            StudioRatio::Balanced => "Balanced",
+            StudioRatio::EditorFocus => "Editor+",
+            StudioRatio::BrowserFocus => "Browser+",
+            StudioRatio::DagFocus => "DAG+",
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// StudioView: Main 3-Panel Struct (v0.22)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Studio View - Unified 3-panel layout: Browser | Editor | DAG
+///
+/// This is the main view for workflow development, combining:
+/// - **Browser**: TreeWidget for file navigation (VS Code-like)
+/// - **Editor**: YamlEditorPanel for YAML editing with validation
+/// - **DAG**: Structure preview showing task dependencies
+pub struct StudioView {
+    // === Browser Panel (Left) - Real TreeWidget ===
+    /// Root directory for file browsing
+    pub root_dir: PathBuf,
+    /// Tree widget state (selection, expansion)
+    pub tree_state: TreeState,
+    /// Tree widget colors (from theme)
+    pub tree_colors: TreeColors,
+    /// Animation ticker for glow effects
+    pub animation_ticker: AnimationTicker,
+    /// File filter configuration (W/A/E/0 hotkeys)
+    pub filter_config: FilterConfig,
+
+    // === Editor Panel (Center) ===
+    /// YAML editor panel with validation and syntax highlighting
+    pub editor: YamlEditorPanel,
+
+    // === Focus & Layout ===
+    /// Currently focused panel
+    pub focus: StudioFocus,
+    /// Current panel ratio
+    pub ratio: StudioRatio,
+}
+
+impl Default for StudioView {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl StudioView {
+    /// Create a new StudioView with current working directory
+    pub fn new() -> Self {
+        let root_dir = std::env::current_dir().unwrap_or_default();
+        Self::with_root(root_dir)
+    }
+
+    /// Create a StudioView with a specific root directory
+    pub fn with_root(root_dir: PathBuf) -> Self {
+        Self {
+            root_dir,
+            tree_state: TreeState::default(),
+            tree_colors: TreeColors::default(),
+            animation_ticker: AnimationTicker::new(),
+            filter_config: FilterConfig::default(),
+            editor: YamlEditorPanel::new(),
+            focus: StudioFocus::default(),
+            ratio: StudioRatio::default(),
+        }
+    }
+
+    /// Load a file into the editor panel (returns Result for error handling)
+    pub fn load_file(&mut self, path: PathBuf) -> Result<(), std::io::Error> {
+        let result = self.editor.load_file(path);
+        self.focus = StudioFocus::Editor;
+        result
+    }
+
+    /// Open a file in the editor panel (ignores errors)
+    pub fn open_file(&mut self, path: PathBuf) {
+        // Ignore errors for now - user will see empty editor
+        let _ = self.load_file(path);
+    }
+
+    /// Get border style based on focus state
+    fn border_style(&self, panel: StudioFocus, theme: &Theme) -> Style {
+        use ratatui::style::Modifier;
+        if self.focus == panel {
+            Style::default()
+                .fg(theme.border_focused)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.border_normal)
+        }
+    }
+
+    /// Render the browser panel with TreeWidget
+    fn render_browser(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let style = self.border_style(StudioFocus::Browser, theme);
+        let block = Block::default()
+            .title(Span::styled(" Browser ", style))
+            .borders(Borders::ALL)
+            .border_style(style);
+
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        // Build tree from root directory (convert PathBuf to Utf8Path)
+        let root_path = Utf8Path::from_path(&self.root_dir).unwrap_or(Utf8Path::new("."));
+        let root_node = TreeNode::from_path(root_path, 0);
+
+        // Update visible nodes for navigation
+        self.tree_state.update_visible_nodes(&root_node);
+        self.tree_state.select_first_if_none();
+
+        // Use solarized colors (dark by default, matching Theme::default())
+        self.tree_colors = TreeColors::solarized_dark();
+
+        // Render TreeWidget with state
+        let tree_widget = TreeWidget::new(&root_node)
+            .colors(self.tree_colors.clone())
+            .ticker(&self.animation_ticker)
+            .filter(self.filter_config.clone());
+
+        frame.render_stateful_widget(tree_widget, inner, &mut self.tree_state);
+    }
+
+    /// Render the DAG panel (delegates to editor's DAG rendering)
+    fn render_dag_panel(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let style = self.border_style(StudioFocus::Dag, theme);
+        let block = Block::default()
+            .title(Span::styled(" DAG Preview ", style))
+            .borders(Borders::ALL)
+            .border_style(style);
+
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        // Render DAG structure from editor's cached workflow
+        let yaml = self.editor.buffer.content();
+        self.editor.render_dag_structure(frame, inner, &yaml, theme);
+    }
+
+    /// Handle keyboard input for the browser panel
+    fn handle_browser_key(&mut self, key: KeyEvent) -> ViewAction {
+        // Build root node for tree operations
+        let root_path = Utf8Path::from_path(&self.root_dir).unwrap_or(Utf8Path::new("."));
+        let root_node = TreeNode::from_path(root_path, 0);
+
+        // Try TreeAction navigation first
+        if let Some(action) = TreeAction::from_key_event(key) {
+            self.tree_state.handle_action(action, &root_node);
+            return ViewAction::None;
+        }
+
+        // Handle other keys
+        match key.code {
+            KeyCode::Enter => {
+                // Open selected file in editor
+                if let Some(node_id) = self.tree_state.selected() {
+                    if let Some(node) = self.tree_state.find_node(&root_node, node_id) {
+                        let path = PathBuf::from(node.path.as_str());
+                        if path.is_file()
+                            && path.extension().is_some_and(|e| e == "yaml" || e == "yml")
+                        {
+                            self.open_file(path);
+                        }
+                    }
+                }
+                ViewAction::None
+            }
+            // Filter hotkeys (W/A/E/0)
+            KeyCode::Char('w') | KeyCode::Char('W') => {
+                self.filter_config.set_filter(TreeFilter::WorkflowsOnly);
+                ViewAction::None
+            }
+            KeyCode::Char('a') | KeyCode::Char('A') => {
+                self.filter_config.set_filter(TreeFilter::All);
+                ViewAction::None
+            }
+            KeyCode::Char('e') | KeyCode::Char('E') => {
+                self.filter_config.set_filter(TreeFilter::EcosystemOnly);
+                ViewAction::None
+            }
+            KeyCode::Char('0') => {
+                self.filter_config.reset();
+                ViewAction::None
+            }
+            _ => ViewAction::None,
+        }
+    }
+}
+
+impl View for StudioView {
+    fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
+        // Main layout: 3 horizontal panels + status bar at bottom
+        let main_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(10), Constraint::Length(3)])
+            .split(area);
+
+        // Split main area into 3 horizontal panels
+        let panel_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(self.ratio.constraints())
+            .split(main_chunks[0]);
+
+        // Render each panel
+        self.render_browser(frame, panel_chunks[0], theme);
+
+        // Editor panel with focused border
+        let editor_style = self.border_style(StudioFocus::Editor, theme);
+        let editor_block = Block::default()
+            .title(Span::styled(
+                format!(" Editor{} ", if self.editor.modified { " ●" } else { "" }),
+                editor_style,
+            ))
+            .borders(Borders::ALL)
+            .border_style(editor_style);
+
+        let editor_inner = editor_block.inner(panel_chunks[1]);
+        frame.render_widget(editor_block, panel_chunks[1]);
+        self.editor.render_editor(frame, editor_inner, theme);
+
+        // DAG panel
+        self.render_dag_panel(frame, panel_chunks[2], theme);
+
+        // Validation bar at bottom
+        self.editor.render_validation(frame, main_chunks[1], theme);
+    }
+
+    fn handle_key(&mut self, key: KeyEvent, state: &mut TuiState) -> ViewAction {
+        // Global shortcuts first
+        match (key.code, key.modifiers) {
+            // Tab: Cycle focus forward
+            (KeyCode::Tab, KeyModifiers::NONE) => {
+                self.focus = self.focus.next();
+                return ViewAction::None;
+            }
+            // Shift+Tab: Cycle focus backward
+            (KeyCode::BackTab, _) => {
+                self.focus = self.focus.prev();
+                return ViewAction::None;
+            }
+            // Ctrl+]: Cycle ratio
+            (KeyCode::Char(']'), KeyModifiers::CONTROL) => {
+                self.ratio = self.ratio.next();
+                return ViewAction::None;
+            }
+            // Ctrl+T or Shift+T: Toggle theme
+            (KeyCode::Char('T'), _) | (KeyCode::Char('t'), KeyModifiers::CONTROL) => {
+                return ViewAction::ToggleTheme;
+            }
+            // View switching: number keys 2-5
+            (KeyCode::Char('2'), _) => return ViewAction::SwitchView(TuiView::Runner),
+            (KeyCode::Char('3'), _) => return ViewAction::SwitchView(TuiView::Chat),
+            (KeyCode::Char('4'), _) => return ViewAction::SwitchView(TuiView::Scheduler),
+            (KeyCode::Char('5'), _) => return ViewAction::SwitchView(TuiView::Settings),
+            _ => {}
+        }
+
+        // Dispatch to focused panel
+        match self.focus {
+            StudioFocus::Browser => self.handle_browser_key(key),
+            StudioFocus::Editor => self.editor.handle_key(key, state),
+            StudioFocus::Dag => {
+                // DAG panel is read-only, but support scroll
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        self.editor.dag_scroll = self.editor.dag_scroll.saturating_sub(1);
+                        ViewAction::None
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        self.editor.dag_scroll = self.editor.dag_scroll.saturating_add(1);
+                        ViewAction::None
+                    }
+                    KeyCode::Char('e') | KeyCode::Char('E') => {
+                        self.editor.toggle_dag_mode();
+                        ViewAction::None
+                    }
+                    _ => ViewAction::None,
+                }
+            }
+        }
+    }
+
+    fn status_line(&self, _state: &TuiState) -> String {
+        let mode = match self.editor.mode {
+            EditorMode::Normal => "NORMAL",
+            EditorMode::Insert => "INSERT",
+        };
+        format!(
+            "Studio | {} | {} | {} | [Tab] Panel • [Ctrl+]] Ratio",
+            self.focus.title(),
+            self.ratio.title(),
+            mode
+        )
+    }
+
+    fn tick(&mut self, _state: &mut TuiState) {
+        // Tick animation for tree widget glow effects
+        self.animation_ticker.tick();
+        // Tick editor (matrix rain, etc.)
+        self.editor.tick();
+        // Run debounced validation
+        self.editor.maybe_validate();
+    }
+
+    fn on_enter(&mut self, _state: &mut TuiState) {
+        // Initialize editor when entering view
+        // Could restore session state here
+    }
+
+    fn on_leave(&mut self, _state: &mut TuiState) {
+        // Save session state when leaving
+        // Could persist open files, cursor positions, etc.
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Legacy Support: YamlEditorPanel and TextBuffer
+// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Validation result
 #[derive(Debug, Clone)]
@@ -777,7 +1203,8 @@ impl YamlEditorPanel {
         }
     }
 
-    fn render_editor(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+    /// Render just the editor content (for use in StudioView 3-panel layout)
+    pub(crate) fn render_editor(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let mode_indicator = match self.mode {
             EditorMode::Normal => "",
             EditorMode::Insert => " [INSERT]",
@@ -850,7 +1277,8 @@ impl YamlEditorPanel {
         }
     }
 
-    fn render_structure(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+    /// Render just the DAG structure (for use in StudioView 3-panel layout)
+    pub(crate) fn render_structure(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         // Title shows mode state
         let title = if self.dag_expanded {
             " STRUCTURE [E]xpanded "
@@ -871,11 +1299,17 @@ impl YamlEditorPanel {
         self.render_dag_structure(frame, inner, &content, theme);
     }
 
-    /// Render DAG structure using DagAscii widget
+    /// Render DAG structure using DagAscii widget (for use in StudioView 3-panel layout)
     ///
     /// PERF: Uses cached_workflow to avoid re-parsing YAML every frame (60 FPS).
     /// Only parses when content hash changes.
-    fn render_dag_structure(&self, frame: &mut Frame, area: Rect, yaml: &str, theme: &Theme) {
+    pub(crate) fn render_dag_structure(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        yaml: &str,
+        theme: &Theme,
+    ) {
         // PERF: Compute content hash to check if we need to re-parse
         let current_hash = Self::content_hash(yaml);
         let cached_hash = self.cached_content_hash.get();
@@ -973,7 +1407,8 @@ impl YamlEditorPanel {
         }
     }
 
-    fn render_validation(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+    /// Render the validation status bar
+    pub(crate) fn render_validation(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let yaml_status = if self.validation.yaml_valid {
             Span::styled("Valid YAML", Style::default().fg(theme.status_success))
         } else {
