@@ -18,6 +18,11 @@ pub fn generate_template(template: Template, workflow_name: &str) -> String {
         Template::AgentBrowser => agent_browser(workflow_name),
         Template::McpIntegration => mcp_integration(workflow_name),
         Template::MultiProvider => multi_provider(workflow_name),
+        Template::DataPipeline => data_pipeline(workflow_name),
+        Template::MorningBriefing => morning_briefing(workflow_name),
+        Template::GitChangelog => git_changelog(workflow_name),
+        Template::ParallelTranslation => parallel_translation(workflow_name),
+        Template::AgentQaTester => agent_qa_tester(workflow_name),
     }
 }
 
@@ -945,6 +950,675 @@ tasks:
     )
 }
 
+/// Data pipeline template - ETL pattern
+fn data_pipeline(name: &str) -> String {
+    format!(
+        r#"# {name}
+#
+# ETL data pipeline workflow.
+# Extracts data from API, transforms with LLM, loads to output.
+#
+# Usage:
+#   nika {name}.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY environment variable
+#   - Internet connection
+
+schema: "nika/workflow@0.10"
+workflow: {name}
+description: "ETL data pipeline with fetch, transform, and load"
+
+provider: claude
+model: claude-sonnet-4-6
+
+inputs:
+  source_url:
+    type: string
+    description: "Data source URL"
+    default: "https://jsonplaceholder.typicode.com/posts?_limit=10"
+  output_format:
+    type: string
+    description: "Output format (json/csv)"
+    default: "json"
+
+artifacts:
+  dir: ./data/{{{{date}}}}/{{{{workflow_name}}}}
+  format: json
+  manifest: true
+
+tasks:
+  # Extract: Fetch raw data
+  - id: extract
+    description: "Extract data from source"
+    fetch:
+      url: "{{{{inputs.source_url}}}}"
+      method: GET
+      headers:
+        Accept: application/json
+    output:
+      format: json
+
+  # Transform: Clean and enrich data
+  - id: transform
+    description: "Transform and enrich data"
+    use:
+      raw_data: extract
+    infer:
+      prompt: |
+        Transform this raw data into a clean, enriched format:
+
+        Raw Data:
+        {{{{use.raw_data | to_yaml}}}}
+
+        Requirements:
+        1. Clean any malformed entries
+        2. Add a "processed_at" timestamp
+        3. Calculate summary statistics
+        4. Categorize items if applicable
+
+        Return as JSON with:
+        - records: cleaned data array
+        - stats: summary statistics object
+        - metadata: processing info
+    output:
+      format: json
+      schema:
+        type: object
+        required: [records, stats]
+        properties:
+          records:
+            type: array
+          stats:
+            type: object
+            properties:
+              total_records:
+                type: integer
+              categories:
+                type: object
+          metadata:
+            type: object
+    artifact:
+      path: transformed.json
+    flow: [extract]
+
+  # Load: Save processed data
+  - id: load
+    description: "Load data to output"
+    use:
+      data: transform
+    exec:
+      command: |
+        echo "Data pipeline complete!"
+        echo "Records processed: {{{{use.data.stats.total_records}}}}"
+        echo "Output saved to artifacts directory"
+      shell: true
+    flow: [transform]
+"#
+    )
+}
+
+/// Morning briefing template - daily digest
+fn morning_briefing(name: &str) -> String {
+    format!(
+        r#"# {name}
+#
+# Morning briefing workflow.
+# Generates a daily digest with news, weather, and tasks.
+#
+# Usage:
+#   nika {name}.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY environment variable
+
+schema: "nika/workflow@0.10"
+workflow: {name}
+description: "Daily digest with news, weather, and tasks"
+
+provider: claude
+model: claude-sonnet-4-6
+
+inputs:
+  location:
+    type: string
+    description: "Location for weather"
+    default: "San Francisco, CA"
+  interests:
+    type: array
+    description: "Topics of interest"
+    default: ["technology", "AI", "startups"]
+
+artifacts:
+  dir: ./briefings/{{{{date}}}}
+  format: json
+  manifest: true
+
+tasks:
+  # Get current date/time
+  - id: get_datetime
+    description: "Get current date and time"
+    exec:
+      command: "date '+%A, %B %d, %Y at %H:%M'"
+      shell: true
+    output:
+      format: text
+
+  # Generate weather summary (mock - replace with real API)
+  - id: weather
+    description: "Generate weather summary"
+    use:
+      location: "{{{{inputs.location}}}}"
+    infer:
+      prompt: |
+        Generate a realistic weather forecast for {{{{use.location}}}} for today.
+
+        Include:
+        - Current temperature
+        - High/low for the day
+        - Conditions (sunny, cloudy, rain, etc.)
+        - Recommendation (umbrella, sunscreen, etc.)
+
+        Return as JSON.
+    output:
+      format: json
+      schema:
+        type: object
+        required: [temperature, high, low, conditions]
+        properties:
+          temperature:
+            type: string
+          high:
+            type: string
+          low:
+            type: string
+          conditions:
+            type: string
+          recommendation:
+            type: string
+
+  # Generate news summary
+  - id: news
+    description: "Generate news highlights"
+    infer:
+      prompt: |
+        Generate 5 plausible tech/AI news headlines for today.
+        These should be realistic examples of current industry news.
+
+        Topics of interest: {{{{inputs.interests | to_yaml}}}}
+
+        Return as JSON array of objects with title and summary.
+    output:
+      format: json
+      schema:
+        type: object
+        required: [headlines]
+        properties:
+          headlines:
+            type: array
+            items:
+              type: object
+              properties:
+                title:
+                  type: string
+                summary:
+                  type: string
+
+  # Compile briefing
+  - id: compile
+    description: "Compile morning briefing"
+    use:
+      datetime: get_datetime
+      weather: weather
+      news: news
+    infer:
+      prompt: |
+        Create a friendly morning briefing email based on:
+
+        Date: {{{{use.datetime}}}}
+
+        Weather:
+        {{{{use.weather | to_yaml}}}}
+
+        News Headlines:
+        {{{{use.news | to_yaml}}}}
+
+        Format as a professional but warm morning email.
+        Include:
+        - Greeting with date
+        - Weather summary
+        - Top news highlights
+        - Motivational closing
+    output:
+      format: text
+    artifact:
+      path: briefing.md
+      format: text
+    flow: [get_datetime, weather, news]
+"#
+    )
+}
+
+/// Git changelog template
+fn git_changelog(name: &str) -> String {
+    format!(
+        r#"# {name}
+#
+# Git changelog generator workflow.
+# Analyzes git commits and generates a changelog.
+#
+# Usage:
+#   nika {name}.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY environment variable
+#   - Git repository
+
+schema: "nika/workflow@0.10"
+workflow: {name}
+description: "Git commit analysis and changelog generation"
+
+provider: claude
+model: claude-sonnet-4-6
+
+inputs:
+  commit_range:
+    type: string
+    description: "Git commit range"
+    default: "HEAD~10..HEAD"
+  output_format:
+    type: string
+    description: "Output format"
+    default: "markdown"
+
+artifacts:
+  dir: ./changelogs
+  format: text
+  manifest: true
+
+tasks:
+  # Get git log
+  - id: git_log
+    description: "Get git commit history"
+    exec:
+      command: |
+        git log {{{{inputs.commit_range}}}} \
+          --pretty=format:'%h|%s|%an|%ad' \
+          --date=short 2>/dev/null || echo "No commits found"
+      shell: true
+    output:
+      format: text
+
+  # Get detailed diff stats
+  - id: diff_stats
+    description: "Get diff statistics"
+    exec:
+      command: |
+        git diff --stat {{{{inputs.commit_range}}}} 2>/dev/null || echo "No changes"
+      shell: true
+    output:
+      format: text
+
+  # Analyze commits
+  - id: analyze
+    description: "Analyze commit patterns"
+    use:
+      log: git_log
+      stats: diff_stats
+    infer:
+      prompt: |
+        Analyze these git commits and categorize them:
+
+        Commit Log (hash|subject|author|date):
+        {{{{use.log}}}}
+
+        Diff Statistics:
+        {{{{use.stats}}}}
+
+        Categorize each commit as:
+        - feat: New features
+        - fix: Bug fixes
+        - docs: Documentation
+        - refactor: Code refactoring
+        - test: Testing
+        - chore: Maintenance
+
+        Return JSON with categorized commits.
+    output:
+      format: json
+      schema:
+        type: object
+        required: [commits, summary]
+        properties:
+          commits:
+            type: object
+            properties:
+              feat:
+                type: array
+              fix:
+                type: array
+              docs:
+                type: array
+              refactor:
+                type: array
+              test:
+                type: array
+              chore:
+                type: array
+          summary:
+            type: object
+            properties:
+              total_commits:
+                type: integer
+              files_changed:
+                type: integer
+              contributors:
+                type: array
+    flow: [git_log, diff_stats]
+
+  # Generate changelog
+  - id: changelog
+    description: "Generate formatted changelog"
+    use:
+      analysis: analyze
+    infer:
+      prompt: |
+        Generate a professional changelog from this analysis:
+
+        {{{{use.analysis | to_yaml}}}}
+
+        Format: {{{{inputs.output_format}}}}
+
+        Include:
+        - Version header (use date as version)
+        - Sections for each category (Features, Bug Fixes, etc.)
+        - Contributor acknowledgments
+        - Keep it concise and scannable
+    output:
+      format: text
+    artifact:
+      path: CHANGELOG-{{{{date}}}}.md
+      format: text
+    flow: [analyze]
+"#
+    )
+}
+
+/// Parallel translation template
+fn parallel_translation(name: &str) -> String {
+    format!(
+        r#"# {name}
+#
+# Parallel translation workflow.
+# Translates content to multiple languages using for_each.
+#
+# Usage:
+#   nika {name}.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY environment variable
+
+schema: "nika/workflow@0.10"
+workflow: {name}
+description: "Multi-language translation with for_each"
+
+provider: claude
+model: claude-sonnet-4-6
+
+inputs:
+  source_text:
+    type: string
+    description: "Text to translate"
+    default: "Welcome to our platform! We help businesses scale with AI."
+  source_lang:
+    type: string
+    description: "Source language"
+    default: "English"
+
+artifacts:
+  dir: ./translations/{{{{date}}}}
+  format: json
+  manifest: true
+
+tasks:
+  # Define target languages
+  - id: setup
+    description: "Setup translation targets"
+    exec:
+      command: "echo 'Preparing translations...'"
+      shell: true
+    output:
+      format: text
+
+  # Parallel translation to all languages
+  - id: translate
+    description: "Translate to multiple languages"
+    for_each: ["French", "Spanish", "German", "Japanese", "Chinese", "Portuguese"]
+    as: target_lang
+    concurrency: 6
+    infer:
+      prompt: |
+        Translate the following text from {{{{inputs.source_lang}}}} to {{{{use.target_lang}}}}.
+
+        Source text:
+        "{{{{inputs.source_text}}}}"
+
+        Requirements:
+        - Maintain the tone and intent
+        - Use natural, native-sounding language
+        - Preserve any technical terms appropriately
+
+        Return JSON with translation details.
+    output:
+      format: json
+      schema:
+        type: object
+        required: [language, translation]
+        properties:
+          language:
+            type: string
+          translation:
+            type: string
+          notes:
+            type: string
+    artifact:
+      path: "{{{{use.target_lang | lowercase}}}}.json"
+    flow: [setup]
+
+  # Compile all translations
+  - id: compile
+    description: "Compile translation summary"
+    use:
+      translations: translate
+    infer:
+      prompt: |
+        Create a translation summary report from:
+
+        {{{{use.translations | to_yaml}}}}
+
+        Include:
+        - Source text and language
+        - Table of all translations
+        - Any notable localization challenges
+        - Recommendations for each market
+    output:
+      format: text
+    artifact:
+      path: summary.md
+      format: text
+    flow: [translate]
+"#
+    )
+}
+
+/// QA testing agent template
+fn agent_qa_tester(name: &str) -> String {
+    format!(
+        r#"# {name}
+#
+# QA testing agent workflow.
+# Generates test cases and validates functionality.
+#
+# Usage:
+#   nika {name}.nika.yaml
+#
+# Requirements:
+#   - ANTHROPIC_API_KEY environment variable
+
+schema: "nika/workflow@0.10"
+workflow: {name}
+description: "QA testing agent with test generation"
+
+provider: claude
+model: claude-sonnet-4-6
+
+inputs:
+  feature_description:
+    type: string
+    description: "Feature to test"
+    default: "User login with email and password"
+  test_types:
+    type: array
+    description: "Types of tests to generate"
+    default: ["unit", "integration", "edge_cases"]
+
+artifacts:
+  dir: ./test-reports/{{{{date}}}}
+  format: json
+  manifest: true
+
+tasks:
+  # Analyze the feature
+  - id: analyze_feature
+    description: "Analyze feature requirements"
+    infer:
+      prompt: |
+        Analyze this feature for testing:
+
+        Feature: {{{{inputs.feature_description}}}}
+
+        Identify:
+        1. Core functionality to test
+        2. Input parameters and types
+        3. Expected outputs
+        4. Error conditions
+        5. Security considerations
+
+        Return structured analysis as JSON.
+    output:
+      format: json
+      schema:
+        type: object
+        required: [core_functionality, inputs, outputs]
+        properties:
+          core_functionality:
+            type: array
+            items:
+              type: string
+          inputs:
+            type: array
+            items:
+              type: object
+          outputs:
+            type: array
+          error_conditions:
+            type: array
+          security_considerations:
+            type: array
+
+  # Generate test cases using agent
+  - id: generate_tests
+    description: "Generate comprehensive test cases"
+    use:
+      analysis: analyze_feature
+    agent:
+      prompt: |
+        You are a QA Engineer. Generate test cases for this feature:
+
+        Feature Analysis:
+        {{{{use.analysis | to_yaml}}}}
+
+        Test Types Required: {{{{inputs.test_types | to_yaml}}}}
+
+        For each test type, generate:
+        1. Test name and description
+        2. Preconditions
+        3. Test steps
+        4. Expected results
+        5. Priority (high/medium/low)
+
+        Use the following tools:
+        - nika:log to track your progress
+        - nika:assert to validate test case format
+
+        Generate at least 3 test cases per type.
+        End with "TEST_GENERATION_COMPLETE" when done.
+      max_turns: 8
+      tools: [nika:log, nika:assert]
+    output:
+      format: json
+      schema:
+        type: object
+        required: [test_cases]
+        properties:
+          test_cases:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                type:
+                  type: string
+                priority:
+                  type: string
+                preconditions:
+                  type: array
+                steps:
+                  type: array
+                expected_results:
+                  type: array
+    artifact:
+      path: test_cases.json
+    flow: [analyze_feature]
+
+  # Generate test report
+  - id: report
+    description: "Generate test report"
+    use:
+      analysis: analyze_feature
+      tests: generate_tests
+    infer:
+      prompt: |
+        Create a professional QA test plan document:
+
+        Feature Analysis:
+        {{{{use.analysis | to_yaml}}}}
+
+        Generated Test Cases:
+        {{{{use.tests | to_yaml}}}}
+
+        Include:
+        1. Executive Summary
+        2. Test Scope
+        3. Test Cases (organized by type)
+        4. Risk Assessment
+        5. Recommended Test Coverage
+        6. Next Steps
+
+        Format as markdown.
+    output:
+      format: text
+    artifact:
+      path: test_plan.md
+      format: text
+    flow: [generate_tests]
+"#
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1033,6 +1707,52 @@ mod tests {
         assert!(content.contains("provider: claude"));
         assert!(content.contains("provider: openai"));
         assert!(content.contains("compare"));
+    }
+
+    #[test]
+    fn test_data_pipeline_template() {
+        let content = data_pipeline("etl-test");
+        assert!(content.contains("workflow: etl-test"));
+        assert!(content.contains("artifacts:"));
+        assert!(content.contains("extract"));
+        assert!(content.contains("transform"));
+        assert!(content.contains("load"));
+    }
+
+    #[test]
+    fn test_morning_briefing_template() {
+        let content = morning_briefing("briefing-test");
+        assert!(content.contains("workflow: briefing-test"));
+        assert!(content.contains("get_datetime"));
+        assert!(content.contains("compile"));
+        assert!(content.contains("briefings"));
+    }
+
+    #[test]
+    fn test_git_changelog_template() {
+        let content = git_changelog("changelog-test");
+        assert!(content.contains("workflow: changelog-test"));
+        assert!(content.contains("git_log"));
+        assert!(content.contains("analyze"));
+        assert!(content.contains("changelog"));
+    }
+
+    #[test]
+    fn test_parallel_translation_template() {
+        let content = parallel_translation("translate-test");
+        assert!(content.contains("workflow: translate-test"));
+        assert!(content.contains("for_each:"));
+        assert!(content.contains("concurrency:"));
+        assert!(content.contains("translations"));
+    }
+
+    #[test]
+    fn test_agent_qa_tester_template() {
+        let content = agent_qa_tester("qa-test");
+        assert!(content.contains("workflow: qa-test"));
+        assert!(content.contains("agent:"));
+        assert!(content.contains("analyze_feature"));
+        assert!(content.contains("generate_tests"));
     }
 
     #[test]

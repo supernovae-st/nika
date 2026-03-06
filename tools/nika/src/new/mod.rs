@@ -92,6 +92,16 @@ pub enum Template {
     McpIntegration,
     /// Multi-provider workflow
     MultiProvider,
+    /// Data pipeline with ETL pattern
+    DataPipeline,
+    /// Morning briefing digest
+    MorningBriefing,
+    /// Git changelog generator
+    GitChangelog,
+    /// Parallel translation workflow
+    ParallelTranslation,
+    /// QA testing agent
+    AgentQaTester,
 }
 
 impl Template {
@@ -107,6 +117,11 @@ impl Template {
         Template::AgentBrowser,
         Template::McpIntegration,
         Template::MultiProvider,
+        Template::DataPipeline,
+        Template::MorningBriefing,
+        Template::GitChangelog,
+        Template::ParallelTranslation,
+        Template::AgentQaTester,
     ];
 
     /// Template name (for CLI)
@@ -122,6 +137,11 @@ impl Template {
             Self::AgentBrowser => "agent-browser",
             Self::McpIntegration => "mcp-integration",
             Self::MultiProvider => "multi-provider",
+            Self::DataPipeline => "data-pipeline",
+            Self::MorningBriefing => "morning-briefing",
+            Self::GitChangelog => "git-changelog",
+            Self::ParallelTranslation => "parallel-translation",
+            Self::AgentQaTester => "agent-qa-tester",
         }
     }
 
@@ -138,6 +158,11 @@ impl Template {
             Self::AgentBrowser => "Browser automation agent with Playwright",
             Self::McpIntegration => "MCP server integration example",
             Self::MultiProvider => "Multi-provider workflow (Claude + OpenAI)",
+            Self::DataPipeline => "ETL data pipeline with fetch, transform, and load",
+            Self::MorningBriefing => "Daily digest with news, weather, and calendar",
+            Self::GitChangelog => "Git commit analysis and changelog generation",
+            Self::ParallelTranslation => "Multi-language translation with for_each",
+            Self::AgentQaTester => "QA testing agent with test generation",
         }
     }
 
@@ -145,10 +170,16 @@ impl Template {
     pub fn category(&self) -> TemplateCategory {
         match self {
             Self::SimpleInfer | Self::SimpleExec | Self::SimpleFetch => TemplateCategory::Simple,
-            Self::ApiPipeline | Self::BlogGenerator | Self::CodeReview => {
-                TemplateCategory::Pipeline
+            Self::ApiPipeline
+            | Self::BlogGenerator
+            | Self::CodeReview
+            | Self::DataPipeline
+            | Self::MorningBriefing
+            | Self::GitChangelog
+            | Self::ParallelTranslation => TemplateCategory::Pipeline,
+            Self::AgentResearch | Self::AgentBrowser | Self::AgentQaTester => {
+                TemplateCategory::Agent
             }
-            Self::AgentResearch | Self::AgentBrowser => TemplateCategory::Agent,
             Self::McpIntegration => TemplateCategory::Mcp,
             Self::MultiProvider => TemplateCategory::Advanced,
         }
