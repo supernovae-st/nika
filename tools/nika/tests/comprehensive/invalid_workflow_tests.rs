@@ -333,7 +333,7 @@ tasks:
 
     // References unknown MCP server - should fail at runtime validation
     if let nika::ast::TaskAction::Invoke { invoke } = &workflow.tasks[0].action {
-        assert_eq!(invoke.mcp, "unknown_server");
+        assert_eq!(invoke.mcp, Some("unknown_server".to_string()));
     }
 }
 

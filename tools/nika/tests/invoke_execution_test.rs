@@ -62,7 +62,7 @@ async fn test_invoke_execution_tool_call() {
     let client = McpClient::mock("novanet");
 
     let invoke = InvokeParams {
-        mcp: "novanet".to_string(),
+        mcp: Some("novanet".to_string()),
         tool: Some("novanet_generate".to_string()),
         params: Some(json!({"mode": "block", "entity": "qr-code"})),
         resource: None,
@@ -87,7 +87,7 @@ async fn test_invoke_execution_tool_call_minimal() {
     let client = McpClient::mock("novanet");
 
     let invoke = InvokeParams {
-        mcp: "novanet".to_string(),
+        mcp: Some("novanet".to_string()),
         tool: Some("novanet_describe".to_string()),
         params: None,
         resource: None,
@@ -110,7 +110,7 @@ async fn test_invoke_execution_tool_call_with_params() {
     let client = McpClient::mock("novanet");
 
     let invoke = InvokeParams {
-        mcp: "novanet".to_string(),
+        mcp: Some("novanet".to_string()),
         tool: Some("novanet_generate".to_string()),
         params: Some(json!({
             "entity": "qr-code",
@@ -139,7 +139,7 @@ async fn test_invoke_execution_resource_read() {
     let client = McpClient::mock("novanet");
 
     let invoke = InvokeParams {
-        mcp: "novanet".to_string(),
+        mcp: Some("novanet".to_string()),
         tool: None,
         params: None,
         resource: Some("entity://qr-code".to_string()),
@@ -164,7 +164,7 @@ async fn test_invoke_execution_resource_read_neo4j_uri() {
     let client = McpClient::mock("novanet");
 
     let invoke = InvokeParams {
-        mcp: "novanet".to_string(),
+        mcp: Some("novanet".to_string()),
         tool: None,
         params: None,
         resource: Some("neo4j://entity/qr-code".to_string()),
@@ -188,7 +188,7 @@ async fn test_invoke_execution_fails_with_both_tool_and_resource() {
     let client = McpClient::mock("novanet");
 
     let invoke = InvokeParams {
-        mcp: "novanet".to_string(),
+        mcp: Some("novanet".to_string()),
         tool: Some("novanet_generate".to_string()),
         params: None,
         resource: Some("entity://qr-code".to_string()),
@@ -216,7 +216,7 @@ async fn test_invoke_execution_fails_with_neither_tool_nor_resource() {
     let client = McpClient::mock("novanet");
 
     let invoke = InvokeParams {
-        mcp: "novanet".to_string(),
+        mcp: Some("novanet".to_string()),
         tool: None,
         params: None,
         resource: None,
@@ -253,7 +253,7 @@ async fn test_invoke_execution_fails_when_not_connected() {
     assert!(!client.is_connected());
 
     let invoke = InvokeParams {
-        mcp: "novanet".to_string(),
+        mcp: Some("novanet".to_string()),
         tool: Some("novanet_generate".to_string()),
         params: None,
         resource: None,
@@ -280,7 +280,7 @@ async fn test_invoke_execution_unknown_tool_returns_generic_response() {
     let client = McpClient::mock("novanet");
 
     let invoke = InvokeParams {
-        mcp: "novanet".to_string(),
+        mcp: Some("novanet".to_string()),
         tool: Some("unknown_tool".to_string()),
         params: Some(json!({"key": "value"})),
         resource: None,
@@ -300,7 +300,7 @@ async fn test_invoke_execution_with_empty_params() {
     let client = McpClient::mock("novanet");
 
     let invoke = InvokeParams {
-        mcp: "novanet".to_string(),
+        mcp: Some("novanet".to_string()),
         tool: Some("novanet_describe".to_string()),
         params: Some(json!({})),
         resource: None,

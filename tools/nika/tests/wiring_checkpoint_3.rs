@@ -42,9 +42,9 @@ fn wiring_checkpoint_3_all_tools_registered() {
     );
     assert!(router.has_tool("run"), "run tool should be registered");
 
-    // Verify count
+    // Verify count (7 core tools: sleep, log, emit, assert, prompt, run, complete)
     let tool_names = router.tool_names();
-    assert_eq!(tool_names.len(), 6, "Should have exactly 6 builtin tools");
+    assert_eq!(tool_names.len(), 7, "Should have exactly 7 builtin tools");
 }
 
 /// Test that extract_name correctly strips nika: prefix.
@@ -284,8 +284,8 @@ async fn wiring_checkpoint_3_dispatch_prompt_validation() {
 fn wiring_checkpoint_3_router_default() {
     let router = BuiltinToolRouter::default();
 
-    // Default should have all tools
-    assert_eq!(router.tool_names().len(), 6);
+    // Default should have all 7 core tools
+    assert_eq!(router.tool_names().len(), 7);
     assert!(router.has_tool("sleep"));
     assert!(router.has_tool("log"));
 }

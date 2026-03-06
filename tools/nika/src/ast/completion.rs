@@ -87,26 +87,32 @@ impl CompletionConfig {
     }
 
     fn generate_explicit_instruction(&self) -> String {
-        let signal = self.signal.as_ref().map(|s| &s.tool).map(String::as_str)
+        let signal = self
+            .signal
+            .as_ref()
+            .map(|s| &s.tool)
+            .map(String::as_str)
             .unwrap_or(DEFAULT_SIGNAL_TOOL);
 
         let fields = self.signal.as_ref().map(|s| &s.fields);
 
-        let tone = self.instruction.as_ref()
+        let tone = self
+            .instruction
+            .as_ref()
             .map(|i| &i.tone)
             .unwrap_or(&InstructionTone::Concise);
 
-        let lang = self.instruction.as_ref()
+        let lang = self
+            .instruction
+            .as_ref()
             .and_then(|i| i.lang.as_ref())
             .map(String::as_str)
             .unwrap_or("en");
 
         match (tone, lang) {
             (InstructionTone::Concise, "fr") => {
-                let mut instruction = format!(
-                    "Quand tu as terminé, appelle l'outil {} avec:\n",
-                    signal
-                );
+                let mut instruction =
+                    format!("Quand tu as terminé, appelle l'outil {} avec:\n", signal);
                 if let Some(f) = fields {
                     for field in &f.required {
                         instruction.push_str(&format!("• {} (requis)\n", field));
@@ -126,10 +132,7 @@ impl CompletionConfig {
                 instruction
             }
             (InstructionTone::Concise, _) => {
-                let mut instruction = format!(
-                    "When complete, call {} with:\n",
-                    signal
-                );
+                let mut instruction = format!("When complete, call {} with:\n", signal);
                 if let Some(f) = fields {
                     for field in &f.required {
                         instruction.push_str(&format!("• {} (required)\n", field));
@@ -158,14 +161,12 @@ impl CompletionConfig {
                 );
                 if let Some(f) = fields {
                     for field in &f.required {
-                        instruction.push_str(&format!(
-                            "• {} (REQUIS): Valeur obligatoire\n", field
-                        ));
+                        instruction
+                            .push_str(&format!("• {} (REQUIS): Valeur obligatoire\n", field));
                     }
                     for field in &f.optional {
-                        instruction.push_str(&format!(
-                            "• {} (optionnel): Valeur recommandée\n", field
-                        ));
+                        instruction
+                            .push_str(&format!("• {} (optionnel): Valeur recommandée\n", field));
                     }
                 }
                 instruction
@@ -180,14 +181,11 @@ impl CompletionConfig {
                 );
                 if let Some(f) = fields {
                     for field in &f.required {
-                        instruction.push_str(&format!(
-                            "• {} (REQUIRED): Mandatory value\n", field
-                        ));
+                        instruction.push_str(&format!("• {} (REQUIRED): Mandatory value\n", field));
                     }
                     for field in &f.optional {
-                        instruction.push_str(&format!(
-                            "• {} (optional): Recommended value\n", field
-                        ));
+                        instruction
+                            .push_str(&format!("• {} (optional): Recommended value\n", field));
                     }
                 }
                 instruction
@@ -200,12 +198,16 @@ impl CompletionConfig {
             return String::new();
         }
 
-        let lang = self.instruction.as_ref()
+        let lang = self
+            .instruction
+            .as_ref()
             .and_then(|i| i.lang.as_ref())
             .map(String::as_str)
             .unwrap_or("en");
 
-        let patterns: Vec<&str> = self.patterns.iter()
+        let patterns: Vec<&str> = self
+            .patterns
+            .iter()
             .filter(|p| p.pattern_type != PatternType::Regex)
             .map(|p| p.value.as_str())
             .collect();
@@ -250,6 +252,13 @@ impl CompletionConfig {
 
     /// Validate the completion configuration.
     pub fn validate(&self) -> Result<(), String> {
+        // Pattern mode requires at least one pattern
+        if self.mode == CompletionMode::Pattern && self.patterns.is_empty() {
+            return Err(
+                "completion.mode: pattern requires at least one pattern definition".to_string(),
+            );
+        }
+
         // Validate confidence threshold
         if let Some(conf) = &self.confidence {
             if conf.threshold < 0.0 || conf.threshold > 1.0 {
@@ -262,9 +271,7 @@ impl CompletionConfig {
 
         // Validate regex patterns
         for pattern in &self.patterns {
-            if pattern.pattern_type == PatternType::Regex
-                && Regex::new(&pattern.value).is_err()
-            {
+            if pattern.pattern_type == PatternType::Regex && Regex::new(&pattern.value).is_err() {
                 return Err(format!("Invalid regex pattern: {}", pattern.value));
             }
         }
@@ -367,11 +374,9 @@ impl PatternConfig {
         match self.pattern_type {
             PatternType::Exact => output == self.value,
             PatternType::Contains => output.contains(&self.value),
-            PatternType::Regex => {
-                Regex::new(&self.value)
-                    .map(|re| re.is_match(output))
-                    .unwrap_or(false)
-            }
+            PatternType::Regex => Regex::new(&self.value)
+                .map(|re| re.is_match(output))
+                .unwrap_or(false),
         }
     }
 }
@@ -549,10 +554,13 @@ impl CompletionConfig {
 
         Some(Self {
             mode: CompletionMode::Pattern,
-            patterns: conditions.iter().map(|c| PatternConfig {
-                value: c.clone(),
-                pattern_type: PatternType::Contains,
-            }).collect(),
+            patterns: conditions
+                .iter()
+                .map(|c| PatternConfig {
+                    value: c.clone(),
+                    pattern_type: PatternType::Contains,
+                })
+                .collect(),
             ..Default::default()
         })
     }
@@ -636,7 +644,10 @@ signal:
         let signal = config.signal.unwrap();
         assert_eq!(signal.tool, "nika:complete");
         assert_eq!(signal.fields.required, vec!["result"]);
-        assert_eq!(signal.fields.optional, vec!["confidence", "reason", "sources"]);
+        assert_eq!(
+            signal.fields.optional,
+            vec!["confidence", "reason", "sources"]
+        );
     }
 
     #[test]
@@ -709,7 +720,10 @@ confidence:
         assert_eq!(conf.threshold, 0.8);
         assert_eq!(conf.on_low.action, LowConfidenceAction::Retry);
         assert_eq!(conf.on_low.max_retries, 3);
-        assert_eq!(conf.on_low.feedback, Some("Please verify your sources".to_string()));
+        assert_eq!(
+            conf.on_low.feedback,
+            Some("Please verify your sources".to_string())
+        );
     }
 
     #[test]

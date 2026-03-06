@@ -17,7 +17,7 @@ fn create_executor() -> TaskExecutor {
 fn create_invoke_action(tool: &str, params: serde_json::Value) -> TaskAction {
     TaskAction::Invoke {
         invoke: InvokeParams {
-            mcp: "builtin".to_string(), // For builtin tools, mcp value is ignored
+            mcp: Some("builtin".to_string()), // For builtin tools, mcp value is ignored
             tool: Some(tool.to_string()),
             params: Some(params),
             resource: None,
@@ -277,7 +277,7 @@ async fn test_executor_invoke_builtin_with_template_resolution() {
     // Create invoke with template in params
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
-            mcp: "builtin".to_string(),
+            mcp: Some("builtin".to_string()),
             tool: Some("nika:log".to_string()),
             params: Some(json!({"level": "info", "message": "Value: {{use.value}}"})),
             resource: None,

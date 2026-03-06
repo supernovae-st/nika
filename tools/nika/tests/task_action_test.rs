@@ -29,7 +29,7 @@ invoke:
     // Verify it parsed as Invoke variant
     match action {
         TaskAction::Invoke { invoke } => {
-            assert_eq!(invoke.mcp, "novanet");
+            assert_eq!(invoke.mcp, Some("novanet".to_string()));
             assert_eq!(invoke.tool, Some("novanet_generate".to_string()));
             assert!(invoke.resource.is_none());
             assert!(invoke.validate().is_ok());
@@ -51,7 +51,7 @@ invoke:
 
     match action {
         TaskAction::Invoke { invoke } => {
-            assert_eq!(invoke.mcp, "novanet");
+            assert_eq!(invoke.mcp, Some("novanet".to_string()));
             assert!(invoke.tool.is_none());
             assert_eq!(invoke.resource, Some("entity://qr-code/fr-FR".to_string()));
             assert!(invoke.is_resource_read());

@@ -24,7 +24,7 @@ params:
 
     let params: InvokeParams = serde_yaml::from_str(yaml).unwrap();
 
-    assert_eq!(params.mcp, "novanet");
+    assert_eq!(params.mcp, Some("novanet".to_string()));
     assert_eq!(params.tool, Some("novanet_generate".to_string()));
     assert_eq!(
         params.params,
@@ -54,7 +54,7 @@ tool: novanet_list_entities
 
     let params: InvokeParams = serde_yaml::from_str(yaml).unwrap();
 
-    assert_eq!(params.mcp, "novanet");
+    assert_eq!(params.mcp, Some("novanet".to_string()));
     assert_eq!(params.tool, Some("novanet_list_entities".to_string()));
     assert!(params.params.is_none());
     assert!(params.resource.is_none());
@@ -77,7 +77,7 @@ resource: entity://qr-code/fr-FR
 
     let params: InvokeParams = serde_yaml::from_str(yaml).unwrap();
 
-    assert_eq!(params.mcp, "novanet");
+    assert_eq!(params.mcp, Some("novanet".to_string()));
     assert!(params.tool.is_none());
     assert!(params.params.is_none());
     assert_eq!(params.resource, Some("entity://qr-code/fr-FR".to_string()));

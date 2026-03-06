@@ -1455,7 +1455,7 @@ impl RigAgentLoop {
     /// 1. Explicit completion via nika:complete tool (ExplicitCompletion)
     /// 2. Legacy stop conditions (StopConditionMet)
     /// 3. Natural completion (NaturalCompletion)
-    fn determine_status(&self, output: &str) -> RigAgentStatus {
+    pub fn determine_status(&self, output: &str) -> RigAgentStatus {
         if self.check_completion_signal(output) {
             RigAgentStatus::ExplicitCompletion
         } else if self.check_stop_conditions(output) {
@@ -1969,7 +1969,10 @@ mod tests {
         let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
 
         // Should detect completion marker
-        let response_with_marker = format!(r#"{{"completed": true, "marker": "{}"}}"#, COMPLETION_MARKER);
+        let response_with_marker = format!(
+            r#"{{"completed": true, "marker": "{}"}}"#,
+            COMPLETION_MARKER
+        );
         assert!(agent.check_completion_signal(&response_with_marker));
 
         // Should not detect without marker
@@ -1993,7 +1996,10 @@ mod tests {
 
         // Explicit completion has highest priority
         let response = format!(r#"Result: {{"marker": "{}"}}"#, COMPLETION_MARKER);
-        assert_eq!(agent.determine_status(&response), RigAgentStatus::ExplicitCompletion);
+        assert_eq!(
+            agent.determine_status(&response),
+            RigAgentStatus::ExplicitCompletion
+        );
     }
 
     #[test]
@@ -2009,7 +2015,10 @@ mod tests {
         let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
 
         // Stop condition (no completion marker)
-        assert_eq!(agent.determine_status("Task is DONE"), RigAgentStatus::StopConditionMet);
+        assert_eq!(
+            agent.determine_status("Task is DONE"),
+            RigAgentStatus::StopConditionMet
+        );
     }
 
     #[test]
@@ -2025,7 +2034,10 @@ mod tests {
         let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
 
         // Natural completion (no marker, no stop condition)
-        assert_eq!(agent.determine_status("Task completed normally"), RigAgentStatus::NaturalCompletion);
+        assert_eq!(
+            agent.determine_status("Task completed normally"),
+            RigAgentStatus::NaturalCompletion
+        );
     }
 
     #[test]
@@ -2044,12 +2056,18 @@ mod tests {
 
         // When both marker and stop condition present, explicit wins
         let response = format!("DONE and marker: {}", COMPLETION_MARKER);
-        assert_eq!(agent.determine_status(&response), RigAgentStatus::ExplicitCompletion);
+        assert_eq!(
+            agent.determine_status(&response),
+            RigAgentStatus::ExplicitCompletion
+        );
     }
 
     #[test]
     fn test_explicit_completion_status_canonical_str() {
-        assert_eq!(RigAgentStatus::ExplicitCompletion.as_canonical_str(), "tool_complete");
+        assert_eq!(
+            RigAgentStatus::ExplicitCompletion.as_canonical_str(),
+            "tool_complete"
+        );
     }
 
     // ========================================================================
