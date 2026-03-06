@@ -375,12 +375,31 @@ pub enum EventKind {
     GuardrailFailed {
         /// Task ID for correlation
         task_id: Arc<str>,
-        /// Guardrail type: "length", "schema", "regex"
+        /// Guardrail type: "length", "schema", "regex", "llm"
         guardrail_type: String,
         /// Human-readable description of the guardrail
         description: String,
         /// Error message explaining why it failed
         message: String,
+    },
+    /// Guardrail failure requires escalation (v0.25)
+    ///
+    /// Emitted when a guardrail with `on_failure: escalate` fails.
+    /// This signals that human intervention or special handling is needed.
+    GuardrailEscalation {
+        /// Task ID for correlation
+        task_id: Arc<str>,
+        /// Guardrail type: "length", "schema", "regex", "llm"
+        guardrail_type: String,
+        /// Guardrail ID for identification
+        guardrail_id: String,
+        /// Error message explaining why it failed
+        message: String,
+        /// Severity level: "low", "medium", "high", "critical"
+        severity: String,
+        /// Suggested action (optional)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        suggested_action: Option<String>,
     },
 
     // ═══════════════════════════════════════════
@@ -529,6 +548,7 @@ impl EventKind {
             | Self::StructuredOutputSuccess { task_id, .. }
             | Self::GuardrailPassed { task_id, .. }
             | Self::GuardrailFailed { task_id, .. }
+            | Self::GuardrailEscalation { task_id, .. }
             | Self::LimitReached { task_id, .. }
             | Self::PartialCompletion { task_id, .. } => Some(task_id),
             // AgentSpawned uses parent_task_id as the primary task reference
@@ -1757,6 +1777,73 @@ mod tests {
 
         assert_eq!(passed_count, 2);
         assert_eq!(failed_count, 1);
+    }
+
+    #[test]
+    fn guardrail_escalation_event() {
+        let log = EventLog::new();
+
+        log.emit(EventKind::GuardrailEscalation {
+            task_id: "agent_task".into(),
+            guardrail_type: "llm".to_string(),
+            guardrail_id: "content_safety".to_string(),
+            message: "Content may be inappropriate for the target audience".to_string(),
+            severity: "high".to_string(),
+            suggested_action: Some("Review output before publishing".to_string()),
+        });
+
+        let events = log.filter_task("agent_task");
+        assert_eq!(events.len(), 1);
+
+        if let EventKind::GuardrailEscalation {
+            guardrail_type,
+            guardrail_id,
+            message,
+            severity,
+            suggested_action,
+            ..
+        } = &events[0].kind
+        {
+            assert_eq!(guardrail_type, "llm");
+            assert_eq!(guardrail_id, "content_safety");
+            assert!(message.contains("inappropriate"));
+            assert_eq!(severity, "high");
+            assert!(suggested_action.is_some());
+        } else {
+            panic!("Expected GuardrailEscalation event");
+        }
+    }
+
+    #[test]
+    fn guardrail_escalation_serializes() {
+        let event = EventKind::GuardrailEscalation {
+            task_id: "task1".into(),
+            guardrail_type: "llm".to_string(),
+            guardrail_id: "safety_check".to_string(),
+            message: "Safety violation detected".to_string(),
+            severity: "critical".to_string(),
+            suggested_action: None,
+        };
+
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["type"], "guardrail_escalation");
+        assert_eq!(json["task_id"], "task1");
+        assert_eq!(json["guardrail_type"], "llm");
+        assert_eq!(json["guardrail_id"], "safety_check");
+        assert_eq!(json["severity"], "critical");
+    }
+
+    #[test]
+    fn guardrail_escalation_task_id_extraction() {
+        let escalation = EventKind::GuardrailEscalation {
+            task_id: "esc1".into(),
+            guardrail_type: "llm".to_string(),
+            guardrail_id: "quality".to_string(),
+            message: "Quality below threshold".to_string(),
+            severity: "medium".to_string(),
+            suggested_action: None,
+        };
+        assert_eq!(escalation.task_id(), Some("esc1"));
     }
 
     // ═══════════════════════════════════════════════════════════════

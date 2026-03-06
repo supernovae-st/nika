@@ -2456,6 +2456,28 @@ impl TuiState {
                 self.dirty.notifications = true;
             }
 
+            EventKind::GuardrailEscalation {
+                task_id,
+                guardrail_type,
+                guardrail_id,
+                message,
+                severity,
+                suggested_action,
+            } => {
+                let action_text = suggested_action
+                    .as_ref()
+                    .map(|a| format!(" Action: {}", a))
+                    .unwrap_or_default();
+                self.add_notification(Notification::error(
+                    format!(
+                        "🚨 [{}] ESCALATION ({}) {} [{}]: {}{}",
+                        task_id, severity, guardrail_type, guardrail_id, message, action_text
+                    ),
+                    timestamp_ms,
+                ));
+                self.dirty.notifications = true;
+            }
+
             // ═══════════════════════════════════════════
             // LIMIT EVENTS (v0.24)
             // ═══════════════════════════════════════════

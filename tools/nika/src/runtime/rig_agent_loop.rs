@@ -32,7 +32,7 @@ use rustc_hash::FxHashMap;
 use serde_json::Value;
 use tokio::time::timeout;
 
-use crate::ast::guardrails::run_guardrails;
+use crate::ast::guardrails::{escalation_required, immediate_failures, run_sync_guardrails};
 use crate::ast::AgentParams;
 use crate::ast::ToolChoice as NikaToolChoice;
 use crate::error::NikaError;
@@ -174,6 +174,47 @@ pub struct RigAgentLoopResult {
     pub cost_usd: f64,
     /// Partial result if limit reached (v0.24)
     pub partial_result: Option<super::partial::PartialResult>,
+}
+
+/// Result of guardrail check (v0.25)
+///
+/// Determines the next action based on guardrail results and their
+/// `on_failure` configuration.
+#[derive(Debug, Clone, PartialEq)]
+pub enum GuardrailCheckResult {
+    /// All guardrails passed
+    AllPassed,
+
+    /// Some guardrails failed with `on_failure: retry` (default behavior)
+    FailedRetry,
+
+    /// Some guardrails failed with `on_failure: escalate` - needs human intervention
+    FailedEscalate,
+
+    /// Some guardrails failed with `on_failure: fail` - immediate task failure
+    FailedImmediate,
+}
+
+impl GuardrailCheckResult {
+    /// Check if all guardrails passed
+    pub fn is_passed(&self) -> bool {
+        matches!(self, Self::AllPassed)
+    }
+
+    /// Check if we should retry (default failure behavior)
+    pub fn should_retry(&self) -> bool {
+        matches!(self, Self::FailedRetry)
+    }
+
+    /// Check if we should escalate to human/supervisor
+    pub fn should_escalate(&self) -> bool {
+        matches!(self, Self::FailedEscalate)
+    }
+
+    /// Check if we should fail immediately
+    pub fn should_fail(&self) -> bool {
+        matches!(self, Self::FailedImmediate)
+    }
 }
 
 /// Result from streaming execution with token tracking.
@@ -619,8 +660,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23)
-        let guardrails_passed = self.check_guardrails(&response);
+        // Check guardrails (v0.23, updated v0.25)
+        let guardrail_result = self.check_guardrails(&response);
+        let guardrails_passed = guardrail_result.is_passed();
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -705,8 +747,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23)
-        let guardrails_passed = self.check_guardrails(&response);
+        // Check guardrails (v0.23, updated v0.25)
+        let guardrail_result = self.check_guardrails(&response);
+        let guardrails_passed = guardrail_result.is_passed();
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -769,8 +812,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23)
-        let guardrails_passed = self.check_guardrails(&response);
+        // Check guardrails (v0.23, updated v0.25)
+        let guardrail_result = self.check_guardrails(&response);
+        let guardrails_passed = guardrail_result.is_passed();
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -830,8 +874,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23)
-        let guardrails_passed = self.check_guardrails(&response);
+        // Check guardrails (v0.23, updated v0.25)
+        let guardrail_result = self.check_guardrails(&response);
+        let guardrails_passed = guardrail_result.is_passed();
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -894,8 +939,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23)
-        let guardrails_passed = self.check_guardrails(&response);
+        // Check guardrails (v0.23, updated v0.25)
+        let guardrail_result = self.check_guardrails(&response);
+        let guardrails_passed = guardrail_result.is_passed();
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -954,8 +1000,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23)
-        let guardrails_passed = self.check_guardrails(&response);
+        // Check guardrails (v0.23, updated v0.25)
+        let guardrail_result = self.check_guardrails(&response);
+        let guardrails_passed = guardrail_result.is_passed();
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -1475,8 +1522,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23)
-        let guardrails_passed = self.check_guardrails(&response_text);
+        // Check guardrails (v0.23, updated v0.25)
+        let guardrail_result = self.check_guardrails(&response_text);
+        let guardrails_passed = guardrail_result.is_passed();
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -1566,8 +1614,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23)
-        let guardrails_passed = self.check_guardrails(&result.response);
+        // Check guardrails (v0.23, updated v0.25)
+        let guardrail_result = self.check_guardrails(&result.response);
+        let guardrails_passed = guardrail_result.is_passed();
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -1599,40 +1648,84 @@ impl RigAgentLoop {
         output.contains(COMPLETION_MARKER)
     }
 
-    /// Run all configured guardrails against the output (v0.23)
+    /// Run all configured guardrails against the output (v0.23, updated v0.25)
     ///
-    /// Emits `GuardrailPassed` or `GuardrailFailed` events for each guardrail.
-    /// Returns `true` if all guardrails pass, `false` if any fail.
-    pub fn check_guardrails(&self, output: &str) -> bool {
+    /// Emits events for each guardrail result:
+    /// - `GuardrailPassed`: Guardrail check succeeded
+    /// - `GuardrailFailed`: Guardrail check failed
+    /// - `GuardrailEscalation`: Guardrail failed with `on_failure: escalate`
+    ///
+    /// Returns `GuardrailCheckResult` indicating the appropriate action:
+    /// - `AllPassed`: All guardrails passed
+    /// - `FailedRetry`: Some failed with `on_failure: retry` (default)
+    /// - `FailedEscalate`: Some failed with `on_failure: escalate`
+    /// - `FailedImmediate`: Some failed with `on_failure: fail`
+    ///
+    /// Priority: Immediate > Escalate > Retry
+    pub fn check_guardrails(&self, output: &str) -> GuardrailCheckResult {
         if self.params.guardrails.is_empty() {
-            return true;
+            return GuardrailCheckResult::AllPassed;
         }
 
-        let results = run_guardrails(&self.params.guardrails, output);
+        let results = run_sync_guardrails(&self.params.guardrails, output);
         let mut all_passed = true;
 
-        for result in results {
+        // Emit events for each result
+        for result in &results {
             let task_id = Arc::from(self.task_id.as_str());
             if result.passed {
                 self.event_log.emit(EventKind::GuardrailPassed {
                     task_id,
-                    guardrail_type: result.guardrail_type,
-                    description: result.guardrail_id,
+                    guardrail_type: result.guardrail_type.clone(),
+                    description: result.guardrail_id.clone(),
                 });
             } else {
                 self.event_log.emit(EventKind::GuardrailFailed {
                     task_id,
-                    guardrail_type: result.guardrail_type,
-                    description: result.guardrail_id,
+                    guardrail_type: result.guardrail_type.clone(),
+                    description: result.guardrail_id.clone(),
                     message: result
                         .message
+                        .clone()
                         .unwrap_or_else(|| "Guardrail check failed".to_string()),
                 });
                 all_passed = false;
             }
         }
 
-        all_passed
+        if all_passed {
+            return GuardrailCheckResult::AllPassed;
+        }
+
+        // Check for immediate failures first (highest priority)
+        let immediate = immediate_failures(&results);
+        if !immediate.is_empty() {
+            return GuardrailCheckResult::FailedImmediate;
+        }
+
+        // Check for escalation requirements
+        let escalations = escalation_required(&results);
+        if !escalations.is_empty() {
+            // Emit escalation events for each guardrail requiring escalation
+            for result in escalations {
+                let task_id = Arc::from(self.task_id.as_str());
+                self.event_log.emit(EventKind::GuardrailEscalation {
+                    task_id,
+                    guardrail_type: result.guardrail_type.clone(),
+                    guardrail_id: result.guardrail_id.clone(),
+                    message: result
+                        .message
+                        .clone()
+                        .unwrap_or_else(|| "Guardrail requires escalation".to_string()),
+                    severity: "high".to_string(),
+                    suggested_action: Some("Review agent output and provide guidance".to_string()),
+                });
+            }
+            return GuardrailCheckResult::FailedEscalate;
+        }
+
+        // Default: retry (on_failure: retry)
+        GuardrailCheckResult::FailedRetry
     }
 
     /// Determine agent status based on output content (v0.21 + v0.22)
@@ -1953,8 +2046,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23)
-        let guardrails_passed = self.check_guardrails(&response);
+        // Check guardrails (v0.23, updated v0.25)
+        let guardrail_result = self.check_guardrails(&response);
+        let guardrails_passed = guardrail_result.is_passed();
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -2028,8 +2122,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23)
-        let guardrails_passed = self.check_guardrails(&result.response);
+        // Check guardrails (v0.23, updated v0.25)
+        let guardrail_result = self.check_guardrails(&result.response);
+        let guardrails_passed = guardrail_result.is_passed();
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -2294,8 +2389,9 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23)
-        let guardrails_passed = self.check_guardrails(&result.response);
+        // Check guardrails (v0.23, updated v0.25)
+        let guardrail_result = self.check_guardrails(&result.response);
+        let guardrails_passed = guardrail_result.is_passed();
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -3331,5 +3427,291 @@ mod tests {
             agent.is_ok(),
             "Agent with system prompt and thinking should be created"
         );
+    }
+
+    // ========================================================================
+    // GuardrailCheckResult Tests (v0.25)
+    // ========================================================================
+
+    #[test]
+    fn test_guardrail_check_result_all_passed() {
+        let result = GuardrailCheckResult::AllPassed;
+        assert!(result.is_passed());
+        assert!(!result.should_retry());
+        assert!(!result.should_escalate());
+        assert!(!result.should_fail());
+    }
+
+    #[test]
+    fn test_guardrail_check_result_failed_retry() {
+        let result = GuardrailCheckResult::FailedRetry;
+        assert!(!result.is_passed());
+        assert!(result.should_retry());
+        assert!(!result.should_escalate());
+        assert!(!result.should_fail());
+    }
+
+    #[test]
+    fn test_guardrail_check_result_failed_escalate() {
+        let result = GuardrailCheckResult::FailedEscalate;
+        assert!(!result.is_passed());
+        assert!(!result.should_retry());
+        assert!(result.should_escalate());
+        assert!(!result.should_fail());
+    }
+
+    #[test]
+    fn test_guardrail_check_result_failed_immediate() {
+        let result = GuardrailCheckResult::FailedImmediate;
+        assert!(!result.is_passed());
+        assert!(!result.should_retry());
+        assert!(!result.should_escalate());
+        assert!(result.should_fail());
+    }
+
+    #[test]
+    fn test_check_guardrails_empty_returns_all_passed() {
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            guardrails: vec![], // No guardrails
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        let result = agent.check_guardrails("Any output");
+        assert_eq!(result, GuardrailCheckResult::AllPassed);
+    }
+
+    #[test]
+    fn test_check_guardrails_passing() {
+        use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            guardrails: vec![GuardrailConfig::Length(LengthGuardrail {
+                id: Some("word-count".to_string()),
+                min_words: Some(2),
+                max_words: Some(10),
+                min_chars: None,
+                max_chars: None,
+                message: None,
+                on_failure: OnFailure::Retry,
+            })],
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Output has 4 words, within bounds
+        let result = agent.check_guardrails("This is a test");
+        assert_eq!(result, GuardrailCheckResult::AllPassed);
+    }
+
+    #[test]
+    fn test_check_guardrails_failed_retry() {
+        use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            guardrails: vec![GuardrailConfig::Length(LengthGuardrail {
+                id: Some("word-count".to_string()),
+                min_words: Some(10), // Requires at least 10 words
+                max_words: None,
+                min_chars: None,
+                max_chars: None,
+                message: None,
+                on_failure: OnFailure::Retry, // Default
+            })],
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Output has only 4 words
+        let result = agent.check_guardrails("This is a test");
+        assert_eq!(result, GuardrailCheckResult::FailedRetry);
+    }
+
+    #[test]
+    fn test_check_guardrails_failed_escalate() {
+        use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            guardrails: vec![GuardrailConfig::Length(LengthGuardrail {
+                id: Some("word-count".to_string()),
+                min_words: Some(10), // Requires at least 10 words
+                max_words: None,
+                min_chars: None,
+                max_chars: None,
+                message: None,
+                on_failure: OnFailure::Escalate, // Escalate on failure
+            })],
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Output has only 4 words
+        let result = agent.check_guardrails("This is a test");
+        assert_eq!(result, GuardrailCheckResult::FailedEscalate);
+    }
+
+    #[test]
+    fn test_check_guardrails_failed_immediate() {
+        use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            guardrails: vec![GuardrailConfig::Length(LengthGuardrail {
+                id: Some("word-count".to_string()),
+                min_words: Some(10), // Requires at least 10 words
+                max_words: None,
+                min_chars: None,
+                max_chars: None,
+                message: None,
+                on_failure: OnFailure::Fail, // Fail immediately
+            })],
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Output has only 4 words
+        let result = agent.check_guardrails("This is a test");
+        assert_eq!(result, GuardrailCheckResult::FailedImmediate);
+    }
+
+    #[test]
+    fn test_check_guardrails_priority_immediate_over_escalate() {
+        use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            guardrails: vec![
+                GuardrailConfig::Length(LengthGuardrail {
+                    id: Some("escalate-guard".to_string()),
+                    min_words: Some(10),
+                    max_words: None,
+                    min_chars: None,
+                    max_chars: None,
+                    message: None,
+                    on_failure: OnFailure::Escalate,
+                }),
+                GuardrailConfig::Length(LengthGuardrail {
+                    id: Some("fail-guard".to_string()),
+                    min_words: Some(20), // This will also fail
+                    max_words: None,
+                    min_chars: None,
+                    max_chars: None,
+                    message: None,
+                    on_failure: OnFailure::Fail, // Higher priority
+                }),
+            ],
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Output has only 4 words, both guardrails fail
+        // But Fail has higher priority than Escalate
+        let result = agent.check_guardrails("This is a test");
+        assert_eq!(result, GuardrailCheckResult::FailedImmediate);
+    }
+
+    #[test]
+    fn test_check_guardrails_priority_escalate_over_retry() {
+        use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            guardrails: vec![
+                GuardrailConfig::Length(LengthGuardrail {
+                    id: Some("retry-guard".to_string()),
+                    min_words: Some(10),
+                    max_words: None,
+                    min_chars: None,
+                    max_chars: None,
+                    message: None,
+                    on_failure: OnFailure::Retry,
+                }),
+                GuardrailConfig::Length(LengthGuardrail {
+                    id: Some("escalate-guard".to_string()),
+                    min_words: Some(20),
+                    max_words: None,
+                    min_chars: None,
+                    max_chars: None,
+                    message: None,
+                    on_failure: OnFailure::Escalate, // Higher priority
+                }),
+            ],
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+        // Output has only 4 words, both guardrails fail
+        // But Escalate has higher priority than Retry
+        let result = agent.check_guardrails("This is a test");
+        assert_eq!(result, GuardrailCheckResult::FailedEscalate);
+    }
+
+    #[test]
+    fn test_check_guardrails_emits_escalation_event() {
+        use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
+
+        let params = AgentParams {
+            prompt: "Test".to_string(),
+            guardrails: vec![GuardrailConfig::Length(LengthGuardrail {
+                id: Some("escalate-guard".to_string()),
+                min_words: Some(10),
+                max_words: None,
+                min_chars: None,
+                max_chars: None,
+                message: Some("Output too short".to_string()),
+                on_failure: OnFailure::Escalate,
+            })],
+            ..Default::default()
+        };
+        let event_log = EventLog::new();
+        let mcp_clients = FxHashMap::default();
+
+        let agent = RigAgentLoop::new("test".to_string(), params, event_log.clone(), mcp_clients)
+            .unwrap();
+
+        // Output has only 4 words
+        let result = agent.check_guardrails("This is a test");
+        assert_eq!(result, GuardrailCheckResult::FailedEscalate);
+
+        // Verify events were emitted
+        let events = event_log.events();
+        assert!(events.len() >= 2, "Should have at least 2 events (failed + escalation)");
+
+        // Check for GuardrailFailed event
+        let has_failed = events.iter().any(|e| {
+            matches!(e.kind, EventKind::GuardrailFailed { .. })
+        });
+        assert!(has_failed, "Should have GuardrailFailed event");
+
+        // Check for GuardrailEscalation event
+        let has_escalation = events.iter().any(|e| {
+            matches!(e.kind, EventKind::GuardrailEscalation { .. })
+        });
+        assert!(has_escalation, "Should have GuardrailEscalation event");
     }
 }
