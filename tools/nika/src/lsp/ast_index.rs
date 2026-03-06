@@ -36,7 +36,7 @@ use crate::ast::analyzed::{AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow};
 #[cfg(feature = "lsp")]
 use crate::ast::analyzer::{analyze, AnalyzeError};
 #[cfg(feature = "lsp")]
-use crate::ast::raw::{self, RawWorkflow};
+use crate::ast::raw::{self, ParseError, RawWorkflow};
 #[cfg(feature = "lsp")]
 use crate::source::{FileId, Span};
 
@@ -52,6 +52,9 @@ pub struct CachedAst {
 
     /// Analyzed AST from Phase 2 (validated, resolved).
     pub analyzed: Option<AnalyzedWorkflow>,
+
+    /// Parse error (if Phase 1 failed).
+    pub parse_error: Option<ParseError>,
 
     /// Analysis errors (for diagnostics).
     pub errors: Vec<AnalyzeError>,
@@ -93,20 +96,21 @@ impl AstIndex {
     ///
     /// This runs both Phase 1 (parse) and Phase 2 (analyze).
     /// Returns the list of analysis errors for diagnostic publishing.
+    /// Parse errors are stored in the cache and can be retrieved via `get_parse_error`.
     pub fn parse_document(&self, uri: &Url, text: &str, version: i32) -> Vec<AnalyzeError> {
         let file_id = FileId(0); // Single-file mode for now
 
         // Phase 1: Parse to Raw AST
-        let (raw, analyzed, errors) = match raw::parse(text, file_id) {
+        let (raw, analyzed, parse_error, errors) = match raw::parse(text, file_id) {
             Ok(raw_workflow) => {
                 // Phase 2: Analyze
                 let result = analyze(raw_workflow.clone());
                 let analyzed = if result.is_ok() { result.value } else { None };
-                (Some(raw_workflow), analyzed, result.errors)
+                (Some(raw_workflow), analyzed, None, result.errors)
             }
-            Err(_parse_error) => {
+            Err(parse_err) => {
                 // Parse failed, no AST available
-                (None, None, Vec::new())
+                (None, None, Some(parse_err), Vec::new())
             }
         };
 
@@ -115,6 +119,7 @@ impl AstIndex {
             CachedAst {
                 raw,
                 analyzed,
+                parse_error,
                 errors: errors.clone(),
                 version,
                 text: text.to_string(),
@@ -122,6 +127,11 @@ impl AstIndex {
         );
 
         errors
+    }
+
+    /// Get the parse error for a document, if any.
+    pub fn get_parse_error(&self, uri: &Url) -> Option<ParseError> {
+        self.cache.get(uri).and_then(|c| c.parse_error.clone())
     }
 
     /// Invalidate the cache for a document.

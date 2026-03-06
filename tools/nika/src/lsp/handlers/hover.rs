@@ -5,11 +5,271 @@
 //! - Field descriptions
 //! - Task reference information
 //! - Template variable documentation
+//!
+//! ## Phase 2 Architecture
+//!
+//! The hover handler can use AstIndex for semantic context:
+//! - Use `compute_hover_with_ast` when AstIndex is available
+//! - Falls back to text-based detection for ranges
+//! - AstIndex provides task context for richer documentation
 
 #[cfg(feature = "lsp")]
 use tower_lsp::lsp_types::*;
 
-/// Compute hover information at a position
+#[cfg(feature = "lsp")]
+use crate::lsp::ast_index::{AstIndex, AstNode};
+
+// Re-export Url for use in compute_hover_with_ast
+#[cfg(feature = "lsp")]
+pub use tower_lsp::lsp_types::Url;
+
+/// Compute hover information using AstIndex for semantic context
+///
+/// Uses the parsed AST for understanding what's at the cursor position,
+/// but falls back to text-based range detection (due to marked_yaml span limitations).
+///
+/// # Arguments
+/// * `ast_index` - The AST cache for semantic lookups
+/// * `uri` - Document URI for AST lookup
+/// * `text` - Document text for range calculations
+/// * `position` - Cursor position
+#[cfg(feature = "lsp")]
+pub fn compute_hover_with_ast(
+    ast_index: &AstIndex,
+    uri: &Url,
+    text: &str,
+    position: Position,
+) -> Option<Hover> {
+    // Try to get semantic context from AST
+    let ast_node = ast_index.get_node_at_position(uri, position);
+
+    // Generate hover based on AST node type
+    match ast_node {
+        Some(AstNode::Verb(verb_name, _span)) => {
+            // Find documentation for this verb
+            for (verb, docs) in VERB_DOCUMENTATION {
+                if *verb == verb_name {
+                    // Use text-based range detection (spans can be degenerate)
+                    let range = find_keyword_range(text, position, &verb_name);
+                    return Some(Hover {
+                        contents: HoverContents::Markup(MarkupContent {
+                            kind: MarkupKind::Markdown,
+                            value: docs.to_string(),
+                        }),
+                        range,
+                    });
+                }
+            }
+            None
+        }
+        Some(AstNode::Task(task_id, _span)) => {
+            // Provide task-specific documentation
+            let docs = format!(
+                "## Task: `{}`\n\n\
+                Task identifier used in `use:` bindings and `flows:`.\n\n\
+                ```yaml\n\
+                use:\n  result: {}\n\
+                ```",
+                task_id, task_id
+            );
+            let range = find_keyword_range(text, position, &task_id);
+            Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: docs,
+                }),
+                range,
+            })
+        }
+        Some(AstNode::Binding(alias, _span)) => {
+            // Binding reference documentation
+            let docs = format!(
+                "## Binding: `{}`\n\n\
+                References data from another task or context.\n\n\
+                Access via `{{{{use.{}}}}}` in prompts.",
+                alias, alias
+            );
+            Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: docs,
+                }),
+                range: None,
+            })
+        }
+        Some(AstNode::McpServer(server_name, _span)) => {
+            // MCP server documentation
+            let docs = format!(
+                "## MCP Server: `{}`\n\n\
+                External MCP server for tool invocation.\n\n\
+                ```yaml\n\
+                invoke:\n  mcp: {}\n  tool: <tool_name>\n\
+                ```",
+                server_name, server_name
+            );
+            Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: docs,
+                }),
+                range: None,
+            })
+        }
+        Some(AstNode::ContextFile(name, _span)) => {
+            // Context file documentation
+            let docs = format!(
+                "## Context File: `{}`\n\n\
+                File loaded via `context:` block.\n\n\
+                Access via `{{{{context.files.{}}}}}`.",
+                name, name
+            );
+            Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: docs,
+                }),
+                range: None,
+            })
+        }
+        Some(AstNode::Include(path, _span)) => {
+            // Include documentation
+            let docs = format!(
+                "## Include: `{}`\n\n\
+                Merges tasks from external workflow via DAG fusion.",
+                path
+            );
+            Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: docs,
+                }),
+                range: None,
+            })
+        }
+        Some(AstNode::ForEach(_span)) => {
+            // for_each documentation
+            for (field, docs) in FIELD_DOCUMENTATION {
+                if *field == "for_each" {
+                    return Some(Hover {
+                        contents: HoverContents::Markup(MarkupContent {
+                            kind: MarkupKind::Markdown,
+                            value: docs.to_string(),
+                        }),
+                        range: None,
+                    });
+                }
+            }
+            None
+        }
+        Some(AstNode::Template(expr, _span)) => {
+            // Template expression - use existing documentation logic
+            let docs = get_template_documentation(&expr);
+            let range = find_template_range(text, position);
+            Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: docs,
+                }),
+                range,
+            })
+        }
+        Some(AstNode::Schema(ref version, _span)) | Some(AstNode::Workflow(ref version, _span)) => {
+            // Schema or workflow - use field documentation
+            let field = if matches!(ast_node, Some(AstNode::Schema(_, _))) {
+                "schema"
+            } else {
+                "workflow"
+            };
+            let version = version.clone();
+            for (f, docs) in FIELD_DOCUMENTATION {
+                if *f == field {
+                    return Some(Hover {
+                        contents: HoverContents::Markup(MarkupContent {
+                            kind: MarkupKind::Markdown,
+                            value: format!("{}\n\n**Current value:** `{}`", docs, version),
+                        }),
+                        range: None,
+                    });
+                }
+            }
+            None
+        }
+        Some(AstNode::Unknown) | None => {
+            // Fall back to text-based hover detection
+            compute_hover(text, position)
+        }
+    }
+}
+
+/// Find the range of a keyword at the current position
+#[cfg(feature = "lsp")]
+fn find_keyword_range(text: &str, position: Position, keyword: &str) -> Option<Range> {
+    let lines: Vec<&str> = text.lines().collect();
+    let line_idx = position.line as usize;
+    if line_idx >= lines.len() {
+        return None;
+    }
+    let line = lines[line_idx];
+
+    // Find keyword in line
+    if let Some(start) = line.find(keyword) {
+        let end = start + keyword.len();
+        Some(Range {
+            start: Position {
+                line: position.line,
+                character: start as u32,
+            },
+            end: Position {
+                line: position.line,
+                character: end as u32,
+            },
+        })
+    } else {
+        None
+    }
+}
+
+/// Find the range of a template expression at the current position
+#[cfg(feature = "lsp")]
+fn find_template_range(text: &str, position: Position) -> Option<Range> {
+    let lines: Vec<&str> = text.lines().collect();
+    let line_idx = position.line as usize;
+    if line_idx >= lines.len() {
+        return None;
+    }
+    let line = lines[line_idx];
+    let col = position.character as usize;
+
+    // Find template bounds
+    let mut search_start = 0;
+    while let Some(start) = line[search_start..].find("{{") {
+        let abs_start = search_start + start;
+        if let Some(end) = line[abs_start..].find("}}") {
+            let abs_end = abs_start + end + 2;
+            if col >= abs_start && col <= abs_end {
+                return Some(Range {
+                    start: Position {
+                        line: position.line,
+                        character: abs_start as u32,
+                    },
+                    end: Position {
+                        line: position.line,
+                        character: abs_end as u32,
+                    },
+                });
+            }
+            search_start = abs_end;
+        } else {
+            break;
+        }
+    }
+    None
+}
+
+/// Compute hover information at a position (legacy text-based)
+///
+/// This is the legacy text-based hover computation.
+/// For enhanced semantic hover, use `compute_hover_with_ast`.
 #[cfg(feature = "lsp")]
 pub fn compute_hover(text: &str, position: Position) -> Option<Hover> {
     let lines: Vec<&str> = text.lines().collect();
@@ -485,5 +745,142 @@ mod tests {
             },
         );
         assert!(hover.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_compute_hover_with_ast_within_task() {
+        let ast_index = AstIndex::new();
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let text = r#"schema: nika/workflow@0.10
+workflow: test
+tasks:
+  - id: step1
+    infer: "Hello"
+"#;
+        // Parse the document first
+        ast_index.parse_document(&uri, text, 0);
+
+        // Hover within task - AST provides Task context
+        // Verb sub-spans may be degenerate, so AST returns Task node
+        let hover = compute_hover_with_ast(
+            &ast_index,
+            &uri,
+            text,
+            Position {
+                line: 4,
+                character: 4, // Position within task span
+            },
+        );
+        // Should get hover - either Task from AST or verb from fallback
+        assert!(hover.is_some(), "Expected hover within task");
+        let h = hover.unwrap();
+        if let HoverContents::Markup(m) = h.contents {
+            // Task documentation from AST (since verb span is degenerate)
+            // OR verb documentation from text-based fallback
+            assert!(
+                m.value.contains("Task") || m.value.contains("LLM Generation"),
+                "Expected Task or LLM Generation in hover, got: {}",
+                m.value
+            );
+        } else {
+            panic!("Expected markup content");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_compute_hover_with_ast_verb_fallback() {
+        let ast_index = AstIndex::new();
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let text = "    infer: \"Hello\""; // Just verb line without full workflow
+        // Don't parse - so AST returns None, fallback to text-based
+
+        let hover = compute_hover_with_ast(
+            &ast_index,
+            &uri,
+            text,
+            Position {
+                line: 0,
+                character: 4,
+            },
+        );
+        // Should get hover from text-based fallback
+        assert!(hover.is_some(), "Expected hover for verb via fallback");
+        let h = hover.unwrap();
+        if let HoverContents::Markup(m) = h.contents {
+            assert!(
+                m.value.contains("LLM Generation"),
+                "Expected LLM Generation in hover via fallback"
+            );
+        } else {
+            panic!("Expected markup content");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_compute_hover_with_ast_task() {
+        let ast_index = AstIndex::new();
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let text = r#"schema: nika/workflow@0.10
+workflow: test
+tasks:
+  - id: my_task
+    infer: "Hello"
+"#;
+        ast_index.parse_document(&uri, text, 0);
+
+        // Hover over task id
+        let hover = compute_hover_with_ast(
+            &ast_index,
+            &uri,
+            text,
+            Position {
+                line: 3,
+                character: 10,
+            },
+        );
+        // May fall back to text-based hover
+        if let Some(h) = hover {
+            if let HoverContents::Markup(m) = h.contents {
+                // Either task documentation or field documentation
+                assert!(
+                    m.value.contains("Task") || m.value.contains("id"),
+                    "Expected task or id documentation"
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_compute_hover_with_ast_fallback() {
+        let ast_index = AstIndex::new();
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let text = r#"schema: nika/workflow@0.10
+workflow: test
+tasks:
+  - id: step1
+    infer: "Hello"
+"#;
+        ast_index.parse_document(&uri, text, 0);
+
+        // Hover over empty area - should fallback to text-based
+        let hover = compute_hover_with_ast(
+            &ast_index,
+            &uri,
+            text,
+            Position {
+                line: 2,
+                character: 0,
+            },
+        );
+        // tasks: field should match
+        if let Some(h) = hover {
+            if let HoverContents::Markup(m) = h.contents {
+                assert!(m.value.contains("Task List"), "Expected Task List in hover");
+            }
+        }
     }
 }

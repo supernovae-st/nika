@@ -15,7 +15,7 @@ use super::workflow::RawWorkflow;
 use crate::source::{ByteOffset, FileId, Span, Spanned};
 
 /// Errors that can occur during parsing.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ParseError {
     /// The error kind
     pub kind: ParseErrorKind,

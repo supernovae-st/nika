@@ -16,12 +16,12 @@ use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
 
 #[cfg(feature = "lsp")]
-use crate::ast::analyzer::{analyze, AnalyzeError};
+use crate::ast::analyzer::AnalyzeError;
 #[cfg(feature = "lsp")]
 use crate::ast::raw;
-#[cfg(feature = "lsp")]
-use crate::source::FileId;
 
+#[cfg(feature = "lsp")]
+use super::ast_index::AstIndex;
 #[cfg(feature = "lsp")]
 use super::capabilities::server_capabilities;
 #[cfg(feature = "lsp")]
@@ -43,6 +43,8 @@ pub struct NikaLanguageServer {
     client: Client,
     /// In-memory store of open documents
     documents: Arc<RwLock<DocumentStore>>,
+    /// AST index for position-aware lookups (Phase 2)
+    ast_index: AstIndex,
 }
 
 #[cfg(feature = "lsp")]
@@ -52,24 +54,26 @@ impl NikaLanguageServer {
         Self {
             client,
             documents: Arc::new(RwLock::new(DocumentStore::new())),
+            ast_index: AstIndex::new(),
         }
     }
 
     /// Parse and analyze a document, publishing diagnostics
+    ///
+    /// Uses AstIndex for caching and analysis. The AST is cached for
+    /// subsequent hover, completion, and definition requests.
     async fn analyze_document(&self, uri: &Url, text: &str) {
-        let file_id = FileId(0); // Single-file mode for now
+        // Use AstIndex to parse and cache the document
+        // This handles both Phase 1 (parse) and Phase 2 (analyze)
+        let errors = self.ast_index.parse_document(uri, text, 0);
 
-        // Phase 1: Parse to Raw AST
-        let diagnostics = match raw::parse(text, file_id) {
-            Ok(raw_workflow) => {
-                // Phase 2: Analyze
-                let result = analyze(raw_workflow);
-                self.errors_to_diagnostics(&result.errors, text)
-            }
-            Err(parse_error) => {
-                vec![self.parse_error_to_diagnostic(&parse_error, text)]
-            }
-        };
+        // Convert errors to LSP diagnostics
+        let mut diagnostics = self.errors_to_diagnostics(&errors, text);
+
+        // Check for parse errors (Phase 1 failures)
+        if let Some(parse_error) = self.ast_index.get_parse_error(uri) {
+            diagnostics.push(self.parse_error_to_diagnostic(&parse_error, text));
+        }
 
         // Publish diagnostics
         self.client
@@ -217,7 +221,13 @@ impl LanguageServer for NikaLanguageServer {
         let docs = self.documents.read().await;
         let text = docs.get(uri).cloned().unwrap_or_default();
 
-        Ok(handlers::hover::compute_hover(&text, position))
+        // Use AST-aware hover for semantic context
+        Ok(handlers::hover::compute_hover_with_ast(
+            &self.ast_index,
+            uri,
+            &text,
+            position,
+        ))
     }
 
     async fn goto_definition(
