@@ -70,7 +70,6 @@ impl WorkflowPurpose {
     }
 
     /// Suggest templates based on purpose
-    #[allow(dead_code)]
     fn suggested_templates(&self) -> Vec<super::Template> {
         use super::Template;
         match self {
@@ -281,7 +280,11 @@ impl WizardState {
         } else {
             // For custom, generate based on selections
             let mcp_block = if self.options.with_mcp {
-                let enabled: Vec<_> = self.mcp_servers.iter().filter(|s| s.enabled).collect();
+                let enabled: Vec<_> = self
+                    .mcp_servers
+                    .iter()
+                    .filter(|s| s.enabled)
+                    .collect();
                 if enabled.is_empty() {
                     String::new()
                 } else {
@@ -301,21 +304,20 @@ impl WizardState {
                 String::new()
             };
 
-            let verb_name = self.verb.name();
             self.preview_yaml = format!(
                 r#"schema: "nika/workflow@0.10"
 provider: {}
 {}{}
 tasks:
   - id: {}
-    {}: "Your {} task prompt here"
+    {}: "{}"
 "#,
                 self.provider.name().to_lowercase(),
                 mcp_block,
                 artifacts_block,
                 self.name.replace('-', "_"),
-                verb_name,
-                verb_name
+                self.verb.name(),
+                format!("Your {} task prompt here", self.verb.name())
             );
         }
     }
@@ -836,7 +838,10 @@ fn draw_select_purpose(f: &mut Frame, area: Rect, state: &WizardState) {
         .map(|p| {
             ListItem::new(Line::from(vec![
                 Span::raw("  "),
-                Span::styled(format!("{} ", p.icon()), Style::default().fg(Color::Yellow)),
+                Span::styled(
+                    format!("{} ", p.icon()),
+                    Style::default().fg(Color::Yellow),
+                ),
                 Span::styled(
                     format!("{:<12}", p.name()),
                     Style::default().fg(Color::Green),
@@ -850,7 +855,7 @@ fn draw_select_purpose(f: &mut Frame, area: Rect, state: &WizardState) {
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
         .highlight_symbol("> ");
 
-    let mut list_state = state.list_state;
+    let mut list_state = state.list_state.clone();
     f.render_stateful_widget(list, chunks[1], &mut list_state);
 
     let help = Paragraph::new("[j/k] Navigate  [Enter] Select  [Esc] Cancel")
@@ -877,7 +882,10 @@ fn draw_select_complexity(f: &mut Frame, area: Rect, state: &WizardState) {
         .map(|c| {
             ListItem::new(Line::from(vec![
                 Span::raw("  "),
-                Span::styled(format!("{} ", c.icon()), Style::default().fg(Color::Yellow)),
+                Span::styled(
+                    format!("{} ", c.icon()),
+                    Style::default().fg(Color::Yellow),
+                ),
                 Span::styled(
                     format!("{:<12}", c.name()),
                     Style::default().fg(Color::Green),
@@ -891,7 +899,7 @@ fn draw_select_complexity(f: &mut Frame, area: Rect, state: &WizardState) {
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
         .highlight_symbol("> ");
 
-    let mut list_state = state.list_state;
+    let mut list_state = state.list_state.clone();
     f.render_stateful_widget(list, chunks[1], &mut list_state);
 
     // Show purpose context
@@ -954,9 +962,10 @@ fn draw_configure_mcp(f: &mut Frame, area: Rect, state: &WizardState) {
     let list = List::new(items);
     f.render_widget(list, chunks[1]);
 
-    let help = Paragraph::new("[j/k] Navigate  [Space] Toggle  [Enter] Continue  [Backspace] Back")
-        .style(Style::default().fg(Color::DarkGray))
-        .alignment(Alignment::Center);
+    let help =
+        Paragraph::new("[j/k] Navigate  [Space] Toggle  [Enter] Continue  [Backspace] Back")
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(Alignment::Center);
     f.render_widget(help, chunks[2]);
 }
 
@@ -1124,7 +1133,11 @@ fn draw_enter_name(f: &mut Frame, area: Rect, state: &WizardState) {
         .margin(1)
         .split(area);
 
-    let step = 5;
+    let step = if state.mode == Some(WizardMode::Template) {
+        5
+    } else {
+        5
+    };
     draw_step_header(f, chunks[0], "Enter workflow name", step, 11);
 
     // Input field

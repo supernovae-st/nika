@@ -440,8 +440,8 @@ impl App {
             workflow_done: false,
             status_message: None,
             retry_requested: false,
-            // 4-view architecture - start in Home mode for standalone
-            current_view: TuiView::Browse,
+            // 5-view architecture - start in Studio mode for standalone
+            current_view: TuiView::Studio,
             input_mode: InputMode::Normal,
             focus_state: FocusState::new(NavPanelId::ExplorerFiles),
             chat_view,

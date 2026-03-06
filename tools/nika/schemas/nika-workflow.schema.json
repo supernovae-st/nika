@@ -515,7 +515,7 @@
           "required": ["tool"],
           "properties": {
             "tool": {
-              "pattern": "^(nika:|novanet:)"
+              "pattern": "^nika:"
             }
           },
           "not": {

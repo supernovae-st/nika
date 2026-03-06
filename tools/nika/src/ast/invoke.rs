@@ -36,8 +36,9 @@ pub struct InvokeParams {
     /// MCP server name (must match a key in workflow's `mcp` config)
     ///
     /// Also accepts `server` as a legacy alias for backwards compatibility.
-    #[serde(alias = "server")]
-    pub mcp: String,
+    /// Optional for builtin tools (nika:* prefix) which don't need MCP.
+    #[serde(alias = "server", default)]
+    pub mcp: Option<String>,
 
     /// Tool name to call (mutually exclusive with `resource`)
     #[serde(default)]
@@ -53,12 +54,22 @@ pub struct InvokeParams {
 }
 
 impl InvokeParams {
+    /// Returns true if this invoke targets a builtin tool (nika:* prefix).
+    #[inline]
+    pub fn is_builtin_tool(&self) -> bool {
+        self.tool
+            .as_ref()
+            .is_some_and(|t| t.starts_with("nika:"))
+    }
+}
+
+impl InvokeParams {
     /// Validate invoke parameters.
     ///
     /// # Errors
     ///
     /// Returns an error string if:
-    /// - `mcp` server name is empty
+    /// - `mcp` server name is empty (unless builtin tool with nika:* prefix)
     /// - Both `tool` and `resource` are `Some` (mutually exclusive)
     /// - Both `tool` and `resource` are `None` (one is required)
     /// - `tool` is Some but empty string
@@ -66,10 +77,20 @@ impl InvokeParams {
     ///
     /// # v0.17.5
     /// Enhanced to validate empty strings, not just presence.
+    ///
+    /// # v0.21.0
+    /// Builtin tools (nika:* prefix) don't require mcp field.
     pub fn validate(&self) -> Result<(), String> {
-        // v0.17.5: Validate MCP server name is not empty
-        if self.mcp.trim().is_empty() {
-            return Err("'mcp' server name cannot be empty".to_string());
+        // v0.21.0: Builtin tools don't require mcp
+        // v0.17.5: Validate MCP server name is not empty (for non-builtin tools)
+        if !self.is_builtin_tool() {
+            match &self.mcp {
+                None => return Err("'mcp' server name is required for non-builtin tools".to_string()),
+                Some(mcp) if mcp.trim().is_empty() => {
+                    return Err("'mcp' server name cannot be empty".to_string());
+                }
+                _ => {}
+            }
         }
 
         match (&self.tool, &self.resource) {

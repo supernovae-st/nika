@@ -4043,7 +4043,7 @@ impl View for ChatView {
             }
             // Tab/Shift+Tab handled above for panel navigation
             // Esc switches to Explorer view (when in Input panel)
-            KeyCode::Esc => ViewAction::SwitchView(TuiView::Browse),
+            KeyCode::Esc => ViewAction::SwitchView(TuiView::Studio),
             _ => ViewAction::None,
         }
     }

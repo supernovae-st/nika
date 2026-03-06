@@ -37,7 +37,7 @@ use tracing::warn;
 
 // Use spn-core's unified provider definitions (13+ providers: LLM + MCP)
 #[cfg(feature = "spn-daemon")]
-use spn_client::KNOWN_PROVIDERS;
+use spn_client::{ProviderCategory, KNOWN_PROVIDERS};
 
 // Use TUI module's provider_env_var which handles both spn-daemon and fallback cases
 use crate::tui::widgets::provider_modal::provider_env_var;
@@ -148,7 +148,7 @@ mod daemon_integration {
 
         // Iterate all known providers (LLM + MCP = 13+)
         for p in KNOWN_PROVIDERS {
-            let provider = p.id; // Use p.id for API calls, not p.name (display name)
+            let provider = p.name;
             let env_var = p.env_var;
 
             // Check if already in env
@@ -243,7 +243,7 @@ mod daemon_integration {
 
         // Iterate all known providers (LLM + MCP = 13+)
         for p in KNOWN_PROVIDERS {
-            let provider = p.id; // Use p.id for API calls, not p.name (display name)
+            let provider = p.name;
             let env_var = p.env_var;
 
             if std::env::var(env_var).is_ok() {
@@ -311,6 +311,7 @@ mod fallback_only {
         };
 
         for (provider, env_var) in PROVIDERS {
+
             // Check if already in env
             if std::env::var(env_var).is_ok() {
                 trace!("{}: already in env", provider);
@@ -394,11 +395,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_provider_env_var() {
-        // Verify provider_env_var returns expected env var names
-        assert_eq!(provider_env_var("anthropic"), "ANTHROPIC_API_KEY");
-        assert_eq!(provider_env_var("openai"), "OPENAI_API_KEY");
-        assert_eq!(provider_env_var("ollama"), "OLLAMA_API_BASE_URL");
+    fn test_providers_list() {
+        assert!(PROVIDERS.contains(&"anthropic"));
+        assert!(PROVIDERS.contains(&"openai"));
+        assert!(PROVIDERS.contains(&"ollama"));
     }
 
     #[test]
