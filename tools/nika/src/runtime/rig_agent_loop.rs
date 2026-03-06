@@ -91,9 +91,9 @@ impl RigAgentStatus {
             Self::StopConditionMet => "stop_sequence",
             Self::MaxTurnsReached => "max_turns",
             Self::TokenBudgetExceeded => "max_tokens",
-            Self::CostLimitReached => "max_cost",        // v0.24
+            Self::CostLimitReached => "max_cost", // v0.24
             Self::DurationLimitReached => "max_duration", // v0.24
-            Self::PartialCompletion => "partial",        // v0.24
+            Self::PartialCompletion => "partial", // v0.24
             Self::Failed => "error",
         }
     }
@@ -3693,8 +3693,8 @@ mod tests {
         let event_log = EventLog::new();
         let mcp_clients = FxHashMap::default();
 
-        let agent = RigAgentLoop::new("test".to_string(), params, event_log.clone(), mcp_clients)
-            .unwrap();
+        let agent =
+            RigAgentLoop::new("test".to_string(), params, event_log.clone(), mcp_clients).unwrap();
 
         // Output has only 4 words
         let result = agent.check_guardrails("This is a test");
@@ -3702,18 +3702,21 @@ mod tests {
 
         // Verify events were emitted
         let events = event_log.events();
-        assert!(events.len() >= 2, "Should have at least 2 events (failed + escalation)");
+        assert!(
+            events.len() >= 2,
+            "Should have at least 2 events (failed + escalation)"
+        );
 
         // Check for GuardrailFailed event
-        let has_failed = events.iter().any(|e| {
-            matches!(e.kind, EventKind::GuardrailFailed { .. })
-        });
+        let has_failed = events
+            .iter()
+            .any(|e| matches!(e.kind, EventKind::GuardrailFailed { .. }));
         assert!(has_failed, "Should have GuardrailFailed event");
 
         // Check for GuardrailEscalation event
-        let has_escalation = events.iter().any(|e| {
-            matches!(e.kind, EventKind::GuardrailEscalation { .. })
-        });
+        let has_escalation = events
+            .iter()
+            .any(|e| matches!(e.kind, EventKind::GuardrailEscalation { .. }));
         assert!(has_escalation, "Should have GuardrailEscalation event");
     }
 }

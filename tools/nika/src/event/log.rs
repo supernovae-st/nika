@@ -2043,7 +2043,10 @@ mod tests {
         assert!(matches!(&events[0].kind, EventKind::AgentStart { .. }));
         assert!(matches!(&events[1].kind, EventKind::AgentTurn { .. }));
         assert!(matches!(&events[2].kind, EventKind::LimitReached { .. }));
-        assert!(matches!(&events[3].kind, EventKind::PartialCompletion { .. }));
+        assert!(matches!(
+            &events[3].kind,
+            EventKind::PartialCompletion { .. }
+        ));
         assert!(matches!(&events[4].kind, EventKind::AgentComplete { .. }));
     }
 }

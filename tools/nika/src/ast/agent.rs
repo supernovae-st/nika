@@ -440,7 +440,10 @@ impl AgentParams {
 
     /// Check if any limits are configured (v0.24).
     pub fn has_limits(&self) -> bool {
-        self.limits.as_ref().map(|l| l.has_limits()).unwrap_or(false)
+        self.limits
+            .as_ref()
+            .map(|l| l.has_limits())
+            .unwrap_or(false)
     }
 }
 

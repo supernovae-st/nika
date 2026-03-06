@@ -214,7 +214,7 @@ static GEMINI_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock:
     m.insert("gemini-2.0-flash", ModelPricing::new(0.1, 0.4));
     m.insert("gemini-2.0-flash-exp", ModelPricing::new(0.0, 0.0)); // Free preview
     m.insert("gemini-2.0-flash-thinking", ModelPricing::new(0.0, 0.0)); // Free preview
-    // Gemini 1.5
+                                                                        // Gemini 1.5
     m.insert("gemini-1.5-pro", ModelPricing::new(1.25, 5.0));
     m.insert("gemini-1.5-pro-latest", ModelPricing::new(1.25, 5.0));
     m.insert("gemini-1.5-flash", ModelPricing::new(0.075, 0.3));
@@ -329,10 +329,7 @@ mod tests {
     #[test]
     fn provider_from_str_claude() {
         assert_eq!(ProviderKind::parse("claude"), Some(ProviderKind::Claude));
-        assert_eq!(
-            ProviderKind::parse("anthropic"),
-            Some(ProviderKind::Claude)
-        );
+        assert_eq!(ProviderKind::parse("anthropic"), Some(ProviderKind::Claude));
         assert_eq!(ProviderKind::parse("CLAUDE"), Some(ProviderKind::Claude));
     }
 
@@ -423,7 +420,12 @@ mod tests {
 
     #[test]
     fn calculate_cost_groq() {
-        let cost = calculate_cost(ProviderKind::Groq, "llama-3.3-70b-versatile", 100_000, 50_000);
+        let cost = calculate_cost(
+            ProviderKind::Groq,
+            "llama-3.3-70b-versatile",
+            100_000,
+            50_000,
+        );
         // 100000 * 0.59/1M + 50000 * 0.79/1M = 0.059 + 0.0395 = 0.0985
         assert!((cost - 0.0985).abs() < 0.0001);
     }

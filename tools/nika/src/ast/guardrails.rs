@@ -1499,7 +1499,8 @@ judge_prompt: "Is this valid? Respond PASS or FAIL."
     fn test_llm_guardrail_build_judge_prompt() {
         let guardrail = LlmGuardrail {
             id: None,
-            judge_prompt: "Evaluate this output for quality:\n{{output}}\nRespond PASS or FAIL.".to_string(),
+            judge_prompt: "Evaluate this output for quality:\n{{output}}\nRespond PASS or FAIL."
+                .to_string(),
             pass_pattern: "^PASS".to_string(),
             model: None,
             max_tokens: 100,
@@ -1573,9 +1574,18 @@ judge_prompt: "Is this valid? Respond PASS or FAIL."
         let yaml_escalate = "escalate";
         let yaml_fail = "fail";
 
-        assert_eq!(serde_yaml::from_str::<OnFailure>(yaml_retry).unwrap(), OnFailure::Retry);
-        assert_eq!(serde_yaml::from_str::<OnFailure>(yaml_escalate).unwrap(), OnFailure::Escalate);
-        assert_eq!(serde_yaml::from_str::<OnFailure>(yaml_fail).unwrap(), OnFailure::Fail);
+        assert_eq!(
+            serde_yaml::from_str::<OnFailure>(yaml_retry).unwrap(),
+            OnFailure::Retry
+        );
+        assert_eq!(
+            serde_yaml::from_str::<OnFailure>(yaml_escalate).unwrap(),
+            OnFailure::Escalate
+        );
+        assert_eq!(
+            serde_yaml::from_str::<OnFailure>(yaml_fail).unwrap(),
+            OnFailure::Fail
+        );
     }
 
     #[test]
@@ -1652,36 +1662,32 @@ on_failure: escalate
 
     #[test]
     fn test_has_llm_guardrails_false() {
-        let guardrails = vec![
-            GuardrailConfig::Length(LengthGuardrail {
-                id: None,
-                min_words: Some(10),
-                max_words: None,
-                min_chars: None,
-                max_chars: None,
-                message: None,
-                on_failure: OnFailure::Retry,
-            }),
-        ];
+        let guardrails = vec![GuardrailConfig::Length(LengthGuardrail {
+            id: None,
+            min_words: Some(10),
+            max_words: None,
+            min_chars: None,
+            max_chars: None,
+            message: None,
+            on_failure: OnFailure::Retry,
+        })];
 
         assert!(!has_llm_guardrails(&guardrails));
     }
 
     #[test]
     fn test_has_llm_guardrails_true() {
-        let guardrails = vec![
-            GuardrailConfig::Llm(LlmGuardrail {
-                id: None,
-                judge_prompt: "Check.".to_string(),
-                pass_pattern: "^PASS".to_string(),
-                model: None,
-                max_tokens: 100,
-                temperature: 0.0,
-                message: None,
-                on_failure: OnFailure::Retry,
-                ..Default::default()
-            }),
-        ];
+        let guardrails = vec![GuardrailConfig::Llm(LlmGuardrail {
+            id: None,
+            judge_prompt: "Check.".to_string(),
+            pass_pattern: "^PASS".to_string(),
+            model: None,
+            max_tokens: 100,
+            temperature: 0.0,
+            message: None,
+            on_failure: OnFailure::Retry,
+            ..Default::default()
+        })];
 
         assert!(has_llm_guardrails(&guardrails));
     }

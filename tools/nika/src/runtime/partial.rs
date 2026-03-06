@@ -61,11 +61,7 @@ pub struct PartialResult {
 
 impl PartialResult {
     /// Create a new partial result
-    pub fn new(
-        content: impl Into<String>,
-        progress: f64,
-        stop_reason: StopReason,
-    ) -> Self {
+    pub fn new(content: impl Into<String>, progress: f64, stop_reason: StopReason) -> Self {
         let content = content.into();
         let preview = Self::generate_preview(&content);
 
@@ -271,20 +267,25 @@ impl PartialCheckpoint {
 
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent).await.map_err(NikaError::IoError)?;
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(NikaError::IoError)?;
         }
 
         // Serialize to JSON
-        let json = serde_json::to_string_pretty(self).map_err(|e| {
-            NikaError::SerializationError {
+        let json =
+            serde_json::to_string_pretty(self).map_err(|e| NikaError::SerializationError {
                 details: format!("Failed to serialize checkpoint: {}", e),
-            }
-        })?;
+            })?;
 
         // Write atomically (write to temp, then rename)
         let temp_path = path.with_extension("tmp");
-        tokio::fs::write(&temp_path, &json).await.map_err(NikaError::IoError)?;
-        tokio::fs::rename(&temp_path, path).await.map_err(NikaError::IoError)?;
+        tokio::fs::write(&temp_path, &json)
+            .await
+            .map_err(NikaError::IoError)?;
+        tokio::fs::rename(&temp_path, path)
+            .await
+            .map_err(NikaError::IoError)?;
 
         Ok(())
     }
@@ -293,13 +294,14 @@ impl PartialCheckpoint {
     pub async fn load_from_file(path: impl AsRef<Path>) -> Result<Self, NikaError> {
         let path = path.as_ref();
 
-        let json = tokio::fs::read_to_string(path).await.map_err(NikaError::IoError)?;
+        let json = tokio::fs::read_to_string(path)
+            .await
+            .map_err(NikaError::IoError)?;
 
-        let checkpoint: Self = serde_json::from_str(&json).map_err(|e| {
-            NikaError::SerializationError {
+        let checkpoint: Self =
+            serde_json::from_str(&json).map_err(|e| NikaError::SerializationError {
                 details: format!("Failed to parse checkpoint: {}", e),
-            }
-        })?;
+            })?;
 
         // Check version compatibility
         if checkpoint.version > Self::CURRENT_VERSION {
@@ -325,7 +327,13 @@ impl PartialCheckpoint {
         // Sanitize task_id for use as filename
         let safe_id: String = task_id
             .chars()
-            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            .map(|c| {
+                if c.is_alphanumeric() || c == '-' || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect();
         format!("{}.checkpoint.json", safe_id)
     }
@@ -362,8 +370,8 @@ mod tests {
 
     #[test]
     fn partial_result_with_usage() {
-        let result = PartialResult::new("test", 0.75, StopReason::TokensLimit)
-            .with_usage(10, 5000, 0.05);
+        let result =
+            PartialResult::new("test", 0.75, StopReason::TokensLimit).with_usage(10, 5000, 0.05);
 
         assert_eq!(result.turns_completed, 10);
         assert_eq!(result.tokens_used, 5000);
@@ -378,7 +386,11 @@ mod tests {
 
     #[test]
     fn partial_result_preview_multiline() {
-        let result = PartialResult::new("First line\nSecond line\nThird", 0.5, StopReason::TurnsLimit);
+        let result = PartialResult::new(
+            "First line\nSecond line\nThird",
+            0.5,
+            StopReason::TurnsLimit,
+        );
         assert_eq!(result.preview, "First line...");
     }
 
@@ -515,9 +527,10 @@ mod tests {
 
     #[test]
     fn checkpoint_serialization_roundtrip() {
-        let mut checkpoint = PartialCheckpoint::new("task-1", 0.75, "Content", StopReason::CostLimit)
-            .with_provider("openai", "gpt-4o")
-            .with_usage(3, 5000, 0.05);
+        let mut checkpoint =
+            PartialCheckpoint::new("task-1", 0.75, "Content", StopReason::CostLimit)
+                .with_provider("openai", "gpt-4o")
+                .with_usage(3, 5000, 0.05);
 
         checkpoint.add_message("user", "Question");
         checkpoint.add_message("assistant", "Answer");
@@ -541,8 +554,9 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("test.checkpoint.json");
 
-        let checkpoint = PartialCheckpoint::new("test-task", 0.8, "Test content", StopReason::TokensLimit)
-            .with_usage(5, 8000, 0.12);
+        let checkpoint =
+            PartialCheckpoint::new("test-task", 0.8, "Test content", StopReason::TokensLimit)
+                .with_usage(5, 8000, 0.12);
 
         // Save
         checkpoint.save_to_file(&file_path).await.unwrap();
