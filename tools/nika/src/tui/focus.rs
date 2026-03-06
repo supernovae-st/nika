@@ -1,34 +1,27 @@
 //! Focus State for Panel Navigation
 //!
 //! Manages which panel is currently focused and provides Tab/Shift+Tab navigation.
-//! Updated for 7-Views Architecture (v0.20)
+//! Updated for 5-Views Architecture (v0.21.0)
 
 use super::views::TuiView;
 
-/// Panel identifiers for 7-view architecture (v0.20)
+/// Panel identifiers for 5-view architecture (v0.21.0)
 ///
 /// Each view has its own set of panels that can receive focus.
+/// Views: Studio (default), Runner, Chat, Scheduler, Settings
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PanelId {
-    // ═══ Browse View (1) ═══
+    // ═══ Studio View (s) ═══
     /// File browser panel
-    ExplorerFiles,
+    StudioFiles,
+    /// YAML editor panel
+    StudioEditor,
     /// DAG preview panel
-    ExplorerDag,
-    /// YAML preview panel
-    ExplorerYaml,
-    /// Execution history panel
-    ExplorerHistory,
-
-    // ═══ Editor View (2) ═══
-    /// File explorer
-    EditorFiles,
-    /// YAML editor
-    EditorEditor,
+    StudioDag,
     /// Diagnostics panel
-    EditorDiagnostics,
+    StudioDiagnostics,
 
-    // ═══ Runner View (3) ═══
+    // ═══ Runner View (r) ═══
     /// Mission control panel
     RunnerMission,
     /// DAG visualization
@@ -91,14 +84,15 @@ impl PanelId {
     /// Get the view this panel belongs to
     pub fn view(&self) -> TuiView {
         match self {
+            // Explorer panels map to Studio in 5-view architecture
             PanelId::ExplorerFiles
             | PanelId::ExplorerDag
             | PanelId::ExplorerYaml
-            | PanelId::ExplorerHistory => TuiView::Browse,
+            | PanelId::ExplorerHistory
+            | PanelId::EditorFiles
+            | PanelId::EditorEditor
+            | PanelId::EditorDiagnostics => TuiView::Studio,
             PanelId::ChatConversation | PanelId::ChatInput | PanelId::ChatContext => TuiView::Chat,
-            PanelId::EditorFiles | PanelId::EditorEditor | PanelId::EditorDiagnostics => {
-                TuiView::Editor
-            }
             PanelId::RunnerMission
             | PanelId::RunnerDag
             | PanelId::RunnerNovanet
@@ -113,17 +107,12 @@ impl PanelId {
     /// Get the default panel for a view
     pub fn default_for_view(view: TuiView) -> PanelId {
         match view {
-            TuiView::Browse => PanelId::ExplorerFiles,
-            TuiView::Chat => PanelId::ChatInput,
-            TuiView::Editor | TuiView::Studio => PanelId::EditorEditor,
+            TuiView::Studio => PanelId::EditorEditor,
             TuiView::Runner => PanelId::RunnerMission,
+            TuiView::Chat => PanelId::ChatInput,
             TuiView::Scheduler => PanelId::SchedulerList,
-            // Auxiliary views don't have panels, return Explorer's default
-            TuiView::Settings => PanelId::ExplorerFiles,
-            // Split view has its own focus management (v0.13)
-            TuiView::Split => PanelId::ExplorerFiles,
-            // Workspace view has its own internal focus (v0.20)
-            TuiView::Workspace => PanelId::ExplorerFiles,
+            // Settings doesn't have panels
+            TuiView::Settings => PanelId::EditorEditor,
         }
     }
 }
