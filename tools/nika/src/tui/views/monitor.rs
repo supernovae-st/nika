@@ -50,7 +50,7 @@ use ratatui::{
 };
 
 use super::trait_view::View;
-use super::{TuiView, ViewAction};
+use super::{DagTab, MissionTab, NovanetTab, ReasoningTab, TuiView, ViewAction};
 use crate::tui::focus::PanelId;
 use crate::tui::state::TuiState;
 use crate::tui::theme::{MissionPhase, TaskStatus, Theme, VerbColor};
@@ -340,6 +340,7 @@ impl MonitorView {
     /// Render Mission Control panel (Panel 1) with verb-colored TaskBox style
     ///
     /// v0.13: Uses TaskBox visual language (verb icons, colors, progress)
+    /// v0.21.2: Tab-aware rendering (Progress | TaskIO | Output)
     fn render_mission_panel(
         &self,
         frame: &mut Frame,
@@ -348,6 +349,8 @@ impl MonitorView {
         theme: &Theme,
         focused: bool,
     ) {
+        // v0.21.2: Tab indicator in title
+        let tab_indicator = state.mission_tab.title();
         let mode_indicator = match self.render_mode {
             RenderMode::Compact => "compact",
             RenderMode::Expanded => "expanded",
@@ -356,8 +359,9 @@ impl MonitorView {
 
         let block = Block::default()
             .title(format!(
-                " {} MISSION CONTROL [{}] ",
+                " {} MISSION CONTROL [{}/{}] ",
                 Self::phase_icon(&state.workflow.phase),
+                tab_indicator,
                 mode_indicator
             ))
             .title_style(
@@ -371,7 +375,24 @@ impl MonitorView {
         let inner_area = block.inner(area);
         frame.render_widget(block, area);
 
-        // Build task list with TaskBox-style rendering
+        // v0.21.2: Tab-aware content rendering
+        match state.mission_tab {
+            MissionTab::TaskIO => {
+                // Show selected task's input/output
+                self.render_mission_task_io(frame, inner_area, state, theme);
+                return;
+            }
+            MissionTab::Output => {
+                // Show selected task's full output
+                self.render_mission_output(frame, inner_area, state, theme);
+                return;
+            }
+            MissionTab::Progress => {
+                // Fall through to default task list rendering below
+            }
+        }
+
+        // Build task list with TaskBox-style rendering (Progress tab)
         let items: Vec<ListItem> = state
             .task_order
             .iter()
@@ -512,10 +533,115 @@ impl MonitorView {
         frame.render_widget(list, inner_area);
     }
 
+    /// Render Mission Control TaskIO tab (v0.21.2)
+    /// Shows selected task's input and output data
+    fn render_mission_task_io(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        state: &TuiState,
+        theme: &Theme,
+    ) {
+        let selected_id = state.task_order.get(self.selected_task);
+        let task = selected_id.and_then(|id| state.tasks.get(id));
+
+        let content = if let Some(task) = task {
+            let input_str = task
+                .input
+                .as_ref()
+                .map(|v| serde_json::to_string_pretty(v).unwrap_or_else(|_| "{}".to_string()))
+                .unwrap_or_else(|| "No input".to_string());
+
+            let output_str = task
+                .output
+                .as_ref()
+                .map(|v| serde_json::to_string_pretty(v).unwrap_or_else(|_| "{}".to_string()))
+                .unwrap_or_else(|| "No output".to_string());
+
+            format!(
+                "─── INPUT ───\n{}\n\n─── OUTPUT ───\n{}",
+                truncate_to_width(&input_str, area.width as usize * 3),
+                truncate_to_width(&output_str, area.width as usize * 3)
+            )
+        } else {
+            "No task selected".to_string()
+        };
+
+        let paragraph = Paragraph::new(content)
+            .style(Style::default().fg(theme.text_primary))
+            .wrap(ratatui::widgets::Wrap { trim: true });
+        frame.render_widget(paragraph, area);
+    }
+
+    /// Render Mission Control Output tab (v0.21.2)
+    /// Shows selected task's full output/response
+    fn render_mission_output(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        state: &TuiState,
+        theme: &Theme,
+    ) {
+        let selected_id = state.task_order.get(self.selected_task);
+        let task = selected_id.and_then(|id| state.tasks.get(id));
+
+        let content = if let Some(task) = task {
+            task.output
+                .as_ref()
+                .map(|v| serde_json::to_string_pretty(v).unwrap_or_else(|_| "{}".to_string()))
+                .unwrap_or_else(|| "No output yet".to_string())
+        } else {
+            "No task selected".to_string()
+        };
+
+        let paragraph = Paragraph::new(content)
+            .style(Style::default().fg(theme.text_primary))
+            .wrap(ratatui::widgets::Wrap { trim: true });
+        frame.render_widget(paragraph, area);
+    }
+
+    /// Render DAG Yaml tab (v0.21.2)
+    /// Shows workflow info (YAML source not stored in state)
+    fn render_dag_yaml(&self, frame: &mut Frame, area: Rect, state: &TuiState, theme: &Theme) {
+        // Build workflow summary since raw YAML isn't stored in TuiState
+        let mut content = String::new();
+        content.push_str("# Workflow YAML Info\n\n");
+        content.push_str(&format!("Path: {}\n", state.workflow.path));
+        content.push_str(&format!("Phase: {:?}\n", state.workflow.phase));
+        content.push_str(&format!(
+            "Tasks: {}/{}\n",
+            state.workflow.tasks_completed, state.workflow.task_count
+        ));
+
+        if !state.task_order.is_empty() {
+            content.push_str("\n# Task IDs:\n");
+            for task_id in &state.task_order {
+                if let Some(task) = state.tasks.get(task_id) {
+                    let verb = task.task_type.as_deref().unwrap_or("unknown");
+                    let status = match &task.status {
+                        TaskStatus::Pending => "○",
+                        TaskStatus::Running => "◐",
+                        TaskStatus::Success => "✓",
+                        TaskStatus::Failed => "✗",
+                        TaskStatus::Paused => "⏸",
+                    };
+                    content.push_str(&format!("  - {}: {} {}\n", task_id, verb, status));
+                }
+            }
+        }
+
+        let paragraph = Paragraph::new(content)
+            .style(Style::default().fg(theme.text_primary))
+            .wrap(ratatui::widgets::Wrap { trim: false })
+            .scroll((self.scroll[Self::panel_index(PanelId::RunnerDag)] as u16, 0));
+        frame.render_widget(paragraph, area);
+    }
+
     /// Render DAG Execution panel (Panel 2) using DagAscii widget
     ///
     /// v0.13: Replaced custom tree rendering with DagAscii widget
     /// featuring Sugiyama layout algorithm and real edges.
+    /// v0.21.2: Tab-aware rendering (Graph | Yaml)
     fn render_dag_panel(
         &self,
         frame: &mut Frame,
@@ -524,13 +650,18 @@ impl MonitorView {
         theme: &Theme,
         focused: bool,
     ) {
+        // v0.21.2: Tab indicator in title
+        let tab_indicator = state.dag_tab.title();
         let mode_indicator = match self.dag_mode {
             NodeBoxMode::Minimal => "compact",
             NodeBoxMode::Expanded => "expanded",
         };
 
         let block = Block::default()
-            .title(format!(" ⎔ DAG EXECUTION [{}] ", mode_indicator))
+            .title(format!(
+                " ⎔ DAG EXECUTION [{}/{}] ",
+                tab_indicator, mode_indicator
+            ))
             .title_style(
                 Style::default()
                     .fg(theme.highlight)
@@ -542,6 +673,17 @@ impl MonitorView {
         // Render block first
         let inner_area = block.inner(area);
         frame.render_widget(block, area);
+
+        // v0.21.2: Tab-aware content rendering
+        match state.dag_tab {
+            DagTab::Yaml => {
+                self.render_dag_yaml(frame, inner_area, state, theme);
+                return;
+            }
+            DagTab::Graph => {
+                // Fall through to default DAG visualization below
+            }
+        }
 
         // Build DAG nodes and dependencies
         let nodes = Self::build_dag_nodes(state);
@@ -578,8 +720,11 @@ impl MonitorView {
         theme: &Theme,
         focused: bool,
     ) {
+        // v0.21.2: Tab indicator in title
+        let tab_indicator = state.novanet_tab.title();
+
         let block = Block::default()
-            .title(" ⊛ NOVANET STATION ")
+            .title(format!(" ⊛ NOVANET STATION [{}] ", tab_indicator))
             .title_style(
                 Style::default()
                     .fg(theme.highlight)
@@ -587,6 +732,21 @@ impl MonitorView {
             )
             .borders(Borders::ALL)
             .border_style(theme.border_style(focused));
+
+        // Render block first
+        let inner_area = block.inner(area);
+        frame.render_widget(block.clone(), area);
+
+        // v0.21.2: Tab-aware content rendering
+        match state.novanet_tab {
+            NovanetTab::FullJson => {
+                self.render_novanet_full_json(frame, inner_area, state, theme);
+                return;
+            }
+            NovanetTab::Summary => {
+                // Fall through to default MCP call list below
+            }
+        }
 
         // Build MCP call list
         let items: Vec<ListItem> = state
@@ -635,13 +795,47 @@ impl MonitorView {
             let empty = Paragraph::new(Line::from(vec![Span::styled(
                 "  No MCP calls yet",
                 Style::default().fg(theme.text_muted),
-            )]))
-            .block(block);
-            frame.render_widget(empty, area);
+            )]));
+            frame.render_widget(empty, inner_area);
         } else {
-            let list = List::new(items).block(block);
-            frame.render_widget(list, area);
+            let list = List::new(items);
+            frame.render_widget(list, inner_area);
         }
+    }
+
+    /// Render NovaNet FullJson tab (v0.21.2)
+    /// Shows full JSON response of selected MCP call
+    fn render_novanet_full_json(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        state: &TuiState,
+        theme: &Theme,
+    ) {
+        let selected_idx = self.scroll_offset(PanelId::RunnerNovanet);
+        let call = state.mcp_calls.get(selected_idx);
+
+        let content = if let Some(call) = call {
+            let tool_name = call.tool.as_deref().unwrap_or("resource");
+            let response = call
+                .response
+                .as_ref()
+                .map(|v| serde_json::to_string_pretty(v).unwrap_or_else(|_| "{}".to_string()))
+                .unwrap_or_else(|| "No response".to_string());
+
+            format!("─── {} ───\n{}", tool_name, response)
+        } else {
+            "No MCP call selected".to_string()
+        };
+
+        let paragraph = Paragraph::new(content)
+            .style(Style::default().fg(theme.text_primary))
+            .wrap(ratatui::widgets::Wrap { trim: true })
+            .scroll((
+                self.scroll[Self::panel_index(PanelId::RunnerNovanet)] as u16,
+                0,
+            ));
+        frame.render_widget(paragraph, area);
     }
 
     /// Render Agent Reasoning panel (Panel 4)
@@ -653,8 +847,11 @@ impl MonitorView {
         theme: &Theme,
         focused: bool,
     ) {
+        // v0.21.2: Tab indicator in title
+        let tab_indicator = state.reasoning_tab.title();
+
         let block = Block::default()
-            .title(" ⊕ AGENT REASONING ")
+            .title(format!(" ⊕ AGENT REASONING [{}] ", tab_indicator))
             .title_style(
                 Style::default()
                     .fg(theme.highlight)
@@ -662,6 +859,25 @@ impl MonitorView {
             )
             .borders(Borders::ALL)
             .border_style(theme.border_style(focused));
+
+        // Render block first
+        let inner_area = block.inner(area);
+        frame.render_widget(block.clone(), area);
+
+        // v0.21.2: Tab-aware content rendering
+        match state.reasoning_tab {
+            ReasoningTab::Thinking => {
+                self.render_agent_thinking(frame, inner_area, state, theme);
+                return;
+            }
+            ReasoningTab::Steps => {
+                self.render_agent_steps(frame, inner_area, state, theme);
+                return;
+            }
+            ReasoningTab::Turns => {
+                // Fall through to default agent turns list below
+            }
+        }
 
         // Build agent turn list with thinking display (v0.11.0)
         let items: Vec<ListItem> = state
@@ -725,13 +941,80 @@ impl MonitorView {
             let empty = Paragraph::new(Line::from(vec![Span::styled(
                 "  No agent activity",
                 Style::default().fg(theme.text_muted),
-            )]))
-            .block(block);
-            frame.render_widget(empty, area);
+            )]));
+            frame.render_widget(empty, inner_area);
         } else {
-            let list = List::new(items).block(block);
-            frame.render_widget(list, area);
+            let list = List::new(items);
+            frame.render_widget(list, inner_area);
         }
+    }
+
+    /// Render Agent Thinking tab (v0.21.2)
+    /// Shows full thinking/reasoning content for selected turn
+    fn render_agent_thinking(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        state: &TuiState,
+        theme: &Theme,
+    ) {
+        let selected_idx = self.scroll_offset(PanelId::RunnerReasoning);
+        let turn = state.agent_turns.get(selected_idx);
+
+        let content = if let Some(turn) = turn {
+            if let Some(ref thinking) = turn.thinking {
+                format!("─── Turn {} Thinking ───\n{}", turn.index + 1, thinking)
+            } else {
+                format!("Turn {} has no thinking content", turn.index + 1)
+            }
+        } else {
+            "No agent turn selected".to_string()
+        };
+
+        let paragraph = Paragraph::new(content)
+            .style(Style::default().fg(theme.text_primary))
+            .wrap(ratatui::widgets::Wrap { trim: true })
+            .scroll((
+                self.scroll[Self::panel_index(PanelId::RunnerReasoning)] as u16,
+                0,
+            ));
+        frame.render_widget(paragraph, area);
+    }
+
+    /// Render Agent Steps tab (v0.21.2)
+    /// Shows step-by-step breakdown of agent reasoning
+    fn render_agent_steps(&self, frame: &mut Frame, area: Rect, state: &TuiState, theme: &Theme) {
+        let selected_idx = self.scroll_offset(PanelId::RunnerReasoning);
+        let turn = state.agent_turns.get(selected_idx);
+
+        let content = if let Some(turn) = turn {
+            let mut steps = format!("─── Turn {} Steps ───\n", turn.index + 1);
+            steps.push_str(&format!("Status: {}\n", turn.status));
+
+            if !turn.tool_calls.is_empty() {
+                steps.push_str("\nTool Calls:\n");
+                for (i, tool) in turn.tool_calls.iter().enumerate() {
+                    steps.push_str(&format!("  {}. {}\n", i + 1, tool));
+                }
+            }
+
+            if let Some(tokens) = turn.tokens {
+                steps.push_str(&format!("\nTokens: {}\n", tokens));
+            }
+
+            steps
+        } else {
+            "No agent turn selected".to_string()
+        };
+
+        let paragraph = Paragraph::new(content)
+            .style(Style::default().fg(theme.text_primary))
+            .wrap(ratatui::widgets::Wrap { trim: true })
+            .scroll((
+                self.scroll[Self::panel_index(PanelId::RunnerReasoning)] as u16,
+                0,
+            ));
+        frame.render_widget(paragraph, area);
     }
     // v0.12.1: render_footer() removed - global StatusBar handles metrics now
 }

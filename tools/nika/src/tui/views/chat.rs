@@ -3684,34 +3684,6 @@ impl View for ChatView {
             return ViewAction::None;
         }
 
-        // v0.16.4: Ctrl+Z = Undo (EditHistory)
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('z') {
-            if let Some((text, cursor)) = self.edit_history.undo() {
-                self.input = Input::new(text);
-                // Restore cursor position
-                self.input.handle(InputRequest::GoToStart);
-                for _ in 0..cursor {
-                    self.input.handle(InputRequest::GoToNextChar);
-                }
-                self.update_mode_from_input();
-            }
-            return ViewAction::None;
-        }
-
-        // v0.16.4: Ctrl+Y = Redo (EditHistory)
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('y') {
-            if let Some((text, cursor)) = self.edit_history.redo() {
-                self.input = Input::new(text);
-                // Restore cursor position
-                self.input.handle(InputRequest::GoToStart);
-                for _ in 0..cursor {
-                    self.input.handle(InputRequest::GoToNextChar);
-                }
-                self.update_mode_from_input();
-            }
-            return ViewAction::None;
-        }
-
         // v0.16.4: Ctrl+j/k for vim-style panel navigation (works from any panel)
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             if key.code == KeyCode::Char('j') {

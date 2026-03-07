@@ -390,9 +390,9 @@ mod tests {
         let mut s = String::new();
         for y in 0..buf.area.height {
             for x in 0..buf.area.width {
-                #[allow(deprecated)]
-                let cell = buf.get(buf.area.x + x, buf.area.y + y);
-                s.push(cell.symbol().chars().next().unwrap_or(' '));
+                if let Some(cell) = buf.cell((buf.area.x + x, buf.area.y + y)) {
+                    s.push(cell.symbol().chars().next().unwrap_or(' '));
+                }
             }
             s.push('\n');
         }

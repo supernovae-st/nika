@@ -454,7 +454,7 @@ impl View for SettingsView {
                 Span::styled("[2]", Style::default().fg(theme.highlight)),
                 Span::styled(" Dark  ", Style::default().fg(theme.text_muted)),
                 Span::styled("[3]", Style::default().fg(theme.highlight)),
-                Span::styled(" Solarized", Style::default().fg(theme.text_muted)),
+                Span::styled(" Violet", Style::default().fg(theme.text_muted)),
             ]),
             Line::from(vec![
                 Span::styled("  ", Style::default()),

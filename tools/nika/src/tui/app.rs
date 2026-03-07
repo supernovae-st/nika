@@ -1577,10 +1577,17 @@ impl App {
             }
             ViewAction::OpenInStudio(path) => {
                 // Load the file into studio and switch to Studio view
-                if let Err(e) = self.studio_view.load_file(path) {
-                    tracing::error!("Failed to load file in studio: {}", e);
+                match self.studio_view.load_file(path.clone()) {
+                    Ok(_) => {
+                        self.set_status(&format!("✓ Opened: {}", path.display()));
+                        Action::SwitchView(TuiView::Studio)
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to load file in studio: {}", e);
+                        self.set_status(&format!("✗ Failed to open: {}", e));
+                        Action::Continue // Don't switch view on error
+                    }
                 }
-                Action::SwitchView(TuiView::Studio)
             }
             ViewAction::SendChatMessage(msg) => {
                 // v0.12.1: Send message using TaskBox pattern (like /infer)
@@ -1765,6 +1772,9 @@ impl App {
 
                 // Drop the old chat_agent so next infer call creates fresh one with new provider
                 self.chat_agent = None;
+
+                // v0.21.2: Sync SettingsView display
+                self.settings_view.update_provider(&provider_id, &model);
 
                 self.set_status(&format!("✓ Switched to {} ({})", provider_id, model));
                 Action::Continue
