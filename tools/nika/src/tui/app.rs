@@ -61,8 +61,8 @@ use super::theme::Theme;
 use super::utils::truncate_str;
 use super::verification::{VerificationCache, VerificationEntry};
 use super::views::{
-    ChatView, HelpView, HomeView, McpAction, MonitorView, SchedulerView, SettingsView, SplitView,
-    StudioView, TuiView, View, ViewAction,
+    ChatView, HomeView, McpAction, MonitorView, SchedulerView, SettingsView, StudioView, TuiView,
+    View, ViewAction,
 };
 use super::widgets::task_box::{
     AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,
@@ -242,14 +242,10 @@ pub struct App {
     studio_view: StudioView,
     /// Settings view state (v0.11 auxiliary)
     settings_view: SettingsView,
-    /// Help view state (v0.11 auxiliary)
-    help_view: HelpView,
     /// Monitor view state (v0.11 - workflow execution monitoring)
     monitor_view: MonitorView,
     /// Scheduler view state (v0.12 - cron/queue management)
     scheduler_view: SchedulerView,
-    /// Split view state (v0.13 - side-by-side Editor + Runner)
-    split_view: SplitView,
     // ═══ LLM Integration for ChatOverlay ═══
     /// Channel for receiving LLM responses (complete responses)
     llm_response_rx: mpsc::Receiver<String>,
@@ -316,10 +312,8 @@ impl App {
         // Load workflow file into studio view
         let _ = studio_view.load_file(workflow_path.to_path_buf());
         let settings_view = SettingsView::new();
-        let help_view = HelpView::new();
         let monitor_view = MonitorView::new();
         let scheduler_view = SchedulerView::new();
-        let split_view = SplitView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -363,10 +357,8 @@ impl App {
             home_view: None, // No home view in execution mode
             studio_view,
             settings_view,
-            help_view,
             monitor_view,
             scheduler_view,
-            split_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -395,10 +387,8 @@ impl App {
         let home_view = HomeView::new(standalone_state.root.clone());
         let studio_view = StudioView::new();
         let settings_view = SettingsView::new();
-        let help_view = HelpView::new();
         let monitor_view = MonitorView::new();
         let scheduler_view = SchedulerView::new();
-        let split_view = SplitView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -442,10 +432,8 @@ impl App {
             home_view: Some(home_view),
             studio_view,
             settings_view,
-            help_view,
             monitor_view,
             scheduler_view,
-            split_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -702,6 +690,8 @@ impl App {
             }
             self.studio_view.tick(&mut self.state); // v0.21: 3-panel animations + validation
             self.monitor_view.tick(&mut self.state); // v0.12.1: Runner panel animations
+            self.scheduler_view.tick(&mut self.state); // v0.22: Scheduler animations
+            self.settings_view.tick(&mut self.state); // v0.22: Settings animations
 
             // v0.12: Tick intro animation (if active)
             if let Some(ref mut intro) = self.intro_state {
@@ -1311,7 +1301,6 @@ impl App {
                 format!("Tasks: {}/{}", completed, task_count)
             };
             let scheduler_status = self.scheduler_view.status_line(&self.state);
-            let _split_status = self.split_view.status_line(&self.state); // v0.13: Split view
 
             // Extract references to avoid borrow issues with the closure
             let theme = &self.theme;
@@ -1320,10 +1309,8 @@ impl App {
             let _home_view = &mut self.home_view;
             let studio_view = &mut self.studio_view;
             let settings_view = &mut self.settings_view;
-            let _help_view = &mut self.help_view; // v0.12: Help merged into Settings, kept for backwards compat
             let monitor_view = &mut self.monitor_view;
             let scheduler_view = &mut self.scheduler_view;
-            let _split_view = &mut self.split_view; // v0.13: Split view
             let workflow_path = &self.state.workflow.path;
             let intro_state = &self.intro_state; // v0.12: Intro animation state
                                                  // P0 Fix: Use is_paused() accessor for unified pause state

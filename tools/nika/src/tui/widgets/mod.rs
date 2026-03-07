@@ -13,6 +13,7 @@
 //! - Header: Top header with view title and navigation hints
 
 // Allow unused code in widgets - many are planned for future TUI enhancements
+// v0.22: Kept blanket allow - 40+ widgets in pre-built library
 #![allow(dead_code)]
 
 mod activity_stack;

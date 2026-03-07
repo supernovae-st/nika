@@ -1,34 +1,35 @@
 //! Terminal User Interface Module
 //!
-//! Feature-gated TUI with 4-view architecture (v0.5.2+).
+//! Feature-gated TUI with 5-view architecture (v0.22+).
 //!
 //! # Entry Points
 //!
-//! - `nika` → Home view (browse workflows)
+//! - `nika` → Studio view (3-panel: Browser | Editor | DAG)
 //! - `nika chat` → Chat view (conversational agent)
 //! - `nika studio` → Studio view (YAML editor)
-//! - `nika workflow.yaml` → Monitor view (run workflow)
+//! - `nika workflow.yaml` → Runner view (run workflow)
 //!
-//! # 4-View Architecture
+//! # 5-View Architecture
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────┐
-//! │  [a] Chat  │  [h] Home  │  [s] Studio  │  [m] Monitor          │
+//! │  [1] Studio  │ [2] Runner │ [3] Chat │ [4] Scheduler │ [5] Settings │
 //! ├─────────────────────────────────────────────────────────────────┤
 //! │                                                                 │
-//! │  Chat:    Conversational agent, 5-verb support, MCP tools      │
-//! │  Home:    File browser for .nika.yaml, execution history       │
-//! │  Studio:  YAML editor with live validation, schema hints       │
-//! │  Monitor: Real-time 4-panel observer (DAG, Reasoning, NovaNet) │
+//! │  Studio:    3-panel layout (Browser | Editor | DAG Preview)    │
+//! │  Runner:    Real-time execution monitor (DAG, Reasoning)       │
+//! │  Chat:      Conversational agent, 5-verb support, MCP tools    │
+//! │  Scheduler: DAG visualization and scheduling                   │
+//! │  Settings:  Configuration and preferences                      │
 //! │                                                                 │
 //! └─────────────────────────────────────────────────────────────────┘
 //! ```
 //!
 //! # Navigation
 //!
-//! - `Tab` / `a/h/s/m` - Switch views
+//! - `1-5` - Switch views (Normal mode)
 //! - `?` - Show help
-//! - `q` - Quit
+//! - `Ctrl+C` (2x) - Quit
 //!
 //! # Panic Recovery (v0.7.0+)
 //!
@@ -290,7 +291,7 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
     });
 
     // 5. Create and run TUI with event receiver
-    // Use run_unified() for the 4-view architecture (Chat/Home/Studio/Monitor)
+    // Use run_unified() for the 5-view architecture (Studio/Runner/Chat/Scheduler/Settings)
     let app = App::new(workflow_path)?.with_broadcast_receiver(event_rx);
     let tui_result = app.run_unified().await;
 
@@ -317,8 +318,8 @@ pub async fn run_tui_standalone() -> crate::error::Result<()> {
     // Create standalone state
     let state = StandaloneState::new(root);
 
-    // Create and run standalone app with unified 4-view architecture
-    // Starts in Home view (file browser) with Chat/Studio/Monitor available
+    // Create and run standalone app with unified 5-view architecture
+    // Starts in Studio view (3-panel: Browser | Editor | DAG)
     let app = App::new_standalone(state)?;
     app.run_unified().await
 }
@@ -392,7 +393,7 @@ pub async fn run_tui_studio(workflow: Option<std::path::PathBuf>) -> crate::erro
 /// Run the TUI with customizable options (view and workflow)
 ///
 /// This is the entry point for `nika ui [--view <view>] [workflow]` command.
-/// Supports all 7 views: explorer, chat, editor, runner, scheduler, settings, split.
+/// Supports all 5 views: Studio, Runner, Chat, Scheduler, Settings.
 ///
 /// # Arguments
 ///
