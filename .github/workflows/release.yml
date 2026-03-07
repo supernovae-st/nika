@@ -1,12 +1,10 @@
 # Nika Release Workflow
-# Triggers on: tag push (v*) or manual dispatch
+# ==============================================================================
+# Triggered on tag push (v*) or manual dispatch.
+# Builds cross-platform binaries, Docker image, and updates Homebrew formula.
 #
-# Jobs:
-# 1. build: Cross-platform release builds (nika + nika-lsp)
-# 2. release: Create GitHub release with binaries
-#
-# Tag format: v0.8.0
-# Builds: nika CLI + nika-lsp Language Server
+# Pattern aligned with spn-cli for consistency across SuperNovae projects.
+# ==============================================================================
 
 name: Release
 
@@ -16,12 +14,12 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to release (e.g., 0.7.1)'
+      tag:
+        description: 'Tag to release (e.g., v0.21.2)'
         required: true
         type: string
       dry_run:
-        description: 'Dry run (build only, no release)'
+        description: 'Dry run (build only, no release/publish)'
         required: false
         type: boolean
         default: false
@@ -31,205 +29,122 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
-  # Determine Version
-  # ─────────────────────────────────────────────────────────────────────────────
-  version:
-    name: Determine Version
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      tag: ${{ steps.version.outputs.tag }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Determine version
-        id: version
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_VERSION: ${{ inputs.version }}
-          REF: ${{ github.ref }}
-        run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            VERSION="${INPUT_VERSION}"
-            TAG="v${VERSION}"
-          else
-            TAG="${REF#refs/tags/}"
-            VERSION="${TAG#v}"
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Version: $VERSION"
-          echo "Tag: $TAG"
-
-      - name: Validate version matches Cargo.toml
-        env:
-          INPUT_VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          NIKA_VERSION=$(grep '^version = ' tools/nika/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          LSP_VERSION=$(grep '^version = ' tools/nika-lsp/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
-
-          if [ "$NIKA_VERSION" != "$INPUT_VERSION" ]; then
-            echo "::warning::nika Cargo.toml version ($NIKA_VERSION) does not match release version ($INPUT_VERSION)"
-          fi
-
-          if [ "$LSP_VERSION" != "$INPUT_VERSION" ]; then
-            echo "::warning::nika-lsp Cargo.toml version ($LSP_VERSION) does not match release version ($INPUT_VERSION)"
-          fi
-
-          if [ "$NIKA_VERSION" != "$LSP_VERSION" ]; then
-            echo "::error::Version mismatch between nika ($NIKA_VERSION) and nika-lsp ($LSP_VERSION)"
-            exit 1
-          fi
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Build Release Binaries
+  # Build Release Binaries (6 targets)
   # ─────────────────────────────────────────────────────────────────────────────
   build:
-    name: Build (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
-    needs: version
+    name: Build ${{ matrix.target }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux x64
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact: nika-linux-x64
-            binary: nika
-          # Linux ARM64
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            artifact: nika-linux-arm64
-            binary: nika
-            cross: true
-          # macOS x64 (Intel)
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact: nika-macos-x64
-            binary: nika
-          # macOS ARM64 (Apple Silicon)
-          - os: macos-latest
-            target: aarch64-apple-darwin
+          # === Native targets (full features, for Homebrew/GitHub Releases) ===
+          - target: aarch64-apple-darwin
+            os: macos-latest
             artifact: nika-macos-arm64
-            binary: nika
-          # Windows x64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact: nika-windows-x64
-            binary: nika.exe
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact: nika-macos-x64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: nika-linux-arm64
+            cross: true
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: nika-linux-x64
+          # === Docker targets (musl static, no keychain) ===
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            artifact: nika-linux-musl-x64
+            docker: true
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            artifact: nika-linux-musl-arm64
+            docker: true
+            cross: true
 
-      - name: Install Rust toolchain
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross tool (Linux ARM64)
+      - name: Install cross (cross-compilation)
         if: matrix.cross
         run: cargo install cross --git https://github.com/cross-rs/cross
 
-      - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          shared-key: release-${{ matrix.target }}
-
       - name: Install Linux dependencies
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && !matrix.docker
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
 
-      - name: Build nika release binary (native)
-        if: ${{ !matrix.cross }}
-        run: cargo build --manifest-path tools/nika/Cargo.toml --release --target ${{ matrix.target }}
+      - name: Install musl tools
+        if: matrix.docker && !matrix.cross
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
-      - name: Build nika release binary (cross)
-        if: matrix.cross
-        run: cross build --manifest-path tools/nika/Cargo.toml --release --target ${{ matrix.target }}
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-${{ matrix.target }}
 
-      - name: Build nika-lsp release binary (native)
-        if: ${{ !matrix.cross && matrix.os != 'windows-latest' }}
-        run: cargo build --manifest-path tools/nika-lsp/Cargo.toml --release --target ${{ matrix.target }}
+      # Build commands based on target type
+      - name: Build (native, full features)
+        if: "!matrix.cross && !matrix.docker"
+        working-directory: tools/nika
+        run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Build nika-lsp release binary (cross)
-        if: ${{ matrix.cross }}
-        run: cross build --manifest-path tools/nika-lsp/Cargo.toml --release --target ${{ matrix.target }}
+      - name: Build (native, docker features)
+        if: "!matrix.cross && matrix.docker"
+        working-directory: tools/nika
+        run: cargo build --release --target ${{ matrix.target }} --no-default-features --features docker
 
-      - name: Strip binaries (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Build (cross, full features)
+        if: matrix.cross && !matrix.docker
+        working-directory: tools/nika
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Build (cross, docker features)
+        if: matrix.cross && matrix.docker
+        working-directory: tools/nika
+        run: cross build --release --target ${{ matrix.target }} --no-default-features --features docker
+
+      - name: Extract version from tag
+        id: version
         env:
-          TARGET: ${{ matrix.target }}
-          BINARY: ${{ matrix.binary }}
-        run: |
-          # Strip nika binary
-          NIKA_PATH="tools/nika/target/${TARGET}/release/${BINARY}"
-          if [ -f "$NIKA_PATH" ] && ! echo "$TARGET" | grep -q "aarch64-unknown-linux"; then
-            strip "$NIKA_PATH" || true
-          fi
+          TAG: ${{ env.RELEASE_TAG }}
+        run: echo "version=${TAG#v}" >> $GITHUB_OUTPUT
 
-          # Strip nika-lsp binary (if built)
-          LSP_PATH="tools/nika-lsp/target/${TARGET}/release/nika-lsp"
-          if [ -f "$LSP_PATH" ] && ! echo "$TARGET" | grep -q "aarch64-unknown-linux"; then
-            strip "$LSP_PATH" || true
-          fi
-
-      - name: Create archive (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
         env:
-          VERSION: ${{ needs.version.outputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
           ARTIFACT: ${{ matrix.artifact }}
           TARGET: ${{ matrix.target }}
-          BINARY: ${{ matrix.binary }}
         run: |
-          # Create nika archive
-          NIKA_ARCHIVE="${ARTIFACT}-${VERSION}"
-          mkdir -p "dist/${NIKA_ARCHIVE}"
-          cp "tools/nika/target/${TARGET}/release/${BINARY}" "dist/${NIKA_ARCHIVE}/"
-          cp README.md LICENSE CHANGELOG.md "dist/${NIKA_ARCHIVE}/" 2>/dev/null || true
+          # Create archive directory
+          mkdir -p "dist/${ARTIFACT}-${VERSION}"
+
+          # Copy binary
+          cp "tools/nika/target/${TARGET}/release/nika" "dist/${ARTIFACT}-${VERSION}/"
+
+          # Copy documentation
+          cp README.md LICENSE CHANGELOG.md "dist/${ARTIFACT}-${VERSION}/" 2>/dev/null || true
+
+          # Create tarball and checksum
           cd dist
-          tar -czvf "${NIKA_ARCHIVE}.tar.gz" "${NIKA_ARCHIVE}"
-          shasum -a 256 "${NIKA_ARCHIVE}.tar.gz" > "${NIKA_ARCHIVE}.tar.gz.sha256"
-          cd ..
+          tar -czvf "${ARTIFACT}-${VERSION}.tar.gz" "${ARTIFACT}-${VERSION}"
+          shasum -a 256 "${ARTIFACT}-${VERSION}.tar.gz" > "${ARTIFACT}-${VERSION}.tar.gz.sha256"
 
-          # Create nika-lsp archive (if binary exists)
-          LSP_BINARY="tools/nika-lsp/target/${TARGET}/release/nika-lsp"
-          if [ -f "$LSP_BINARY" ]; then
-            LSP_ARTIFACT=$(echo "$ARTIFACT" | sed 's/nika/nika-lsp/')
-            LSP_ARCHIVE="${LSP_ARTIFACT}-${VERSION}"
-            mkdir -p "dist/${LSP_ARCHIVE}"
-            cp "$LSP_BINARY" "dist/${LSP_ARCHIVE}/"
-            cp tools/nika-lsp/README.md "dist/${LSP_ARCHIVE}/" 2>/dev/null || true
-            cp LICENSE "dist/${LSP_ARCHIVE}/" 2>/dev/null || true
-            cd dist
-            tar -czvf "${LSP_ARCHIVE}.tar.gz" "${LSP_ARCHIVE}"
-            shasum -a 256 "${LSP_ARCHIVE}.tar.gz" > "${LSP_ARCHIVE}.tar.gz.sha256"
-          fi
-
-      - name: Create archive (Windows)
-        if: matrix.os == 'windows-latest'
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
-          ARTIFACT: ${{ matrix.artifact }}
-          TARGET: ${{ matrix.target }}
-          BINARY: ${{ matrix.binary }}
-        shell: pwsh
-        run: |
-          $ARCHIVE_NAME = "${env:ARTIFACT}-${env:VERSION}"
-          New-Item -ItemType Directory -Force -Path "dist\$ARCHIVE_NAME"
-          Copy-Item "tools\nika\target\${env:TARGET}\release\${env:BINARY}" "dist\$ARCHIVE_NAME\"
-          Copy-Item README.md, LICENSE, CHANGELOG.md "dist\$ARCHIVE_NAME\" -ErrorAction SilentlyContinue
-          Compress-Archive -Path "dist\$ARCHIVE_NAME" -DestinationPath "dist\$ARCHIVE_NAME.zip"
-          Get-FileHash "dist\$ARCHIVE_NAME.zip" -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $ARCHIVE_NAME.zip" } | Out-File -Encoding ascii "dist\$ARCHIVE_NAME.zip.sha256"
-
-      - name: Upload artifact (Unix)
-        if: matrix.os != 'windows-latest'
-        uses: actions/upload-artifact@v7
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: |
@@ -237,57 +152,147 @@ jobs:
             dist/*.sha256
           retention-days: 7
 
-      - name: Upload artifact (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v7
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Publish Docker Image (from pre-built musl binaries)
+  # ─────────────────────────────────────────────────────────────────────────────
+  docker-publish:
+    name: Publish Docker Image
+    needs: build
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: |
-            dist/*.zip
-            dist/*.sha256
-          retention-days: 7
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Download Linux amd64 artifact (musl static)
+        uses: actions/download-artifact@v4
+        with:
+          name: nika-linux-musl-x64
+          path: artifacts/amd64
+
+      - name: Download Linux arm64 artifact (musl static)
+        uses: actions/download-artifact@v4
+        with:
+          name: nika-linux-musl-arm64
+          path: artifacts/arm64
+
+      - name: Extract version
+        id: version
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Extract binaries for Docker
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p docker-context/amd64 docker-context/arm64
+
+          # Extract binaries
+          tar -xzf "artifacts/amd64/nika-linux-musl-x64-${VERSION}.tar.gz" -C docker-context/amd64 --strip-components=1
+          tar -xzf "artifacts/arm64/nika-linux-musl-arm64-${VERSION}.tar.gz" -C docker-context/arm64 --strip-components=1
+
+          chmod +x docker-context/*/nika
+
+          # Verify static linking
+          echo "=== Verifying binaries ==="
+          file docker-context/amd64/nika
+          ls -la docker-context/*/
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/supernovae-st/nika
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: docker-context
+          file: tools/nika/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ghcr.io/supernovae-st/nika
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Create GitHub Release
   # ─────────────────────────────────────────────────────────────────────────────
   release:
     name: Create Release
-    runs-on: ubuntu-latest
-    needs: [version, build]
+    needs: [build, docker-publish]
     if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
 
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sha256" \) -exec cp {} release-assets/ \;
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.sha256" \) -exec cp {} release-assets/ \;
+          echo "=== Release assets ==="
           ls -la release-assets/
 
-      - name: Generate release notes
-        id: notes
+      - name: Extract version
+        id: version
         env:
-          VERSION: ${{ needs.version.outputs.version }}
-        run: |
-          # Extract changelog section for this version
-          if [ -f "CHANGELOG.md" ]; then
-            NOTES=$(awk -v ver="$VERSION" '/^## \[/{if(match($0, ver)){found=1; next}} /^## \[/{if(found) exit} found{print}' CHANGELOG.md || true)
-            if [ -z "$NOTES" ]; then
-              NOTES="Release v${VERSION}"
-            fi
-          else
-            NOTES="Release v${VERSION}"
-          fi
+          TAG: ${{ env.RELEASE_TAG }}
+        run: echo "version=${TAG#v}" >> $GITHUB_OUTPUT
 
-          # Create beautiful ASCII release notes
+      - name: Generate release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Create release notes
           cat > release-notes.md << 'HEADER'
           ```
           ╔═══════════════════════════════════════════════════════════════════════════════╗
@@ -300,92 +305,58 @@ jobs:
           ```
           HEADER
 
-          # Add version banner
           echo "" >> release-notes.md
-          echo "## 🦋 What's New in v${VERSION}" >> release-notes.md
+          echo "## 🦋 Nika v${VERSION}" >> release-notes.md
           echo "" >> release-notes.md
 
-          # Add changelog content
-          echo "$NOTES" >> release-notes.md
+          # Extract changelog section
+          if [ -f "CHANGELOG.md" ]; then
+            NOTES=$(awk -v ver="${VERSION}" '/^## \[/{if(match($0, ver)){found=1; next}} /^## \[/{if(found) exit} found{print}' CHANGELOG.md || true)
+            if [ -n "$NOTES" ]; then
+              echo "$NOTES" >> release-notes.md
+            fi
+          fi
 
-          # Add stats section
-          cat >> release-notes.md << 'STATS'
+          # Add installation section
+          cat >> release-notes.md << INSTALL
 
           ---
 
-          ## 📊 Stats
+          ## 📦 Installation
 
-          | Metric | Value |
-          |--------|-------|
-          | 🧪 Tests | 3,849+ passing |
-          | 📎 Clippy | 0 warnings |
-          | 🤖 Providers | 7 (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini) |
-          | 📋 Schema | @0.10 |
+          ### Homebrew (macOS/Linux)
+          \`\`\`bash
+          brew tap supernovae-st/tap && brew install nika
+          \`\`\`
 
-          STATS
+          ### Docker
+          \`\`\`bash
+          docker pull ghcr.io/supernovae-st/nika:${VERSION}
+          docker run --rm ghcr.io/supernovae-st/nika:${VERSION} --version
+          \`\`\`
 
-          # Add downloads section
-          cat >> release-notes.md << DOWNLOADS
+          ### Binary Download
+          Download the appropriate archive for your platform from the assets below.
 
-          ## 📦 Downloads
-
-          ### Nika CLI
-
-          | Platform | Architecture | Binary |
-          |----------|--------------|--------|
+          | Platform | Architecture | File |
+          |----------|--------------|------|
           | 🍎 macOS | Apple Silicon | \`nika-macos-arm64-${VERSION}.tar.gz\` |
           | 🍎 macOS | Intel | \`nika-macos-x64-${VERSION}.tar.gz\` |
           | 🐧 Linux | x64 | \`nika-linux-x64-${VERSION}.tar.gz\` |
           | 🐧 Linux | ARM64 | \`nika-linux-arm64-${VERSION}.tar.gz\` |
-          | 🪟 Windows | x64 | \`nika-windows-x64-${VERSION}.zip\` |
-
-          ### Nika LSP (Language Server)
-
-          | Platform | Architecture | Binary |
-          |----------|--------------|--------|
-          | 🍎 macOS | Apple Silicon | \`nika-lsp-macos-arm64-${VERSION}.tar.gz\` |
-          | 🍎 macOS | Intel | \`nika-lsp-macos-x64-${VERSION}.tar.gz\` |
-          | 🐧 Linux | x64 | \`nika-lsp-linux-x64-${VERSION}.tar.gz\` |
-          | 🐧 Linux | ARM64 | \`nika-lsp-linux-arm64-${VERSION}.tar.gz\` |
-
-          DOWNLOADS
-
-          # Add checksums with nice formatting
-          echo "" >> release-notes.md
-          echo "## 🔐 Checksums (SHA256)" >> release-notes.md
-          echo "" >> release-notes.md
-          echo '```' >> release-notes.md
-          cat release-assets/*.sha256 >> release-notes.md
-          echo '```' >> release-notes.md
-
-          # Add installation section
-          cat >> release-notes.md << 'INSTALL'
-
-          ## 📥 Installation
-
-          ```bash
-          # Cargo (recommended)
-          cargo install nika
-
-          # Homebrew (macOS/Linux)
-          brew tap supernovae-st/tap && brew install nika
-
-          # Or download binary above and add to PATH
-          ```
 
           ---
 
-          <sub>Made with 💜 and 🦀 by [SuperNovae Studio](https://supernovae.studio)</sub>
+          <sub>Made with 💜 by [SuperNovae Studio](https://supernovae.studio)</sub>
           INSTALL
 
       - name: Determine pre-release
         id: prerelease
         env:
-          VERSION: ${{ needs.version.outputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           # Only mark as pre-release for alpha/beta/rc/dev suffixes
-          # NOTE: Nika is intentionally 0.x.x forever (see CLAUDE.md Version Lock),
-          # so we DON'T treat 0.x versions as pre-release
+          # NOTE: Nika is intentionally 0.x.x forever (see Version Lock)
           if echo "$VERSION" | grep -qE "(alpha|beta|rc|dev)"; then
             echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
           else
@@ -395,61 +366,35 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.version.outputs.tag }}
-          name: Nika ${{ needs.version.outputs.version }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: "🦋 Nika ${{ steps.version.outputs.version }}"
           body_path: release-notes.md
           prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
-          generate_release_notes: false
           files: release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Publish to crates.io (optional, manual trigger)
+  # Update Homebrew Formula
   # ─────────────────────────────────────────────────────────────────────────────
-  publish:
-    name: Publish to crates.io
+  update-homebrew:
+    name: Update Homebrew Formula
+    needs: release
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
-    needs: [version, release]
-    if: ${{ !inputs.dry_run && github.event_name == 'push' }}
-    environment: crates-io
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - name: Extract version
+        id: version
+        run: echo "version=${TAG#v}" >> $GITHUB_OUTPUT
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: Swatinem/rust-cache@v2
-
-      - name: Publish crates (dry-run check)
-        run: |
-          # Publish nika workspace crates in dependency order
-          for crate in nika-core nika-mcp nika-provider nika-runtime nika-tui nika-cli; do
-            echo "Checking $crate..."
-            cargo publish --manifest-path tools/nika/Cargo.toml --dry-run -p "$crate" || true
-          done
-
-          # Publish nika-lsp
-          echo "Checking nika-lsp..."
-          cargo publish --manifest-path tools/nika-lsp/Cargo.toml --dry-run || true
-
-      - name: Publish crates
+      - name: Update Homebrew formula
+        uses: mislav/bump-homebrew-formula-action@v3
+        with:
+          formula-name: nika
+          homebrew-tap: supernovae-st/homebrew-tap
+          download-url: https://github.com/supernovae-st/nika/releases/download/${{ env.TAG }}/nika-macos-x64-${{ steps.version.outputs.version }}.tar.gz
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          if [ -n "$CARGO_REGISTRY_TOKEN" ]; then
-            # Publish nika workspace crates in dependency order with delay
-            for crate in nika-core nika-mcp nika-provider nika-runtime nika-tui nika-cli; do
-              echo "Publishing $crate..."
-              cargo publish --manifest-path tools/nika/Cargo.toml -p "$crate" --no-verify || true
-              sleep 30  # Wait for crates.io to index
-            done
-
-            # Publish nika-lsp
-            echo "Publishing nika-lsp..."
-            cargo publish --manifest-path tools/nika-lsp/Cargo.toml --no-verify || true
-          else
-            echo "CARGO_REGISTRY_TOKEN not set, skipping publish"
-          fi
+          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        continue-on-error: true
