@@ -1,0 +1,98 @@
+//! MCP Call Tracking for Chat View
+//!
+//! Contains methods for tracking MCP tool calls and their lifecycle.
+//! Extracted from mod.rs as part of Phase A1 refactoring.
+
+use std::time::Instant;
+
+use chrono::Local;
+
+use super::{
+    ActivityItem, ChatMessage, ChatView, FailedMcpCall, InlineContent, McpCallData, McpCallStatus,
+    McpStatus, MessageRole,
+};
+use crate::runtime::chat_workflow::Role as WorkflowRole;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MCP Call Tracking
+// ═══════════════════════════════════════════════════════════════════════════════
+
+impl ChatView {
+    /// Add an MCP call to the inline content
+    pub fn add_mcp_call(&mut self, tool: &str, server: &str, params: &str) {
+        let data = McpCallData::new(tool, server).with_params(params);
+        self.inline_content.push(InlineContent::McpCall(data));
+
+        // Add to activity stack as hot
+        self.activity_items.push(ActivityItem::hot(
+            format!("mcp-{}", self.inline_content.len()),
+            "invoke",
+        ));
+
+        // Update MCP server status to hot
+        if let Some(server_info) = self
+            .session_context
+            .mcp_servers
+            .iter_mut()
+            .find(|s| s.name == server)
+        {
+            server_info.status = McpStatus::Hot;
+            server_info.last_call = Some(Instant::now());
+        }
+
+        // v0.8.2: Auto-scroll when MCP call appears
+        self.auto_scroll_to_bottom();
+    }
+
+    /// Complete an MCP call with result
+    pub fn complete_mcp_call(&mut self, result: &str) {
+        if let Some(InlineContent::McpCall(data)) = self.inline_content.last_mut() {
+            data.result = Some(result.to_string());
+            data.status = McpCallStatus::Success;
+        }
+        // Move activity from hot to warm
+        self.transition_activity_to_warm("invoke");
+        // v0.8.2: Auto-scroll when MCP result arrives
+        self.auto_scroll_to_bottom();
+    }
+
+    /// Fail an MCP call with error
+    ///
+    /// v0.9 Phase 2: Also saves the failed call for retry with Ctrl+R
+    pub fn fail_mcp_call(&mut self, error: &str) {
+        if let Some(InlineContent::McpCall(data)) = self.inline_content.last_mut() {
+            // v0.9 Phase 2: Save failed MCP call for retry with Ctrl+R
+            self.last_failed_mcp = Some(FailedMcpCall {
+                tool: data.tool.clone(),
+                server: data.server.clone(),
+                params: serde_json::from_str(&data.params).unwrap_or(serde_json::Value::Null),
+            });
+
+            data.error = Some(error.to_string());
+            data.status = McpCallStatus::Failed;
+        }
+        // v0.8.2: Auto-scroll when MCP error appears
+        self.auto_scroll_to_bottom();
+    }
+
+    /// Add a tool message
+    pub fn add_tool_message(&mut self, content: String) {
+        let id = self.next_message_id();
+        self.messages.push(ChatMessage {
+            id,
+            role: MessageRole::Tool,
+            content: content.clone(),
+            timestamp: Local::now(),
+            created_at: Instant::now(),
+            execution: None,
+            thinking: None,
+        });
+        // v0.12.1: Sync DAG when messages change
+        self.maybe_sync_dag();
+
+        // v0.13: Wire to ChatWorkflow DAG (unified execution)
+        let _ = self
+            .workflow
+            .add_message_with_mentions(&content, WorkflowRole::Tool);
+    }
+}
