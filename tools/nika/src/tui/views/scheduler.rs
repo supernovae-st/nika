@@ -89,12 +89,15 @@ impl SchedulerPanel {
 
 /// A scheduled workflow entry
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct ScheduleEntry {
     pub name: String,
     pub cron: String,
     pub enabled: bool,
+    /// Last run time (for timeline display - v0.13+)
+    #[allow(dead_code)]
     pub last_run: Option<String>,
+    /// Next scheduled run (for timeline display - v0.13+)
+    #[allow(dead_code)]
     pub next_run: Option<String>,
 }
 
@@ -132,16 +135,11 @@ impl SchedulerView {
     /// Render schedule list panel (A)
     fn render_schedule_list(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let is_active = self.active_panel == SchedulerPanel::ScheduleList;
-        let border_color = if is_active {
-            theme.highlight
-        } else {
-            theme.border_normal
-        };
 
         let block = Block::default()
             .title(" 📋 SCHEDULED WORKFLOWS [A] ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(border_color));
+            .border_style(theme.border_style(is_active));
 
         let items: Vec<ListItem> = self
             .schedules
@@ -174,16 +172,11 @@ impl SchedulerView {
     /// Render timeline panel (B)
     fn render_timeline(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let is_active = self.active_panel == SchedulerPanel::Timeline;
-        let border_color = if is_active {
-            theme.highlight
-        } else {
-            theme.border_normal
-        };
 
         let block = Block::default()
             .title(" TIMELINE [B] ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(border_color));
+            .border_style(theme.border_style(is_active));
 
         let text = vec![
             Line::from("     12:00      14:00      16:00      18:00      20:00"),
@@ -204,16 +197,11 @@ impl SchedulerView {
     /// Render history panel (C)
     fn render_history(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let is_active = self.active_panel == SchedulerPanel::History;
-        let border_color = if is_active {
-            theme.highlight
-        } else {
-            theme.border_normal
-        };
 
         let block = Block::default()
             .title(" RUN HISTORY [C] ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(border_color));
+            .border_style(theme.border_style(is_active));
 
         let text = vec![
             Line::from(Span::styled(
@@ -241,16 +229,11 @@ impl SchedulerView {
     /// Render cron editor panel (D)
     fn render_cron_editor(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let is_active = self.active_panel == SchedulerPanel::CronEditor;
-        let border_color = if is_active {
-            theme.highlight
-        } else {
-            theme.border_normal
-        };
 
         let block = Block::default()
             .title(" CRON EDITOR [D] ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(border_color));
+            .border_style(theme.border_style(is_active));
 
         let text = if let Some(schedule) = self.schedules.get(self.selected) {
             vec![

@@ -4874,22 +4874,16 @@ impl ChatView {
 
         let line = Line::from(spans);
 
-        // v0.8 UX: Focus indicators for Input panel (is_focused defined above)
-        let border_color = if is_focused {
-            theme.highlight
-        } else {
-            theme.border_normal
-        };
-
         // v0.16.4: Build block with optional scroll indicator in title
         let total_lines = self.calculate_input_lines(area.width);
         let can_scroll_up = self.input_scroll_offset > 0;
         let can_scroll_down = total_lines > self.input_max_lines
             && self.input_scroll_offset < total_lines.saturating_sub(self.input_max_lines);
 
+        // v0.8 UX: Focus indicators for Input panel (is_focused defined above)
         let mut block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(border_color));
+            .border_style(theme.border_style(is_focused));
 
         // Add scroll indicator title if content exceeds max visible
         if total_lines > self.input_max_lines {
@@ -6565,20 +6559,11 @@ impl ChatView {
 
         // v0.8 UX: Focus indicators for Conversation panel
         let is_focused = self.focused_panel == ChatPanel::Conversation;
-        let border_color = if is_focused {
-            theme.highlight
-        } else {
-            theme.border_normal
-        };
         let title = if is_focused {
             " ▸ 💬 CONVERSATION "
         } else {
             " 💬 CONVERSATION "
         };
-        let mut title_style = Style::default().fg(border_color);
-        if is_focused {
-            title_style = title_style.add_modifier(Modifier::BOLD);
-        }
 
         // Add scroll indicator to title if scrollable
         let title_with_indicator = if let Some(indicator) = self.conversation_scroll.indicator() {
@@ -6590,8 +6575,8 @@ impl ChatView {
         let block = Block::default()
             .borders(Borders::ALL)
             .title(title_with_indicator)
-            .title_style(title_style)
-            .border_style(Style::default().fg(border_color));
+            .title_style(theme.border_style(is_focused))
+            .border_style(theme.border_style(is_focused));
 
         // v0.8.1 FIX: Update total item count for scroll state BEFORE any scroll operations
         let total_items = items.len();

@@ -418,19 +418,19 @@ impl AgentBox {
                         dim_style,
                     )])));
 
-                    // If expanded, show response lines
+                    // If expanded, show full response lines
                     if self.expanded_response {
-                        for line in response.lines().take(10) {
-                            let response_line = format!("│   {}", Self::truncate(line, 70));
+                        for line in response.lines() {
+                            let response_line = format!("│   {}", line);
                             items.push(ListItem::new(Line::from(vec![Span::styled(
                                 response_line,
                                 content_style,
                             )])));
                         }
-                        // Indicate if truncated
-                        if response.lines().count() > 10 {
+                        // Handle empty response case
+                        if response.is_empty() {
                             items.push(ListItem::new(Line::from(vec![Span::styled(
-                                "│   ... (truncated)",
+                                "│   (empty)",
                                 dim_style,
                             )])));
                         }

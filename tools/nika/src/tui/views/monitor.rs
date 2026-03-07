@@ -348,12 +348,6 @@ impl MonitorView {
         theme: &Theme,
         focused: bool,
     ) {
-        let border_color = if focused {
-            theme.highlight
-        } else {
-            theme.border_normal
-        };
-
         let mode_indicator = match self.render_mode {
             RenderMode::Compact => "compact",
             RenderMode::Expanded => "expanded",
@@ -372,7 +366,7 @@ impl MonitorView {
                     .add_modifier(Modifier::BOLD),
             )
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(border_color));
+            .border_style(theme.border_style(focused));
 
         let inner_area = block.inner(area);
         frame.render_widget(block, area);
@@ -530,12 +524,6 @@ impl MonitorView {
         theme: &Theme,
         focused: bool,
     ) {
-        let border_color = if focused {
-            theme.highlight
-        } else {
-            theme.border_normal
-        };
-
         let mode_indicator = match self.dag_mode {
             NodeBoxMode::Minimal => "compact",
             NodeBoxMode::Expanded => "expanded",
@@ -549,7 +537,7 @@ impl MonitorView {
                     .add_modifier(Modifier::BOLD),
             )
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(border_color));
+            .border_style(theme.border_style(focused));
 
         // Render block first
         let inner_area = block.inner(area);
@@ -590,12 +578,6 @@ impl MonitorView {
         theme: &Theme,
         focused: bool,
     ) {
-        let border_color = if focused {
-            theme.highlight
-        } else {
-            theme.border_normal
-        };
-
         let block = Block::default()
             .title(" ⊛ NOVANET STATION ")
             .title_style(
@@ -604,7 +586,7 @@ impl MonitorView {
                     .add_modifier(Modifier::BOLD),
             )
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(border_color));
+            .border_style(theme.border_style(focused));
 
         // Build MCP call list
         let items: Vec<ListItem> = state
@@ -671,12 +653,6 @@ impl MonitorView {
         theme: &Theme,
         focused: bool,
     ) {
-        let border_color = if focused {
-            theme.highlight
-        } else {
-            theme.border_normal
-        };
-
         let block = Block::default()
             .title(" ⊕ AGENT REASONING ")
             .title_style(
@@ -685,7 +661,7 @@ impl MonitorView {
                     .add_modifier(Modifier::BOLD),
             )
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(border_color));
+            .border_style(theme.border_style(focused));
 
         // Build agent turn list with thinking display (v0.11.0)
         let items: Vec<ListItem> = state

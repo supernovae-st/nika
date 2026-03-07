@@ -66,8 +66,7 @@ pub use filter::{filter_from_key, FilterConfig, TreeFilter};
 
 // Core types
 pub use node::{
-    build_git_status_cache, GitStatus, GitStatusCache, NodeId, NodeKind, TreeNode,
-    MAX_TREE_DEPTH,
+    build_git_status_cache, GitStatus, GitStatusCache, NodeId, NodeKind, TreeNode, MAX_TREE_DEPTH,
 };
 
 // State management

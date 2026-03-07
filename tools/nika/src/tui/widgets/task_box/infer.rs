@@ -302,16 +302,38 @@ impl InferBox {
         items.push(ListItem::new(prompt_header));
 
         // Prompt content - use streaming partial if available, otherwise stored prompt
-        let prompt_text = if ctx.is_streaming && !ctx.partial_response.is_empty() {
-            ctx.partial_response.to_string()
+        if ctx.is_streaming && !ctx.partial_response.is_empty() {
+            let prompt_line = Line::from(vec![
+                Span::styled("│ ", border_style),
+                Span::styled(format!("┊ {}", ctx.partial_response), content_style),
+            ]);
+            items.push(ListItem::new(prompt_line));
+        } else if self.expanded_prompt {
+            // Show full prompt with line breaks when expanded
+            for line in self.prompt.lines() {
+                let prompt_line = Line::from(vec![
+                    Span::styled("│ ", border_style),
+                    Span::styled(format!("┊ {}", line), content_style),
+                ]);
+                items.push(ListItem::new(prompt_line));
+            }
+            // Handle empty prompt case
+            if self.prompt.is_empty() {
+                let prompt_line = Line::from(vec![
+                    Span::styled("│ ", border_style),
+                    Span::styled("┊ ", content_style),
+                ]);
+                items.push(ListItem::new(prompt_line));
+            }
         } else {
-            Self::truncate(&self.prompt.replace('\n', " "), 60)
-        };
-        let prompt_line = Line::from(vec![
-            Span::styled("│ ", border_style),
-            Span::styled(format!("┊ {}", prompt_text), content_style),
-        ]);
-        items.push(ListItem::new(prompt_line));
+            // Truncated single line
+            let prompt_text = Self::truncate(&self.prompt.replace('\n', " "), 60);
+            let prompt_line = Line::from(vec![
+                Span::styled("│ ", border_style),
+                Span::styled(format!("┊ {}", prompt_text), content_style),
+            ]);
+            items.push(ListItem::new(prompt_line));
+        }
 
         // Separator
         items.push(ListItem::new(Line::from(vec![Span::styled(
@@ -359,17 +381,41 @@ impl InferBox {
             items.push(ListItem::new(Line::from(spans)));
         } else {
             // Plain text (completed or decrypt disabled)
-            let text = Self::truncate(&self.response.replace('\n', " "), 60);
             let cursor = if self.streaming_cursor && self.state.is_running() {
                 "█"
             } else {
                 ""
             };
-            let response_line = Line::from(vec![
-                Span::styled("│ ", border_style),
-                Span::styled(format!("┊ {}{}", text, cursor), content_style),
-            ]);
-            items.push(ListItem::new(response_line));
+
+            if self.expanded_response {
+                // Show full response with line breaks when expanded
+                let lines: Vec<&str> = self.response.lines().collect();
+                for (i, line) in lines.iter().enumerate() {
+                    let is_last = i == lines.len() - 1;
+                    let line_cursor = if is_last { cursor } else { "" };
+                    let response_line = Line::from(vec![
+                        Span::styled("│ ", border_style),
+                        Span::styled(format!("┊ {}{}", line, line_cursor), content_style),
+                    ]);
+                    items.push(ListItem::new(response_line));
+                }
+                // Handle empty response case (shouldn't happen here but be defensive)
+                if lines.is_empty() {
+                    let response_line = Line::from(vec![
+                        Span::styled("│ ", border_style),
+                        Span::styled(format!("┊ {}", cursor), content_style),
+                    ]);
+                    items.push(ListItem::new(response_line));
+                }
+            } else {
+                // Truncated single line
+                let text = Self::truncate(&self.response.replace('\n', " "), 60);
+                let response_line = Line::from(vec![
+                    Span::styled("│ ", border_style),
+                    Span::styled(format!("┊ {}{}", text, cursor), content_style),
+                ]);
+                items.push(ListItem::new(response_line));
+            }
         }
 
         // Metrics footer

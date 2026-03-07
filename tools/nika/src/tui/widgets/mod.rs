@@ -99,7 +99,7 @@ pub use scroll_indicator::{ScrollHint, ScrollIndicator};
 pub use sparkline::{
     AnimatedLatencySparkline, LatencyHistory, LatencySparkline, SparklineAnimation,
 };
-pub use status_bar::{ConnectionStatus, Provider, StatusBar, StatusMetrics};
+pub use status_bar::{ConnectionStatus, Provider, StatusBar, StatusMetrics, WorkflowPhase};
 pub use timeline::{Timeline, TimelineEntry};
 // Pro status bar for Chat view (Claude Code-inspired)
 pub use pro_status_bar::{ChatModeIndicator, ProStatusBar, SessionMetrics};

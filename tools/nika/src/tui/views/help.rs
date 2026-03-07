@@ -45,12 +45,6 @@ pub struct HelpView {
     pub scroll_offset: u16,
     /// Total lines in content
     pub total_lines: u16,
-    /// Search query (for future use)
-    #[allow(dead_code)]
-    pub search_query: String,
-    /// Is in search mode (for future use)
-    #[allow(dead_code)]
-    pub searching: bool,
 }
 
 impl HelpView {
@@ -59,8 +53,6 @@ impl HelpView {
         Self {
             scroll_offset: 0,
             total_lines: 0,
-            search_query: String::new(),
-            searching: false,
         }
     }
 
@@ -365,7 +357,6 @@ mod tests {
         let view = HelpView::new();
         assert_eq!(view.scroll_offset, 0);
         assert_eq!(view.total_lines, 0);
-        assert!(!view.searching);
     }
 
     #[test]

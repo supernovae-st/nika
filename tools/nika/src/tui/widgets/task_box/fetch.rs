@@ -360,12 +360,22 @@ impl FetchBox {
         // Response body (if expanded and present)
         if self.expanded_response {
             if let Some(ref body) = self.response_body {
-                let body_display = Self::truncate(body, 60);
-                let body_line = Line::from(vec![
-                    Span::styled("│ ", border_style),
-                    Span::styled(format!("┊ {}", body_display), content_style),
-                ]);
-                items.push(ListItem::new(body_line));
+                // Show full response with line breaks when expanded
+                for line in body.lines() {
+                    let body_line = Line::from(vec![
+                        Span::styled("│ ", border_style),
+                        Span::styled(format!("┊ {}", line), content_style),
+                    ]);
+                    items.push(ListItem::new(body_line));
+                }
+                // Handle empty body case
+                if body.is_empty() {
+                    let body_line = Line::from(vec![
+                        Span::styled("│ ", border_style),
+                        Span::styled("┊ (empty)", dim_style),
+                    ]);
+                    items.push(ListItem::new(body_line));
+                }
             }
         }
 

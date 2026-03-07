@@ -118,6 +118,61 @@ impl Provider {
     }
 }
 
+/// Workflow execution phase for status feedback
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WorkflowPhase {
+    #[default]
+    Idle,
+    Parsing,
+    Validating,
+    Executing,
+    Completed,
+    Failed,
+}
+
+impl WorkflowPhase {
+    /// Get phase icon
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Self::Idle => "○",
+            Self::Parsing => "◐",
+            Self::Validating => "◔",
+            Self::Executing => "◑",
+            Self::Completed => "●",
+            Self::Failed => "⊗",
+        }
+    }
+
+    /// Get animated icon for active phases
+    pub fn animated_icon(&self, frame: u8) -> &'static str {
+        match self {
+            Self::Parsing | Self::Validating | Self::Executing => {
+                // Spinning animation: ◐ ◓ ◑ ◒
+                const SPIN: [&str; 4] = ["◐", "◓", "◑", "◒"];
+                SPIN[(frame / 8) as usize % 4]
+            }
+            _ => self.icon(),
+        }
+    }
+
+    /// Get phase display name
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Idle => "Idle",
+            Self::Parsing => "Parsing",
+            Self::Validating => "Validating",
+            Self::Executing => "Executing",
+            Self::Completed => "Completed",
+            Self::Failed => "Failed",
+        }
+    }
+
+    /// Check if phase is active (showing animation)
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Parsing | Self::Validating | Self::Executing)
+    }
+}
+
 /// MCP Connection status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ConnectionStatus {
@@ -165,6 +220,12 @@ pub struct StatusMetrics {
     pub mcp_total: usize,
     /// Connection status
     pub connection: ConnectionStatus,
+    /// Current workflow phase
+    pub phase: WorkflowPhase,
+    /// Progress percentage (0-100) for long-running tasks
+    pub progress: Option<u8>,
+    /// Error code (NIKA-XXX) for failed state
+    pub error_code: Option<String>,
 }
 
 impl StatusMetrics {
@@ -191,6 +252,36 @@ impl StatusMetrics {
     pub fn connection(mut self, status: ConnectionStatus) -> Self {
         self.connection = status;
         self
+    }
+
+    pub fn phase(mut self, phase: WorkflowPhase) -> Self {
+        self.phase = phase;
+        self
+    }
+
+    pub fn progress(mut self, progress: u8) -> Self {
+        self.progress = Some(progress.min(100));
+        self
+    }
+
+    pub fn error_code(mut self, code: impl Into<String>) -> Self {
+        self.error_code = Some(code.into());
+        self
+    }
+
+    /// Format progress as a mini bar
+    fn format_progress(&self) -> Option<String> {
+        self.progress.map(|p| {
+            // Mini progress bar: [████░░░░░░] 45%
+            let filled = (p as usize * 8) / 100;
+            let empty = 8 - filled;
+            format!(
+                "[{}{}] {}%",
+                "█".repeat(filled),
+                "░".repeat(empty),
+                p
+            )
+        })
     }
 
     /// Format token count for display
@@ -408,8 +499,74 @@ impl Widget for StatusBar<'_> {
         let mut right_spans: Vec<Span> = Vec::new();
 
         if let Some(ref metrics) = self.metrics {
+            // Workflow phase indicator (only show if not Idle)
+            if metrics.phase != WorkflowPhase::Idle {
+                // Phase color based on state
+                let phase_color = match metrics.phase {
+                    WorkflowPhase::Idle => self.theme.text_muted,
+                    WorkflowPhase::Parsing | WorkflowPhase::Validating => {
+                        // Animated pulse between cyan and blue
+                        use crate::tui::theme::solarized;
+                        if (self.frame / 8) % 2 == 0 {
+                            solarized::CYAN
+                        } else {
+                            solarized::BLUE
+                        }
+                    }
+                    WorkflowPhase::Executing => {
+                        // Animated pulse between yellow and orange
+                        use crate::tui::theme::solarized;
+                        if (self.frame / 8) % 2 == 0 {
+                            solarized::YELLOW
+                        } else {
+                            solarized::ORANGE
+                        }
+                    }
+                    WorkflowPhase::Completed => self.theme.status_success,
+                    WorkflowPhase::Failed => self.theme.status_failed,
+                };
+
+                right_spans.push(Span::styled(
+                    metrics.phase.animated_icon(self.frame),
+                    Style::default().fg(phase_color),
+                ));
+                right_spans.push(Span::raw(" "));
+                right_spans.push(Span::styled(
+                    metrics.phase.name(),
+                    Style::default().fg(phase_color),
+                ));
+
+                // Show progress bar if present
+                if let Some(progress_str) = metrics.format_progress() {
+                    right_spans.push(Span::raw(" "));
+                    right_spans.push(Span::styled(
+                        progress_str,
+                        Style::default().fg(self.theme.highlight),
+                    ));
+                }
+
+                // Show error code if failed
+                if metrics.phase == WorkflowPhase::Failed {
+                    if let Some(ref code) = metrics.error_code {
+                        right_spans.push(Span::raw(" "));
+                        right_spans.push(Span::styled(
+                            format!("[{}]", code),
+                            Style::default()
+                                .fg(self.theme.status_failed)
+                                .add_modifier(Modifier::BOLD),
+                        ));
+                    }
+                }
+            }
+
             // Provider indicator
             if metrics.provider != Provider::None {
+                if !right_spans.is_empty() {
+                    right_spans.push(Span::styled(
+                        " | ",
+                        Style::default().fg(self.theme.text_muted),
+                    ));
+                }
                 right_spans.push(Span::raw(metrics.provider.icon()));
                 right_spans.push(Span::raw(" "));
                 right_spans.push(Span::styled(
@@ -608,5 +765,89 @@ mod tests {
         let metrics = StatusMetrics::new().provider(Provider::Claude).tokens(5000);
         let bar = StatusBar::new(TuiView::Runner, &theme).metrics(metrics);
         assert!(bar.metrics.is_some());
+    }
+
+    #[test]
+    fn test_workflow_phase_icons() {
+        assert_eq!(WorkflowPhase::Idle.icon(), "○");
+        assert_eq!(WorkflowPhase::Parsing.icon(), "◐");
+        assert_eq!(WorkflowPhase::Validating.icon(), "◔");
+        assert_eq!(WorkflowPhase::Executing.icon(), "◑");
+        assert_eq!(WorkflowPhase::Completed.icon(), "●");
+        assert_eq!(WorkflowPhase::Failed.icon(), "⊗");
+    }
+
+    #[test]
+    fn test_workflow_phase_names() {
+        assert_eq!(WorkflowPhase::Idle.name(), "Idle");
+        assert_eq!(WorkflowPhase::Parsing.name(), "Parsing");
+        assert_eq!(WorkflowPhase::Validating.name(), "Validating");
+        assert_eq!(WorkflowPhase::Executing.name(), "Executing");
+        assert_eq!(WorkflowPhase::Completed.name(), "Completed");
+        assert_eq!(WorkflowPhase::Failed.name(), "Failed");
+    }
+
+    #[test]
+    fn test_workflow_phase_is_active() {
+        assert!(!WorkflowPhase::Idle.is_active());
+        assert!(WorkflowPhase::Parsing.is_active());
+        assert!(WorkflowPhase::Validating.is_active());
+        assert!(WorkflowPhase::Executing.is_active());
+        assert!(!WorkflowPhase::Completed.is_active());
+        assert!(!WorkflowPhase::Failed.is_active());
+    }
+
+    #[test]
+    fn test_workflow_phase_animated_icons() {
+        // Active phases should return spinning animation
+        let parsing_icon = WorkflowPhase::Parsing.animated_icon(0);
+        assert!(["◐", "◓", "◑", "◒"].contains(&parsing_icon));
+
+        // Non-active phases return static icon
+        assert_eq!(WorkflowPhase::Idle.animated_icon(0), "○");
+        assert_eq!(WorkflowPhase::Completed.animated_icon(0), "●");
+        assert_eq!(WorkflowPhase::Failed.animated_icon(0), "⊗");
+    }
+
+    #[test]
+    fn test_status_metrics_progress_formatting() {
+        let m1 = StatusMetrics::new().progress(0);
+        assert_eq!(m1.format_progress(), Some("[░░░░░░░░] 0%".to_string()));
+
+        let m2 = StatusMetrics::new().progress(50);
+        assert_eq!(m2.format_progress(), Some("[████░░░░] 50%".to_string()));
+
+        let m3 = StatusMetrics::new().progress(100);
+        assert_eq!(m3.format_progress(), Some("[████████] 100%".to_string()));
+
+        let m4 = StatusMetrics::new(); // No progress set
+        assert_eq!(m4.format_progress(), None);
+    }
+
+    #[test]
+    fn test_status_metrics_progress_clamping() {
+        // Progress should be clamped to 100
+        let m = StatusMetrics::new().progress(150);
+        assert_eq!(m.progress, Some(100));
+    }
+
+    #[test]
+    fn test_status_metrics_phase_builder() {
+        let metrics = StatusMetrics::new()
+            .phase(WorkflowPhase::Executing)
+            .progress(75)
+            .error_code("NIKA-042");
+
+        assert_eq!(metrics.phase, WorkflowPhase::Executing);
+        assert_eq!(metrics.progress, Some(75));
+        assert_eq!(metrics.error_code, Some("NIKA-042".to_string()));
+    }
+
+    #[test]
+    fn test_status_metrics_default_phase() {
+        let metrics = StatusMetrics::new();
+        assert_eq!(metrics.phase, WorkflowPhase::Idle);
+        assert_eq!(metrics.progress, None);
+        assert_eq!(metrics.error_code, None);
     }
 }

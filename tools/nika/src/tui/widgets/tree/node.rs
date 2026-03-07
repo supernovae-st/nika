@@ -211,13 +211,8 @@ impl TreeNode {
                 Err(_) => continue,
             };
 
-            let child = Self::build_tree_recursive(
-                root,
-                &entry_path,
-                git_cache,
-                child_depth,
-                max_depth,
-            );
+            let child =
+                Self::build_tree_recursive(root, &entry_path, git_cache, child_depth, max_depth);
             children.push(child);
         }
 
