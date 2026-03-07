@@ -16,7 +16,9 @@
 # Stage 1: Chef base with cargo-chef installed
 FROM --platform=$BUILDPLATFORM rust:1.85-alpine AS chef
 RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig perl make
-RUN cargo install cargo-chef --locked
+# Pin cargo-chef version for Rust 1.85 compatibility
+# (latest cargo-chef requires Rust 1.86+ due to guppy dependency)
+RUN cargo install cargo-chef@0.1.70 --locked
 WORKDIR /app
 
 # Stage 2: Planner - analyze dependencies
