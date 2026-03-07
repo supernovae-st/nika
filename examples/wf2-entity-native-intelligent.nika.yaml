@@ -112,6 +112,7 @@ tasks:
     description: "Get full generation context for the entity"
     use:
       parsed: parse_input
+    flow: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_generate
@@ -130,6 +131,7 @@ tasks:
     description: "Get locale-specific knowledge atoms (terms, expressions)"
     use:
       parsed: parse_input
+    flow: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_atoms
@@ -146,6 +148,7 @@ tasks:
     description: "Describe the entity for semantic understanding"
     use:
       parsed: parse_input
+    flow: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_describe
@@ -165,14 +168,15 @@ tasks:
     description: "Find SEOKeywords that target this entity (via TARGETS arc)"
     use:
       parsed: parse_input
+    flow: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_query
       params:
         cypher: |
           // Find SEOKeywords targeting this EntityNative
-          MATCH (en:EntityNative {key: $entity_native_key})-[:TARGETS]->(kw:SEOKeyword)
-          OPTIONAL MATCH (kw)-[:FOR_LOCALE]->(l:Locale {code: $locale})
+          MATCH (en:EntityNative {key: '{{use.parsed.full_key}}'})-[:TARGETS_KEYWORD]->(kw:SEOKeyword)
+          OPTIONAL MATCH (kw)-[:FOR_LOCALE]->(l:Locale {code: '{{use.parsed.locale}}'})
           RETURN kw.key AS key,
                  kw.keyword AS keyword,
                  kw.slug_form AS slug_form,
@@ -182,9 +186,6 @@ tasks:
                  kw.source AS source
           ORDER BY kw.search_volume DESC
           LIMIT 20
-        params:
-          entity_native_key: "{{use.parsed.full_key}}"
-          locale: "{{use.parsed.locale}}"
     output:
       format: json
     artifact:
@@ -194,22 +195,20 @@ tasks:
     description: "Find parent Page to get parent slug (for no-repetition rule)"
     use:
       parsed: parse_input
+    flow: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_query
       params:
         cypher: |
           // Find parent page structure for no-repetition check
-          MATCH (e:Entity {key: $entity_key})<-[:REPRESENTS]-(p:Page)
+          MATCH (e:Entity {key: 'entity:{{use.parsed.entity_key}}'})<-[:REPRESENTS]-(p:Page)
           OPTIONAL MATCH (p)-[:SUBTOPIC_OF]->(parent:Page)
-          OPTIONAL MATCH (parent)-[:HAS_NATIVE]->(pn:PageNative)-[:FOR_LOCALE]->(l:Locale {code: $locale})
+          OPTIONAL MATCH (parent)-[:HAS_NATIVE]->(pn:PageNative)-[:FOR_LOCALE]->(l:Locale {code: '{{use.parsed.locale}}'})
           RETURN p.key AS page_key,
                  parent.key AS parent_page_key,
                  pn.slug AS parent_slug,
                  pn.full_path AS parent_full_path
-        params:
-          entity_key: "{{use.parsed.entity_key}}"
-          locale: "{{use.parsed.locale}}"
     output:
       format: json
     artifact:
@@ -219,14 +218,15 @@ tasks:
     description: "Calculate convergence boost (multiple EntityNatives targeting same keyword)"
     use:
       parsed: parse_input
+    flow: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_query
       params:
         cypher: |
           // Find keywords with convergence (multiple entities targeting them)
-          MATCH (en:EntityNative)-[:TARGETS]->(kw:SEOKeyword)
-          WHERE kw.key CONTAINS $locale
+          MATCH (en:EntityNative)-[:TARGETS_KEYWORD]->(kw:SEOKeyword)
+          WHERE kw.key CONTAINS '{{use.parsed.locale}}'
           WITH kw, count(DISTINCT en) AS convergence_count
           WHERE convergence_count > 1
           RETURN kw.key AS keyword_key,
@@ -235,8 +235,6 @@ tasks:
                  1.0 + (convergence_count * 0.2) AS convergence_boost
           ORDER BY convergence_count DESC
           LIMIT 10
-        params:
-          locale: "{{use.parsed.locale}}"
     output:
       format: json
     artifact:
@@ -395,7 +393,7 @@ tasks:
     artifact:
       path: analysis/slug-scoring.json
 
-    flow: [query_seo_keywords, query_parent_page, query_convergence, get_entity_details, get_entity_context]
+    flow: [parse_input, query_seo_keywords, query_parent_page, query_convergence, get_entity_details, get_entity_context]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 5: Generate Complete EntityNative Content
@@ -521,7 +519,7 @@ tasks:
       - path: content/entity-native-generated.yaml
         format: yaml
 
-    flow: [calculate_slug_scores, get_locale_atoms]
+    flow: [parse_input, calculate_slug_scores, get_locale_atoms]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 6: Validate Before Write (novanet_check)
@@ -563,7 +561,7 @@ tasks:
     artifact:
       path: validation/check-result.json
 
-    flow: [generate_entity_native]
+    flow: [parse_input, generate_entity_native]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 7: Persist EntityNative (novanet_write)
@@ -608,7 +606,7 @@ tasks:
     artifact:
       path: output/write-result.json
 
-    flow: [validate_write]
+    flow: [parse_input, validate_write]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 8: Post-Write Audit
@@ -618,6 +616,7 @@ tasks:
     description: "Run quality audit after write (CSR metrics)"
     use:
       parsed: parse_input
+    flow: [write_entity_native, parse_input]
     invoke:
       mcp: novanet
       tool: novanet_audit
@@ -631,8 +630,6 @@ tasks:
       format: json
     artifact:
       path: audit/coverage-report.json
-
-    flow: [write_entity_native]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 9: Final Summary
@@ -695,7 +692,7 @@ tasks:
       - path: reports/wf2-summary.json
         format: json
 
-    flow: [write_entity_native, audit_result]
+    flow: [parse_input, write_entity_native, audit_result]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 10: Final Output
@@ -742,7 +739,7 @@ tasks:
       echo ""
       echo "═══════════════════════════════════════════════════════════════"
 
-    flow: [generate_summary]
+    flow: [parse_input, generate_summary]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PIPELINE FLOW DIAGRAM
