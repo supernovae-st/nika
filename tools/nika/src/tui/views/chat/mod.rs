@@ -121,11 +121,14 @@ use crate::tui::widgets::{
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Module: types (extracted v0.21.2 - Phase A1 refactor)
+// Submodules (extracted v0.21.2 - Phase A1 refactor)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+mod hints;
 mod types;
+
 pub use types::*;
+use hints::{detect_verb_in_input, verb_placeholder};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Serializable Chat Session (HIGH 8 - Persistent Sessions)
@@ -2981,7 +2984,7 @@ impl ChatView {
         let input = self.input.value();
 
         // Check for verb prefix in input
-        if let Some((_, verb_color, is_complete, _)) = Self::detect_verb_in_input(input) {
+        if let Some((_, verb_color, is_complete, _)) = detect_verb_in_input(input) {
             // Only update if we have a complete verb (with space after)
             if is_complete {
                 // Update chat_mode for Infer/Agent toggle
@@ -4163,7 +4166,7 @@ impl ChatView {
         let input = self.input.value();
 
         if let Some((_verb_len, verb_color, is_complete, full_verb)) =
-            Self::detect_verb_in_input(input)
+            detect_verb_in_input(input)
         {
             if !is_complete {
                 // Partial match → complete the verb name
@@ -4177,7 +4180,7 @@ impl ChatView {
                 };
                 if rest.trim().is_empty() {
                     // Insert first placeholder example
-                    let placeholder = Self::verb_placeholder(&verb_color, 0);
+                    let placeholder = verb_placeholder(&verb_color, 0);
                     return Some(format!("/{} {}", full_verb, placeholder));
                 }
             }
@@ -4293,178 +4296,6 @@ impl ChatView {
             .collect()
     }
 
-    fn verb_placeholder(verb_color: &VerbColor, frame: u8) -> &'static str {
-        let idx = (frame / 60) as usize; // Change every ~1 second at 60fps
-        match verb_color {
-            VerbColor::Invoke => {
-                // v0.8.2: MCP tool examples from NovaNet + common patterns
-                const HINTS: &[&str] = &[
-                    "novanet:describe {\"entity\": \"qr-code\"}",
-                    "novanet:generate {\"locale\": \"fr-FR\", \"entity\": \"landing\"}",
-                    "novanet:traverse {\"start\": \"entity:qr\", \"depth\": 2}",
-                    "novanet:search {\"query\": \"pricing page\"}",
-                    "novanet:atoms {\"entity\": \"qr-code\", \"forms\": [\"title\", \"text\"]}",
-                    "filesystem:read_file {\"path\": \"./README.md\"}",
-                    "filesystem:list_directory {\"path\": \"./src\"}",
-                    "browser:screenshot {\"url\": \"https://example.com\"}",
-                    "database:query {\"sql\": \"SELECT * FROM users LIMIT 5\"}",
-                    "github:search_repos {\"query\": \"language:rust stars:>1000\"}",
-                ];
-                HINTS[idx % HINTS.len()]
-            }
-            VerbColor::Infer => {
-                // v0.8.2: Creative & practical LLM prompts
-                const HINTS: &[&str] = &[
-                    "Generate a landing page headline for a SaaS product",
-                    "Summarize this article in 3 bullet points",
-                    "Translate to French: Hello, how are you today?",
-                    "Explain this Rust code like I'm a beginner",
-                    "Write unit tests for this function using pytest",
-                    "Convert this SQL query to a TypeScript Prisma query",
-                    "Rewrite this paragraph in a more professional tone",
-                    "Generate 5 creative names for a coffee shop",
-                    "Create a regex to match email addresses",
-                    "Write a haiku about programming",
-                    "Debug this error: 'cannot borrow as mutable'",
-                    "Suggest 3 improvements for this API endpoint",
-                    "Write a commit message for these changes",
-                    "Create a product description for wireless earbuds",
-                    "Explain the difference between async and sync",
-                ];
-                HINTS[idx % HINTS.len()]
-            }
-            VerbColor::Exec => {
-                // v0.8.2: Productive shell one-liners
-                const HINTS: &[&str] = &[
-                    "npm run build",
-                    "cargo test --release",
-                    "git status",
-                    "git log --oneline -10",
-                    "git diff --staged",
-                    "git commit -am \"fix: resolve issue\"",
-                    "ls -la ./src | head -20",
-                    "find . -name \"*.rs\" | wc -l",
-                    "grep -r \"TODO\" ./src",
-                    "docker ps -a",
-                    "docker-compose up -d",
-                    "npm outdated",
-                    "cargo clippy -- -D warnings",
-                    "python -m pytest -v",
-                    "curl -I https://example.com",
-                    "du -sh ./target",
-                    "cat package.json | jq '.dependencies'",
-                    "ps aux | grep node",
-                    "netstat -an | grep LISTEN",
-                    "tree -L 2 ./src",
-                ];
-                HINTS[idx % HINTS.len()]
-            }
-            VerbColor::Fetch => {
-                // v0.8.2: Fun real APIs that actually work! (no auth required)
-                const HINTS: &[&str] = &[
-                    "https://catfact.ninja/fact",                         // 🐱 Cat facts
-                    "https://api.open-meteo.com/v1/forecast?latitude=48.8566&longitude=2.3522&current_weather=true", // ☀️ Paris
-                    "https://httpbin.org/get",                            // 🧪 HTTP test
-                    "https://dog.ceo/api/breeds/image/random",            // 🐕 Random dog
-                    "https://api.chucknorris.io/jokes/random",            // 💪 Chuck Norris
-                    "https://uselessfacts.jsph.pl/random.json?language=en", // 🤯 Useless fact
-                    "https://api.coindesk.com/v1/bpi/currentprice.json",  // 💰 Bitcoin
-                    "https://api.github.com/zen",                         // 🧘 GitHub wisdom
-                    "https://official-joke-api.appspot.com/random_joke",  // 😂 Random joke
-                    "https://api.adviceslip.com/advice",                  // 💡 Life advice
-                    "https://randomfox.ca/floof/",                        // 🦊 Random fox
-                    "https://xkcd.com/info.0.json",                       // 📰 Latest xkcd
-                    "https://api.ipify.org?format=json",                  // 🌐 Your IP
-                    "https://worldtimeapi.org/api/ip",                    // 🕐 World time
-                    "https://opentdb.com/api.php?amount=1",               // ❓ Trivia
-                    "http://api.open-notify.org/iss-now.json",            // 🛸 ISS position
-                    "https://api.agify.io?name=thibaut",                  // 🎂 Age guess
-                ];
-                HINTS[idx % HINTS.len()]
-            }
-            VerbColor::Agent => {
-                // v0.8.2: Complex multi-step agentic tasks
-                const HINTS: &[&str] = &[
-                    "Research competitors and write a market analysis report",
-                    "Analyze this codebase and suggest 5 improvements",
-                    "Build a landing page for QR Code AI with SEO",
-                    "Debug this error and propose a fix with tests",
-                    "Create a full REST API spec for a todo app",
-                    "Review this PR and provide detailed feedback",
-                    "Refactor this module to use async/await",
-                    "Generate documentation for all public functions",
-                    "Find and fix all security vulnerabilities",
-                    "Create a migration plan from v1 to v2 API",
-                    "Write a technical blog post about this feature",
-                    "Set up CI/CD pipeline with GitHub Actions",
-                    "Optimize database queries for better performance",
-                    "Create test fixtures for integration tests",
-                    "Design a caching strategy for this endpoint",
-                ];
-                HINTS[idx % HINTS.len()]
-            }
-            VerbColor::Spawn => {
-                // v0.9.1: Spawned sub-agent task hints
-                const HINTS: &[&str] = &[
-                    "Delegate: research this topic in depth",
-                    "Spawn: handle this subtask independently",
-                    "Delegate: write tests for this module",
-                    "Spawn: analyze and summarize these files",
-                    "Delegate: generate documentation for API",
-                    "Spawn: refactor this function for clarity",
-                    "Delegate: investigate this bug in isolation",
-                    "Spawn: create sample data for testing",
-                ];
-                HINTS[idx % HINTS.len()]
-            }
-            VerbColor::User => {
-                // User messages don't have verb placeholders
-                "Type your message..."
-            }
-        }
-    }
-
-    /// v0.8.2: Detect verb command at start of input (e.g., "/invoke", "/infer")
-    /// Returns (verb_len, verb_color, is_complete, full_verb_name) if found
-    fn detect_verb_in_input(input: &str) -> Option<(usize, VerbColor, bool, &'static str)> {
-        // Must start with /
-        if !input.starts_with('/') {
-            return None;
-        }
-
-        // Extract the word after /
-        let rest = &input[1..];
-        let verb_end = rest.find(|c: char| c.is_whitespace()).unwrap_or(rest.len());
-        let verb_word = rest[..verb_end].to_lowercase();
-
-        // Known verbs with their names
-        const VERBS: &[(&str, VerbColor)] = &[
-            ("invoke", VerbColor::Invoke),
-            ("infer", VerbColor::Infer),
-            ("fetch", VerbColor::Fetch),
-            ("exec", VerbColor::Exec),
-            ("agent", VerbColor::Agent),
-        ];
-
-        // Check for exact match first
-        for (name, color) in VERBS {
-            if verb_word == *name {
-                return Some((1 + verb_end, *color, true, name));
-            }
-        }
-
-        // Check for partial match (prefix) - only if at least 2 chars typed
-        if verb_word.len() >= 2 {
-            for (name, color) in VERBS {
-                if name.starts_with(&verb_word) {
-                    return Some((1 + verb_end, *color, false, name));
-                }
-            }
-        }
-
-        None
-    }
-
     fn render_input(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         // Show input with cursor (use tui-input's cursor position)
         let input_value = self.input.value();
@@ -4545,7 +4376,7 @@ impl ChatView {
         } else {
             // v0.8.2: Detect verb at start of input for colorized rendering
             if let Some((verb_len, verb_color, is_complete, full_verb)) =
-                Self::detect_verb_in_input(input_value)
+                detect_verb_in_input(input_value)
             {
                 // Get base color for cursor
                 let verb_fg_color = if is_complete {
@@ -4679,7 +4510,7 @@ impl ChatView {
 
                     // v0.8.2: Show contextual placeholder when verb is complete and no argument yet
                     if is_complete && rest_part.trim().is_empty() {
-                        let placeholder = Self::verb_placeholder(&verb_color, self.frame);
+                        let placeholder = verb_placeholder(&verb_color, self.frame);
                         // Animated color pulse for placeholder
                         let pulse = ((self.frame as f32 / 30.0).sin() + 1.0) / 2.0; // 0.0-1.0
                         let (r, g, b) = verb_color.muted_tuple();
