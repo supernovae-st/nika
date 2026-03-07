@@ -71,7 +71,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          # Use HEAD for dry-run, tag for real releases
+          ref: ${{ inputs.dry_run && github.sha || env.RELEASE_TAG }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -170,7 +171,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          # Use HEAD for dry-run, tag for real releases
+          ref: ${{ inputs.dry_run && github.sha || env.RELEASE_TAG }}
 
       - name: Download Linux amd64 artifact (musl static)
         uses: actions/download-artifact@v4
@@ -268,7 +270,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          # Use HEAD for dry-run, tag for real releases
+          ref: ${{ inputs.dry_run && github.sha || env.RELEASE_TAG }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
