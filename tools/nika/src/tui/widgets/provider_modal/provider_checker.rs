@@ -7,7 +7,8 @@ use std::time::{Duration, Instant};
 
 use reqwest::Client;
 
-use super::keyring::provider_env_var;
+use crate::tui::providers::env_var as provider_env_var;
+
 use super::ollama_client::OllamaClient;
 use super::state::ConnectionStatus;
 
@@ -54,6 +55,7 @@ impl ProviderChecker {
             "mistral" => self.check_mistral().await,
             "groq" => self.check_groq().await,
             "deepseek" => self.check_deepseek().await,
+            "gemini" => self.check_gemini().await,
             "ollama" => self.check_ollama().await,
             _ => Err("Unknown provider".to_string()),
         };
@@ -74,6 +76,7 @@ impl ProviderChecker {
             "mistral",
             "groq",
             "deepseek",
+            "gemini",
             "ollama",
         ];
 
@@ -172,6 +175,24 @@ impl ProviderChecker {
         Ok(())
     }
 
+    async fn check_gemini(&self) -> Result<(), String> {
+        let key = std::env::var("GEMINI_API_KEY").map_err(|_| "No API key")?;
+
+        // Gemini uses Google's generativelanguage API
+        self.client
+            .get(format!(
+                "https://generativelanguage.googleapis.com/v1beta/models?key={}",
+                key
+            ))
+            .send()
+            .await
+            .map_err(|e| format!("Connection failed: {}", e))?
+            .error_for_status()
+            .map_err(|e| format!("API error: {}", e.status().map_or(0, |s| s.as_u16())))?;
+
+        Ok(())
+    }
+
     async fn check_ollama(&self) -> Result<(), String> {
         let client = OllamaClient::new();
         if client.is_available().await {
@@ -240,6 +261,14 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_check_gemini_no_key() {
+        std::env::remove_var("GEMINI_API_KEY");
+        let checker = ProviderChecker::new();
+        let status = checker.check("gemini").await;
+        assert!(matches!(status, ConnectionStatus::NotConfigured));
+    }
+
+    #[tokio::test]
     async fn test_check_ollama_returns_status() {
         // Ollama doesn't require API key
         let checker = ProviderChecker::new();
@@ -272,11 +301,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_check_all_returns_6_results() {
+    async fn test_check_all_returns_7_results() {
         let checker = ProviderChecker::new();
         let results = checker.check_all().await;
-        // Should return results for all 6 providers
-        assert_eq!(results.len(), 6);
+        // Should return results for all 7 LLM providers
+        assert_eq!(results.len(), 7);
     }
 
     // Integration test with real API (only runs if key is set)

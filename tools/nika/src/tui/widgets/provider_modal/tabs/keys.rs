@@ -41,7 +41,9 @@ const COLOR_STATUS_SUCCESS: Color = Color::Rgb(34, 197, 94); // Emerald-500
 /// Status: invalid (error)
 const COLOR_STATUS_ERROR: Color = Color::Rgb(239, 68, 68); // Red-500
 
-use super::super::keyring::{mask_api_key, provider_env_var, SpnKeyring};
+use crate::tui::providers::{env_var as provider_env_var, icons::provider_icon};
+
+use super::super::keyring::{mask_api_key, SpnKeyring};
 use super::super::state::ApiKeyState;
 
 /// Provider key entry for display
@@ -54,46 +56,27 @@ pub struct ProviderKeyEntry {
 }
 
 impl ProviderKeyEntry {
-    /// Create default entries for all providers
+    /// Create default entries for all 7 LLM providers
     pub fn all_providers() -> Vec<Self> {
-        vec![
-            Self {
-                provider: "anthropic",
-                icon: "🧠",
-                env_var: provider_env_var("anthropic"),
-                state: Self::detect_state("anthropic"),
-            },
-            Self {
-                provider: "openai",
-                icon: "🤖",
-                env_var: provider_env_var("openai"),
-                state: Self::detect_state("openai"),
-            },
-            Self {
-                provider: "mistral",
-                icon: "🌀",
-                env_var: provider_env_var("mistral"),
-                state: Self::detect_state("mistral"),
-            },
-            Self {
-                provider: "groq",
-                icon: "⚡",
-                env_var: provider_env_var("groq"),
-                state: Self::detect_state("groq"),
-            },
-            Self {
-                provider: "deepseek",
-                icon: "🔬",
-                env_var: provider_env_var("deepseek"),
-                state: Self::detect_state("deepseek"),
-            },
-            Self {
-                provider: "ollama",
-                icon: "🦙",
-                env_var: provider_env_var("ollama"),
-                state: Self::detect_state("ollama"),
-            },
-        ]
+        let providers = [
+            "anthropic",
+            "openai",
+            "mistral",
+            "groq",
+            "deepseek",
+            "gemini",
+            "ollama",
+        ];
+
+        providers
+            .iter()
+            .map(|&provider| Self {
+                provider,
+                icon: provider_icon(provider),
+                env_var: provider_env_var(provider),
+                state: Self::detect_state(provider),
+            })
+            .collect()
     }
 
     /// Detect key state from keyring (priority) or environment
@@ -128,8 +111,9 @@ impl ProviderKeyEntry {
             "mistral" => "Mistral",
             "groq" => "Groq",
             "deepseek" => "DeepSeek",
+            "gemini" => "Gemini",
             "ollama" => "Ollama",
-            _ => self.provider,
+            _ => "Unknown",
         }
     }
 }
@@ -334,9 +318,9 @@ mod tests {
     use ratatui::layout::Rect;
 
     #[test]
-    fn test_provider_key_entry_all_providers_returns_6() {
+    fn test_provider_key_entry_all_providers_returns_7() {
         let entries = ProviderKeyEntry::all_providers();
-        assert_eq!(entries.len(), 6);
+        assert_eq!(entries.len(), 7);
     }
 
     #[test]
@@ -347,7 +331,8 @@ mod tests {
         assert_eq!(entries[2].provider, "mistral");
         assert_eq!(entries[3].provider, "groq");
         assert_eq!(entries[4].provider, "deepseek");
-        assert_eq!(entries[5].provider, "ollama");
+        assert_eq!(entries[5].provider, "gemini");
+        assert_eq!(entries[6].provider, "ollama");
     }
 
     #[test]
@@ -361,7 +346,7 @@ mod tests {
     #[test]
     fn test_keys_tab_entry_count() {
         let tab = KeysTab::new(0, false, "");
-        assert_eq!(tab.entry_count(), 6);
+        assert_eq!(tab.entry_count(), 7);
     }
 
     #[test]
