@@ -495,8 +495,9 @@ impl ProviderModalState {
     }
 
     /// v0.8.9: Sync all verification statuses from provider_statuses
+    /// v0.21.2: Updated to sync all 7 LLM providers (including Gemini)
     pub fn sync_all_verification_statuses(&mut self) {
-        for i in 0..6 {
+        for i in 0..7 {
             self.sync_verification_status(i);
         }
     }
@@ -636,8 +637,9 @@ impl ProviderModalState {
 
     /// v0.8.9: Push a latency sample to history for a provider
     /// Maintains a rolling window of LATENCY_HISTORY_MAX samples
+    /// v0.21.2: Updated guard to allow all 7 providers (0-6)
     pub fn push_latency(&mut self, index: usize, latency_ms: u64) {
-        if index >= 6 {
+        if index >= 7 {
             return;
         }
         // Ensure vector has space for this provider
