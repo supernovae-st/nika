@@ -20,8 +20,6 @@
 // Allow dead code for types that will be used when agent integration is complete
 #![allow(dead_code)]
 
-use std::fs;
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -34,24 +32,20 @@ use ratatui::{
     widgets::{ListState, Widget},
     Frame,
 };
-use serde::{Deserialize, Serialize};
-use tui_input::{Input, InputRequest};
+use tui_input::Input;
 
 use super::trait_view::View;
 use super::ViewAction;
-use crate::tui::command::{Command, ExportFormat, ModelProvider, HELP_TEXT};
 
 /// Check if the "command" modifier is pressed (Ctrl on Linux/Windows, Cmd on macOS)
 /// On macOS, Cmd key maps to SUPER modifier in crossterm
-fn is_cmd_pressed(modifiers: KeyModifiers) -> bool {
+pub(super) fn is_cmd_pressed(modifiers: KeyModifiers) -> bool {
     modifiers.contains(KeyModifiers::CONTROL) || modifiers.contains(KeyModifiers::SUPER)
 }
 use crate::runtime::chat_workflow::{ChatWorkflow, Role as WorkflowRole};
 use crate::tui::edit_history::EditHistory;
-use crate::tui::file_resolve::FileResolver;
 use crate::tui::state::{ChatPanel, PanelScrollState, TuiState};
 use crate::tui::theme::{Theme, VerbColor};
-use crate::util::atomic_write;
 
 // PERF: Pre-computed constants to avoid allocations in render loop
 const SEPARATOR_20: &str = "────────────────────"; // 20 Unicode box chars (─), compile-time
@@ -60,7 +54,6 @@ const SEPARATOR_52: &str = "╰────────────────�
                                                                                     // PERF: 200-char separator for dynamic slicing (avoids .repeat() allocation)
 const SEPARATOR_200: &str = "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────";
 // tui utils moved to messages.rs
-use crate::tui::views::TuiView;
 use crate::tui::widgets::{
     // Task Box widgets (v0.8.1 - visual verb containers)
     task_box::{BoxState, RenderMode, TaskBox},
@@ -143,49 +136,6 @@ mod types;
 
 use helpers::categorize_error;
 pub use types::*;
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Serializable Chat Session (HIGH 8 - Persistent Sessions)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/// Serializable chat session for save/load
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChatSession {
-    pub version: String,
-    pub created_at: String,
-    pub model: String,
-    pub messages: Vec<SerializableMessage>,
-}
-
-impl ChatSession {
-    /// Create session from ChatView
-    pub fn from_view(view: &ChatView) -> Self {
-        Self {
-            version: "0.5.2".to_string(),
-            created_at: chrono::Utc::now().to_rfc3339(),
-            model: view.current_model.clone(),
-            messages: view
-                .messages
-                .iter()
-                .map(SerializableMessage::from)
-                .collect(),
-        }
-    }
-
-    /// Save session to file using atomic write (temp+rename) for data integrity
-    pub fn save(&self, path: impl AsRef<Path>) -> std::io::Result<()> {
-        let json = serde_json::to_string_pretty(self)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        atomic_write(path, json.as_bytes())
-    }
-
-    /// Load session from file
-    pub fn load(path: impl AsRef<Path>) -> std::io::Result<Self> {
-        let json = fs::read_to_string(path)?;
-        serde_json::from_str(&json)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-    }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Chat View State
@@ -310,12 +260,12 @@ pub struct ChatView {
 
     // === v0.8 Text Selection ===
     /// Text selection state (for copy support)
-    pub text_selection: Option<TextSelection>,
+    pub text_selection: Option<ChatMessageSelection>,
     /// Whether a mouse drag selection is in progress
     pub is_selecting: bool,
     /// Cached line content for hit testing during selection
     /// Maps (message_index, line_in_message) -> (start_x, text_content)
-    pub line_positions: Vec<LinePosition>,
+    pub line_positions: Vec<ChatLinePosition>,
 
     // === v0.8.1 Help Overlay ===
     /// Help overlay state (toggle with ? or F1)
@@ -354,7 +304,7 @@ pub struct ChatView {
 
     // === v0.9 Phase 2: MCP Retry ===
     /// Last failed MCP call for retry with Ctrl+R
-    pub last_failed_mcp: Option<FailedMcpCall>,
+    pub last_failed_mcp: Option<McpRetryInfo>,
 
     // === v0.9 Phase 3: Conversation Search (Ctrl+F) ===
     /// Whether search mode is active
@@ -395,92 +345,6 @@ pub struct ChatView {
     /// Runtime workflow DAG that mirrors chat messages
     /// Used for /export yaml and unified execution with YAML workflows
     pub workflow: ChatWorkflow,
-}
-
-/// Stores info about a failed MCP call for retry (v0.9 Phase 2)
-#[derive(Debug, Clone)]
-pub struct FailedMcpCall {
-    /// Tool name that was called
-    pub tool: String,
-    /// MCP server name
-    pub server: String,
-    /// Parameters passed to the call
-    pub params: serde_json::Value,
-}
-
-/// Position of a rendered line for hit testing
-#[derive(Debug, Clone)]
-pub struct LinePosition {
-    /// Index of the message this line belongs to
-    pub message_index: usize,
-    /// Which line within the message (0 = first)
-    pub line_in_message: usize,
-    /// Y coordinate on screen
-    pub screen_y: u16,
-    /// Starting X coordinate (after prefix)
-    pub start_x: u16,
-    /// The actual text content of this line
-    pub text: String,
-}
-
-/// Text selection state
-#[derive(Debug, Clone)]
-pub struct TextSelection {
-    /// Starting position of selection
-    pub start: SelectionPos,
-    /// Ending position of selection (current drag position)
-    pub end: SelectionPos,
-}
-
-/// Position within the chat for selection
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SelectionPos {
-    /// Message index in the messages vec
-    pub message_index: usize,
-    /// Character offset within the message content
-    pub char_offset: usize,
-}
-
-impl TextSelection {
-    /// Create a new selection starting at the given position
-    pub fn new(start: SelectionPos) -> Self {
-        Self { start, end: start }
-    }
-
-    /// Get the normalized selection (start <= end)
-    pub fn normalized(&self) -> (SelectionPos, SelectionPos) {
-        if self.start.message_index < self.end.message_index
-            || (self.start.message_index == self.end.message_index
-                && self.start.char_offset <= self.end.char_offset)
-        {
-            (self.start, self.end)
-        } else {
-            (self.end, self.start)
-        }
-    }
-
-    /// Check if a position is within the selection
-    pub fn contains(&self, pos: SelectionPos) -> bool {
-        let (start, end) = self.normalized();
-
-        if pos.message_index < start.message_index || pos.message_index > end.message_index {
-            return false;
-        }
-
-        if pos.message_index == start.message_index && pos.message_index == end.message_index {
-            // Same message: check char range
-            pos.char_offset >= start.char_offset && pos.char_offset < end.char_offset
-        } else if pos.message_index == start.message_index {
-            // First message: from start.char_offset to end of message
-            pos.char_offset >= start.char_offset
-        } else if pos.message_index == end.message_index {
-            // Last message: from 0 to end.char_offset
-            pos.char_offset < end.char_offset
-        } else {
-            // Middle messages: fully selected
-            true
-        }
-    }
 }
 
 impl ChatView {
@@ -974,7 +838,11 @@ impl View for ChatView {
     }
 
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
-        // Handle help overlay when visible (highest priority)
+        // ───────────────────────────────────────────────────────────────────────────
+        // Overlay dispatches (highest priority)
+        // ───────────────────────────────────────────────────────────────────────────
+
+        // Handle help overlay when visible
         if self.help_overlay.visible {
             return self.handle_help_overlay_key(key);
         }
@@ -984,12 +852,16 @@ impl View for ChatView {
             return self.handle_palette_key(key);
         }
 
-        // Handle Provider Modal when visible (⌘P)
+        // Handle Provider Modal when visible
         if self.provider_modal.visible {
             return self.handle_provider_modal_key(key);
         }
 
-        // v0.9 Phase 3: Handle search mode when active
+        // ───────────────────────────────────────────────────────────────────────────
+        // Modal modes (search, mention autocomplete)
+        // ───────────────────────────────────────────────────────────────────────────
+
+        // Handle search mode when active
         if self.search_mode {
             match key.code {
                 KeyCode::Esc => {
@@ -1016,7 +888,7 @@ impl View for ChatView {
             }
         }
 
-        // v0.9 Phase 2: Handle mention autocomplete when visible
+        // Handle mention autocomplete when visible
         if self.mention_autocomplete.visible {
             match key.code {
                 KeyCode::Tab | KeyCode::Enter => {
@@ -1035,498 +907,19 @@ impl View for ChatView {
                     self.mention_autocomplete.hide();
                     return ViewAction::None;
                 }
-                // Let other keys pass through to normal handling
-                _ => {}
+                _ => {} // Let other keys pass through
             }
         }
 
-        // Check for Cmd/Ctrl+K (command palette toggle)
-        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('k') {
-            self.toggle_command_palette();
-            return ViewAction::None;
+        // ───────────────────────────────────────────────────────────────────────────
+        // Main key handling (delegated to keys.rs)
+        // ───────────────────────────────────────────────────────────────────────────
+
+        if let Some(action) = self.handle_main_keys(key) {
+            return action;
         }
 
-        // Check for Cmd/Ctrl+P (provider modal toggle)
-        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('p') {
-            let opened = self.toggle_provider_modal();
-            // Trigger provider verification when modal opens (v0.8.8)
-            if opened {
-                return ViewAction::VerifyProviders;
-            }
-            return ViewAction::None;
-        }
-
-        // v0.9 Phase 3: Cmd/Ctrl+F = Start conversation search
-        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('f') {
-            self.start_search();
-            return ViewAction::None;
-        }
-
-        // v0.10.0: Cmd/Ctrl+D = Toggle DAG panel
-        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('d') {
-            self.toggle_dag_panel();
-            let status = if self.show_dag_panel {
-                "visible"
-            } else {
-                "hidden"
-            };
-            self.add_system_message(format!("🔀 DAG panel {}", status));
-            return ViewAction::None;
-        }
-
-        // Check for Cmd/Ctrl+T (toggle deep thinking)
-        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('t') {
-            self.toggle_deep_thinking();
-            let status = if self.deep_thinking {
-                "enabled"
-            } else {
-                "disabled"
-            };
-            self.add_system_message(format!("🧠 Deep thinking {}", status));
-            return ViewAction::None;
-        }
-
-        // Alt+T = Toggle all thinking sections visibility (v0.9)
-        if key.modifiers.contains(KeyModifiers::ALT) && key.code == KeyCode::Char('t') {
-            self.toggle_all_thinking();
-            return ViewAction::None;
-        }
-
-        // Check for Cmd/Ctrl+M (toggle infer/agent mode)
-        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('m') {
-            self.toggle_mode();
-            self.add_system_message(format!(
-                "{} Switched to {} mode",
-                self.chat_mode.icon(),
-                self.chat_mode.label()
-            ));
-            return ViewAction::None;
-        }
-
-        // Cmd/Ctrl+C = Copy selection or input to system clipboard (NOT exit!)
-        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('c') {
-            // v0.8 Text Selection: If there's a selection, copy it
-            if self.text_selection.is_some() {
-                if self.copy_selection() {
-                    self.add_system_message("📋 Selection copied to clipboard");
-                    self.clear_selection();
-                }
-            } else {
-                // Otherwise copy the input field
-                self.copy_to_clipboard();
-            }
-            return ViewAction::None;
-        }
-
-        // Cmd/Ctrl+V = Paste from system clipboard
-        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('v') {
-            self.paste_from_clipboard();
-            return ViewAction::None;
-        }
-
-        // v0.16.4: Ctrl+Z = Undo input edit
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('z') {
-            if let Some((text, cursor)) = self.edit_history.undo() {
-                self.input = Input::new(text);
-                // Move cursor to saved position (clamped to string length)
-                let pos = cursor.min(self.input.value().len());
-                self.input.handle(InputRequest::GoToStart);
-                for _ in 0..pos {
-                    self.input.handle(InputRequest::GoToNextChar);
-                }
-            }
-            return ViewAction::None;
-        }
-
-        // v0.16.4: Ctrl+Y = Redo input edit
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('y') {
-            if let Some((text, cursor)) = self.edit_history.redo() {
-                self.input = Input::new(text);
-                // Move cursor to saved position (clamped to string length)
-                let pos = cursor.min(self.input.value().len());
-                self.input.handle(InputRequest::GoToStart);
-                for _ in 0..pos {
-                    self.input.handle(InputRequest::GoToNextChar);
-                }
-            }
-            return ViewAction::None;
-        }
-
-        // v0.9 Phase 2: Ctrl+R = Retry last failed MCP call
-        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('r') {
-            if let Some(failed) = self.last_failed_mcp.take() {
-                self.add_system_message("🔄 Retrying MCP call...".to_string());
-                return ViewAction::ChatInvoke(failed.tool, Some(failed.server), failed.params);
-            } else {
-                self.add_system_message("⚠️ No failed MCP call to retry".to_string());
-            }
-            return ViewAction::None;
-        }
-
-        // Cmd/Ctrl+Left = Move to previous word
-        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Left {
-            self.cursor_prev_word();
-            return ViewAction::None;
-        }
-
-        // Cmd/Ctrl+Right = Move to next word
-        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Right {
-            self.cursor_next_word();
-            return ViewAction::None;
-        }
-
-        // Cmd/Ctrl+Backspace = Delete previous word
-        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Backspace {
-            self.delete_prev_word();
-            return ViewAction::None;
-        }
-
-        // Cmd/Ctrl+A = Go to start of input
-        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('a') {
-            self.cursor_start();
-            return ViewAction::None;
-        }
-
-        // Cmd/Ctrl+E = Go to end of input
-        if is_cmd_pressed(key.modifiers) && key.code == KeyCode::Char('e') {
-            self.cursor_end();
-            return ViewAction::None;
-        }
-
-        // v0.16.4: Ctrl+j/k for vim-style panel navigation (works from any panel)
-        if key.modifiers.contains(KeyModifiers::CONTROL) {
-            if key.code == KeyCode::Char('j') {
-                self.focus_next_panel();
-                return ViewAction::None;
-            }
-            if key.code == KeyCode::Char('k') {
-                self.focus_prev_panel();
-                return ViewAction::None;
-            }
-        }
-
-        // F1 or ? = Toggle help overlay (global, works from any panel)
-        if key.code == KeyCode::F(1)
-            || (key.code == KeyCode::Char('?') && self.focused_panel != ChatPanel::Input)
-        {
-            self.help_overlay.toggle();
-            return ViewAction::None;
-        }
-
-        // ═══════════════════════════════════════════════════════════════════════════════
-        // Panel Navigation (v0.8.2 UX Enhancement)
-        // Left/Right arrows cycle panels when NOT in Input panel
-        // Tab = autocomplete verb in Input panel
-        // ═══════════════════════════════════════════════════════════════════════════════
-
-        // Tab = Autocomplete verb when in Input panel
-        if key.code == KeyCode::Tab && self.focused_panel == ChatPanel::Input {
-            if let Some(completed) = self.try_verb_autocomplete() {
-                self.input = Input::new(completed);
-                self.input.handle(InputRequest::GoToEnd);
-            }
-            return ViewAction::None;
-        }
-
-        // Left/Right arrows = Focus prev/next panel (when NOT in Input)
-        if self.focused_panel != ChatPanel::Input {
-            if key.code == KeyCode::Right {
-                self.focus_next_panel();
-                return ViewAction::None;
-            }
-            if key.code == KeyCode::Left {
-                self.focus_prev_panel();
-                return ViewAction::None;
-            }
-        }
-
-        // Scroll keys and vim-style navigation when NOT in Input panel
-        if self.focused_panel != ChatPanel::Input {
-            match key.code {
-                // j/Down = Scroll down
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.scroll_down();
-                    return ViewAction::None;
-                }
-                // k/Up = Scroll up
-                KeyCode::Char('k') | KeyCode::Up => {
-                    self.scroll_up();
-                    return ViewAction::None;
-                }
-                // g = Go to top
-                KeyCode::Char('g') => {
-                    self.scroll_to_top();
-                    return ViewAction::None;
-                }
-                // G = Go to bottom
-                KeyCode::Char('G') => {
-                    self.scroll_to_bottom();
-                    return ViewAction::None;
-                }
-                // PageUp/PageDown for page scroll
-                KeyCode::PageUp => {
-                    self.page_up();
-                    return ViewAction::None;
-                }
-                KeyCode::PageDown => {
-                    self.page_down();
-                    return ViewAction::None;
-                }
-                // y = Copy full message (including metadata)
-                KeyCode::Char('y') => {
-                    if self.copy_selected_message(false) {
-                        self.add_system_message("📋 Message copied to clipboard".to_string());
-                    }
-                    return ViewAction::None;
-                }
-                // Y = Copy text only (no metadata)
-                KeyCode::Char('Y') => {
-                    if self.copy_selected_message(true) {
-                        self.add_system_message("📋 Text copied to clipboard".to_string());
-                    }
-                    return ViewAction::None;
-                }
-                // t = Toggle thinking for selected message (v0.9)
-                KeyCode::Char('t') => {
-                    let cursor = self.conversation_scroll.cursor;
-                    if cursor < self.messages.len() && self.messages[cursor].thinking.is_some() {
-                        self.toggle_thinking(cursor);
-                        let state = if self.is_thinking_visible(cursor) {
-                            "expanded"
-                        } else {
-                            "collapsed"
-                        };
-                        self.add_system_message(format!("🧠 Thinking {} for message", state));
-                    }
-                    return ViewAction::None;
-                }
-                // Enter in Conversation/Activity = Return focus to Input
-                KeyCode::Enter => {
-                    self.focus_panel(ChatPanel::Input);
-                    return ViewAction::None;
-                }
-                // Escape in non-Input panel = Return to Input
-                KeyCode::Esc => {
-                    self.focus_panel(ChatPanel::Input);
-                    return ViewAction::None;
-                }
-                _ => {} // Fall through to existing match
-            }
-        }
-
-        match key.code {
-            // NOTE: Ctrl+K is handled earlier for Command Palette (line ~1901)
-            // Ctrl+J scrolls down (vi-like) - doesn't conflict with anything
-            KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.scroll_down();
-                ViewAction::None
-            }
-            // v0.8.1: Removed 'q' to quit - too easy to accidentally quit when trying to chat
-            // Use Ctrl+C (double-tap) instead
-            // 's' when empty opens Settings view (consistent with other views)
-            KeyCode::Char('s') if self.input.value().is_empty() => ViewAction::OpenSettings,
-            // 'm' when empty cycles TaskBox render mode (v0.12.1)
-            KeyCode::Char('m') if self.input.value().is_empty() => {
-                self.cycle_task_box_render_mode();
-                let mode_name = match self.task_box_render_mode {
-                    RenderMode::Compact => "Compact (1 line)",
-                    RenderMode::Expanded => "Expanded (default)",
-                    RenderMode::Full => "Full (all details)",
-                };
-                self.add_system_message(format!("📦 TaskBox mode: {}", mode_name));
-                ViewAction::None
-            }
-            // Shift+T or Ctrl+t toggles theme (v0.8.1 - consistent with app.rs)
-            KeyCode::Char('T') => ViewAction::ToggleTheme,
-            KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                ViewAction::ToggleTheme
-            }
-            // "/" at start of empty input triggers command palette with verbs
-            KeyCode::Char('/') if self.input.value().is_empty() => {
-                self.toggle_command_palette();
-                // Pre-filter to show only verbs category
-                self.command_palette.query = "/".to_string();
-                self.command_palette.update_filter();
-                ViewAction::None
-            }
-            // "@" triggers file mention hint (already resolved on submit via FileResolver)
-            KeyCode::Char('@') => {
-                self.insert_char('@');
-                // Show hint message about file mentions (only once per session)
-                if !self.shown_file_hint {
-                    self.add_system_message(
-                        "💡 Type @filename to include file content".to_string(),
-                    );
-                    self.shown_file_hint = true;
-                }
-                ViewAction::None
-            }
-            // v0.9 Phase 2: Shift+Enter inserts newline for multi-line input
-            KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
-                self.input.handle(InputRequest::InsertChar('\n'));
-                ViewAction::None
-            }
-            KeyCode::Enter => {
-                if let Some(message) = self.submit() {
-                    // Parse the message as a command
-                    let cmd = Command::parse(&message);
-
-                    // Handle each command type
-                    match cmd {
-                        Command::Help => {
-                            // Show help text inline
-                            self.add_nika_message(HELP_TEXT.to_string(), None);
-                            ViewAction::None
-                        }
-                        Command::Clear => ViewAction::ChatClear,
-                        Command::Exec { command } => ViewAction::ChatExec(command),
-                        Command::Fetch { url, method } => ViewAction::ChatFetch(url, method),
-                        Command::FetchError {
-                            error,
-                            hint,
-                            example,
-                        } => {
-                            // v0.8.2: Show helpful error message for fetch mistakes
-                            self.add_nika_message(
-                                format!("{}\n{}\n{}", error, hint, example),
-                                None,
-                            );
-                            ViewAction::None
-                        }
-                        Command::Invoke {
-                            tool,
-                            server,
-                            params,
-                        } => ViewAction::ChatInvoke(tool, server, params),
-                        Command::Agent {
-                            goal,
-                            max_turns,
-                            mcp_servers,
-                        } => {
-                            ViewAction::ChatAgent(goal, max_turns, self.deep_thinking, mcp_servers)
-                        }
-                        Command::Mcp { action } => ViewAction::ChatMcp(action),
-                        Command::Model { provider } => {
-                            // Handle /model list inline
-                            if provider == ModelProvider::List {
-                                let providers = [
-                                    ModelProvider::Claude,
-                                    ModelProvider::OpenAI,
-                                    ModelProvider::Mistral,
-                                    ModelProvider::Groq,
-                                    ModelProvider::DeepSeek,
-                                    ModelProvider::Ollama,
-                                ];
-                                let mut list_text =
-                                    String::from("Available providers (use /model <name>):\n");
-                                for p in providers {
-                                    let status = if p.is_available() {
-                                        "available"
-                                    } else {
-                                        "missing API key"
-                                    };
-                                    list_text.push_str(&format!(
-                                        "  - {}: {} ({})\n",
-                                        p.command_name(),
-                                        p.name(),
-                                        status
-                                    ));
-                                }
-                                self.add_nika_message(list_text.trim_end().to_string(), None);
-                                ViewAction::None
-                            } else {
-                                ViewAction::ChatModelSwitch(provider)
-                            }
-                        }
-                        Command::Export { format, path } => {
-                            // v0.9: Export chat to JSON or YAML file
-                            let result = match format {
-                                ExportFormat::Json => self.export_session(path.as_deref()),
-                                ExportFormat::Yaml => self.export_session_yaml(path.as_deref()),
-                            };
-                            match result {
-                                Ok(filepath) => {
-                                    let format_name = match format {
-                                        ExportFormat::Json => "JSON",
-                                        ExportFormat::Yaml => "YAML workflow",
-                                    };
-                                    self.add_system_message(format!(
-                                        "📤 Chat exported as {} to: {}",
-                                        format_name, filepath
-                                    ));
-                                }
-                                Err(e) => {
-                                    self.add_system_message(format!("❌ Export failed: {}", e));
-                                }
-                            }
-                            ViewAction::None
-                        }
-                        Command::Infer { prompt } | Command::Chat { message: prompt } => {
-                            // Resolve @file mentions in the prompt
-                            let base_dir = std::env::current_dir().unwrap_or_default();
-                            let expanded = FileResolver::resolve(&prompt, &base_dir);
-                            ViewAction::ChatInfer(expanded)
-                        }
-                    }
-                } else {
-                    ViewAction::None
-                }
-            }
-            // v0.8.1: Up/Down ALWAYS scroll conversation (NovaNet pattern)
-            // Use Ctrl+Up/Down for history navigation
-            KeyCode::Up if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.history_up();
-                ViewAction::None
-            }
-            KeyCode::Down if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.history_down();
-                ViewAction::None
-            }
-            KeyCode::Up => {
-                self.scroll_up();
-                ViewAction::None
-            }
-            KeyCode::Down => {
-                self.scroll_down();
-                ViewAction::None
-            }
-            KeyCode::Left => {
-                self.cursor_left();
-                ViewAction::None
-            }
-            KeyCode::Right => {
-                self.cursor_right();
-                ViewAction::None
-            }
-            KeyCode::Backspace => {
-                self.backspace();
-                ViewAction::None
-            }
-            KeyCode::Char(c) => {
-                self.insert_char(c);
-                ViewAction::None
-            }
-            KeyCode::PageUp => {
-                self.page_up(); // v0.8.1: Use page scroll, not single line
-                ViewAction::None
-            }
-            KeyCode::PageDown => {
-                self.page_down(); // v0.8.1: Use page scroll, not single line
-                ViewAction::None
-            }
-            KeyCode::Home => {
-                self.scroll = 0;
-                ViewAction::None
-            }
-            KeyCode::End => {
-                self.scroll_to_bottom();
-                ViewAction::None
-            }
-            // Tab/Shift+Tab handled above for panel navigation
-            // Esc switches to Explorer view (when in Input panel)
-            KeyCode::Esc => ViewAction::SwitchView(TuiView::Studio),
-            _ => ViewAction::None,
-        }
+        ViewAction::None
     }
 
     fn status_line(&self, _state: &TuiState) -> String {
