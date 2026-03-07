@@ -55,7 +55,7 @@ pub struct ModelInfo {
 }
 
 impl ProviderInfo {
-    /// Create all 6 supported providers with default status
+    /// Create all 7 supported providers with default status
     pub fn all_providers() -> Vec<Self> {
         vec![
             ProviderInfo {
@@ -209,6 +209,32 @@ impl ProviderInfo {
                 ],
             },
             ProviderInfo {
+                name: "Gemini",
+                icon: "💎",
+                model: "gemini-2.0-flash",
+                env_var: "GEMINI_API_KEY",
+                features: vec!["🧠", "👁️", "🔧"],
+                context_window: 1_000_000,
+                status: ConnectionStatus::Unknown,
+                models: vec![
+                    ModelInfo {
+                        id: "gemini-2.0-flash",
+                        name: "2.0 Flash",
+                        context_k: 1000,
+                    },
+                    ModelInfo {
+                        id: "gemini-1.5-pro",
+                        name: "1.5 Pro",
+                        context_k: 2000,
+                    },
+                    ModelInfo {
+                        id: "gemini-1.5-flash",
+                        name: "1.5 Flash",
+                        context_k: 1000,
+                    },
+                ],
+            },
+            ProviderInfo {
                 name: "Ollama",
                 icon: "🦙",
                 model: "llama3.2",
@@ -285,24 +311,23 @@ impl Widget for CloudTab<'_> {
             return;
         }
 
-        // 2x3 grid layout
+        // 7 providers: 4 on row 1, 3 on row 2
         let rows = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
             .split(area);
 
         for (row_idx, row_area) in rows.iter().enumerate() {
+            // Row 0: 4 providers, Row 1: 3 providers
+            let num_cols = if row_idx == 0 { 4 } else { 3 };
             let cols = Layout::default()
                 .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Ratio(1, 3),
-                    Constraint::Ratio(1, 3),
-                    Constraint::Ratio(1, 3),
-                ])
+                .constraints(vec![Constraint::Ratio(1, num_cols as u32); num_cols])
                 .split(*row_area);
 
             for (col_idx, col_area) in cols.iter().enumerate() {
-                let provider_idx = row_idx * 3 + col_idx;
+                // Row 0 has 4 providers, row 1 starts at index 4
+                let provider_idx = if row_idx == 0 { col_idx } else { 4 + col_idx };
                 if provider_idx < self.providers.len() {
                     let p = &self.providers[provider_idx];
 
@@ -448,9 +473,9 @@ mod tests {
     use ratatui::layout::Rect;
 
     #[test]
-    fn test_provider_info_all_providers_returns_6() {
+    fn test_provider_info_all_providers_returns_7() {
         let providers = ProviderInfo::all_providers();
-        assert_eq!(providers.len(), 6);
+        assert_eq!(providers.len(), 7);
     }
 
     #[test]
@@ -461,7 +486,8 @@ mod tests {
         assert_eq!(providers[2].name, "Mistral");
         assert_eq!(providers[3].name, "Groq");
         assert_eq!(providers[4].name, "DeepSeek");
-        assert_eq!(providers[5].name, "Ollama");
+        assert_eq!(providers[5].name, "Gemini");
+        assert_eq!(providers[6].name, "Ollama");
     }
 
     #[test]
@@ -469,20 +495,21 @@ mod tests {
         let providers = ProviderInfo::all_providers();
         assert_eq!(providers[0].env_var, "ANTHROPIC_API_KEY");
         assert_eq!(providers[1].env_var, "OPENAI_API_KEY");
-        assert_eq!(providers[5].env_var, "OLLAMA_HOST");
+        assert_eq!(providers[5].env_var, "GEMINI_API_KEY");
+        assert_eq!(providers[6].env_var, "OLLAMA_HOST");
     }
 
     #[test]
     fn test_cloud_tab_provider_count() {
         let state = ProviderModalState::default();
         let tab = CloudTab::new(&state);
-        assert_eq!(tab.provider_count(), 6);
+        assert_eq!(tab.provider_count(), 7);
     }
 
     #[test]
-    fn test_cloud_tab_renders_6_providers() {
+    fn test_cloud_tab_renders_7_providers() {
         let mut state = ProviderModalState::default();
-        state.item_count = 6;
+        state.item_count = 7;
         let tab = CloudTab::new(&state);
         let mut buf = Buffer::empty(Rect::new(0, 0, 80, 20));
         tab.render(Rect::new(0, 0, 80, 20), &mut buf);
@@ -495,13 +522,14 @@ mod tests {
     #[test]
     fn test_cloud_tab_renders_second_row() {
         let mut state = ProviderModalState::default();
-        state.item_count = 6;
+        state.item_count = 7;
         let tab = CloudTab::new(&state);
-        let mut buf = Buffer::empty(Rect::new(0, 0, 80, 20));
-        tab.render(Rect::new(0, 0, 80, 20), &mut buf);
+        let mut buf = Buffer::empty(Rect::new(0, 0, 100, 25));
+        tab.render(Rect::new(0, 0, 100, 25), &mut buf);
         let content: String = buf.content().iter().map(|c| c.symbol()).collect();
         assert!(content.contains("Groq"));
         assert!(content.contains("DeepSeek"));
+        assert!(content.contains("Gemini"));
         assert!(content.contains("Ollama"));
     }
 
