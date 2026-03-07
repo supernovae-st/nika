@@ -159,7 +159,7 @@ fn test_command_parse_fetch() {
 
     // Case insensitive method
     let cmd = Command::parse("/fetch https://api.example.com delete");
-    assert!(matches!(cmd, Command::Fetch { url, method } if method == "DELETE"));
+    assert!(matches!(cmd, Command::Fetch { url: _, method } if method == "DELETE"));
 }
 
 /// Test parsing /invoke command
