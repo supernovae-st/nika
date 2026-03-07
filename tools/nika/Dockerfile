@@ -42,9 +42,9 @@ WORKDIR /app
 COPY . .
 
 # Build application with static linking
+# Note: Not caching /app/target to avoid cross-platform artifact conflicts
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/app/target \
     RUSTFLAGS="-C target-feature=+crt-static" \
     cargo build --release --target $(cat /tmp/target) --bin nika \
         --no-default-features --features docker \

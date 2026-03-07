@@ -11,14 +11,24 @@
 //!
 //! Validation and masking now delegate to spn-core via spn-client re-exports.
 //! Local wrappers maintain backward compatibility with existing API signatures.
+//!
+//! ## v0.21: native-keychain Feature
+//!
+//! The keyring crate is optional (via `native-keychain` feature).
+//! Docker builds disable it since containers don't have OS keychains.
+//! When disabled, fallback implementations return errors for keyring operations.
 
-use colored::Colorize;
-use keyring::Entry;
 use secrecy::SecretString;
 use thiserror::Error;
 use zeroize::Zeroizing;
 
+// Imports used only with native-keychain feature
+#[cfg(feature = "native-keychain")]
+use colored::Colorize;
+
 // Unified provider access (single source of truth)
+// Used by both native and migration functions
+#[cfg(feature = "native-keychain")]
 use crate::tui::providers::env_var as provider_env_var;
 
 // Import spn-core types via spn-client re-exports (when spn-daemon feature enabled)
@@ -42,61 +52,136 @@ pub enum KeyringError {
     DeleteError(String),
 }
 
-/// Keyring wrapper for spn API keys (unified with supernovae-cli).
-pub struct SpnKeyring;
+// ═══════════════════════════════════════════════════════════════════════════════
+// NATIVE KEYCHAIN IMPLEMENTATION (requires OS keychain access)
+// ═══════════════════════════════════════════════════════════════════════════════
 
-impl SpnKeyring {
-    /// Get API key for a provider as zeroizing string.
-    ///
-    /// The returned string will be automatically zeroized when dropped.
-    pub fn get(provider: &str) -> Result<Zeroizing<String>, KeyringError> {
-        let entry = Entry::new(SERVICE_NAME, provider)
-            .map_err(|e| KeyringError::AccessError(e.to_string()))?;
+#[cfg(feature = "native-keychain")]
+mod native {
+    use super::*;
+    use keyring::Entry;
 
-        let password = entry.get_password().map_err(|e| match e {
-            keyring::Error::NoEntry => KeyringError::NotFound(provider.to_string()),
-            _ => KeyringError::AccessError(e.to_string()),
-        })?;
+    /// Keyring wrapper for spn API keys (unified with supernovae-cli).
+    pub struct SpnKeyring;
 
-        Ok(Zeroizing::new(password))
-    }
+    impl SpnKeyring {
+        /// Get API key for a provider as zeroizing string.
+        ///
+        /// The returned string will be automatically zeroized when dropped.
+        pub fn get(provider: &str) -> Result<Zeroizing<String>, KeyringError> {
+            let entry = Entry::new(SERVICE_NAME, provider)
+                .map_err(|e| KeyringError::AccessError(e.to_string()))?;
 
-    /// Get API key wrapped in SecretString for maximum safety.
-    pub fn get_secret(provider: &str) -> Result<SecretString, KeyringError> {
-        let key = Self::get(provider)?;
-        Ok(SecretString::from((*key).clone()))
-    }
+            let password = entry.get_password().map_err(|e| match e {
+                keyring::Error::NoEntry => KeyringError::NotFound(provider.to_string()),
+                _ => KeyringError::AccessError(e.to_string()),
+            })?;
 
-    /// Store API key for a provider.
-    pub fn set(provider: &str, key: &str) -> Result<(), KeyringError> {
-        let entry = Entry::new(SERVICE_NAME, provider)
-            .map_err(|e| KeyringError::AccessError(e.to_string()))?;
+            Ok(Zeroizing::new(password))
+        }
 
-        entry
-            .set_password(key)
-            .map_err(|e| KeyringError::StoreError(e.to_string()))
-    }
+        /// Get API key wrapped in SecretString for maximum safety.
+        pub fn get_secret(provider: &str) -> Result<SecretString, KeyringError> {
+            let key = Self::get(provider)?;
+            Ok(SecretString::from((*key).clone()))
+        }
 
-    /// Delete API key for a provider.
-    pub fn delete(provider: &str) -> Result<(), KeyringError> {
-        let entry = Entry::new(SERVICE_NAME, provider)
-            .map_err(|e| KeyringError::AccessError(e.to_string()))?;
+        /// Store API key for a provider.
+        pub fn set(provider: &str, key: &str) -> Result<(), KeyringError> {
+            let entry = Entry::new(SERVICE_NAME, provider)
+                .map_err(|e| KeyringError::AccessError(e.to_string()))?;
 
-        entry
-            .delete_credential()
-            .map_err(|e| KeyringError::DeleteError(e.to_string()))
-    }
+            entry
+                .set_password(key)
+                .map_err(|e| KeyringError::StoreError(e.to_string()))
+        }
 
-    /// Check if key exists for a provider.
-    pub fn exists(provider: &str) -> bool {
-        Self::get(provider).is_ok()
-    }
+        /// Delete API key for a provider.
+        pub fn delete(provider: &str) -> Result<(), KeyringError> {
+            let entry = Entry::new(SERVICE_NAME, provider)
+                .map_err(|e| KeyringError::AccessError(e.to_string()))?;
 
-    /// Get masked version of stored key.
-    pub fn get_masked(provider: &str) -> Option<String> {
-        Self::get(provider).ok().map(|k| mask_api_key(&k))
+            entry
+                .delete_credential()
+                .map_err(|e| KeyringError::DeleteError(e.to_string()))
+        }
+
+        /// Check if key exists for a provider.
+        pub fn exists(provider: &str) -> bool {
+            Self::get(provider).is_ok()
+        }
+
+        /// Get masked version of stored key.
+        pub fn get_masked(provider: &str) -> Option<String> {
+            Self::get(provider).ok().map(|k| super::mask_api_key(&k))
+        }
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STUB IMPLEMENTATION (when native-keychain feature is disabled)
+// Used in Docker builds where OS keychain is not available.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[cfg(not(feature = "native-keychain"))]
+mod stub {
+    use super::*;
+
+    /// Stub keyring for environments without OS keychain (Docker, CI, etc.).
+    /// All operations return errors - use environment variables instead.
+    pub struct SpnKeyring;
+
+    impl SpnKeyring {
+        /// Always returns NotFound error (no keychain access in Docker).
+        pub fn get(_provider: &str) -> Result<Zeroizing<String>, KeyringError> {
+            Err(KeyringError::AccessError(
+                "Keychain not available (native-keychain feature disabled)".into(),
+            ))
+        }
+
+        /// Always returns error (no keychain access).
+        pub fn get_secret(_provider: &str) -> Result<SecretString, KeyringError> {
+            Err(KeyringError::AccessError(
+                "Keychain not available (native-keychain feature disabled)".into(),
+            ))
+        }
+
+        /// Always returns error (no keychain access).
+        pub fn set(_provider: &str, _key: &str) -> Result<(), KeyringError> {
+            Err(KeyringError::StoreError(
+                "Keychain not available (native-keychain feature disabled)".into(),
+            ))
+        }
+
+        /// Always returns error (no keychain access).
+        pub fn delete(_provider: &str) -> Result<(), KeyringError> {
+            Err(KeyringError::DeleteError(
+                "Keychain not available (native-keychain feature disabled)".into(),
+            ))
+        }
+
+        /// Always returns false (no keychain access).
+        pub fn exists(_provider: &str) -> bool {
+            false
+        }
+
+        /// Always returns None (no keychain access).
+        pub fn get_masked(_provider: &str) -> Option<String> {
+            None
+        }
+    }
+}
+
+// Re-export the appropriate implementation
+#[cfg(feature = "native-keychain")]
+pub use native::SpnKeyring;
+
+#[cfg(not(feature = "native-keychain"))]
+pub use stub::SpnKeyring;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UTILITY FUNCTIONS (always available)
+// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Mask API key for display.
 ///
@@ -169,7 +254,7 @@ pub fn validate_key_format(provider: &str, key: &str) -> Result<(), String> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MIGRATION (env → keyring)
+// MIGRATION (env → keyring) - Only available with native-keychain
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const MIGRATEABLE_PROVIDERS: &[&str] = &[
@@ -201,6 +286,10 @@ impl MigrationReport {
 }
 
 /// Migrate API keys from environment variables to system keychain.
+///
+/// With native-keychain: Actually migrates keys to OS keychain
+/// Without: Returns report indicating migration not available
+#[cfg(feature = "native-keychain")]
 pub fn migrate_env_to_keyring() -> MigrationReport {
     let mut report = MigrationReport::default();
 
@@ -239,6 +328,16 @@ pub fn migrate_env_to_keyring() -> MigrationReport {
     }
 
     report
+}
+
+#[cfg(not(feature = "native-keychain"))]
+pub fn migrate_env_to_keyring() -> MigrationReport {
+    println!("  ⚠ Migration not available (native-keychain feature disabled)");
+    println!("  ⚠ Use environment variables instead in Docker/container environments");
+    MigrationReport {
+        not_found: MIGRATEABLE_PROVIDERS.iter().map(|s| s.to_string()).collect(),
+        ..Default::default()
+    }
 }
 
 #[cfg(test)]
@@ -313,5 +412,60 @@ mod tests {
         assert_eq!(provider_env_var("anthropic"), "ANTHROPIC_API_KEY");
         assert_eq!(provider_env_var("openai"), "OPENAI_API_KEY");
         assert_eq!(provider_env_var("gemini"), "GEMINI_API_KEY");
+    }
+
+    #[test]
+    fn test_keyring_error_display() {
+        let err = KeyringError::NotFound("anthropic".to_string());
+        assert!(err.to_string().contains("anthropic"));
+    }
+
+    #[test]
+    fn test_migration_report_summary() {
+        let report = MigrationReport {
+            migrated: 2,
+            skipped: 1,
+            not_found: vec!["groq".into()],
+            errors: vec![],
+        };
+        let summary = report.summary();
+        assert!(summary.contains("2 migrated"));
+        assert!(summary.contains("1 skipped"));
+    }
+
+    // Tests that are only relevant with native-keychain
+    #[cfg(feature = "native-keychain")]
+    mod native_tests {
+        use super::*;
+
+        #[test]
+        fn test_spn_keyring_not_found() {
+            // Test that querying a non-existent key returns NotFound
+            let result = SpnKeyring::get("nonexistent_provider_test_xyz");
+            assert!(matches!(result, Err(KeyringError::NotFound(_)) | Err(KeyringError::AccessError(_))));
+        }
+    }
+
+    // Tests for stub implementation
+    #[cfg(not(feature = "native-keychain"))]
+    mod stub_tests {
+        use super::*;
+
+        #[test]
+        fn test_stub_get_returns_error() {
+            let result = SpnKeyring::get("anthropic");
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_stub_exists_returns_false() {
+            assert!(!SpnKeyring::exists("anthropic"));
+        }
+
+        #[test]
+        fn test_stub_set_returns_error() {
+            let result = SpnKeyring::set("anthropic", "test-key");
+            assert!(result.is_err());
+        }
     }
 }

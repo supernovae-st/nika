@@ -18,14 +18,15 @@ name = "nika"
 path = "src/main.rs"
 
 [features]
-default = ["tui", "spn-daemon"]
+default = ["tui", "spn-daemon", "native-keychain"]
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-textarea", "dep:tui-input", "dep:arboard", "dep:notify", "dep:nucleo", "dep:unicode-width", "dep:unicode-segmentation", "dep:terminal_size", "dep:tui-tree-widget"]
 lsp = ["dep:tower-lsp", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support (v0.22)
 jobs = ["dep:rusqlite", "dep:cron", "dep:humantime-serde"]  # Jobs Daemon feature
 spn-daemon = ["dep:spn-client"]  # Use spn daemon for unified secret management (v0.20)
+native-keychain = ["dep:keyring"]  # OS keychain support (macOS Keychain, Windows Credential Manager, Linux Secret Service)
 integration = []  # Enable integration tests with real MCP servers
 test-fixtures = []  # Export test_fixtures module for external test crates
-docker = ["tui"]  # Docker build: TUI enabled, spn-daemon disabled (no OS keychain in container)
+docker = ["tui"]  # Docker build: TUI enabled, no keychain (uses env vars for secrets)
 
 [dependencies]
 # CLI
@@ -68,7 +69,9 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "str
 url = "2"  # URL parsing and validation
 
 # Secure credential storage
-keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+# keyring is optional - only needed when NOT using spn-daemon
+# Docker builds don't include keyring (no OS keychain in containers)
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"], optional = true }
 secrecy = "0.10"   # SecretString wrapper (upgraded for spn-client compat)
 zeroize = "1.8"    # Auto-clear memory on drop
 
