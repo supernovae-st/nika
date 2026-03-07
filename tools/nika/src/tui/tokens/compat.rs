@@ -5,7 +5,7 @@
 //!
 //! ## Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! // Before (inline)
 //! let color = Color::Rgb(34, 197, 94);
 //!
@@ -109,6 +109,26 @@ pub const ORANGE_500: Color = Color::Rgb(249, 115, 22); // #f97316
 pub const INDIGO_400: Color = Color::Rgb(129, 140, 248); // #818cf8
 pub const INDIGO_500: Color = Color::Rgb(99, 102, 241); // #6366f1
 pub const INDIGO_600: Color = Color::Rgb(79, 70, 229); // #4f46e5
+
+// --- TEAL ---
+pub const TEAL_400: Color = Color::Rgb(45, 212, 191); // #2dd4bf
+pub const TEAL_500: Color = Color::Rgb(20, 184, 166); // #14b8a6
+
+// --- SKY ---
+pub const SKY_400: Color = Color::Rgb(56, 189, 248); // #38bdf8
+pub const SKY_500: Color = Color::Rgb(14, 165, 233); // #0ea5e9
+
+// --- LIME ---
+pub const LIME_400: Color = Color::Rgb(163, 230, 53); // #a3e635
+pub const LIME_500: Color = Color::Rgb(132, 204, 22); // #84cc16
+
+// --- FUCHSIA ---
+pub const FUCHSIA_400: Color = Color::Rgb(232, 121, 249); // #e879f9
+pub const FUCHSIA_500: Color = Color::Rgb(217, 70, 239); // #d946ef
+
+// --- ZINC ---
+pub const ZINC_400: Color = Color::Rgb(161, 161, 170); // #a1a1aa
+pub const ZINC_500: Color = Color::Rgb(113, 113, 122); // #71717a
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SOLARIZED COLORS
