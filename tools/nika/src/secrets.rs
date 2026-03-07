@@ -28,7 +28,6 @@
 //!
 //! The daemon solves macOS Keychain popup issues by being the sole keychain accessor.
 
-use crate::tui::widgets::provider_modal::SpnKeyring;
 use secrecy::SecretString;
 use tracing::{debug, info, trace};
 
@@ -39,8 +38,69 @@ use tracing::warn;
 #[cfg(feature = "spn-daemon")]
 use spn_client::KNOWN_PROVIDERS;
 
-// Use TUI module's provider_env_var which handles both spn-daemon and fallback cases
-use crate::tui::widgets::provider_modal::provider_env_var;
+// ═══════════════════════════════════════════════════════════════════════════════
+// TUI-CONDITIONAL IMPORTS
+// When TUI is enabled, use the full SpnKeyring and provider_env_var from TUI.
+// When TUI is disabled, use fallback implementations below.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[cfg(feature = "tui")]
+use crate::tui::widgets::provider_modal::{provider_env_var, SpnKeyring};
+
+// Fallback: provider_env_var without TUI
+#[cfg(not(feature = "tui"))]
+fn provider_env_var(provider: &str) -> &'static str {
+    match provider {
+        "anthropic" => "ANTHROPIC_API_KEY",
+        "openai" => "OPENAI_API_KEY",
+        "mistral" => "MISTRAL_API_KEY",
+        "groq" => "GROQ_API_KEY",
+        "deepseek" => "DEEPSEEK_API_KEY",
+        "gemini" => "GEMINI_API_KEY",
+        "ollama" => "OLLAMA_API_BASE_URL",
+        "neo4j" => "NEO4J_PASSWORD",
+        "github" => "GITHUB_TOKEN",
+        "slack" => "SLACK_BOT_TOKEN",
+        "perplexity" => "PERPLEXITY_API_KEY",
+        "firecrawl" => "FIRECRAWL_API_KEY",
+        "supadata" => "SUPADATA_API_KEY",
+        _ => "UNKNOWN_API_KEY",
+    }
+}
+
+// Fallback: SpnKeyring stub without TUI (keyring not available without TUI feature)
+#[cfg(not(feature = "tui"))]
+mod fallback_keyring {
+    use secrecy::SecretString;
+    use std::io::{Error, ErrorKind};
+
+    /// Stub SpnKeyring when TUI is disabled.
+    /// All operations return errors since keyring requires TUI dependencies.
+    pub struct SpnKeyring;
+
+    impl SpnKeyring {
+        pub fn get(_provider: &str) -> Result<String, Error> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "Keyring access requires TUI feature",
+            ))
+        }
+
+        pub fn get_secret(_provider: &str) -> Result<SecretString, Error> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "Keyring access requires TUI feature",
+            ))
+        }
+
+        pub fn exists(_provider: &str) -> bool {
+            false
+        }
+    }
+}
+
+#[cfg(not(feature = "tui"))]
+use fallback_keyring::SpnKeyring;
 
 /// Result of loading secrets.
 #[derive(Debug, Clone, Default)]

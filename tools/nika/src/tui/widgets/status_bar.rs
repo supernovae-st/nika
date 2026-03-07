@@ -275,12 +275,7 @@ impl StatusMetrics {
             // Mini progress bar: [████░░░░░░] 45%
             let filled = (p as usize * 8) / 100;
             let empty = 8 - filled;
-            format!(
-                "[{}{}] {}%",
-                "█".repeat(filled),
-                "░".repeat(empty),
-                p
-            )
+            format!("[{}{}] {}%", "█".repeat(filled), "░".repeat(empty), p)
         })
     }
 

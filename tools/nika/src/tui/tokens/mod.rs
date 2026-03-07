@@ -32,9 +32,11 @@
 //! ```
 
 pub mod colors;
+pub mod compat;
 pub mod semantic;
 
 pub use colors::*;
+pub use compat::*;
 pub use semantic::*;
 
 use ratatui::style::Color;

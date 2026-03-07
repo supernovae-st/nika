@@ -3508,8 +3508,7 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
             {
                 let _ = (file, quiet); // Suppress unused warnings
                 Err(NikaError::ConfigError {
-                    key: "tui".to_string(),
-                    message: "TUI feature not enabled. Rebuild with `--features tui`".to_string(),
+                    reason: "TUI feature not enabled. Rebuild with `--features tui`".to_string(),
                 })
             }
         }

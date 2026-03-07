@@ -2,6 +2,8 @@
 //!
 //! Re-exports VerbColor from theme.rs (single source of truth).
 //! Provides domain-specific color utilities for HTTP and exit codes.
+//!
+//! Uses centralized color tokens from `tui::tokens::compat` module.
 
 // Re-export canonical VerbColor from theme
 pub use crate::tui::theme::VerbColor;
@@ -9,25 +11,26 @@ pub use crate::tui::theme::VerbColor;
 /// Status colors (shared across all verbs)
 pub mod status {
     use crate::tui::theme::Theme;
+    use crate::tui::tokens::compat;
     use ratatui::style::Color;
 
     /// Success green (Tailwind Green 500)
-    pub const SUCCESS: Color = Color::Rgb(34, 197, 94); // #22c55e
+    pub const SUCCESS: Color = compat::GREEN_500;
 
     /// Error red (Tailwind Red 500)
-    pub const ERROR: Color = Color::Rgb(239, 68, 68); // #ef4444
+    pub const ERROR: Color = compat::RED_500;
 
     /// Warning amber (Tailwind Amber 500)
-    pub const WARNING: Color = Color::Rgb(245, 158, 11); // #f59e0b
+    pub const WARNING: Color = compat::AMBER_500;
 
     /// Running/active yellow (Tailwind Yellow 400)
-    pub const RUNNING: Color = Color::Rgb(250, 204, 21); // #facc15
+    pub const RUNNING: Color = compat::YELLOW_400;
 
     /// Muted/disabled gray (Tailwind Slate 500)
-    pub const MUTED: Color = Color::Rgb(100, 116, 139); // #64748b
+    pub const MUTED: Color = compat::SLATE_500;
 
     /// Info blue (Tailwind Blue 500)
-    pub const INFO: Color = Color::Rgb(59, 130, 246); // #3b82f6
+    pub const INFO: Color = compat::BLUE_500;
 
     /// Get status color with theme support (fallback to constant)
     pub fn success(theme: Option<&Theme>) -> Color {
@@ -52,16 +55,17 @@ pub mod status {
 
 /// HTTP status code colors
 pub mod http {
+    use crate::tui::tokens::compat;
     use ratatui::style::Color;
 
     /// Get color for HTTP status code
     pub fn status_color(code: u16) -> Color {
         match code {
-            200..=299 => Color::Rgb(34, 197, 94),  // Green - success
-            300..=399 => Color::Rgb(6, 182, 212),  // Cyan - redirect
-            400..=499 => Color::Rgb(245, 158, 11), // Amber - client error
-            500..=599 => Color::Rgb(239, 68, 68),  // Red - server error
-            _ => Color::Rgb(100, 116, 139),        // Gray - unknown
+            200..=299 => compat::GREEN_500, // Green - success
+            300..=399 => compat::CYAN_500,  // Cyan - redirect
+            400..=499 => compat::AMBER_500, // Amber - client error
+            500..=599 => compat::RED_500,   // Red - server error
+            _ => compat::SLATE_500,         // Gray - unknown
         }
     }
 
@@ -91,16 +95,17 @@ pub mod http {
 
 /// Exit code colors for exec verb
 pub mod exit {
+    use crate::tui::tokens::compat;
     use ratatui::style::Color;
 
     /// Get color for exit code
     pub fn code_color(code: i32) -> Color {
         match code {
-            0 => Color::Rgb(34, 197, 94),         // Green - success
-            126 => Color::Rgb(245, 158, 11),      // Amber - permission denied
-            127 => Color::Rgb(245, 158, 11),      // Amber - command not found
-            128..=255 => Color::Rgb(239, 68, 68), // Red - signal termination
-            _ => Color::Rgb(239, 68, 68),         // Red - other errors
+            0 => compat::GREEN_500,       // Green - success
+            126 => compat::AMBER_500,     // Amber - permission denied
+            127 => compat::AMBER_500,     // Amber - command not found
+            128..=255 => compat::RED_500, // Red - signal termination
+            _ => compat::RED_500,         // Red - other errors
         }
     }
 }
@@ -109,6 +114,7 @@ pub mod exit {
 mod tests {
     use super::*;
     use crate::tui::theme::Theme;
+    use crate::tui::tokens::compat;
     use ratatui::style::Color;
 
     #[test]
@@ -164,9 +170,9 @@ mod tests {
 
     #[test]
     fn test_rgb_colors() {
-        assert_eq!(VerbColor::Infer.rgb(), Color::Rgb(139, 92, 246));
-        assert_eq!(VerbColor::Agent.rgb(), Color::Rgb(244, 63, 94));
-        assert_eq!(VerbColor::Spawn.rgb(), Color::Rgb(253, 164, 175));
+        assert_eq!(VerbColor::Infer.rgb(), compat::VIOLET_500);
+        assert_eq!(VerbColor::Agent.rgb(), compat::ROSE_500);
+        assert_eq!(VerbColor::Spawn.rgb(), Color::Rgb(253, 164, 175)); // rose_300
     }
 
     #[test]
@@ -174,17 +180,17 @@ mod tests {
         use http::status_color;
 
         // 2xx - green
-        assert_eq!(status_color(200), Color::Rgb(34, 197, 94));
-        assert_eq!(status_color(201), Color::Rgb(34, 197, 94));
+        assert_eq!(status_color(200), compat::GREEN_500);
+        assert_eq!(status_color(201), compat::GREEN_500);
 
         // 3xx - cyan
-        assert_eq!(status_color(301), Color::Rgb(6, 182, 212));
+        assert_eq!(status_color(301), compat::CYAN_500);
 
         // 4xx - amber
-        assert_eq!(status_color(404), Color::Rgb(245, 158, 11));
+        assert_eq!(status_color(404), compat::AMBER_500);
 
         // 5xx - red
-        assert_eq!(status_color(500), Color::Rgb(239, 68, 68));
+        assert_eq!(status_color(500), compat::RED_500);
     }
 
     #[test]
@@ -202,24 +208,24 @@ mod tests {
         use exit::code_color;
 
         // Success
-        assert_eq!(code_color(0), Color::Rgb(34, 197, 94));
+        assert_eq!(code_color(0), compat::GREEN_500);
 
         // Permission/command errors
-        assert_eq!(code_color(126), Color::Rgb(245, 158, 11));
-        assert_eq!(code_color(127), Color::Rgb(245, 158, 11));
+        assert_eq!(code_color(126), compat::AMBER_500);
+        assert_eq!(code_color(127), compat::AMBER_500);
 
         // Signal termination
-        assert_eq!(code_color(137), Color::Rgb(239, 68, 68)); // SIGKILL
+        assert_eq!(code_color(137), compat::RED_500); // SIGKILL
 
         // Other errors
-        assert_eq!(code_color(1), Color::Rgb(239, 68, 68));
+        assert_eq!(code_color(1), compat::RED_500);
     }
 
     #[test]
     fn test_status_constants() {
-        assert_eq!(status::SUCCESS, Color::Rgb(34, 197, 94));
-        assert_eq!(status::ERROR, Color::Rgb(239, 68, 68));
-        assert_eq!(status::WARNING, Color::Rgb(245, 158, 11));
+        assert_eq!(status::SUCCESS, compat::GREEN_500);
+        assert_eq!(status::ERROR, compat::RED_500);
+        assert_eq!(status::WARNING, compat::AMBER_500);
     }
 
     #[test]

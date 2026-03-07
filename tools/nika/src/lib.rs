@@ -77,6 +77,7 @@ pub mod provider;
 pub mod registry;
 pub mod store;
 pub mod tools;
+#[cfg(feature = "tui")]
 pub mod tui;
 pub mod util;
 

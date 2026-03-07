@@ -1,6 +1,7 @@
 //! # Tailwind CSS Color Palette for Ratatui
 //!
 //! Complete Tailwind CSS v3.4 color palette converted to `ratatui::style::Color`.
+//! Contains 12 palettes × 11 shades = 132 colors.
 //!
 //! ## Cosmic Tailwind Selection 🦋🌌
 //!
@@ -15,6 +16,10 @@
 //! - **Amber**: Warning, exec verb
 //! - **Rose**: Agent verb
 //! - **Red**: Error states
+//! - **Blue**: Info states
+//! - **Green**: Success alternative, nature
+//! - **Yellow**: Attention, highlights
+//! - **Gray**: Pure neutral (no blue tint)
 
 use ratatui::style::Color;
 
@@ -162,6 +167,51 @@ pub struct ColorPalette {
     pub blue_800: Color,
     pub blue_900: Color,
     pub blue_950: Color,
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // GREEN (Success alternative, nature)
+    // ═══════════════════════════════════════════════════════════════════════════
+    pub green_50: Color,
+    pub green_100: Color,
+    pub green_200: Color,
+    pub green_300: Color,
+    pub green_400: Color,
+    pub green_500: Color,
+    pub green_600: Color,
+    pub green_700: Color,
+    pub green_800: Color,
+    pub green_900: Color,
+    pub green_950: Color,
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // YELLOW (Attention, highlights)
+    // ═══════════════════════════════════════════════════════════════════════════
+    pub yellow_50: Color,
+    pub yellow_100: Color,
+    pub yellow_200: Color,
+    pub yellow_300: Color,
+    pub yellow_400: Color,
+    pub yellow_500: Color,
+    pub yellow_600: Color,
+    pub yellow_700: Color,
+    pub yellow_800: Color,
+    pub yellow_900: Color,
+    pub yellow_950: Color,
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // GRAY (Pure neutral - no blue tint)
+    // ═══════════════════════════════════════════════════════════════════════════
+    pub gray_50: Color,
+    pub gray_100: Color,
+    pub gray_200: Color,
+    pub gray_300: Color,
+    pub gray_400: Color,
+    pub gray_500: Color,
+    pub gray_600: Color,
+    pub gray_700: Color,
+    pub gray_800: Color,
+    pub gray_900: Color,
+    pub gray_950: Color,
 }
 
 impl Default for ColorPalette {
@@ -311,6 +361,51 @@ impl ColorPalette {
             blue_800: Color::Rgb(30, 64, 175),   // #1e40af
             blue_900: Color::Rgb(30, 58, 138),   // #1e3a8a
             blue_950: Color::Rgb(23, 37, 84),    // #172554
+
+            // ═══════════════════════════════════════════════════════════════════
+            // GREEN - Success alternative, nature
+            // ═══════════════════════════════════════════════════════════════════
+            green_50: Color::Rgb(240, 253, 244),  // #f0fdf4
+            green_100: Color::Rgb(220, 252, 231), // #dcfce7
+            green_200: Color::Rgb(187, 247, 208), // #bbf7d0
+            green_300: Color::Rgb(134, 239, 172), // #86efac
+            green_400: Color::Rgb(74, 222, 128),  // #4ade80
+            green_500: Color::Rgb(34, 197, 94),   // #22c55e
+            green_600: Color::Rgb(22, 163, 74),   // #16a34a
+            green_700: Color::Rgb(21, 128, 61),   // #15803d
+            green_800: Color::Rgb(22, 101, 52),   // #166534
+            green_900: Color::Rgb(20, 83, 45),    // #14532d
+            green_950: Color::Rgb(5, 46, 22),     // #052e16
+
+            // ═══════════════════════════════════════════════════════════════════
+            // YELLOW - Attention, highlights
+            // ═══════════════════════════════════════════════════════════════════
+            yellow_50: Color::Rgb(254, 252, 232),  // #fefce8
+            yellow_100: Color::Rgb(254, 249, 195), // #fef9c3
+            yellow_200: Color::Rgb(254, 240, 138), // #fef08a
+            yellow_300: Color::Rgb(253, 224, 71),  // #fde047
+            yellow_400: Color::Rgb(250, 204, 21),  // #facc15
+            yellow_500: Color::Rgb(234, 179, 8),   // #eab308
+            yellow_600: Color::Rgb(202, 138, 4),   // #ca8a04
+            yellow_700: Color::Rgb(161, 98, 7),    // #a16207
+            yellow_800: Color::Rgb(133, 77, 14),   // #854d0e
+            yellow_900: Color::Rgb(113, 63, 18),   // #713f12
+            yellow_950: Color::Rgb(66, 32, 6),     // #422006
+
+            // ═══════════════════════════════════════════════════════════════════
+            // GRAY - Pure neutral (no blue tint, unlike Slate)
+            // ═══════════════════════════════════════════════════════════════════
+            gray_50: Color::Rgb(249, 250, 251),  // #f9fafb
+            gray_100: Color::Rgb(243, 244, 246), // #f3f4f6
+            gray_200: Color::Rgb(229, 231, 235), // #e5e7eb
+            gray_300: Color::Rgb(209, 213, 219), // #d1d5db
+            gray_400: Color::Rgb(156, 163, 175), // #9ca3af
+            gray_500: Color::Rgb(107, 114, 128), // #6b7280
+            gray_600: Color::Rgb(75, 85, 99),    // #4b5563
+            gray_700: Color::Rgb(55, 65, 81),    // #374151
+            gray_800: Color::Rgb(31, 41, 55),    // #1f2937
+            gray_900: Color::Rgb(17, 24, 39),    // #111827
+            gray_950: Color::Rgb(3, 7, 18),      // #030712
         }
     }
 
@@ -479,6 +574,60 @@ impl ColorPalette {
             _ => self.blue_500,
         }
     }
+
+    /// Get green shade by index
+    pub fn green(&self, shade: u16) -> Color {
+        match shade {
+            50 => self.green_50,
+            100 => self.green_100,
+            200 => self.green_200,
+            300 => self.green_300,
+            400 => self.green_400,
+            500 => self.green_500,
+            600 => self.green_600,
+            700 => self.green_700,
+            800 => self.green_800,
+            900 => self.green_900,
+            950 => self.green_950,
+            _ => self.green_500,
+        }
+    }
+
+    /// Get yellow shade by index
+    pub fn yellow(&self, shade: u16) -> Color {
+        match shade {
+            50 => self.yellow_50,
+            100 => self.yellow_100,
+            200 => self.yellow_200,
+            300 => self.yellow_300,
+            400 => self.yellow_400,
+            500 => self.yellow_500,
+            600 => self.yellow_600,
+            700 => self.yellow_700,
+            800 => self.yellow_800,
+            900 => self.yellow_900,
+            950 => self.yellow_950,
+            _ => self.yellow_500,
+        }
+    }
+
+    /// Get gray shade by index
+    pub fn gray(&self, shade: u16) -> Color {
+        match shade {
+            50 => self.gray_50,
+            100 => self.gray_100,
+            200 => self.gray_200,
+            300 => self.gray_300,
+            400 => self.gray_400,
+            500 => self.gray_500,
+            600 => self.gray_600,
+            700 => self.gray_700,
+            800 => self.gray_800,
+            900 => self.gray_900,
+            950 => self.gray_950,
+            _ => self.gray_500,
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -521,7 +670,7 @@ mod tests {
         let shades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
 
         for shade in shades {
-            // These should not panic
+            // These should not panic (12 palettes total)
             let _ = palette.slate(shade);
             let _ = palette.violet(shade);
             let _ = palette.cyan(shade);
@@ -531,7 +680,19 @@ mod tests {
             let _ = palette.rose(shade);
             let _ = palette.red(shade);
             let _ = palette.blue(shade);
+            let _ = palette.green(shade);
+            let _ = palette.yellow(shade);
+            let _ = palette.gray(shade);
         }
+    }
+
+    #[test]
+    fn test_new_palettes_values() {
+        let palette = ColorPalette::tailwind();
+        // Verify official Tailwind CSS v3.4 values for new palettes
+        assert_eq!(palette.green_500, Color::Rgb(34, 197, 94)); // #22c55e
+        assert_eq!(palette.yellow_500, Color::Rgb(234, 179, 8)); // #eab308
+        assert_eq!(palette.gray_500, Color::Rgb(107, 114, 128)); // #6b7280
     }
 
     #[test]
