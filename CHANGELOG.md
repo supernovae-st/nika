@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Release Pipeline** — Complete rewrite aligned with spn-cli pattern
+  - Fix GitHub Action versions (v6/v7/v8 don't exist → use v4)
+  - Add 6 build targets: macOS arm64/x64, Linux arm64/x64, musl arm64/x64
+  - Add docker-publish job using pre-built musl binaries
+  - Add Homebrew formula auto-update
+  - Add SLSA provenance and SBOM generation
+  - Remove broken `docker.yml` (Docker now in `release.yml`)
+- **Docker ARM64 Build** — Fix cross-compilation failure
+  - Error: `failed to find tool aarch64-linux-musl-gcc`
+  - Root cause: Building inside Alpine container can't cross-compile
+  - Solution: Build musl binaries in CI, copy pre-built to scratch image
+- **Dockerfile** — Simplify to scratch pattern with pre-built binaries
+  - Remove multi-stage build with Rust compilation
+  - Use CI-built static musl binaries (~5MB image)
+
 ## [0.21.0] - 2026-03-05
 
 ### Added
