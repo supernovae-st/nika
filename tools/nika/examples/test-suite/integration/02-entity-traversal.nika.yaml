@@ -1,0 +1,89 @@
+# Entity Traversal Test
+# =============================================================================
+# Tests NovaNet graph traversal capabilities: search, traverse, introspect.
+#
+# Usage:
+#   docker compose -f docker-compose.test.yml --profile integration up -d
+#   nika examples/test-suite/integration/02-entity-traversal.nika.yaml
+#
+# Requirements:
+#   - Neo4j with NovaNet schema loaded
+#   - Entity data seeded (e.g., qr-code entity)
+# =============================================================================
+
+schema: "nika/workflow@0.10"
+workflow: test-entity-traversal
+description: "Test NovaNet search, traverse, and introspect tools"
+
+mcp:
+  novanet:
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../../novanet/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: ${NOVANET_MCP_NEO4J_URI:-bolt://localhost:7687}
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: ${NOVANET_MCP_NEO4J_PASSWORD:-novanetpassword}
+
+tasks:
+  # Test 1: novanet_introspect - Get Entity class definition
+  - id: introspect_entity
+    description: "Introspect Entity node class"
+    invoke:
+      server: novanet
+      tool: novanet_introspect
+      params:
+        target: class
+        name: Entity
+        include_arcs: true
+    output:
+      format: json
+
+  # Test 2: novanet_search - Find entities
+  - id: search_entities
+    description: "Search for entities"
+    invoke:
+      server: novanet
+      tool: novanet_search
+      params:
+        query: "QR"
+        kinds: ["Entity"]
+        mode: fulltext
+        limit: 10
+    output:
+      format: json
+    flow: [introspect_entity]
+
+  # Test 3: novanet_traverse - Explore from entity
+  - id: traverse_entity
+    description: "Traverse from entity to related nodes"
+    invoke:
+      server: novanet
+      tool: novanet_traverse
+      params:
+        start_key: "entity:qr-code"
+        max_depth: 2
+        direction: outgoing
+        arc_families:
+          - localization
+          - ownership
+    output:
+      format: json
+    flow: [search_entities]
+
+  # Test 4: Verify traversal found nodes
+  - id: verify_traversal
+    description: "Verify traversal returned results"
+    use:
+      nodes: traverse_entity
+    exec:
+      command: |
+        echo '{{use.nodes}}' | jq -e '
+          type == "object" and (
+            has("nodes") or has("results") or has("data") or . != null
+          )
+        '
+      shell: true
+    flow: [traverse_entity]

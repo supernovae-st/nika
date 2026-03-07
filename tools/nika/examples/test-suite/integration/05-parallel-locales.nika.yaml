@@ -1,0 +1,138 @@
+# Parallel Locale Generation Test
+# =============================================================================
+# Tests for_each parallelism with NovaNet locale-specific content generation.
+#
+# Features tested:
+#   - for_each: array iteration
+#   - concurrency: parallel execution
+#   - novanet_generate: locale-specific context assembly
+#   - Aggregation of parallel results
+#
+# Usage:
+#   docker compose -f docker-compose.test.yml --profile e2e up -d
+#   ANTHROPIC_API_KEY=sk-ant-... nika examples/test-suite/integration/05-parallel-locales.nika.yaml
+# =============================================================================
+
+schema: "nika/workflow@0.10"
+workflow: test-parallel-locale-generation
+description: "Test for_each parallelism with multi-locale generation"
+
+provider: claude
+model: claude-sonnet-4-6
+
+inputs:
+  locales:
+    type: array
+    default:
+      - fr-FR
+      - en-US
+      - de-DE
+      - es-ES
+  entity:
+    type: string
+    default: "qr-code"
+
+mcp:
+  novanet:
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../../novanet/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: ${NOVANET_MCP_NEO4J_URI:-bolt://localhost:7687}
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: ${NOVANET_MCP_NEO4J_PASSWORD:-novanetpassword}
+
+tasks:
+  # Step 1: Generate context for each locale in parallel
+  - id: generate_per_locale
+    description: "Generate context for each locale (parallel)"
+    for_each: "{{inputs.locales}}"
+    as: locale
+    concurrency: 4
+    fail_fast: false
+    invoke:
+      server: novanet
+      tool: novanet_generate
+      params:
+        focus_key: "entity:{{inputs.entity}}"
+        locale: "{{use.locale}}"
+        mode: block
+        token_budget: 4000
+    output:
+      format: json
+
+  # Step 2: Generate headlines for each locale
+  - id: generate_headlines
+    description: "Generate headlines per locale (parallel)"
+    for_each: "{{inputs.locales}}"
+    as: locale
+    concurrency: 4
+    fail_fast: false
+    use:
+      contexts: generate_per_locale
+    infer:
+      prompt: |
+        Generate a compelling headline for locale: {{use.locale}}
+
+        Available context: {{use.contexts}}
+
+        Output a JSON object:
+        {"locale": "{{use.locale}}", "headline": "your headline here"}
+      temperature: 0.4
+      max_tokens: 100
+    output:
+      format: json
+      schema:
+        type: object
+        required: [locale, headline]
+        properties:
+          locale:
+            type: string
+          headline:
+            type: string
+    flow: [generate_per_locale]
+
+  # Step 3: Aggregate results
+  - id: aggregate_results
+    description: "Aggregate all locale results"
+    use:
+      headlines: generate_headlines
+    infer:
+      prompt: |
+        Summarize the headlines generated for each locale:
+        {{use.headlines}}
+
+        Output a JSON object with:
+        - total_locales: number of locales processed
+        - headlines: object with locale codes as keys
+        - status: "success" or "partial"
+      temperature: 0.2
+    output:
+      format: json
+      schema:
+        type: object
+        required: [total_locales, status]
+        properties:
+          total_locales:
+            type: integer
+          status:
+            type: string
+            enum: [success, partial]
+          headlines:
+            type: object
+    flow: [generate_headlines]
+
+  # Step 4: Verify completion
+  - id: verify_completion
+    description: "Verify all locales processed"
+    use:
+      result: aggregate_results
+    exec:
+      command: |
+        echo '{{use.result}}' | jq -e '
+          .total_locales >= 4 and .status == "success"
+        '
+      shell: true
+    flow: [aggregate_results]

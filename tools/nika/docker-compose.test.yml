@@ -1,0 +1,208 @@
+# docker-compose.test.yml
+# =============================================================================
+# Nika Integration Testing Infrastructure
+# =============================================================================
+#
+# Profiles:
+#   unit        - No services (just nika container for unit tests)
+#   integration - Neo4j + NovaNet MCP for MCP integration tests
+#   e2e         - Full stack with all services
+#
+# Usage:
+#   docker compose -f docker-compose.test.yml --profile unit up
+#   docker compose -f docker-compose.test.yml --profile integration up
+#   docker compose -f docker-compose.test.yml --profile e2e up --abort-on-container-exit
+#
+# =============================================================================
+
+name: nika-test
+
+services:
+  # ---------------------------------------------------------------------------
+  # Neo4j Graph Database
+  # ---------------------------------------------------------------------------
+  neo4j:
+    image: neo4j:5.26.0-community
+    container_name: nika-test-neo4j
+    environment:
+      NEO4J_AUTH: neo4j/testpassword
+      NEO4J_PLUGINS: '["apoc"]'
+      # UTF-8 encoding for proper diacritics support
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+      NEO4J_server_jvm_additional: -Dfile.encoding=UTF-8
+      # APOC configuration
+      NEO4J_apoc_export_file_enabled: "true"
+      NEO4J_apoc_import_file_enabled: "true"
+      NEO4J_apoc_import_file_use__neo4j__config: "true"
+      # Memory settings for testing
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 512m
+    ports:
+      - "7474:7474"   # HTTP Browser
+      - "7687:7687"   # Bolt Protocol
+    volumes:
+      - neo4j_test_data:/data
+      - neo4j_test_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - nika-test-network
+    profiles:
+      - integration
+      - e2e
+
+  # ---------------------------------------------------------------------------
+  # NovaNet MCP Server (builds from local source)
+  # ---------------------------------------------------------------------------
+  novanet-mcp:
+    build:
+      context: ../../../novanet/tools/novanet-mcp
+      dockerfile: Dockerfile
+    container_name: nika-test-novanet-mcp
+    environment:
+      NOVANET_MCP_NEO4J_URI: bolt://neo4j:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: testpassword
+      RUST_LOG: info
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    networks:
+      - nika-test-network
+    profiles:
+      - integration
+      - e2e
+
+  # ---------------------------------------------------------------------------
+  # Nika Test Runner (unit tests)
+  # ---------------------------------------------------------------------------
+  nika-unit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: nika-test-unit
+    command: cargo nextest run --no-default-features --features docker
+    working_dir: /app
+    volumes:
+      - cargo_cache:/usr/local/cargo/registry
+      - cargo_git:/usr/local/cargo/git
+      - target_cache:/app/target
+    networks:
+      - nika-test-network
+    profiles:
+      - unit
+
+  # ---------------------------------------------------------------------------
+  # Nika Integration Test Runner
+  # ---------------------------------------------------------------------------
+  nika-integration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: nika-test-integration
+    command: >
+      cargo nextest run
+        --no-default-features --features docker
+        -E 'test(/integration/) | test(/mcp/)'
+    working_dir: /app
+    environment:
+      NOVANET_MCP_NEO4J_URI: bolt://neo4j:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: testpassword
+      RUST_LOG: info,nika=debug
+      # LLM API keys (optional - for e2e tests with real APIs)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      novanet-mcp:
+        condition: service_started
+    volumes:
+      - cargo_cache:/usr/local/cargo/registry
+      - cargo_git:/usr/local/cargo/git
+      - target_cache:/app/target
+    networks:
+      - nika-test-network
+    profiles:
+      - integration
+
+  # ---------------------------------------------------------------------------
+  # Nika E2E Test Runner (with real LLM calls)
+  # ---------------------------------------------------------------------------
+  nika-e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: nika-test-e2e
+    command: >
+      cargo nextest run
+        --no-default-features --features docker
+        -E 'test(/e2e/)'
+    working_dir: /app
+    environment:
+      NOVANET_MCP_NEO4J_URI: bolt://neo4j:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: testpassword
+      RUST_LOG: info,nika=debug
+      # Required for e2e tests
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    depends_on:
+      novanet-mcp:
+        condition: service_started
+    volumes:
+      - cargo_cache:/usr/local/cargo/registry
+      - cargo_git:/usr/local/cargo/git
+      - target_cache:/app/target
+    networks:
+      - nika-test-network
+    profiles:
+      - e2e
+
+  # ---------------------------------------------------------------------------
+  # Nika Workflow Runner (for testing .nika.yaml files)
+  # ---------------------------------------------------------------------------
+  nika-workflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nika-workflow-runner
+    environment:
+      NOVANET_MCP_NEO4J_URI: bolt://neo4j:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: testpassword
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      novanet-mcp:
+        condition: service_started
+    volumes:
+      - ./examples:/workspace/examples:ro
+      - ./workflows:/workspace/workflows:ro
+    working_dir: /workspace
+    networks:
+      - nika-test-network
+    profiles:
+      - e2e
+
+volumes:
+  neo4j_test_data:
+    name: nika_neo4j_test_data
+  neo4j_test_logs:
+    name: nika_neo4j_test_logs
+  cargo_cache:
+    name: nika_cargo_cache
+  cargo_git:
+    name: nika_cargo_git
+  target_cache:
+    name: nika_target_cache
+
+networks:
+  nika-test-network:
+    driver: bridge
+    name: nika-test-network

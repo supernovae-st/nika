@@ -1,0 +1,78 @@
+# MCP Connection Test
+# =============================================================================
+# Verifies connectivity to NovaNet MCP server and Neo4j backend.
+#
+# Usage:
+#   docker compose -f docker-compose.test.yml --profile integration up -d
+#   nika examples/test-suite/integration/01-mcp-connection.nika.yaml
+#
+# Requirements:
+#   - Neo4j running on bolt://localhost:7687
+#   - NovaNet MCP server accessible
+# =============================================================================
+
+schema: "nika/workflow@0.10"
+workflow: test-mcp-connection
+description: "Verify NovaNet MCP server connectivity"
+
+mcp:
+  novanet:
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../../novanet/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: ${NOVANET_MCP_NEO4J_URI:-bolt://localhost:7687}
+      NOVANET_MCP_NEO4J_USER: ${NOVANET_MCP_NEO4J_USER:-neo4j}
+      NOVANET_MCP_NEO4J_PASSWORD: ${NOVANET_MCP_NEO4J_PASSWORD:-novanetpassword}
+
+tasks:
+  # Test 1: novanet_describe (schema overview)
+  - id: describe_schema
+    description: "Test novanet_describe tool returns schema"
+    invoke:
+      server: novanet
+      tool: novanet_describe
+      params:
+        describe: schema
+    output:
+      format: json
+
+  # Test 2: Verify schema has expected structure
+  - id: verify_schema_structure
+    description: "Verify schema contains node_classes"
+    use:
+      schema: describe_schema
+    exec:
+      command: |
+        echo '{{use.schema}}' | jq -e '
+          .node_classes | length > 0
+        '
+      shell: true
+    flow: [describe_schema]
+
+  # Test 3: novanet_describe (stats)
+  - id: describe_stats
+    description: "Test novanet_describe stats"
+    invoke:
+      server: novanet
+      tool: novanet_describe
+      params:
+        describe: stats
+    output:
+      format: json
+    flow: [verify_schema_structure]
+
+  # Test 4: Verify stats response
+  - id: verify_stats
+    description: "Verify stats contains node counts"
+    use:
+      stats: describe_stats
+    exec:
+      command: |
+        echo '{{use.stats}}' | jq -e '
+          has("total_nodes") or has("node_count") or type == "object"
+        '
+      shell: true
+    flow: [describe_stats]

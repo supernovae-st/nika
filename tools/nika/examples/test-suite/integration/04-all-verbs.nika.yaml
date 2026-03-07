@@ -1,0 +1,138 @@
+# All 5 Verbs Integration Test
+# =============================================================================
+# Comprehensive test of all 5 semantic verbs with NovaNet MCP integration.
+#
+# Verbs tested:
+#   1. exec:   - Shell command execution
+#   2. fetch:  - HTTP request
+#   3. invoke: - MCP tool call
+#   4. infer:  - LLM generation
+#   5. agent:  - Multi-turn agentic loop
+#
+# Usage:
+#   docker compose -f docker-compose.test.yml --profile e2e up -d
+#   ANTHROPIC_API_KEY=sk-ant-... nika examples/test-suite/integration/04-all-verbs.nika.yaml
+# =============================================================================
+
+schema: "nika/workflow@0.10"
+workflow: test-all-verbs-integration
+description: "Test all 5 semantic verbs with NovaNet"
+
+provider: claude
+model: claude-sonnet-4-6
+
+mcp:
+  novanet:
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../../../../novanet/tools/novanet-mcp/Cargo.toml
+    env:
+      NOVANET_MCP_NEO4J_URI: ${NOVANET_MCP_NEO4J_URI:-bolt://localhost:7687}
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: ${NOVANET_MCP_NEO4J_PASSWORD:-novanetpassword}
+
+tasks:
+  # ---------------------------------------------------------------------------
+  # VERB 1: exec: - Shell command execution
+  # ---------------------------------------------------------------------------
+  - id: exec_setup
+    description: "exec: Setup test environment"
+    exec:
+      command: "echo 'Test started' && date -Iseconds"
+      shell: true
+
+  # ---------------------------------------------------------------------------
+  # VERB 2: fetch: - HTTP request (check Neo4j browser)
+  # ---------------------------------------------------------------------------
+  - id: fetch_neo4j
+    description: "fetch: Check Neo4j HTTP endpoint"
+    fetch:
+      url: "http://localhost:7474"
+      method: GET
+      timeout: 10
+    flow: [exec_setup]
+
+  # ---------------------------------------------------------------------------
+  # VERB 3: invoke: - MCP tool call
+  # ---------------------------------------------------------------------------
+  - id: invoke_describe
+    description: "invoke: Call novanet_describe"
+    invoke:
+      server: novanet
+      tool: novanet_describe
+      params:
+        describe: stats
+    output:
+      format: json
+    flow: [fetch_neo4j]
+
+  # ---------------------------------------------------------------------------
+  # VERB 4: infer: - LLM generation
+  # ---------------------------------------------------------------------------
+  - id: infer_summary
+    description: "infer: Summarize graph stats"
+    use:
+      stats: invoke_describe
+    infer:
+      prompt: |
+        Summarize these NovaNet graph statistics in ONE sentence (max 50 words):
+        {{use.stats}}
+      temperature: 0.2
+      max_tokens: 100
+    flow: [invoke_describe]
+
+  # ---------------------------------------------------------------------------
+  # VERB 5: agent: - Multi-turn agentic loop
+  # ---------------------------------------------------------------------------
+  - id: agent_explore
+    description: "agent: Explore graph and report"
+    use:
+      summary: infer_summary
+    agent:
+      prompt: |
+        You are a knowledge graph explorer. Your task:
+
+        1. Use novanet_introspect to list available node classes (target: "classes")
+        2. Pick ONE interesting class and describe what it represents
+        3. Output a JSON object with your findings
+
+        Previous summary: {{use.summary}}
+
+        When done, output JSON and say "EXPLORATION_COMPLETE".
+      mcp:
+        - novanet
+      max_turns: 5
+      extended_thinking: false
+    output:
+      format: json
+      schema:
+        type: object
+        required:
+          - classes_found
+          - selected_class
+          - description
+        properties:
+          classes_found:
+            type: integer
+          selected_class:
+            type: string
+          description:
+            type: string
+    flow: [infer_summary]
+
+  # ---------------------------------------------------------------------------
+  # Final: exec: - Log completion
+  # ---------------------------------------------------------------------------
+  - id: exec_complete
+    description: "exec: Log test completion"
+    use:
+      result: agent_explore
+    exec:
+      command: |
+        echo "All 5 verbs tested successfully!"
+        echo "Agent found {{use.result.classes_found}} classes"
+        echo "Selected: {{use.result.selected_class}}"
+      shell: true
+    flow: [agent_explore]

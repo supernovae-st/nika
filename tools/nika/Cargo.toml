@@ -25,6 +25,7 @@ jobs = ["dep:rusqlite", "dep:cron", "dep:humantime-serde"]  # Jobs Daemon featur
 spn-daemon = ["dep:spn-client"]  # Use spn daemon for unified secret management (v0.20)
 integration = []  # Enable integration tests with real MCP servers
 test-fixtures = []  # Export test_fixtures module for external test crates
+docker = ["tui"]  # Docker build: TUI enabled, spn-daemon disabled (no OS keychain in container)
 
 [dependencies]
 # CLI
