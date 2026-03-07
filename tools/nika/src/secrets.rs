@@ -45,9 +45,12 @@ use spn_client::KNOWN_PROVIDERS;
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[cfg(feature = "tui")]
-use crate::tui::widgets::provider_modal::{provider_env_var, SpnKeyring};
+use crate::tui::providers::env_var as provider_env_var;
 
-// Fallback: provider_env_var without TUI
+#[cfg(feature = "tui")]
+use crate::tui::widgets::provider_modal::SpnKeyring;
+
+// Fallback: provider_env_var without TUI (uses same logic as tui::providers::fallback)
 #[cfg(not(feature = "tui"))]
 fn provider_env_var(provider: &str) -> &'static str {
     match provider {

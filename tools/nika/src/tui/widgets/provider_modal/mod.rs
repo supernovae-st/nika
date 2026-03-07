@@ -18,10 +18,13 @@ mod tabs;
 pub use components::*;
 pub use handler::*;
 pub use keyring::{
-    mask_api_key, migrate_env_to_keyring, provider_env_var, validate_key_format, KeyringError,
-    MigrationReport, SpnKeyring,
+    mask_api_key, migrate_env_to_keyring, validate_key_format, KeyringError, MigrationReport,
+    SpnKeyring,
 };
 pub use loader::*;
+
+// Re-export provider_env_var from unified providers module
+pub use crate::tui::providers::env_var as provider_env_var;
 pub use ollama_client::*;
 pub use provider_checker::*;
 pub use state::*;

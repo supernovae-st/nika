@@ -18,11 +18,13 @@ use secrecy::SecretString;
 use thiserror::Error;
 use zeroize::Zeroizing;
 
+// Unified provider access (single source of truth)
+use crate::tui::providers::env_var as provider_env_var;
+
 // Import spn-core types via spn-client re-exports (when spn-daemon feature enabled)
 #[cfg(feature = "spn-daemon")]
 use spn_client::{
-    mask_key as spn_mask_key, provider_to_env_var as spn_provider_to_env_var,
-    validate_key_format as spn_validate_key_format,
+    mask_key as spn_mask_key, validate_key_format as spn_validate_key_format,
 };
 
 /// Service name for keyring entries.
@@ -166,29 +168,6 @@ pub fn validate_key_format(provider: &str, key: &str) -> Result<(), String> {
         }
     }
     Ok(())
-}
-
-/// Get environment variable name for provider.
-///
-/// With spn-daemon feature: delegates to spn_core::provider_to_env_var
-/// Without: uses local lookup table
-#[cfg(feature = "spn-daemon")]
-pub fn provider_env_var(provider: &str) -> &'static str {
-    spn_provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY")
-}
-
-#[cfg(not(feature = "spn-daemon"))]
-pub fn provider_env_var(provider: &str) -> &'static str {
-    match provider {
-        "anthropic" => "ANTHROPIC_API_KEY",
-        "openai" => "OPENAI_API_KEY",
-        "mistral" => "MISTRAL_API_KEY",
-        "groq" => "GROQ_API_KEY",
-        "deepseek" => "DEEPSEEK_API_KEY",
-        "gemini" => "GEMINI_API_KEY",
-        "ollama" => "OLLAMA_API_BASE_URL",
-        _ => "UNKNOWN_API_KEY",
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
