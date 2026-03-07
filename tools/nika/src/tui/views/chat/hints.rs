@@ -245,8 +245,14 @@ mod tests {
 
     #[test]
     fn test_verb_placeholder_user() {
-        assert_eq!(verb_placeholder(&VerbColor::User, 0), "Type your message...");
-        assert_eq!(verb_placeholder(&VerbColor::User, 100), "Type your message...");
+        assert_eq!(
+            verb_placeholder(&VerbColor::User, 0),
+            "Type your message..."
+        );
+        assert_eq!(
+            verb_placeholder(&VerbColor::User, 100),
+            "Type your message..."
+        );
     }
 
     #[test]

@@ -127,12 +127,14 @@ use crate::tui::widgets::{
 mod helpers;
 mod hints;
 mod layout;
+mod render;
 mod types;
 
-pub use types::*;
 use helpers::categorize_error;
 use hints::{detect_verb_in_input, verb_placeholder};
 use layout::{compute_panel_areas, point_in_rect};
+use render::render_verb_gradient;
+pub use types::*;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Serializable Chat Session (HIGH 8 - Persistent Sessions)
@@ -4078,9 +4080,7 @@ impl ChatView {
     fn try_verb_autocomplete(&self) -> Option<String> {
         let input = self.input.value();
 
-        if let Some((_verb_len, verb_color, is_complete, full_verb)) =
-            detect_verb_in_input(input)
-        {
+        if let Some((_verb_len, verb_color, is_complete, full_verb)) = detect_verb_in_input(input) {
             if !is_complete {
                 // Partial match → complete the verb name
                 return Some(format!("/{} ", full_verb));
@@ -4099,114 +4099,6 @@ impl ChatView {
             }
         }
         None
-    }
-
-    /// v0.8.2: Get contextual placeholder for a verb command
-    /// Returns a hint based on verb type, cycling through examples using frame
-    /// Generate per-character gradient spans for smooth verb animation
-    /// Creates a flowing wave effect with ASCII background zone
-    fn render_verb_gradient(
-        text: &str,
-        verb_color: &VerbColor,
-        frame: u8,
-        is_complete: bool,
-    ) -> Vec<Span<'static>> {
-        let chars: Vec<char> = text.chars().collect();
-        let len = chars.len();
-        if len == 0 {
-            return vec![];
-        }
-
-        let base_rgb = verb_color.rgb_tuple();
-        let glow_rgb = verb_color.glow_tuple();
-        // White for peak sparkle
-        let sparkle_rgb: (u8, u8, u8) = (255, 255, 255);
-        // Dark for contrast (muted base)
-        let dark_rgb: (u8, u8, u8) = (base_rgb.0 / 2, base_rgb.1 / 2, base_rgb.2 / 2);
-        // Background color (very subtle)
-        let bg_base: (u8, u8, u8) = (
-            12 + base_rgb.0 / 15,
-            12 + base_rgb.1 / 15,
-            12 + base_rgb.2 / 15,
-        );
-
-        chars
-            .into_iter()
-            .enumerate()
-            .map(|(i, c)| {
-                // FUN but not epileptic: visible wave per character
-                let phase_offset = (i as f32) * std::f32::consts::PI * 0.6; // ~108° per char - visible difference
-                let time = (frame as f32 / 12.0) * std::f32::consts::PI; // Medium speed - fun but readable
-                let wave = ((time + phase_offset).sin() + 1.0) / 2.0; // 0.0 to 1.0
-
-                // Secondary wave for extra life
-                let shimmer_time = (frame as f32 / 20.0) * std::f32::consts::PI;
-                let shimmer = ((shimmer_time + phase_offset * 2.0).sin() + 1.0) / 2.0;
-
-                if is_complete {
-                    // Fun color wave: dark → base → glow → sparkle
-                    // Using smooth sine curve for nice transitions
-
-                    let (r, g, b) = if wave < 0.25 {
-                        // Dark to base (valley)
-                        let t = wave * 4.0;
-                        (
-                            (dark_rgb.0 as f32 * (1.0 - t) + base_rgb.0 as f32 * t) as u8,
-                            (dark_rgb.1 as f32 * (1.0 - t) + base_rgb.1 as f32 * t) as u8,
-                            (dark_rgb.2 as f32 * (1.0 - t) + base_rgb.2 as f32 * t) as u8,
-                        )
-                    } else if wave < 0.6 {
-                        // Base to glow (rising)
-                        let t = (wave - 0.25) / 0.35;
-                        (
-                            (base_rgb.0 as f32 * (1.0 - t) + glow_rgb.0 as f32 * t) as u8,
-                            (base_rgb.1 as f32 * (1.0 - t) + glow_rgb.1 as f32 * t) as u8,
-                            (base_rgb.2 as f32 * (1.0 - t) + glow_rgb.2 as f32 * t) as u8,
-                        )
-                    } else {
-                        // Glow to white sparkle at peak (with shimmer variation)
-                        let t = ((wave - 0.6) / 0.4) * (0.6 + shimmer * 0.4);
-                        (
-                            (glow_rgb.0 as f32 * (1.0 - t) + sparkle_rgb.0 as f32 * t) as u8,
-                            (glow_rgb.1 as f32 * (1.0 - t) + sparkle_rgb.1 as f32 * t) as u8,
-                            (glow_rgb.2 as f32 * (1.0 - t) + sparkle_rgb.2 as f32 * t) as u8,
-                        )
-                    };
-
-                    let color = Color::Rgb(r, g, b);
-
-                    // Background zone with gentle pulse
-                    let bg_pulse = 0.6 + wave * 0.4; // Background follows the wave too
-                    let bg_r = (bg_base.0 as f32 * bg_pulse).min(255.0) as u8;
-                    let bg_g = (bg_base.1 as f32 * bg_pulse).min(255.0) as u8;
-                    let bg_b = (bg_base.2 as f32 * bg_pulse).min(255.0) as u8;
-
-                    Span::styled(
-                        c.to_string(),
-                        Style::default()
-                            .fg(color)
-                            .bg(Color::Rgb(bg_r, bg_g, bg_b))
-                            .add_modifier(Modifier::BOLD),
-                    )
-                } else {
-                    // Partial match: visible wave but calmer
-                    let wave_mild = 0.3 + wave * 0.5; // 0.3 to 0.8 range
-                    let r = (dark_rgb.0 as f32 * (1.0 - wave_mild) + glow_rgb.0 as f32 * wave_mild)
-                        as u8;
-                    let g = (dark_rgb.1 as f32 * (1.0 - wave_mild) + glow_rgb.1 as f32 * wave_mild)
-                        as u8;
-                    let b = (dark_rgb.2 as f32 * (1.0 - wave_mild) + glow_rgb.2 as f32 * wave_mild)
-                        as u8;
-
-                    Span::styled(
-                        c.to_string(),
-                        Style::default()
-                            .fg(Color::Rgb(r, g, b))
-                            .add_modifier(Modifier::BOLD),
-                    )
-                }
-            })
-            .collect()
     }
 
     fn render_input(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
@@ -4323,7 +4215,7 @@ impl ChatView {
                     // v0.8.2: ASCII box with animated emoji for the verb
 
                     let emoji = verb_color.icon();
-                    spans.extend(Self::render_verb_gradient(
+                    spans.extend(render_verb_gradient(
                         emoji,
                         &verb_color,
                         self.frame,
@@ -4332,7 +4224,7 @@ impl ChatView {
                     spans.push(Span::raw(" ")); // Space after emoji
 
                     // Render before cursor with gradient
-                    spans.extend(Self::render_verb_gradient(
+                    spans.extend(render_verb_gradient(
                         &before_in_verb,
                         &verb_color,
                         self.frame,
@@ -4358,7 +4250,7 @@ impl ChatView {
                     }
 
                     // Render after cursor with gradient
-                    spans.extend(Self::render_verb_gradient(
+                    spans.extend(render_verb_gradient(
                         &after_in_verb,
                         &verb_color,
                         self.frame,
@@ -4386,7 +4278,7 @@ impl ChatView {
                     // v0.8.2: ASCII box with animated emoji for the verb
 
                     let emoji = verb_color.icon();
-                    spans.extend(Self::render_verb_gradient(
+                    spans.extend(render_verb_gradient(
                         emoji,
                         &verb_color,
                         self.frame,
@@ -4394,7 +4286,7 @@ impl ChatView {
                     ));
                     spans.push(Span::raw(" ")); // Space after emoji
 
-                    spans.extend(Self::render_verb_gradient(
+                    spans.extend(render_verb_gradient(
                         verb_part,
                         &verb_color,
                         self.frame,
@@ -6332,7 +6224,6 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
         ])
         .split(popup_layout[1])[1]
 }
-
 
 #[cfg(test)]
 mod tests;

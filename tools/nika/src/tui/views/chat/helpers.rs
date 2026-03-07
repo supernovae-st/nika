@@ -172,7 +172,11 @@ mod tests {
 
         for error in test_errors {
             let (_, suggestion) = categorize_error(error);
-            assert!(!suggestion.is_empty(), "Suggestion for '{}' should not be empty", error);
+            assert!(
+                !suggestion.is_empty(),
+                "Suggestion for '{}' should not be empty",
+                error
+            );
         }
     }
 }

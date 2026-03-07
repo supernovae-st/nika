@@ -899,9 +899,7 @@ fn test_chat_session_preserves_thinking() {
 #[test]
 fn test_default_session_path() {
     let path = ChatView::default_session_path();
-    assert!(
-        path.ends_with("nika-chat-session.json") || path.to_string_lossy().contains("nika")
-    );
+    assert!(path.ends_with("nika-chat-session.json") || path.to_string_lossy().contains("nika"));
 }
 
 // === Phase 8: Real-time Streaming Updates Tests (v0.7.3) ===
@@ -1395,9 +1393,9 @@ fn test_provider_id_matches_model() {
         "claude" => assert!(view.current_model.starts_with("claude")),
         "openai" => assert!(view.current_model.starts_with("gpt")),
         "mistral" => assert!(view.current_model.starts_with("mistral")),
-        "groq" => assert!(
-            view.current_model.contains("llama") || view.current_model.contains("mixtral")
-        ),
+        "groq" => {
+            assert!(view.current_model.contains("llama") || view.current_model.contains("mixtral"))
+        }
         "deepseek" => assert!(view.current_model.starts_with("deepseek")),
         "ollama" => assert!(view.current_model.contains("llama")),
         "none" => assert!(view.current_model == "No API Key"), // CI without keys
@@ -1461,11 +1459,7 @@ fn test_toggle_all_thinking() {
 #[test]
 fn test_is_thinking_visible_respects_default() {
     let mut view = ChatView::new();
-    view.add_nika_message_with_thinking(
-        "Answer".to_string(),
-        Some("Thinking".to_string()),
-        None,
-    );
+    view.add_nika_message_with_thinking("Answer".to_string(), Some("Thinking".to_string()), None);
 
     // Message is at index 1 (system welcome at 0)
     // Get the message ID for direct set manipulation
