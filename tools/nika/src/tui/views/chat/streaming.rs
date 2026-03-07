@@ -3,7 +3,9 @@
 //! Contains streaming control, rain effects, agent phase handlers,
 //! and thinking management. Extracted from mod.rs as part of Phase A1 refactoring.
 
-use super::{AgentPhase, AgentPhaseIndicator, ChatView, DecryptVerb, MessageRole, StreamingDecrypt};
+use super::{
+    AgentPhase, AgentPhaseIndicator, ChatView, DecryptVerb, MessageRole, StreamingDecrypt,
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Streaming Control Methods
