@@ -1,24 +1,31 @@
-//! Settings View - Provider configuration, theme, preferences (v0.11.1)
+//! Settings View - Provider configuration, theme, preferences (v0.21.2)
 //!
-//! Layout:
+//! 5-section layout for SPN integration:
+//!
 //! ```text
 //! ╭───────────────────────────────────────────────────────────────────────────────╮
 //! │  SETTINGS                                                    [Esc] Back       │
 //! ├───────────────────────────────────────────────────────────────────────────────┤
 //! │                                                                               │
-//! │  ┌─ PROVIDER ─────────────────────────────────────────────────────────────┐   │
-//! │  │  Current: Claude (claude-sonnet-4-6)                                   │   │
-//! │  │  [Enter] Configure  [Tab] Next section                                 │   │
-//! │  └────────────────────────────────────────────────────────────────────────┘   │
+//! │  ┌─ 1. PROVIDERS ────────────────────────────────────────────────────────┐    │
+//! │  │  LLM: 4/7 configured  |  MCP: 2/6 configured                          │    │
+//! │  └───────────────────────────────────────────────────────────────────────┘    │
 //! │                                                                               │
-//! │  ┌─ THEME ────────────────────────────────────────────────────────────────┐   │
-//! │  │  Current: Dark                                                         │   │
-//! │  │  [1] Light  [2] Dark  [3] Solarized                                    │   │
-//! │  └────────────────────────────────────────────────────────────────────────┘   │
+//! │  ┌─ 2. MCP SERVERS ──────────────────────────────────────────────────────┐    │
+//! │  │  Active: novanet, perplexity                                          │    │
+//! │  └───────────────────────────────────────────────────────────────────────┘    │
 //! │                                                                               │
-//! │  ┌─ KEYBOARD SHORTCUTS ───────────────────────────────────────────────────┐   │
-//! │  │  [?] Help view for full reference                                      │   │
-//! │  └────────────────────────────────────────────────────────────────────────┘   │
+//! │  ┌─ 3. SECRETS ──────────────────────────────────────────────────────────┐    │
+//! │  │  Source: spn-daemon  |  Keychain: 5 entries                           │    │
+//! │  └───────────────────────────────────────────────────────────────────────┘    │
+//! │                                                                               │
+//! │  ┌─ 4. PACKAGES ─────────────────────────────────────────────────────────┐    │
+//! │  │  Installed: @spn/core@1.0                                             │    │
+//! │  └───────────────────────────────────────────────────────────────────────┘    │
+//! │                                                                               │
+//! │  ┌─ 5. PREFERENCES ──────────────────────────────────────────────────────┐    │
+//! │  │  Theme: Dark  |  [1] Light  [2] Dark  [3] Solarized                   │    │
+//! │  └───────────────────────────────────────────────────────────────────────┘    │
 //! │                                                                               │
 //! ╰───────────────────────────────────────────────────────────────────────────────╯
 //! ```
@@ -37,45 +44,84 @@ use super::{CosmicVariant, TuiView, ViewAction};
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;
 
-/// Settings section for navigation
+/// Settings section for navigation (5 sections for SPN integration)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SettingsSection {
     #[default]
-    Provider,
-    Theme,
-    Shortcuts,
+    Providers,   // LLM + MCP status summary
+    McpServers,  // Active MCP servers
+    Secrets,     // Daemon status + keychain info
+    Packages,    // Installed via spn (future)
+    Preferences, // Theme + shortcuts merged
 }
 
 impl SettingsSection {
+    /// Get all sections in order
+    pub const ALL: [SettingsSection; 5] = [
+        SettingsSection::Providers,
+        SettingsSection::McpServers,
+        SettingsSection::Secrets,
+        SettingsSection::Packages,
+        SettingsSection::Preferences,
+    ];
+
     /// Get next section
     pub fn next(&self) -> Self {
         match self {
-            SettingsSection::Provider => SettingsSection::Theme,
-            SettingsSection::Theme => SettingsSection::Shortcuts,
-            SettingsSection::Shortcuts => SettingsSection::Provider,
+            SettingsSection::Providers => SettingsSection::McpServers,
+            SettingsSection::McpServers => SettingsSection::Secrets,
+            SettingsSection::Secrets => SettingsSection::Packages,
+            SettingsSection::Packages => SettingsSection::Preferences,
+            SettingsSection::Preferences => SettingsSection::Providers,
         }
     }
 
     /// Get previous section
     pub fn prev(&self) -> Self {
         match self {
-            SettingsSection::Provider => SettingsSection::Shortcuts,
-            SettingsSection::Theme => SettingsSection::Provider,
-            SettingsSection::Shortcuts => SettingsSection::Theme,
+            SettingsSection::Providers => SettingsSection::Preferences,
+            SettingsSection::McpServers => SettingsSection::Providers,
+            SettingsSection::Secrets => SettingsSection::McpServers,
+            SettingsSection::Packages => SettingsSection::Secrets,
+            SettingsSection::Preferences => SettingsSection::Packages,
         }
     }
 
     /// Get section title
     pub fn title(&self) -> &'static str {
         match self {
-            SettingsSection::Provider => "PROVIDER",
-            SettingsSection::Theme => "THEME",
-            SettingsSection::Shortcuts => "KEYBOARD SHORTCUTS",
+            SettingsSection::Providers => "PROVIDERS",
+            SettingsSection::McpServers => "MCP SERVERS",
+            SettingsSection::Secrets => "SECRETS",
+            SettingsSection::Packages => "PACKAGES",
+            SettingsSection::Preferences => "PREFERENCES",
+        }
+    }
+
+    /// Get section number (1-indexed for display)
+    pub fn number(&self) -> u8 {
+        match self {
+            SettingsSection::Providers => 1,
+            SettingsSection::McpServers => 2,
+            SettingsSection::Secrets => 3,
+            SettingsSection::Packages => 4,
+            SettingsSection::Preferences => 5,
         }
     }
 }
 
-/// Settings view state
+/// Secrets info for display
+#[derive(Debug, Clone, Default)]
+pub struct SecretsInfo {
+    /// Source (spn-daemon or fallback)
+    pub source: String,
+    /// Number of keychain entries
+    pub keychain_count: usize,
+    /// Whether daemon is available
+    pub daemon_available: bool,
+}
+
+/// Settings view state (5 sections for SPN integration)
 pub struct SettingsView {
     /// Currently selected section
     pub section: SettingsSection,
@@ -85,16 +131,35 @@ pub struct SettingsView {
     pub model_name: String,
     /// Current theme name
     pub theme_name: String,
+    /// LLM providers configured count
+    pub llm_configured: usize,
+    /// MCP providers configured count
+    pub mcp_configured: usize,
+    /// Active MCP servers
+    pub active_mcp_servers: Vec<String>,
+    /// Secrets info
+    pub secrets_info: SecretsInfo,
+    /// Installed packages (future)
+    pub installed_packages: Vec<String>,
 }
 
 impl SettingsView {
     /// Create a new SettingsView
     pub fn new() -> Self {
         Self {
-            section: SettingsSection::Provider,
+            section: SettingsSection::Providers,
             provider_name: "Auto-detect".to_string(),
             model_name: "".to_string(),
             theme_name: "Dark".to_string(),
+            llm_configured: 0,
+            mcp_configured: 0,
+            active_mcp_servers: Vec::new(),
+            secrets_info: SecretsInfo {
+                source: "checking...".to_string(),
+                keychain_count: 0,
+                daemon_available: false,
+            },
+            installed_packages: Vec::new(),
         }
     }
 
@@ -111,6 +176,31 @@ impl SettingsView {
     /// Called from App when theme changes (v0.12 state sync).
     pub fn update_theme_name(&mut self, name: &str) {
         self.theme_name = name.to_string();
+    }
+
+    /// Update provider counts
+    pub fn update_provider_counts(&mut self, llm: usize, mcp: usize) {
+        self.llm_configured = llm;
+        self.mcp_configured = mcp;
+    }
+
+    /// Update active MCP servers
+    pub fn update_mcp_servers(&mut self, servers: Vec<String>) {
+        self.active_mcp_servers = servers;
+    }
+
+    /// Update secrets info
+    pub fn update_secrets_info(&mut self, source: &str, count: usize, daemon_available: bool) {
+        self.secrets_info = SecretsInfo {
+            source: source.to_string(),
+            keychain_count: count,
+            daemon_available,
+        };
+    }
+
+    /// Update installed packages
+    pub fn update_packages(&mut self, packages: Vec<String>) {
+        self.installed_packages = packages;
     }
 
     /// Render a settings section box
@@ -159,64 +249,155 @@ impl Default for SettingsView {
 
 impl View for SettingsView {
     fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
-        // Layout: 3 sections with equal height
+        // Layout: 5 sections with compact heights
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .margin(1)
             .constraints([
-                Constraint::Length(5), // Provider section
-                Constraint::Length(5), // Theme section
-                Constraint::Length(5), // Shortcuts section
-                Constraint::Min(0),    // Remaining space
+                Constraint::Length(4), // 1. Providers section
+                Constraint::Length(4), // 2. MCP Servers section
+                Constraint::Length(4), // 3. Secrets section
+                Constraint::Length(4), // 4. Packages section
+                Constraint::Length(5), // 5. Preferences section (taller for shortcuts)
+                Constraint::Min(0),    // Footer
             ])
             .split(area);
 
-        // Provider section
-        let provider_content = vec![
+        // 1. PROVIDERS section - LLM + MCP status
+        let providers_content = vec![
             Line::from(vec![
-                Span::styled("  Current: ", Style::default().fg(theme.text_muted)),
+                Span::styled("  LLM: ", Style::default().fg(theme.text_muted)),
                 Span::styled(
-                    &self.provider_name,
+                    format!("{}/7", self.llm_configured),
                     Style::default()
-                        .fg(theme.highlight)
+                        .fg(if self.llm_configured > 0 {
+                            theme.highlight
+                        } else {
+                            theme.text_muted
+                        })
                         .add_modifier(Modifier::BOLD),
                 ),
-                if !self.model_name.is_empty() {
-                    Span::styled(
-                        format!(" ({})", self.model_name),
-                        Style::default().fg(theme.text_muted),
-                    )
-                } else {
-                    Span::raw("")
-                },
+                Span::styled(" configured  │  MCP: ", Style::default().fg(theme.text_muted)),
+                Span::styled(
+                    format!("{}/6", self.mcp_configured),
+                    Style::default()
+                        .fg(if self.mcp_configured > 0 {
+                            theme.highlight
+                        } else {
+                            theme.text_muted
+                        })
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(" configured", Style::default().fg(theme.text_muted)),
             ]),
             Line::from(vec![
                 Span::styled("  ", Style::default()),
                 Span::styled("[Ctrl+P]", Style::default().fg(theme.highlight)),
-                Span::styled(" Configure provider", Style::default().fg(theme.text_muted)),
+                Span::styled(" Configure providers", Style::default().fg(theme.text_muted)),
             ]),
         ];
         self.render_section(
             frame,
             chunks[0],
-            SettingsSection::Provider,
-            provider_content,
+            SettingsSection::Providers,
+            providers_content,
             theme,
         );
 
-        // Theme section
-        let theme_content = vec![
+        // 2. MCP SERVERS section
+        let mcp_servers_display = if self.active_mcp_servers.is_empty() {
+            "none active".to_string()
+        } else {
+            self.active_mcp_servers.join(", ")
+        };
+        let mcp_content = vec![Line::from(vec![
+            Span::styled("  Active: ", Style::default().fg(theme.text_muted)),
+            Span::styled(
+                mcp_servers_display,
+                Style::default()
+                    .fg(if self.active_mcp_servers.is_empty() {
+                        theme.text_muted
+                    } else {
+                        theme.highlight
+                    })
+                    .add_modifier(if self.active_mcp_servers.is_empty() {
+                        Modifier::empty()
+                    } else {
+                        Modifier::BOLD
+                    }),
+            ),
+        ])];
+        self.render_section(
+            frame,
+            chunks[1],
+            SettingsSection::McpServers,
+            mcp_content,
+            theme,
+        );
+
+        // 3. SECRETS section
+        let secrets_content = vec![Line::from(vec![
+            Span::styled("  Source: ", Style::default().fg(theme.text_muted)),
+            Span::styled(
+                &self.secrets_info.source,
+                Style::default()
+                    .fg(if self.secrets_info.daemon_available {
+                        theme.highlight
+                    } else {
+                        theme.text_muted
+                    })
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("  │  Keychain: ", Style::default().fg(theme.text_muted)),
+            Span::styled(
+                format!("{} entries", self.secrets_info.keychain_count),
+                Style::default().fg(theme.text_primary),
+            ),
+        ])];
+        self.render_section(
+            frame,
+            chunks[2],
+            SettingsSection::Secrets,
+            secrets_content,
+            theme,
+        );
+
+        // 4. PACKAGES section
+        let packages_display = if self.installed_packages.is_empty() {
+            "none installed".to_string()
+        } else {
+            self.installed_packages.join(", ")
+        };
+        let packages_content = vec![Line::from(vec![
+            Span::styled("  Installed: ", Style::default().fg(theme.text_muted)),
+            Span::styled(
+                packages_display,
+                Style::default().fg(if self.installed_packages.is_empty() {
+                    theme.text_muted
+                } else {
+                    theme.text_primary
+                }),
+            ),
+        ])];
+        self.render_section(
+            frame,
+            chunks[3],
+            SettingsSection::Packages,
+            packages_content,
+            theme,
+        );
+
+        // 5. PREFERENCES section - Theme + shortcuts
+        let preferences_content = vec![
             Line::from(vec![
-                Span::styled("  Current: ", Style::default().fg(theme.text_muted)),
+                Span::styled("  Theme: ", Style::default().fg(theme.text_muted)),
                 Span::styled(
                     &self.theme_name,
                     Style::default()
                         .fg(theme.highlight)
                         .add_modifier(Modifier::BOLD),
                 ),
-            ]),
-            Line::from(vec![
-                Span::styled("  ", Style::default()),
+                Span::styled("  │  ", Style::default().fg(theme.text_muted)),
                 Span::styled("[1]", Style::default().fg(theme.highlight)),
                 Span::styled(" Light  ", Style::default().fg(theme.text_muted)),
                 Span::styled("[2]", Style::default().fg(theme.highlight)),
@@ -224,54 +405,36 @@ impl View for SettingsView {
                 Span::styled("[3]", Style::default().fg(theme.highlight)),
                 Span::styled(" Solarized", Style::default().fg(theme.text_muted)),
             ]),
-        ];
-        self.render_section(
-            frame,
-            chunks[1],
-            SettingsSection::Theme,
-            theme_content,
-            theme,
-        );
-
-        // Shortcuts section
-        let shortcuts_content = vec![
             Line::from(vec![
-                Span::styled("  Press ", Style::default().fg(theme.text_muted)),
+                Span::styled("  ", Style::default()),
                 Span::styled("[?]", Style::default().fg(theme.highlight)),
-                Span::styled(
-                    " to view full keyboard shortcut reference",
-                    Style::default().fg(theme.text_muted),
-                ),
-            ]),
-            Line::from(vec![
-                Span::styled("  Press ", Style::default().fg(theme.text_muted)),
+                Span::styled(" Help  ", Style::default().fg(theme.text_muted)),
                 Span::styled("[Esc]", Style::default().fg(theme.highlight)),
-                Span::styled(
-                    " to return to previous view",
-                    Style::default().fg(theme.text_muted),
-                ),
+                Span::styled(" Back", Style::default().fg(theme.text_muted)),
             ]),
         ];
         self.render_section(
             frame,
-            chunks[2],
-            SettingsSection::Shortcuts,
-            shortcuts_content,
+            chunks[4],
+            SettingsSection::Preferences,
+            preferences_content,
             theme,
         );
 
         // Footer with navigation hints
-        if chunks[3].height > 0 {
+        if chunks[5].height > 0 {
             let footer = Paragraph::new(Line::from(vec![
                 Span::styled("[Tab]", Style::default().fg(theme.highlight)),
-                Span::styled(" Next section  ", Style::default().fg(theme.text_muted)),
-                Span::styled("[Shift+Tab]", Style::default().fg(theme.highlight)),
-                Span::styled(" Previous  ", Style::default().fg(theme.text_muted)),
+                Span::styled(" Next  ", Style::default().fg(theme.text_muted)),
+                Span::styled("[j/k]", Style::default().fg(theme.highlight)),
+                Span::styled(" Navigate  ", Style::default().fg(theme.text_muted)),
+                Span::styled("[1-3]", Style::default().fg(theme.highlight)),
+                Span::styled(" Theme  ", Style::default().fg(theme.text_muted)),
                 Span::styled("[Esc]", Style::default().fg(theme.highlight)),
                 Span::styled(" Back", Style::default().fg(theme.text_muted)),
             ]))
             .style(Style::default().fg(theme.text_muted));
-            frame.render_widget(footer, chunks[3]);
+            frame.render_widget(footer, chunks[5]);
         }
     }
 
@@ -311,8 +474,8 @@ impl View for SettingsView {
 
             // ? falls through to app-level Help mode (v0.21.2 fix)
 
-            // Enter on Provider opens modal (via chat's Ctrl+P)
-            KeyCode::Enter if self.section == SettingsSection::Provider => {
+            // Enter on Providers opens modal (via chat's Ctrl+P)
+            KeyCode::Enter if self.section == SettingsSection::Providers => {
                 // Return None - app.rs will need to handle this specially
                 ViewAction::OpenSettings // Reuse to trigger provider modal
             }
@@ -330,32 +493,83 @@ impl View for SettingsView {
 mod tests {
     use super::*;
 
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // SettingsView Basic Tests (v0.21.2 - 5 sections)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
     #[test]
     fn test_settings_view_new() {
         let view = SettingsView::new();
-        assert_eq!(view.section, SettingsSection::Provider);
+        assert_eq!(view.section, SettingsSection::Providers);
         assert_eq!(view.provider_name, "Auto-detect");
+        assert_eq!(view.llm_configured, 0);
+        assert_eq!(view.mcp_configured, 0);
     }
 
     #[test]
     fn test_section_next() {
-        assert_eq!(SettingsSection::Provider.next(), SettingsSection::Theme);
-        assert_eq!(SettingsSection::Theme.next(), SettingsSection::Shortcuts);
-        assert_eq!(SettingsSection::Shortcuts.next(), SettingsSection::Provider);
+        // 5-section cycle: Providers → McpServers → Secrets → Packages → Preferences → Providers
+        assert_eq!(
+            SettingsSection::Providers.next(),
+            SettingsSection::McpServers
+        );
+        assert_eq!(SettingsSection::McpServers.next(), SettingsSection::Secrets);
+        assert_eq!(SettingsSection::Secrets.next(), SettingsSection::Packages);
+        assert_eq!(
+            SettingsSection::Packages.next(),
+            SettingsSection::Preferences
+        );
+        assert_eq!(
+            SettingsSection::Preferences.next(),
+            SettingsSection::Providers
+        );
     }
 
     #[test]
     fn test_section_prev() {
-        assert_eq!(SettingsSection::Provider.prev(), SettingsSection::Shortcuts);
-        assert_eq!(SettingsSection::Theme.prev(), SettingsSection::Provider);
-        assert_eq!(SettingsSection::Shortcuts.prev(), SettingsSection::Theme);
+        // Reverse cycle: Providers → Preferences → Packages → Secrets → McpServers → Providers
+        assert_eq!(
+            SettingsSection::Providers.prev(),
+            SettingsSection::Preferences
+        );
+        assert_eq!(
+            SettingsSection::Preferences.prev(),
+            SettingsSection::Packages
+        );
+        assert_eq!(SettingsSection::Packages.prev(), SettingsSection::Secrets);
+        assert_eq!(
+            SettingsSection::Secrets.prev(),
+            SettingsSection::McpServers
+        );
+        assert_eq!(
+            SettingsSection::McpServers.prev(),
+            SettingsSection::Providers
+        );
     }
 
     #[test]
     fn test_section_titles() {
-        assert_eq!(SettingsSection::Provider.title(), "PROVIDER");
-        assert_eq!(SettingsSection::Theme.title(), "THEME");
-        assert_eq!(SettingsSection::Shortcuts.title(), "KEYBOARD SHORTCUTS");
+        assert_eq!(SettingsSection::Providers.title(), "PROVIDERS");
+        assert_eq!(SettingsSection::McpServers.title(), "MCP SERVERS");
+        assert_eq!(SettingsSection::Secrets.title(), "SECRETS");
+        assert_eq!(SettingsSection::Packages.title(), "PACKAGES");
+        assert_eq!(SettingsSection::Preferences.title(), "PREFERENCES");
+    }
+
+    #[test]
+    fn test_section_numbers() {
+        assert_eq!(SettingsSection::Providers.number(), 1);
+        assert_eq!(SettingsSection::McpServers.number(), 2);
+        assert_eq!(SettingsSection::Secrets.number(), 3);
+        assert_eq!(SettingsSection::Packages.number(), 4);
+        assert_eq!(SettingsSection::Preferences.number(), 5);
+    }
+
+    #[test]
+    fn test_section_all_constant() {
+        assert_eq!(SettingsSection::ALL.len(), 5);
+        assert_eq!(SettingsSection::ALL[0], SettingsSection::Providers);
+        assert_eq!(SettingsSection::ALL[4], SettingsSection::Preferences);
     }
 
     #[test]
@@ -376,11 +590,47 @@ mod tests {
     }
 
     #[test]
+    fn test_update_provider_counts() {
+        let mut view = SettingsView::new();
+        view.update_provider_counts(4, 2);
+        assert_eq!(view.llm_configured, 4);
+        assert_eq!(view.mcp_configured, 2);
+    }
+
+    #[test]
+    fn test_update_mcp_servers() {
+        let mut view = SettingsView::new();
+        view.update_mcp_servers(vec!["novanet".into(), "perplexity".into()]);
+        assert_eq!(view.active_mcp_servers.len(), 2);
+        assert!(view.active_mcp_servers.contains(&"novanet".to_string()));
+    }
+
+    #[test]
+    fn test_update_secrets_info() {
+        let mut view = SettingsView::new();
+        view.update_secrets_info("spn-daemon", 5, true);
+        assert_eq!(view.secrets_info.source, "spn-daemon");
+        assert_eq!(view.secrets_info.keychain_count, 5);
+        assert!(view.secrets_info.daemon_available);
+    }
+
+    #[test]
+    fn test_update_packages() {
+        let mut view = SettingsView::new();
+        view.update_packages(vec!["@spn/core@1.0".into()]);
+        assert_eq!(view.installed_packages.len(), 1);
+    }
+
+    #[test]
     fn test_status_line() {
         let view = SettingsView::new();
         let state = TuiState::new("test");
-        assert!(view.status_line(&state).contains("PROVIDER"));
+        assert!(view.status_line(&state).contains("PROVIDERS"));
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Key Handling Tests
+    // ═══════════════════════════════════════════════════════════════════════════════
 
     #[test]
     fn test_handle_key_escape_returns_studio() {
@@ -395,17 +645,26 @@ mod tests {
     fn test_handle_key_tab_cycles_sections() {
         let mut view = SettingsView::new();
         let mut state = TuiState::new("test");
-        assert_eq!(view.section, SettingsSection::Provider);
+        assert_eq!(view.section, SettingsSection::Providers);
 
         let key = KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE);
+
+        // Cycle through all 5 sections
         view.handle_key(key, &mut state);
-        assert_eq!(view.section, SettingsSection::Theme);
+        assert_eq!(view.section, SettingsSection::McpServers);
 
         view.handle_key(key, &mut state);
-        assert_eq!(view.section, SettingsSection::Shortcuts);
+        assert_eq!(view.section, SettingsSection::Secrets);
 
         view.handle_key(key, &mut state);
-        assert_eq!(view.section, SettingsSection::Provider);
+        assert_eq!(view.section, SettingsSection::Packages);
+
+        view.handle_key(key, &mut state);
+        assert_eq!(view.section, SettingsSection::Preferences);
+
+        // Wraps back to Providers
+        view.handle_key(key, &mut state);
+        assert_eq!(view.section, SettingsSection::Providers);
     }
 
     #[test]
@@ -414,7 +673,7 @@ mod tests {
         let mut state = TuiState::new("test");
         let key = KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT);
         view.handle_key(key, &mut state);
-        assert_eq!(view.section, SettingsSection::Shortcuts);
+        assert_eq!(view.section, SettingsSection::Preferences);
     }
 
     #[test]
@@ -431,13 +690,25 @@ mod tests {
         let mut view = SettingsView::new();
         let mut state = TuiState::new("test");
 
+        // j moves to next section
         let key_j = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE);
         view.handle_key(key_j, &mut state);
-        assert_eq!(view.section, SettingsSection::Theme);
+        assert_eq!(view.section, SettingsSection::McpServers);
 
+        // k moves to previous section
         let key_k = KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE);
         view.handle_key(key_k, &mut state);
-        assert_eq!(view.section, SettingsSection::Provider);
+        assert_eq!(view.section, SettingsSection::Providers);
+    }
+
+    #[test]
+    fn test_handle_key_enter_on_providers() {
+        let mut view = SettingsView::new();
+        let mut state = TuiState::new("test");
+        view.section = SettingsSection::Providers;
+        let key = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        let action = view.handle_key(key, &mut state);
+        assert!(matches!(action, ViewAction::OpenSettings));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -478,5 +749,17 @@ mod tests {
             action,
             ViewAction::SetTheme(CosmicVariant::CosmicViolet)
         ));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // SecretsInfo Tests
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_secrets_info_default() {
+        let info = SecretsInfo::default();
+        assert!(info.source.is_empty());
+        assert_eq!(info.keychain_count, 0);
+        assert!(!info.daemon_available);
     }
 }
