@@ -1,0 +1,52 @@
+# =============================================================================
+# Docker Build Context Exclusions
+# =============================================================================
+# This file excludes unnecessary files from the Docker build context,
+# reducing build time from minutes to seconds.
+# =============================================================================
+
+# Build artifacts
+target/
+*.rlib
+*.rmeta
+
+# Git
+.git/
+.gitignore
+.github/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Documentation
+docs/
+*.md
+!Cargo.toml
+!Cargo.lock
+
+# Tests (not needed for release build)
+tests/
+examples/
+# Note: benches/ is kept for cargo-chef recipe (referenced in Cargo.toml)
+
+# Local config
+.nika/
+.env*
+
+# macOS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+*.ndjson
+
+# Coverage
+coverage/
+*.profraw
+*.profdata
+lcov.info
