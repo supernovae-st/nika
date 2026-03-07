@@ -25,7 +25,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
-use chrono::{DateTime, Local};
+use chrono::Local;
 
 use arboard::Clipboard;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -91,7 +91,6 @@ use crate::tui::widgets::{
     DecryptVerb,
     HelpOverlay,
     HelpOverlayState,
-    InferStreamData,
     MatrixRain,
     McpCallData,
     McpCallStatus,
@@ -122,105 +121,15 @@ use crate::tui::widgets::{
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// NOTE: v0.9.1 - All colors now come from Theme (no hardcoded fallbacks)
+// Module: types (extracted v0.21.2 - Phase A1 refactor)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Message role in conversation
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MessageRole {
-    User,
-    Nika,
-    System,
-    Tool,
-}
-
-/// A chat message
-#[derive(Debug, Clone)]
-pub struct ChatMessage {
-    /// v0.9: Stable unique ID for tracking (survives message list mutations)
-    pub id: u64,
-    pub role: MessageRole,
-    pub content: String,
-    /// v0.9: Display timestamp (HH:MM) for better conversation tracking
-    pub timestamp: DateTime<Local>,
-    /// v0.8.1: Instant for elapsed time calculations
-    pub created_at: Instant,
-    /// Optional inline execution result
-    pub execution: Option<ExecutionResult>,
-    /// Optional agent thinking/reasoning content (v0.5.2+)
-    /// Displayed inline when present (collapsible in UI)
-    pub thinking: Option<String>,
-}
-
-/// Inline execution result in chat
-#[derive(Debug, Clone)]
-pub struct ExecutionResult {
-    pub workflow_name: String,
-    pub status: ExecutionStatus,
-    pub tasks_completed: usize,
-    pub tasks_total: usize,
-    pub output: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ExecutionStatus {
-    Running,
-    Completed,
-    Failed,
-}
+mod types;
+pub use types::*;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Serializable Chat Session (HIGH 8 - Persistent Sessions)
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/// Serializable message role for persistence
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum SerializableRole {
-    User,
-    Nika,
-    System,
-    Tool,
-}
-
-impl From<&MessageRole> for SerializableRole {
-    fn from(role: &MessageRole) -> Self {
-        match role {
-            MessageRole::User => SerializableRole::User,
-            MessageRole::Nika => SerializableRole::Nika,
-            MessageRole::System => SerializableRole::System,
-            MessageRole::Tool => SerializableRole::Tool,
-        }
-    }
-}
-
-impl From<SerializableRole> for MessageRole {
-    fn from(role: SerializableRole) -> Self {
-        match role {
-            SerializableRole::User => MessageRole::User,
-            SerializableRole::Nika => MessageRole::Nika,
-            SerializableRole::System => MessageRole::System,
-            SerializableRole::Tool => MessageRole::Tool,
-        }
-    }
-}
-
-/// Serializable message for persistence
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SerializableMessage {
-    pub role: SerializableRole,
-    pub content: String,
-    pub thinking: Option<String>,
-}
-
-impl From<&ChatMessage> for SerializableMessage {
-    fn from(msg: &ChatMessage) -> Self {
-        Self {
-            role: (&msg.role).into(),
-            content: msg.content.clone(),
-            thinking: msg.thinking.clone(),
-        }
-    }
-}
 
 /// Serializable chat session for save/load
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -261,44 +170,9 @@ impl ChatSession {
     }
 }
 
-/// Inline content that can appear in a message
-#[derive(Debug, Clone)]
-pub enum InlineContent {
-    /// MCP tool call with params and result
-    McpCall(McpCallData),
-    /// Streaming inference with token counter
-    InferStream(InferStreamData),
-    /// Task box for any verb (v0.8.1 - unified rendering)
-    Task(TaskBox),
-}
-
-/// Inference mode for conversation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ChatMode {
-    /// Simple inference mode (single completion, no tools)
-    #[default]
-    Infer,
-    /// Agent mode with tool access (multi-turn, MCP tools)
-    Agent,
-}
-
-impl ChatMode {
-    /// Get display label for the mode
-    pub fn label(&self) -> &'static str {
-        match self {
-            ChatMode::Infer => "Infer",
-            ChatMode::Agent => "Agent",
-        }
-    }
-
-    /// Get icon for the mode
-    pub fn icon(&self) -> &'static str {
-        match self {
-            ChatMode::Infer => "⚡", // LLM generation
-            ChatMode::Agent => "🐔", // Parent agent icon
-        }
-    }
-}
+// ═══════════════════════════════════════════════════════════════════════════════
+// Chat View State
+// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Chat view state
 pub struct ChatView {
@@ -6718,6 +6592,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tui::widgets::InferStreamData;
 
     #[test]
     fn test_chat_view_new() {
