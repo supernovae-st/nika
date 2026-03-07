@@ -49,10 +49,7 @@ fn is_cmd_pressed(modifiers: KeyModifiers) -> bool {
 use crate::runtime::chat_workflow::{ChatWorkflow, Role as WorkflowRole};
 use crate::tui::edit_history::EditHistory;
 use crate::tui::file_resolve::FileResolver;
-use crate::tui::state::{
-    ChatOverlayMessage, ChatOverlayMessageRole, ChatOverlayState, ChatPanel, PanelScrollState,
-    TuiState,
-};
+use crate::tui::state::{ChatPanel, PanelScrollState, TuiState};
 use crate::tui::theme::{Theme, VerbColor};
 use crate::util::atomic_write;
 
@@ -129,19 +126,22 @@ mod hints;
 mod input;
 mod keys;
 mod layout;
+mod mcp_tracking;
 mod mentions;
 mod message_ops;
 mod messages;
+mod mode_config;
+mod mouse;
 mod render;
 mod scroll;
 mod search;
+mod selection;
 mod session;
 mod streaming;
 mod task_boxes;
 mod types;
 
 use helpers::categorize_error;
-use layout::{compute_panel_areas, point_in_rect};
 pub use types::*;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -754,341 +754,16 @@ impl ChatView {
         self.memory_files = Self::detect_memory_files();
     }
 
-    /// Toggle between Infer and Agent modes
-    pub fn toggle_mode(&mut self) {
-        self.chat_mode = match self.chat_mode {
-            ChatMode::Infer => ChatMode::Agent,
-            ChatMode::Agent => ChatMode::Infer,
-        };
-    }
-
-    /// Toggle deep thinking (extended_thinking)
-    pub fn toggle_deep_thinking(&mut self) {
-        self.deep_thinking = !self.deep_thinking;
-    }
-
-    /// Set chat mode directly
-    pub fn set_chat_mode(&mut self, mode: ChatMode) {
-        self.chat_mode = mode;
-    }
-
-    /// Set provider name for display
-    pub fn set_provider(&mut self, name: impl Into<String>) {
-        self.provider_name = name.into();
-    }
-
-    /// Convert ChatView state to ChatOverlayState for session persistence (v0.12.0)
-    ///
-    /// Maps ChatMessage (with full metadata) to ChatOverlayMessage (role + content only)
-    /// for saving to .nika/sessions/
-    pub fn get_chat_state(&self) -> ChatOverlayState {
-        // Convert messages to overlay format (role + content only)
-        let messages = self
-            .messages
-            .iter()
-            .map(|msg| {
-                let role = match msg.role {
-                    MessageRole::User => ChatOverlayMessageRole::User,
-                    MessageRole::Nika => ChatOverlayMessageRole::Nika,
-                    MessageRole::System => ChatOverlayMessageRole::System,
-                    MessageRole::Tool => ChatOverlayMessageRole::Tool,
-                };
-                ChatOverlayMessage::new(role, &msg.content)
-            })
-            .collect();
-
-        ChatOverlayState {
-            messages,
-            input: self.input.value().to_string(),
-            cursor: self.input.cursor(),
-            scroll: self.scroll,
-            history: self.history.clone(),
-            history_index: self.history_index,
-            is_streaming: self.is_streaming,
-            partial_response: self.partial_response.clone(),
-            current_model: self.current_model.clone(),
-            edit_history: Default::default(), // Session doesn't persist edit history
-        }
-    }
-
-    /// Copy the currently selected message to clipboard
-    /// Returns true if copy succeeded
-    pub fn copy_selected_message(&mut self, text_only: bool) -> bool {
-        // Only works when conversation panel is focused
-        if self.focused_panel != ChatPanel::Conversation {
-            return false;
-        }
-
-        let cursor = self.conversation_scroll.cursor;
-        if cursor >= self.messages.len() {
-            return false;
-        }
-
-        let msg = &self.messages[cursor];
-        let text = if text_only {
-            // Just the content
-            msg.content.clone()
-        } else {
-            // Full message with role and timestamp
-            let role = match msg.role {
-                MessageRole::User => "User",
-                MessageRole::Nika => "Nika",
-                MessageRole::System => "System",
-                MessageRole::Tool => "Tool",
-            };
-            format!("[{}] {}", role, msg.content)
-        };
-
-        // Copy to clipboard
-        if let Some(ref mut clipboard) = self.clipboard {
-            let success = clipboard.set_text(text).is_ok();
-            if success {
-                // v0.8 WOW: Trigger flash effect on copied message
-                self.copy_flash_index = Some(cursor);
-                self.copy_flash_start = self.frame;
-            }
-            success
-        } else {
-            false
-        }
-    }
-
-    /// Clear flash effect after duration (called each frame in tick)
-    pub fn tick_flash(&mut self) {
-        // Flash lasts about 16 frames (~250ms at 60fps)
-        if self.copy_flash_index.is_some() {
-            let elapsed = self.frame.wrapping_sub(self.copy_flash_start);
-            if elapsed > 16 {
-                self.copy_flash_index = None;
-            }
-        }
-    }
-
-    /// Update scroll state totals from current data
-    pub fn update_scroll_totals(&mut self) {
-        self.conversation_scroll.set_total(self.messages.len());
-        self.activity_scroll.set_total(self.activity_items.len());
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // Mouse Support (v0.8 UX Enhancement)
-    // Layout helpers in layout.rs: compute_panel_areas(), point_in_rect()
-    // ═══════════════════════════════════════════════════════════════════════════════
-
-    /// Determine which panel is at the given screen position
-    pub fn panel_at_position(&self, x: u16, y: u16, area: Rect) -> Option<ChatPanel> {
-        let (_, conversation, activity, input, _) = compute_panel_areas(area);
-
-        // Check each panel (order matters for overlapping edges)
-        if point_in_rect(x, y, conversation) {
-            Some(ChatPanel::Conversation)
-        } else if point_in_rect(x, y, activity) {
-            Some(ChatPanel::Activity)
-        } else if point_in_rect(x, y, input) {
-            Some(ChatPanel::Input)
-        } else {
-            None
-        }
-    }
-
-    /// Handle mouse event for Chat view
-    /// Returns true if the event was handled
-    pub fn handle_mouse(
-        &mut self,
-        kind: crossterm::event::MouseEventKind,
-        x: u16,
-        y: u16,
-        area: Rect,
-    ) -> bool {
-        use crossterm::event::{MouseButton, MouseEventKind};
-
-        match kind {
-            // Left click - start text selection (no panel focus change)
-            MouseEventKind::Down(MouseButton::Left) => {
-                // Check if click is in conversation area (for text selection)
-                if let Some(pos) = self.screen_to_selection_pos(x, y) {
-                    // Start a new selection
-                    self.text_selection = Some(TextSelection::new(pos));
-                    self.is_selecting = true;
-                    true
-                } else {
-                    // Clear any existing selection when clicking elsewhere
-                    // v0.8: No panel focus change on click - use Tab only
-                    self.text_selection = None;
-                    self.is_selecting = false;
-                    self.panel_at_position(x, y, area).is_some() // Return true if within panels
-                }
-            }
-            // Mouse drag - extend selection
-            MouseEventKind::Drag(MouseButton::Left) => {
-                if self.is_selecting {
-                    if let Some(pos) = self.screen_to_selection_pos(x, y) {
-                        if let Some(ref mut selection) = self.text_selection {
-                            selection.end = pos;
-                        }
-                    }
-                    true
-                } else {
-                    false
-                }
-            }
-            // Mouse release - finalize selection
-            MouseEventKind::Up(MouseButton::Left) => {
-                if self.is_selecting {
-                    self.is_selecting = false;
-                    // Keep selection visible (it will be cleared on next click)
-                    // If selection is empty (same start/end), clear it
-                    if let Some(ref selection) = self.text_selection {
-                        if selection.start == selection.end {
-                            self.text_selection = None;
-                        }
-                    }
-                    true
-                } else {
-                    false
-                }
-            }
-            // Scroll wheel up - smooth scroll focused panel (no panel switch)
-            // v0.9 Phase 3: Use smooth scrolling with momentum for mouse wheel
-            MouseEventKind::ScrollUp => {
-                self.smooth_scroll(-1); // Negative = scroll up (content moves down)
-                true
-            }
-            // Scroll wheel down - smooth scroll focused panel (no panel switch)
-            MouseEventKind::ScrollDown => {
-                self.smooth_scroll(1); // Positive = scroll down (content moves up)
-                true
-            }
-            _ => false,
-        }
-    }
-
-    /// Convert screen coordinates to selection position
-    /// Returns None if not within a message text area
-    fn screen_to_selection_pos(&self, x: u16, y: u16) -> Option<SelectionPos> {
-        // Find which line is at this Y coordinate
-        for line_pos in &self.line_positions {
-            if line_pos.screen_y == y && x >= line_pos.start_x {
-                // Calculate character offset within the line
-                let x_offset = (x - line_pos.start_x) as usize;
-                let char_offset = x_offset.min(line_pos.text.len());
-
-                // Calculate total char offset in the message
-                // This is simplified - we sum up characters from all previous lines in this message
-                let mut total_offset = char_offset;
-                for prev in &self.line_positions {
-                    if prev.message_index == line_pos.message_index
-                        && prev.line_in_message < line_pos.line_in_message
-                    {
-                        total_offset += prev.text.len();
-                    }
-                }
-
-                return Some(SelectionPos {
-                    message_index: line_pos.message_index,
-                    char_offset: total_offset,
-                });
-            }
-        }
-        None
-    }
-
-    /// Get the selected text (if any)
-    pub fn get_selected_text(&self) -> Option<String> {
-        let selection = self.text_selection.as_ref()?;
-        let (start, end) = selection.normalized();
-
-        let mut result = String::new();
-
-        for (idx, msg) in self.messages.iter().enumerate() {
-            if idx < start.message_index || idx > end.message_index {
-                continue;
-            }
-
-            let content = &msg.content;
-
-            if idx == start.message_index && idx == end.message_index {
-                // Single message selection
-                let start_byte = char_to_byte_offset(content, start.char_offset);
-                let end_byte = char_to_byte_offset(content, end.char_offset);
-                if start_byte < content.len() && end_byte <= content.len() {
-                    result.push_str(&content[start_byte..end_byte]);
-                }
-            } else if idx == start.message_index {
-                // First message of multi-message selection
-                let start_byte = char_to_byte_offset(content, start.char_offset);
-                if start_byte < content.len() {
-                    result.push_str(&content[start_byte..]);
-                    result.push('\n');
-                }
-            } else if idx == end.message_index {
-                // Last message of multi-message selection
-                let end_byte = char_to_byte_offset(content, end.char_offset);
-                if end_byte <= content.len() {
-                    result.push_str(&content[..end_byte]);
-                }
-            } else {
-                // Middle messages - fully selected
-                result.push_str(content);
-                result.push('\n');
-            }
-        }
-
-        if result.is_empty() {
-            None
-        } else {
-            Some(result)
-        }
-    }
-
-    /// Copy selection to clipboard
-    /// Returns true if copy succeeded
-    pub fn copy_selection(&mut self) -> bool {
-        if let Some(text) = self.get_selected_text() {
-            if let Some(ref mut clipboard) = self.clipboard {
-                if clipboard.set_text(&text).is_ok() {
-                    // Flash effect for feedback
-                    if let Some(ref selection) = self.text_selection {
-                        let (start, _) = selection.normalized();
-                        self.copy_flash_index = Some(start.message_index);
-                        self.copy_flash_start = self.frame;
-                    }
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
-    /// Clear the current text selection
-    pub fn clear_selection(&mut self) {
-        self.text_selection = None;
-        self.is_selecting = false;
-    }
-
-    /// Add a tool message
-    pub fn add_tool_message(&mut self, content: String) {
-        let id = self.next_message_id();
-        self.messages.push(ChatMessage {
-            id,
-            role: MessageRole::Tool,
-            content: content.clone(),
-            timestamp: Local::now(),
-            created_at: Instant::now(),
-            execution: None,
-            thinking: None,
-        });
-        // v0.12.1: Sync DAG when messages change
-        self.maybe_sync_dag();
-
-        // v0.13: Wire to ChatWorkflow DAG (unified execution)
-        let _ = self
-            .workflow
-            .add_message_with_mentions(&content, WorkflowRole::Tool);
-    }
+    // Mode methods extracted to mode_config.rs:
+    // - toggle_mode, toggle_deep_thinking, set_chat_mode, set_provider
+    // - get_chat_state, tick_flash, update_scroll_totals
+    //
+    // Mouse Support methods extracted to mouse.rs
+    // Selection methods extracted to selection.rs
+    // MCP tracking methods extracted to mcp_tracking.rs
 
     /// v0.12.1: Sync DAG if panel is visible (avoid unnecessary work)
-    fn maybe_sync_dag(&mut self) {
+    pub(super) fn maybe_sync_dag(&mut self) {
         if self.show_dag_panel {
             self.sync_dag_from_messages();
         }
@@ -1139,63 +814,6 @@ impl ChatView {
         if self.provider_modal.visible {
             self.provider_modal.tick_animation();
         }
-    }
-
-    /// Add an MCP call to the inline content
-    pub fn add_mcp_call(&mut self, tool: &str, server: &str, params: &str) {
-        let data = McpCallData::new(tool, server).with_params(params);
-        self.inline_content.push(InlineContent::McpCall(data));
-
-        // Add to activity stack as hot
-        self.activity_items.push(ActivityItem::hot(
-            format!("mcp-{}", self.inline_content.len()),
-            "invoke",
-        ));
-
-        // Update MCP server status to hot
-        if let Some(server_info) = self
-            .session_context
-            .mcp_servers
-            .iter_mut()
-            .find(|s| s.name == server)
-        {
-            server_info.status = McpStatus::Hot;
-            server_info.last_call = Some(Instant::now());
-        }
-
-        // v0.8.2: Auto-scroll when MCP call appears
-        self.auto_scroll_to_bottom();
-    }
-
-    /// Complete an MCP call with result
-    pub fn complete_mcp_call(&mut self, result: &str) {
-        if let Some(InlineContent::McpCall(data)) = self.inline_content.last_mut() {
-            data.result = Some(result.to_string());
-            data.status = McpCallStatus::Success;
-        }
-        // Move activity from hot to warm
-        self.transition_activity_to_warm("invoke");
-        // v0.8.2: Auto-scroll when MCP result arrives
-        self.auto_scroll_to_bottom();
-    }
-
-    /// Fail an MCP call with error
-    ///
-    /// v0.9 Phase 2: Also saves the failed call for retry with Ctrl+R
-    pub fn fail_mcp_call(&mut self, error: &str) {
-        if let Some(InlineContent::McpCall(data)) = self.inline_content.last_mut() {
-            // v0.9 Phase 2: Save failed MCP call for retry with Ctrl+R
-            self.last_failed_mcp = Some(FailedMcpCall {
-                tool: data.tool.clone(),
-                server: data.server.clone(),
-                params: serde_json::from_str(&data.params).unwrap_or(serde_json::Value::Null),
-            });
-
-            data.error = Some(error.to_string());
-            data.status = McpCallStatus::Failed;
-        }
-        // v0.8.2: Auto-scroll when MCP error appears
-        self.auto_scroll_to_bottom();
     }
 }
 
@@ -1927,15 +1545,7 @@ impl View for ChatView {
     }
 }
 // DAG panel methods extracted to dag_panel.rs
-
-/// Convert character offset to byte offset in a UTF-8 string
-/// This handles multi-byte characters correctly
-fn char_to_byte_offset(s: &str, char_offset: usize) -> usize {
-    s.char_indices()
-        .nth(char_offset)
-        .map(|(i, _)| i)
-        .unwrap_or(s.len())
-}
+// char_to_byte_offset moved to selection.rs
 
 /// Helper function to create a centered rectangle for overlays
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
