@@ -330,6 +330,7 @@ impl ModalEventHandler {
     }
 
     /// Get currently selected provider name for Keys tab
+    /// v0.21.2: Fixed 7 providers - added Gemini at index 5, Ollama at index 6
     fn selected_provider(state: &ProviderModalState) -> &'static str {
         match state.selected_idx {
             0 => "anthropic",
@@ -337,7 +338,8 @@ impl ModalEventHandler {
             2 => "mistral",
             3 => "groq",
             4 => "deepseek",
-            5 => "ollama",
+            5 => "gemini",
+            6 => "ollama",
             _ => "anthropic",
         }
     }
@@ -349,6 +351,7 @@ impl ModalEventHandler {
     }
 
     /// Get cloud provider name by index
+    /// v0.21.2: Fixed 7 providers - added Gemini at index 5, Ollama at index 6
     fn selected_cloud_provider_by_idx(idx: usize) -> &'static str {
         match idx {
             0 => "anthropic",
@@ -356,12 +359,14 @@ impl ModalEventHandler {
             2 => "mistral",
             3 => "groq",
             4 => "deepseek",
-            5 => "ollama",
+            5 => "gemini",
+            6 => "ollama",
             _ => "anthropic",
         }
     }
 
     /// Get default model for provider index
+    /// v0.21.2: Fixed 7 providers - added Gemini at index 5, Ollama at index 6
     fn default_model_for_provider(idx: usize) -> &'static str {
         match idx {
             0 => "claude-sonnet-4",
@@ -369,7 +374,8 @@ impl ModalEventHandler {
             2 => "mistral-large",
             3 => "llama-3.3-70b",
             4 => "deepseek-chat",
-            5 => "llama3.2",
+            5 => "gemini-2.0-flash",
+            6 => "llama3.2",
             _ => "claude-sonnet-4",
         }
     }

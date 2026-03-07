@@ -655,6 +655,7 @@ impl ProviderModalState {
     }
 
     /// v0.8.9: Push latency by provider name
+    /// v0.21.2: Fixed Gemini (index 5) + Ollama (index 6) mapping
     pub fn push_latency_by_name(&mut self, name: &str, latency_ms: u64) {
         let index = match name.to_lowercase().as_str() {
             "anthropic" | "claude" => 0,
@@ -662,7 +663,8 @@ impl ProviderModalState {
             "mistral" => 2,
             "groq" => 3,
             "deepseek" => 4,
-            "ollama" => 5,
+            "gemini" => 5,
+            "ollama" => 6,
             _ => return,
         };
         self.push_latency(index, latency_ms);
