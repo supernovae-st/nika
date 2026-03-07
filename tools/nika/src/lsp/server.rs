@@ -263,8 +263,14 @@ impl LanguageServer for NikaLanguageServer {
         let docs = self.documents.read().await;
         let text = docs.get(uri).cloned().unwrap_or_default();
 
-        let actions =
-            handlers::code_action::compute_code_actions(&text, range, diagnostics, uri.clone());
+        // Use AST-aware code actions for semantic fixes (fuzzy task matching)
+        let actions = handlers::code_action::compute_code_actions_with_ast(
+            &self.ast_index,
+            uri,
+            &text,
+            range,
+            diagnostics,
+        );
         Ok(Some(actions))
     }
 
