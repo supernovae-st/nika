@@ -8,6 +8,8 @@ use std::time::Instant;
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 
+use std::path::Path;
+
 use crate::tui::widgets::{InferStreamData, McpCallData, TaskBox};
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -256,6 +258,144 @@ impl TextSelection {
 impl Default for TextSelection {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Serializable Chat Session (HIGH 8 - Persistent Sessions)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Serializable chat session for save/load
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatSession {
+    pub version: String,
+    pub created_at: String,
+    pub model: String,
+    pub messages: Vec<SerializableMessage>,
+}
+
+impl ChatSession {
+    /// Create session from messages and model
+    pub fn from_messages(messages: &[ChatMessage], model: &str) -> Self {
+        Self {
+            version: "0.5.2".to_string(),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            model: model.to_string(),
+            messages: messages.iter().map(SerializableMessage::from).collect(),
+        }
+    }
+
+    /// Save session to file using atomic write (temp+rename) for data integrity
+    pub fn save(&self, path: impl AsRef<Path>) -> std::io::Result<()> {
+        use crate::util::atomic_write;
+        let json = serde_json::to_string_pretty(self)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        atomic_write(path, json.as_bytes())
+    }
+
+    /// Load session from file
+    pub fn load(path: impl AsRef<Path>) -> std::io::Result<Self> {
+        use std::fs;
+        let json = fs::read_to_string(path)?;
+        serde_json::from_str(&json)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MCP Retry Types (v0.9 Phase 2)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Stores info about a failed MCP call for retry (v0.9 Phase 2)
+/// Different from FailedMcpCall which is for display - this one stores params for retry
+#[derive(Debug, Clone)]
+pub struct McpRetryInfo {
+    /// Tool name that was called
+    pub tool: String,
+    /// MCP server name
+    pub server: String,
+    /// Parameters passed to the call
+    pub params: serde_json::Value,
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Chat Message Selection Types (v0.8 Text Selection)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Position of a rendered line for hit testing during mouse selection
+/// Used to map screen coordinates to message content
+#[derive(Debug, Clone)]
+pub struct ChatLinePosition {
+    /// Index of the message this line belongs to
+    pub message_index: usize,
+    /// Which line within the message (0 = first)
+    pub line_in_message: usize,
+    /// Y coordinate on screen
+    pub screen_y: u16,
+    /// Starting X coordinate (after prefix)
+    pub start_x: u16,
+    /// The actual text content of this line
+    pub text: String,
+}
+
+/// Text selection state for chat messages
+/// Tracks selection across multiple messages
+#[derive(Debug, Clone)]
+pub struct ChatMessageSelection {
+    /// Starting position of selection
+    pub start: ChatSelectionPos,
+    /// Ending position of selection (current drag position)
+    pub end: ChatSelectionPos,
+}
+
+/// Position within the chat for message-based selection
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChatSelectionPos {
+    /// Message index in the messages vec
+    pub message_index: usize,
+    /// Character offset within the message content
+    pub char_offset: usize,
+}
+
+impl ChatMessageSelection {
+    /// Create a new selection starting at the given position
+    pub fn new(start: ChatSelectionPos) -> Self {
+        Self { start, end: start }
+    }
+
+    /// Get the normalized selection (start <= end)
+    pub fn normalized(&self) -> (ChatSelectionPos, ChatSelectionPos) {
+        if self.start.message_index < self.end.message_index
+            || (self.start.message_index == self.end.message_index
+                && self.start.char_offset <= self.end.char_offset)
+        {
+            (self.start, self.end)
+        } else {
+            (self.end, self.start)
+        }
+    }
+
+    /// Check if a position is within the selection
+    pub fn contains(&self, pos: ChatSelectionPos) -> bool {
+        let (start, end) = self.normalized();
+
+        if pos.message_index < start.message_index || pos.message_index > end.message_index {
+            return false;
+        }
+
+        if pos.message_index == start.message_index && pos.message_index == end.message_index {
+            // Same message: check char range
+            pos.char_offset >= start.char_offset && pos.char_offset < end.char_offset
+        } else if pos.message_index == start.message_index {
+            // First message: from start.char_offset to end of message
+            pos.char_offset >= start.char_offset
+        } else if pos.message_index == end.message_index {
+            // Last message: from 0 to end.char_offset
+            pos.char_offset < end.char_offset
+        } else {
+            // Middle messages: fully selected
+            true
+        }
     }
 }
 
