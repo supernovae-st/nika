@@ -135,13 +135,13 @@ impl ProviderStatusCache {
         Self::default()
     }
 
-    /// Count configured LLM providers
+    /// Count configured LLM providers (includes "Local" category for Ollama)
     pub fn llm_configured_count(&self) -> usize {
         self.providers
             .iter()
             .filter(|p| {
-                super::icons::provider_category(p.id) == "LLM"
-                    && p.key_source != KeySource::NotConfigured
+                let cat = super::icons::provider_category(p.id);
+                (cat == "LLM" || cat == "Local") && p.key_source != KeySource::NotConfigured
             })
             .count()
     }
