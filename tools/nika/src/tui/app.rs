@@ -2283,7 +2283,10 @@ impl App {
                         TuiView::Runner => self.monitor_view.on_enter(&mut self.state),
                         TuiView::Chat => self.chat_view.on_enter(&mut self.state),
                         TuiView::Scheduler => {} // No special handling
-                        TuiView::Settings => {}  // No special handling
+                        TuiView::Settings => {
+                            // v0.21.2: Refresh settings data when entering view
+                            self.settings_view.refresh_data();
+                        }
                     }
                 }
 

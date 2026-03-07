@@ -325,27 +325,30 @@ impl ProviderModalState {
         self.selected_idx = 0; // Reset selection on tab change
                                // Update item_count based on tab
         self.item_count = match tab {
-            ProviderModalTab::Cloud => 6, // 6 cloud providers
+            ProviderModalTab::Cloud => 7, // 7 cloud providers (anthropic, openai, mistral, groq, deepseek, gemini, ollama)
             ProviderModalTab::Ollama => self.ollama_models.len().max(1), // Dynamic
-            ProviderModalTab::Keys => 6,  // 6 API key entries
+            ProviderModalTab::Keys => 7,  // 7 API key entries
             ProviderModalTab::Config => 6, // 6 config entries (matches ConfigTab::new())
         };
     }
 
     /// Navigate up in current list/grid (wraps around)
-    /// For Cloud tab (2x3 grid): moves up one row (idx - 3), wraps to bottom
+    /// For Cloud tab (3x3 grid, 7 items): moves up one row (idx - 3), wraps to last valid row
     /// For other tabs: moves up one item (idx - 1), wraps to last
     pub fn navigate_up(&mut self) {
         if self.item_count == 0 {
             return;
         }
         if self.active_tab == ProviderModalTab::Cloud {
-            // 2x3 grid: move up one row, wrap to bottom
+            // 3-column grid (7 items): move up one row, wrap to last valid row
             if self.selected_idx >= 3 {
                 self.selected_idx -= 3;
             } else {
-                // Wrap to bottom row, same column
-                self.selected_idx += 3;
+                // Wrap to last row with this column
+                let col = self.selected_idx;
+                // Row 2 has only idx 6 (col 0), rows 0-1 have idx 0-5 (cols 0-2)
+                let last_row_idx = if col == 0 { 6 } else { col + 3 };
+                self.selected_idx = last_row_idx.min(self.item_count - 1);
             }
         } else {
             // List navigation: wrap to last
@@ -358,19 +361,20 @@ impl ProviderModalState {
     }
 
     /// Navigate down in current list/grid (wraps around)
-    /// For Cloud tab (2x3 grid): moves down one row (idx + 3), wraps to top
+    /// For Cloud tab (3x3 grid, 7 items): moves down one row (idx + 3), wraps to top
     /// For other tabs: moves down one item (idx + 1), wraps to first
     pub fn navigate_down(&mut self) {
         if self.item_count == 0 {
             return;
         }
         if self.active_tab == ProviderModalTab::Cloud {
-            // 2x3 grid: move down one row, wrap to top
+            // 3-column grid (7 items): move down one row, wrap to top
             if self.selected_idx + 3 < self.item_count {
                 self.selected_idx += 3;
             } else {
                 // Wrap to top row, same column
-                self.selected_idx -= 3;
+                let col = self.selected_idx % 3;
+                self.selected_idx = col;
             }
         } else {
             // List navigation: wrap to first
@@ -426,7 +430,8 @@ impl ProviderModalState {
             "mistral" => Some(2),
             "groq" => Some(3),
             "deepseek" => Some(4),
-            "ollama" => Some(5),
+            "gemini" => Some(5),
+            "ollama" => Some(6),
             _ => None,
         };
     }
@@ -439,7 +444,8 @@ impl ProviderModalState {
             Some(2) => Some("Mistral"),
             Some(3) => Some("Groq"),
             Some(4) => Some("DeepSeek"),
-            Some(5) => Some("Ollama"),
+            Some(5) => Some("Gemini"),
+            Some(6) => Some("Ollama"),
             _ => None,
         }
     }
@@ -699,7 +705,7 @@ impl ProviderModalState {
 
         SessionStats {
             connected_providers,
-            total_providers: 6,
+            total_providers: 7, // 7 LLM providers: anthropic, openai, mistral, groq, deepseek, gemini, ollama
             tokens_used: self.session_tokens,
             mcp_connections: self.mcp_connections,
             avg_latency_ms,
@@ -1029,9 +1035,9 @@ mod tests {
         // Default is Cloud tab with item_count = 7
 
         // Navigation uses 3-column grid layout:
-        //   0 1 2  (row 0)
-        //   3 4 5  (row 1)
-        //   6      (row 2, partial)
+        //   0 1 2  (row 0: Claude, OpenAI, Mistral)
+        //   3 4 5  (row 1: Groq, DeepSeek, Gemini)
+        //   6      (row 2: Ollama, partial row)
 
         assert_eq!(state.selected_idx, 0);
         assert_eq!(state.active_tab, ProviderModalTab::Cloud);
@@ -1044,30 +1050,40 @@ mod tests {
         state.navigate_right();
         assert_eq!(state.selected_idx, 0); // Wraps to start of row
 
-        // Navigate down: 0 -> 3 -> 6 -> wraps to 3 (6-3=3)
+        // Navigate down: 0 -> 3 -> 6 -> wraps to 0 (same column)
         state.navigate_down();
         assert_eq!(state.selected_idx, 3);
         state.navigate_down();
         assert_eq!(state.selected_idx, 6);
         state.navigate_down();
-        assert_eq!(state.selected_idx, 3); // Wraps: 6-3=3
+        assert_eq!(state.selected_idx, 0); // Wraps: col 0, row 0
 
-        // Navigate to position 5, then down wraps
+        // Navigate to position 2, then down wraps to same column
         state.selected_idx = 2;
         state.navigate_down();
         assert_eq!(state.selected_idx, 5);
         state.navigate_down();
-        assert_eq!(state.selected_idx, 2); // No item at row 2 col 2, stays/wraps
+        assert_eq!(state.selected_idx, 2); // No item at row 2 col 2, wraps to row 0 col 2
 
         // Navigate left wrapping: 3 -> wraps to 5
         state.selected_idx = 3;
         state.navigate_left();
         assert_eq!(state.selected_idx, 5); // Wraps to end of row
 
-        // Navigate up wrapping: 0 -> wraps to 3 (0+3=3)
+        // Navigate up wrapping: 0 -> wraps to 6 (last row with col 0)
         state.selected_idx = 0;
         state.navigate_up();
-        assert_eq!(state.selected_idx, 3); // Wraps: 0+3=3
+        assert_eq!(state.selected_idx, 6); // Wraps: col 0 has item at row 2
+
+        // Navigate up wrapping: 1 -> wraps to 4 (last row with col 1 is row 1)
+        state.selected_idx = 1;
+        state.navigate_up();
+        assert_eq!(state.selected_idx, 4); // Wraps: col 1 last is idx 4
+
+        // Navigate up wrapping: 2 -> wraps to 5 (last row with col 2 is row 1)
+        state.selected_idx = 2;
+        state.navigate_up();
+        assert_eq!(state.selected_idx, 5); // Wraps: col 2 last is idx 5
     }
 
     // SEC-004: Debug redacts key_input_buffer
@@ -1500,7 +1516,7 @@ mod tests {
         let stats = state.get_session_stats();
 
         assert_eq!(stats.connected_providers, 0);
-        assert_eq!(stats.total_providers, 6);
+        assert_eq!(stats.total_providers, 7); // 7 LLM providers
         assert_eq!(stats.tokens_used, 0);
         assert!(stats.avg_latency_ms.is_none());
     }
@@ -1515,8 +1531,8 @@ mod tests {
         let stats = state.get_session_stats();
 
         assert_eq!(stats.connected_providers, 2);
-        assert_eq!(stats.total_providers, 6);
-        // Average of 100 and 200 is 150
+        assert_eq!(stats.total_providers, 7); // 7 LLM providers
+                                              // Average of 100 and 200 is 150
         assert_eq!(stats.avg_latency_ms, Some(150));
     }
 

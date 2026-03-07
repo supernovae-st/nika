@@ -335,7 +335,10 @@ pub fn migrate_env_to_keyring() -> MigrationReport {
     println!("  ⚠ Migration not available (native-keychain feature disabled)");
     println!("  ⚠ Use environment variables instead in Docker/container environments");
     MigrationReport {
-        not_found: MIGRATEABLE_PROVIDERS.iter().map(|s| s.to_string()).collect(),
+        not_found: MIGRATEABLE_PROVIDERS
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
         ..Default::default()
     }
 }
@@ -442,7 +445,10 @@ mod tests {
         fn test_spn_keyring_not_found() {
             // Test that querying a non-existent key returns NotFound
             let result = SpnKeyring::get("nonexistent_provider_test_xyz");
-            assert!(matches!(result, Err(KeyringError::NotFound(_)) | Err(KeyringError::AccessError(_))));
+            assert!(matches!(
+                result,
+                Err(KeyringError::NotFound(_)) | Err(KeyringError::AccessError(_))
+            ));
         }
     }
 

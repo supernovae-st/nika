@@ -203,6 +203,51 @@ impl SettingsView {
         self.installed_packages = packages;
     }
 
+    /// Refresh all settings data by checking environment and system state
+    ///
+    /// Called when entering Settings view to update:
+    /// - LLM provider count (checks env vars)
+    /// - MCP provider count (checks env vars)
+    /// - Secrets/daemon status
+    pub fn refresh_data(&mut self) {
+        use crate::tui::providers::{env_var, llm_provider_ids, mcp_provider_ids};
+
+        // Count LLM providers with configured API keys
+        let llm_count = llm_provider_ids()
+            .filter(|id| {
+                let var = env_var(id);
+                std::env::var(var).map(|v| !v.is_empty()).unwrap_or(false)
+            })
+            .count();
+
+        // Count MCP providers with configured credentials
+        let mcp_count = mcp_provider_ids()
+            .filter(|id| {
+                let var = env_var(id);
+                std::env::var(var).map(|v| !v.is_empty()).unwrap_or(false)
+            })
+            .count();
+
+        self.update_provider_counts(llm_count, mcp_count);
+
+        // Check secrets/daemon status
+        #[cfg(feature = "spn-daemon")]
+        {
+            // With spn-daemon feature, secrets go through daemon
+            self.update_secrets_info("spn-daemon", llm_count + mcp_count, true);
+        }
+        #[cfg(not(feature = "spn-daemon"))]
+        {
+            // Without daemon, we use fallback (env vars only)
+            self.update_secrets_info("env vars (fallback)", llm_count + mcp_count, false);
+        }
+
+        // MCP servers: Will be updated when a workflow is loaded
+        // For now, show current state (from state if any)
+
+        // Packages: Future feature
+    }
+
     /// Render a settings section box
     fn render_section(
         &self,
@@ -764,5 +809,58 @@ mod tests {
         assert!(info.source.is_empty());
         assert_eq!(info.keychain_count, 0);
         assert!(!info.daemon_available);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // refresh_data Tests (v0.21.2 - GAP 2 fix)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_refresh_data_updates_provider_counts() {
+        let mut view = SettingsView::new();
+        assert_eq!(view.llm_configured, 0, "Initial llm count should be 0");
+        assert_eq!(view.mcp_configured, 0, "Initial mcp count should be 0");
+
+        // refresh_data checks env vars - without any set, counts should remain 0
+        view.refresh_data();
+
+        // Without env vars, both should be 0
+        // (actual count depends on what's in the environment)
+        // Just verify it doesn't panic and updates secrets_info
+        assert!(
+            !view.secrets_info.source.is_empty(),
+            "Source should be set after refresh"
+        );
+    }
+
+    #[test]
+    fn test_refresh_data_with_env_var() {
+        use std::env;
+
+        let mut view = SettingsView::new();
+
+        // Set a fake API key env var
+        env::set_var("ANTHROPIC_API_KEY", "sk-ant-test-key");
+
+        view.refresh_data();
+
+        // Should detect at least 1 LLM provider
+        assert!(view.llm_configured >= 1, "Should detect ANTHROPIC_API_KEY");
+
+        // Clean up
+        env::remove_var("ANTHROPIC_API_KEY");
+    }
+
+    #[test]
+    fn test_refresh_data_sets_secrets_source() {
+        let mut view = SettingsView::new();
+        view.refresh_data();
+
+        // Source should be set to either "spn-daemon" or "env vars (fallback)"
+        #[cfg(feature = "spn-daemon")]
+        assert_eq!(view.secrets_info.source, "spn-daemon");
+
+        #[cfg(not(feature = "spn-daemon"))]
+        assert_eq!(view.secrets_info.source, "env vars (fallback)");
     }
 }
