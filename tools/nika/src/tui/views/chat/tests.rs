@@ -681,66 +681,7 @@ fn test_chat_view_finalize_thinking_no_nika_message() {
 }
 
 // === Error Handling Tests (HIGH 5) ===
-
-#[test]
-fn test_categorize_error_auth() {
-    let (cat, _) = ChatView::categorize_error("Invalid API key");
-    assert_eq!(cat, "Auth");
-
-    let (cat, _) = ChatView::categorize_error("Unauthorized access");
-    assert_eq!(cat, "Auth");
-}
-
-#[test]
-fn test_categorize_error_timeout() {
-    let (cat, _) = ChatView::categorize_error("Request timed out");
-    assert_eq!(cat, "Timeout");
-
-    let (cat, _) = ChatView::categorize_error("Deadline exceeded");
-    assert_eq!(cat, "Timeout");
-}
-
-#[test]
-fn test_categorize_error_rate_limit() {
-    let (cat, _) = ChatView::categorize_error("Rate limit exceeded");
-    assert_eq!(cat, "Rate Limit");
-
-    let (cat, _) = ChatView::categorize_error("Too many requests");
-    assert_eq!(cat, "Rate Limit");
-}
-
-#[test]
-fn test_categorize_error_network() {
-    let (cat, _) = ChatView::categorize_error("Connection refused");
-    assert_eq!(cat, "Network");
-
-    let (cat, _) = ChatView::categorize_error("DNS resolution failed");
-    assert_eq!(cat, "Network");
-}
-
-#[test]
-fn test_categorize_error_mcp() {
-    let (cat, _) = ChatView::categorize_error("MCP server not responding");
-    assert_eq!(cat, "MCP");
-
-    let (cat, _) = ChatView::categorize_error("Tool execution failed");
-    assert_eq!(cat, "MCP");
-}
-
-#[test]
-fn test_categorize_error_parse() {
-    let (cat, _) = ChatView::categorize_error("JSON parse error");
-    assert_eq!(cat, "Parse");
-
-    let (cat, _) = ChatView::categorize_error("Invalid format");
-    assert_eq!(cat, "Parse");
-}
-
-#[test]
-fn test_categorize_error_unknown() {
-    let (cat, _) = ChatView::categorize_error("Something went wrong");
-    assert_eq!(cat, "Unexpected");
-}
+// Note: categorize_error tests moved to helpers.rs
 
 #[test]
 fn test_show_error_adds_system_message() {

@@ -124,11 +124,13 @@ use crate::tui::widgets::{
 // Submodules (extracted v0.21.2 - Phase A1 refactor)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+mod helpers;
 mod hints;
 mod layout;
 mod types;
 
 pub use types::*;
+use helpers::categorize_error;
 use hints::{detect_verb_in_input, verb_placeholder};
 use layout::{compute_panel_areas, point_in_rect};
 
@@ -2719,67 +2721,12 @@ impl ChatView {
     /// Display an error with recovery suggestions (v0.5.2+)
     /// Categorizes errors and provides actionable hints
     pub fn show_error(&mut self, error: &str) {
-        let (category, suggestion) = Self::categorize_error(error);
+        let (category, suggestion) = categorize_error(error);
         let formatted = format!(
             "❌ {} Error: {}\n💡 {}\n\nUse /help for commands or /clear to restart.",
             category, error, suggestion
         );
         self.add_system_message(formatted);
-    }
-
-    /// Categorize error and provide recovery suggestion
-    fn categorize_error(error: &str) -> (&'static str, &'static str) {
-        let error_lower = error.to_lowercase();
-
-        if error_lower.contains("api key")
-            || error_lower.contains("authentication")
-            || error_lower.contains("unauthorized")
-        {
-            (
-                "Auth",
-                "Check your API key. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.",
-            )
-        } else if error_lower.contains("timeout")
-            || error_lower.contains("timed out")
-            || error_lower.contains("deadline")
-        {
-            (
-                "Timeout",
-                "Request timed out. Try a shorter prompt or check your connection.",
-            )
-        } else if error_lower.contains("rate limit")
-            || error_lower.contains("too many requests")
-            || error_lower.contains("quota")
-        {
-            (
-                "Rate Limit",
-                "API rate limit reached. Wait a moment and try again.",
-            )
-        } else if error_lower.contains("connection")
-            || error_lower.contains("network")
-            || error_lower.contains("dns")
-            || error_lower.contains("resolve")
-        {
-            (
-                "Network",
-                "Connection failed. Check your internet connection.",
-            )
-        } else if error_lower.contains("mcp")
-            || error_lower.contains("server")
-            || error_lower.contains("tool")
-        {
-            (
-                "MCP",
-                "MCP server issue. Use /mcp list to check available servers.",
-            )
-        } else if error_lower.contains("parse")
-            || error_lower.contains("json")
-            || error_lower.contains("invalid")
-        {
-            ("Parse", "Invalid input format. Check your command syntax.")
-        } else {
-            ("Unexpected", "Please try again or use /clear to restart.")
-        }
     }
 
     /// Submit current input
