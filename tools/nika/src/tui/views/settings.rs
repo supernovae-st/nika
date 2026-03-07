@@ -48,7 +48,7 @@ use crate::tui::theme::Theme;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SettingsSection {
     #[default]
-    Providers,   // LLM + MCP status summary
+    Providers, // LLM + MCP status summary
     McpServers,  // Active MCP servers
     Secrets,     // Daemon status + keychain info
     Packages,    // Installed via spn (future)
@@ -277,7 +277,10 @@ impl View for SettingsView {
                         })
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(" configured  │  MCP: ", Style::default().fg(theme.text_muted)),
+                Span::styled(
+                    " configured  │  MCP: ",
+                    Style::default().fg(theme.text_muted),
+                ),
                 Span::styled(
                     format!("{}/6", self.mcp_configured),
                     Style::default()
@@ -293,7 +296,10 @@ impl View for SettingsView {
             Line::from(vec![
                 Span::styled("  ", Style::default()),
                 Span::styled("[Ctrl+P]", Style::default().fg(theme.highlight)),
-                Span::styled(" Configure providers", Style::default().fg(theme.text_muted)),
+                Span::styled(
+                    " Configure providers",
+                    Style::default().fg(theme.text_muted),
+                ),
             ]),
         ];
         self.render_section(
@@ -537,10 +543,7 @@ mod tests {
             SettingsSection::Packages
         );
         assert_eq!(SettingsSection::Packages.prev(), SettingsSection::Secrets);
-        assert_eq!(
-            SettingsSection::Secrets.prev(),
-            SettingsSection::McpServers
-        );
+        assert_eq!(SettingsSection::Secrets.prev(), SettingsSection::McpServers);
         assert_eq!(
             SettingsSection::McpServers.prev(),
             SettingsSection::Providers

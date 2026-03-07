@@ -23,9 +23,7 @@ use crate::tui::providers::env_var as provider_env_var;
 
 // Import spn-core types via spn-client re-exports (when spn-daemon feature enabled)
 #[cfg(feature = "spn-daemon")]
-use spn_client::{
-    mask_key as spn_mask_key, validate_key_format as spn_validate_key_format,
-};
+use spn_client::{mask_key as spn_mask_key, validate_key_format as spn_validate_key_format};
 
 /// Service name for keyring entries.
 /// Uses "spn" for unified keyring with supernovae-cli.

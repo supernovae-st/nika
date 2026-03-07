@@ -49,7 +49,7 @@ impl KeyHint {
     }
 }
 
-/// LLM Provider indicator (v0.7.0: 6 providers)
+/// LLM Provider indicator (v0.15: 7 providers)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Provider {
     #[default]

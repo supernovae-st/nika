@@ -208,7 +208,7 @@ pub struct ProviderModalState {
     pub key_input_buffer: String,
     /// Whether Ollama is available (running)
     pub ollama_available: bool,
-    /// Provider connection statuses (6 providers)
+    /// Provider connection statuses (7 providers)
     pub provider_statuses: Vec<ConnectionStatus>,
     /// Ollama models loaded from server
     pub ollama_models: Vec<super::ollama_client::OllamaModelInfo>,
@@ -220,7 +220,7 @@ pub struct ProviderModalState {
     pub animation_frame: u8,
     /// v0.8.9: Cached cloud tab label to avoid allocation per frame
     cached_cloud_label: Option<String>,
-    /// v0.8.9: Latency history per provider (6 providers × 10 samples)
+    /// v0.8.9: Latency history per provider (7 providers × 10 samples)
     latency_history: Vec<Vec<u64>>,
     /// v0.8.9: Matrix verification effect state
     pub verification_state: super::components::VerificationState,
@@ -242,7 +242,7 @@ impl Default for ProviderModalState {
             visible: false,
             active_tab: ProviderModalTab::Cloud,
             selected_idx: 0,
-            item_count: 6, // Cloud tab has 6 providers by default
+            item_count: 7, // Cloud tab has 7 providers by default
             download_state: DownloadState::default(),
             key_input_mode: false,
             key_input_buffer: String::new(),
@@ -253,7 +253,7 @@ impl Default for ProviderModalState {
             active_model: None,
             animation_frame: 0,
             cached_cloud_label: None,
-            latency_history: vec![Vec::new(); 6], // Pre-allocate for 6 providers
+            latency_history: vec![Vec::new(); 7], // Pre-allocate for 7 providers
             verification_state: super::components::VerificationState::new_providers(),
             verification_active: false,
             expanded_provider_idx: None,
@@ -564,7 +564,7 @@ impl ProviderModalState {
 
     /// Update provider status by index
     ///
-    /// v0.8.9: Guard against invalid index (max 5 for 6 providers)
+    /// v0.8.9: Guard against invalid index (max 6 for 7 providers)
     /// v0.8.9: Automatically pushes latency to history when Connected
     /// v0.8.9: Syncs verification animation status
     pub fn set_provider_status(&mut self, index: usize, status: ConnectionStatus) {
@@ -1024,13 +1024,14 @@ mod tests {
 
     #[test]
     fn test_modal_navigate_grid_mode_wrapping() {
-        // Cloud tab (default) uses 2x3 grid navigation with wrapping
+        // Cloud tab (default) uses 3-column grid navigation with wrapping (7 providers)
         let mut state = ProviderModalState::default();
-        // Default is Cloud tab with item_count = 6
+        // Default is Cloud tab with item_count = 7
 
-        // Grid layout:
+        // Navigation uses 3-column grid layout:
         //   0 1 2  (row 0)
         //   3 4 5  (row 1)
+        //   6      (row 2, partial)
 
         assert_eq!(state.selected_idx, 0);
         assert_eq!(state.active_tab, ProviderModalTab::Cloud);
@@ -1043,29 +1044,30 @@ mod tests {
         state.navigate_right();
         assert_eq!(state.selected_idx, 0); // Wraps to start of row
 
-        // Navigate down: 0 -> 3 -> wraps to 0
+        // Navigate down: 0 -> 3 -> 6 -> wraps to 3 (6-3=3)
         state.navigate_down();
         assert_eq!(state.selected_idx, 3);
         state.navigate_down();
-        assert_eq!(state.selected_idx, 0); // Wraps to top
+        assert_eq!(state.selected_idx, 6);
+        state.navigate_down();
+        assert_eq!(state.selected_idx, 3); // Wraps: 6-3=3
 
         // Navigate to position 5, then down wraps
-        state.navigate_right();
-        state.navigate_right();
+        state.selected_idx = 2;
         state.navigate_down();
         assert_eq!(state.selected_idx, 5);
         state.navigate_down();
-        assert_eq!(state.selected_idx, 2); // Wraps to top, same column
+        assert_eq!(state.selected_idx, 2); // No item at row 2 col 2, stays/wraps
 
-        // Navigate left wrapping: 5 -> 4 -> 3 -> wraps to 5
+        // Navigate left wrapping: 3 -> wraps to 5
         state.selected_idx = 3;
         state.navigate_left();
         assert_eq!(state.selected_idx, 5); // Wraps to end of row
 
-        // Navigate up wrapping: 0 -> wraps to 3
+        // Navigate up wrapping: 0 -> wraps to 3 (0+3=3)
         state.selected_idx = 0;
         state.navigate_up();
-        assert_eq!(state.selected_idx, 3); // Wraps to bottom, same column
+        assert_eq!(state.selected_idx, 3); // Wraps: 0+3=3
     }
 
     // SEC-004: Debug redacts key_input_buffer
@@ -1392,7 +1394,7 @@ mod tests {
     #[test]
     fn test_latency_history_default_empty() {
         let state = ProviderModalState::default();
-        assert_eq!(state.latency_history.len(), 6);
+        assert_eq!(state.latency_history.len(), 7);
         for history in &state.latency_history {
             assert!(history.is_empty());
         }
@@ -1523,7 +1525,7 @@ mod tests {
     fn test_verification_state_default() {
         let state = ProviderModalState::default();
         assert!(!state.verification_active);
-        assert_eq!(state.verification_state.entries.len(), 6);
+        assert_eq!(state.verification_state.entries.len(), 7);
     }
 
     #[test]
@@ -1590,8 +1592,8 @@ mod tests {
         state.start_verification();
         assert!(state.verification_active);
 
-        // Set all to connected
-        for i in 0..6 {
+        // Set all 7 to connected
+        for i in 0..7 {
             state
                 .verification_state
                 .set_status(i, VerifyStatus::Connected);

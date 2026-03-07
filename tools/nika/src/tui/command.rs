@@ -91,7 +91,7 @@ pub enum ExportFormat {
     Yaml,
 }
 
-/// Available LLM providers via rig-core (v0.6: expanded to 6 providers)
+/// Available LLM providers via rig-core (v0.15: expanded to 7 providers)
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModelProvider {
     /// OpenAI (gpt-4o, gpt-4, etc.)
@@ -305,7 +305,7 @@ impl Command {
         }
     }
 
-    /// Parse /model arguments: /model <provider> (v0.6: 6 providers)
+    /// Parse /model arguments: /model <provider> (v0.15: 7 providers)
     fn parse_model_args(args: &str) -> Command {
         let provider = args.trim().to_lowercase();
         match provider.as_str() {
@@ -543,7 +543,7 @@ impl Command {
 }
 
 impl ModelProvider {
-    /// Get the display name for the provider (v0.6: 6 providers)
+    /// Get the display name for the provider (v0.15: 7 providers)
     pub fn name(&self) -> &'static str {
         match self {
             ModelProvider::OpenAI => "OpenAI (gpt-4o)",

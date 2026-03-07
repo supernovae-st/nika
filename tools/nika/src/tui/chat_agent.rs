@@ -270,7 +270,7 @@ impl ChatAgent {
         // Helper to check non-empty env var
         let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
 
-        // Apply provider override (v0.6: supports 6 providers)
+        // Apply provider override (v0.15: supports 7 providers)
         if let Some(p) = provider {
             match p.to_lowercase().as_str() {
                 "claude" | "anthropic" => {
