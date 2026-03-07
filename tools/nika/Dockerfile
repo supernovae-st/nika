@@ -15,9 +15,10 @@
 
 # Stage 1: Chef base with cargo-chef installed
 # Using Rust 1.86+ for ratatui-crossterm, ratatui-widgets, tui-tree-widget compatibility
+# cargo-chef pinned to 0.1.71 because 0.1.77+ requires Rust 1.88+ (cargo-platform@0.3.2)
 FROM --platform=$BUILDPLATFORM rust:1.86-alpine AS chef
 RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig perl make
-RUN cargo install cargo-chef --locked
+RUN cargo install cargo-chef@0.1.71 --locked
 WORKDIR /app
 
 # Stage 2: Planner - analyze dependencies
