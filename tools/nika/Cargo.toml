@@ -114,7 +114,8 @@ rmcp = { version = "0.16", features = ["client", "transport-child-process"] }
 
 # LLM Agent Framework - replaces custom provider implementation
 # Native rmcp integration via .rmcp_tools() method
-rig-core = { version = "0.31", features = ["rmcp"] }
+# v0.32: Uses rmcp 0.16 (aligned with novanet-mcp and Nika direct dep)
+rig-core = { version = "0.32", features = ["rmcp"] }
 
 # TUI (feature-gated)
 ratatui = { version = "0.30", optional = true }

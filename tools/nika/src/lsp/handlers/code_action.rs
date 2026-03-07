@@ -43,7 +43,11 @@ pub fn compute_code_actions_with_ast(
     // Try to get task IDs from AST for better suggestions
     let ast_task_ids: Vec<String> = if let Some(cached) = ast_index.get(uri) {
         if let Some(ref analyzed) = cached.analyzed {
-            analyzed.task_table.iter().map(|(_, name)| name.to_string()).collect()
+            analyzed
+                .task_table
+                .iter()
+                .map(|(_, name)| name.to_string())
+                .collect()
         } else {
             Vec::new()
         }
@@ -53,12 +57,9 @@ pub fn compute_code_actions_with_ast(
 
     // Process diagnostics to generate quick fixes
     for diagnostic in diagnostics {
-        if let Some(action) = create_quickfix_for_diagnostic_with_ast(
-            text,
-            diagnostic,
-            uri,
-            &ast_task_ids,
-        ) {
+        if let Some(action) =
+            create_quickfix_for_diagnostic_with_ast(text, diagnostic, uri, &ast_task_ids)
+        {
             actions.push(action);
         }
     }
@@ -935,6 +936,9 @@ tasks:
         assert_eq!(longest_common_subsequence_length("step1", "step1"), 5);
         assert_eq!(longest_common_subsequence_length("step1", "step2"), 4); // "step"
         assert_eq!(longest_common_subsequence_length("abc", "xyz"), 0);
-        assert_eq!(longest_common_subsequence_length("generate", "generate_content"), 8);
+        assert_eq!(
+            longest_common_subsequence_length("generate", "generate_content"),
+            8
+        );
     }
 }
