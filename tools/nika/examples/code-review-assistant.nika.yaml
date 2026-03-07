@@ -84,12 +84,16 @@ tasks:
 
   - id: pr_metadata
     description: "Fetch PR metadata from GitHub API"
-    fetch:
-      url: "https://httpbin.org/json"
-      method: GET
-      headers:
-        Authorization: "Bearer ${GITHUB_TOKEN:-demo-token}"
-        Accept: "application/vnd.github.v3+json"
+    exec: |
+      if [ -z "$GITHUB_TOKEN" ]; then
+        echo "Error: GITHUB_TOKEN environment variable not set" >&2
+        echo '{"error":"GitHub token required","fallback":true}'
+        exit 1
+      fi
+    catch:
+      - then:
+          infer:
+            prompt: "GitHub API unavailable. Generate a placeholder PR context for demonstration."
     output:
       format: json
 
@@ -128,15 +132,17 @@ tasks:
   # ============================================================================
 
   - id: parse_files
-    description: "Parse changed files list"
+    description: "Parse changed files list into array"
     use:
       file_list: changed_files
-    exec: |
-      echo "src/main.rs
-      src/lib.rs
-      tests/integration.rs"
+    infer:
+      prompt: |
+        Parse this list of changed files into a JSON array of file paths:
+        {{use.file_list}}
+
+        Return ONLY a JSON array like: ["src/main.rs", "src/lib.rs", "tests/integration.rs"]
     output:
-      format: text
+      format: json
     flow: [changed_files]
 
   - id: file_reviews
@@ -149,6 +155,11 @@ tasks:
     as: filepath
     concurrency: 5
     fail_fast: false
+    catch:
+      - on: error
+        then:
+          infer:
+            prompt: "Failed to review {{use.filepath}}. Generate placeholder review highlighting the error."
     infer:
       prompt: |
         Review this specific file: {{use.filepath}}
@@ -183,6 +194,19 @@ tasks:
       commits: commit_history
       pr_context: pr_context_text
       full_diff: full_diff
+    catch:
+      - on: timeout
+        then:
+          infer:
+            prompt: |
+              The comprehensive review timed out. Generate a placeholder review summarizing
+              the key points from individual file reviews and diff stats.
+      - on: error
+        then:
+          infer:
+            prompt: |
+              An error occurred during comprehensive review. Generate a summary based on
+              available data: diff stats, commits, and file reviews.
     agent:
       prompt: |
         You are an expert code reviewer. Analyze the provided code changes and generate

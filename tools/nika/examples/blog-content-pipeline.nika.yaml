@@ -18,7 +18,7 @@
 #   - FIRECRAWL_API_KEY
 #   - NEWSAPI_KEY (optional)
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.9"
 workflow: blog-content-pipeline
 description: "Enterprise blog content generation pipeline with multi-platform support"
 
@@ -81,6 +81,7 @@ tasks:
 
   - id: web_search
     description: "Search web for current AI and content trends"
+    error_handling: fallback_to_default
     agent:
       prompt: |
         Search the web for the latest trends in AI, machine learning, and
@@ -98,6 +99,17 @@ tasks:
     output:
       format: json
       max_retries: 2
+      fallback_value:
+        trends:
+          - name: "AI-Assisted Content Creation"
+            relevance: "high"
+            description: "LLMs and generative AI for content creators"
+          - name: "Voice Search Optimization"
+            relevance: "high"
+            description: "SEO strategies for voice-activated searches"
+          - name: "Interactive Content Formats"
+            relevance: "medium"
+            description: "Quizzes, polls, and dynamic content engagement"
       schema:
         type: object
         required: [trends]
@@ -118,6 +130,7 @@ tasks:
 
   - id: scrape_competitors
     description: "Analyze competitor blog posts"
+    error_handling: fallback_to_default
     agent:
       prompt: |
         Using firecrawl_scrape, analyze competitor blog posts on AI content.
@@ -134,6 +147,18 @@ tasks:
 
     output:
       format: json
+      fallback_value:
+        competitors:
+          - name: "Competitor A"
+            avg_word_count: 2400
+            structure: ["intro", "problem", "solution", "implementation", "conclusion"]
+            tone: "professional"
+            cta_frequency: "high"
+          - name: "Competitor B"
+            avg_word_count: 2200
+            structure: ["intro", "research", "insights", "tips", "conclusion"]
+            tone: "conversational"
+            cta_frequency: "medium"
 
   # -------------------------------------------------------------------------
   # PHASE 3: Topic Research & Synthesis
@@ -345,22 +370,23 @@ tasks:
     as: platform
     concurrency: 3
     fail_fast: false
+    error_handling: continue
     infer:
       prompt: |
-        Adapt this blog article for {{use.platform.name}} platform:
+        Adapt this blog article for {{platform.name}} platform:
 
         ARTICLE:
         {{use.article | truncate: 2000}}
 
-        PLATFORM: {{use.platform.name}}
-        FORMAT: {{use.platform.format}}
-        STYLE: {{use.platform.style}}
+        PLATFORM: {{platform.name}}
+        FORMAT: {{platform.format}}
+        STYLE: {{platform.style}}
 
     output:
       format: text
 
     artifact:
-      path: platforms/{{use.platform.name}}.md
+      path: platforms/{{platform.name}}.md
       format: text
 
     flow: [write_article]
