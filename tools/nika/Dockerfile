@@ -50,8 +50,9 @@ RUN if [ "${TARGETARCH}" = "arm64" ]; then \
 # Add musl target
 RUN rustup target add $(cat /tmp/target)
 
-# Copy recipe and cook dependencies (CACHED LAYER - this is the magic!)
+# Copy recipe AND Cargo.lock to respect locked versions during cook
 COPY --from=planner /app/recipe.json recipe.json
+COPY --from=planner /app/Cargo.lock Cargo.lock
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     cargo chef cook --release --target $(cat /tmp/target) --recipe-path recipe.json \
