@@ -1,0 +1,797 @@
+# WF2: EntityNative Intelligent Workflow
+#
+# PURPOSE: Create a complete EntityNative with SEO-derived denomination_forms.url
+# This workflow implements the intelligent flow from SESSION.md brainstorm:
+#   - Load entity context and locale knowledge
+#   - Scan SEOKeywords targeting this entity
+#   - Calculate slugification scores per ADR-032
+#   - Derive optimal slug using no-repetition rule
+#   - Write back to EntityNative.denomination_forms
+#
+# INPUT: EntityNative key (e.g., "entity:qr-code@fr-FR")
+# OUTPUT: Updated EntityNative with complete denomination_forms including url
+#
+# REFERENCES:
+#   - SESSION.md: 2026-03-06-entity-workflow-brainstorm
+#   - ADR-030: Slug Ownership (Page owns URL, Entity owns semantics)
+#   - ADR-032: URL Slugification Architecture (scoring formula)
+#   - ADR-033: Denomination Forms (text/title/abbrev/url)
+#
+# USAGE:
+#   nika run examples/wf2-entity-native-intelligent.nika.yaml \
+#     --input entity_native_key="entity:qr-code@fr-FR"
+#
+# REQUIREMENTS:
+#   - ANTHROPIC_API_KEY
+#   - NovaNet MCP server running
+#   - Neo4j database with entities and SEOKeywords
+
+schema: "nika/workflow@0.10"
+workflow: wf2-entity-native-intelligent
+description: "Generate complete EntityNative with SEO-derived slug (ADR-030/032/033)"
+
+provider: claude
+model: claude-sonnet-4-20250514
+
+# MCP Server configuration
+mcp:
+  novanet:
+    command: /Users/thibaut/.cargo/bin/novanet-mcp
+    args: []
+    env:
+      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
+      NOVANET_MCP_NEO4J_USER: neo4j
+      NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
+      RUST_LOG: info
+
+# Workflow artifacts
+artifacts:
+  dir: ./generated/{{date}}/wf2-entity-native
+  format: json
+  manifest: true
+
+# Input parameters
+inputs:
+  entity_native_key:
+    type: string
+    description: "EntityNative key in format entity:{key}@{locale}"
+    required: true
+    # Example: "entity:qr-code@fr-FR"
+
+  token_budget:
+    type: integer
+    description: "Token budget for context assembly"
+    default: 8000
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 1: Parse Input Key
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: parse_input
+    description: "Parse entity_native_key to extract entity_key and locale"
+    # Input format: "entity:qr-code@fr-FR"
+    # Extract: entity_key = "qr-code", locale = "fr-FR"
+    infer:
+      prompt: |
+        Parse the EntityNative key and extract components.
+
+        INPUT KEY: {{inputs.entity_native_key}}
+
+        Expected format: entity:{entity_key}@{locale}
+        Example: entity:qr-code@fr-FR
+
+        Extract and return as JSON:
+        - entity_key: The entity identifier (e.g., "qr-code")
+        - locale: The BCP-47 locale code (e.g., "fr-FR")
+        - full_key: The complete EntityNative key as provided
+
+      temperature: 0
+    output:
+      format: json
+      schema:
+        type: object
+        required: [entity_key, locale, full_key]
+        properties:
+          entity_key:
+            type: string
+            description: "Entity key without prefix or locale"
+          locale:
+            type: string
+            pattern: "^[a-z]{2}-[A-Z]{2}$"
+            description: "BCP-47 locale code"
+          full_key:
+            type: string
+            description: "Complete EntityNative key"
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 2: Load Entity Context (parallel tasks)
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: get_entity_context
+    description: "Get full generation context for the entity"
+    use:
+      parsed: parse_input
+    invoke:
+      mcp: novanet
+      tool: novanet_generate
+      params:
+        focus_key: "{{use.parsed.entity_key}}"
+        locale: "{{use.parsed.locale}}"
+        mode: block
+        token_budget: "{{inputs.token_budget}}"
+        spreading_depth: 2
+    output:
+      format: json
+    artifact:
+      path: context/entity-generation-context.json
+
+  - id: get_locale_atoms
+    description: "Get locale-specific knowledge atoms (terms, expressions)"
+    use:
+      parsed: parse_input
+    invoke:
+      mcp: novanet
+      tool: novanet_atoms
+      params:
+        locale: "{{use.parsed.locale}}"
+        atom_type: all
+        limit: 100
+    output:
+      format: json
+    artifact:
+      path: context/locale-atoms.json
+
+  - id: get_entity_details
+    description: "Describe the entity for semantic understanding"
+    use:
+      parsed: parse_input
+    invoke:
+      mcp: novanet
+      tool: novanet_describe
+      params:
+        describe: entity
+        entity_key: "{{use.parsed.entity_key}}"
+    output:
+      format: json
+    artifact:
+      path: context/entity-details.json
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 3: Query SEOKeywords Targeting This Entity
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: query_seo_keywords
+    description: "Find SEOKeywords that target this entity (via TARGETS arc)"
+    use:
+      parsed: parse_input
+    invoke:
+      mcp: novanet
+      tool: novanet_query
+      params:
+        cypher: |
+          // Find SEOKeywords targeting this EntityNative
+          MATCH (en:EntityNative {key: $entity_native_key})-[:TARGETS]->(kw:SEOKeyword)
+          OPTIONAL MATCH (kw)-[:FOR_LOCALE]->(l:Locale {code: $locale})
+          RETURN kw.key AS key,
+                 kw.keyword AS keyword,
+                 kw.slug_form AS slug_form,
+                 kw.search_volume AS search_volume,
+                 kw.difficulty AS difficulty,
+                 kw.intent AS intent,
+                 kw.source AS source
+          ORDER BY kw.search_volume DESC
+          LIMIT 20
+        params:
+          entity_native_key: "{{use.parsed.full_key}}"
+          locale: "{{use.parsed.locale}}"
+    output:
+      format: json
+    artifact:
+      path: seo/targeted-keywords.json
+
+  - id: query_parent_page
+    description: "Find parent Page to get parent slug (for no-repetition rule)"
+    use:
+      parsed: parse_input
+    invoke:
+      mcp: novanet
+      tool: novanet_query
+      params:
+        cypher: |
+          // Find parent page structure for no-repetition check
+          MATCH (e:Entity {key: $entity_key})<-[:REPRESENTS]-(p:Page)
+          OPTIONAL MATCH (p)-[:SUBTOPIC_OF]->(parent:Page)
+          OPTIONAL MATCH (parent)-[:HAS_NATIVE]->(pn:PageNative)-[:FOR_LOCALE]->(l:Locale {code: $locale})
+          RETURN p.key AS page_key,
+                 parent.key AS parent_page_key,
+                 pn.slug AS parent_slug,
+                 pn.full_path AS parent_full_path
+        params:
+          entity_key: "{{use.parsed.entity_key}}"
+          locale: "{{use.parsed.locale}}"
+    output:
+      format: json
+    artifact:
+      path: seo/parent-page-context.json
+
+  - id: query_convergence
+    description: "Calculate convergence boost (multiple EntityNatives targeting same keyword)"
+    use:
+      parsed: parse_input
+    invoke:
+      mcp: novanet
+      tool: novanet_query
+      params:
+        cypher: |
+          // Find keywords with convergence (multiple entities targeting them)
+          MATCH (en:EntityNative)-[:TARGETS]->(kw:SEOKeyword)
+          WHERE kw.key CONTAINS $locale
+          WITH kw, count(DISTINCT en) AS convergence_count
+          WHERE convergence_count > 1
+          RETURN kw.key AS keyword_key,
+                 kw.keyword AS keyword,
+                 convergence_count,
+                 1.0 + (convergence_count * 0.2) AS convergence_boost
+          ORDER BY convergence_count DESC
+          LIMIT 10
+        params:
+          locale: "{{use.parsed.locale}}"
+    output:
+      format: json
+    artifact:
+      path: seo/convergence-analysis.json
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 4: Calculate Slugification Scores (ADR-032)
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: calculate_slug_scores
+    description: "Apply ADR-032 slugification scoring formula"
+    use:
+      parsed: parse_input
+      keywords: query_seo_keywords
+      parent: query_parent_page
+      convergence: query_convergence
+      entity: get_entity_details
+      context: get_entity_context
+    agent:
+      prompt: |
+        # Slug Derivation Task (ADR-032)
+
+        You are deriving the optimal URL slug for an EntityNative following ADR-032.
+
+        ## INPUT DATA
+
+        **Entity Key**: {{use.parsed.entity_key}}
+        **Locale**: {{use.parsed.locale}}
+
+        **Entity Details**:
+        {{use.entity | to_yaml}}
+
+        **Generation Context** (includes denomination_forms if exists):
+        {{use.context | to_yaml}}
+
+        **Targeted SEOKeywords**:
+        {{use.keywords | to_yaml}}
+
+        **Parent Page Context** (for no-repetition rule):
+        {{use.parent | to_yaml}}
+
+        **Convergence Analysis** (keywords targeted by multiple entities):
+        {{use.convergence | to_yaml}}
+
+        ## ADR-032 SCORING FORMULA
+
+        ```
+        score = volume × sem_coef × convergence_boost
+        ```
+
+        Where:
+        - `volume` = search_volume from SEOKeyword
+        - `sem_coef` = semantic coefficient based on SEMANTIC_LINK type (default 1.0)
+        - `convergence_boost` = 1 + (N × 0.2) where N = number of entities targeting same keyword
+
+        ## SEMANTIC_LINK COEFFICIENTS (from ADR-032)
+
+        | Link Type | Coefficient |
+        |-----------|-------------|
+        | same_as | 1.0 |
+        | used_for | 0.95 |
+        | variant_of | 0.9 |
+        | is_action_on | 0.85 |
+        | part_of | 0.85 |
+        | type_of | 0.8 |
+        | enables | 0.8 |
+        | includes | 0.75 |
+        | exhibits | 0.7 |
+        | requires | 0.6 |
+        | related_to | 0.5 |
+        | contrasts | 0.4 |
+
+        ## NO-REPETITION RULE (CRITICAL)
+
+        ```
+        WRONG: /fr-FR/creer-qr-code/qr-code-pour-instagram
+                       ^^^^^^          ^^^^^^
+                       REPETITION = SEO penalty!
+
+        RIGHT: /fr-FR/creer-qr-code/instagram
+                                     ^^^^^^^^^
+                       Only the differentiating part
+        ```
+
+        Algorithm:
+        1. Collect parent path terms: parent_terms = split(parent_slug, "-")
+        2. For each candidate keyword: new_terms = keyword_terms - parent_terms
+        3. Score using formula
+        4. Winner: highest score, extract ONLY new_terms as slug
+
+        ## YOUR TASK
+
+        1. List all candidate keywords with their scores
+        2. Apply no-repetition rule to extract differentiating terms
+        3. Select the best slug based on highest score
+        4. Provide rationale for your choice
+
+        Return structured JSON with the analysis.
+
+      mcp: [novanet]
+      max_turns: 5
+      extended_thinking: true
+      thinking_budget: 10000
+
+    output:
+      format: json
+      schema:
+        type: object
+        required: [candidates, winning_slug, rationale, slug_source]
+        properties:
+          candidates:
+            type: array
+            description: "All keyword candidates with scores"
+            items:
+              type: object
+              required: [keyword, slug_form, volume, sem_coef, convergence_boost, final_score, extracted_terms, excluded_terms]
+              properties:
+                keyword:
+                  type: string
+                slug_form:
+                  type: string
+                volume:
+                  type: integer
+                sem_coef:
+                  type: number
+                convergence_boost:
+                  type: number
+                final_score:
+                  type: number
+                extracted_terms:
+                  type: array
+                  items:
+                    type: string
+                  description: "Terms kept in slug (after no-repetition)"
+                excluded_terms:
+                  type: array
+                  items:
+                    type: string
+                  description: "Terms excluded (from parent path)"
+          winning_slug:
+            type: string
+            description: "The derived URL slug"
+          slug_source:
+            type: string
+            enum: ["keyword", "extracted", "merged", "generated"]
+            description: "How the slug was derived"
+          rationale:
+            type: string
+            description: "Explanation for slug choice"
+          parent_terms:
+            type: array
+            items:
+              type: string
+            description: "Terms from parent path (excluded)"
+
+    artifact:
+      path: analysis/slug-scoring.json
+
+    flow: [query_seo_keywords, query_parent_page, query_convergence, get_entity_details, get_entity_context]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 5: Generate Complete EntityNative Content
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: generate_entity_native
+    description: "Generate complete EntityNative with denomination_forms including url"
+    use:
+      parsed: parse_input
+      context: get_entity_context
+      atoms: get_locale_atoms
+      entity: get_entity_details
+      slug_analysis: calculate_slug_scores
+    agent:
+      prompt: |
+        # EntityNative Content Generation (ADR-033)
+
+        You are generating a complete EntityNative for {{use.parsed.locale}}.
+
+        ## INPUT CONTEXT
+
+        **Entity Key**: {{use.parsed.entity_key}}
+        **Locale**: {{use.parsed.locale}}
+
+        **Entity Definition**:
+        {{use.entity | to_yaml}}
+
+        **Generation Context**:
+        {{use.context | to_yaml}}
+
+        **Locale Knowledge Atoms**:
+        {{use.atoms | to_yaml}}
+
+        **Slug Analysis Result**:
+        {{use.slug_analysis | to_yaml}}
+
+        ## ADR-033: DENOMINATION FORMS (ABSOLUTE RULE)
+
+        The LLM MUST use ONLY denomination_forms values when referring to this entity.
+        NO invention, NO paraphrase, NO unlisted variation is allowed.
+
+        | Form | Where Used | Priority |
+        |------|-----------|----------|
+        | text | Prose, body content | 1 |
+        | title | H1, H2, meta_title | 1 |
+        | abbrev | After first mention | 1 |
+        | url | URL-safe slug (from analysis) | 1 |
+
+        ## LOCALE-SPECIFIC RULES
+
+        For {{use.parsed.locale}}:
+        - Use locale-appropriate formality level
+        - Use native terminology from knowledge atoms
+        - The url form MUST be the winning_slug from analysis
+
+        ## YOUR TASK
+
+        Generate a complete EntityNative record with:
+
+        1. **denomination_forms**: All 4 forms (text, title, abbrev, url)
+           - url MUST be: "{{use.slug_analysis.winning_slug}}"
+
+        2. **display_name**: Native localized name (use title form)
+
+        3. **description**: 150-200 words, compelling, SEO-aware
+           - Write ENTIRELY in {{use.parsed.locale}}
+           - Use knowledge atoms for native phrasing
+
+        4. **meta_title**: Exactly 50-60 characters, include primary keyword
+
+        5. **meta_description**: Exactly 150-160 characters, with clear CTA
+
+      mcp: [novanet]
+      max_turns: 8
+      extended_thinking: true
+      thinking_budget: 12000
+
+    output:
+      format: json
+      schema:
+        type: object
+        required: [key, locale, denomination_forms, display_name, description, meta_title, meta_description]
+        properties:
+          key:
+            type: string
+            description: "EntityNative key (same as input)"
+          locale:
+            type: string
+            pattern: "^[a-z]{2}-[A-Z]{2}$"
+          denomination_forms:
+            type: object
+            required: [text, title, abbrev, url]
+            properties:
+              text:
+                type: string
+                description: "Prose form for body content"
+              title:
+                type: string
+                description: "Capitalized form for headings"
+              abbrev:
+                type: string
+                description: "Short form after first mention"
+              url:
+                type: string
+                pattern: "^[a-z0-9-]+$"
+                description: "URL-safe slug form"
+          display_name:
+            type: string
+          description:
+            type: string
+            minLength: 100
+            maxLength: 1000
+          meta_title:
+            type: string
+            maxLength: 65
+          meta_description:
+            type: string
+            maxLength: 165
+
+    artifact:
+      - path: content/entity-native-generated.json
+        format: json
+      - path: content/entity-native-generated.yaml
+        format: yaml
+
+    flow: [calculate_slug_scores, get_locale_atoms]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 6: Validate Before Write (novanet_check)
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: validate_write
+    description: "Validate EntityNative update before persisting (novanet_check)"
+    use:
+      parsed: parse_input
+      content: generate_entity_native
+    invoke:
+      mcp: novanet
+      tool: novanet_check
+      params:
+        operation: update_props
+        class: EntityNative
+        key: "{{use.parsed.full_key}}"
+        properties:
+          denomination_forms:
+            - type: text
+              value: "{{use.content.denomination_forms.text}}"
+              priority: 1
+            - type: title
+              value: "{{use.content.denomination_forms.title}}"
+              priority: 1
+            - type: abbrev
+              value: "{{use.content.denomination_forms.abbrev}}"
+              priority: 1
+            - type: url
+              value: "{{use.content.denomination_forms.url}}"
+              priority: 1
+          display_name: "{{use.content.display_name}}"
+          description: "{{use.content.description}}"
+          meta_title: "{{use.content.meta_title}}"
+          meta_description: "{{use.content.meta_description}}"
+        locale: "{{use.parsed.locale}}"
+    output:
+      format: json
+    artifact:
+      path: validation/check-result.json
+
+    flow: [generate_entity_native]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 7: Persist EntityNative (novanet_write)
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: write_entity_native
+    description: "Persist updated EntityNative with denomination_forms.url"
+    use:
+      parsed: parse_input
+      content: generate_entity_native
+      validation: validate_write
+    # Only proceed if validation passed
+    when: "{{use.validation.valid}}"
+    invoke:
+      mcp: novanet
+      tool: novanet_write
+      params:
+        operation: update_props
+        class: EntityNative
+        key: "{{use.parsed.full_key}}"
+        properties:
+          denomination_forms:
+            - type: text
+              value: "{{use.content.denomination_forms.text}}"
+              priority: 1
+            - type: title
+              value: "{{use.content.denomination_forms.title}}"
+              priority: 1
+            - type: abbrev
+              value: "{{use.content.denomination_forms.abbrev}}"
+              priority: 1
+            - type: url
+              value: "{{use.content.denomination_forms.url}}"
+              priority: 1
+          display_name: "{{use.content.display_name}}"
+          description: "{{use.content.description}}"
+          meta_title: "{{use.content.meta_title}}"
+          meta_description: "{{use.content.meta_description}}"
+        locale: "{{use.parsed.locale}}"
+    output:
+      format: json
+    artifact:
+      path: output/write-result.json
+
+    flow: [validate_write]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 8: Post-Write Audit
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: audit_result
+    description: "Run quality audit after write (CSR metrics)"
+    use:
+      parsed: parse_input
+    invoke:
+      mcp: novanet
+      tool: novanet_audit
+      params:
+        target: coverage
+        scope:
+          class: EntityNative
+          locale: "{{use.parsed.locale}}"
+        limit: 10
+    output:
+      format: json
+    artifact:
+      path: audit/coverage-report.json
+
+    flow: [write_entity_native]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 9: Final Summary
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: generate_summary
+    description: "Generate workflow execution summary"
+    use:
+      parsed: parse_input
+      content: generate_entity_native
+      slug: calculate_slug_scores
+      write: write_entity_native
+      audit: audit_result
+    infer:
+      prompt: |
+        # WF2 Execution Summary
+
+        Generate a markdown summary of the EntityNative Intelligent workflow.
+
+        ## Results
+
+        **EntityNative**: {{use.parsed.full_key}}
+        **Locale**: {{use.parsed.locale}}
+
+        ### Slug Derivation (ADR-032)
+
+        **Winning Slug**: {{use.slug.winning_slug}}
+        **Source**: {{use.slug.slug_source}}
+        **Rationale**: {{use.slug.rationale}}
+
+        **Candidates Analyzed**: {{use.slug.candidates | length}}
+
+        ### Denomination Forms (ADR-033)
+
+        | Form | Value |
+        |------|-------|
+        | text | {{use.content.denomination_forms.text}} |
+        | title | {{use.content.denomination_forms.title}} |
+        | abbrev | {{use.content.denomination_forms.abbrev}} |
+        | url | {{use.content.denomination_forms.url}} |
+
+        ### Write Result
+
+        **Success**: {{use.write.success}}
+        **Updated Properties**: {{use.write.updated_properties | to_yaml}}
+
+        ### Quality Audit (CSR)
+
+        **Coverage CSR**: {{use.audit.csr.rate}}
+        **Issues Found**: {{use.audit.summary.total_issues}}
+
+        ---
+
+        *Generated by WF2: EntityNative Intelligent Workflow*
+        *Implements ADR-030 (Slug Ownership), ADR-032 (Slugification), ADR-033 (Denomination Forms)*
+
+    artifact:
+      - path: reports/wf2-summary.md
+        format: text
+      - path: reports/wf2-summary.json
+        format: json
+
+    flow: [write_entity_native, audit_result]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # STAGE 10: Final Output
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - id: final_output
+    description: "Display execution summary"
+    use:
+      parsed: parse_input
+      content: generate_entity_native
+      slug: calculate_slug_scores
+      write: write_entity_native
+    exec: |
+      echo "═══════════════════════════════════════════════════════════════"
+      echo "  🎯 WF2: ENTITYNATIVE INTELLIGENT WORKFLOW COMPLETE"
+      echo "═══════════════════════════════════════════════════════════════"
+      echo ""
+      echo "Entity:     {{use.parsed.entity_key}}"
+      echo "Locale:     {{use.parsed.locale}}"
+      echo "Full Key:   {{use.parsed.full_key}}"
+      echo ""
+      echo "SLUG DERIVATION (ADR-032):"
+      echo "  Winning Slug: {{use.slug.winning_slug}}"
+      echo "  Source:       {{use.slug.slug_source}}"
+      echo ""
+      echo "DENOMINATION FORMS (ADR-033):"
+      echo "  text:   {{use.content.denomination_forms.text}}"
+      echo "  title:  {{use.content.denomination_forms.title}}"
+      echo "  abbrev: {{use.content.denomination_forms.abbrev}}"
+      echo "  url:    {{use.content.denomination_forms.url}}"
+      echo ""
+      echo "WRITE RESULT:"
+      echo "  Success: {{use.write.success}}"
+      echo ""
+      echo "Artifacts:"
+      echo "  📂 context/          - Entity context, locale atoms"
+      echo "  📂 seo/              - Keywords, parent page, convergence"
+      echo "  📂 analysis/         - Slug scoring breakdown"
+      echo "  📂 content/          - Generated EntityNative (JSON + YAML)"
+      echo "  📂 validation/       - novanet_check result"
+      echo "  📂 output/           - novanet_write result"
+      echo "  📂 audit/            - Post-write CSR audit"
+      echo "  📂 reports/          - Summary (MD + JSON)"
+      echo ""
+      echo "═══════════════════════════════════════════════════════════════"
+
+    flow: [generate_summary]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PIPELINE FLOW DIAGRAM
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   parse_input
+#        │
+#        ├─────────────┬─────────────┬─────────────┐
+#        │             │             │             │
+#        ▼             ▼             ▼             │
+#   get_entity     get_locale    get_entity       │
+#   _context       _atoms        _details         │
+#        │             │             │             │
+#        │             │             │             │
+#        │             │             │             ▼
+#        │             │             │        query_seo
+#        │             │             │        _keywords
+#        │             │             │             │
+#        │             │             │             ├─────────────┐
+#        │             │             │             │             │
+#        │             │             │             ▼             ▼
+#        │             │             │        query_parent  query_convergence
+#        │             │             │        _page              │
+#        │             │             │             │             │
+#        └─────────────┴─────────────┴─────────────┴─────────────┘
+#                                    │
+#                                    ▼
+#                          calculate_slug_scores
+#                          [ADR-032 formula + no-repetition]
+#                                    │
+#                                    ▼
+#                         generate_entity_native
+#                         [ADR-033 denomination_forms]
+#                                    │
+#                                    ▼
+#                            validate_write
+#                            [novanet_check]
+#                                    │
+#                                    ▼ (if valid)
+#                          write_entity_native
+#                          [novanet_write]
+#                                    │
+#                                    ▼
+#                             audit_result
+#                             [CSR metrics]
+#                                    │
+#                                    ▼
+#                          generate_summary
+#                                    │
+#                                    ▼
+#                            final_output
+#
