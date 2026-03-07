@@ -568,11 +568,11 @@ impl ProviderModalState {
     /// v0.8.9: Automatically pushes latency to history when Connected
     /// v0.8.9: Syncs verification animation status
     pub fn set_provider_status(&mut self, index: usize, status: ConnectionStatus) {
-        // Guard against unbounded growth
-        if index >= 6 {
+        // Guard against unbounded growth (7 providers: 0-6)
+        if index >= 7 {
             tracing::warn!(
                 index = %index,
-                "Invalid provider index (max 5), ignoring status update"
+                "Invalid provider index (max 6), ignoring status update"
             );
             return;
         }
@@ -600,7 +600,8 @@ impl ProviderModalState {
             "mistral" => 2,
             "groq" => 3,
             "deepseek" => 4,
-            "ollama" => 5,
+            "gemini" => 5,
+            "ollama" => 6,
             _ => return,
         };
         self.set_provider_status(index, status);
@@ -608,8 +609,8 @@ impl ProviderModalState {
 
     /// Get provider statuses for CloudTab
     pub fn get_provider_statuses(&self) -> Vec<ConnectionStatus> {
-        let mut statuses = Vec::with_capacity(6);
-        for i in 0..6 {
+        let mut statuses = Vec::with_capacity(7);
+        for i in 0..7 {
             statuses.push(
                 self.provider_statuses
                     .get(i)
@@ -1151,16 +1152,17 @@ mod tests {
         state.set_provider_status_by_name("groq", ConnectionStatus::Connected { latency_ms: 4 });
         state
             .set_provider_status_by_name("deepseek", ConnectionStatus::Connected { latency_ms: 5 });
-        state.set_provider_status_by_name("ollama", ConnectionStatus::Connected { latency_ms: 6 });
+        state.set_provider_status_by_name("gemini", ConnectionStatus::Connected { latency_ms: 6 });
+        state.set_provider_status_by_name("ollama", ConnectionStatus::Connected { latency_ms: 7 });
 
-        assert_eq!(state.provider_statuses.len(), 6);
+        assert_eq!(state.provider_statuses.len(), 7);
     }
 
     #[test]
-    fn test_get_provider_statuses_returns_6() {
+    fn test_get_provider_statuses_returns_7() {
         let state = ProviderModalState::default();
         let statuses = state.get_provider_statuses();
-        assert_eq!(statuses.len(), 6);
+        assert_eq!(statuses.len(), 7);
         // All should be Unknown by default
         assert!(statuses
             .iter()
@@ -1174,7 +1176,7 @@ mod tests {
         state.set_provider_status(2, ConnectionStatus::Checking);
 
         let statuses = state.get_provider_statuses();
-        assert_eq!(statuses.len(), 6);
+        assert_eq!(statuses.len(), 7);
         assert!(matches!(statuses[0], ConnectionStatus::Connected { .. }));
         assert!(matches!(statuses[1], ConnectionStatus::Unknown));
         assert!(matches!(statuses[2], ConnectionStatus::Checking));
