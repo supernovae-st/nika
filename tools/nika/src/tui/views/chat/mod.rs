@@ -125,10 +125,12 @@ use crate::tui::widgets::{
 // ═══════════════════════════════════════════════════════════════════════════════
 
 mod hints;
+mod layout;
 mod types;
 
 pub use types::*;
 use hints::{detect_verb_in_input, verb_placeholder};
+use layout::{compute_panel_areas, point_in_rect};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Serializable Chat Session (HIGH 8 - Persistent Sessions)
@@ -1064,59 +1066,23 @@ impl ChatView {
 
     // ═══════════════════════════════════════════════════════════════════════════════
     // Mouse Support (v0.8 UX Enhancement)
+    // Layout helpers in layout.rs: compute_panel_areas(), point_in_rect()
     // ═══════════════════════════════════════════════════════════════════════════════
-
-    /// Compute panel areas from total area (same layout as render)
-    /// Returns (session_bar, conversation, activity, input, hints) areas
-    fn compute_panel_areas(area: Rect) -> (Rect, Rect, Rect, Rect, Rect) {
-        use ratatui::layout::{Constraint, Direction, Layout};
-
-        // v0.12.1: Vertical layout must match render() exactly
-        // ProStatusBar (2 lines) | main content | input | hints
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(2), // ProStatusBar (2 lines - matches render)
-                Constraint::Min(10),   // Main content area
-                Constraint::Length(3), // Input field
-                Constraint::Length(1), // Command hints
-            ])
-            .split(area);
-
-        // v0.12.1: Horizontal split must match render() - 65%/35%
-        let main_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
-            .split(chunks[1]);
-
-        (
-            chunks[0],
-            main_chunks[0],
-            main_chunks[1],
-            chunks[2],
-            chunks[3],
-        )
-    }
 
     /// Determine which panel is at the given screen position
     pub fn panel_at_position(&self, x: u16, y: u16, area: Rect) -> Option<ChatPanel> {
-        let (_, conversation, activity, input, _) = Self::compute_panel_areas(area);
+        let (_, conversation, activity, input, _) = compute_panel_areas(area);
 
         // Check each panel (order matters for overlapping edges)
-        if Self::point_in_rect(x, y, conversation) {
+        if point_in_rect(x, y, conversation) {
             Some(ChatPanel::Conversation)
-        } else if Self::point_in_rect(x, y, activity) {
+        } else if point_in_rect(x, y, activity) {
             Some(ChatPanel::Activity)
-        } else if Self::point_in_rect(x, y, input) {
+        } else if point_in_rect(x, y, input) {
             Some(ChatPanel::Input)
         } else {
             None
         }
-    }
-
-    /// Check if a point is inside a rect
-    fn point_in_rect(x: u16, y: u16, rect: Rect) -> bool {
-        x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height
     }
 
     /// Handle mouse event for Chat view
