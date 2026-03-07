@@ -40,7 +40,7 @@ pub fn provider_env_var(provider: &str) -> &'static str {
         // MCP providers
         "neo4j" => "NEO4J_PASSWORD",
         "github" => "GITHUB_TOKEN",
-        "slack" => "SLACK_TOKEN",
+        "slack" => "SLACK_BOT_TOKEN",
         "perplexity" => "PERPLEXITY_API_KEY",
         "firecrawl" => "FIRECRAWL_API_KEY",
         "supadata" => "SUPADATA_API_KEY",
