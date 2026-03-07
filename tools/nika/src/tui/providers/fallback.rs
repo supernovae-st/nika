@@ -1,0 +1,106 @@
+//! Fallback provider definitions when spn-daemon feature is disabled
+//!
+//! This module provides minimal provider definitions that mirror spn-core
+//! for builds without the spn-daemon dependency.
+
+/// LLM provider IDs (7 total)
+pub static LLM_PROVIDER_IDS: &[&str] = &[
+    "anthropic",
+    "openai",
+    "mistral",
+    "groq",
+    "deepseek",
+    "gemini",
+    "ollama",
+];
+
+/// MCP service provider IDs (6 total)
+pub static MCP_PROVIDER_IDS: &[&str] = &[
+    "neo4j",
+    "github",
+    "slack",
+    "perplexity",
+    "firecrawl",
+    "supadata",
+];
+
+/// Get environment variable name for a provider
+///
+/// This is the fallback when spn-core is not available.
+pub fn provider_env_var(provider: &str) -> &'static str {
+    match provider {
+        // LLM providers
+        "anthropic" => "ANTHROPIC_API_KEY",
+        "openai" => "OPENAI_API_KEY",
+        "mistral" => "MISTRAL_API_KEY",
+        "groq" => "GROQ_API_KEY",
+        "deepseek" => "DEEPSEEK_API_KEY",
+        "gemini" => "GEMINI_API_KEY",
+        "ollama" => "OLLAMA_API_BASE_URL",
+        // MCP providers
+        "neo4j" => "NEO4J_PASSWORD",
+        "github" => "GITHUB_TOKEN",
+        "slack" => "SLACK_TOKEN",
+        "perplexity" => "PERPLEXITY_API_KEY",
+        "firecrawl" => "FIRECRAWL_API_KEY",
+        "supadata" => "SUPADATA_API_KEY",
+        // Unknown
+        _ => "UNKNOWN_API_KEY",
+    }
+}
+
+/// Validate API key format (fallback - always returns true)
+pub fn validate_key_format(_provider: &str, _key: &str) -> bool {
+    // Without spn-core, we can't validate key formats
+    // Return true to allow any key
+    true
+}
+
+/// Mask an API key for display (fallback implementation)
+pub fn mask_key(key: &str) -> String {
+    if key.len() <= 8 {
+        "*".repeat(key.len())
+    } else {
+        format!("{}...{}", &key[..4], &key[key.len() - 4..])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_llm_provider_count() {
+        assert_eq!(LLM_PROVIDER_IDS.len(), 7);
+    }
+
+    #[test]
+    fn test_mcp_provider_count() {
+        assert_eq!(MCP_PROVIDER_IDS.len(), 6);
+    }
+
+    #[test]
+    fn test_provider_env_var_anthropic() {
+        assert_eq!(provider_env_var("anthropic"), "ANTHROPIC_API_KEY");
+    }
+
+    #[test]
+    fn test_provider_env_var_gemini() {
+        assert_eq!(provider_env_var("gemini"), "GEMINI_API_KEY");
+    }
+
+    #[test]
+    fn test_provider_env_var_neo4j() {
+        assert_eq!(provider_env_var("neo4j"), "NEO4J_PASSWORD");
+    }
+
+    #[test]
+    fn test_mask_key_short() {
+        assert_eq!(mask_key("abc"), "***");
+    }
+
+    #[test]
+    fn test_mask_key_long() {
+        assert_eq!(mask_key("sk-ant-1234567890abcdef"), "sk-a...cdef");
+    }
+}
