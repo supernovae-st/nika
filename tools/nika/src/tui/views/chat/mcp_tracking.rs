@@ -8,7 +8,7 @@ use std::time::Instant;
 use chrono::Local;
 
 use super::{
-    ActivityItem, ChatMessage, ChatView, FailedMcpCall, InlineContent, McpCallData, McpCallStatus,
+    ActivityItem, ChatMessage, ChatView, InlineContent, McpCallData, McpCallStatus, McpRetryInfo,
     McpStatus, MessageRole,
 };
 use crate::runtime::chat_workflow::Role as WorkflowRole;
@@ -62,7 +62,7 @@ impl ChatView {
     pub fn fail_mcp_call(&mut self, error: &str) {
         if let Some(InlineContent::McpCall(data)) = self.inline_content.last_mut() {
             // v0.9 Phase 2: Save failed MCP call for retry with Ctrl+R
-            self.last_failed_mcp = Some(FailedMcpCall {
+            self.last_failed_mcp = Some(McpRetryInfo {
                 tool: data.tool.clone(),
                 server: data.server.clone(),
                 params: serde_json::from_str(&data.params).unwrap_or(serde_json::Value::Null),

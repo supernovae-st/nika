@@ -6,7 +6,7 @@
 use crossterm::event::{MouseButton, MouseEventKind};
 use ratatui::layout::Rect;
 
-use super::{ChatView, SelectionPos, TextSelection};
+use super::{ChatMessageSelection, ChatSelectionPos, ChatView};
 use crate::tui::state::ChatPanel;
 use crate::tui::views::chat::layout::{compute_panel_areas, point_in_rect};
 
@@ -36,7 +36,7 @@ impl ChatView {
                 // Check if click is in conversation area (for text selection)
                 if let Some(pos) = self.screen_to_selection_pos(x, y) {
                     // Start a new selection
-                    self.text_selection = Some(TextSelection::new(pos));
+                    self.text_selection = Some(ChatMessageSelection::new(pos));
                     self.is_selecting = true;
                     true
                 } else {
@@ -93,7 +93,7 @@ impl ChatView {
 
     /// Convert screen coordinates to selection position
     /// Returns None if not within a message text area
-    pub(super) fn screen_to_selection_pos(&self, x: u16, y: u16) -> Option<SelectionPos> {
+    pub(super) fn screen_to_selection_pos(&self, x: u16, y: u16) -> Option<ChatSelectionPos> {
         // Find which line is at this Y coordinate
         for line_pos in &self.line_positions {
             if line_pos.screen_y == y && x >= line_pos.start_x {
@@ -112,7 +112,7 @@ impl ChatView {
                     }
                 }
 
-                return Some(SelectionPos {
+                return Some(ChatSelectionPos {
                     message_index: line_pos.message_index,
                     char_offset: total_offset,
                 });

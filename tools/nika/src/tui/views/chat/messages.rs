@@ -12,8 +12,8 @@ use ratatui::{
 };
 
 use super::{
-    ChatPanel, ChatView, ExecutionStatus, InlineContent, LinePosition, MessageRole, SEPARATOR_200,
-    SEPARATOR_52,
+    ChatLinePosition, ChatPanel, ChatView, ExecutionStatus, InlineContent, MessageRole,
+    SEPARATOR_200, SEPARATOR_52,
 };
 use crate::tui::theme::Theme;
 use crate::tui::utils::{truncate_str, wrap_text};
@@ -81,7 +81,7 @@ impl ChatView {
                 if line_in_list >= scroll_offset {
                     let screen_y = area.y + 1 + (line_in_list - scroll_offset) as u16; // +1 for border
                     if screen_y < area.y + area.height - 1 {
-                        self.line_positions.push(LinePosition {
+                        self.line_positions.push(ChatLinePosition {
                             message_index: msg_idx,
                             line_in_message: line_idx,
                             screen_y,

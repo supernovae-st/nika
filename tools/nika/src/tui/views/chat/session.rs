@@ -17,7 +17,7 @@ use super::{ChatMessage, ChatSession, ChatView, McpServerInfo, Provider};
 impl ChatView {
     /// Save current session to file
     pub fn save_session(&self, path: impl AsRef<Path>) -> std::io::Result<()> {
-        let session = ChatSession::from_view(self);
+        let session = ChatSession::from_messages(&self.messages, &self.current_model);
         session.save(path)
     }
 

@@ -4,7 +4,9 @@
 //! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use super::*;
+use crate::tui::state::ChatOverlayMessageRole;
 use crate::tui::widgets::InferStreamData;
+use tui_input::InputRequest;
 
 #[test]
 fn test_chat_view_new() {
@@ -824,13 +826,13 @@ fn test_serializable_role_conversion() {
 }
 
 #[test]
-fn test_chat_session_from_view() {
+fn test_chat_session_from_messages() {
     let mut view = ChatView::new();
     view.add_user_message("Hello".to_string());
     view.add_nika_message("Hi there!".to_string(), None);
     view.set_model("claude-sonnet");
 
-    let session = ChatSession::from_view(&view);
+    let session = ChatSession::from_messages(&view.messages, &view.current_model);
 
     assert_eq!(session.version, "0.5.2");
     assert_eq!(session.model, "claude-sonnet");
@@ -1237,25 +1239,25 @@ fn test_multiple_concurrent_activities() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
-fn test_text_selection_new() {
-    let pos = SelectionPos {
+fn test_chat_message_selection_new() {
+    let pos = ChatSelectionPos {
         message_index: 0,
         char_offset: 5,
     };
-    let selection = TextSelection::new(pos);
+    let selection = ChatMessageSelection::new(pos);
     assert_eq!(selection.start, pos);
     assert_eq!(selection.end, pos);
 }
 
 #[test]
-fn test_text_selection_normalized() {
+fn test_chat_message_selection_normalized() {
     // Forward selection (start < end)
-    let sel = TextSelection {
-        start: SelectionPos {
+    let sel = ChatMessageSelection {
+        start: ChatSelectionPos {
             message_index: 0,
             char_offset: 5,
         },
-        end: SelectionPos {
+        end: ChatSelectionPos {
             message_index: 0,
             char_offset: 10,
         },
@@ -1265,12 +1267,12 @@ fn test_text_selection_normalized() {
     assert_eq!(end.char_offset, 10);
 
     // Backward selection (end < start)
-    let sel = TextSelection {
-        start: SelectionPos {
+    let sel = ChatMessageSelection {
+        start: ChatSelectionPos {
             message_index: 0,
             char_offset: 10,
         },
-        end: SelectionPos {
+        end: ChatSelectionPos {
             message_index: 0,
             char_offset: 5,
         },
@@ -1281,32 +1283,32 @@ fn test_text_selection_normalized() {
 }
 
 #[test]
-fn test_text_selection_contains() {
-    let sel = TextSelection {
-        start: SelectionPos {
+fn test_chat_message_selection_contains() {
+    let sel = ChatMessageSelection {
+        start: ChatSelectionPos {
             message_index: 1,
             char_offset: 5,
         },
-        end: SelectionPos {
+        end: ChatSelectionPos {
             message_index: 1,
             char_offset: 15,
         },
     };
 
     // Inside selection
-    assert!(sel.contains(SelectionPos {
+    assert!(sel.contains(ChatSelectionPos {
         message_index: 1,
         char_offset: 10
     }));
 
     // At start
-    assert!(sel.contains(SelectionPos {
+    assert!(sel.contains(ChatSelectionPos {
         message_index: 1,
         char_offset: 5
     }));
 
     // Before selection
-    assert!(!sel.contains(SelectionPos {
+    assert!(!sel.contains(ChatSelectionPos {
         message_index: 1,
         char_offset: 4
     }));
@@ -1319,12 +1321,12 @@ fn test_get_selected_text() {
     view.add_user_message("Hello, World!".to_string());
 
     // Select "World"
-    view.text_selection = Some(TextSelection {
-        start: SelectionPos {
+    view.text_selection = Some(ChatMessageSelection {
+        start: ChatSelectionPos {
             message_index: 0,
             char_offset: 7,
         },
-        end: SelectionPos {
+        end: ChatSelectionPos {
             message_index: 0,
             char_offset: 12,
         },
@@ -1337,7 +1339,7 @@ fn test_get_selected_text() {
 #[test]
 fn test_clear_selection() {
     let mut view = ChatView::new();
-    view.text_selection = Some(TextSelection::new(SelectionPos {
+    view.text_selection = Some(ChatMessageSelection::new(ChatSelectionPos {
         message_index: 0,
         char_offset: 0,
     }));
@@ -1349,13 +1351,7 @@ fn test_clear_selection() {
     assert!(!view.is_selecting);
 }
 
-#[test]
-fn test_char_to_byte_offset_helper() {
-    assert_eq!(char_to_byte_offset("hello", 2), 2);
-    assert_eq!(char_to_byte_offset("héllo", 2), 3); // é is 2 bytes
-    assert_eq!(char_to_byte_offset("a🦀b", 2), 5); // 🦀 is 4 bytes
-    assert_eq!(char_to_byte_offset("hi", 10), 2); // Beyond end
-}
+// Note: char_to_byte_offset tests are in selection.rs where the function is defined
 
 #[test]
 fn test_selection_initialization() {
@@ -1902,7 +1898,7 @@ fn test_mcp_retry_clears_on_take() {
     let mut view = ChatView::new();
 
     // Set up a failed MCP call
-    view.last_failed_mcp = Some(FailedMcpCall {
+    view.last_failed_mcp = Some(McpRetryInfo {
         tool: "my_tool".to_string(),
         server: "my_server".to_string(),
         params: serde_json::json!({"test": 123}),
