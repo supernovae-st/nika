@@ -42,8 +42,8 @@ use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
 use crate::tui::widgets::tree::{
-    AnimationTicker, FilterConfig, TreeAction, TreeColors, TreeFilter, TreeNode, TreeState,
-    TreeWidget,
+    build_git_status_cache, AnimationTicker, FilterConfig, GitStatusCache, TreeAction, TreeColors,
+    TreeFilter, TreeNode, TreeState, TreeWidget,
 };
 use crate::tui::widgets::{DagAscii, MatrixRain, NodeBoxData, NodeBoxMode, ScrollIndicator};
 use crate::util::atomic_write;
@@ -186,6 +186,12 @@ pub struct StudioView {
     pub animation_ticker: AnimationTicker,
     /// File filter configuration (W/A/E/0 hotkeys)
     pub filter_config: FilterConfig,
+    /// Cached git status for files (refreshed periodically)
+    git_cache: GitStatusCache,
+    /// Last time the git cache was refreshed
+    git_cache_time: Instant,
+    /// Cached tree root node (avoids rebuilding on every frame)
+    cached_tree: Option<TreeNode>,
 
     // === Editor Panel (Center) ===
     /// YAML editor panel with validation and syntax highlighting
@@ -213,6 +219,10 @@ impl StudioView {
 
     /// Create a StudioView with a specific root directory
     pub fn with_root(root_dir: PathBuf) -> Self {
+        // Build git status cache from root directory
+        let root_path = Utf8Path::from_path(&root_dir).unwrap_or(Utf8Path::new("."));
+        let git_cache = build_git_status_cache(root_path);
+
         Self {
             root_dir,
             tree_state: TreeState::default(),
@@ -222,6 +232,9 @@ impl StudioView {
             editor: YamlEditorPanel::new(),
             focus: StudioFocus::default(),
             ratio: StudioRatio::default(),
+            git_cache,
+            git_cache_time: Instant::now(),
+            cached_tree: None,
         }
     }
 
@@ -261,9 +274,25 @@ impl StudioView {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        // Build tree from root directory (convert PathBuf to Utf8Path)
+        // Refresh git cache periodically (every 5 seconds)
+        const GIT_CACHE_TTL: Duration = Duration::from_secs(5);
         let root_path = Utf8Path::from_path(&self.root_dir).unwrap_or(Utf8Path::new("."));
-        let root_node = TreeNode::from_path(root_path, 0);
+
+        if self.git_cache_time.elapsed() > GIT_CACHE_TTL {
+            self.git_cache = build_git_status_cache(root_path);
+            self.git_cache_time = Instant::now();
+            // Invalidate tree cache when git status changes
+            self.cached_tree = None;
+        }
+
+        // Build tree with caching (rebuild only when cache is empty)
+        let root_node = if let Some(ref cached) = self.cached_tree {
+            cached.clone()
+        } else {
+            let tree = TreeNode::build_tree(root_path, Some(&self.git_cache), None);
+            self.cached_tree = Some(tree.clone());
+            tree
+        };
 
         // Update visible nodes for navigation
         self.tree_state.update_visible_nodes(&root_node);
@@ -297,11 +326,29 @@ impl StudioView {
         self.editor.render_dag_structure(frame, inner, &yaml, theme);
     }
 
+    /// Refresh the tree cache (called when filesystem changes are expected)
+    pub fn refresh_tree(&mut self) {
+        let root_path = Utf8Path::from_path(&self.root_dir).unwrap_or(Utf8Path::new("."));
+        self.git_cache = build_git_status_cache(root_path);
+        self.git_cache_time = Instant::now();
+        self.cached_tree = None;
+    }
+
+    /// Get or build the cached tree node
+    fn get_or_build_tree(&mut self) -> TreeNode {
+        if let Some(ref cached) = self.cached_tree {
+            return cached.clone();
+        }
+        let root_path = Utf8Path::from_path(&self.root_dir).unwrap_or(Utf8Path::new("."));
+        let tree = TreeNode::build_tree(root_path, Some(&self.git_cache), None);
+        self.cached_tree = Some(tree.clone());
+        tree
+    }
+
     /// Handle keyboard input for the browser panel
     fn handle_browser_key(&mut self, key: KeyEvent) -> ViewAction {
-        // Build root node for tree operations
-        let root_path = Utf8Path::from_path(&self.root_dir).unwrap_or(Utf8Path::new("."));
-        let root_node = TreeNode::from_path(root_path, 0);
+        // Get cached tree for tree operations
+        let root_node = self.get_or_build_tree();
 
         // Try TreeAction navigation first
         if let Some(action) = TreeAction::from_key_event(key) {
@@ -323,6 +370,11 @@ impl StudioView {
                         }
                     }
                 }
+                ViewAction::None
+            }
+            // Refresh tree (R key)
+            KeyCode::Char('r') | KeyCode::Char('R') => {
+                self.refresh_tree();
                 ViewAction::None
             }
             // Filter hotkeys (W/A/E/0)

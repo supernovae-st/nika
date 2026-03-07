@@ -65,7 +65,10 @@ pub use colors::TreeColors;
 pub use filter::{filter_from_key, FilterConfig, TreeFilter};
 
 // Core types
-pub use node::{GitStatus, NodeId, NodeKind, TreeNode};
+pub use node::{
+    build_git_status_cache, GitStatus, GitStatusCache, NodeId, NodeKind, TreeNode,
+    MAX_TREE_DEPTH,
+};
 
 // State management
 pub use state::{TreeAction, TreeState};
