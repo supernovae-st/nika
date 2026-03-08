@@ -135,7 +135,7 @@ impl App {
                 }
             }
 
-            // View switching (Normal mode only)
+            // View switching (Normal mode only) - 4-view architecture v0.22
             (KeyCode::Char('1'), KeyModifiers::NONE) if self.input_mode == InputMode::Normal => {
                 Action::SwitchView(TuiView::Studio)
             }
@@ -146,9 +146,6 @@ impl App {
                 Action::SwitchView(TuiView::Chat)
             }
             (KeyCode::Char('4'), KeyModifiers::NONE) if self.input_mode == InputMode::Normal => {
-                Action::SwitchView(TuiView::Scheduler)
-            }
-            (KeyCode::Char('5'), KeyModifiers::NONE) if self.input_mode == InputMode::Normal => {
                 Action::SwitchView(TuiView::Settings)
             }
 

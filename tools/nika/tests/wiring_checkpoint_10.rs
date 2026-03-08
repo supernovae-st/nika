@@ -1,23 +1,22 @@
 //! WIRING-10: Full TUI Navigation
 //!
 //! Verifies: View enum, navigation, and key bindings work together
-//! Run after: v0.21.0 (5-Views Architecture Update)
+//! Run after: v0.22.0 (4-Views Architecture Update)
 //!
 //! Tests validate:
-//! - All 5 views construct properly (Studio, Runner, Chat, Scheduler, Settings)
-//! - TuiView enum navigation (next/prev, cycling through all 5)
+//! - All 4 views construct properly (Studio, Runner, Chat, Settings)
+//! - TuiView enum navigation (next/prev, cycling through all 4)
 //! - ViewAction variants for navigation
 //! - View trait polymorphism
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 #[allow(deprecated)]
 use nika::tui::{
-    ChatView, HelpView, MonitorView, SchedulerView, SettingsView, StudioView, TuiState, TuiView,
-    View, ViewAction,
+    ChatView, HelpView, MonitorView, SettingsView, StudioView, TuiState, TuiView, View, ViewAction,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TEST 1: All views construct (v0.21 5-Views)
+// TEST 1: All views construct (v0.22 4-Views)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -54,7 +53,7 @@ fn wiring_10_help_view_constructs() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TEST 2: TuiView enum variants (v0.21 5-Views)
+// TEST 2: TuiView enum variants (v0.22 4-Views)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -64,45 +63,42 @@ fn wiring_10_tui_view_default_is_studio() {
 }
 
 #[test]
-fn wiring_10_tui_view_all_five() {
+fn wiring_10_tui_view_all_four() {
     let all = TuiView::all();
-    assert_eq!(all.len(), 5, "All views should be 5 (v0.21 5-Views)");
+    assert_eq!(all.len(), 4, "All views should be 4 (v0.22 4-Views)");
     assert_eq!(all[0], TuiView::Studio);
     assert_eq!(all[1], TuiView::Runner);
     assert_eq!(all[2], TuiView::Chat);
-    assert_eq!(all[3], TuiView::Scheduler);
-    assert_eq!(all[4], TuiView::Settings);
+    assert_eq!(all[3], TuiView::Settings);
 }
 
 #[test]
 fn wiring_10_tui_view_all_including_auxiliary() {
     let all = TuiView::all_including_auxiliary();
-    assert_eq!(all.len(), 5, "All views should be 5");
-    // v0.21: all_including_auxiliary() is same as all()
+    assert_eq!(all.len(), 4, "All views should be 4");
+    // v0.22: all_including_auxiliary() is same as all()
     assert_eq!(all, TuiView::all());
 }
 
 #[test]
 fn wiring_10_tui_view_is_auxiliary() {
-    // v0.21: Only Settings is auxiliary
+    // v0.22: Only Settings is auxiliary
     assert!(!TuiView::Studio.is_auxiliary());
     assert!(!TuiView::Runner.is_auxiliary());
     assert!(!TuiView::Chat.is_auxiliary());
-    assert!(!TuiView::Scheduler.is_auxiliary());
     assert!(TuiView::Settings.is_auxiliary());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TEST 3: TuiView navigation (cycles through all 5)
+// TEST 3: TuiView navigation (cycles through all 4)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-fn wiring_10_tui_view_next_cycles_all_five() {
-    // v0.21 order: Studio, Runner, Chat, Scheduler, Settings
+fn wiring_10_tui_view_next_cycles_all_four() {
+    // v0.22 order: Studio, Runner, Chat, Settings (4-view architecture)
     assert_eq!(TuiView::Studio.next(), TuiView::Runner);
     assert_eq!(TuiView::Runner.next(), TuiView::Chat);
-    assert_eq!(TuiView::Chat.next(), TuiView::Scheduler);
-    assert_eq!(TuiView::Scheduler.next(), TuiView::Settings);
+    assert_eq!(TuiView::Chat.next(), TuiView::Settings);
     assert_eq!(
         TuiView::Settings.next(),
         TuiView::Studio,
@@ -111,13 +107,12 @@ fn wiring_10_tui_view_next_cycles_all_five() {
 }
 
 #[test]
-fn wiring_10_tui_view_prev_cycles_all_five() {
-    // v0.21 order: Studio, Runner, Chat, Scheduler, Settings
+fn wiring_10_tui_view_prev_cycles_all_four() {
+    // v0.22 order: Studio, Runner, Chat, Settings (4-view architecture)
     assert_eq!(TuiView::Studio.prev(), TuiView::Settings);
     assert_eq!(TuiView::Runner.prev(), TuiView::Studio);
     assert_eq!(TuiView::Chat.prev(), TuiView::Runner);
-    assert_eq!(TuiView::Scheduler.prev(), TuiView::Chat);
-    assert_eq!(TuiView::Settings.prev(), TuiView::Scheduler);
+    assert_eq!(TuiView::Settings.prev(), TuiView::Chat);
 }
 
 #[test]
@@ -127,46 +122,42 @@ fn wiring_10_tui_view_toggle_is_next() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TEST 4: TuiView metadata (v0.21 values)
+// TEST 4: TuiView metadata (v0.22 values - 4-view architecture)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn wiring_10_tui_view_numbers() {
-    // v0.21 order: Studio(1), Runner(2), Chat(3), Scheduler(4), Settings(5)
+    // v0.22 order: Studio(1), Runner(2), Chat(3), Settings(4)
     assert_eq!(TuiView::Studio.number(), 1);
     assert_eq!(TuiView::Runner.number(), 2);
     assert_eq!(TuiView::Chat.number(), 3);
-    assert_eq!(TuiView::Scheduler.number(), 4);
-    assert_eq!(TuiView::Settings.number(), 5);
+    assert_eq!(TuiView::Settings.number(), 4);
 }
 
 #[test]
 fn wiring_10_tui_view_titles() {
-    // v0.21: Studio is default view, Chat is CHAT
+    // v0.22: Studio is default view
     assert_eq!(TuiView::Studio.title(), "NIKA STUDIO");
     assert_eq!(TuiView::Runner.title(), "NIKA RUNNER");
     assert_eq!(TuiView::Chat.title(), "NIKA CHAT");
-    assert_eq!(TuiView::Scheduler.title(), "NIKA SCHEDULER");
     assert_eq!(TuiView::Settings.title(), "NIKA SETTINGS");
 }
 
 #[test]
 fn wiring_10_tui_view_icons() {
-    // v0.21: Each view has a unique icon (order: Studio, Runner, Chat, Scheduler, Settings)
+    // v0.22: Each view has a unique icon (order: Studio, Runner, Chat, Settings)
     assert_eq!(TuiView::Studio.icon(), "📝");
     assert_eq!(TuiView::Runner.icon(), "▶");
     assert_eq!(TuiView::Chat.icon(), "💬");
-    assert_eq!(TuiView::Scheduler.icon(), "📅");
     assert_eq!(TuiView::Settings.icon(), "⚙");
 }
 
 #[test]
 fn wiring_10_tui_view_shortcuts() {
-    // v0.21: Letter shortcuts for each view (s/1, r/2, c/3, d/4, ,/5)
+    // v0.22: Letter shortcuts for each view (s/1, r/2, c/3, ,/4)
     assert_eq!(TuiView::Studio.shortcut(), 's');
     assert_eq!(TuiView::Runner.shortcut(), 'r');
     assert_eq!(TuiView::Chat.shortcut(), 'c');
-    assert_eq!(TuiView::Scheduler.shortcut(), 'd');
     assert_eq!(TuiView::Settings.shortcut(), ',');
 }
 
@@ -224,11 +215,10 @@ fn wiring_10_view_action_open_in_studio() {
 fn wiring_10_views_implement_trait() {
     fn assert_view<V: View>(_v: &V) {}
 
-    // v0.21 5-Views: Studio, Runner, Chat, Scheduler, Settings
+    // v0.22 4-Views: Studio, Runner, Chat, Settings
     assert_view(&StudioView::new());
     assert_view(&MonitorView::new()); // RunnerView (deprecated alias)
     assert_view(&ChatView::new());
-    assert_view(&SchedulerView::new());
     assert_view(&SettingsView::new());
     assert_view(&HelpView::new()); // Deprecated, merged into Settings
 }
@@ -238,7 +228,7 @@ fn wiring_10_views_implement_trait() {
 fn wiring_10_views_status_line_not_empty() {
     let state = TuiState::new("test.nika.yaml");
 
-    // v0.21 5-Views: Studio, Runner (MonitorView), Chat
+    // v0.22 4-Views: Studio, Runner (MonitorView), Chat, Settings
     let studio = StudioView::new();
     let chat = ChatView::new();
     let monitor = MonitorView::new();

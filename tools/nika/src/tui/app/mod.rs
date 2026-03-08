@@ -60,9 +60,7 @@ use super::startup;
 use super::state::TuiState;
 use super::theme::Theme;
 use super::verification::VerificationCache;
-use super::views::{
-    ChatView, HomeView, MonitorView, SchedulerView, SettingsView, StudioView, TuiView, View,
-};
+use super::views::{ChatView, HomeView, MonitorView, SettingsView, StudioView, TuiView, View};
 use super::widgets::NikaIntroState;
 
 // Note: Frame rate is now adaptive - see FAST_TICK_MS/SLOW_TICK_MS in run_unified()
@@ -115,8 +113,6 @@ pub struct App {
     pub(crate) settings_view: SettingsView,
     /// Monitor view state (v0.11 - workflow execution monitoring)
     pub(crate) monitor_view: MonitorView,
-    /// Scheduler view state (v0.12 - cron/queue management)
-    pub(crate) scheduler_view: SchedulerView,
     // ═══ LLM Integration for ChatOverlay ═══
     /// Channel for receiving LLM responses (complete responses)
     pub(crate) llm_response_rx: mpsc::Receiver<String>,
@@ -186,7 +182,6 @@ impl App {
         let _ = studio_view.load_file(workflow_path.to_path_buf());
         let settings_view = SettingsView::new();
         let monitor_view = MonitorView::new();
-        let scheduler_view = SchedulerView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -231,7 +226,6 @@ impl App {
             studio_view,
             settings_view,
             monitor_view,
-            scheduler_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -261,7 +255,6 @@ impl App {
         let studio_view = StudioView::new();
         let settings_view = SettingsView::new();
         let monitor_view = MonitorView::new();
-        let scheduler_view = SchedulerView::new();
 
         // Initialize LLM response channel
         let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -297,7 +290,7 @@ impl App {
             workflow_done: false,
             status_message: None,
             retry_requested: false,
-            // 5-view architecture - start in Studio mode for standalone
+            // 4-view architecture - start in Studio mode for standalone
             current_view: TuiView::Studio,
             input_mode: InputMode::Normal,
             focus_state: FocusState::new(NavPanelId::StudioFiles),
@@ -306,7 +299,6 @@ impl App {
             studio_view,
             settings_view,
             monitor_view,
-            scheduler_view,
             llm_response_rx,
             llm_response_tx,
             stream_chunk_rx,
@@ -484,7 +476,6 @@ impl App {
             }
             self.studio_view.tick(&mut self.state); // v0.21: 3-panel animations + validation
             self.monitor_view.tick(&mut self.state); // v0.12.1: Runner panel animations
-            self.scheduler_view.tick(&mut self.state); // v0.22: Scheduler animations
             self.settings_view.tick(&mut self.state); // v0.22: Settings animations
 
             // v0.12: Tick intro animation (if active)

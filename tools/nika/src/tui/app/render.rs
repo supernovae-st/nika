@@ -29,7 +29,6 @@ impl App {
                         TuiView::Studio => "Studio",
                         TuiView::Runner => "Runner",
                         TuiView::Chat => "Chat",
-                        TuiView::Scheduler => "Scheduler",
                         TuiView::Settings => "Settings",
                     };
                     let block = Block::default().title(title).borders(Borders::ALL);

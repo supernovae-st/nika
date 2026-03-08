@@ -1043,13 +1043,12 @@ impl View for HomeView {
             // Chat overlay toggle
             KeyCode::Char('c') => return ViewAction::ToggleChatOverlay,
 
-            // View switching: number keys (5-view architecture)
-            // 1=Studio, 2=Runner, 3=Chat, 4=Scheduler, 5=Settings
+            // View switching: number keys (4-view architecture v0.22)
+            // 1=Studio, 2=Runner, 3=Chat, 4=Settings
             KeyCode::Char('1') => return ViewAction::SwitchView(TuiView::Studio),
             KeyCode::Char('2') => return ViewAction::SwitchView(TuiView::Runner),
             KeyCode::Char('3') => return ViewAction::SwitchView(TuiView::Chat),
-            KeyCode::Char('4') => return ViewAction::SwitchView(TuiView::Scheduler),
-            KeyCode::Char('5') => return ViewAction::SwitchView(TuiView::Settings),
+            KeyCode::Char('4') => return ViewAction::SwitchView(TuiView::Settings),
 
             // v0.11.0: Validate selected workflow
             KeyCode::Char('v') => {

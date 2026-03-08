@@ -1,14 +1,14 @@
 //! Focus State for Panel Navigation
 //!
 //! Manages which panel is currently focused and provides Tab/Shift+Tab navigation.
-//! Updated for 5-Views Architecture (v0.21.0)
+//! Updated for 4-Views Architecture (v0.22.0)
 
 use super::views::TuiView;
 
-/// Panel identifiers for 5-view architecture (v0.21.0)
+/// Panel identifiers for 4-view architecture (v0.22.0)
 ///
 /// Each view has its own set of panels that can receive focus.
-/// Views: Studio (default), Runner, Chat, Scheduler, Settings
+/// Views: Studio (default), Runner, Chat, Settings
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PanelId {
     // ═══ Studio View (s) ═══
@@ -31,23 +31,13 @@ pub enum PanelId {
     /// Agent reasoning panel
     RunnerReasoning,
 
-    // ═══ Chat Playground (4) ═══
+    // ═══ Chat Playground (3) ═══
     /// Conversation history
     ChatConversation,
     /// Text input field
     ChatInput,
     /// Context/files panel
     ChatContext,
-
-    // ═══ Scheduler View (5) ═══
-    /// Schedule list panel
-    SchedulerList,
-    /// Timeline panel
-    SchedulerTimeline,
-    /// Run history panel
-    SchedulerHistory,
-    /// Cron editor panel
-    SchedulerCronEditor,
 }
 
 impl PanelId {
@@ -71,12 +61,6 @@ impl PanelId {
                 PanelId::ChatInput,
                 PanelId::ChatContext,
             ],
-            TuiView::Scheduler => &[
-                PanelId::SchedulerList,
-                PanelId::SchedulerTimeline,
-                PanelId::SchedulerHistory,
-                PanelId::SchedulerCronEditor,
-            ],
             // Settings is auxiliary view without panel navigation
             TuiView::Settings => &[],
         }
@@ -97,11 +81,6 @@ impl PanelId {
             | PanelId::RunnerDag
             | PanelId::RunnerNovanet
             | PanelId::RunnerReasoning => TuiView::Runner,
-            // Scheduler panels
-            PanelId::SchedulerList
-            | PanelId::SchedulerTimeline
-            | PanelId::SchedulerHistory
-            | PanelId::SchedulerCronEditor => TuiView::Scheduler,
         }
     }
 
@@ -111,7 +90,6 @@ impl PanelId {
             TuiView::Studio => PanelId::StudioEditor,
             TuiView::Runner => PanelId::RunnerMission,
             TuiView::Chat => PanelId::ChatInput,
-            TuiView::Scheduler => PanelId::SchedulerList,
             // Settings doesn't have panels - default to Studio editor
             TuiView::Settings => PanelId::StudioEditor,
         }
@@ -263,9 +241,6 @@ mod tests {
         let runner_panels = PanelId::panels_for_view(TuiView::Runner);
         assert_eq!(runner_panels.len(), 4);
 
-        let scheduler_panels = PanelId::panels_for_view(TuiView::Scheduler);
-        assert_eq!(scheduler_panels.len(), 4);
-
         // Settings has no panels
         let settings_panels = PanelId::panels_for_view(TuiView::Settings);
         assert_eq!(settings_panels.len(), 0);
@@ -282,7 +257,5 @@ mod tests {
         assert_eq!(PanelId::ChatInput.view(), TuiView::Chat);
         // Runner panels
         assert_eq!(PanelId::RunnerDag.view(), TuiView::Runner);
-        // Scheduler panels
-        assert_eq!(PanelId::SchedulerList.view(), TuiView::Scheduler);
     }
 }

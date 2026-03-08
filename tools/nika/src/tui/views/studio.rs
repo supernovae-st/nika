@@ -459,11 +459,10 @@ impl View for StudioView {
             (KeyCode::Char('T'), _) | (KeyCode::Char('t'), KeyModifiers::CONTROL) => {
                 return ViewAction::ToggleTheme;
             }
-            // View switching: number keys 2-5
+            // View switching: number keys 2-4 (4-view architecture v0.22)
             (KeyCode::Char('2'), _) => return ViewAction::SwitchView(TuiView::Runner),
             (KeyCode::Char('3'), _) => return ViewAction::SwitchView(TuiView::Chat),
-            (KeyCode::Char('4'), _) => return ViewAction::SwitchView(TuiView::Scheduler),
-            (KeyCode::Char('5'), _) => return ViewAction::SwitchView(TuiView::Settings),
+            (KeyCode::Char('4'), _) => return ViewAction::SwitchView(TuiView::Settings),
             _ => {}
         }
 
@@ -1152,12 +1151,11 @@ impl YamlEditorPanel {
                     ViewAction::Error("No file loaded".to_string())
                 }
             }
-            // View switching: number keys (5-view architecture)
-            // 1=Studio (current), 2=Runner, 3=Chat, 4=Scheduler, 5=Settings
+            // View switching: number keys (4-view architecture v0.22)
+            // 1=Studio (current), 2=Runner, 3=Chat, 4=Settings
             KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Runner),
             KeyCode::Char('3') => ViewAction::SwitchView(TuiView::Chat),
-            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Scheduler),
-            KeyCode::Char('5') => ViewAction::SwitchView(TuiView::Settings),
+            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Settings),
             KeyCode::Up | KeyCode::Char('k') => {
                 self.buffer.cursor_up();
                 ViewAction::None

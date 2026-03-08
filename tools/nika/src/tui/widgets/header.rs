@@ -1,12 +1,12 @@
 //! Tab-Header widget for VS Code-like view navigation
 //!
 //! ```text
-//! ┌─────────────────────────────────────────────────────────────────────────────┐
-//! │  🦋 NIKA │ 1:Explorer │ 2:Chat │ 3:Editor │ 4:Runner │ 5:Scheduler │ 6:⚙   │
-//! └─────────────────────────────────────────────────────────────────────────────┘
+//! ┌────────────────────────────────────────────────────────────────────────────┐
+//! │  🦋 NIKA │ 1:Studio │ 2:Runner │ 3:Chat │ 4:⚙                             │
+//! └────────────────────────────────────────────────────────────────────────────┘
 //! ```
 //!
-//! v0.12 6-Views Architecture with new names and shortcuts.
+//! v0.22 4-Views Architecture (Scheduler removed).
 
 use ratatui::{
     buffer::Buffer,
@@ -20,13 +20,12 @@ use unicode_width::UnicodeWidthStr;
 use crate::tui::theme::Theme;
 use crate::tui::views::TuiView;
 
-/// Tab names for each view (5-View Architecture v0.21.0)
-/// Order: Studio, Runner, Chat, Scheduler, Settings
+/// Tab names for each view (4-View Architecture v0.22.0)
+/// Order: Studio, Runner, Chat, Settings
 const TAB_NAMES: &[(&str, TuiView)] = &[
     ("Studio", TuiView::Studio),
     ("Runner", TuiView::Runner),
     ("Chat", TuiView::Chat),
-    ("Scheduler", TuiView::Scheduler),
     ("⚙", TuiView::Settings), // Settings uses icon for brevity
 ];
 
@@ -264,13 +263,12 @@ mod tests {
     }
 
     #[test]
-    fn test_tab_names_v021() {
-        // Verify v0.21 5-view architecture: Studio, Runner, Chat, Scheduler, Settings
-        assert_eq!(TAB_NAMES.len(), 5);
+    fn test_tab_names_v022() {
+        // Verify v0.22 4-view architecture: Studio, Runner, Chat, Settings
+        assert_eq!(TAB_NAMES.len(), 4);
         assert_eq!(TAB_NAMES[0], ("Studio", TuiView::Studio));
         assert_eq!(TAB_NAMES[1], ("Runner", TuiView::Runner));
         assert_eq!(TAB_NAMES[2], ("Chat", TuiView::Chat));
-        assert_eq!(TAB_NAMES[3], ("Scheduler", TuiView::Scheduler));
-        assert_eq!(TAB_NAMES[4], ("⚙", TuiView::Settings));
+        assert_eq!(TAB_NAMES[3], ("⚙", TuiView::Settings));
     }
 }

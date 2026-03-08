@@ -1,6 +1,6 @@
 //! Terminal User Interface Module
 //!
-//! Feature-gated TUI with 5-view architecture (v0.22+).
+//! Feature-gated TUI with 4-view architecture (v0.22+).
 //!
 //! # Entry Points
 //!
@@ -9,17 +9,16 @@
 //! - `nika studio` → Studio view (YAML editor)
 //! - `nika workflow.yaml` → Runner view (run workflow)
 //!
-//! # 5-View Architecture
+//! # 4-View Architecture (v0.22)
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────┐
-//! │  [1] Studio  │ [2] Runner │ [3] Chat │ [4] Scheduler │ [5] Settings │
+//! │  [1] Studio  │ [2] Runner │ [3] Chat │ [4] Settings            │
 //! ├─────────────────────────────────────────────────────────────────┤
 //! │                                                                 │
 //! │  Studio:    3-panel layout (Browser | Editor | DAG Preview)    │
 //! │  Runner:    Real-time execution monitor (DAG, Reasoning)       │
 //! │  Chat:      Conversational agent, 5-verb support, MCP tools    │
-//! │  Scheduler: DAG visualization and scheduling                   │
 //! │  Settings:  Configuration and preferences                      │
 //! │                                                                 │
 //! └─────────────────────────────────────────────────────────────────┘
@@ -27,7 +26,7 @@
 //!
 //! # Navigation
 //!
-//! - `1-5` - Switch views (Normal mode)
+//! - `1-4` - Switch views (Normal mode)
 //! - `?` - Show help
 //! - `Ctrl+C` (2x) - Quit
 //!
@@ -148,7 +147,7 @@ pub use verification::{VerificationCache, VerificationEntry};
 #[cfg(feature = "tui")]
 pub use views::{
     ChatView, DagTab, HelpView, HomeView, MissionTab, MonitorView, NovanetTab, ReasoningTab,
-    SchedulerView, SettingsView, StudioView, TuiView, View, ViewAction, YamlEditorPanel,
+    SettingsView, StudioView, TuiView, View, ViewAction, YamlEditorPanel,
 };
 
 /// Install panic hook to restore terminal state on crashes.
@@ -293,7 +292,7 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
     });
 
     // 5. Create and run TUI with event receiver
-    // Use run_unified() for the 5-view architecture (Studio/Runner/Chat/Scheduler/Settings)
+    // Use run_unified() for the 4-view architecture (Studio/Runner/Chat/Settings)
     let app = App::new(workflow_path)?.with_broadcast_receiver(event_rx);
     let tui_result = app.run_unified().await;
 
@@ -395,7 +394,7 @@ pub async fn run_tui_studio(workflow: Option<std::path::PathBuf>) -> crate::erro
 /// Run the TUI with customizable options (view and workflow)
 ///
 /// This is the entry point for `nika ui [--view <view>] [workflow]` command.
-/// Supports all 5 views: Studio, Runner, Chat, Scheduler, Settings.
+/// Supports all 4 views: Studio, Runner, Chat, Settings.
 ///
 /// # Arguments
 ///

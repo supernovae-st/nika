@@ -77,7 +77,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
         category: KeyCategory::Global,
     });
 
-    // View navigation (in Normal mode) - 5-Views Architecture v0.22
+    // View navigation (in Normal mode) - 4-Views Architecture v0.22
     if mode == InputMode::Normal {
         bindings.push(Keybinding {
             code: KeyCode::Char('1'),
@@ -99,12 +99,6 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
         });
         bindings.push(Keybinding {
             code: KeyCode::Char('4'),
-            modifiers: KeyModifiers::NONE,
-            description: "Scheduler view",
-            category: KeyCategory::ViewNav,
-        });
-        bindings.push(Keybinding {
-            code: KeyCode::Char('5'),
             modifiers: KeyModifiers::NONE,
             description: "Settings view",
             category: KeyCategory::ViewNav,
@@ -171,7 +165,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
         });
     }
 
-    // View-specific bindings (v0.12 6-Views)
+    // View-specific bindings (v0.22 4-Views)
     match view {
         TuiView::Chat => {
             if mode == InputMode::Insert {
@@ -302,7 +296,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 });
             }
         }
-        // Studio view (5-view architecture: unified 3-panel layout)
+        // Studio view (4-view architecture: unified 3-panel layout)
         TuiView::Studio => {
             if mode == InputMode::Normal {
                 bindings.push(Keybinding {
@@ -327,22 +321,6 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                     code: KeyCode::Char('s'),
                     modifiers: KeyModifiers::CONTROL,
                     description: "Save file",
-                    category: KeyCategory::Action,
-                });
-            }
-        }
-        TuiView::Scheduler => {
-            if mode == InputMode::Normal {
-                bindings.push(Keybinding {
-                    code: KeyCode::Enter,
-                    modifiers: KeyModifiers::NONE,
-                    description: "Edit schedule",
-                    category: KeyCategory::Action,
-                });
-                bindings.push(Keybinding {
-                    code: KeyCode::Char('n'),
-                    modifiers: KeyModifiers::NONE,
-                    description: "New schedule",
                     category: KeyCategory::Action,
                 });
             }

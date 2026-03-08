@@ -97,7 +97,6 @@ TUI VIEWS (in nika ui):
     [c] Chat       AI agent conversation
     [d] Editor     YAML workflow editor
     [r] Runner     Real-time execution
-    [s] Scheduler  Cron/queue management
 
 DOCUMENTATION:
     https://github.com/SuperNovae-studio/nika"#;
@@ -758,11 +757,10 @@ async fn main() {
                 Some("studio") | Some("editor") | Some("d") | Some("explorer") | Some("e")
                 | Some("home") => Some(TuiView::Studio),
                 Some("runner") | Some("r") | Some("monitor") => Some(TuiView::Runner),
-                Some("scheduler") | Some("s") => Some(TuiView::Scheduler),
                 Some("settings") | Some(",") => Some(TuiView::Settings),
                 Some(unknown) => {
                     eprintln!(
-                        "{} Unknown view '{}'. Valid: studio, chat, runner, scheduler, settings",
+                        "{} Unknown view '{}'. Valid: studio, chat, runner, settings",
                         "Error:".red().bold(),
                         unknown
                     );

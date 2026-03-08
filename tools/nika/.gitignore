@@ -1,3 +1,4 @@
 .nika/
 .worktrees/
 dist/
+generated/
