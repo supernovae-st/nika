@@ -25,7 +25,7 @@ use crate::mcp::{McpClient, McpConfig};
 use crate::provider::rig::{InferOptions, RigProvider, StreamChunk};
 use crate::runtime::boot::PolicyConfig;
 use crate::runtime::policy::{PolicyDecision, PolicyEnforcer};
-use crate::runtime::{BuiltinToolRouter, RigAgentLoop};
+use crate::runtime::{BuiltinToolRouter, RigAgentLoop, StructuredOutputEngine};
 use crate::store::DataStore;
 use crate::tools::{PermissionMode, ToolContext};
 use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
@@ -792,6 +792,36 @@ impl TaskExecutor {
             finish_reason: "stop".to_string(),
             cost_usd: 0.0,
         });
+
+        // v0.22.0: Structured output validation via StructuredOutputEngine
+        // If output policy requires JSON with schema, validate and repair the output
+        if let Some(policy) = output_policy {
+            if policy.is_structured() {
+                if let Some(spec) = policy.to_structured_spec() {
+                    debug!(
+                        task_id = %task_id,
+                        "Validating structured output via StructuredOutputEngine"
+                    );
+
+                    let mut engine =
+                        StructuredOutputEngine::new(spec, Arc::new(self.event_log.clone()));
+
+                    // Validate through 4-layer defense system
+                    let result = engine.validate(task_id.as_ref(), &stream_result.text).await?;
+
+                    debug!(
+                        task_id = %task_id,
+                        layer = result.layer,
+                        layer_name = %result.layer_name,
+                        attempts = result.total_attempts,
+                        "Structured output validated successfully"
+                    );
+
+                    // Return validated JSON as string
+                    return Ok(result.value.to_string());
+                }
+            }
+        }
 
         Ok(stream_result.text)
     }

@@ -77,6 +77,38 @@ pub struct OutputPolicy {
     pub max_retries: Option<u8>,
 }
 
+impl OutputPolicy {
+    /// Check if this policy requires structured output validation.
+    ///
+    /// Returns true when format is JSON and a schema is provided.
+    /// This is used by the executor to decide whether to use StructuredOutputEngine.
+    pub fn is_structured(&self) -> bool {
+        self.format == OutputFormat::Json && self.schema.is_some()
+    }
+
+    /// Convert to StructuredOutputSpec for use with StructuredOutputEngine.
+    ///
+    /// Returns None if this policy doesn't require structured output.
+    /// Uses simple defaults for layer configuration (all layers enabled).
+    pub fn to_structured_spec(&self) -> Option<super::structured::StructuredOutputSpec> {
+        if !self.is_structured() {
+            return None;
+        }
+
+        // schema is guaranteed to exist due to is_structured() check
+        let schema = self.schema.clone().unwrap();
+        Some(super::structured::StructuredOutputSpec {
+            schema,
+            enable_extractor: None,  // Use defaults
+            enable_tool_use: None,   // Use defaults
+            enable_retry: Some(true),
+            enable_repair: Some(true),
+            max_retries: self.max_retries,
+            repair_model: None,
+        })
+    }
+}
+
 /// Output format enum
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -160,5 +192,87 @@ max_retries: 3
         assert_eq!(policy.format, OutputFormat::Text);
         assert!(policy.schema.is_none());
         assert!(policy.max_retries.is_none());
+    }
+
+    // ========== is_structured() tests ==========
+
+    #[test]
+    fn is_structured_true_when_json_with_schema() {
+        let yaml = r#"
+format: json
+schema:
+  type: object
+"#;
+        let policy: OutputPolicy = serde_yaml::from_str(yaml).unwrap();
+        assert!(policy.is_structured());
+    }
+
+    #[test]
+    fn is_structured_false_when_text() {
+        let policy = OutputPolicy::default();
+        assert!(!policy.is_structured());
+    }
+
+    #[test]
+    fn is_structured_false_when_json_without_schema() {
+        let yaml = "format: json";
+        let policy: OutputPolicy = serde_yaml::from_str(yaml).unwrap();
+        assert!(!policy.is_structured());
+    }
+
+    #[test]
+    fn is_structured_false_when_text_with_schema() {
+        // Edge case: text format with schema should NOT be structured
+        let yaml = r#"
+format: text
+schema:
+  type: object
+"#;
+        let policy: OutputPolicy = serde_yaml::from_str(yaml).unwrap();
+        assert!(!policy.is_structured());
+    }
+
+    // ========== to_structured_spec() tests ==========
+
+    #[test]
+    fn to_structured_spec_returns_spec_when_structured() {
+        let yaml = r#"
+format: json
+schema:
+  type: object
+  properties:
+    name:
+      type: string
+max_retries: 5
+"#;
+        let policy: OutputPolicy = serde_yaml::from_str(yaml).unwrap();
+        let spec = policy.to_structured_spec();
+        assert!(spec.is_some());
+
+        let spec = spec.unwrap();
+        assert!(matches!(spec.schema, SchemaRef::Inline(_)));
+        assert_eq!(spec.max_retries, Some(5));
+        assert_eq!(spec.enable_retry, Some(true));
+        assert_eq!(spec.enable_repair, Some(true));
+    }
+
+    #[test]
+    fn to_structured_spec_returns_none_when_not_structured() {
+        let policy = OutputPolicy::default();
+        assert!(policy.to_structured_spec().is_none());
+    }
+
+    #[test]
+    fn to_structured_spec_with_file_schema() {
+        let yaml = r#"
+format: json
+schema: ./schemas/user.json
+"#;
+        let policy: OutputPolicy = serde_yaml::from_str(yaml).unwrap();
+        let spec = policy.to_structured_spec();
+        assert!(spec.is_some());
+
+        let spec = spec.unwrap();
+        assert!(matches!(spec.schema, SchemaRef::File(ref p) if p == "./schemas/user.json"));
     }
 }
