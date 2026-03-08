@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.4] - 2026-03-08
+
+### Fixed
+
+- **TUI Panel Focus UX** — Added clear visual indicators for panel focus
+  - Problem: Users couldn't tell which panel was focused, making arrow keys feel broken
+  - Solution: Added `●` focus indicator to panel titles (Browser, Editor, DAG Preview)
+  - Status bar now shows `●Browser` instead of just `Browser` for active panel
+  - Modified indicator changed from `●` to `◆` to avoid confusion with focus indicator
+
+### Changed
+
+- **Panel Title Format** — All three panels now show `● [Name]` when focused
+  - Browser: `● Browser` (focused) vs `  Browser` (unfocused)
+  - Editor: `● Editor ◆` (focused + modified) vs `  Editor` (unfocused)
+  - DAG Preview: `● DAG Preview` (focused) vs `  DAG Preview` (unfocused)
+
 ## [0.21.3] - 2026-03-08
 
 ### Fixed

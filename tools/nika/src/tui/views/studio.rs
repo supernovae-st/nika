@@ -324,11 +324,22 @@ impl StudioView {
     fn render_browser(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let style = self.border_style(StudioFocus::Browser, theme);
 
+        // v0.21.4 UX: Add focus indicator ● to show which panel is active
+        let focus_indicator = if self.focus == StudioFocus::Browser {
+            "●"
+        } else {
+            " "
+        };
+
         // v0.21 FIX: Show filter badge in title so users know which filter is active
         let title = if self.filter_config.filter.badge().is_empty() {
-            " Browser ".to_string()
+            format!(" {} Browser ", focus_indicator)
         } else {
-            format!(" Browser [{}] ", self.filter_config.filter.badge())
+            format!(
+                " {} Browser [{}] ",
+                focus_indicator,
+                self.filter_config.filter.badge()
+            )
         };
 
         let block = Block::default()
@@ -447,8 +458,19 @@ impl StudioView {
     /// Render the DAG panel (delegates to editor's DAG rendering)
     fn render_dag_panel(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let style = self.border_style(StudioFocus::Dag, theme);
+
+        // v0.21.4 UX: Add focus indicator ● to show which panel is active
+        let focus_indicator = if self.focus == StudioFocus::Dag {
+            "●"
+        } else {
+            " "
+        };
+
         let block = Block::default()
-            .title(Span::styled(" DAG Preview ", style))
+            .title(Span::styled(
+                format!(" {} DAG Preview ", focus_indicator),
+                style,
+            ))
             .borders(Borders::ALL)
             .border_style(style);
 
@@ -564,10 +586,17 @@ impl View for StudioView {
         self.render_browser(frame, panel_chunks[0], theme);
 
         // Editor panel with focused border
+        // v0.21.4 UX: Add focus indicator ● at start, modified indicator ◆ after name
         let editor_style = self.border_style(StudioFocus::Editor, theme);
+        let focus_indicator = if self.focus == StudioFocus::Editor {
+            "●"
+        } else {
+            " "
+        };
+        let modified_indicator = if self.editor.modified { " ◆" } else { "" };
         let editor_block = Block::default()
             .title(Span::styled(
-                format!(" Editor{} ", if self.editor.modified { " ●" } else { "" }),
+                format!(" {} Editor{} ", focus_indicator, modified_indicator),
                 editor_style,
             ))
             .borders(Borders::ALL)
@@ -698,8 +727,9 @@ impl View for StudioView {
             EditorMode::Normal => "NORMAL",
             EditorMode::Insert => "INSERT",
         };
+        // v0.21.4 UX: Highlight focus panel with ● prefix
         format!(
-            "Studio | {} | {} | {} | [Tab] Panel • [Ctrl+]] Ratio",
+            "Studio | ●{} | {} | {} | [Tab] Panel • [Ctrl+]] Ratio",
             self.focus.title(),
             self.ratio.title(),
             mode
