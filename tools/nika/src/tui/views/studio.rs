@@ -37,6 +37,7 @@ use super::ViewAction;
 use crate::ast::schema_validator::WorkflowSchemaValidator;
 use crate::ast::Workflow;
 use crate::error::NikaError;
+use crate::tui::diagnostics::DiagnosticsEngine;
 use crate::tui::edit_history::EditHistory;
 use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
@@ -334,10 +335,7 @@ impl StudioView {
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(quick_access_height),
-                Constraint::Min(3),
-            ])
+            .constraints([Constraint::Length(quick_access_height), Constraint::Min(3)])
             .split(inner);
 
         // v0.22: Render Quick Access section
@@ -508,20 +506,25 @@ impl StudioView {
                 ViewAction::None
             }
             // Filter hotkeys (W/A/E/0)
+            // v0.22.1 FIX: Invalidate cached_tree so visible_nodes updates correctly
             KeyCode::Char('w') | KeyCode::Char('W') => {
                 self.filter_config.set_filter(TreeFilter::WorkflowsOnly);
+                self.cached_tree = None; // Force rebuild with new filter
                 ViewAction::None
             }
             KeyCode::Char('a') | KeyCode::Char('A') => {
                 self.filter_config.set_filter(TreeFilter::All);
+                self.cached_tree = None; // Force rebuild with new filter
                 ViewAction::None
             }
             KeyCode::Char('e') | KeyCode::Char('E') => {
                 self.filter_config.set_filter(TreeFilter::EcosystemOnly);
+                self.cached_tree = None; // Force rebuild with new filter
                 ViewAction::None
             }
             KeyCode::Char('0') => {
                 self.filter_config.reset();
+                self.cached_tree = None; // Force rebuild with new filter
                 ViewAction::None
             }
             _ => ViewAction::None,
@@ -1021,6 +1024,9 @@ pub struct YamlEditorPanel {
     // === v0.11.0: Edit History (Undo/Redo) ===
     /// Edit history for undo/redo support (Ctrl+Z/Ctrl+Y)
     edit_history: EditHistory,
+    // === v0.21.2: Real-time Diagnostics ===
+    /// Diagnostics engine for real-time error display (gutter + underline)
+    diagnostics: DiagnosticsEngine,
 }
 
 impl YamlEditorPanel {
@@ -1044,6 +1050,8 @@ impl YamlEditorPanel {
             matrix_effect_enabled: true,
             // v0.11.0: Edit History (Undo/Redo)
             edit_history: EditHistory::new(100),
+            // v0.21.2: Real-time Diagnostics
+            diagnostics: DiagnosticsEngine::new(),
         }
     }
 
@@ -1191,6 +1199,10 @@ impl YamlEditorPanel {
                 self.validation.warnings = vec![format!("Schema validator unavailable: {}", e)];
             }
         }
+
+        // Phase 3: Two-Phase IR diagnostics (v0.21.2)
+        // Provides precise span locations for gutter icons and underlines
+        self.diagnostics.analyze(&content);
     }
 
     /// Get current line number (1-indexed)
@@ -1203,6 +1215,23 @@ impl YamlEditorPanel {
     #[allow(dead_code)] // Will be used for status line display
     pub fn current_col(&self) -> usize {
         self.buffer.cursor().1 + 1
+    }
+
+    // === v0.21.2: Diagnostics API ===
+
+    /// Get diagnostics engine reference (for gutter and underline rendering)
+    pub fn diagnostics(&self) -> &DiagnosticsEngine {
+        &self.diagnostics
+    }
+
+    /// Check if line has any diagnostics (for gutter icon)
+    pub fn line_has_diagnostic(&self, line: usize) -> bool {
+        self.diagnostics.has_diagnostics_on_line(line)
+    }
+
+    /// Get error count from diagnostics
+    pub fn diagnostic_error_count(&self) -> usize {
+        self.diagnostics.error_count()
     }
 }
 
@@ -1459,7 +1488,11 @@ impl YamlEditorPanel {
             } else {
                 "📄"
             };
-            let modified = if self.buffer.is_modified() { " •" } else { "" };
+            let modified = if self.buffer.is_modified() {
+                " •"
+            } else {
+                ""
+            };
             format!(" {} {}{}{} ", icon, filename, modified, mode_indicator)
         } else {
             format!(" EDITOR{} ", mode_indicator)
@@ -1578,8 +1611,7 @@ impl YamlEditorPanel {
         let status_right = format!(" {} | nika/workflow ", mode_str);
 
         // Calculate padding for right-alignment
-        let padding =
-            status_area.width as usize - status_left.len() - status_right.len();
+        let padding = status_area.width as usize - status_left.len() - status_right.len();
         let padding_str = " ".repeat(padding.max(0));
 
         let status_line = Line::from(vec![
@@ -1588,11 +1620,8 @@ impl YamlEditorPanel {
             Span::styled(status_right, Style::default().fg(theme.text_muted)),
         ]);
 
-        let status_paragraph = Paragraph::new(status_line).style(
-            Style::default()
-                .bg(theme.highlight)
-                .fg(theme.text_primary),
-        );
+        let status_paragraph = Paragraph::new(status_line)
+            .style(Style::default().bg(theme.highlight).fg(theme.text_primary));
         frame.render_widget(status_paragraph, status_area);
     }
 

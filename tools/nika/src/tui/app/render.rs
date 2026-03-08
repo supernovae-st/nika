@@ -97,6 +97,8 @@ impl App {
                     // If terminal is too small, show overlay and return early
                     if !layout_mode.is_usable() {
                         use super::super::widgets::TerminalTooSmallOverlay;
+                        // v0.22.1 FIX: Clear before overlay to prevent artifacts from previous render
+                        frame.render_widget(Clear, size);
                         let overlay = TerminalTooSmallOverlay::new(size.width, size.height);
                         frame.render_widget(overlay, size);
                         return;

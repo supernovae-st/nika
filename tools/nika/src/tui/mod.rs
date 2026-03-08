@@ -48,11 +48,15 @@ pub mod config;
 #[cfg(feature = "tui")]
 mod cosmic_theme;
 #[cfg(feature = "tui")]
+pub mod diagnostics;
+#[cfg(feature = "tui")]
 mod edit_history;
 #[cfg(feature = "tui")]
 pub mod file_resolve;
 #[cfg(feature = "tui")]
 mod focus;
+#[cfg(feature = "tui")]
+pub mod highlight;
 #[cfg(feature = "tui")]
 pub mod icons;
 #[cfg(feature = "tui")]
@@ -106,6 +110,10 @@ pub use edit_history::EditHistory;
 pub use file_resolve::FileResolver;
 #[cfg(feature = "tui")]
 pub use focus::{FocusState, PanelId as NavPanelId};
+#[cfg(feature = "tui")]
+pub use highlight::{
+    HighlightCapture, HighlightTheme, Highlighter, SolarizedTheme, TreeSitterHighlighter,
+};
 #[cfg(feature = "tui")]
 pub use icons::{IconMode, IconSet};
 #[cfg(feature = "tui")]

@@ -248,6 +248,11 @@ impl Widget for NikaIntro<'_> {
             return;
         }
 
+        // v0.22.1 FIX: Fill background first to ensure clean slate
+        // Without this, random terminal artifacts could show through
+        let bg_style = Style::default().bg(solarized::BASE03);
+        buf.set_style(area, bg_style);
+
         match self.state.phase {
             IntroPhase::FadeIn | IntroPhase::Hold => {
                 // Render ASCII logo centered

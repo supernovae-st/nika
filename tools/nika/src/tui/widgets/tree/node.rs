@@ -1077,8 +1077,9 @@ mod tests {
             "target should have no children (skipped)"
         );
 
-        let node_mod =
-            tree.find_by_path(&Utf8PathBuf::from(root.join("node_modules").to_str().unwrap()));
+        let node_mod = tree.find_by_path(&Utf8PathBuf::from(
+            root.join("node_modules").to_str().unwrap(),
+        ));
         assert!(node_mod.is_some(), "node_modules should exist in tree");
         assert!(
             node_mod.unwrap().children.is_empty(),
