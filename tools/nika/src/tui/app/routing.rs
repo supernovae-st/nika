@@ -2,6 +2,11 @@
 //!
 //! Contains the apply_action method for routing user actions to appropriate handlers.
 
+use std::path::PathBuf;
+
+use crate::ast::{expand_includes, Workflow};
+use crate::event::EventLog;
+use crate::runtime::Runner;
 use crate::tui::InputMode;
 
 use super::super::views::{TuiView, View, ViewAction};
@@ -228,8 +233,7 @@ impl App {
 
             // Workflow actions
             ViewAction::RunWorkflow(path) => {
-                self.set_status(&format!("Running: {}", path.display()));
-                tracing::info!("RunWorkflow: {}", path.display());
+                self.run_workflow(path);
             }
             ViewAction::OpenInStudio(path) => {
                 let _ = self.studio_view.load_file(path.clone());
@@ -353,5 +357,101 @@ impl App {
     fn handle_scroll_down(&mut self) {
         // Delegate to current view's scroll handler
         self.state.chat_overlay.scroll_down();
+    }
+
+    /// Run a workflow from a file path
+    ///
+    /// v0.21.1: Actually executes the workflow and displays results in Runner view.
+    /// This is the glue code that connects:
+    /// - Studio view (F5 to run)
+    /// - Workflow parsing (ast module)
+    /// - Runner execution (runtime module)
+    /// - TaskBox widgets (MonitorView)
+    fn run_workflow(&mut self, path: PathBuf) {
+        tracing::info!("Running workflow: {}", path.display());
+
+        // 1. Read and parse workflow file
+        let yaml_content = match std::fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(e) => {
+                self.set_status(&format!("Failed to read file: {}", e));
+                tracing::error!("Failed to read workflow file: {}", e);
+                return;
+            }
+        };
+
+        let workflow: Workflow = match crate::serde_yaml::from_str(&yaml_content) {
+            Ok(w) => w,
+            Err(e) => {
+                let line_info = e
+                    .location()
+                    .map(|l| format!(" (line {})", l.line()))
+                    .unwrap_or_default();
+                self.set_status(&format!("Parse error{}: {}", line_info, e));
+                tracing::error!("Failed to parse workflow: {}", e);
+                return;
+            }
+        };
+
+        // 2. Expand includes (DAG fusion)
+        let base_path = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(std::path::Path::new("."));
+
+        let workflow = match expand_includes(workflow, base_path) {
+            Ok(w) => w,
+            Err(e) => {
+                self.set_status(&format!("Include error: {}", e));
+                tracing::error!("Failed to expand includes: {}", e);
+                return;
+            }
+        };
+
+        // 3. Validate schema
+        if let Err(e) = workflow.validate_schema() {
+            self.set_status(&format!("Schema error: {}", e));
+            tracing::error!("Schema validation failed: {}", e);
+            return;
+        }
+
+        // 4. Create EventLog with broadcast channel for TUI
+        let (event_log, event_rx) = EventLog::new_with_broadcast();
+
+        // 5. Wire broadcast receiver to App (must be before spawn)
+        self.broadcast_rx = Some(event_rx);
+
+        // 6. Reset TUI state for new workflow execution
+        let workflow_name = path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("workflow")
+            .to_string();
+        self.state.workflow = crate::tui::state::WorkflowState::new(workflow_name.clone());
+        self.state.tasks.clear();
+        self.workflow_done = false;
+
+        // 7. Create Runner with quiet mode (no console output)
+        let mut runner = Runner::with_event_log(workflow, event_log).quiet();
+
+        // 8. Spawn Runner in background task
+        self.spawn_tracked(async move {
+            tracing::info!("Starting workflow execution: {}", workflow_name);
+            match runner.run().await {
+                Ok(output) => {
+                    tracing::info!(
+                        "Workflow '{}' completed: {} bytes output",
+                        workflow_name,
+                        output.len()
+                    );
+                }
+                Err(e) => {
+                    tracing::error!("Workflow '{}' failed: {}", workflow_name, e);
+                }
+            }
+        });
+
+        // 9. Switch to Runner view and update status
+        self.switch_to_view(TuiView::Runner);
+        self.set_status(&format!("Running: {}", path.display()));
     }
 }
