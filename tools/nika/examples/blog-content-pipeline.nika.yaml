@@ -85,7 +85,7 @@ tasks:
     agent:
       prompt: |
         Search the web for the latest trends in AI, machine learning, and
-        content marketing for 2026. Use perplexity_search_web to find:
+        content marketing for 2026. Use perplexity_search to find:
 
         1. Emerging AI technologies relevant to content creators
         2. Content formats gaining popularity
@@ -186,7 +186,7 @@ tasks:
         - Relevant to our audience
         - SEO-friendly
 
-        Use perplexity_search_web to research this topic deeply.
+        Use perplexity_search to research this topic deeply.
 
       mcp: [perplexity]
       max_turns: 5

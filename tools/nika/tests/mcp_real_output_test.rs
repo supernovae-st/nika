@@ -286,7 +286,7 @@ tasks:
   - id: search
     invoke:
       mcp: perplexity
-      tool: perplexity_search_web
+      tool: perplexity_search
       params:
         query: "What is Rust programming language?"
         recency: "month"
@@ -700,7 +700,7 @@ tasks:
   - id: search_agent
     agent:
       prompt: |
-        Search for "Rust async programming best practices" using perplexity_search_web.
+        Search for "Rust async programming best practices" using perplexity_search.
         Summarize the key points and say DONE.
       model: claude-sonnet-4-6
       mcp:

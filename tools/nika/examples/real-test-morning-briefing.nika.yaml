@@ -83,7 +83,7 @@ tasks:
     description: "Research AI/LLM news"
     invoke:
       server: perplexity
-      tool: perplexity_search_web
+      tool: perplexity_search
       params:
         query: "AI and LLM news today March 2026"
     output:
@@ -93,7 +93,7 @@ tasks:
     description: "Research Rust news"
     invoke:
       server: perplexity
-      tool: perplexity_search_web
+      tool: perplexity_search
       params:
         query: "Rust programming language news March 2026"
     output:
@@ -103,7 +103,7 @@ tasks:
     description: "Research startup news"
     invoke:
       server: perplexity
-      tool: perplexity_search_web
+      tool: perplexity_search
       params:
         query: "Tech startup funding news this week March 2026"
     output:

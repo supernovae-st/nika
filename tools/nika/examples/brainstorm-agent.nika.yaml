@@ -54,7 +54,7 @@ tasks:
         TOPIC: {{inputs.topic}}
 
         INSTRUCTIONS:
-        1. Use perplexity_search_web to find recent information about this topic
+        1. Use perplexity_search to find recent information about this topic
         2. If URLs are mentioned, use firecrawl_scrape to extract detailed content
         3. Synthesize your findings into a structured research brief
 

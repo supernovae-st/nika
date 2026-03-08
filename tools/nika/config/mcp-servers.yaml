@@ -11,7 +11,7 @@
 
 perplexity:
   # Perplexity AI search - web research with AI synthesis
-  # Tools: perplexity_search_web, perplexity_ask, perplexity_research, perplexity_reason
+  # Tools: perplexity_search, perplexity_ask, perplexity_research, perplexity_reason
   command: npx
   args:
     - -y

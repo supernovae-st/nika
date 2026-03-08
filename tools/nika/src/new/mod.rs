@@ -511,7 +511,7 @@ impl NewWorkflowConfig {
         if self.with_mcp {
             task.push_str("    invoke:\n");
             task.push_str("      server: perplexity\n");
-            task.push_str("      tool: perplexity_search_web\n");
+            task.push_str("      tool: perplexity_search\n");
             task.push_str("      params:\n");
             task.push_str("        query: \"latest AI news\"\n");
         } else {

@@ -59,14 +59,14 @@ tasks:
         RESEARCH DEPTH: {{inputs.depth}}
 
         AVAILABLE TOOLS:
-        1. perplexity_search_web - AI-synthesized web search
+        1. perplexity_search - AI-synthesized web search
         2. firecrawl_scrape - Extract content from URLs (use for articles, docs)
         3. firecrawl_search - Search and scrape in one step
         4. supadata_transcript - Get video transcripts (YouTube, etc.)
         5. supadata_scrape - Alternative web scraper
 
         RESEARCH STRATEGY:
-        1. Start with perplexity_search_web for overview
+        1. Start with perplexity_search for overview
         2. Identify key sources from search results
         3. Use firecrawl_scrape for detailed content extraction
         4. If video content is relevant, use supadata_transcript

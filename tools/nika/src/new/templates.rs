@@ -593,7 +593,7 @@ tasks:
 
         Research the topic: "{{{{inputs.research_topic}}}}"
 
-        Use perplexity_search_web to:
+        Use perplexity_search to:
         1. Find the latest news and developments
         2. Identify key players and companies
         3. Gather statistics and data
