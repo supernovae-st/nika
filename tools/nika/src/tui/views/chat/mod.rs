@@ -889,6 +889,7 @@ impl View for ChatView {
         }
 
         // Handle mention autocomplete when visible
+        // v0.22.3 FIX: Dismiss on any non-navigation key to prevent input trapping
         if self.mention_autocomplete.visible {
             match key.code {
                 KeyCode::Tab | KeyCode::Enter => {
@@ -907,7 +908,11 @@ impl View for ChatView {
                     self.mention_autocomplete.hide();
                     return ViewAction::None;
                 }
-                _ => {} // Let other keys pass through
+                // Any other key: dismiss autocomplete and let the key be processed normally
+                _ => {
+                    self.mention_autocomplete.hide();
+                    // Fall through to main key handling
+                }
             }
         }
 
@@ -935,6 +940,48 @@ impl View for ChatView {
             self.current_model,
             streaming_status
         )
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Lifecycle Hooks (v0.22.3 FIX)
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /// Called when ChatView becomes active
+    ///
+    /// Initializes focus state and resets any stale overlay state.
+    fn on_enter(&mut self, _state: &mut TuiState) {
+        // Reset focused panel to default (Input for chat)
+        self.focused_panel = ChatPanel::Input;
+
+        // Dismiss any lingering overlays from previous session
+        self.mention_autocomplete.hide();
+        self.command_palette.visible = false;
+        self.help_overlay.visible = false;
+
+        // Don't dismiss provider_modal - it's intentional if open
+
+        tracing::debug!("ChatView on_enter: focus reset to Input panel");
+    }
+
+    /// Called when ChatView becomes inactive
+    ///
+    /// Cleans up focus state and dismisses modals to prevent input trapping.
+    fn on_leave(&mut self, _state: &mut TuiState) {
+        // Reset focused panel to avoid stale focus state
+        self.focused_panel = ChatPanel::Conversation;
+
+        // Dismiss overlays that could trap input
+        self.mention_autocomplete.hide();
+        self.command_palette.visible = false;
+        self.help_overlay.visible = false;
+        self.provider_modal.visible = false;
+
+        // Exit search mode if active
+        if self.search_mode {
+            self.exit_search();
+        }
+
+        tracing::debug!("ChatView on_leave: overlays dismissed, focus reset");
     }
 }
 // DAG panel methods extracted to dag_panel.rs
