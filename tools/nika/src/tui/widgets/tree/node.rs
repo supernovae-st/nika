@@ -219,6 +219,8 @@ impl TreeNode {
                 if e.kind() == std::io::ErrorKind::PermissionDenied {
                     tracing::debug!("Permission denied reading: {}", parent);
                 }
+                // Suppress unused variable warning in release builds
+                let _ = e;
                 return Vec::new();
             }
         };
