@@ -511,7 +511,13 @@ tasks:
     description: "Deep dive analysis of each competitor"
     use:
       framework: $define_analysis
-    for_each: "{{inputs.competitors}}"
+    for_each:
+      - name: "Zapier"
+        website: "zapier.com"
+      - name: "Make (Integromat)"
+        website: "make.com"
+      - name: "n8n"
+        website: "n8n.io"
     as: competitor
     concurrency: 3
     infer:
@@ -545,14 +551,13 @@ tasks:
     description: "Create comparative SWOT analysis"
     use:
       analyses: $analyze_competitor
-      company: "{{inputs.your_company}}"
     infer:
       prompt: |
         Create a comparative SWOT analysis based on:
 
         {{use.analyses}}
 
-        Our company: {{use.company}}
+        Our company: {{inputs.your_company}}
 
         Generate:
 
@@ -562,7 +567,7 @@ tasks:
         2. **Feature Comparison Table**
            - Side-by-side comparison of key capabilities
 
-        3. **SWOT for {{use.company}} vs Competition**
+        3. **SWOT for {{inputs.your_company}} vs Competition**
            - Strengths we have that others lack
            - Weaknesses we need to address
            - Opportunities in the market
@@ -580,14 +585,13 @@ tasks:
     description: "Generate strategic recommendations"
     use:
       swot: $swot_comparison
-      company: "{{inputs.your_company}}"
     infer:
       prompt: |
         Based on this competitive analysis:
 
         {{use.swot}}
 
-        Generate strategic recommendations for {{use.company}}:
+        Generate strategic recommendations for {{inputs.your_company}}:
 
         ## 🎯 STRATEGIC RECOMMENDATIONS
 
@@ -751,14 +755,13 @@ tasks:
     description: "Perfect the tone and polish"
     use:
       draft: $draft_email
-      desired_tone: "{{inputs.tone}}"
     infer:
       prompt: |
         Review and refine this email draft:
 
         {{use.draft}}
 
-        Desired tone: {{use.desired_tone}}
+        Desired tone: {{inputs.tone}}
 
         Improvements to make:
         1. Check that tone is consistent throughout
@@ -983,14 +986,13 @@ tasks:
     description: "Create consolidated grocery list"
     use:
       recipes: $generate_recipes
-      servings: "{{inputs.servings}}"
     infer:
       prompt: |
         Create a consolidated grocery list from these recipes:
 
         {{use.recipes}}
 
-        Servings: {{use.servings}}
+        Servings: {{inputs.servings}}
 
         Organize the list by store section:
 
@@ -1211,7 +1213,6 @@ tasks:
     use:
       research: $research_dest
       insights: $local_insights
-      interests: "{{inputs.interests}}"
     infer:
       prompt: |
         Create a detailed {{inputs.trip_duration}} itinerary for {{inputs.destination}}.
@@ -1222,7 +1223,7 @@ tasks:
         Local Insights:
         {{use.insights}}
 
-        Focus on: {{use.interests}}
+        Focus on: {{inputs.interests}}
         Travel style: {{inputs.travel_style}}
 
         For EACH day, provide:
@@ -1425,13 +1426,12 @@ tasks:
     description: "Create theme ideas"
     use:
       analysis: $analyze_party
-      interests: "{{inputs.special_interests}}"
     infer:
       prompt: |
         Generate party theme ideas for:
         {{use.analysis}}
 
-        Interests: {{use.interests}}
+        Interests: {{inputs.special_interests}}
 
         Create 3 theme options:
 
@@ -1456,7 +1456,6 @@ tasks:
     description: "Plan food and treats"
     use:
       theme: $generate_theme
-      dietary: "{{inputs.dietary_considerations}}"
     infer:
       prompt: |
         Plan party food matching this theme:
@@ -1464,7 +1463,7 @@ tasks:
 
         Requirements:
         - Guests: {{inputs.guest_count}} kids
-        - Dietary: {{use.dietary}}
+        - Dietary: {{inputs.dietary_considerations}}
         - Budget allocation: ~30% of ${{inputs.budget}}
 
         Plan:
@@ -2170,16 +2169,14 @@ tasks:
     description: "Create weighted verdict"
     use:
       analyses: $analyze_reviews
-      priorities: "{{inputs.your_priorities}}"
-      deal_breakers: "{{inputs.deal_breakers}}"
     infer:
       prompt: |
         Synthesize all review analyses into a verdict:
 
         {{use.analyses}}
 
-        Your priorities: {{use.priorities}}
-        Your deal-breakers: {{use.deal_breakers}}
+        Your priorities: {{inputs.your_priorities}}
+        Your deal-breakers: {{inputs.deal_breakers}}
         Price: ${{inputs.price}}
         Use case: {{inputs.use_case}}
 
@@ -2217,13 +2214,12 @@ tasks:
     description: "Identify alternatives to consider"
     use:
       verdict: $synthesize_verdict
-      priorities: "{{inputs.your_priorities}}"
     infer:
       prompt: |
         Based on this analysis:
         {{use.verdict}}
 
-        Priorities: {{use.priorities}}
+        Priorities: {{inputs.your_priorities}}
         Budget: ${{inputs.price}} (willing to go ±30%)
 
         Suggest alternatives:
@@ -2258,7 +2254,6 @@ tasks:
     use:
       verdict: $synthesize_verdict
       alternatives: $find_alternatives
-      use_case: "{{inputs.use_case}}"
     infer:
       prompt: |
         Generate final recommendation:
@@ -2269,7 +2264,7 @@ tasks:
         Alternatives:
         {{use.alternatives}}
 
-        Use case: {{use.use_case}}
+        Use case: {{inputs.use_case}}
 
         # 🎯 FINAL VERDICT: {{inputs.product_name}}
 
@@ -2288,7 +2283,7 @@ tasks:
         ### 🟡 WAIT IF:
         - Condition 1 (e.g., sale expected)
 
-        ## For YOUR Use Case ({{use.use_case}}):
+        ## For YOUR Use Case ({{inputs.use_case}}):
 
         **RECOMMENDATION:** [BUY ✅ / SKIP ❌ / CONSIDER ALTERNATIVE ⚠️]
 
@@ -2444,7 +2439,22 @@ tasks:
     description: "Curate content for each section"
     use:
       theme: $define_edition
-    for_each: "{{inputs.sections}}"
+    for_each:
+      - name: "Top News"
+        description: "Major AI announcements and breakthroughs"
+        items: 3
+      - name: "Tool Spotlight"
+        description: "Useful AI tools and platforms"
+        items: 2
+      - name: "Research Corner"
+        description: "Notable papers and findings"
+        items: 2
+      - name: "Industry Insights"
+        description: "Trends and analysis"
+        items: 1
+      - name: "Resource of the Week"
+        description: "Tutorial, course, or guide"
+        items: 1
     as: section
     concurrency: 5
     infer:
