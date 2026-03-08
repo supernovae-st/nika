@@ -980,7 +980,8 @@ tasks:
         let items = compute_completions_with_ast(&index, &uri, text, position);
 
         // The context analysis may or may not detect UseBinding correctly
-        // depending on indentation detection. Just verify we get some completions.
-        assert!(!items.is_empty() || true); // Allow empty for now
+        // depending on indentation detection. This test verifies the function runs
+        // without panic - actual completions depend on detection accuracy.
+        let _ = items; // Allow empty results for now
     }
 }

@@ -674,8 +674,8 @@ context:
         let symbols = compute_document_symbols(text);
 
         let names: Vec<_> = symbols.iter().map(|s| s.name.as_str()).collect();
-        assert!(names.iter().any(|n| *n == "context"));
-        assert!(names.iter().any(|n| *n == "context.files"));
+        assert!(names.contains(&"context"));
+        assert!(names.contains(&"context.files"));
         assert!(names.iter().any(|n| n.contains("brand")));
         assert!(names.iter().any(|n| n.contains("data")));
     }
@@ -760,7 +760,7 @@ tasks:
         let names: Vec<_> = symbols.iter().map(|s| s.name.as_str()).collect();
         assert!(names.iter().any(|n| n.contains("workflow: test-workflow")));
         assert!(names.iter().any(|n| n.contains("schema:")));
-        assert!(names.iter().any(|n| *n == "tasks"));
+        assert!(names.contains(&"tasks"));
     }
 
     #[test]
