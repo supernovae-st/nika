@@ -46,7 +46,10 @@ use crate::tui::widgets::tree::{
     build_git_status_cache, AnimationTicker, FilterConfig, GitStatusCache, TreeAction, TreeColors,
     TreeFilter, TreeNode, TreeState, TreeWidget,
 };
-use crate::tui::widgets::{DagAscii, MatrixRain, NodeBoxData, NodeBoxMode, ScrollIndicator};
+use crate::tui::widgets::{
+    CommandPalette, CommandPaletteState, DagAscii, MatrixRain, NodeBoxData, NodeBoxMode,
+    ScrollIndicator, WhichKey, WhichKeyState,
+};
 use crate::util::atomic_write;
 
 /// Editor mode (vim-like)
@@ -205,6 +208,12 @@ pub struct StudioView {
     pub focus: StudioFocus,
     /// Current panel ratio
     pub ratio: StudioRatio,
+
+    // === Overlays (v0.21.2) ===
+    /// Command palette state (Ctrl+P)
+    pub command_palette: CommandPaletteState,
+    /// Which-key popup state (g, z, [ , ], Space prefixes)
+    pub which_key: WhichKeyState,
 }
 
 impl Default for StudioView {
@@ -242,6 +251,9 @@ impl StudioView {
             git_cache_time: Instant::now(),
             cached_tree: None,
             quick_access,
+            // v0.21.2: Overlay states
+            command_palette: CommandPaletteState::new(),
+            which_key: WhichKeyState::new(),
         }
     }
 
@@ -568,11 +580,57 @@ impl View for StudioView {
 
         // Validation bar at bottom
         self.editor.render_validation(frame, main_chunks[1], theme);
+
+        // v0.21.2: Render overlays on top
+        // Command palette (Ctrl+P)
+        if self.command_palette.visible {
+            let palette_area = centered_rect(60, 50, area);
+            CommandPalette::new(&self.command_palette).render(palette_area, frame.buffer_mut());
+        }
+
+        // Which-key popup (vim-style)
+        if self.which_key.is_visible() {
+            WhichKey::new(&self.which_key).render(area, frame.buffer_mut());
+        }
     }
 
     fn handle_key(&mut self, key: KeyEvent, state: &mut TuiState) -> ViewAction {
+        // v0.21.2: Handle command palette overlay first
+        if self.command_palette.visible {
+            return self.handle_palette_key(key);
+        }
+
+        // v0.21.2: Handle which-key popup
+        if self.which_key.is_visible() || self.which_key.is_pending() {
+            if let KeyCode::Char(c) = key.code {
+                if let Some((prefix, key_char)) = self.which_key.on_key(c) {
+                    return self.handle_which_key_action(prefix, key_char);
+                }
+            }
+            if key.code == KeyCode::Esc {
+                self.which_key.close();
+                return ViewAction::None;
+            }
+        }
+
+        // v0.21.2: Detect which-key prefixes in Normal mode
+        // Only trigger for g, z, [, ], Space when not in Insert mode
+        if self.focus != StudioFocus::Editor || self.editor.mode != EditorMode::Insert {
+            if let KeyCode::Char(c) = key.code {
+                if key.modifiers == KeyModifiers::NONE && self.which_key.on_prefix(c) {
+                    // Prefix detected - wait for popup or next key
+                    return ViewAction::None;
+                }
+            }
+        }
+
         // Global shortcuts first
         match (key.code, key.modifiers) {
+            // Ctrl+P: Open command palette (v0.21.2)
+            (KeyCode::Char('p'), KeyModifiers::CONTROL) => {
+                self.command_palette.open();
+                return ViewAction::None;
+            }
             // Tab: Cycle focus forward (but NOT when editor is in Insert mode)
             // v0.21 FIX: Allow Tab for indentation in Insert mode
             (KeyCode::Tab, KeyModifiers::NONE) => {
@@ -653,6 +711,8 @@ impl View for StudioView {
         self.editor.tick();
         // Run debounced validation
         self.editor.maybe_validate();
+        // v0.21.2: Tick which-key popup for delay timing
+        self.which_key.tick();
     }
 
     fn on_enter(&mut self, _state: &mut TuiState) {
@@ -686,6 +746,144 @@ impl View for StudioView {
     fn on_leave(&mut self, _state: &mut TuiState) {
         // Save session state when leaving
         // Could persist open files, cursor positions, etc.
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Command Palette & Which-Key Handling (v0.21.2)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+impl StudioView {
+    /// Handle keyboard input when command palette is open
+    fn handle_palette_key(&mut self, key: KeyEvent) -> ViewAction {
+        match key.code {
+            KeyCode::Esc => {
+                self.command_palette.close();
+                ViewAction::None
+            }
+            KeyCode::Enter => {
+                // Clone the command ID to avoid borrow conflict
+                let cmd_id = self.command_palette.selected_command()
+                    .map(|cmd| cmd.id.clone());
+                if let Some(id) = cmd_id {
+                    let action = self.execute_palette_command(&id);
+                    self.command_palette.close();
+                    return action;
+                }
+                ViewAction::None
+            }
+            KeyCode::Up => {
+                self.command_palette.select_prev();
+                ViewAction::None
+            }
+            KeyCode::Down => {
+                self.command_palette.select_next();
+                ViewAction::None
+            }
+            KeyCode::Char(c) => {
+                self.command_palette.query.push(c);
+                self.command_palette.update_filter();
+                ViewAction::None
+            }
+            KeyCode::Backspace => {
+                self.command_palette.query.pop();
+                self.command_palette.update_filter();
+                ViewAction::None
+            }
+            _ => ViewAction::None,
+        }
+    }
+
+    /// Execute a command from the palette
+    fn execute_palette_command(&mut self, cmd_id: &str) -> ViewAction {
+        match cmd_id {
+            // View switching
+            "chat" => ViewAction::SwitchView(TuiView::Chat),
+            "home" => ViewAction::SwitchView(TuiView::Runner),
+            "studio" => ViewAction::SwitchView(TuiView::Studio),
+            "monitor" => ViewAction::SwitchView(TuiView::Settings),
+            // Workflow actions
+            "run" => {
+                // Run the current workflow
+                if let Some(path) = &self.editor.path {
+                    ViewAction::RunWorkflow(path.clone())
+                } else {
+                    ViewAction::None
+                }
+            }
+            "validate" => {
+                // Trigger validation
+                self.editor.validate();
+                ViewAction::None
+            }
+            // Help - switch to Settings view which has help info
+            "help" => ViewAction::SwitchView(TuiView::Settings),
+            _ => ViewAction::None,
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Which-Key Popup Handling (v0.21.2)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Handle a which-key action (prefix + follow-up key)
+    fn handle_which_key_action(&mut self, prefix: char, key: char) -> ViewAction {
+        match (prefix, key) {
+            // g prefix - Go to commands
+            ('g', 'g') => {
+                // Go to top of file
+                self.editor.buffer.cursor_row = 0;
+                self.editor.buffer.cursor_col = 0;
+                self.editor.buffer.scroll_offset = 0;
+                ViewAction::None
+            }
+            ('g', 'e') => {
+                // Go to end of file
+                let last_line = self.editor.buffer.lines.len().saturating_sub(1);
+                self.editor.buffer.cursor_row = last_line;
+                self.editor.buffer.cursor_col = 0;
+                ViewAction::None
+            }
+            // z prefix - View/centering commands
+            ('z', 'z') => {
+                // Center cursor in viewport
+                let visible = self.editor.buffer.visible_height.get();
+                let target_scroll = self.editor.buffer.cursor_row.saturating_sub(visible / 2);
+                self.editor.buffer.scroll_offset = target_scroll;
+                ViewAction::None
+            }
+            ('z', 't') => {
+                // Cursor to top of viewport
+                self.editor.buffer.scroll_offset = self.editor.buffer.cursor_row;
+                ViewAction::None
+            }
+            ('z', 'b') => {
+                // Cursor to bottom of viewport
+                let visible = self.editor.buffer.visible_height.get();
+                self.editor.buffer.scroll_offset = self.editor.buffer.cursor_row.saturating_sub(visible.saturating_sub(1));
+                ViewAction::None
+            }
+            // Space (leader) prefix - Common commands
+            (' ', 'w') => {
+                // Save file
+                if let Err(e) = self.editor.save_file() {
+                    tracing::error!("Failed to save: {}", e);
+                }
+                ViewAction::None
+            }
+            (' ', 'f') => {
+                // Find file (open command palette)
+                self.command_palette.open();
+                ViewAction::None
+            }
+            (' ', 'e') => {
+                // Toggle browser focus
+                self.focus = StudioFocus::Browser;
+                ViewAction::None
+            }
+            (' ', 'q') => ViewAction::Quit,
+            _ => ViewAction::None,
+        }
     }
 }
 
@@ -1973,6 +2171,31 @@ impl YamlHighlight {
         // Default
         Span::styled(value.to_string(), base_style)
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Helper Functions
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Create a centered rectangle with given percentage width and height
+fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(area);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
 }
 
 #[cfg(test)]

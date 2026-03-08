@@ -54,6 +54,7 @@ mod terminal_size;
 mod timeline;
 pub mod tree;
 mod verb_input;
+mod which_key;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
 // Animation utilities (v0.10.4)
@@ -143,3 +144,5 @@ pub use task_box::{
 };
 // Tree widget (v0.20 - VS Code-like file tree)
 pub use tree::{GitStatus, NodeId, NodeKind, TreeAction, TreeColors, TreeNode, TreeState};
+// Which-key popup (v0.21.2 - vim-style leader key hints)
+pub use which_key::{WhichKey, WhichKeyBinding, WhichKeyGroup, WhichKeyState};
