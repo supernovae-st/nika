@@ -359,6 +359,8 @@ impl StudioView {
         }
 
         // Build tree with caching (rebuild only when cache is empty)
+        // v0.21.2 PERF FIX: Track if tree was just rebuilt to avoid per-frame overhead
+        let tree_rebuilt = self.cached_tree.is_none();
         let root_node = if let Some(ref cached) = self.cached_tree {
             cached.clone()
         } else {
@@ -367,16 +369,16 @@ impl StudioView {
             tree
         };
 
-        // Update visible nodes for navigation
-        self.tree_state.update_visible_nodes(&root_node);
-        self.tree_state.select_first_if_none();
-
-        // v0.21.1 FAILSAFE: If root is not expanded, expand it
-        // This handles edge cases where on_enter() hasn't run yet
-        // (e.g., first render before lifecycle hooks complete)
-        if !self.tree_state.is_expanded(root_node.id) {
-            self.tree_state.expand(root_node.id);
+        // v0.21.2 PERF FIX: Only update visible_nodes when tree structure changes
+        // This was being called EVERY frame causing severe performance issues
+        if tree_rebuilt {
             self.tree_state.update_visible_nodes(&root_node);
+            self.tree_state.select_first_if_none();
+            // Ensure root is expanded on rebuild
+            if !self.tree_state.is_expanded(root_node.id) {
+                self.tree_state.expand(root_node.id);
+                self.tree_state.update_visible_nodes(&root_node);
+            }
         }
 
         // Use solarized colors (dark by default, matching Theme::default())
@@ -472,7 +474,15 @@ impl StudioView {
 
         // Try TreeAction navigation first
         if let Some(action) = TreeAction::from_key_event(key) {
+            // v0.21.2 PERF FIX: Only update visible_nodes for structure-changing actions
+            let needs_update = matches!(
+                action,
+                TreeAction::Toggle | TreeAction::Left | TreeAction::Right
+            );
             self.tree_state.handle_action(action, &root_node);
+            if needs_update {
+                self.tree_state.update_visible_nodes(&root_node);
+            }
             return ViewAction::None;
         }
 
@@ -1497,12 +1507,12 @@ impl YamlEditorPanel {
                 )]),
             ];
             let paragraph = Paragraph::new(placeholder);
-            frame.render_widget(paragraph, inner);
+            frame.render_widget(paragraph, content_area);
             return;
         }
 
-        // Calculate visible height (excluding borders) and sync to buffer
-        let visible_height = inner.height as usize;
+        // Calculate visible height (excluding borders and status bar) and sync to buffer
+        let visible_height = content_area.height as usize;
         self.buffer.set_visible_height(visible_height);
 
         // Build lines with line numbers and syntax highlighting
@@ -1537,16 +1547,16 @@ impl YamlEditorPanel {
             .collect();
 
         let paragraph = Paragraph::new(lines);
-        frame.render_widget(paragraph, inner);
+        frame.render_widget(paragraph, content_area);
 
         // v0.8.2: Render ScrollIndicator with dynamic arrows
         let total_lines = self.buffer.lines().len();
         if total_lines > visible_height {
             let scrollbar_area = Rect {
-                x: inner.x + inner.width.saturating_sub(1),
-                y: inner.y,
+                x: content_area.x + content_area.width.saturating_sub(1),
+                y: content_area.y,
                 width: 1,
-                height: inner.height,
+                height: content_area.height,
             };
 
             let scroll_indicator = ScrollIndicator::new()
@@ -1557,6 +1567,33 @@ impl YamlEditorPanel {
 
             frame.render_widget(scroll_indicator, scrollbar_area);
         }
+
+        // v0.22: Render status bar (Ln:Col | Mode | Schema)
+        let (cursor_row, cursor_col) = self.buffer.cursor();
+        let mode_str = match self.mode {
+            EditorMode::Normal => "NORMAL",
+            EditorMode::Insert => "INSERT",
+        };
+        let status_left = format!(" Ln {}, Col {} ", cursor_row + 1, cursor_col + 1);
+        let status_right = format!(" {} | nika/workflow ", mode_str);
+
+        // Calculate padding for right-alignment
+        let padding =
+            status_area.width as usize - status_left.len() - status_right.len();
+        let padding_str = " ".repeat(padding.max(0));
+
+        let status_line = Line::from(vec![
+            Span::styled(status_left, Style::default().fg(theme.text_muted)),
+            Span::raw(padding_str),
+            Span::styled(status_right, Style::default().fg(theme.text_muted)),
+        ]);
+
+        let status_paragraph = Paragraph::new(status_line).style(
+            Style::default()
+                .bg(theme.highlight)
+                .fg(theme.text_primary),
+        );
+        frame.render_widget(status_paragraph, status_area);
     }
 
     /// Render just the DAG structure (for use in StudioView 3-panel layout)
