@@ -400,7 +400,7 @@ pub struct RegexGuardrail {
     pub on_failure: OnFailure,
 
     /// PERF(v0.25.1): Cached compiled regex to avoid recompilation on each check().
-    /// Stores Option<Regex> to handle compilation errors gracefully.
+    /// Stores `Option<Regex>` to handle compilation errors gracefully.
     #[serde(skip)]
     compiled: OnceLock<Option<regex::Regex>>,
 }
@@ -556,7 +556,7 @@ pub struct LlmGuardrail {
     pub on_failure: OnFailure,
 
     /// PERF(v0.25.1): Cached compiled pass_pattern regex.
-    /// Stores Option<Regex> to handle compilation errors gracefully.
+    /// Stores `Option<Regex>` to handle compilation errors gracefully.
     #[serde(skip)]
     compiled_pass_pattern: OnceLock<Option<regex::Regex>>,
 }

@@ -214,7 +214,7 @@ pub struct StudioView {
     // === Overlays (v0.21.2) ===
     /// Command palette state (Ctrl+P)
     pub command_palette: CommandPaletteState,
-    /// Which-key popup state (g, z, [ , ], Space prefixes)
+    /// Which-key popup state (g, z, \[, \], Space prefixes)
     pub which_key: WhichKeyState,
 }
 

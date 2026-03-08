@@ -175,10 +175,10 @@ impl ReasoningTab {
 /// Active view in the TUI - 4 views navigation (v0.22)
 ///
 /// v0.22 consolidates to 4 views:
-/// - Studio (1, default) [s] - Unified editor with browser + YAML editor + DAG preview
-/// - Runner (2) [r] - Real-time execution monitoring
-/// - Chat (3) [c] - Conversational playground
-/// - Settings (4) [,] - Provider config, theme, preferences
+/// - Studio (1, default) \[s\] - Unified editor with browser + YAML editor + DAG preview
+/// - Runner (2) \[r\] - Real-time execution monitoring
+/// - Chat (3) \[c\] - Conversational playground
+/// - Settings (4) \[,\] - Provider config, theme, preferences
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TuiView {
     /// Studio - Unified editor with browser + YAML editor + DAG preview [1/s]
