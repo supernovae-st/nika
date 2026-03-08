@@ -63,6 +63,8 @@ pub struct TreeColors {
     pub indent_guide: Color,
     /// Tree branch lines color
     pub branch_lines: Color,
+    /// Dimmed color for non-ecosystem files (v0.22 UX improvement)
+    pub dimmed: Color,
 }
 
 impl Default for TreeColors {
@@ -90,6 +92,7 @@ impl TreeColors {
             git_untracked: solarized::CYAN,
             indent_guide: solarized::BASE01,
             branch_lines: solarized::BASE01,
+            dimmed: solarized::BASE01, // 50% opacity effect via muted color
         }
     }
 
@@ -111,6 +114,7 @@ impl TreeColors {
             git_untracked: solarized::CYAN,
             indent_guide: solarized::BASE1,
             branch_lines: solarized::BASE1,
+            dimmed: solarized::BASE1, // 50% opacity effect via muted color
         }
     }
 
@@ -148,33 +152,34 @@ impl TreeColors {
             // Claude Code DX (violet)
             NodeKind::ClaudeFolder | NodeKind::ClaudeMd => solarized::VIOLET,
 
-            // Directories (blue)
+            // v0.22 UX: Non-ecosystem files are dimmed to emphasize Nika workflows
+            // Directories (dimmed blue)
             NodeKind::Directory
             | NodeKind::SrcFolder
             | NodeKind::TestsFolder
             | NodeKind::DocsFolder
             | NodeKind::ExamplesFolder
-            | NodeKind::BenchesFolder => self.directory,
+            | NodeKind::BenchesFolder => self.dimmed,
 
-            // Special files (cyan)
-            NodeKind::Readme | NodeKind::Changelog | NodeKind::Roadmap => solarized::CYAN,
+            // Special files (dimmed)
+            NodeKind::Readme | NodeKind::Changelog | NodeKind::Roadmap => self.dimmed,
 
-            // Config files (green)
+            // Config files (dimmed)
             NodeKind::CargoToml | NodeKind::PackageJson | NodeKind::Toml | NodeKind::Json => {
-                solarized::GREEN
+                self.dimmed
             }
 
-            // Code files (default)
-            NodeKind::Rust | NodeKind::TypeScript | NodeKind::JavaScript => self.file,
+            // Code files (dimmed)
+            NodeKind::Rust | NodeKind::TypeScript | NodeKind::JavaScript => self.dimmed,
 
-            // Markdown (cyan, less prominent)
-            NodeKind::Markdown | NodeKind::Yaml => solarized::CYAN,
+            // Markdown/Yaml non-Nika (dimmed)
+            NodeKind::Markdown | NodeKind::Yaml => self.dimmed,
 
-            // Hidden folders (dimmed)
+            // Hidden folders (extra dimmed)
             NodeKind::GitFolder | NodeKind::NodeModules | NodeKind::TargetFolder => self.hidden,
 
-            // Default files
-            NodeKind::File => self.file,
+            // Default files (dimmed)
+            NodeKind::File => self.dimmed,
         }
     }
 
@@ -308,7 +313,7 @@ mod tests {
             colors.icon_color(NodeKind::NikaWorkflow),
             colors.ecosystem_glow
         );
-        // Regular files use node color
-        assert_eq!(colors.icon_color(NodeKind::File), colors.file);
+        // v0.22: Regular files use dimmed color (non-ecosystem are de-emphasized)
+        assert_eq!(colors.icon_color(NodeKind::File), colors.dimmed);
     }
 }

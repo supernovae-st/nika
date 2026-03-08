@@ -924,13 +924,14 @@ impl TuiState {
                     .as_ref()
                     .map(|t| format!(" [{}]", t))
                     .unwrap_or_default();
-                // Compact payload display (first 50 chars)
+                // Compact payload display (first 50 chars, UTF-8 safe)
                 let payload_preview = if payload.is_null() {
                     String::new()
                 } else {
                     let s = payload.to_string();
-                    if s.len() > 50 {
-                        format!(": {}...", &s[..47])
+                    if s.chars().count() > 50 {
+                        let truncated: String = s.chars().take(47).collect();
+                        format!(": {}...", truncated)
                     } else {
                         format!(": {}", s)
                     }
@@ -1114,8 +1115,10 @@ impl TuiState {
                 result_preview,
             } => {
                 let progress_pct = (progress * 100.0).round() as u32;
-                let preview = if result_preview.len() > 50 {
-                    format!("{}...", &result_preview[..47])
+                // UTF-8 safe truncation
+                let preview = if result_preview.chars().count() > 50 {
+                    let truncated: String = result_preview.chars().take(47).collect();
+                    format!("{}...", truncated)
                 } else {
                     result_preview.clone()
                 };

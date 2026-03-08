@@ -56,12 +56,15 @@ pub fn validate_key_format(_provider: &str, _key: &str) -> bool {
     true
 }
 
-/// Mask an API key for display (fallback implementation)
+/// Mask an API key for display (fallback implementation, UTF-8 safe)
 pub fn mask_key(key: &str) -> String {
-    if key.len() <= 8 {
-        "*".repeat(key.len())
+    let char_count = key.chars().count();
+    if char_count <= 8 {
+        "*".repeat(char_count)
     } else {
-        format!("{}...{}", &key[..4], &key[key.len() - 4..])
+        let first_4: String = key.chars().take(4).collect();
+        let last_4: String = key.chars().skip(char_count - 4).collect();
+        format!("{}...{}", first_4, last_4)
     }
 }
 

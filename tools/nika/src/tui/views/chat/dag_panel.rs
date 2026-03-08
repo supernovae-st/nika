@@ -71,9 +71,10 @@ impl ChatView {
                 WorkflowRole::Tool => ChatNodeKind::ToolCall,
             };
 
-            // Create node with truncated label
-            let label = if msg.content.len() > 30 {
-                format!("{}...", &msg.content[..27])
+            // Create node with truncated label (UTF-8 safe)
+            let label = if msg.content.chars().count() > 30 {
+                let truncated: String = msg.content.chars().take(27).collect();
+                format!("{}...", truncated)
             } else {
                 msg.content.clone()
             };

@@ -196,6 +196,9 @@ impl<'a> TreeWidget<'a> {
             }
         }
 
+        // v0.22: Extra padding after tree lines for cleaner VS Code-like spacing
+        spans.push(Span::raw(" "));
+
         // Folder expand/collapse indicator
         if node.is_directory {
             let indicator = if node.is_expanded {
@@ -215,7 +218,7 @@ impl<'a> TreeWidget<'a> {
             ));
             spans.push(Span::raw(" "));
         } else {
-            // File - add spacing to align with folder indicators
+            // File - add spacing to align with folder indicators (chevron width)
             spans.push(Span::raw("  "));
         }
 
@@ -258,12 +261,15 @@ impl<'a> TreeWidget<'a> {
             Style::default().fg(base_color)
         };
 
-        // Truncate name if needed
+        // Truncate name if needed (UTF-8 safe)
         let max_name_len = width
             .saturating_sub(spans.iter().map(|s| s.width()).sum::<usize>() as u16 + 2)
             as usize;
-        let name = if node.name.len() > max_name_len {
-            format!("{}...", &node.name[..max_name_len.saturating_sub(3)])
+        let name = if node.name.chars().count() > max_name_len {
+            // Use chars() for UTF-8 safe truncation
+            let truncate_at = max_name_len.saturating_sub(3);
+            let truncated: String = node.name.chars().take(truncate_at).collect();
+            format!("{}...", truncated)
         } else {
             node.name.clone()
         };

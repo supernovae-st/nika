@@ -26,7 +26,7 @@ use std::time::{Duration, Instant};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Widget},
     Frame,
@@ -192,6 +192,8 @@ pub struct StudioView {
     git_cache_time: Instant,
     /// Cached tree root node (avoids rebuilding on every frame)
     cached_tree: Option<TreeNode>,
+    /// Quick Access: recently used .nika.yaml files (v0.22)
+    quick_access: Vec<PathBuf>,
 
     // === Editor Panel (Center) ===
     /// YAML editor panel with validation and syntax highlighting
@@ -223,6 +225,9 @@ impl StudioView {
         let root_path = Utf8Path::from_path(&root_dir).unwrap_or(Utf8Path::new("."));
         let git_cache = build_git_status_cache(root_path);
 
+        // v0.22: Scan for .nika.yaml files for Quick Access
+        let quick_access = Self::scan_nika_files(&root_dir);
+
         Self {
             root_dir,
             tree_state: TreeState::default(),
@@ -235,7 +240,44 @@ impl StudioView {
             git_cache,
             git_cache_time: Instant::now(),
             cached_tree: None,
+            quick_access,
         }
+    }
+
+    /// Scan for .nika.yaml files in the root directory (max 5, top-level first)
+    fn scan_nika_files(root: &PathBuf) -> Vec<PathBuf> {
+        let mut files = Vec::new();
+
+        // First pass: root level .nika.yaml files
+        if let Ok(entries) = std::fs::read_dir(root) {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let path = entry.path();
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if name.ends_with(".nika.yaml") {
+                        files.push(path);
+                    }
+                }
+            }
+        }
+
+        // Second pass: workflows/ directory
+        let workflows_dir = root.join("workflows");
+        if workflows_dir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&workflows_dir) {
+                for entry in entries.filter_map(|e| e.ok()) {
+                    let path = entry.path();
+                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                        if name.ends_with(".nika.yaml") && files.len() < 5 {
+                            files.push(path);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Limit to 5 files
+        files.truncate(5);
+        files
     }
 
     /// Load a file into the editor panel (returns Result for error handling)
@@ -282,6 +324,29 @@ impl StudioView {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
+        // v0.22: Split into Quick Access (top) + Tree (bottom)
+        let quick_access_height = if self.quick_access.is_empty() {
+            0
+        } else {
+            // Header (1) + files (n) + separator (1)
+            (self.quick_access.len() + 2) as u16
+        };
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(quick_access_height),
+                Constraint::Min(3),
+            ])
+            .split(inner);
+
+        // v0.22: Render Quick Access section
+        if !self.quick_access.is_empty() {
+            self.render_quick_access(frame, chunks[0], theme);
+        }
+
+        let tree_area = chunks[1];
+
         // Refresh git cache periodically (every 5 seconds)
         const GIT_CACHE_TTL: Duration = Duration::from_secs(5);
         let root_path = Utf8Path::from_path(&self.root_dir).unwrap_or(Utf8Path::new("."));
@@ -323,7 +388,46 @@ impl StudioView {
             .ticker(&self.animation_ticker)
             .filter(self.filter_config.clone());
 
-        frame.render_stateful_widget(tree_widget, inner, &mut self.tree_state);
+        frame.render_stateful_widget(tree_widget, tree_area, &mut self.tree_state);
+    }
+
+    /// Render Quick Access section (v0.22)
+    fn render_quick_access(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let mut lines: Vec<Line> = Vec::new();
+
+        // Header with emoji
+        lines.push(Line::from(vec![
+            Span::styled("⚡ ", Style::default().fg(theme.status_running)),
+            Span::styled(
+                "QUICK ACCESS",
+                Style::default()
+                    .fg(theme.text_primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]));
+
+        // Quick access files
+        for path in &self.quick_access {
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown");
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled("🦋 ", Style::default()),
+                Span::styled(name, Style::default().fg(theme.border_focused)),
+            ]));
+        }
+
+        // Separator
+        let sep_width = area.width.saturating_sub(2) as usize;
+        lines.push(Line::from(Span::styled(
+            "─".repeat(sep_width),
+            Style::default().fg(theme.border_normal),
+        )));
+
+        let paragraph = Paragraph::new(lines);
+        frame.render_widget(paragraph, area);
     }
 
     /// Render the DAG panel (delegates to editor's DAG rendering)
@@ -609,6 +713,8 @@ pub struct TextBuffer {
     scroll_offset: usize,
     /// Last known viewport height — Cell allows update via &self from render path
     visible_height: Cell<usize>,
+    /// v0.22: Track if buffer has unsaved changes
+    modified: bool,
 }
 
 impl Clone for TextBuffer {
@@ -619,6 +725,7 @@ impl Clone for TextBuffer {
             cursor_col: self.cursor_col,
             scroll_offset: self.scroll_offset,
             visible_height: Cell::new(self.visible_height.get()),
+            modified: self.modified,
         }
     }
 }
@@ -631,6 +738,7 @@ impl Default for TextBuffer {
             cursor_col: 0,
             scroll_offset: 0,
             visible_height: Cell::new(20),
+            modified: false,
         }
     }
 }
@@ -649,7 +757,23 @@ impl TextBuffer {
             cursor_col: 0,
             scroll_offset: 0,
             visible_height: Cell::new(20),
+            modified: false, // Fresh content is not modified
         }
+    }
+
+    /// v0.22: Check if buffer has unsaved changes
+    pub fn is_modified(&self) -> bool {
+        self.modified
+    }
+
+    /// v0.22: Mark buffer as modified (called after any edit)
+    pub fn mark_modified(&mut self) {
+        self.modified = true;
+    }
+
+    /// v0.22: Clear modified flag (called after save)
+    pub fn clear_modified(&mut self) {
+        self.modified = false;
     }
 
     /// Update the known viewport height (called by renderer each frame via &self)
@@ -721,6 +845,7 @@ impl TextBuffer {
             let col = self.cursor_col.min(line.len());
             line.insert(col, c);
             self.cursor_col = col + 1;
+            self.modified = true; // v0.22: track modification
         }
     }
 
@@ -733,6 +858,7 @@ impl TextBuffer {
             self.lines.insert(self.cursor_row + 1, rest);
             self.cursor_row += 1;
             self.cursor_col = 0;
+            self.modified = true; // v0.22: track modification
             self.adjust_scroll();
         }
     }
@@ -745,6 +871,7 @@ impl TextBuffer {
                 if col > 0 {
                     line.remove(col - 1);
                     self.cursor_col = col - 1;
+                    self.modified = true; // v0.22: track modification
                 }
             }
         } else if self.cursor_row > 0 {
@@ -753,6 +880,7 @@ impl TextBuffer {
             self.cursor_row -= 1;
             self.cursor_col = self.lines[self.cursor_row].len();
             self.lines[self.cursor_row].push_str(&current_line);
+            self.modified = true; // v0.22: track modification
             self.adjust_scroll();
         }
     }
@@ -763,10 +891,12 @@ impl TextBuffer {
             let col = self.cursor_col.min(line.len());
             if col < line.len() {
                 line.remove(col);
+                self.modified = true; // v0.22: track modification
             } else if self.cursor_row < self.lines.len() - 1 {
                 // Merge with next line
                 let next_line = self.lines.remove(self.cursor_row + 1);
                 self.lines[self.cursor_row].push_str(&next_line);
+                self.modified = true; // v0.22: track modification
             }
         }
     }
@@ -1307,7 +1437,23 @@ impl YamlEditorPanel {
             EditorMode::Normal => "",
             EditorMode::Insert => " [INSERT]",
         };
-        let title = format!(" EDITOR{} ", mode_indicator);
+
+        // v0.22: Breadcrumb with file path (VS Code-like)
+        let title = if let Some(path) = &self.path {
+            let filename = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown");
+            let icon = if filename.ends_with(".nika.yaml") {
+                "🦋"
+            } else {
+                "📄"
+            };
+            let modified = if self.buffer.is_modified() { " •" } else { "" };
+            format!(" {} {}{}{} ", icon, filename, modified, mode_indicator)
+        } else {
+            format!(" EDITOR{} ", mode_indicator)
+        };
 
         let block = Block::default()
             .borders(Borders::ALL)
@@ -1316,6 +1462,20 @@ impl YamlEditorPanel {
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
+
+        // v0.22: Split inner into content + status bar
+        let content_area = Rect {
+            x: inner.x,
+            y: inner.y,
+            width: inner.width,
+            height: inner.height.saturating_sub(1), // Leave 1 row for status bar
+        };
+        let status_area = Rect {
+            x: inner.x,
+            y: inner.y + inner.height.saturating_sub(1),
+            width: inner.width,
+            height: 1,
+        };
 
         // v0.21.1: Show placeholder when no file is loaded
         if self.path.is_none() {
@@ -1609,25 +1769,27 @@ impl YamlEditorPanel {
     }
 }
 
-/// YAML syntax highlighting colors (v0.7.0+)
+/// YAML syntax highlighting colors (v0.22: Nika-aware highlighting)
 struct YamlHighlight;
 
 impl YamlHighlight {
-    /// Key color (blue)
-    const KEY: Color = Color::Rgb(59, 130, 246);
-    /// String value color (green)
-    const STRING: Color = Color::Rgb(34, 197, 94);
-    /// Number value color (orange)
-    const NUMBER: Color = Color::Rgb(251, 146, 60);
-    /// Boolean value color (purple)
-    const BOOL: Color = Color::Rgb(168, 85, 247);
-    /// Comment color (gray)
-    const COMMENT: Color = Color::Rgb(107, 114, 128);
+    /// Key color (Solarized blue)
+    const KEY: Color = Color::Rgb(38, 139, 210);
+    /// String value color (Solarized green)
+    const STRING: Color = Color::Rgb(133, 153, 0);
+    /// Number value color (Solarized orange)
+    const NUMBER: Color = Color::Rgb(203, 75, 22);
+    /// Boolean value color (Solarized violet)
+    const BOOL: Color = Color::Rgb(108, 113, 196);
+    /// Comment color (Solarized base01 - muted)
+    const COMMENT: Color = Color::Rgb(88, 110, 117);
     /// Default text color (reserved for future use)
     #[allow(dead_code)]
     const DEFAULT: Color = Color::Reset;
-    /// Nika verbs (cyan) - infer, exec, fetch, invoke, agent
-    const VERB: Color = Color::Rgb(6, 182, 212);
+    /// Nika verbs (Solarized MAGENTA) - infer, exec, fetch, invoke, agent 🦋
+    const VERB: Color = Color::Rgb(211, 54, 130);
+    /// Nika structure keywords (Solarized yellow)
+    const NIKA_KEYWORD: Color = Color::Rgb(181, 137, 0);
 
     /// Highlight a single YAML line into styled spans
     fn highlight_line(line: &str, base_style: Style) -> Vec<Span<'static>> {
@@ -1649,12 +1811,31 @@ impl YamlHighlight {
             let (key_part, rest) = line.split_at(colon_pos);
             let key_trimmed = key_part.trim();
 
-            // Check if it's a Nika verb
+            // Check if it's a Nika verb (magenta) or Nika keyword (yellow)
             let key_color = if matches!(
                 key_trimmed,
-                "infer" | "exec" | "fetch" | "invoke" | "agent" | "decompose" | "for_each"
+                "infer" | "exec" | "fetch" | "invoke" | "agent" | "decompose"
             ) {
-                Self::VERB
+                Self::VERB // 🦋 Nika verbs in magenta
+            } else if matches!(
+                key_trimmed,
+                "schema"
+                    | "workflow"
+                    | "tasks"
+                    | "flows"
+                    | "mcp"
+                    | "servers"
+                    | "use"
+                    | "params"
+                    | "context"
+                    | "include"
+                    | "skills"
+                    | "for_each"
+                    | "id"
+                    | "model"
+                    | "provider"
+            ) {
+                Self::NIKA_KEYWORD // Structure keywords in yellow
             } else {
                 Self::KEY
             };

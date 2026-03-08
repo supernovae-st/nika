@@ -596,8 +596,8 @@ impl NodeKind {
             // ═══════════════════════════════════════════════════════════════
 
             // NIKA 🦋
-            Self::NikaWorkflow => "✨",    // Gold sparkle
-            Self::NikaFolder => "🦋",      // Butterfly
+            Self::NikaWorkflow => "🦋",    // Butterfly - Nika mascot
+            Self::NikaFolder => "📁",      // Folder with dot
             Self::SonAgent => "🐔",        // Space chicken
             Self::SkillFile => "📜",       // Scroll
             Self::WorkflowsFolder => "⚡", // Workflows

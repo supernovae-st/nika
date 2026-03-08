@@ -248,13 +248,16 @@ fn generate_session_id() -> String {
     format!("session-{}", duration.as_millis())
 }
 
-/// Truncate title to reasonable length
+/// Truncate title to reasonable length (UTF-8 safe)
 fn truncate_title(s: &str) -> String {
     let s = s.trim();
-    if s.len() <= 50 {
+    let char_count = s.chars().count();
+    if char_count <= 50 {
         s.to_string()
     } else {
-        format!("{}...", &s[..47])
+        // UTF-8 safe truncation using chars iterator
+        let truncated: String = s.chars().take(47).collect();
+        format!("{}...", truncated)
     }
 }
 
