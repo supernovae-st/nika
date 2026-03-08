@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use reqwest::Client;
 
-use crate::tui::providers::env_var as provider_env_var;
+use crate::tui::providers::{env_var as provider_env_var, llm_provider_ids};
 
 use super::ollama_client::OllamaClient;
 use super::state::ConnectionStatus;
@@ -69,16 +69,10 @@ impl ProviderChecker {
     }
 
     /// Check all providers in parallel
+    ///
+    /// Uses centralized `llm_provider_ids()` from providers module.
     pub async fn check_all(&self) -> Vec<(&'static str, ConnectionStatus)> {
-        let providers = [
-            "anthropic",
-            "openai",
-            "mistral",
-            "groq",
-            "deepseek",
-            "gemini",
-            "ollama",
-        ];
+        let providers: Vec<_> = llm_provider_ids().collect();
 
         let mut handles = Vec::new();
         for provider in providers {

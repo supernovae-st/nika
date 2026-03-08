@@ -41,7 +41,7 @@ const COLOR_STATUS_SUCCESS: Color = Color::Rgb(34, 197, 94); // Emerald-500
 /// Status: invalid (error)
 const COLOR_STATUS_ERROR: Color = Color::Rgb(239, 68, 68); // Red-500
 
-use crate::tui::providers::{env_var as provider_env_var, icons::provider_icon};
+use crate::tui::providers::{env_var as provider_env_var, icons::provider_icon, llm_provider_ids};
 
 use super::super::keyring::{mask_api_key, SpnKeyring};
 use super::super::state::ApiKeyState;
@@ -57,20 +57,11 @@ pub struct ProviderKeyEntry {
 
 impl ProviderKeyEntry {
     /// Create default entries for all 7 LLM providers
+    ///
+    /// Uses centralized `llm_provider_ids()` from providers module.
     pub fn all_providers() -> Vec<Self> {
-        let providers = [
-            "anthropic",
-            "openai",
-            "mistral",
-            "groq",
-            "deepseek",
-            "gemini",
-            "ollama",
-        ];
-
-        providers
-            .iter()
-            .map(|&provider| Self {
+        llm_provider_ids()
+            .map(|provider| Self {
                 provider,
                 icon: provider_icon(provider),
                 env_var: provider_env_var(provider),
