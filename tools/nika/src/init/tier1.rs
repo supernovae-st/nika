@@ -92,8 +92,10 @@ tasks:
     exec: "whoami"
 
   - id: list_files
-    # List files in current directory
-    exec: "ls -la | head -10"
+    # List files in current directory (pipe requires shell: true)
+    exec:
+      command: "ls -la | head -10"
+      shell: true
 
   # ─────────────────────────────────────────────────────────────────────────────
   # FULL FORM: With all options

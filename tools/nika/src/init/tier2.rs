@@ -702,8 +702,8 @@ pub const WORKFLOW_07_CONTEXT_INCLUDE: &str = r##"# ╔════════�
 # ║  │    │                    CONTEXT LOADING                            │    │   ║
 # ║  │    │                                                               │    │   ║
 # ║  │    │   ./context/brand.md ─────────► {{context.files.brand}}      │    │   ║
-# ║  │    │   ./context/style.json ──────► {{context.files.style}}       │    │   ║
-# ║  │    │   ./context/examples/*.md ───► {{context.files.examples}}    │    │   ║
+# ║  │    │   ./context/persona.json ───► {{context.files.persona}}      │    │   ║
+# ║  │    │   ./context/*.md ────────────► {{context.files.guides}}      │    │   ║
 # ║  │    │                                                               │    │   ║
 # ║  │    └──────────────────────────────────────────────────────────────┘    │   ║
 # ║  │                              │                                        │   ║
@@ -752,22 +752,22 @@ context:
     # 📝 Markdown file - loaded as string
     brand_guidelines: ./context/brand.md
 
-    # 🔧 JSON config - parsed into object
-    style_config: ./context/style.json
+    # 🔧 JSON config - parsed into object (persona for content tone)
+    persona: ./context/persona.json
 
-    # 📚 Glob pattern - array of all matching files
-    examples: ./context/examples/*.md
+    # 📚 Glob pattern - array of all matching .md files
+    guides: ./context/*.md
 
   # 💾 Session restore (optional) - previous workflow state
   # session: .nika/sessions/previous.json
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SKILLS - Reusable prompt templates
+# SKILLS - Reusable prompt templates (optional)
 # ═══════════════════════════════════════════════════════════════════════════════
 # Skills are markdown files with prompt patterns that can be referenced.
-
-skills:
-  copywriter: ./skills/copywriting.md
+# Uncomment below if you have skill files in your project:
+# skills:
+#   code_review: ./.nika/skills/code-review.md
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # INCLUDE - DAG Fusion (merge tasks from other workflows)
@@ -828,14 +828,14 @@ tasks:
         {{context.files.brand_guidelines}}
 
         ═══════════════════════════════════════════════════════════════════
-        STYLE CONFIG (from context/style.json):
+        PERSONA (from context/persona.json):
         ═══════════════════════════════════════════════════════════════════
-        {{context.files.style_config}}
+        {{context.files.persona}}
 
         ═══════════════════════════════════════════════════════════════════
-        EXAMPLE POSTS (from context/examples/*.md):
+        STYLE GUIDES (from context/*.md):
         ═══════════════════════════════════════════════════════════════════
-        {{context.files.examples}}
+        {{context.files.guides}}
 
         ═══════════════════════════════════════════════════════════════════
 
