@@ -56,6 +56,8 @@ pub mod file_resolve;
 #[cfg(feature = "tui")]
 mod focus;
 #[cfg(feature = "tui")]
+pub mod git; // v0.21.3: Git integration for gutter + file status
+#[cfg(feature = "tui")]
 pub mod highlight;
 #[cfg(feature = "tui")]
 pub mod icons;
@@ -67,6 +69,8 @@ mod layout;
 mod mode;
 #[cfg(feature = "tui")]
 pub mod providers;
+#[cfg(feature = "tui")]
+pub mod selection;
 #[cfg(feature = "tui")]
 pub mod session;
 #[cfg(feature = "tui")]
@@ -122,6 +126,8 @@ pub use keybindings::{format_key, keybindings_for_context, KeyCategory, Keybindi
 pub use layout::{LayoutMode, ResponsiveLayout};
 #[cfg(feature = "tui")]
 pub use mode::InputMode;
+#[cfg(feature = "tui")]
+pub use selection::{Position, Selection, SelectionMode, SelectionSet};
 #[cfg(feature = "tui")]
 pub use session::{
     delete_session, get_latest_session, list_sessions, load_session, save_session, ChatSession,

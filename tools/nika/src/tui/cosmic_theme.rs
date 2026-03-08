@@ -249,11 +249,18 @@ impl Theme {
             // ═══ UI ELEMENTS ═══
             border_normal: semantic.border_default,
             border_focused: semantic.border_focused,
+            text: semantic.text_primary, // v0.21.2: alias for selection
             text_primary: semantic.text_primary,
             text_secondary: semantic.text_secondary,
             text_muted: semantic.text_muted,
             background: semantic.bg_primary,
             highlight: semantic.accent_primary,
+            selection: semantic.accent_secondary, // v0.21.2: cyan for selection
+
+            // ═══ GIT GUTTER (v0.21.3) ═══
+            git_added: semantic.status_success, // Green for added lines
+            git_modified: semantic.status_warning, // Yellow/Orange for modified
+            git_deleted: semantic.status_error, // Red for deleted markers
 
             // ═══ SCROLLBAR ═══
             scrollbar_thumb: semantic.scrollbar_thumb,

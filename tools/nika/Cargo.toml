@@ -81,6 +81,12 @@ zeroize = "1.8"    # Auto-clear memory on drop
 # v0.2.4: Re-exports spn-core types (providers, validation, backend)
 spn-client = { version = "0.2.4", optional = true }
 
+# Text editing (v0.21.2 - VS Code quality)
+ropey = "1.6"  # Efficient rope data structure for text editing
+
+# Git integration (v0.21.3 - Git gutter + file status)
+git2 = "0.19"  # libgit2 bindings for git operations
+
 # Utilities
 bytes = "1.11.1"  # Force upgrade to fix RUSTSEC-2026-0007
 regex = "1.11"

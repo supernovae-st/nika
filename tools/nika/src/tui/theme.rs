@@ -593,11 +593,20 @@ pub struct Theme {
     // ═══════════════════════════════════════════
     pub border_normal: Color,
     pub border_focused: Color,
+    pub text: Color, // v0.21.2: alias for text_primary (for selection)
     pub text_primary: Color,
     pub text_secondary: Color,
     pub text_muted: Color,
     pub background: Color,
     pub highlight: Color,
+    pub selection: Color, // v0.21.2: Selection highlight background
+
+    // ═══════════════════════════════════════════
+    // GIT GUTTER (v0.21.3 - Git integration)
+    // ═══════════════════════════════════════════
+    pub git_added: Color,    // Green for added lines
+    pub git_modified: Color, // Yellow/Orange for modified lines
+    pub git_deleted: Color,  // Red for deleted markers
 
     // ═══════════════════════════════════════════
     // SCROLLBAR (v0.8.1 - Solarized styled)

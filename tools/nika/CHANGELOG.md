@@ -7,6 +7,35 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.21.3] - 2026-03-08
+
+### Added
+
+- **Multi-Cursor Support** — VS Code-style multi-cursor editing
+  - `SelectionSet` struct for managing primary + additional selections
+  - Ctrl+D: Select next occurrence of word under cursor
+  - Ctrl+G: Clear additional cursors
+  - Status bar shows cursor count when multi-cursor active
+  - 6 multi-cursor tests
+- **Git Gutter Integration** — Line-level change indicators
+  - `GitStatus` module with libgit2 bindings (git2 v0.19)
+  - `LineChange` enum: Added (+), Modified (~), Deleted (-)
+  - Green/Yellow/Red gutter colors from theme
+  - Lazy-loaded line changes per file
+  - 6 git module tests
+- **Selection Model** — Full text selection with anchor/head
+  - `Selection` struct with anchor/head positions
+  - Line-range calculation for multi-line selections
+  - Cyan highlight for selected text
+  - Shift+Arrow selection extending
+  - 69 selection tests
+
+### Changed
+
+- `TextBuffer` upgraded from single `Selection` to `SelectionSet`
+- Theme now includes `git_added`, `git_modified`, `git_deleted` colors
+- clippy: Use `.div_ceil()` instead of manual division
+
 ## [0.21.1] - 2026-03-06
 
 ### Added
